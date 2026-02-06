@@ -1,0 +1,280 @@
+import React, { useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
+
+const RS_CITIES = [
+  "Porto Alegre", "Caxias do Sul", "Pelotas", "Santa Maria", "Canoas", "Gravataí", 
+  "Viamão", "Novo Hamburgo", "São Leopoldo", "Alvorada", "Sapucaia do Sul", "Esteio",
+  "Cachoeirinha", "Guaíba", "Rio Grande", "Bagé", "Bento Gonçalves", "Passo Fundo",
+  "Erechim", "Santa Cruz do Sul", "Uruguaiana", "Sapiranga", "Lajeado", "Ijuí",
+  "Vacaria", "Farroupilha", "Camaquã", "Santana do Livramento", "Alegrete", "Torres",
+  "Tramandaí", "Osório", "Santo Ângelo", "Cruz Alta", "Santiago", "São Borja",
+  "Carazinho", "Venâncio Aires", "Taquara", "Montenegro", "Parobé", "Capão da Canoa",
+  "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
+].sort();
+
+export default function ProcessForm({ 
+  open, 
+  onOpenChange, 
+  onSubmit, 
+  initialData = null,
+  members = [],
+  isLoading = false 
+}) {
+  const [formData, setFormData] = useState(initialData || {
+    process_number: "",
+    consultant: "",
+    location: "",
+    entry_date: new Date().toISOString().split('T')[0],
+    matter_object: "",
+    urgency_request: false,
+    distribution_date: "",
+    responsible_user_id: "",
+    responsible_user_name: "",
+    analysis_start_date: "",
+    observations: "",
+    review_submission_date: "",
+    review_return_date: "",
+    access_restriction: false,
+    archived_date: "",
+    network_folder: ""
+  });
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleResponsibleChange = (userId) => {
+    const member = members.find(m => m.user_id === userId);
+    setFormData(prev => ({
+      ...prev,
+      responsible_user_id: userId,
+      responsible_user_name: member?.user_name || ""
+    }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-semibold text-slate-900">
+            {initialData ? "Editar Processo" : "Novo Processo"}
+          </DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+          {/* Informações Básicas */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-slate-700 border-b pb-2">Informações Básicas</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="process_number">Número do Processo *</Label>
+                <Input
+                  id="process_number"
+                  placeholder="00021.000.125/2024"
+                  value={formData.process_number}
+                  onChange={(e) => handleChange("process_number", e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="consultant">Consulente *</Label>
+                <Input
+                  id="consultant"
+                  placeholder="Nome do consulente"
+                  value={formData.consultant}
+                  onChange={(e) => handleChange("consultant", e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="location">Local dos Fatos (Cidade) *</Label>
+                <Select 
+                  value={formData.location} 
+                  onValueChange={(v) => handleChange("location", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a cidade" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {RS_CITIES.map(city => (
+                      <SelectItem key={city} value={city}>{city}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="entry_date">Data de Entrada *</Label>
+                <Input
+                  id="entry_date"
+                  type="date"
+                  value={formData.entry_date}
+                  onChange={(e) => handleChange("entry_date", e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="matter_object">Matéria e Objeto da Consulta *</Label>
+              <Textarea
+                id="matter_object"
+                placeholder="Descreva a matéria e objeto da consulta..."
+                value={formData.matter_object}
+                onChange={(e) => handleChange("matter_object", e.target.value)}
+                rows={3}
+                required
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                id="urgency_request"
+                checked={formData.urgency_request}
+                onCheckedChange={(v) => handleChange("urgency_request", v)}
+              />
+              <Label htmlFor="urgency_request" className="text-rose-600 font-medium">
+                Pedido de Urgência
+              </Label>
+            </div>
+          </div>
+
+          {/* Distribuição e Análise */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-slate-700 border-b pb-2">Distribuição e Análise</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="distribution_date">Data de Distribuição</Label>
+                <Input
+                  id="distribution_date"
+                  type="date"
+                  value={formData.distribution_date}
+                  onChange={(e) => handleChange("distribution_date", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="responsible">Assessor Responsável</Label>
+                <Select 
+                  value={formData.responsible_user_id} 
+                  onValueChange={handleResponsibleChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o responsável" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map(member => (
+                      <SelectItem key={member.user_id} value={member.user_id}>
+                        {member.user_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="analysis_start_date">Início da Análise</Label>
+                <Input
+                  id="analysis_start_date"
+                  type="date"
+                  value={formData.analysis_start_date}
+                  onChange={(e) => handleChange("analysis_start_date", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="network_folder">Pasta na Rede</Label>
+                <Input
+                  id="network_folder"
+                  placeholder="Caminho da pasta"
+                  value={formData.network_folder}
+                  onChange={(e) => handleChange("network_folder", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="observations">Observações</Label>
+              <Textarea
+                id="observations"
+                placeholder="Observações e pontos importantes..."
+                value={formData.observations}
+                onChange={(e) => handleChange("observations", e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          {/* Revisão e Arquivamento */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-slate-700 border-b pb-2">Revisão e Arquivamento</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="review_submission_date">Remessa para Revisão</Label>
+                <Input
+                  id="review_submission_date"
+                  type="date"
+                  value={formData.review_submission_date}
+                  onChange={(e) => handleChange("review_submission_date", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="review_return_date">Devolução após Revisão</Label>
+                <Input
+                  id="review_return_date"
+                  type="date"
+                  value={formData.review_return_date}
+                  onChange={(e) => handleChange("review_return_date", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="archived_date">Data de Arquivamento</Label>
+                <Input
+                  id="archived_date"
+                  type="date"
+                  value={formData.archived_date}
+                  onChange={(e) => handleChange("archived_date", e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-3 pt-6">
+                <Switch
+                  id="access_restriction"
+                  checked={formData.access_restriction}
+                  onCheckedChange={(v) => handleChange("access_restriction", v)}
+                />
+                <Label htmlFor="access_restriction">Restrição de Acesso</Label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isLoading} className="bg-slate-900 hover:bg-slate-800">
+              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {initialData ? "Salvar Alterações" : "Criar Processo"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
