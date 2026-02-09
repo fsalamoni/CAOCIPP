@@ -1,9 +1,9 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  HelpCircle, 
-  Users, 
-  FileText, 
+import {
+  HelpCircle,
+  Users,
+  FileText,
   BarChart3,
   Building2,
   Mail
@@ -100,16 +100,16 @@ export default function Help() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <StatusFlow step="1" status="Em triagem" description="Processo criado, aguardando distribuição" />
-            <StatusFlow step="2" status="Pendente" description="Distribuído a um responsável, aguardando início da análise" />
-            <StatusFlow step="3" status="Em elaboração" description="Análise iniciada pelo responsável" />
-            <StatusFlow step="4" status="Em revisão" description="Enviado para revisão" />
-            <StatusFlow step="5" status="Para revisão" description="Devolvido da revisão" />
+            <StatusFlow step="1" status="Pendente" description="Processo criado e distribuído, aguardando início da análise" />
+            <StatusFlow step="2" status="Em elaboração" description="Análise iniciada pelo responsável" />
+            <StatusFlow step="3" status="Em revisão" description="Enviado para revisão técnica" />
+            <StatusFlow step="4" status="Para revisão" description="Devolvido com observações para ajuste" />
+            <StatusFlow step="5" status="Para assinatura" description="Pronto para assinatura final" />
             <StatusFlow step="6" status="Na pasta" description="Processo finalizado e arquivado" />
           </div>
           <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
             <p className="text-sm text-indigo-900">
-              💡 <strong>Dica:</strong> O status é calculado automaticamente baseado nas datas que você preenche. 
+              💡 <strong>Dica:</strong> O status é calculado automaticamente baseado nas datas que você preenche.
               Você não precisa alterar o status manualmente!
             </p>
           </div>

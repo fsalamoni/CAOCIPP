@@ -53,13 +53,17 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     // Recalculate status
     // Merge changes into current data to calculate new status
     const mergedData = Object.assign(Object.assign({}, processData), changes);
-    const newStatus = (0, status_1.calculateStatus)(mergedData);
-    if (newStatus) {
-        changes.status = newStatus; // Enforce calculated status
+    // Status Logic:
+    // 1. If explicit status is provided in changes, USE IT (manual override)
+    // 2. If no status provided, Calculate it based on dates (automatic)
+    if (changes.status) {
+        // Respect manual status change
     }
-    else if (!changes.status && processData.status) {
-        // Keep existing status if calculation returns null/undefined (fallback)
-        // or do nothing
+    else {
+        const newStatus = (0, status_1.calculateStatus)(mergedData);
+        if (newStatus && newStatus !== processData.status) {
+            changes.status = newStatus;
+        }
     }
     await processRef.update(changes);
     // 3. Audit Log

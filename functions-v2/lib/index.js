@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importProcessesFromExcel = exports.updateProfile = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.importProcessesFromExcel = exports.updateProfile = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -14,6 +14,8 @@ var removeMember_1 = require("./organizations/removeMember");
 Object.defineProperty(exports, "removeMember", { enumerable: true, get: function () { return removeMember_1.removeMember; } });
 var updateMember_1 = require("./organizations/updateMember");
 Object.defineProperty(exports, "updateMember", { enumerable: true, get: function () { return updateMember_1.updateMember; } });
+var clearData_1 = require("./organizations/clearData");
+Object.defineProperty(exports, "clearOrganizationData", { enumerable: true, get: function () { return clearData_1.clearOrganizationData; } });
 var create_2 = require("./processes/create");
 Object.defineProperty(exports, "createProcess", { enumerable: true, get: function () { return create_2.createProcess; } });
 var update_1 = require("./processes/update");

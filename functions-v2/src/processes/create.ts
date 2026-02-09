@@ -11,7 +11,15 @@ interface CreateProcessRequest {
     urgencyRequest: boolean;
     responsibleUserId: string;
     responsibleUserName: string;
+    distributionDate?: string;
+    analysisStartDate?: string;
     observations?: string;
+    reviewSubmissionDate?: string;
+    reviewReturnDate?: string;
+    accessRestriction?: boolean;
+    archivedDate?: string;
+    networkFolder?: string;
+    decision?: string;
 }
 
 export const createProcess = onCall<CreateProcessRequest>(
@@ -39,7 +47,7 @@ export const createProcess = onCall<CreateProcessRequest>(
         }
 
         // 2. Initial status logic
-        const status = 'Em triagem'; // Default initial status
+        const status = 'Pendente'; // Default initial status
 
         // 3. Create process
         const processRef = db.collection('processes').doc();
@@ -53,9 +61,18 @@ export const createProcess = onCall<CreateProcessRequest>(
             matter_object: data.matterObject || '',
             status: status,
             urgency_request: data.urgencyRequest || false,
+            // Enhanced fields mapping
+            distribution_date: data.distributionDate || null,
             responsible_user_id: data.responsibleUserId || null,
             responsible_user_name: data.responsibleUserName || null,
+            analysis_start_date: data.analysisStartDate || null,
             observations: data.observations || '',
+            review_submission_date: data.reviewSubmissionDate || null,
+            review_return_date: data.reviewReturnDate || null,
+            access_restriction: data.accessRestriction || false,
+            archived_date: data.archivedDate || null,
+            network_folder: data.networkFolder || '', // Standardized field name
+            decision: data.decision || '',
             created_by: userId,
             created_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_at: admin.firestore.FieldValue.serverTimestamp()

@@ -8,24 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 
-const RS_CITIES = [
-  "Porto Alegre", "Caxias do Sul", "Pelotas", "Santa Maria", "Canoas", "Gravataí", 
-  "Viamão", "Novo Hamburgo", "São Leopoldo", "Alvorada", "Sapucaia do Sul", "Esteio",
-  "Cachoeirinha", "Guaíba", "Rio Grande", "Bagé", "Bento Gonçalves", "Passo Fundo",
-  "Erechim", "Santa Cruz do Sul", "Uruguaiana", "Sapiranga", "Lajeado", "Ijuí",
-  "Vacaria", "Farroupilha", "Camaquã", "Santana do Livramento", "Alegrete", "Torres",
-  "Tramandaí", "Osório", "Santo Ângelo", "Cruz Alta", "Santiago", "São Borja",
-  "Carazinho", "Venâncio Aires", "Taquara", "Montenegro", "Parobé", "Capão da Canoa",
-  "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
-].sort();
+import referenceData from '@/data/referenceLists.json';
 
-export default function ProcessForm({ 
-  open, 
-  onOpenChange, 
-  onSubmit, 
+const RS_CITIES = referenceData.cities;
+const ADVISORS = referenceData.advisors;
+
+export default function ProcessForm({
+  open,
+  onOpenChange,
+  onSubmit,
   initialData = null,
   members = [],
-  isLoading = false 
+  isLoading = false
 }) {
   const [formData, setFormData] = useState(initialData || {
     process_number: "",
@@ -72,7 +66,7 @@ export default function ProcessForm({
             {initialData ? "Editar Processo" : "Novo Processo"}
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6 py-4">
           {/* Informações Básicas */}
           <div className="space-y-4">
@@ -103,19 +97,21 @@ export default function ProcessForm({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="location">Local dos Fatos (Cidade) *</Label>
-                <Select 
-                  value={formData.location} 
-                  onValueChange={(v) => handleChange("location", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a cidade" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
+                <div className="relative">
+                  <Input
+                    id="location"
+                    list="cities-list"
+                    placeholder="Busque ou digite a cidade..."
+                    value={formData.location}
+                    onChange={(e) => handleChange("location", e.target.value)}
+                    required
+                  />
+                  <datalist id="cities-list">
                     {RS_CITIES.map(city => (
-                      <SelectItem key={city} value={city}>{city}</SelectItem>
+                      <option key={city} value={city} />
                     ))}
-                  </SelectContent>
-                </Select>
+                  </datalist>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="entry_date">Data de Entrada *</Label>
@@ -168,21 +164,28 @@ export default function ProcessForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="responsible">Assessor Responsável</Label>
-                <Select 
-                  value={formData.responsible_user_id} 
-                  onValueChange={handleResponsibleChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o responsável" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {members.map(member => (
-                      <SelectItem key={member.user_id} value={member.user_id}>
-                        {member.user_name}
-                      </SelectItem>
+                <div className="relative">
+                  <Input
+                    id="responsible"
+                    list="advisors-list"
+                    placeholder="Selecione ou digite o nome..."
+                    value={formData.responsible_user_name || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const member = members.find(m => m.user_name === val);
+                      setFormData(prev => ({
+                        ...prev,
+                        responsible_user_name: val,
+                        responsible_user_id: member?.user_id || ""
+                      }));
+                    }}
+                  />
+                  <datalist id="advisors-list">
+                    {Array.from(new Set([...members.map(m => m.user_name), ...ADVISORS])).sort().map(name => (
+                      <option key={name} value={name} />
                     ))}
-                  </SelectContent>
-                </Select>
+                  </datalist>
+                </div>
               </div>
             </div>
 
@@ -275,6 +278,6 @@ export default function ProcessForm({
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 }

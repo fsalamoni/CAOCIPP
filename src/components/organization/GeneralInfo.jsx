@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { removeMember, updateMember } from '@/services/functionsService';
+import { removeMember, updateMember, clearOrganizationData } from '@/services/functionsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,9 @@ import {
   Shield,
   Trash2,
   Edit2,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  ShieldAlert
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -57,16 +59,11 @@ export default function GeneralInfo({ organization, members, userRole, userId, m
     }
   };
 
-  // Format created_at timestamp from Firestore
   const formatCreatedDate = (timestamp) => {
     if (!timestamp) return 'Data não disponível';
-
-    // Handle Firestore Timestamp
     if (timestamp.seconds) {
       return format(new Date(timestamp.seconds * 1000), "dd/MM/yyyy", { locale: ptBR });
     }
-
-    // Handle regular Date
     return format(new Date(timestamp), "dd/MM/yyyy", { locale: ptBR });
   };
 
@@ -96,18 +93,10 @@ export default function GeneralInfo({ organization, members, userRole, userId, m
               <code className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-lg font-mono text-lg font-bold text-primary border-2 border-dashed border-primary/30">
                 {organization.invite_code}
               </code>
-              <Button
-                onClick={copyInviteCode}
-                variant="outline"
-                size="icon"
-                className="h-12 w-12"
-              >
+              <Button onClick={copyInviteCode} variant="outline" size="icon" className="h-12 w-12">
                 <Copy className="w-4 h-4" />
               </Button>
             </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Compartilhe este código para convidar novos membros
-            </p>
           </div>
 
           <div className="flex items-center gap-6 text-sm text-slate-600 pt-2">
@@ -184,11 +173,7 @@ export default function GeneralInfo({ organization, members, userRole, userId, m
                               disabled={isRemoving}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
-                              {isRemoving ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
+                              {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </Button>
                           )}
                         </TableCell>
@@ -201,7 +186,116 @@ export default function GeneralInfo({ organization, members, userRole, userId, m
           )}
         </CardContent>
       </Card>
+
+      {/* Danger Zone - Only for Creator */}
+      {userRole === 'creator' && (
+        <Card className="shadow-sm border-red-200 bg-red-50/30">
+          <CardHeader>
+            <CardTitle className="text-lg text-red-700 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5" />
+              Zona de Perigo
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border border-red-100 rounded-lg bg-white gap-4">
+              <div className="space-y-1">
+                <p className="font-semibold text-slate-900">Limpar Dados da Organização</p>
+                <p className="text-sm text-slate-600">
+                  Apagar permanentemente todos os processos desta organização. Esta ação não pode ser desfeita.
+                </p>
+              </div>
+              <ClearDataDialog organization={organization} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
+  );
+}
+
+function ClearDataDialog({ organization }) {
+  const [open, setOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClear = async () => {
+    if (confirmName !== organization.name) {
+      toast.error('O nome da organização não coincide.');
+      return;
+    }
+
+    try {
+      setIsClearing(true);
+      const result = await clearOrganizationData(organization.id);
+      toast.success(result.message || 'Dados limpos com sucesso');
+      setOpen(false);
+      setConfirmName('');
+      window.location.reload();
+    } catch (error) {
+      logger.error('Error clearing organization data:', error);
+      toast.error('Erro ao limpar dados: ' + error.message);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
+          Limpar Tudo
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-red-700 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Atenção: Ação Irreversível
+          </DialogTitle>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Esta ação apagará permanentemente **todos os processos** da organização <strong>{organization.name}</strong>.
+            Isso inclui históricos e dados de workflow.
+          </p>
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
+            <strong>Importante:</strong> Certifique-se de ter um backup dos seus dados Excel/JSON antes de prosseguir.
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-name" className="text-xs font-semibold uppercase text-slate-500">
+              Digite o nome da organização para confirmar:
+            </Label>
+            <Input
+              id="confirm-name"
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              placeholder={organization.name}
+              className="border-red-200 focus-visible:ring-red-500"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={isClearing}>
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleClear}
+            disabled={isClearing || confirmName !== organization.name}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {isClearing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Limpando...
+              </>
+            ) : (
+              'Sim, Apagar Tudo'
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -212,21 +306,16 @@ function EditFunctionDialog({ member, organizationId }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
       setIsUpdating(true);
-
-      // Update via Cloud Function
       await updateMember({
         organizationId: organizationId,
-        userIdToUpdate: member.user_id, // Note: member object has user_id, id is membership id
+        userIdToUpdate: member.user_id,
         newFunction: functionValue,
-        newRole: member.role // Keep existing role
+        newRole: member.role
       });
-
       toast.success('Função atualizada');
       setOpen(false);
-      // Refresh will happen automatically via hooks
     } catch (error) {
       logger.error('Error updating function:', error);
       toast.error('Erro ao atualizar função: ' + error.message);
@@ -261,11 +350,7 @@ function EditFunctionDialog({ member, organizationId }) {
               className="mt-1"
             />
           </div>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isUpdating}
-          >
+          <Button type="submit" className="w-full" disabled={isUpdating}>
             {isUpdating ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

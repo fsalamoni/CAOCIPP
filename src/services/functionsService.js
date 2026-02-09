@@ -48,6 +48,17 @@ export const updateMember = async (data) => {
     }
 };
 
+export const clearOrganizationData = async (organizationId) => {
+    try {
+        const clearDataFn = httpsCallable(functions, 'clearOrganizationData');
+        const result = await clearDataFn({ organizationId });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling clearOrganizationData:', error);
+        throw error;
+    }
+};
+
 // Process Functions
 export const createProcess = async (data) => {
     try {
@@ -82,14 +93,57 @@ export const deleteProcess = async (id) => {
     }
 };
 
+export const archiveProcess = async (id) => {
+    try {
+        const archiveProcessFn = httpsCallable(functions, 'archiveProcess');
+        const result = await archiveProcessFn({ id });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling archiveProcess:', error);
+        throw error;
+    }
+};
+
 // Import Functions
 export const importProcessesFromExcel = async (data) => {
     try {
-        // data: { organizationId, fileData (base64) }
+        // CRITICAL: Get auth instance to verify user is authenticated
+        const { auth } = await import('@/config/firebase');
+
+        // 1. Check if user exists
+        if (!auth.currentUser) {
+            console.error('[importProcessesFromExcel] ❌ No currentUser');
+            throw new Error('Você precisa estar autenticado para importar processos');
+        }
+
+        console.log('[importProcessesFromExcel] ✅ User authenticated:', auth.currentUser.email);
+
+        // 2. Force token refresh (prevents "expired token" issues)
+        try {
+            const token = await auth.currentUser.getIdToken(true); // true = force refresh
+            console.log('[importProcessesFromExcel] ✅ Token refreshed, length:', token.length);
+        } catch (tokenError) {
+            console.error('[importProcessesFromExcel] ❌ Token refresh failed:', tokenError);
+            throw new Error('Erro ao renovar autenticação. Faça login novamente.');
+        }
+
+        // 3. Call function (now with fresh token)
+        console.log('[importProcessesFromExcel] 📤 Calling Cloud Function with data:', {
+            organizationId: data.organizationId,
+            fileDataLength: data.fileData?.length || 0
+        });
+
         const importFn = httpsCallable(functions, 'importProcessesFromExcel');
         const result = await importFn(data);
+
+        console.log('[importProcessesFromExcel] ✅ Success:', result.data);
         return result.data;
     } catch (error) {
+        console.error('[importProcessesFromExcel] ❌ Error:', {
+            code: error.code,
+            message: error.message,
+            details: error.details
+        });
         logger.error('Error calling importProcessesFromExcel:', error);
         throw error;
     }

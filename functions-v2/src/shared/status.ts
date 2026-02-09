@@ -7,11 +7,12 @@ export function calculateStatus(process: any): string {
     // But wait, look at ProcessStatusBadge lines again.
     // The legacy loop returned "Para revisão". 
 
-    if (process.review_return_date) return "Para revisão";
-    if (process.review_submission_date) return "Em revisão";
+    if (process.archived_date) return "Na pasta";
+    if (process.review_return_date) return "Para assinatura";
+    if (process.review_submission_date) return "Para revisão";
     if (process.analysis_start_date) return "Em elaboração";
     if (process.distribution_date) return "Pendente";
 
     // existing status or default
-    return process.status || "Em triagem";
+    return process.status || "Pendente";
 }

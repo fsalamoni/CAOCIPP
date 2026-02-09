@@ -21,11 +21,12 @@ import {
 } from "@/components/ui/select";
 import CreateProcessButton from './CreateProcessButton';
 import EditProcessDialog from './EditProcessDialog';
-import ProcessStatusBadge from './ProcessStatusBadge';
+import ProcessTable from './ProcessTable';
+import StatusBadge from '../ui/StatusBadge';
 import ImportProgressModal from './ImportProgressModal';
 import { format } from 'date-fns';
 import { statusConfig } from '@/config/processStatus';
-import { importProcessesFromExcel } from '@/services/functionsService';
+import { importProcessesFromExcel, archiveProcess } from '@/services/functionsService';
 import { toast } from 'sonner';
 
 export default function ProcessControl({
@@ -53,6 +54,17 @@ export default function ProcessControl({
   const handleEdit = (process) => {
     setSelectedProcess(process);
     setEditOpen(true);
+  };
+
+  const handleArchive = async (process) => {
+    if (!window.confirm(`Deseja realmente arquivar o processo ${process.process_number}?`)) return;
+
+    try {
+      await archiveProcess(process.id);
+      toast.success('Processo arquivado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao arquivar processo: ' + error.message);
+    }
   };
 
   const handleProcessMutation = () => {
@@ -91,28 +103,62 @@ export default function ProcessControl({
       const fileData = await fileToBase64(file);
       const result = await importProcessesFromExcel({ organizationId: organization.id, fileData });
 
+      // Update stats with detailed results
       setImportStats({
-        created: result.count || 0,
-        updated: 0,
-        total: result.count || 0,
-        totalErrors: 0
+        created: (result).created || 0,
+        updated: (result).updated || 0,
+        total: (result).total || 0,
+        totalErrors: (result).errors || 0
       });
 
       setImportProgress({
-        current: result.count || 0,
-        total: result.count || 0,
-        created: result.count || 0,
-        updated: 0,
-        errors: 0
+        current: (result).total || 0,
+        total: (result).total || 0,
+        created: (result).created || 0,
+        updated: (result).updated || 0,
+        errors: (result).errors || 0
       });
 
       setImportComplete(true);
-      toast.success(result.message || `${result.count} processos importados`);
+
+      // Show detailed success/error message
+      if ((result).errors > 0 && (result).errorDetails && (result).errorDetails.length > 0) {
+        // Show errors details
+        const errorSummary = (result).errorDetails.slice(0, 5).map((err) =>
+          `Linha ${err.row} (Processo ${err.processNumber}): ${err.error}`
+        ).join('\n');
+
+        const moreErrors = (result).errors > 5 ? `\n... e mais ${(result).errors - 5} erros` : '';
+
+        toast.error(
+          `${(result).message}\n\nErros encontrados:\n${errorSummary}${moreErrors}`,
+          { duration: 10000 }
+        );
+      } else {
+        toast.success((result).message || `Sucesso! ${(result).created} criados, ${(result).updated} atualizados`);
+      }
 
     } catch (error) {
-      console.error('Import error:', error);
-      toast.error(error.message || 'Erro na importação');
+      console.error('[ProcessControl] Import error:', error);
+
+      // Extract detailed error message from Firebase error
+      let errorMessage = 'Erro na importação';
+
+      if (error.code === 'functions/unauthenticated') {
+        errorMessage = 'Você precisa estar autenticado para importar processos';
+      } else if (error.code === 'functions/permission-denied') {
+        errorMessage = error.message || 'Você não tem permissão para importar processos nesta organização';
+      } else if (error.code === 'functions/invalid-argument') {
+        errorMessage = error.message || 'Arquivo inválido ou campos obrigatórios faltando';
+      } else if (error.code === 'functions/internal') {
+        errorMessage = error.message || 'Erro interno do servidor ao processar a importação';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage, { duration: 8000 });
       setImportModalOpen(false);
+      setImportComplete(false);
     } finally {
       event.target.value = '';
       setUploading(false);
@@ -251,87 +297,26 @@ export default function ProcessControl({
           </Alert>
         )}
 
-        {/* Processes Table */}
+        {/* Processes Table - GRID MASTER INTEGRATION */}
         {!processesLoading && !processesError && (
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Número</TableHead>
-                  <TableHead>Consulente</TableHead>
-                  <TableHead>Local</TableHead>
-                  <TableHead>Data Entrada</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Responsável</TableHead>
-                  <TableHead>Urgente</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProcesses.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-slate-500">
-                      {searchTerm || statusFilter !== 'all' || responsibleFilter !== 'all'
-                        ? 'Nenhum processo encontrado com esses filtros'
-                        : 'Nenhum processo cadastrado ainda'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredProcesses.map((process) => (
-                    <TableRow
-                      key={process.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                      onClick={() => handleEdit(process)}
-                    >
-                      <TableCell className="font-medium">
-                        {process.process_number}
-                      </TableCell>
-                      <TableCell>{process.consultant}</TableCell>
-                      <TableCell>{process.location}</TableCell>
-                      <TableCell>
-                        {process.entry_date ? format(new Date(process.entry_date), 'dd/MM/yyyy') : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <ProcessStatusBadge status={process.status || 'Em triagem'} />
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {process.responsible_user_name || '-'}
-                      </TableCell>
-                      <TableCell>
-                        {process.urgency_request && (
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                            SIM
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(process);
-                          }}
-                        >
-                          Ver/Editar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <ProcessTable
+            processes={filteredProcesses}
+            members={members}
+            onEdit={handleEdit}
+            onViewDetails={handleEdit}
+            onArchive={handleArchive}
+          />
         )}
 
-        {/* Edit Dialog */}
-        {selectedProcess && (
+        {/* Edit Dialog - condicional rendering to force remount on open */}
+        {selectedProcess && editOpen && (
           <EditProcessDialog
             open={editOpen}
             setOpen={setEditOpen}
             process={selectedProcess}
             members={members}
             organizationId={organization.id}
+            userRole={userRole}
             onSuccess={handleProcessMutation}
           />
         )}

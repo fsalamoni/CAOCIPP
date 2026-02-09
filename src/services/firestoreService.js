@@ -247,7 +247,7 @@ export async function createProcess(data, creatorUid) {
             archived_date: data.archived_date || null,
             matter_object: data.matter_object || '',
             decision: data.decision || '',
-            status: data.status || 'Em triagem',
+            status: data.status || 'Pendente',
             urgency_request: data.urgency_request || false,
             responsible_user_id: data.responsible_user_id || null,
             responsible_user_name: data.responsible_user_name || null,

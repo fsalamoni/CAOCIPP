@@ -35,35 +35,146 @@ const RS_CITIES = [
   "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
 ].sort();
 
-export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId }) {
+export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId, userRole }) {
   const { user } = useAuth();
-  const [formData, setFormData] = useState({});
+  const [formData, setFormData] = useState({
+    process_number: '',
+    consultant: '',
+    location: '',
+    entry_date: '',
+    matter_object: '',
+    urgency_request: false,
+    distribution_date: '',
+    responsible_user_id: '',
+    responsible_user_name: '',
+    analysis_start_date: '',
+    observations: '',
+    review_submission_date: '',
+    review_return_date: '',
+    access_restriction: false,
+    archived_date: '',
+    network_folder: '',
+    status: '',
+  });
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Helper to safely format dates for input type="date" (YYYY-MM-DD)
+  const formatDateForInput = (value) => {
+    if (!value) return '';
+    try {
+      // If it's a Firestore Timestamp (has seconds)
+      if (typeof value === 'object' && value.seconds) {
+        return new Date(value.seconds * 1000).toISOString().split('T')[0];
+      }
+
+      // If it's already a Date object
+      if (value instanceof Date) {
+        return value.toISOString().split('T')[0];
+      }
+
+      // If it's a string
+      if (typeof value === 'string') {
+        // If already YYYY-MM-DD, return it
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+        // Try to parse ISO string or other formats
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) {
+          return d.toISOString().split('T')[0];
+        }
+      }
+
+      return '';
+    } catch (e) {
+      console.error('Error formatting date:', value, e);
+      return '';
+    }
+  };
+
   useEffect(() => {
     if (process) {
+      // Aggressive key normalization to match DB keys regardless of casing, underscores, spaces, or line breaks
+      const normalizeKey = (k) => k.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const getValue = (keys, defaultValue) => {
+        // 1. Direct match (highest priority)
+        for (const key of keys) {
+          if (process[key] !== undefined && process[key] !== null && String(process[key]).trim() !== '') {
+            return process[key];
+          }
+        }
+
+        // 2. Normalized match (aggressive)
+        const allKeys = Object.keys(process);
+        const normalizedRequestedKeys = keys.map(normalizeKey);
+
+        for (const dbKey of allKeys) {
+          const normDbKey = normalizeKey(dbKey);
+          if (normalizedRequestedKeys.includes(normDbKey)) {
+            const val = process[dbKey];
+            if (val !== undefined && val !== null && String(val).trim() !== '') {
+              return val;
+            }
+          }
+        }
+
+        return defaultValue;
+      };
+
+      // Special helper for booleans to catch "Sim", "Não", "true" etc.
+      const getBoolValue = (keys, defaultValue = false) => {
+        const val = getValue(keys, null);
+        if (val === null) return defaultValue;
+        if (typeof val === 'boolean') return val;
+        const lowerVal = String(val).toLowerCase().trim();
+        return lowerVal === 'sim' || lowerVal === 'true' || lowerVal === 's' || lowerVal === '1';
+      };
+
+      // Special handling for responsible advisor to ensure we get an ID even if only name is provided
+      const respId = getValue(['responsible_user_id', 'responsibleUserId', 'responsible_id', 'member_id'], '');
+      const respName = getValue(['responsible_user_name', 'responsibleUserName', 'assessor', 'assessor_responsavel', 'responsavel'], '');
+
+      let finalRespId = respId;
+      // If we don't have an ID but have a name, try to find the member
+      if (!finalRespId && respName && members) {
+        const found = members.find(m =>
+          m.user_id === respName || // Name might actually be an ID string
+          m.user_name?.toLowerCase().trim() === respName.toString().toLowerCase().trim() ||
+          m.displayName?.toLowerCase().trim() === respName.toString().toLowerCase().trim()
+        );
+        if (found) {
+          finalRespId = found.user_id;
+        }
+      }
+
+      // Definitive fix: if we have a name but no ID match, use a placeholder ID
+      // This ensures the Select component has a non-empty value to match its Item
+      if (!finalRespId && respName) {
+        finalRespId = 'historical__advisor__placeholder';
+      }
+
       setFormData({
-        process_number: process.process_number || '',
-        consultant: process.consultant || '',
-        location: process.location || '',
-        entry_date: process.entry_date || '',
-        matter_object: process.matter_object || '',
-        urgency_request: process.urgency_request || false,
-        distribution_date: process.distribution_date || '',
-        responsible_user_id: process.responsible_user_id || '',
-        responsible_user_name: process.responsible_user_name || '',
-        analysis_start_date: process.analysis_start_date || '',
-        observations: process.observations || '',
-        review_submission_date: process.review_submission_date || '',
-        review_return_date: process.review_return_date || '',
-        access_restriction: process.access_restriction || false,
-        archived_date: process.archived_date || '',
-        network_folder: process.network_folder || '',
-        status: process.status || 'Em triagem',
+        process_number: getValue(['process_number', 'numero', 'n_processo', 'processo', 'PROCESSO SIM\n(NÚMERO)', 'PROCESSO SIM\\n(NÚMERO)']),
+        consultant: getValue(['consultant', 'consulente', 'cliente', 'interessado', 'CONSULENTE']),
+        location: getValue(['location', 'local', 'cidade', 'local_fatos', 'municipio', 'LOCAL DOS FATOS\n(CIDADE)', 'LOCAL DOS FATOS\\n(CIDADE)']),
+        entry_date: formatDateForInput(getValue(['entry_date', 'data_entrada', 'entrada', 'data', 'ENTRADA NO CAOPP\n(DATA)', 'ENTRADA NO CAOPP\\n(DATA)'])),
+        matter_object: getValue(['matter_object', 'objeto', 'assunto', 'materia', 'descricao', 'MATÉRIA E OBJETO DA CONSULTA']),
+        urgency_request: getBoolValue(['urgency_request', 'urgente', 'prioridade', 'urgente', 'PEDIDO DE URGÊNCIA', 'Solicitação de Urgência'], false),
+        distribution_date: formatDateForInput(getValue(['distribution_date', 'data_distribuicao', 'distribuicao', 'DISTRIBUIÇÃO\n(DATA)', 'DISTRIBUIÇÃO\\n(DATA)'])),
+        responsible_user_id: finalRespId || '',
+        responsible_user_name: respName || (members?.find(m => m.user_id === finalRespId)?.user_name || ''),
+        analysis_start_date: formatDateForInput(getValue(['analysis_start_date', 'inicio_analise', 'data_inicio', 'INÍCIO DA ANÁLISE\n(DATA)', 'INÍCIO DA ANÁLISE\\n(DATA)'])),
+        observations: getValue(['observations', 'observacoes', 'notas', 'pontos_importantes', 'obs', 'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA']),
+        review_submission_date: formatDateForInput(getValue(['review_submission_date', 'remessa_revisao', 'data_revisao', 'remessa', 'REMESSA AO DR. PARA REVISÃO (DATA)'])),
+        review_return_date: formatDateForInput(getValue(['review_return_date', 'devolucao_revisao', 'retorno_revisao', 'retorno', 'DEVOLUÇÃO APÓS REVISÃO\n(DATA)', 'DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)'])),
+        access_restriction: getBoolValue(['access_restriction', 'restricao', 'restrito', 'sigilo', 'RESTRIÇÃO DE ACESSO'], false),
+        archived_date: formatDateForInput(getValue(['archived_date', 'data_arquivamento', 'arquivamento', 'data_arquivo', 'NA PASTA\nARQUIVADO\n(DATA)', 'NA PASTA\\nARQUIVADO\\n(DATA)'])),
+        network_folder: getValue(['network_folder', 'network_folder_path', 'pasta', 'pasta_rede', 'caminho', 'PASTA NA REDE']),
+        status: getValue(['status', 'situacao', 'estado'], 'Pendente') || 'Pendente',
       });
     }
-  }, [process]);
+  }, [process, members]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,11 +200,12 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   };
 
   const handleResponsibleChange = (userId) => {
+    if (userId === 'historical__advisor__placeholder') return;
     const member = members.find(m => m.user_id === userId);
     setFormData({
       ...formData,
       responsible_user_id: userId,
-      responsible_user_name: member?.user_name || ''
+      responsible_user_name: member?.user_name || member?.displayName || ''
     });
   };
 
@@ -120,27 +232,15 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     }
   };
 
+  // Permission check for delete button
+  const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator';
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle>Editar Processo - {process?.process_number}</DialogTitle>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={isDeleting || isUpdating}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Excluindo...
-                </>
-              ) : (
-                'Excluir'
-              )}
-            </Button>
+            <DialogTitle>Editar Processo - {formData.process_number || process?.process_number || 'Sem Número'}</DialogTitle>
           </div>
         </DialogHeader>
 
@@ -160,8 +260,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                     id="process_number"
                     value={formData.process_number || ''}
                     onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
-                    disabled
-                    className="mt-1 bg-slate-50"
+                    required
+                    className="mt-1"
                   />
                 </div>
                 <div>
@@ -170,8 +270,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                     id="consultant"
                     value={formData.consultant || ''}
                     onChange={(e) => setFormData({ ...formData, consultant: e.target.value })}
-                    disabled
-                    className="mt-1 bg-slate-50"
+                    required
+                    className="mt-1"
                   />
                 </div>
               </div>
@@ -182,15 +282,18 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   <Select
                     value={formData.location || ''}
                     onValueChange={(value) => setFormData({ ...formData, location: value })}
-                    disabled
                   >
-                    <SelectTrigger className="mt-1 bg-slate-50">
+                    <SelectTrigger className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {RS_CITIES.map(city => (
                         <SelectItem key={city} value={city}>{city}</SelectItem>
                       ))}
+                      {/* Robust check: if the value in formData.location is NOT in RS_CITIES, we must add it as an item so Radix/Shadcn shows it */}
+                      {formData.location && !RS_CITIES.includes(formData.location) && (
+                        <SelectItem value={formData.location}>{formData.location}</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -201,8 +304,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                     type="date"
                     value={formData.entry_date || ''}
                     onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
-                    disabled
-                    className="mt-1 bg-slate-50"
+                    className="mt-1"
                   />
                 </div>
               </div>
@@ -214,8 +316,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   value={formData.matter_object || ''}
                   onChange={(e) => setFormData({ ...formData, matter_object: e.target.value })}
                   rows={3}
-                  disabled
-                  className="mt-1 bg-slate-50"
+                  className="mt-1"
                 />
               </div>
 
@@ -255,6 +356,12 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                           {member.user_name}
                         </SelectItem>
                       ))}
+                      {/* Definitive fix: use the assigned ID (even placeholder) to match this item */}
+                      {formData.responsible_user_id && !members.find(m => m.user_id === formData.responsible_user_id) && formData.responsible_user_name && (
+                        <SelectItem value={formData.responsible_user_id}>
+                          {formData.responsible_user_name}
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -281,6 +388,26 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   rows={4}
                   className="mt-1"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="status">Status do Processo</Label>
+                <Select
+                  value={formData.status || ''}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pendente">Pendente</SelectItem>
+                    <SelectItem value="Em elaboração">Em elaboração</SelectItem>
+                    <SelectItem value="Em revisão">Em revisão</SelectItem>
+                    <SelectItem value="Para revisão">Para revisão</SelectItem>
+                    <SelectItem value="Para assinatura">Para assinatura</SelectItem>
+                    <SelectItem value="Na pasta">Na pasta</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </TabsContent>
 
@@ -338,26 +465,49 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                 />
               </div>
             </TabsContent>
+
+
           </Tabs>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              className="bg-primary"
-              disabled={isUpdating || isDeleting}
-            >
-              {isUpdating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                'Salvar Alterações'
+          <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">
+            <div className="flex">
+              {canDelete && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isDeleting || isUpdating}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    'Excluir'
+                  )}
+                </Button>
               )}
-            </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="bg-primary"
+                disabled={isUpdating || isDeleting}
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Alterações'
+                )}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>

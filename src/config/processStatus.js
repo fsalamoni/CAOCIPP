@@ -1,13 +1,6 @@
 // Status Colors Configuration
 // Matches the original Base44/UI design
 export const statusConfig = {
-    'Em triagem': {
-        color: '#94a3b8',
-        label: 'Em triagem',
-        startColor: 'bg-slate-100',
-        text: 'text-slate-700',
-        border: 'border-slate-200'
-    },
     'Pendente': {
         color: '#fbbf24',
         label: 'Pendente',
@@ -36,6 +29,13 @@ export const statusConfig = {
         text: 'text-orange-700',
         border: 'border-orange-200'
     },
+    'Para revisão': {
+        color: '#f59e0b',
+        label: 'Para revisão',
+        startColor: 'bg-orange-100',
+        text: 'text-orange-700',
+        border: 'border-orange-200'
+    },
     'Na pasta': {
         color: '#22c55e',
         label: 'Na pasta',
@@ -46,9 +46,9 @@ export const statusConfig = {
 };
 
 export const DEFAULT_STATUS_CONFIG = {
-    color: '#cbd5e1',
-    label: 'Desconhecido',
-    startColor: 'bg-slate-100',
-    text: 'text-slate-600',
-    border: 'border-slate-200'
+    color: '#fbbf24',
+    label: 'Pendente',
+    startColor: 'bg-amber-100',
+    text: 'text-amber-700',
+    border: 'border-amber-200'
 };

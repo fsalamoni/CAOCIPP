@@ -97,7 +97,7 @@ export default function Organization() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-none mx-auto space-y-6 px-4">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button

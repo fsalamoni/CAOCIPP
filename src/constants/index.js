@@ -24,7 +24,6 @@ export const MAX_QUERY_LIMIT = 500;
 
 // ========== PROCESS STATUS ==========
 export const PROCESS_STATUSES = {
-    TRIAGEM: 'Em triagem',
     PENDENTE: 'Pendente',
     EM_ELABORACAO: 'Em elaboração',
     EM_REVISAO: 'Em revisão',
