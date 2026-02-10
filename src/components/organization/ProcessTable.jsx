@@ -96,18 +96,22 @@ export default function ProcessTable({
       if (preferences && typeof preferences === 'object') {
         const p = preferences;
         if (p.sortConfig) setSortConfig(p.sortConfig);
+        // Note: we do NOT restore currentPage on reload, as users usually expect to start at page 1
+        // unless they are navigating back. For now, let's keep it reset to 1 to avoid confusion if data changed.
+        // However, user specifically asked for "configuration to remain", so we will restore it if valid.
         if (p.currentPage) setCurrentPage(p.currentPage);
+        if (p.itemsPerPage) setItemsPerPage(p.itemsPerPage);
       }
       setIsInitialized(true);
     }
   }, [preferences, isInitialized, isLoadingPrefs]);
 
-  // Save preferences when sort or page change
+  // Save preferences when sort, page, or itemsPerPage change
   useEffect(() => {
     if (isInitialized) {
-      updatePreferences({ sortConfig, currentPage });
+      updatePreferences({ sortConfig, currentPage, itemsPerPage });
     }
-  }, [sortConfig, currentPage, isInitialized, updatePreferences]);
+  }, [sortConfig, currentPage, itemsPerPage, isInitialized, updatePreferences]);
 
   // Reset to page 1 when any filter changes
   // We exclude sortConfig from this to allow persistence of page and sort simultaneously
@@ -241,7 +245,7 @@ export default function ProcessTable({
   const paginatedProcesses = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredAndSortedProcesses.slice(start, start + itemsPerPage);
-  }, [filteredAndSortedProcesses, currentPage]);
+  }, [filteredAndSortedProcesses, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredAndSortedProcesses.length / itemsPerPage);
 
