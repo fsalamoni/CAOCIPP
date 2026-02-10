@@ -1,0 +1,137 @@
+{
+    "indexes": [
+        {
+            "collectionGroup": "processes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "updated_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "processes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "entry_date",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "processes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "responsible_user_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "updated_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "processes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "urgency_request",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "userOrganizations",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "user_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "joined_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "userOrganizations",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "joined_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "notifications",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "user_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "read",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "created_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "processes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "process_number",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "entry_date",
+                    "order": "ASCENDING"
+                }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}

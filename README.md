@@ -1,4 +1,4 @@
-# CAOCIPP ProcessFlow
+# Consultas CAO (Final Version 1.2.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -33,8 +33,8 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/fsalamoni/CAOCIPP.git
-cd CAOCIPP
+git clone https://github.com/fsalamoni/Consultas-CAO.git
+cd Consultas-CAO
 
 # 2. Instale dependências do frontend
 npm install
@@ -108,7 +108,7 @@ feature/*      ← Features específicas
 ## 📁 Estrutura do Projeto
 
 ```
-CAOCIPP/
+Consultas-CAO/
 ├── src/
 │   ├── components/     # Componentes React
 │   │   ├── organization/  # Componentes de organização
@@ -159,7 +159,7 @@ CAOCIPP/
 
 ## 📝 Licença
 
-Este projeto é proprietário do CAOCIPP.
+Este projeto é proprietário do Consultas CAO.
 
 ## 👤 Autor
 
@@ -167,4 +167,4 @@ Este projeto é proprietário do CAOCIPP.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Auditoria de Dados Concluída
+**Status do Projeto**: ✅ Estável / Versão Final 1.2.0 (Rebranding de Precisão) Concluída

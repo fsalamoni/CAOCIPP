@@ -51,7 +51,7 @@ export default function Landing() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileText className="w-8 h-8 text-primary" />
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">ProcessFlow</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Consultas CAO</h1>
           </div>
           <Button
             onClick={handleGoogleSignIn}
@@ -183,7 +183,7 @@ export default function Landing() {
       <footer className="border-t bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm mt-16">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600 dark:text-slate-400">
           <p className="text-sm">
-            © 2026 CAOCIPP - Gestão de Processos Administrativos
+            © 2026 Consultas CAO - Gestão de Processos Administrativos
           </p>
         </div>
       </footer>

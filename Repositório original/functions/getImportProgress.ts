@@ -9,9 +9,9 @@ if (!globalThis.importProgressMap) {
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    
+    const consultasCao = createClientFromRequest(req);
+    const user = await consultasCao.auth.me();
+
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
     }
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     }
 
     const progress = globalThis.importProgressMap.get(sessionId);
-    
+
     if (!progress) {
       return Response.json({ error: 'Sessão não encontrada' }, { status: 404 });
     }

@@ -1,8 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
+  const consultasCao = createClientFromRequest(req);
+  const user = await consultasCao.auth.me();
 
   if (!user) {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   const { membership_id, new_function, organization_id } = await req.json();
 
   // Verificar se usuário é criador da organização
-  const userMembership = await base44.entities.UserOrganization.filter({
+  const userMembership = await consultasCao.entities.UserOrganization.filter({
     user_id: user.id,
     organization_id: organization_id,
     role: "creator"
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   }
 
   // Atualizar função do membro
-  const updated = await base44.asServiceRole.entities.UserOrganization.update(membership_id, {
+  const updated = await consultasCao.asServiceRole.entities.UserOrganization.update(membership_id, {
     function: new_function
   });
 

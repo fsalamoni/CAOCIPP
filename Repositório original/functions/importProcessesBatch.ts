@@ -2,9 +2,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    
+    const consultasCao = createClientFromRequest(req);
+    const user = await consultasCao.auth.me();
+
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
     }
@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     if (!fileResponse.ok) {
       throw new Error(`Erro ao baixar arquivo: ${fileResponse.statusText}`);
     }
-    
+
     const fileContent = await fileResponse.text();
     let processes = JSON.parse(fileContent);
 
@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     console.log(`📊 Total de processos: ${processes.length}`);
 
     // Buscar assessores
-    const users = await base44.asServiceRole.entities.User.list();
+    const users = await consultasCao.asServiceRole.entities.User.list();
     const userMap = {};
     users.forEach(u => {
       userMap[u.full_name?.toLowerCase()] = u.id;
@@ -48,49 +48,49 @@ Deno.serve(async (req) => {
       const rowNum = i + 1;
 
       try {
-         const processData = buildProcessData(row, userMap, organization_id);
+        const processData = buildProcessData(row, userMap, organization_id);
 
-         if (!processData.process_number) {
-           console.log(`⚠️ Linha ${rowNum}: Pulada (sem número de processo)`);
-           continue;
-         }
+        if (!processData.process_number) {
+          console.log(`⚠️ Linha ${rowNum}: Pulada (sem número de processo)`);
+          continue;
+        }
 
-         // Buscar processo existente
-         const existingProcesses = await base44.entities.Process.filter({
-           organization_id,
-           process_number: processData.process_number
-         });
+        // Buscar processo existente
+        const existingProcesses = await consultasCao.entities.Process.filter({
+          organization_id,
+          process_number: processData.process_number
+        });
 
-         if (existingProcesses.length > 0) {
-           await base44.entities.Process.update(existingProcesses[0].id, processData);
-           console.log(`🔄 Linha ${rowNum}: Atualizado - ${processData.process_number}`);
-           updated++;
-         } else {
-           await base44.entities.Process.create(processData);
-           console.log(`✅ Linha ${rowNum}: Criado - ${processData.process_number}`);
-           created++;
-         }
+        if (existingProcesses.length > 0) {
+          await consultasCao.entities.Process.update(existingProcesses[0].id, processData);
+          console.log(`🔄 Linha ${rowNum}: Atualizado - ${processData.process_number}`);
+          updated++;
+        } else {
+          await consultasCao.entities.Process.create(processData);
+          console.log(`✅ Linha ${rowNum}: Criado - ${processData.process_number}`);
+          created++;
+        }
 
-         if ((i + 1) % 5 === 0) {
-           console.log(`\n📊 Progresso: ${i + 1}/${processes.length} processados (${created} criados, ${updated} atualizados)\n`);
-           await new Promise(resolve => setTimeout(resolve, 500));
-         } else {
-           await new Promise(resolve => setTimeout(resolve, 200));
-         }
+        if ((i + 1) % 5 === 0) {
+          console.log(`\n📊 Progresso: ${i + 1}/${processes.length} processados (${created} criados, ${updated} atualizados)\n`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
 
-       } catch (error) {
-         console.error(`❌ Erro na linha ${rowNum}:`, error.message);
-         console.log(`   Dados da linha: ${JSON.stringify(row)}`);
-         errors.push({ linha: rowNum, erro: error.message, dados: row });
-         await new Promise(resolve => setTimeout(resolve, 300));
-       }
+      } catch (error) {
+        console.error(`❌ Erro na linha ${rowNum}:`, error.message);
+        console.log(`   Dados da linha: ${JSON.stringify(row)}`);
+        errors.push({ linha: rowNum, erro: error.message, dados: row });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
     }
 
     console.log(`\n🎉 Importação finalizada!`);
     console.log(`✅ Criados: ${created}`);
     console.log(`🔄 Atualizados: ${updated}`);
     console.log(`⚠️  Erros: ${errors.length}`);
-    
+
     if (errors.length > 0) {
       console.log(`\n📋 Detalhes dos erros:`);
       errors.forEach(e => {

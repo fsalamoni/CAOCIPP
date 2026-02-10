@@ -11,7 +11,7 @@ function calculateStatus(process) {
 
 function parseDate(dateValue) {
   if (!dateValue || dateValue === '') return null;
-  
+
   try {
     if (typeof dateValue === 'number') {
       const date = new Date((dateValue - 25569) * 86400 * 1000);
@@ -23,7 +23,7 @@ function parseDate(dateValue) {
     } else {
       const dateStr = String(dateValue).trim();
       if (!dateStr) return null;
-      
+
       if (dateStr.includes('/')) {
         const parts = dateStr.split('/');
         if (parts.length !== 3) return null;
@@ -34,7 +34,7 @@ function parseDate(dateValue) {
         if (isNaN(testDate.getTime())) return null;
         return formatted;
       }
-      
+
       const testDate = new Date(dateStr);
       if (isNaN(testDate.getTime())) return null;
       return dateStr;
@@ -47,9 +47,9 @@ function parseDate(dateValue) {
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    
+    const consultasCao = createClientFromRequest(req);
+    const user = await consultasCao.auth.me();
+
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
     }
@@ -58,8 +58,8 @@ Deno.serve(async (req) => {
     const { file_url, organization_id, offset = 0, limit = 100 } = body;
 
     if (!file_url || !organization_id) {
-      return Response.json({ 
-        error: 'Parâmetros faltando: file_url e organization_id' 
+      return Response.json({
+        error: 'Parâmetros faltando: file_url e organization_id'
       }, { status: 400 });
     }
 
@@ -85,22 +85,22 @@ Deno.serve(async (req) => {
     console.log(`Processando lote: ${paginatedData.length} registros`);
 
     // Buscar processos existentes para evitar duplicatas
-    const existingProcesses = await base44.entities.Process.filter({ organization_id });
+    const existingProcesses = await consultasCao.entities.Process.filter({ organization_id });
     const existingMap = new Map(existingProcesses.map(p => [p.process_number, p]));
 
     let created = 0, updated = 0, skipped = 0;
     const errors = [];
 
     // Encontrar assessores para vincular por nome
-    const users = await base44.entities.User.list();
+    const users = await consultasCao.entities.User.list();
     const userMap = new Map(users.map(u => [u.full_name?.toLowerCase(), u.id]));
 
     for (let i = 0; i < paginatedData.length; i++) {
       const row = paginatedData[i];
-      
+
       try {
         const processNumber = String(row['PROCESSO SIM\n(NÚMERO)'] || '').trim();
-        
+
         if (!processNumber) {
           skipped++;
           continue;
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
         const location = String(row['LOCAL DOS FATOS\n(CIDADE)'] || '').trim() || null;
         const matterObject = String(row['MATÉRIA E OBJETO DA CONSULTA'] || '').trim() || null;
         const entryDate = parseDate(row['ENTRADA NO CAOPP\n(DATA)']);
-        
+
         const responsibleName = String(row['ASSESSOR RESPONSÁVEL'] || '').trim() || null;
         const responsibleUserId = responsibleName ? userMap.get(responsibleName.toLowerCase()) : null;
 
@@ -151,13 +151,13 @@ Deno.serve(async (req) => {
           }
 
           if (hasChanges) {
-            await base44.entities.Process.update(existing.id, updates);
+            await consultasCao.entities.Process.update(existing.id, updates);
             updated++;
           } else {
             skipped++;
           }
         } else {
-          await base44.entities.Process.create(processData);
+          await consultasCao.entities.Process.create(processData);
           created++;
         }
 
@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('ERRO CRÍTICO:', error);
-    return Response.json({ 
+    return Response.json({
       error: error.message,
       stack: error.stack
     }, { status: 500 });

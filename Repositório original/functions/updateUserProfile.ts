@@ -2,8 +2,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    const consultasCao = createClientFromRequest(req);
+    const user = await consultasCao.auth.me();
 
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
@@ -19,13 +19,13 @@ Deno.serve(async (req) => {
     if (notification_email !== undefined) updateData.notification_email = notification_email;
 
     // Atualiza o usuário
-    await base44.auth.updateMe(updateData);
+    await consultasCao.auth.updateMe(updateData);
 
     // Aguarda um pouco para garantir propagação
     await new Promise(resolve => setTimeout(resolve, 500));
 
     // Recarrega para confirmar que foi salvo
-    const updatedUser = await base44.auth.me();
+    const updatedUser = await consultasCao.auth.me();
 
     console.log('✅ Perfil atualizado:', {
       id: updatedUser.id,

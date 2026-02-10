@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========== HELPER FUNCTIONS ==========
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isMemberOf(orgId) {
+      return exists(/databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId));
+    }
+    
+    function getMembership(orgId) {
+      return get(/databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId)).data;
+    }
+    
+    function hasRole(orgId, allowedRoles) {
+      let membership = getMembership(orgId);
+      return membership.role in allowedRoles;
+    }
+    
+    // ========== USERS ==========
+    
+    match /users/{userId} {
+      // Todos usuários autenticados podem ler perfis (para exibir nomes, fotos)
+      allow read: if isAuthenticated();
+      
+      // Apenas o próprio usuário pode escrever seu perfil
+      allow write: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // ========== ORGANIZATIONS ==========
+    
+    match /organizations/{orgId} {
+      // Apenas membros da organização podem ler
+      allow read: if isAuthenticated() && isMemberOf(orgId);
+      
+      // Qualquer usuário autenticado pode criar uma organização
+      allow create: if isAuthenticated();
+      
+      // Apenas creator ou admin podem atualizar/deletar
+      allow update, delete: if isAuthenticated() && 
+                              isMemberOf(orgId) && 
+                              hasRole(orgId, ['creator', 'admin']);
+    }
+    
+    // ========== USER ORGANIZATIONS (Memberships) ==========
+    
+    match /userOrganizations/{membershipId} {
+      // Qualquer usuário autenticado pode ler memberships (para ver membros)
+      allow read: if isAuthenticated();
+      
+      // Usuário pode criar seu próprio membership (join via invite code)
+      allow create: if isAuthenticated();
+      
+      // Pode atualizar/deletar se for:
+      // 1. Admin/creator da organização, OU
+      // 2. O próprio usuário (sair da organização)
+      allow update, delete: if isAuthenticated() && (
+        (isMemberOf(resource.data.organization_id) && 
+         hasRole(resource.data.organization_id, ['creator', 'admin'])) ||
+        isOwner(resource.data.user_id)
+      );
+    }
+    
+    // ========== PROCESSES ==========
+    
+    match /processes/{processId} {
+      // Membros da organização podem ler processos
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      
+      // Membros podem criar processos
+      allow create: if isAuthenticated() && 
+                      isMemberOf(request.resource.data.organization_id);
+      
+      // Pode atualizar se for:
+      // 1. Admin/creator da organização, OU
+      // 2. Responsável pelo processo
+      allow update: if isAuthenticated() && 
+                      isMemberOf(resource.data.organization_id) && (
+                        hasRole(resource.data.organization_id, ['creator', 'admin']) ||
+                        isOwner(resource.data.responsible_user_id)
+                      );
+      
+      // Apenas admin/creator podem deletar
+      allow delete: if isAuthenticated() && 
+                      isMemberOf(resource.data.organization_id) &&
+                      hasRole(resource.data.organization_id, ['creator', 'admin']);
+    }
+    
+    // ========== AUDIT LOGS ==========
+    
+    match /auditLogs/{logId} {
+      // Membros podem ler logs da organização
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      
+      // NINGUÉM pode escrever diretamente - apenas Cloud Functions
+      allow write: if false;
+    }
+    
+    // ========== NOTIFICATIONS ==========
+    
+    match /notifications/{notifId} {
+      // Apenas o destinatário pode ler suas notificações
+      allow read: if isAuthenticated() && isOwner(resource.data.user_id);
+      
+      // Pode atualizar apenas para marcar como lida
+      allow update: if isAuthenticated() && 
+                      isOwner(resource.data.user_id) &&
+                      request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['read', 'read_at']);
+      
+      // Não pode criar/deletar - apenas Cloud Functions
+      allow create, delete: if false;
+    }
+  }
+}

@@ -11,8 +11,8 @@ function generateInviteCode() {
 }
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
+  const consultasCao = createClientFromRequest(req);
+  const user = await consultasCao.auth.me();
 
   if (!user) {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
@@ -27,10 +27,10 @@ Deno.serve(async (req) => {
   // Gerar código de convite único
   let inviteCode = generateInviteCode();
   let isUnique = false;
-  
+
   // Verificar se o código já existe
   while (!isUnique) {
-    const existing = await base44.entities.Organization.filter({ invite_code: inviteCode });
+    const existing = await consultasCao.entities.Organization.filter({ invite_code: inviteCode });
     if (existing.length === 0) {
       isUnique = true;
     } else {
@@ -39,14 +39,14 @@ Deno.serve(async (req) => {
   }
 
   // Criar organização
-  const organization = await base44.entities.Organization.create({
+  const organization = await consultasCao.entities.Organization.create({
     name,
     description: description || '',
     invite_code: inviteCode
   });
 
   // Adicionar criador como membro com role "creator"
-  await base44.entities.UserOrganization.create({
+  await consultasCao.entities.UserOrganization.create({
     user_id: user.id,
     user_email: user.email,
     user_name: user.full_name,
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
   });
 
   // Criar log de auditoria
-  await base44.entities.AuditLog.create({
+  await consultasCao.entities.AuditLog.create({
     organization_id: organization.id,
     user_id: user.id,
     user_name: user.full_name,
@@ -66,8 +66,8 @@ Deno.serve(async (req) => {
     }
   });
 
-  return Response.json({ 
-    success: true, 
+  return Response.json({
+    success: true,
     organization,
     message: 'Organização criada com sucesso!'
   });
