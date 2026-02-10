@@ -1,6 +1,38 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+interface ProcessEntity {
+    id: string;
+    process_number: string;
+    organization_id: string;
+    [key: string]: any;
+}
+
+interface ImportRow {
+    'PROCESSO SIM\n(NÚMERO)'?: string;
+    'CONSULENTE'?: string;
+    'LOCAL DOS FATOS\n(CIDADE)'?: string;
+    'ENTRADA NO CAOPP\n(DATA)'?: string;
+    'MATÉRIA E OBJETO DA CONSULTA'?: string;
+    'PEDIDO DE URGÊNCIA'?: string;
+    'DISTRIBUIÇÃO\n(DATA)'?: string;
+    'ASSESSOR RESPONSÁVEL'?: string;
+    'INÍCIO DA ANÁLISE\n(DATA)'?: string;
+    'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'?: string;
+    'REMESSA AO DR. PARA REVISÃO (DATA)'?: string;
+    'DEVOLUÇÃO APÓS REVISÃO\n(DATA)'?: string;
+    'RESTRIÇÃO DE ACESSO'?: string;
+    'NA PASTA\nARQUIVADO\n(DATA)'?: string;
+    'PASTA NA REDE'?: string;
+    [key: string]: any;
+}
+
+interface UpdateItem {
+    id: string;
+    data: any;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
     try {
         const consultasCao = createClientFromRequest(req);
         const user = await consultasCao.auth.me();
@@ -16,7 +48,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Parâmetros faltando' }, { status: 400 });
         }
 
-        console.log('SINCRONIZAÇÃO COMPLETA - INÍCIO');
+        console.log('SINCRONIZAÇÃO COMPLETA (Consultas CAO) - INÍCIO');
 
         // 1. BAIXAR JSON
         const fileResponse = await fetch(file_url);
@@ -25,16 +57,16 @@ Deno.serve(async (req) => {
         }
 
         const jsonText = await fileResponse.text();
-        const allData = JSON.parse(jsonText);
+        const allData: ImportRow[] = JSON.parse(jsonText);
         console.log(`Total no arquivo: ${allData.length}`);
 
         // 2. BUSCAR PROCESSOS EXISTENTES
-        const existing = await consultasCao.asServiceRole.entities.Process.filter({ organization_id });
-        const existingMap = new Map(existing.map(p => [p.process_number, p]));
+        const existing = await consultasCao.asServiceRole.entities.Process.filter({ organization_id }) as ProcessEntity[];
+        const existingMap = new Map<string, ProcessEntity>(existing.map(p => [p.process_number, p]));
         console.log(`Existentes no banco: ${existing.length}`);
 
         // 3. PREPARAR DADOS
-        const parseDate = (dateValue) => {
+        const parseDate = (dateValue: any): string | null => {
             if (!dateValue || dateValue === '') return null;
             try {
                 if (typeof dateValue === 'number') {
@@ -56,9 +88,9 @@ Deno.serve(async (req) => {
             }
         };
 
-        const toCreate = [];
-        const toUpdate = [];
-        const fileNumbers = new Set();
+        const toCreate: any[] = [];
+        const toUpdate: UpdateItem[] = [];
+        const fileNumbers = new Set<string>();
 
         for (let i = 0; i < allData.length; i++) {
             const row = allData[i];
@@ -68,7 +100,7 @@ Deno.serve(async (req) => {
 
             fileNumbers.add(processNumber);
 
-            const processData = {
+            const processData: any = {
                 organization_id,
                 process_number: processNumber,
                 consultant: String(row['CONSULENTE'] || '').trim() || null,
@@ -107,49 +139,49 @@ Deno.serve(async (req) => {
             }
         }
 
-        // 4. IDENTIFICAR PROCESSOS PARA DELETAR (que estão no banco mas não no arquivo)
+        // 4. IDENTIFICAR PROCESSOS PARA DELETAR
         const toDelete = existing.filter(p => !fileNumbers.has(p.process_number));
 
         console.log(`Para criar: ${toCreate.length}, Para atualizar: ${toUpdate.length}, Para deletar: ${toDelete.length}`);
 
-        // 5. EXECUTAR OPERAÇÕES COM DELAYS AUMENTADOS
+        // 5. EXECUTAR OPERAÇÕES
         let created = 0, updated = 0, deleted = 0;
 
-        // Criar em lotes de 20 (reduzido para evitar rate limit)
+        // Criar em lotes
         for (let i = 0; i < toCreate.length; i += 20) {
             const batch = toCreate.slice(i, i + 20);
-            await base44.asServiceRole.entities.Process.bulkCreate(batch);
+            await consultasCao.asServiceRole.entities.Process.bulkCreate(batch);
             created += batch.length;
             console.log(`Criados: ${created}/${toCreate.length}`);
-            await new Promise(r => setTimeout(r, 2500)); // 2.5s entre lotes
+            await new Promise(r => setTimeout(r, 2500));
         }
 
-        // Atualizar em lotes de 15 com delays maiores
+        // Atualizar
         for (let i = 0; i < toUpdate.length; i += 15) {
             const batch = toUpdate.slice(i, i + 15);
             for (const item of batch) {
-                await base44.asServiceRole.entities.Process.update(item.id, item.data);
+                await consultasCao.asServiceRole.entities.Process.update(item.id, item.data);
                 updated++;
-                await new Promise(r => setTimeout(r, 200)); // 200ms entre cada update
+                await new Promise(r => setTimeout(r, 200));
             }
             console.log(`Atualizados: ${updated}/${toUpdate.length}`);
-            await new Promise(r => setTimeout(r, 2000)); // 2s entre lotes
+            await new Promise(r => setTimeout(r, 2000));
         }
 
-        // Deletar em lotes de 10
+        // Deletar
         for (let i = 0; i < toDelete.length; i += 10) {
             const batch = toDelete.slice(i, i + 10);
             for (const process of batch) {
-                await base44.asServiceRole.entities.Process.delete(process.id);
+                await consultasCao.asServiceRole.entities.Process.delete(process.id);
                 deleted++;
-                await new Promise(r => setTimeout(r, 150)); // 150ms entre cada delete
+                await new Promise(r => setTimeout(r, 150));
             }
             console.log(`Deletados: ${deleted}/${toDelete.length}`);
-            await new Promise(r => setTimeout(r, 1500)); // 1.5s entre lotes
+            await new Promise(r => setTimeout(r, 1500));
         }
 
         // 6. VERIFICAR RESULTADO FINAL
-        const final = await base44.asServiceRole.entities.Process.filter({ organization_id });
+        const final = await consultasCao.asServiceRole.entities.Process.filter({ organization_id });
 
         return Response.json({
             success: true,
@@ -163,10 +195,11 @@ Deno.serve(async (req) => {
         });
 
     } catch (error) {
-        console.error('ERRO:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('ERRO (Full Sync):', errorMessage);
         return Response.json({
-            error: error.message,
-            stack: error.stack
+            error: errorMessage,
+            stack: error instanceof Error ? error.stack : undefined
         }, { status: 500 });
     }
 });

@@ -1,10 +1,35 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+interface ImportRow {
+    'PROCESSO SIM\n(NÚMERO)'?: string;
+    'CONSULENTE'?: string;
+    'LOCAL DOS FATOS\n(CIDADE)'?: string;
+    'ENTRADA NO CAOPP\n(DATA)'?: string;
+    'MATÉRIA E OBJETO DA CONSULTA'?: string;
+    'PEDIDO DE URGÊNCIA'?: string;
+    'DISTRIBUIÇÃO\n(DATA)'?: string;
+    'ASSESSOR RESPONSÁVEL'?: string;
+    'INÍCIO DA ANÁLISE\n(DATA)'?: string;
+    'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'?: string;
+    'REMESSA AO DR. PARA REVISÃO (DATA)'?: string;
+    'DEVOLUÇÃO APÓS REVISÃO\n(DATA)'?: string;
+    'NA PASTA\nARQUIVADO\n(DATA)'?: string;
+    'RESTRIÇÃO DE ACESSO'?: string;
+    'PASTA NA REDE'?: string;
+    [key: string]: any;
+}
+
+interface ProcessEntity {
+    id: string;
+    [key: string]: any;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
     try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
+        const consultasCao = createClientFromRequest(req);
+        const user = await consultasCao.auth.me();
+
         if (!user) {
             return Response.json({ error: 'Não autorizado' }, { status: 401 });
         }
@@ -13,27 +38,27 @@ Deno.serve(async (req) => {
         const { file_url, organization_id } = body;
 
         if (!file_url || !organization_id) {
-            return Response.json({ 
+            return Response.json({
                 error: 'Parâmetros faltando'
             }, { status: 400 });
         }
 
-        console.log('INICIANDO RESET E IMPORTAÇÃO COMPLETA');
+        console.log('INICIANDO RESET E IMPORTAÇÃO COMPLETA (Consultas CAO)');
 
         // 1. DELETAR TODOS OS PROCESSOS DA ORGANIZAÇÃO EM LOTES
-        const existingProcesses = await base44.asServiceRole.entities.Process.filter({ organization_id });
+        const existingProcesses = await consultasCao.asServiceRole.entities.Process.filter({ organization_id }) as ProcessEntity[];
         console.log(`Deletando ${existingProcesses.length} processos existentes...`);
-        
+
         for (let i = 0; i < existingProcesses.length; i++) {
-            await base44.asServiceRole.entities.Process.delete(existingProcesses[i].id);
-            if ((i + 1) % 5 === 0) {
+            await consultasCao.asServiceRole.entities.Process.delete(existingProcesses[i].id);
+            if ((i + 1) % 10 === 0) {
                 console.log(`Deletados: ${i + 1}/${existingProcesses.length}`);
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
         }
-        
+
         console.log('Todos os processos deletados!');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // 2. BAIXAR E PARSEAR JSON
         const fileResponse = await fetch(file_url);
@@ -42,7 +67,7 @@ Deno.serve(async (req) => {
         }
 
         const jsonText = await fileResponse.text();
-        const allData = JSON.parse(jsonText);
+        const allData: ImportRow[] = JSON.parse(jsonText);
 
         if (!Array.isArray(allData)) {
             throw new Error('JSON deve ser um array');
@@ -51,9 +76,9 @@ Deno.serve(async (req) => {
         console.log(`Total de registros no arquivo: ${allData.length}`);
 
         // 3. FUNÇÃO PARA CONVERTER DATA
-        const parseDate = (dateValue) => {
+        const parseDate = (dateValue: any): string | null => {
             if (!dateValue || dateValue === '') return null;
-            
+
             try {
                 if (typeof dateValue === 'number') {
                     const date = new Date((dateValue - 25569) * 86400 * 1000);
@@ -74,17 +99,17 @@ Deno.serve(async (req) => {
             }
         };
 
-        // 4. IMPORTAR TODOS OS 593 PROCESSOS
-        let created = 0;
-        const errors = [];
-        const toCreate = [];
+        // 4. PREPARAR PROCESSOS
+        let createdCount = 0;
+        const errors: string[] = [];
+        const toCreate: any[] = [];
 
         for (let i = 0; i < allData.length; i++) {
             const row = allData[i];
-            
+
             try {
                 const processNumber = String(row['PROCESSO SIM\n(NÚMERO)'] || '').trim();
-                
+
                 if (!processNumber) {
                     errors.push(`Linha ${i + 1}: Número vazio`);
                     continue;
@@ -112,44 +137,46 @@ Deno.serve(async (req) => {
                 toCreate.push(processData);
 
             } catch (error) {
-                errors.push(`Linha ${i + 1}: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                errors.push(`Linha ${i + 1}: ${errorMessage}`);
             }
         }
 
-        // 5. CRIAR EM LOTES DE 20
+        // 5. CRIAR EM LOTES DE 50
         console.log(`Criando ${toCreate.length} processos em lotes...`);
-        
-        for (let i = 0; i < toCreate.length; i += 20) {
-            const batch = toCreate.slice(i, i + 20);
-            await base44.asServiceRole.entities.Process.bulkCreate(batch);
-            created += batch.length;
-            console.log(`Lote ${Math.floor(i / 20) + 1}: ${created}/${toCreate.length} criados`);
-            
-            if (i + 20 < toCreate.length) {
+
+        for (let i = 0; i < toCreate.length; i += 50) {
+            const batch = toCreate.slice(i, i + 50);
+            await consultasCao.asServiceRole.entities.Process.bulkCreate(batch);
+            createdCount += batch.length;
+            console.log(`Lote ${Math.floor(i / 50) + 1}: ${createdCount}/${toCreate.length} criados`);
+
+            if (i + 50 < toCreate.length) {
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
         // 6. VERIFICAR RESULTADO
-        const finalCount = await base44.asServiceRole.entities.Process.filter({ organization_id });
-        
+        const finalResults = await consultasCao.asServiceRole.entities.Process.filter({ organization_id }) as ProcessEntity[];
+
         return Response.json({
             success: true,
             summary: {
                 deletedOld: existingProcesses.length,
                 totalInFile: allData.length,
-                created: created,
-                finalCount: finalCount.length,
+                created: createdCount,
+                finalCount: finalResults.length,
                 errors: errors.length
             },
             errorDetails: errors.length > 0 ? errors.slice(0, 10) : []
         });
 
     } catch (error) {
-        console.error('ERRO CRÍTICO:', error);
-        return Response.json({ 
-            error: error.message,
-            stack: error.stack
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('ERRO CRÍTICO (Reset and Import All):', errorMessage);
+        return Response.json({
+            error: errorMessage,
+            stack: error instanceof Error ? error.stack : undefined
         }, { status: 500 });
     }
 });

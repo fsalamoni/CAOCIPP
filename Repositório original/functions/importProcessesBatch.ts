@@ -1,6 +1,57 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+interface ProcessRow {
+  "PROCESSO SIM\n(NÚMERO)"?: string;
+  "CONSULENTE"?: string;
+  "LOCAL DOS FATOS\n(CIDADE)"?: string;
+  "ENTRADA NO CAOPP\n(DATA)"?: string;
+  "MATÉRIA E OBJETO DA CONSULTA"?: string;
+  "PEDIDO DE URGÊNCIA"?: string;
+  "DISTRIBUIÇÃO\n(DATA)"?: string;
+  "ASSESSOR RESPONSÁVEL"?: string;
+  "INÍCIO DA ANÁLISE\n(DATA)"?: string;
+  "OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA"?: string;
+  "REMESSA AO DR. PARA REVISÃO (DATA)"?: string;
+  "DEVOLUÇÃO APÓS REVISÃO\n(DATA)"?: string;
+  "RESTRIÇÃO DE ACESSO"?: string;
+  "NA PASTA\nARQUIVADO\n(DATA)"?: string;
+  "STATUS"?: string;
+  "PASTA NA REDE"?: string;
+  [key: string]: any;
+}
+
+interface UserMap {
+  [name: string]: string;
+}
+
+interface ProcessData {
+  process_number: string | null;
+  organization_id: string;
+  consultant?: string | null;
+  location?: string | null;
+  entry_date?: string | null;
+  matter_object?: string | null;
+  urgency_request?: boolean;
+  distribution_date?: string | null;
+  responsible_user_id?: string | null;
+  responsible_user_name?: string | null;
+  analysis_start_date?: string | null;
+  observations?: string | null;
+  review_submission_date?: string | null;
+  review_return_date?: string | null;
+  access_restriction?: boolean;
+  archived_date?: string | null;
+  status?: string | null;
+  network_folder?: string | null;
+}
+
+interface ProcessEntity {
+  id: string;
+  [key: string]: any;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
   try {
     const consultasCao = createClientFromRequest(req);
     const user = await consultasCao.auth.me();
@@ -10,7 +61,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { file_url, organization_id, batch_size = 20 } = body;
+    const { file_url, organization_id } = body;
 
     if (!file_url || !organization_id) {
       return Response.json({ error: 'file_url e organization_id são obrigatórios' }, { status: 400 });
@@ -23,7 +74,7 @@ Deno.serve(async (req) => {
     }
 
     const fileContent = await fileResponse.text();
-    let processes = JSON.parse(fileContent);
+    let processes: ProcessRow[] = JSON.parse(fileContent);
 
     if (!Array.isArray(processes)) {
       throw new Error('Arquivo deve conter um array JSON');
@@ -33,14 +84,16 @@ Deno.serve(async (req) => {
 
     // Buscar assessores
     const users = await consultasCao.asServiceRole.entities.User.list();
-    const userMap = {};
-    users.forEach(u => {
-      userMap[u.full_name?.toLowerCase()] = u.id;
+    const userMap: UserMap = {};
+    users.forEach((u: { full_name?: string; id: string }) => {
+      if (u.full_name) {
+        userMap[u.full_name.toLowerCase()] = u.id;
+      }
     });
 
     let created = 0;
     let updated = 0;
-    let errors = [];
+    let errors: any[] = [];
 
     // Processar sequencialmente (sem paralelismo)
     for (let i = 0; i < processes.length; i++) {
@@ -59,7 +112,7 @@ Deno.serve(async (req) => {
         const existingProcesses = await consultasCao.entities.Process.filter({
           organization_id,
           process_number: processData.process_number
-        });
+        }) as ProcessEntity[];
 
         if (existingProcesses.length > 0) {
           await consultasCao.entities.Process.update(existingProcesses[0].id, processData);
@@ -79,9 +132,10 @@ Deno.serve(async (req) => {
         }
 
       } catch (error) {
-        console.error(`❌ Erro na linha ${rowNum}:`, error.message);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Erro na linha ${rowNum}:`, errorMessage);
         console.log(`   Dados da linha: ${JSON.stringify(row)}`);
-        errors.push({ linha: rowNum, erro: error.message, dados: row });
+        errors.push({ linha: rowNum, erro: errorMessage, dados: row });
         await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
@@ -110,12 +164,13 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ Erro fatal:', error.message);
-    return Response.json({ error: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('❌ Erro fatal:', errorMessage);
+    return Response.json({ error: errorMessage }, { status: 500 });
   }
 });
 
-function buildProcessData(row, userMap, organization_id) {
+function buildProcessData(row: ProcessRow, userMap: UserMap, organization_id: string): ProcessData {
   const processNumber = row["PROCESSO SIM\n(NÚMERO)"]?.trim() || null;
   const consultant = row["CONSULENTE"]?.trim() || null;
   const location = row["LOCAL DOS FATOS\n(CIDADE)"]?.trim() || null;
@@ -140,12 +195,11 @@ function buildProcessData(row, userMap, organization_id) {
   });
   const networkFolder = row["PASTA NA REDE"]?.trim() || null;
 
-  const data = {
+  const data: ProcessData = {
     process_number: processNumber,
     organization_id
   };
 
-  // Adiciona campos não-nulos ou campos que devem ser atualizados mesmo que vazios
   if (consultant !== null) data.consultant = consultant;
   if (location !== null) data.location = location;
   if (entryDate !== null) data.entry_date = entryDate;
@@ -166,7 +220,7 @@ function buildProcessData(row, userMap, organization_id) {
   return data;
 }
 
-function parseDate(dateStr) {
+function parseDate(dateStr: string | undefined): string | null {
   if (!dateStr || dateStr.trim() === '') return null;
   dateStr = dateStr.trim();
   const parts = dateStr.split('/');
@@ -185,7 +239,12 @@ function parseDate(dateStr) {
   return null;
 }
 
-function calculateStatus(data) {
+function calculateStatus(data: {
+  analysis_start_date?: string | null;
+  review_submission_date?: string | null;
+  review_return_date?: string | null;
+  archived_date?: string | null;
+}): string {
   if (data.archived_date) return 'Na pasta';
   if (data.review_return_date) return 'Para revisão';
   if (data.review_submission_date) return 'Em revisão';

@@ -1,8 +1,27 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
-import { CreateProcessSchema, validateData, sanitizeObject } from './validation.js';
+import { CreateProcessSchema, validateData, sanitizeObject } from './validation.ts';
+
+interface ProcessData {
+  organization_id: string;
+  process_number: string;
+  consultant?: string;
+  urgency_request?: boolean;
+  responsible_user_id?: string;
+  analysis_start_date?: string | null;
+  review_submission_date?: string | null;
+  review_return_date?: string | null;
+  archived_date?: string | null;
+  distribution_date?: string | null;
+  [key: string]: any;
+}
+
+interface UserEntity {
+  id: string;
+  full_name: string;
+}
 
 // Função para calcular o status
-function calculateStatus(processData) {
+function calculateStatus(processData: Partial<ProcessData>): string {
   if (processData.archived_date) return "Na pasta";
   if (processData.review_return_date) return "Para revisão";
   if (processData.review_submission_date) return "Em revisão";
@@ -11,16 +30,17 @@ function calculateStatus(processData) {
   return "Em triagem";
 }
 
-Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
+  const consultasCao = createClientFromRequest(req);
+  const user = await consultasCao.auth.me() as UserEntity | null;
 
   if (!user) {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
   }
 
   // HIGH-005 FIX: Validate and sanitize input
-  let processData;
+  let processData: ProcessData;
   try {
     processData = await req.json();
   } catch (error) {
@@ -28,7 +48,7 @@ Deno.serve(async (req) => {
   }
 
   // Sanitize all string fields
-  processData = sanitizeObject(processData);
+  processData = sanitizeObject(processData) as ProcessData;
 
   // Validate schema
   const validation = validateData(processData, CreateProcessSchema);
@@ -40,7 +60,7 @@ Deno.serve(async (req) => {
   }
 
   // Verificar se usuário pertence à organização
-  const membership = await base44.entities.UserOrganization.filter({
+  const membership = await consultasCao.entities.UserOrganization.filter({
     user_id: user.id,
     organization_id: processData.organization_id
   });
@@ -53,13 +73,13 @@ Deno.serve(async (req) => {
   const status = calculateStatus(processData);
 
   // Criar processo
-  const process = await base44.entities.Process.create({
+  const process = await consultasCao.entities.Process.create({
     ...processData,
     status
   });
 
   // Criar log de auditoria
-  await base44.entities.AuditLog.create({
+  await consultasCao.entities.AuditLog.create({
     organization_id: process.organization_id,
     process_id: process.id,
     user_id: user.id,
@@ -73,7 +93,7 @@ Deno.serve(async (req) => {
 
   // Se houver responsável atribuído, criar notificação
   if (processData.responsible_user_id && processData.responsible_user_id !== user.id) {
-    await base44.asServiceRole.entities.Notification.create({
+    await consultasCao.asServiceRole.entities.Notification.create({
       user_id: processData.responsible_user_id,
       organization_id: process.organization_id,
       process_id: process.id,
@@ -86,13 +106,13 @@ Deno.serve(async (req) => {
 
   // Se for urgente, notificar todos os membros da organização
   if (processData.urgency_request) {
-    const members = await base44.asServiceRole.entities.UserOrganization.filter({
+    const members = await consultasCao.asServiceRole.entities.UserOrganization.filter({
       organization_id: process.organization_id
     });
 
     for (const member of members) {
       if (member.user_id !== user.id) {
-        await base44.asServiceRole.entities.Notification.create({
+        await consultasCao.asServiceRole.entities.Notification.create({
           user_id: member.user_id,
           organization_id: process.organization_id,
           process_id: process.id,

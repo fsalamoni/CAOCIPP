@@ -1,8 +1,21 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
+interface OrgEntity {
+  id: string;
+  name: string;
+  [key: string]: any;
+}
+
+interface UserEntity {
+  id: string;
+  email: string;
+  full_name: string;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
+  const consultasCao = createClientFromRequest(req);
+  const user = await consultasCao.auth.me() as UserEntity | null;
 
   if (!user) {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
@@ -15,9 +28,9 @@ Deno.serve(async (req) => {
   }
 
   // Buscar organização pelo código de convite
-  const organizations = await base44.entities.Organization.filter({ 
-    invite_code: invite_code.toUpperCase() 
-  });
+  const organizations = await consultasCao.entities.Organization.filter({
+    invite_code: invite_code.toUpperCase()
+  }) as OrgEntity[];
 
   if (organizations.length === 0) {
     return Response.json({ error: 'Código de convite inválido' }, { status: 404 });
@@ -26,7 +39,7 @@ Deno.serve(async (req) => {
   const organization = organizations[0];
 
   // Verificar se usuário já é membro
-  const existingMembership = await base44.entities.UserOrganization.filter({
+  const existingMembership = await consultasCao.entities.UserOrganization.filter({
     user_id: user.id,
     organization_id: organization.id
   });
@@ -36,7 +49,7 @@ Deno.serve(async (req) => {
   }
 
   // Adicionar usuário como membro
-  await base44.entities.UserOrganization.create({
+  await consultasCao.entities.UserOrganization.create({
     user_id: user.id,
     user_email: user.email,
     user_name: user.full_name,
@@ -46,7 +59,7 @@ Deno.serve(async (req) => {
   });
 
   // Criar log de auditoria
-  await base44.entities.AuditLog.create({
+  await consultasCao.entities.AuditLog.create({
     organization_id: organization.id,
     user_id: user.id,
     user_name: user.full_name,
@@ -56,8 +69,8 @@ Deno.serve(async (req) => {
     }
   });
 
-  return Response.json({ 
-    success: true, 
+  return Response.json({
+    success: true,
     organization,
     message: 'Você ingressou na organização com sucesso!'
   });

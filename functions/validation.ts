@@ -1,10 +1,25 @@
-// Validation schemas for Deno Cloud Functions using Zod
+// Validation schemas for Deno Cloud Functions
 // Import in your functions with: import { z } from 'npm:zod@3.24.2';
+
+export interface ValidationRule {
+    type: 'string' | 'boolean' | 'number';
+    required: boolean;
+    validate?: (val: any) => string | null;
+}
+
+export interface ValidationSchema {
+    [key: string]: ValidationRule;
+}
+
+export interface ValidationResult {
+    valid: boolean;
+    errors: string[];
+}
 
 /**
  * Process Data Schema for createProcess function
  */
-export const CreateProcessSchema = {
+export const CreateProcessSchema: ValidationSchema = {
     organization_id: {
         type: 'string',
         required: true,
@@ -58,7 +73,7 @@ export const CreateProcessSchema = {
         required: false,
         validate: (val) => {
             if (val && typeof val !== 'string') return 'Objeto da matéria deve ser texto';
-            if (val && val.length > 500) return 'Objeto da matéria muito longo (máx 500 caracteres)';
+            if (val && val.length > 3000) return 'Objeto da matéria muito longo';
             return null;
         }
     },
@@ -82,12 +97,12 @@ export const CreateProcessSchema = {
 
 /**
  * Generic validator function
- * @param {object} data - Data to validate
- * @param {object} schema - Validation schema
- * @returns {{ valid: boolean, errors: string[] }}
+ * @param {any} data - Data to validate
+ * @param {ValidationSchema} schema - Validation schema
+ * @returns {ValidationResult}
  */
-export function validateData(data, schema) {
-    const errors = [];
+export function validateData(data: any, schema: ValidationSchema): ValidationResult {
+    const errors: string[] = [];
 
     // Check required fields
     for (const [field, rules] of Object.entries(schema)) {
@@ -122,7 +137,7 @@ export function validateData(data, schema) {
 /**
  * Organization creation schema
  */
-export const CreateOrganizationSchema = {
+export const CreateOrganizationSchema: ValidationSchema = {
     name: {
         type: 'string',
         required: true,
@@ -149,7 +164,7 @@ export const CreateOrganizationSchema = {
 /**
  * User profile update schema
  */
-export const UpdateUserProfileSchema = {
+export const UpdateUserProfileSchema: ValidationSchema = {
     platform_name: {
         type: 'string',
         required: false,
@@ -188,7 +203,7 @@ export const UpdateUserProfileSchema = {
 /**
  * Import file metadata schema
  */
-export const ImportFileSchema = {
+export const ImportFileSchema: ValidationSchema = {
     file_url: {
         type: 'string',
         required: true,
@@ -215,7 +230,7 @@ export const ImportFileSchema = {
 /**
  * Sanitize string input - remove dangerous characters
  */
-export function sanitizeString(str) {
+export function sanitizeString(str: any): string | any {
     if (typeof str !== 'string') return str;
 
     // Remove null bytes
@@ -233,10 +248,11 @@ export function sanitizeString(str) {
 /**
  * Sanitize object recursively
  */
-export function sanitizeObject(obj) {
+export function sanitizeObject(obj: any): any {
     if (typeof obj !== 'object' || obj === null) return obj;
 
-    const sanitized = {};
+    const sanitized: any = Array.isArray(obj) ? [] : {};
+
     for (const [key, value] of Object.entries(obj)) {
         if (typeof value === 'string') {
             sanitized[key] = sanitizeString(value);

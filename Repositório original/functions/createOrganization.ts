@@ -1,7 +1,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+interface OrgEntity {
+  id: string;
+  name: string;
+  invite_code: string;
+  [key: string]: any;
+}
+
+interface UserEntity {
+  id: string;
+  email: string;
+  full_name: string;
+}
+
 // Função para gerar código de convite único
-function generateInviteCode() {
+function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 8; i++) {
@@ -10,9 +23,10 @@ function generateInviteCode() {
   return code;
 }
 
-Deno.serve(async (req) => {
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
   const consultasCao = createClientFromRequest(req);
-  const user = await consultasCao.auth.me();
+  const user = await consultasCao.auth.me() as UserEntity | null;
 
   if (!user) {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
@@ -30,7 +44,7 @@ Deno.serve(async (req) => {
 
   // Verificar se o código já existe
   while (!isUnique) {
-    const existing = await consultasCao.entities.Organization.filter({ invite_code: inviteCode });
+    const existing = await consultasCao.entities.Organization.filter({ invite_code: inviteCode }) as OrgEntity[];
     if (existing.length === 0) {
       isUnique = true;
     } else {

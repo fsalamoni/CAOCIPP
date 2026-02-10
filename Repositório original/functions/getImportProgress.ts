@@ -1,13 +1,23 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-const progressMap = new Map();
-
-// Armazenar referência global para compartilhar entre requisições
-if (!globalThis.importProgressMap) {
-  globalThis.importProgressMap = new Map();
+interface ImportProgress {
+  total: number;
+  processed: number;
+  created: number;
+  updated: number;
+  errors: number;
+  status: string;
+  message: string;
 }
 
-Deno.serve(async (req) => {
+// Armazenar referência global para compartilhar entre requisições
+const globalProgressMap = (globalThis as any).importProgressMap || new Map<string, ImportProgress>();
+if (!(globalThis as any).importProgressMap) {
+  (globalThis as any).importProgressMap = globalProgressMap;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
   try {
     const consultasCao = createClientFromRequest(req);
     const user = await consultasCao.auth.me();
@@ -23,7 +33,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'sessionId é obrigatório' }, { status: 400 });
     }
 
-    const progress = globalThis.importProgressMap.get(sessionId);
+    const progress = (globalThis as any).importProgressMap.get(sessionId);
 
     if (!progress) {
       return Response.json({ error: 'Sessão não encontrada' }, { status: 404 });
@@ -32,20 +42,21 @@ Deno.serve(async (req) => {
     return Response.json(progress);
 
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return Response.json({ error: errorMessage }, { status: 500 });
   }
 });
 
-export function setProgress(sessionId, progress) {
-  if (!globalThis.importProgressMap) {
-    globalThis.importProgressMap = new Map();
+export function setProgress(sessionId: string, progress: ImportProgress) {
+  if (!(globalThis as any).importProgressMap) {
+    (globalThis as any).importProgressMap = new Map<string, ImportProgress>();
   }
-  globalThis.importProgressMap.set(sessionId, progress);
+  (globalThis as any).importProgressMap.set(sessionId, progress);
 }
 
-export function getProgress(sessionId) {
-  if (!globalThis.importProgressMap) {
+export function getProgress(sessionId: string): ImportProgress | null {
+  if (!(globalThis as any).importProgressMap) {
     return null;
   }
-  return globalThis.importProgressMap.get(sessionId);
+  return (globalThis as any).importProgressMap.get(sessionId) || null;
 }

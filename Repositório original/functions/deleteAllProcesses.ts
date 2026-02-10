@@ -1,10 +1,16 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+interface ProcessEntity {
+  id: string;
+  [key: string]: any;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    
+    const consultasCao = createClientFromRequest(req);
+    const user = await consultasCao.auth.me();
+
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
     }
@@ -17,28 +23,29 @@ Deno.serve(async (req) => {
     }
 
     // Buscar todos os processos da organização
-    const processes = await base44.entities.Process.filter({ organization_id });
-    console.log(`Deletando ${processes.length} processos...`);
+    const processes = await consultasCao.entities.Process.filter({ organization_id }) as ProcessEntity[];
+    console.log(`Deletando ${processes.length} processos (Consultas CAO)...`);
 
     // Deletar em lotes
     for (let i = 0; i < processes.length; i += 50) {
       const batch = processes.slice(i, i + 50);
       for (const process of batch) {
-        await base44.entities.Process.delete(process.id);
+        await consultasCao.entities.Process.delete(process.id);
       }
       console.log(`${i + batch.length}/${processes.length} deletados`);
     }
 
     return Response.json({
       success: true,
-      deleted: processes.length,
+      deletedCount: processes.length,
       message: `${processes.length} processos deletados com sucesso`
     });
 
   } catch (error) {
-    console.error('Erro ao deletar processos:', error);
-    return Response.json({ 
-      error: error.message
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Erro ao deletar processos:', errorMessage);
+    return Response.json({
+      error: errorMessage
     }, { status: 500 });
   }
 });

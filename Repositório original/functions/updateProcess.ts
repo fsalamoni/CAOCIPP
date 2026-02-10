@@ -1,7 +1,27 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+interface ProcessEntity {
+  id: string;
+  organization_id: string;
+  status: string;
+  process_number: string;
+  responsible_user_id?: string;
+  responsible_user_name?: string;
+  archived_date?: string | null;
+  review_return_date?: string | null;
+  review_submission_date?: string | null;
+  analysis_start_date?: string | null;
+  distribution_date?: string | null;
+  [key: string]: any;
+}
+
+interface UserEntity {
+  id: string;
+  full_name: string;
+}
+
 // Função para calcular o status
-function calculateStatus(processData) {
+function calculateStatus(processData: Partial<ProcessEntity>): string {
   if (processData.archived_date) return "Na pasta";
   if (processData.review_return_date) return "Para revisão";
   if (processData.review_submission_date) return "Em revisão";
@@ -10,9 +30,10 @@ function calculateStatus(processData) {
   return "Em triagem";
 }
 
-Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
+  const consultasCao = createClientFromRequest(req);
+  const user = await consultasCao.auth.me() as UserEntity | null;
 
   if (!user) {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
@@ -21,8 +42,8 @@ Deno.serve(async (req) => {
   const { process_id, updates } = await req.json();
 
   // Buscar processo existente
-  const existingProcesses = await base44.entities.Process.filter({ id: process_id });
-  
+  const existingProcesses = await consultasCao.entities.Process.filter({ id: process_id }) as ProcessEntity[];
+
   if (existingProcesses.length === 0) {
     return Response.json({ error: 'Processo não encontrado' }, { status: 404 });
   }
@@ -30,7 +51,7 @@ Deno.serve(async (req) => {
   const existingProcess = existingProcesses[0];
 
   // Verificar se usuário pertence à organização
-  const membership = await base44.entities.UserOrganization.filter({
+  const membership = await consultasCao.entities.UserOrganization.filter({
     user_id: user.id,
     organization_id: existingProcess.organization_id
   });
@@ -45,13 +66,13 @@ Deno.serve(async (req) => {
   const oldStatus = existingProcess.status;
 
   // Atualizar processo
-  const updatedProcess = await base44.asServiceRole.entities.Process.update(process_id, {
+  const updatedProcess = await consultasCao.asServiceRole.entities.Process.update(process_id, {
     ...updates,
     status: newStatus
   });
 
   // Criar log de auditoria
-  await base44.asServiceRole.entities.AuditLog.create({
+  await consultasCao.asServiceRole.entities.AuditLog.create({
     organization_id: existingProcess.organization_id,
     process_id: process_id,
     user_id: user.id,
@@ -66,7 +87,7 @@ Deno.serve(async (req) => {
 
   // Se o responsável mudou, criar notificação
   if (updates.responsible_user_id && updates.responsible_user_id !== existingProcess.responsible_user_id) {
-    await base44.asServiceRole.entities.Notification.create({
+    await consultasCao.asServiceRole.entities.Notification.create({
       user_id: updates.responsible_user_id,
       organization_id: existingProcess.organization_id,
       process_id: process_id,
@@ -77,7 +98,7 @@ Deno.serve(async (req) => {
     });
 
     // Log de mudança de responsável
-    await base44.asServiceRole.entities.AuditLog.create({
+    await consultasCao.asServiceRole.entities.AuditLog.create({
       organization_id: existingProcess.organization_id,
       process_id: process_id,
       user_id: user.id,
@@ -92,7 +113,7 @@ Deno.serve(async (req) => {
 
   // Se status mudou, notificar
   if (newStatus !== oldStatus) {
-    await base44.asServiceRole.entities.Notification.create({
+    await consultasCao.asServiceRole.entities.Notification.create({
       user_id: existingProcess.responsible_user_id || user.id,
       organization_id: existingProcess.organization_id,
       process_id: process_id,

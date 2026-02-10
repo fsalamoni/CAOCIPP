@@ -1,10 +1,43 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+interface ImportRow {
+  'PROCESSO SIM\n(NÚMERO)'?: string;
+  'CONSULENTE'?: string;
+  'LOCAL DOS FATOS\n(CIDADE)'?: string;
+  'ENTRADA NO CAOPP\n(DATA)'?: string;
+  'MATÉRIA E OBJETO DA CONSULTA'?: string;
+  'PEDIDO DE URGÊNCIA'?: string;
+  'DISTRIBUIÇÃO\n(DATA)'?: string;
+  'ASSESSOR RESPONSÁVEL'?: string;
+  'INÍCIO DA ANÁLISE\n(DATA)'?: string;
+  'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'?: string;
+  'REMESSA AO DR. PARA REVISÃO (DATA)'?: string;
+  'DEVOLUÇÃO APÓS REVISÃO\n(DATA)'?: string;
+  'NA PASTA\nARQUIVADO\n(DATA)'?: string;
+  'RESTRIÇÃO DE ACESSO'?: string;
+  'PASTA NA REDE'?: string;
+  'STATUS'?: string;
+  [key: string]: any;
+}
+
+interface ProcessEntity {
+  id: string;
+  process_number: string;
+  [key: string]: any;
+}
+
+interface UserEntity {
+  id: string;
+  full_name: string;
+  [key: string]: any;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    
+    const consultasCao = createClientFromRequest(req);
+    const user = await consultasCao.auth.me();
+
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
     }
@@ -16,16 +49,16 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'file_url e organization_id são obrigatórios' }, { status: 400 });
     }
 
-    console.log(`Iniciando importação em lotes de ${batch_size}...`);
+    console.log(`Iniciando importação em lotes de ${batch_size} (Consultas CAO)...`);
 
     // Download arquivo JSON
     const fileResponse = await fetch(file_url);
     if (!fileResponse.ok) {
       throw new Error(`Erro ao baixar arquivo: ${fileResponse.statusText}`);
     }
-    
+
     const fileContent = await fileResponse.text();
-    const processes = JSON.parse(fileContent);
+    const processes: ImportRow[] = JSON.parse(fileContent);
 
     if (!Array.isArray(processes)) {
       throw new Error('Arquivo deve conter um array JSON');
@@ -34,15 +67,17 @@ Deno.serve(async (req) => {
     console.log(`Total de processos no arquivo: ${processes.length}`);
 
     // Buscar assessores
-    const users = await base44.asServiceRole.entities.User.list();
-    const userMap = {};
+    const users = await consultasCao.asServiceRole.entities.User.list() as UserEntity[];
+    const userMap: { [key: string]: string } = {};
     users.forEach(u => {
-      userMap[u.full_name?.toLowerCase()] = u.id;
+      if (u.full_name) {
+        userMap[u.full_name.toLowerCase()] = u.id;
+      }
     });
 
     let created = 0;
     let updated = 0;
-    let errors = [];
+    const errors: any[] = [];
     let currentBatch = 0;
 
     // Processar em lotes
@@ -60,16 +95,16 @@ Deno.serve(async (req) => {
 
         try {
           const processNumber = row["PROCESSO SIM\n(NÚMERO)"]?.trim();
-          const consultant = row["CONSULENTE"]?.trim();
-          const location = row["LOCAL DOS FATOS\n(CIDADE)"]?.trim();
+          const consultant = row["CONSULENTE"]?.trim() || null;
+          const location = row["LOCAL DOS FATOS\n(CIDADE)"]?.trim() || null;
           const entryDate = parseDate(row["ENTRADA NO CAOPP\n(DATA)"]);
-          const matterObject = row["MATÉRIA E OBJETO DA CONSULTA"]?.trim();
+          const matterObject = row["MATÉRIA E OBJETO DA CONSULTA"]?.trim() || null;
           const urgencyRequest = row["PEDIDO DE URGÊNCIA"]?.toLowerCase().trim() === "sim";
           const distributionDate = parseDate(row["DISTRIBUIÇÃO\n(DATA)"]);
-          const responsibleName = row["ASSESSOR RESPONSÁVEL"]?.trim();
-          const responsibleUserId = responsibleName ? userMap[responsibleName.toLowerCase()] : null;
+          const responsibleName = row["ASSESSOR RESPONSÁVEL"]?.trim() || null;
+          const responsibleUserId = responsibleName ? userMap[responsibleName.toLowerCase()] || null : null;
           const analysisStartDate = parseDate(row["INÍCIO DA ANÁLISE\n(DATA)"]);
-          const observations = row["OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA"]?.trim();
+          const observations = row["OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA"]?.trim() || null;
           const reviewSubmissionDate = parseDate(row["REMESSA AO DR. PARA REVISÃO (DATA)"]);
           const reviewReturnDate = parseDate(row["DEVOLUÇÃO APÓS REVISÃO\n(DATA)"]);
           const accessRestriction = row["RESTRIÇÃO DE ACESSO"]?.toLowerCase().trim() === "sim";
@@ -78,9 +113,10 @@ Deno.serve(async (req) => {
             analysis_start_date: analysisStartDate,
             review_submission_date: reviewSubmissionDate,
             review_return_date: reviewReturnDate,
-            archived_date: archivedDate
+            archived_date: archivedDate,
+            distribution_date: distributionDate
           });
-          const networkFolder = row["PASTA NA REDE"]?.trim();
+          const networkFolder = row["PASTA NA REDE"]?.trim() || null;
 
           if (!processNumber) {
             errors.push({ row: rowNum, error: 'Número do processo não informado' });
@@ -88,12 +124,12 @@ Deno.serve(async (req) => {
           }
 
           // Buscar processo existente
-          const existingProcesses = await base44.entities.Process.filter({
+          const existingProcesses = await consultasCao.entities.Process.filter({
             organization_id,
             process_number: processNumber
-          });
+          }) as ProcessEntity[];
 
-          const processData = {
+          const processData: any = {
             process_number: processNumber,
             consultant,
             location,
@@ -115,39 +151,35 @@ Deno.serve(async (req) => {
           };
 
           if (existingProcesses.length > 0) {
-            await base44.entities.Process.update(existingProcesses[0].id, processData);
+            await consultasCao.entities.Process.update(existingProcesses[0].id, processData);
             updated++;
           } else {
-            await base44.entities.Process.create(processData);
+            await consultasCao.entities.Process.create(processData);
             created++;
           }
 
-          // Mostrar progresso a cada 10
-          if ((j + 1) % 10 === 0) {
+          // Mostrar progresso a cada 20
+          if ((j + 1) % 20 === 0) {
             console.log(`  ✓ ${j + 1}/${batch.length} processados do lote`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
 
         } catch (error) {
-          errors.push({ row: rowNum, error: error.message });
-          console.error(`❌ Erro na linha ${rowNum}: ${error.message}`);
-          await new Promise(resolve => setTimeout(resolve, 500));
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push({ row: rowNum, error: errorMessage });
+          console.error(`❌ Erro na linha ${rowNum}: ${errorMessage}`);
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
 
-      console.log(`✅ Lote ${currentBatch} concluído: ${batch.filter((_, idx) => {
-        const processNumber = batch[idx]["PROCESSO SIM\n(NÚMERO)"]?.trim();
-        return processNumber;
-      }).length} processos`);
-
       // Aguardar entre lotes para evitar rate limit
       if (i + batch_size < processes.length) {
-        console.log('⏳ Aguardando 5 segundos antes do próximo lote...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log('⏳ Aguardando 2 segundos antes do próximo lote...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
-    console.log(`\n🎉 Importação finalizada!`);
+    console.log(`\n🎉 Importação finalizada (Consultas CAO)!`);
     console.log(`📊 Total: ${created + updated} / ${processes.length}`);
     console.log(`✅ Criados: ${created}`);
     console.log(`🔄 Atualizados: ${updated}`);
@@ -157,33 +189,28 @@ Deno.serve(async (req) => {
       success: true,
       created,
       updated,
-      errors: errors.slice(0, 20), // Retornar apenas os primeiros 20 erros
+      errors: errors.slice(0, 20),
       totalErrors: errors.length,
       total: processes.length,
       message: `✅ Importação concluída: ${created} criados, ${updated} atualizados, ${errors.length} erros`
     });
 
   } catch (error) {
-    console.error('Erro fatal na importação:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Erro fatal na importação:', errorMessage);
+    return Response.json({ error: errorMessage }, { status: 500 });
   }
 });
 
-function parseDate(dateStr) {
-  if (!dateStr || dateStr.trim() === '') return null;
-
-  dateStr = dateStr.trim();
-
-  const parts = dateStr.split('/');
+function parseDate(dateStr: any): string | null {
+  if (!dateStr || String(dateStr).trim() === '') return null;
+  const str = String(dateStr).trim();
+  const parts = str.split('/');
   if (parts.length === 3) {
     let month = parseInt(parts[0]);
     let day = parseInt(parts[1]);
     let year = parseInt(parts[2]);
-
-    if (year < 100) {
-      year += 2000;
-    }
-
+    if (year < 100) year += 2000;
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       const date = new Date(year, month - 1, day);
       if (!isNaN(date.getTime())) {
@@ -191,14 +218,14 @@ function parseDate(dateStr) {
       }
     }
   }
-
-  return null;
+  return str.includes('-') ? str : null;
 }
 
-function calculateStatus(data) {
+function calculateStatus(data: any): string {
   if (data.archived_date) return 'Na pasta';
   if (data.review_return_date) return 'Para revisão';
   if (data.review_submission_date) return 'Em revisão';
   if (data.analysis_start_date) return 'Em elaboração';
+  if (data.distribution_date) return 'Pendente';
   return 'Pendente';
 }

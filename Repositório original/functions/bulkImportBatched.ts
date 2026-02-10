@@ -1,10 +1,43 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+interface ImportRow {
+    'PROCESSO SIM\n(NÚMERO)'?: string;
+    'CONSULENTE'?: string;
+    'LOCAL DOS FATOS\n(CIDADE)'?: string;
+    'ENTRADA NO CAOPP\n(DATA)'?: string;
+    'MATÉRIA E OBJETO DA CONSULTA'?: string;
+    'PEDIDO DE URGÊNCIA'?: string;
+    'DISTRIBUIÇÃO\n(DATA)'?: string;
+    'ASSESSOR RESPONSÁVEL'?: string;
+    'INÍCIO DA ANÁLISE\n(DATA)'?: string;
+    'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'?: string;
+    'REMESSA AO DR. PARA REVISÃO (DATA)'?: string;
+    'DEVOLUÇÃO APÓS REVISÃO\n(DATA)'?: string;
+    'NA PASTA\nARQUIVADO\n(DATA)'?: string;
+    'PASTA NA REDE'?: string;
+    'STATUS'?: string;
+    [key: string]: any;
+}
+
+interface ProcessEntity {
+    id: string;
+    process_number: string;
+    [key: string]: any;
+}
+
+interface ImportSummary {
+    total: number;
+    created: number;
+    skipped: number;
+    existing: number;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
     try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
+        const consultasCao = createClientFromRequest(req);
+        const user = await consultasCao.auth.me();
+
         if (!user) {
             return Response.json({ error: 'Não autorizado' }, { status: 401 });
         }
@@ -13,12 +46,12 @@ Deno.serve(async (req) => {
         const { file_url, organization_id } = body;
 
         if (!file_url || !organization_id) {
-            return Response.json({ 
+            return Response.json({
                 error: 'Parâmetros faltando'
             }, { status: 400 });
         }
 
-        console.log('Iniciando importação em lotes:', { file_url, organization_id });
+        console.log('Iniciando importação em lotes (Consultas CAO):', { file_url, organization_id });
 
         // Baixar e parsear JSON
         const fileResponse = await fetch(file_url);
@@ -27,7 +60,7 @@ Deno.serve(async (req) => {
         }
 
         const jsonText = await fileResponse.text();
-        const allData = JSON.parse(jsonText);
+        const allData: ImportRow[] = JSON.parse(jsonText);
 
         if (!Array.isArray(allData)) {
             throw new Error('JSON deve ser um array de objetos');
@@ -36,19 +69,19 @@ Deno.serve(async (req) => {
         console.log(`Total de registros: ${allData.length}`);
 
         // Primeiro, buscar todos os processos existentes
-        const existingProcesses = await base44.entities.Process.filter({ organization_id });
+        const existingProcesses = await consultasCao.entities.Process.filter({ organization_id }) as ProcessEntity[];
         const existingNumbers = new Set(existingProcesses.map(p => p.process_number));
         console.log(`Processos já existentes: ${existingNumbers.size}`);
 
         // Preparar dados para criação em lote
-        const toCreate = [];
+        const toCreate: any[] = [];
         let skipped = 0;
 
         for (let i = 0; i < allData.length; i++) {
             const row = allData[i];
-            
+
             let processNumber = String(row['PROCESSO SIM\n(NÚMERO)'] || '').trim();
-            
+
             // Se não tem número, criar um automático
             if (!processNumber) {
                 processNumber = `AUTO-${Date.now()}-${i}`;
@@ -61,7 +94,7 @@ Deno.serve(async (req) => {
             }
 
             // Extrair e converter datas
-            const convertDate = (dateStr) => {
+            const convertDate = (dateStr: any): string | null => {
                 if (!dateStr || String(dateStr).trim() === '') return null;
                 try {
                     const str = String(dateStr);
@@ -76,7 +109,7 @@ Deno.serve(async (req) => {
                 }
             };
 
-            const processData = {
+            const processData: any = {
                 organization_id,
                 process_number: processNumber,
                 consultant: String(row['CONSULENTE'] || 'Não informado').trim(),
@@ -124,39 +157,39 @@ Deno.serve(async (req) => {
         // Criar em lotes de 50
         const BATCH_SIZE = 50;
         let created = 0;
-        
+
         for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
             const batch = toCreate.slice(i, i + BATCH_SIZE);
             console.log(`Criando lote ${Math.floor(i / BATCH_SIZE) + 1} de ${Math.ceil(toCreate.length / BATCH_SIZE)} (${batch.length} registros)`);
-            
+
             try {
-                await base44.entities.Process.bulkCreate(batch);
+                await consultasCao.entities.Process.bulkCreate(batch);
                 created += batch.length;
-                
+
                 // Delay entre lotes para evitar rate limit
                 if (i + BATCH_SIZE < toCreate.length) {
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             } catch (error) {
-                console.error(`Erro no lote ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error(`Erro no lote ${Math.floor(i / BATCH_SIZE) + 1}:`, errorMessage);
             }
         }
 
-        return Response.json({
-            success: true,
-            summary: { 
-                total: allData.length, 
-                created,
-                skipped,
-                existing: existingNumbers.size
-            }
-        });
+        const summary: ImportSummary = {
+            total: allData.length,
+            created,
+            skipped,
+            existing: existingNumbers.size
+        };
+        return Response.json({ success: true, summary });
 
     } catch (error) {
-        console.error('ERRO:', error);
-        return Response.json({ 
-            error: error.message,
-            stack: error.stack
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('ERRO (Bulk Import Batched):', errorMessage);
+        return Response.json({
+            error: errorMessage,
+            stack: error instanceof Error ? error.stack : undefined
         }, { status: 500 });
     }
 });

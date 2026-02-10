@@ -1,20 +1,45 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import * as XLSX from 'npm:xlsx@0.18.5';
 
-Deno.serve(async (req) => {
-    let base44, user, body;
+interface UserEntity {
+    id: string;
+    email: string;
+    full_name: string;
+}
+
+interface ExcelRow {
+    [key: string]: any;
+}
+
+interface ProcessEntity {
+    id: string;
+    [key: string]: any;
+}
+
+interface ImportSummary {
+    total: number;
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: string[];
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
+    let consultasCao;
+    let user: UserEntity | null;
 
     try {
         // 1. Inicializar cliente e autenticar
-        base44 = createClientFromRequest(req);
-        user = await base44.auth.me();
+        consultasCao = createClientFromRequest(req);
+        user = await consultasCao.auth.me() as UserEntity | null;
 
         if (!user) {
             return Response.json({ error: 'Não autorizado' }, { status: 401 });
         }
 
         // 2. Parse do body
-        body = await req.json();
+        const body = await req.json();
         const { file_url, organization_id } = body;
 
         if (!file_url || !organization_id) {
@@ -24,15 +49,14 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        console.log('Iniciando importação:', { file_url, organization_id, user: user.email });
+        console.log('Iniciando importação (Consultas CAO):', { file_url, organization_id, user: user.email });
 
-        // 3. Baixar arquivo COM VALIDAÇÃO DE TAMANHO (CRIT-002 FIX)
+        // 3. Baixar arquivo COM VALIDAÇÃO DE TAMANHO
         const fileResponse = await fetch(file_url);
         if (!fileResponse.ok) {
             throw new Error('Falha ao baixar arquivo');
         }
 
-        // CRIT-002 FIX: Validar tamanho do arquivo ANTES de processar
         const contentLength = fileResponse.headers.get('content-length');
         const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
 
@@ -45,15 +69,13 @@ Deno.serve(async (req) => {
         }
 
         // Detectar tipo e processar
-        let excelData;
+        let excelData: ExcelRow[];
         const contentType = fileResponse.headers.get('content-type') || '';
         const isJson = contentType.includes('application/json') || file_url.endsWith('.json');
 
         if (isJson) {
-            // Processar JSON
             const jsonText = await fileResponse.text();
 
-            // CRIT-002 FIX: Validar tamanho do texto JSON também
             if (jsonText.length > MAX_FILE_SIZE) {
                 return Response.json({
                     error: 'Arquivo JSON muito grande',
@@ -66,10 +88,8 @@ Deno.serve(async (req) => {
                 throw new Error('JSON deve ser um array de objetos');
             }
         } else {
-            // Processar Excel
             const arrayBuffer = await fileResponse.arrayBuffer();
 
-            // CRIT-002 FIX: Validar tamanho do buffer
             if (arrayBuffer.byteLength > MAX_FILE_SIZE) {
                 return Response.json({
                     error: 'Arquivo Excel muito grande',
@@ -78,11 +98,11 @@ Deno.serve(async (req) => {
             }
 
             const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const firstSheetName = workbook.SheetNames[0];
+            const firstSheet = workbook.Sheets[firstSheetName];
             excelData = XLSX.utils.sheet_to_json(firstSheet);
         }
 
-        // CRIT-002 FIX: Validar número de linhas
         const MAX_ROWS = 5000;
         if (excelData.length > MAX_ROWS) {
             return Response.json({
@@ -100,64 +120,51 @@ Deno.serve(async (req) => {
         });
 
         let created = 0, updated = 0, skipped = 0;
-        const errors = [];
+        const errors: string[] = [];
 
         // 4. Processar cada linha
         for (let i = 0; i < excelData.length; i++) {
             const row = excelData[i];
 
             try {
-                // Extrair e limpar dados
                 const processNumber = String(row['Nº Processo'] || row['processo'] || row['Processo'] || '').trim();
                 const consultant = String(row['Consulente'] || row['consulente'] || '').trim();
                 const location = String(row['Local'] || row['Cidade'] || row['cidade'] || '').trim();
                 const matterObject = String(row['Matéria/Objeto'] || row['Matéria'] || row['Objeto'] || '').trim();
                 const entryDateRaw = row['Data Entrada'] || row['Data de Entrada'] || row['Entrada'];
 
-                // Log para debug
-                console.log(`Linha ${i + 2}:`, { processNumber, consultant, location, matterObject, entryDateRaw });
-
-                // Validação
                 if (!processNumber || !consultant || !location || !matterObject || !entryDateRaw) {
-                    errors.push(`Linha ${i + 2}: Faltando - ${!processNumber ? 'Processo' : ''} ${!consultant ? 'Consulente' : ''} ${!location ? 'Local' : ''} ${!matterObject ? 'Matéria' : ''} ${!entryDateRaw ? 'Data' : ''}`);
+                    errors.push(`Linha ${i + 2}: Faltando campos obrigatórios`);
                     skipped++;
                     continue;
                 }
 
                 // Converter data
-                let entryDate;
-                try {
-                    if (typeof entryDateRaw === 'number') {
-                        // Excel serial date number conversion
-                        // Note: Using constant for maintainability
-                        const EXCEL_EPOCH_OFFSET = 25569; // Days between 1900-01-01 and 1970-01-01
-                        const MS_PER_DAY = 86400 * 1000;
-                        const date = new Date((entryDateRaw - EXCEL_EPOCH_OFFSET) * MS_PER_DAY);
-                        entryDate = date.toISOString().split('T')[0];
-                    } else if (entryDateRaw instanceof Date) {
-                        entryDate = entryDateRaw.toISOString().split('T')[0];
+                let entryDate: string;
+                if (typeof entryDateRaw === 'number') {
+                    const EXCEL_EPOCH_OFFSET = 25569;
+                    const MS_PER_DAY = 86400 * 1000;
+                    const date = new Date((entryDateRaw - EXCEL_EPOCH_OFFSET) * MS_PER_DAY);
+                    entryDate = date.toISOString().split('T')[0];
+                } else if (entryDateRaw instanceof Date) {
+                    entryDate = entryDateRaw.toISOString().split('T')[0];
+                } else {
+                    const dateStr = String(entryDateRaw);
+                    if (dateStr.includes('/')) {
+                        const [day, month, year] = dateStr.split('/');
+                        entryDate = `${year.length === 2 ? '20' + year : year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
                     } else {
-                        const dateStr = String(entryDateRaw);
-                        if (dateStr.includes('/')) {
-                            const [day, month, year] = dateStr.split('/');
-                            entryDate = `${year.length === 2 ? '20' + year : year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                        } else {
-                            entryDate = dateStr;
-                        }
+                        entryDate = dateStr;
                     }
-                } catch (dateError) {
-                    errors.push(`Linha ${i + 2}: Data inválida - ${entryDateRaw}`);
-                    skipped++;
-                    continue;
                 }
 
                 // Verificar existência
-                const existing = await base44.entities.Process.filter({
+                const existing = await consultasCao.entities.Process.filter({
                     organization_id: organization_id,
                     process_number: processNumber
-                });
+                }) as ProcessEntity[];
 
-                const processData = {
+                const processData: any = {
                     organization_id,
                     process_number: processNumber,
                     consultant,
@@ -167,8 +174,7 @@ Deno.serve(async (req) => {
                     urgency_request: row['Urgência'] === 'Sim' || row['Urgente'] === 'Sim' || false
                 };
 
-                // Campos opcionais
-                const optionalFields = {
+                const optionalFields: { [key: string]: any } = {
                     distribution_date: row['Data Distribuição'] || row['Distribuição'],
                     responsible_user_name: row['Responsável'],
                     analysis_start_date: row['Início Análise'] || row['Análise'],
@@ -186,9 +192,8 @@ Deno.serve(async (req) => {
                 }
 
                 if (existing && existing.length > 0) {
-                    // Atualizar apenas campos vazios
                     const existingProcess = existing[0];
-                    const updates = {};
+                    const updates: any = {};
                     let hasUpdates = false;
 
                     for (const [key, value] of Object.entries(processData)) {
@@ -202,33 +207,34 @@ Deno.serve(async (req) => {
                     }
 
                     if (hasUpdates) {
-                        await base44.entities.Process.update(existingProcess.id, updates);
+                        await consultasCao.entities.Process.update(existingProcess.id, updates);
                         updated++;
                     } else {
                         skipped++;
                     }
                 } else {
-                    await base44.entities.Process.create(processData);
+                    await consultasCao.entities.Process.create(processData);
                     created++;
                 }
 
             } catch (rowError) {
-                console.error(`Erro linha ${i + 2}:`, rowError);
-                errors.push(`Linha ${i + 2}: ${rowError.message}`);
+                const errorMessage = rowError instanceof Error ? rowError.message : String(rowError);
+                console.error(`Erro linha ${i + 2}:`, errorMessage);
+                errors.push(`Linha ${i + 2}: ${errorMessage}`);
                 skipped++;
             }
         }
 
-        return Response.json({
-            success: true,
-            summary: { total: excelData.length, created, updated, skipped, errors }
-        });
+        const summary: ImportSummary = { total: excelData.length, created, updated, skipped, errors };
+        return Response.json({ success: true, summary });
 
     } catch (error) {
-        console.error('ERRO CRÍTICO:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error('ERRO CRÍTICO (Consultas CAO):', errorMessage);
         return Response.json({
-            error: error.message,
-            stack: error.stack,
+            error: errorMessage,
+            stack: errorStack,
             details: 'Erro ao processar importação'
         }, { status: 500 });
     }

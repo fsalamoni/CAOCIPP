@@ -1,8 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
+interface UserOrgEntity {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  role: string;
+  user_name: string;
+  [key: string]: any;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
+  const consultasCao = createClientFromRequest(req);
+  const user = await consultasCao.auth.me();
 
   if (!user) {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
@@ -11,20 +21,20 @@ Deno.serve(async (req) => {
   const { membership_id, organization_id } = await req.json();
 
   // Verificar se usuário é criador da organização
-  const userMembership = await base44.entities.UserOrganization.filter({
+  const userMembership = await consultasCao.entities.UserOrganization.filter({
     user_id: user.id,
     organization_id: organization_id,
     role: "creator"
-  });
+  }) as UserOrgEntity[];
 
   if (userMembership.length === 0) {
     return Response.json({ error: 'Apenas o criador pode remover membros' }, { status: 403 });
   }
 
   // Buscar dados do membro a ser removido
-  const memberToRemove = await base44.entities.UserOrganization.filter({
+  const memberToRemove = await consultasCao.entities.UserOrganization.filter({
     id: membership_id
-  });
+  }) as UserOrgEntity[];
 
   if (memberToRemove.length === 0) {
     return Response.json({ error: 'Membro não encontrado' }, { status: 404 });
@@ -36,10 +46,10 @@ Deno.serve(async (req) => {
   }
 
   // Remover membro
-  await base44.asServiceRole.entities.UserOrganization.delete(membership_id);
+  await consultasCao.asServiceRole.entities.UserOrganization.delete(membership_id);
 
   // Criar log de auditoria
-  await base44.asServiceRole.entities.AuditLog.create({
+  await consultasCao.asServiceRole.entities.AuditLog.create({
     organization_id: organization_id,
     user_id: user.id,
     user_name: user.full_name,

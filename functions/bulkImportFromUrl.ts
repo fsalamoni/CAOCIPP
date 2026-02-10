@@ -1,10 +1,51 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+interface ImportRow {
+    'PROCESSO SIM\n(NÚMERO)'?: string;
+    'CONSULENTE'?: string;
+    'LOCAL DOS FATOS\n(CIDADE)'?: string;
+    'ENTRADA NO CAOPP\n(DATA)'?: string;
+    'MATÉRIA E OBJETO DA CONSULTA'?: string;
+    'PEDIDO DE URGÊNCIA'?: string;
+    'DISTRIBUIÇÃO\n(DATA)'?: string;
+    'ASSESSOR RESPONSÁVEL'?: string;
+    'INÍCIO DA ANÁLISE\n(DATA)'?: string;
+    'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'?: string;
+    'REMESSA AO DR. PARA REVISÃO (DATA)'?: string;
+    'DEVOLUÇÃO APÓS REVISÃO\n(DATA)'?: string;
+    'NA PASTA\nARQUIVADO\n(DATA)'?: string;
+    'PASTA NA REDE'?: string;
+    'STATUS'?: string;
+    processo?: string;
+    consulente?: string;
+    Cidade?: string;
+    Matéria?: string;
+    'Data de Entrada'?: string;
+    Entrada?: string;
+    [key: string]: any;
+}
+
+interface ProcessEntity {
+    id: string;
+    process_number: string;
+    [key: string]: any;
+}
+
+interface ImportSummary {
+    total: number;
+    created: number;
+    updated: number;
+    skipped: number;
+    errorCount: number;
+    errors: string[];
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
     try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
+        const consultasCao = createClientFromRequest(req);
+        const user = await consultasCao.auth.me();
+
         if (!user) {
             return Response.json({ error: 'Não autorizado' }, { status: 401 });
         }
@@ -13,13 +54,13 @@ Deno.serve(async (req) => {
         const { file_url, organization_id } = body;
 
         if (!file_url || !organization_id) {
-            return Response.json({ 
+            return Response.json({
                 error: 'Parâmetros faltando',
                 received: { file_url: !!file_url, organization_id: !!organization_id }
             }, { status: 400 });
         }
 
-        console.log('Iniciando importação em massa:', { file_url, organization_id });
+        console.log('Iniciando importação em massa (Consultas CAO):', { file_url, organization_id });
 
         // Baixar arquivo JSON
         const fileResponse = await fetch(file_url);
@@ -28,7 +69,7 @@ Deno.serve(async (req) => {
         }
 
         const jsonText = await fileResponse.text();
-        const allData = JSON.parse(jsonText);
+        const allData: ImportRow[] = JSON.parse(jsonText);
 
         if (!Array.isArray(allData)) {
             throw new Error('JSON deve ser um array de objetos');
@@ -37,12 +78,12 @@ Deno.serve(async (req) => {
         console.log(`Total de registros no arquivo: ${allData.length}`);
 
         let created = 0, updated = 0, skipped = 0;
-        const errors = [];
+        const errors: string[] = [];
 
-        // Processar TODOS os registros
+        // Processar registros
         for (let i = 0; i < allData.length; i++) {
             const row = allData[i];
-            
+
             try {
                 // Extrair dados
                 const processNumber = String(row['PROCESSO SIM\n(NÚMERO)'] || row['processo'] || '').trim();
@@ -51,7 +92,7 @@ Deno.serve(async (req) => {
                 const matterObject = String(row['MATÉRIA E OBJETO DA CONSULTA'] || row['Matéria'] || '').trim();
                 const entryDateRaw = row['ENTRADA NO CAOPP\n(DATA)'] || row['Data de Entrada'] || row['Entrada'];
 
-                // Validação mínima - só número do processo é obrigatório
+                // Validação mínima
                 if (!processNumber) {
                     errors.push(`Linha ${i + 1}: Número do processo faltando`);
                     skipped++;
@@ -59,29 +100,31 @@ Deno.serve(async (req) => {
                 }
 
                 // Converter data
-                let entryDate;
-                try {
-                    const dateStr = String(entryDateRaw);
-                    if (dateStr.includes('/')) {
-                        const [month, day, year] = dateStr.split('/');
-                        const fullYear = year.length === 2 ? '20' + year : year;
-                        entryDate = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                    } else {
-                        entryDate = dateStr;
+                let entryDate: string | null = null;
+                if (entryDateRaw) {
+                    try {
+                        const dateStr = String(entryDateRaw);
+                        if (dateStr.includes('/')) {
+                            const [month, day, year] = dateStr.split('/');
+                            const fullYear = year.length === 2 ? '20' + year : year;
+                            entryDate = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                        } else {
+                            entryDate = dateStr;
+                        }
+                    } catch (dateError) {
+                        errors.push(`Linha ${i + 1}: Data inválida`);
+                        skipped++;
+                        continue;
                     }
-                } catch (dateError) {
-                    errors.push(`Linha ${i + 1}: Data inválida`);
-                    skipped++;
-                    continue;
                 }
 
                 // Verificar existência
-                const existing = await base44.entities.Process.filter({
+                const existing = await consultasCao.entities.Process.filter({
                     organization_id: organization_id,
                     process_number: processNumber
-                });
+                }) as ProcessEntity[];
 
-                const processData = {
+                const processData: any = {
                     organization_id,
                     process_number: processNumber,
                     consultant: consultant || 'Não informado',
@@ -92,7 +135,7 @@ Deno.serve(async (req) => {
                 };
 
                 // Campos opcionais com conversão de data
-                const dateFields = {
+                const dateFields: { [key: string]: any } = {
                     'distribution_date': row['DISTRIBUIÇÃO\n(DATA)'],
                     'analysis_start_date': row['INÍCIO DA ANÁLISE\n(DATA)'],
                     'review_submission_date': row['REMESSA AO DR. PARA REVISÃO (DATA)'],
@@ -108,6 +151,8 @@ Deno.serve(async (req) => {
                                 const [month, day, year] = dateStr.split('/');
                                 const fullYear = year.length === 2 ? '20' + year : year;
                                 processData[key] = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                            } else {
+                                processData[key] = dateStr;
                             }
                         } catch (e) {
                             // Ignorar erros de conversão de data opcional
@@ -130,9 +175,8 @@ Deno.serve(async (req) => {
                 }
 
                 if (existing && existing.length > 0) {
-                    // Atualizar apenas campos vazios
                     const existingProcess = existing[0];
-                    const updates = {};
+                    const updates: any = {};
                     let hasUpdates = false;
 
                     for (const [key, value] of Object.entries(processData)) {
@@ -146,40 +190,40 @@ Deno.serve(async (req) => {
                     }
 
                     if (hasUpdates) {
-                        await base44.entities.Process.update(existingProcess.id, updates);
+                        await consultasCao.entities.Process.update(existingProcess.id, updates);
                         updated++;
                     } else {
                         skipped++;
                     }
                 } else {
-                    await base44.entities.Process.create(processData);
+                    await consultasCao.entities.Process.create(processData);
                     created++;
                 }
 
             } catch (rowError) {
-                console.error(`Erro linha ${i + 1}:`, rowError);
-                errors.push(`Linha ${i + 1}: ${rowError.message}`);
+                const errorMessage = rowError instanceof Error ? rowError.message : String(rowError);
+                console.error(`Erro linha ${i + 1}:`, errorMessage);
+                errors.push(`Linha ${i + 1}: ${errorMessage}`);
                 skipped++;
             }
         }
 
-        return Response.json({
-            success: true,
-            summary: { 
-                total: allData.length, 
-                created, 
-                updated, 
-                skipped, 
-                errorCount: errors.length,
-                errors: errors.slice(0, 10) // Primeiros 10 erros
-            }
-        });
+        const summary: ImportSummary = {
+            total: allData.length,
+            created,
+            updated,
+            skipped,
+            errorCount: errors.length,
+            errors: errors.slice(0, 10)
+        };
+        return Response.json({ success: true, summary });
 
     } catch (error) {
-        console.error('ERRO CRÍTICO:', error);
-        return Response.json({ 
-            error: error.message,
-            stack: error.stack
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('ERRO CRÍTICO (Bulk Import From URL):', errorMessage);
+        return Response.json({
+            error: errorMessage,
+            stack: error instanceof Error ? error.stack : undefined
         }, { status: 500 });
     }
 });

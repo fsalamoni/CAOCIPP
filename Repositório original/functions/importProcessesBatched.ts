@@ -1,6 +1,37 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-function calculateStatus(process) {
+interface ImportRow {
+  'PROCESSO SIM\n(NÚMERO)'?: string;
+  'CONSULENTE'?: string;
+  'LOCAL DOS FATOS\n(CIDADE)'?: string;
+  'ENTRADA NO CAOPP\n(DATA)'?: string;
+  'MATÉRIA E OBJETO DA CONSULTA'?: string;
+  'PEDIDO DE URGÊNCIA'?: string;
+  'DISTRIBUIÇÃO\n(DATA)'?: string;
+  'ASSESSOR RESPONSÁVEL'?: string;
+  'INÍCIO DA ANÁLISE\n(DATA)'?: string;
+  'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'?: string;
+  'REMESSA AO DR. PARA REVISÃO (DATA)'?: string;
+  'DEVOLUÇÃO APÓS REVISÃO\n(DATA)'?: string;
+  'NA PASTA\nARQUIVADO\n(DATA)'?: string;
+  'RESTRIÇÃO DE ACESSO'?: string;
+  'PASTA NA REDE'?: string;
+  [key: string]: any;
+}
+
+interface ProcessEntity {
+  id: string;
+  process_number: string;
+  [key: string]: any;
+}
+
+interface UserEntity {
+  id: string;
+  full_name: string;
+  [key: string]: any;
+}
+
+function calculateStatus(process: any): string | null {
   if (process.archived_date) return "Na pasta";
   if (process.review_return_date) return "Para revisão";
   if (process.review_submission_date) return "Em revisão";
@@ -9,7 +40,7 @@ function calculateStatus(process) {
   return null;
 }
 
-function parseDate(dateValue) {
+function parseDate(dateValue: any): string | null {
   if (!dateValue || dateValue === '') return null;
 
   try {
@@ -45,7 +76,8 @@ function parseDate(dateValue) {
   }
 }
 
-Deno.serve(async (req) => {
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
   try {
     const consultasCao = createClientFromRequest(req);
     const user = await consultasCao.auth.me();
@@ -63,7 +95,7 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
-    console.log(`Iniciando importação: offset=${offset}, limit=${limit}`);
+    console.log(`Iniciando importação (Consultas CAO): offset=${offset}, limit=${limit}`);
 
     // Baixar e parsear JSON
     const fileResponse = await fetch(file_url);
@@ -72,7 +104,7 @@ Deno.serve(async (req) => {
     }
 
     const jsonText = await fileResponse.text();
-    const allData = JSON.parse(jsonText);
+    const allData: ImportRow[] = JSON.parse(jsonText);
 
     if (!Array.isArray(allData)) {
       throw new Error('JSON deve ser um array');
@@ -85,15 +117,15 @@ Deno.serve(async (req) => {
     console.log(`Processando lote: ${paginatedData.length} registros`);
 
     // Buscar processos existentes para evitar duplicatas
-    const existingProcesses = await consultasCao.entities.Process.filter({ organization_id });
-    const existingMap = new Map(existingProcesses.map(p => [p.process_number, p]));
+    const existingProcesses = await consultasCao.entities.Process.filter({ organization_id }) as ProcessEntity[];
+    const existingMap = new Map<string, ProcessEntity>(existingProcesses.map(p => [p.process_number, p]));
 
-    let created = 0, updated = 0, skipped = 0;
-    const errors = [];
+    let createdCount = 0, updatedCount = 0, skippedCount = 0;
+    const errors: string[] = [];
 
     // Encontrar assessores para vincular por nome
-    const users = await consultasCao.entities.User.list();
-    const userMap = new Map(users.map(u => [u.full_name?.toLowerCase(), u.id]));
+    const users = await consultasCao.entities.User.list() as UserEntity[];
+    const userMap = new Map<string, string>(users.map(u => [u.full_name?.toLowerCase(), u.id]));
 
     for (let i = 0; i < paginatedData.length; i++) {
       const row = paginatedData[i];
@@ -102,7 +134,7 @@ Deno.serve(async (req) => {
         const processNumber = String(row['PROCESSO SIM\n(NÚMERO)'] || '').trim();
 
         if (!processNumber) {
-          skipped++;
+          skippedCount++;
           continue;
         }
 
@@ -114,7 +146,7 @@ Deno.serve(async (req) => {
         const responsibleName = String(row['ASSESSOR RESPONSÁVEL'] || '').trim() || null;
         const responsibleUserId = responsibleName ? userMap.get(responsibleName.toLowerCase()) : null;
 
-        const processData = {
+        const processData: any = {
           organization_id,
           process_number: processNumber,
           consultant,
@@ -141,7 +173,7 @@ Deno.serve(async (req) => {
 
         if (existing) {
           let hasChanges = false;
-          const updates = {};
+          const updates: any = {};
 
           for (const [key, value] of Object.entries(processData)) {
             if (key !== 'organization_id' && existing[key] !== value) {
@@ -152,23 +184,24 @@ Deno.serve(async (req) => {
 
           if (hasChanges) {
             await consultasCao.entities.Process.update(existing.id, updates);
-            updated++;
+            updatedCount++;
           } else {
-            skipped++;
+            skippedCount++;
           }
         } else {
           await consultasCao.entities.Process.create(processData);
-          created++;
+          createdCount++;
         }
 
       } catch (error) {
-        console.error(`Erro na linha ${offset + i + 1}:`, error);
-        errors.push(`Linha ${offset + i + 1}: ${error.message}`);
-        skipped++;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`Erro na linha ${offset + i + 1}:`, errorMessage);
+        errors.push(`Linha ${offset + i + 1}: ${errorMessage}`);
+        skippedCount++;
       }
     }
 
-    const totalProcessed = created + updated + skipped;
+    const totalProcessed = createdCount + updatedCount + skippedCount;
     const hasMore = (offset + limit) < allData.length;
 
     return Response.json({
@@ -177,9 +210,9 @@ Deno.serve(async (req) => {
         offset,
         limit,
         processed: totalProcessed,
-        created,
-        updated,
-        skipped,
+        created: createdCount,
+        updated: updatedCount,
+        skipped: skippedCount,
         errors: errors.length,
         hasMore,
         nextOffset: hasMore ? offset + limit : null,
@@ -189,10 +222,11 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('ERRO CRÍTICO:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('ERRO CRÍTICO (Import Processes Batched):', errorMessage);
     return Response.json({
-      error: error.message,
-      stack: error.stack
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined
     }, { status: 500 });
   }
 });
