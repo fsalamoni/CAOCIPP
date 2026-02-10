@@ -388,6 +388,42 @@ export async function markNotificationAsRead(notificationId) {
     }
 }
 
+// ========== USER PREFERENCES ==========
+
+/**
+ * Get user preferences
+ * @param {string} userId - User UID
+ * @returns {Promise<object>} Preferences object
+ */
+export async function getUserPreferences(userId) {
+    try {
+        const prefRef = doc(db, 'userPreferences', userId);
+        const prefDoc = await getDoc(prefRef);
+        return prefDoc.exists() ? prefDoc.data() : {};
+    } catch (error) {
+        logger.error('Error fetching user preferences:', error);
+        return {};
+    }
+}
+
+/**
+ * Save user preferences
+ * @param {string} userId - User UID
+ * @param {object} preferences - Preferences to save
+ */
+export async function saveUserPreferences(userId, preferences) {
+    try {
+        const prefRef = doc(db, 'userPreferences', userId);
+        await setDoc(prefRef, {
+            ...preferences,
+            updated_at: serverTimestamp()
+        }, { merge: true });
+        logger.debug('User preferences saved:', userId);
+    } catch (error) {
+        logger.error('Error saving user preferences:', error);
+    }
+}
+
 // ========== HELPERS ==========
 
 /**

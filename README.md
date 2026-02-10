@@ -146,12 +146,16 @@ CAOCIPP/
 - Formatos aceitos: .xlsx, .xls, .csv, .json
 - Verifique colunas: Número, Consulente, Local, Data Entrada, Objeto
 
-## 📝 Atualizações Recentes (Auditoria de Dados)
+## 📝 Atualizações Recentes
 
-Em Fevereiro de 2026, o sistema passou por uma auditoria completa de paridade de dados para garantir que 100% das informações vindas de importações históricas (Excel/CSV) sejam editáveis:
-- **Normalização de Chaves**: Mapeamento agressivo de cabeçalhos do SIM (quebras de linha, espaços e termos legados).
-- **Assessor Responsável**: Lógica de resolução que preserva nomes mesmo sem ID vinculado, usando placeholders seguros.
-- **Remoção de Campos Obsoletos**: Simplificação do fluxo de trabalho conforme as regras de negócio atuais.
+### Fevereiro de 2026 - Auditoria e Refinamento de UX (Round 9)
+- **Persistence Per-User**: O sistema agora salva configurações de ordenação e página atual por usuário no Firestore. Ao retornar à aplicação, sua visão estará exatamente como você a deixou.
+- **Filtragem por Período Flexível (De/Até)**: Todos os filtros de data agora suportam intervalos. É possível filtrar processos por uma data única (preenchendo apenas "De") ou por um período completo (preenchendo "De" e "Até").
+- **Ordenação Natural**: O número do processo segue agora uma ordenação numérica inteligente (SIM 1, SIM 2, SIM 10).
+- **Auditoria de Paridade de Dados**: Garantia de 100% de visibilidade DB ↔ UI:
+    - **Normalização de Chaves**: Mapeamento agressivo de cabeçalhos do SIM (quebras de linha, espaços e termos legados).
+    - **Assessor Responsável**: Lógica de resolução que preserva nomes mesmo sem ID vinculado, usando placeholders seguros.
+    - **Remoção de Campos Obsoletos**: Simplificação do fluxo de trabalho conforme as regras de negócio atuais.
 
 ## 📝 Licença
 

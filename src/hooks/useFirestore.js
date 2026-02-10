@@ -1,5 +1,5 @@
 // Firestore Hooks - Custom React hooks for data fetching with Firebase
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     collection,
     query,
@@ -13,6 +13,7 @@ import {
 import { db } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { logger } from '@/utils/logger';
+import { getUserPreferences, saveUserPreferences } from '@/services/firestoreService';
 
 /**
  * Hook to fetch user's organizations
@@ -290,4 +291,42 @@ export function useNotifications() {
     }, [user]);
 
     return { notifications, unreadCount, isLoading, error };
+}
+
+/**
+ * Hook to manage user preferences with persistence
+ */
+export function useUserPreferences() {
+    const { user } = useAuth();
+    const [preferences, setPreferences] = useState({});
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user) {
+            setPreferences({});
+            setIsLoading(false);
+            return;
+        }
+
+        const fetchPreferences = async () => {
+            setIsLoading(true);
+            const prefs = await getUserPreferences(user.uid);
+            setPreferences(prefs);
+            setIsLoading(false);
+        };
+
+        fetchPreferences();
+    }, [user]);
+
+    const updatePreferences = useCallback(async (newPrefs) => {
+        if (!user) return;
+
+        // Optimistic update
+        setPreferences(prev => ({ ...prev, ...newPrefs }));
+
+        // Persistence
+        await saveUserPreferences(user.uid, newPrefs);
+    }, [user]);
+
+    return { preferences, updatePreferences, isLoading };
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,29 +6,79 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { Search, MoreHorizontal, Pencil, Eye, Archive, ArrowUpDown, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
+import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, AlertTriangle } from "lucide-react";
+import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useUserPreferences } from "@/hooks/useFirestore";
 
 export default function ProcessTable({
   processes,
   members,
   onEdit,
-  onViewDetails,
   onArchive
 }) {
+  // Defensive helper to ensure 100% data visibility across different field name variations
+  // Mirrors the logic found in EditProcessDialog
+  const getProcessField = (p, field) => {
+    if (!p) return '';
+
+    const aliases = {
+      process_number: ['process_number', 'numero', 'n_processo', 'processo', 'PROCESSO SIM\n(NÚMERO)', 'PROCESSO SIM\\n(NÚMERO)'],
+      consultant: ['consultant', 'consulente', 'cliente', 'interessado', 'CONSULENTE'],
+      location: ['location', 'local', 'cidade', 'local_fatos', 'municipio', 'LOCAL DOS FATOS\n(CIDADE)', 'LOCAL DOS FATOS\\n(CIDADE)'],
+      entry_date: ['entry_date', 'data_entrada', 'entrada', 'data', 'ENTRADA NO CAOPP\n(DATA)', 'ENTRADA NO CAOPP\\n(DATA)'],
+      matter_object: ['matter_object', 'objeto', 'assunto', 'materia', 'descricao', 'MATÉRIA E OBJETO DA CONSULTA'],
+      urgency_request: ['urgency_request', 'urgente', 'prioridade', 'PEDIDO DE URGÊNCIA', 'Solicitação de Urgência'],
+      distribution_date: ['distribution_date', 'data_distribuicao', 'distribuicao', 'DISTRIBUIÇÃO\n(DATA)', 'DISTRIBUIÇÃO\\n(DATA)'],
+      responsible_user_name: ['responsible_user_name', 'responsibleUserName', 'assessor', 'assessor_responsavel', 'responsavel'],
+      analysis_start_date: ['analysis_start_date', 'inicio_analise', 'data_inicio', 'INÍCIO DA ANÁLISE\n(DATA)', 'INÍCIO DA ANÁLISE\\n(DATA)'],
+      observations: ['observations', 'observacoes', 'notas', 'pontos_importantes', 'obs', 'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'],
+      review_submission_date: ['review_submission_date', 'remessa_revisao', 'data_revisao', 'remessa', 'REMESSA AO DR. PARA REVISÃO (DATA)'],
+      review_return_date: ['review_return_date', 'devolucao_revisao', 'retorno_revisao', 'retorno', 'DEVOLUÇÃO APÓS REVISÃO\n(DATA)', 'DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)'],
+      archived_date: ['archived_date', 'data_arquivamento', 'arquivamento', 'data_arquivo', 'NA PASTA\nARQUIVADO\n(DATA)', 'NA PASTA\\nARQUIVADO\\n(DATA)'],
+      network_folder: ['network_folder', 'network_folder_path', 'pasta', 'pasta_rede', 'caminho', 'PASTA NA REDE'],
+      status: ['status', 'situacao', 'estado'],
+      access_restriction: ['access_restriction', 'restricao', 'restrito', 'sigilo', 'RESTRIÇÃO DE ACESSO']
+    };
+
+    const keysToTry = aliases[field] || [field];
+
+    // 1. Direct match
+    for (const key of keysToTry) {
+      if (p[key] !== undefined && p[key] !== null && String(p[key]).trim() !== '') {
+        return p[key];
+      }
+    }
+
+    // 2. Normalized aggressive match
+    const normalize = (k) => k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedKeys = keysToTry.map(normalize);
+    const pKeys = Object.keys(p);
+
+    for (const pk of pKeys) {
+      if (normalizedKeys.includes(normalize(pk))) {
+        if (p[pk] !== undefined && p[pk] !== null && String(p[pk]).trim() !== '') {
+          return p[pk];
+        }
+      }
+    }
+
+    return field === 'urgency_request' || field === 'access_restriction' ? false : '';
+  };
+
+  const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [responsibleFilter, setResponsibleFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState("all");
   const [dateFilters, setDateFilters] = useState({
-    entry: '',
-    distribution: '',
-    analysis: '',
-    review_submission: '',
-    review_return: '',
-    archived: ''
+    entry: { start: '', end: '' },
+    distribution: { start: '', end: '' },
+    analysis: { start: '', end: '' },
+    review_submission: { start: '', end: '' },
+    review_return: { start: '', end: '' },
+    archived: { start: '', end: '' }
   });
   const [textFilters, setTextFilters] = useState({
     matter_object: '',
@@ -38,6 +88,34 @@ export default function ProcessTable({
   const [sortConfig, setSortConfig] = useState({ key: 'entry_date', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Load preferences on mount
+  useEffect(() => {
+    if (!isLoadingPrefs && !isInitialized) {
+      if (preferences && typeof preferences === 'object') {
+        const p = preferences;
+        if (p.sortConfig) setSortConfig(p.sortConfig);
+        if (p.currentPage) setCurrentPage(p.currentPage);
+      }
+      setIsInitialized(true);
+    }
+  }, [preferences, isInitialized, isLoadingPrefs]);
+
+  // Save preferences when sort or page change
+  useEffect(() => {
+    if (isInitialized) {
+      updatePreferences({ sortConfig, currentPage });
+    }
+  }, [sortConfig, currentPage, isInitialized, updatePreferences]);
+
+  // Reset to page 1 when any filter changes
+  // We exclude sortConfig from this to allow persistence of page and sort simultaneously
+  useEffect(() => {
+    if (isInitialized) {
+      setCurrentPage(1);
+    }
+  }, [search, statusFilter, responsibleFilter, locationFilter, urgencyFilter, dateFilters, textFilters]);
 
   const filteredAndSortedProcesses = useMemo(() => {
     let result = [...processes];
@@ -45,16 +123,17 @@ export default function ProcessTable({
     // Search filter (number, consultant, location)
     if (search) {
       const searchLower = search.toLowerCase();
-      result = result.filter(p =>
-        p.process_number?.toLowerCase().includes(searchLower) ||
-        p.consultant?.toLowerCase().includes(searchLower) ||
-        p.location?.toLowerCase().includes(searchLower)
-      );
+      result = result.filter(p => {
+        const num = String(getProcessField(p, 'process_number')).toLowerCase();
+        const con = String(getProcessField(p, 'consultant')).toLowerCase();
+        const loc = String(getProcessField(p, 'location')).toLowerCase();
+        return num.includes(searchLower) || con.includes(searchLower) || loc.includes(searchLower);
+      });
     }
 
     // Status filter
     if (statusFilter !== "all") {
-      result = result.filter(p => p.status === statusFilter);
+      result = result.filter(p => getProcessField(p, 'status') === statusFilter);
     }
 
     // Responsible filter
@@ -64,19 +143,24 @@ export default function ProcessTable({
 
     // Location filter
     if (locationFilter !== "all") {
-      result = result.filter(p => p.location === locationFilter);
+      const locLower = locationFilter.toLowerCase();
+      result = result.filter(p => String(getProcessField(p, 'location')).toLowerCase().includes(locLower));
     }
 
     // Urgency filter
     if (urgencyFilter !== "all") {
       const isUrgent = urgencyFilter === "urgent";
-      result = result.filter(p => !!p.urgency_request === isUrgent);
+      result = result.filter(p => {
+        const val = getProcessField(p, 'urgency_request');
+        const isTrue = val === true || String(val).toLowerCase().trim() === 'sim';
+        return isTrue === isUrgent;
+      });
     }
 
-    // Date filters
+    // Date filters (De/Até)
     Object.keys(dateFilters).forEach(key => {
-      const filterDate = dateFilters[key];
-      if (filterDate) {
+      const { start, end } = dateFilters[key];
+      if (start || end) {
         const fieldMap = {
           entry: 'entry_date',
           distribution: 'distribution_date',
@@ -86,7 +170,30 @@ export default function ProcessTable({
           archived: 'archived_date'
         };
         const fieldName = fieldMap[key];
-        result = result.filter(p => p[fieldName] === filterDate);
+
+        result = result.filter(p => {
+          const val = getProcessField(p, fieldName);
+          if (!val) return false;
+
+          const processDate = new Date(val);
+
+          // Case 1: Only start or start == end -> exact day
+          if ((start && !end) || (start && end && start === end)) {
+            const s = startOfDay(new Date(start));
+            const e = endOfDay(new Date(start));
+            return processDate >= s && processDate <= e;
+          }
+          // Case 2: Only end
+          if (!start && end) {
+            return processDate <= endOfDay(new Date(end));
+          }
+          // Case 3: Range
+          if (start && end) {
+            return processDate >= startOfDay(new Date(start)) &&
+              processDate <= endOfDay(new Date(end));
+          }
+          return true;
+        });
       }
     });
 
@@ -94,23 +201,42 @@ export default function ProcessTable({
     Object.keys(textFilters).forEach(key => {
       const filterText = textFilters[key]?.toLowerCase();
       if (filterText) {
-        result = result.filter(p => p[key]?.toLowerCase().includes(filterText));
+        const fieldName = key === 'network_folder_path' ? 'network_folder' : key;
+        result = result.filter(p => String(getProcessField(p, fieldName)).toLowerCase().includes(filterText));
       }
     });
 
-    // Sorting
-    result.sort((a, b) => {
-      const aValue = a[sortConfig.key] || '';
-      const bValue = b[sortConfig.key] || '';
+    // Robust Sorting
+    const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
 
-      if (sortConfig.direction === 'asc') {
-        return aValue > bValue ? 1 : -1;
+    result.sort((a, b) => {
+      let aValue = getProcessField(a, sortConfig.key);
+      let bValue = getProcessField(b, sortConfig.key);
+
+      // Handle nulls/undefineds - always at bottom
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+
+      let comparison = 0;
+
+      // Special handling for process_number (natural sort)
+      if (sortConfig.key === 'process_number') {
+        comparison = collator.compare(String(aValue), String(bValue));
       }
-      return aValue < bValue ? 1 : -1;
+      // Date fields or other strings
+      else {
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          comparison = aValue.localeCompare(bValue, 'pt-BR', { numeric: true });
+        } else {
+          comparison = aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        }
+      }
+
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
 
     return result;
-  }, [processes, search, statusFilter, responsibleFilter, sortConfig]);
+  }, [processes, search, statusFilter, responsibleFilter, locationFilter, urgencyFilter, dateFilters, textFilters, sortConfig]);
 
   const paginatedProcesses = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -131,7 +257,8 @@ export default function ProcessTable({
     return format(new Date(dateStr), 'dd/MM/yyyy', { locale: ptBR });
   };
 
-  const statuses = ["Pendente", "Em elaboração", "Em revisão", "Para revisão", "Para assinatura", "Na pasta"];
+  // Refined status list (removed "Para assinatura" as per request)
+  const statuses = ["Pendente", "Em elaboração", "Em revisão", "Para revisão", "Na pasta"];
 
   return (
     <div className="space-y-4">
@@ -233,65 +360,41 @@ export default function ProcessTable({
               />
             </div>
 
-            {/* Dates */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">Data de Entrada</label>
-              <Input
-                type="date"
-                value={dateFilters.entry}
-                onChange={(e) => setDateFilters({ ...dateFilters, entry: e.target.value })}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">Data de Distribuição</label>
-              <Input
-                type="date"
-                value={dateFilters.distribution}
-                onChange={(e) => setDateFilters({ ...dateFilters, distribution: e.target.value })}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">Início da Análise</label>
-              <Input
-                type="date"
-                value={dateFilters.analysis}
-                onChange={(e) => setDateFilters({ ...dateFilters, analysis: e.target.value })}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">Remessa Revisão</label>
-              <Input
-                type="date"
-                value={dateFilters.review_submission}
-                onChange={(e) => setDateFilters({ ...dateFilters, review_submission: e.target.value })}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">Retorno Revisão</label>
-              <Input
-                type="date"
-                value={dateFilters.review_return}
-                onChange={(e) => setDateFilters({ ...dateFilters, review_return: e.target.value })}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">Data de Arquivamento</label>
-              <Input
-                type="date"
-                value={dateFilters.archived}
-                onChange={(e) => setDateFilters({ ...dateFilters, archived: e.target.value })}
-                className="h-9"
-              />
+            {/* Dates Grid */}
+            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 border-t border-slate-100">
+              {[
+                { label: 'Data de Entrada', key: 'entry' },
+                { label: 'Data de Distribuição', key: 'distribution' },
+                { label: 'Início da Análise', key: 'analysis' },
+                { label: 'Remessa Revisão', key: 'review_submission' },
+                { label: 'Retorno Revisão', key: 'review_return' },
+                { label: 'Data de Arquivamento', key: 'archived' }
+              ].map(({ label, key }) => (
+                <div key={key} className="space-y-2">
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{label}</label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={dateFilters[key].start}
+                      onChange={(e) => setDateFilters({
+                        ...dateFilters,
+                        [key]: { ...dateFilters[key], start: e.target.value }
+                      })}
+                      className="h-9 text-xs transition-colors hover:border-slate-300 focus:border-blue-400"
+                    />
+                    <span className="text-slate-400 text-[9px] font-bold uppercase">até</span>
+                    <Input
+                      type="date"
+                      value={dateFilters[key].end}
+                      onChange={(e) => setDateFilters({
+                        ...dateFilters,
+                        [key]: { ...dateFilters[key], end: e.target.value }
+                      })}
+                      className="h-9 text-xs transition-colors hover:border-slate-300 focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -388,54 +491,60 @@ export default function ProcessTable({
                   <TableRow key={process.id} className="hover:bg-slate-50/50 transition-colors group">
                     {/* Coluna Fixa: Processo */}
                     <TableCell className="font-medium sticky left-0 z-10 bg-white border-r group-hover:bg-slate-50 transition-colors">
-                      {process.process_number}
+                      {getProcessField(process, 'process_number')}
                     </TableCell>
-                    <TableCell className="text-slate-600 truncate max-w-[200px]" title={process.consultant}>
-                      {process.consultant}
+                    <TableCell className="text-slate-600 truncate max-w-[200px]" title={String(getProcessField(process, 'consultant'))}>
+                      {getProcessField(process, 'consultant')}
                     </TableCell>
                     <TableCell className="max-w-[450px]">
-                      <div className="line-clamp-2 text-xs leading-relaxed text-slate-700" title={process.matter_object}>
-                        {process.matter_object || '-'}
+                      <div className="line-clamp-2 text-xs leading-relaxed text-slate-700" title={String(getProcessField(process, 'matter_object'))}>
+                        {getProcessField(process, 'matter_object') || '-'}
                       </div>
                     </TableCell>
-                    <TableCell className="text-slate-600 truncate max-w-[180px]" title={process.location}>
-                      {process.location}
+                    <TableCell className="text-slate-600 truncate max-w-[180px]" title={String(getProcessField(process, 'location'))}>
+                      {getProcessField(process, 'location')}
                     </TableCell>
-                    <TableCell className="text-slate-600">{formatDate(process.entry_date)}</TableCell>
+                    <TableCell className="text-slate-600">{formatDate(getProcessField(process, 'entry_date'))}</TableCell>
                     <TableCell className="text-center">
-                      {process.urgency_request ? (
-                        <Badge variant="destructive" className="text-[10px] px-2 py-0 h-5 border-none bg-rose-500">SIM</Badge>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
+                      {(() => {
+                        const val = getProcessField(process, 'urgency_request');
+                        return (val === true || String(val).toLowerCase().trim() === 'sim') ? (
+                          <Badge variant="destructive" className="text-[10px] px-2 py-0 h-5 border-none bg-rose-500">SIM</Badge>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        );
+                      })()}
                     </TableCell>
-                    <TableCell className="text-slate-600">{formatDate(process.distribution_date)}</TableCell>
-                    <TableCell className="text-slate-600 truncate max-w-[220px]" title={process.responsible_user_name}>
-                      {process.responsible_user_name || '-'}
+                    <TableCell className="text-slate-600">{formatDate(getProcessField(process, 'distribution_date'))}</TableCell>
+                    <TableCell className="text-slate-600 truncate max-w-[220px]" title={String(getProcessField(process, 'responsible_user_name'))}>
+                      {getProcessField(process, 'responsible_user_name') || '-'}
                     </TableCell>
-                    <TableCell className="text-slate-600">{formatDate(process.analysis_start_date)}</TableCell>
+                    <TableCell className="text-slate-600">{formatDate(getProcessField(process, 'analysis_start_date'))}</TableCell>
                     <TableCell className="max-w-[350px]">
-                      <div className="line-clamp-2 text-xs text-slate-500" title={process.observations}>
-                        {process.observations || '-'}
+                      <div className="line-clamp-2 text-xs text-slate-500" title={String(getProcessField(process, 'observations'))}>
+                        {getProcessField(process, 'observations') || '-'}
                       </div>
                     </TableCell>
-                    <TableCell className="text-slate-600">{formatDate(process.review_submission_date)}</TableCell>
-                    <TableCell className="text-slate-600">{formatDate(process.review_return_date)}</TableCell>
+                    <TableCell className="text-slate-600">{formatDate(getProcessField(process, 'review_submission_date'))}</TableCell>
+                    <TableCell className="text-slate-600">{formatDate(getProcessField(process, 'review_return_date'))}</TableCell>
                     <TableCell className="text-slate-600">
-                      {process.access_restriction ? (
-                        <span className="text-xs text-amber-600 font-medium">Restrito</span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
+                      {(() => {
+                        const val = getProcessField(process, 'access_restriction');
+                        return (val === true || String(val).toLowerCase().trim() === 'sim') ? (
+                          <span className="text-xs text-amber-600 font-medium">Restrito</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        );
+                      })()}
                     </TableCell>
-                    <TableCell className="text-slate-600">{formatDate(process.archived_date)}</TableCell>
+                    <TableCell className="text-slate-600">{formatDate(getProcessField(process, 'archived_date'))}</TableCell>
                     <TableCell className="max-w-[280px]">
-                      <div className="truncate text-[10px] text-blue-600 font-mono" title={process.network_folder || process.network_folder_path}>
-                        {process.network_folder || process.network_folder_path || '-'}
+                      <div className="truncate text-[10px] text-blue-600 font-mono" title={String(getProcessField(process, 'network_folder'))}>
+                        {getProcessField(process, 'network_folder') || '-'}
                       </div>
                     </TableCell>
                     <TableCell className="w-[180px]">
-                      <StatusBadge status={process.status} />
+                      <StatusBadge status={getProcessField(process, 'status')} />
                     </TableCell>
                     {/* Coluna Fixa: Ações */}
                     <TableCell className="text-center sticky right-0 z-10 bg-white border-l group-hover:bg-slate-50 transition-colors">
@@ -446,10 +555,6 @@ export default function ProcessTable({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => onViewDetails(process)}>
-                            <Eye className="w-4 h-4 mr-2 text-slate-500" />
-                            Ver Detalhes
-                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => onEdit(process)}>
                             <Pencil className="w-4 h-4 mr-2 text-slate-500" />
                             Editar

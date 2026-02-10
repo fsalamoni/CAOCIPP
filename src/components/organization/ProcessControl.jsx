@@ -40,9 +40,6 @@ export default function ProcessControl({
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [responsibleFilter, setResponsibleFilter] = useState('all');
 
   // Import state
   const [uploading, setUploading] = useState(false);
@@ -174,26 +171,6 @@ export default function ProcessControl({
     });
   };
 
-  const filteredProcesses = processes.filter(process => {
-    const matchesSearch =
-      process.process_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.consultant?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    let matchesStatus = false;
-    if (statusFilter === 'all') {
-      matchesStatus = true;
-    } else if (statusFilter === 'null') {
-      matchesStatus = !process.status;
-    } else {
-      matchesStatus = process.status === statusFilter;
-    }
-
-    const matchesResponsible = responsibleFilter === 'all' ||
-      process.responsible_user_id === responsibleFilter;
-
-    return matchesSearch && matchesStatus && matchesResponsible;
-  });
-
   const uniqueStatuses = Object.keys(statusConfig);
 
   return (
@@ -206,7 +183,7 @@ export default function ProcessControl({
               Processos
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              {filteredProcesses.length} {filteredProcesses.length === 1 ? 'processo' : 'processos'}
+              {processes.length} {processes.length === 1 ? 'processo' : 'processos'} cadastrados
             </p>
           </div>
 
@@ -241,45 +218,7 @@ export default function ProcessControl({
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Buscar por número ou consulente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filtrar por status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="null">Sem status</SelectItem>
-              {uniqueStatuses.map(status => (
-                <SelectItem key={status} value={status}>{status}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filtrar por responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os responsáveis</SelectItem>
-              {members.map(member => (
-                <SelectItem key={member.user_id} value={member.user_id}>
-                  {member.user_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Filters moved to ProcessTable for unified control */}
 
         {/* Loading State */}
         {processesLoading && (
@@ -300,10 +239,9 @@ export default function ProcessControl({
         {/* Processes Table - GRID MASTER INTEGRATION */}
         {!processesLoading && !processesError && (
           <ProcessTable
-            processes={filteredProcesses}
+            processes={processes}
             members={members}
             onEdit={handleEdit}
-            onViewDetails={handleEdit}
             onArchive={handleArchive}
           />
         )}
