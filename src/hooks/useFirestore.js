@@ -326,7 +326,7 @@ export function useUserPreferences() {
 
         // Persistence
         await saveUserPreferences(user.uid, newPrefs);
-    }, [user]);
+    }, [user?.uid]);
 
     return { preferences, updatePreferences, isLoading };
 }

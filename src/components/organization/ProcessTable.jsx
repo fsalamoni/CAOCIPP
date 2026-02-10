@@ -99,8 +99,8 @@ export default function ProcessTable({
         // Note: we do NOT restore currentPage on reload, as users usually expect to start at page 1
         // unless they are navigating back. For now, let's keep it reset to 1 to avoid confusion if data changed.
         // However, user specifically asked for "configuration to remain", so we will restore it if valid.
-        if (p.currentPage) setCurrentPage(p.currentPage);
-        if (p.itemsPerPage) setItemsPerPage(p.itemsPerPage);
+        if (p.currentPage) setCurrentPage(Number(p.currentPage) || 1);
+        if (p.itemsPerPage) setItemsPerPage(Number(p.itemsPerPage) || 20);
       }
       setIsInitialized(true);
     }
