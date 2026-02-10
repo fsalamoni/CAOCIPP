@@ -1,18 +1,21 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  TrendingUp, 
-  MapPin, 
+import {
+  TrendingUp,
+  MapPin,
   Users,
   Clock,
   Target,
-  AlertCircle
+  AlertCircle,
+  FileText // Added check to ensure it's imported
 } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
+import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 
 export default function IntelligentSummary({ processes, members }) {
   // Calcular métricas
   const totalProcesses = processes.length;
+  // 'Na pasta' is the finished status in config
   const finishedProcesses = processes.filter(p => p.status === 'Na pasta').length;
   const urgentProcesses = processes.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
   const completionRate = totalProcesses > 0 ? ((finishedProcesses / totalProcesses) * 100).toFixed(1) : 0;
@@ -31,7 +34,7 @@ export default function IntelligentSummary({ processes, members }) {
       }
     })
     .filter(time => time !== null);
-  const avgReviewTime = reviewTimes.length > 0 
+  const avgReviewTime = reviewTimes.length > 0
     ? (reviewTimes.reduce((a, b) => a + b, 0) / reviewTimes.length).toFixed(1)
     : 0;
 
@@ -49,7 +52,7 @@ export default function IntelligentSummary({ processes, members }) {
       }
     })
     .filter(time => time !== null);
-  const avgReturnTime = returnTimes.length > 0 
+  const avgReturnTime = returnTimes.length > 0
     ? (returnTimes.reduce((a, b) => a + b, 0) / returnTimes.length).toFixed(1)
     : 0;
 
@@ -67,7 +70,7 @@ export default function IntelligentSummary({ processes, members }) {
   // Processos por responsável
   const processesPerResponsible = {};
   const finishedPerResponsible = {};
-  
+
   processes.forEach(p => {
     const responsible = p.responsible_user_name || 'Não atribuído';
     processesPerResponsible[responsible] = (processesPerResponsible[responsible] || 0) + 1;
@@ -83,15 +86,26 @@ export default function IntelligentSummary({ processes, members }) {
     taxa: total > 0 ? ((finishedPerResponsible[name] || 0) / total * 100).toFixed(1) : 0
   }));
 
-  // Processos por status
-  const statusCounts = {
-    'Sem Status': processes.filter(p => !p.status).length,
-    'Pendente': processes.filter(p => p.status === 'Pendente').length,
-    'Em elaboração': processes.filter(p => p.status === 'Em elaboração').length,
-    'Em revisão': processes.filter(p => p.status === 'Em revisão').length,
-    'Para revisão': processes.filter(p => p.status === 'Para revisão').length,
-    'Na pasta': processes.filter(p => p.status === 'Na pasta').length
-  };
+  // Processos por status (Dynamic based on Config)
+  // Initialize counts for all configured statuses to 0
+  const statusCounts = {};
+  Object.keys(statusConfig).forEach(status => {
+    statusCounts[status] = 0;
+  });
+  // Also track 'Sem Status' or others
+  let noStatusCount = 0;
+
+  processes.forEach(p => {
+    if (!p.status) {
+      noStatusCount++;
+    } else if (statusCounts.hasOwnProperty(p.status)) {
+      statusCounts[p.status]++;
+    } else {
+      // If status is not in config, add it dynamically or group it? 
+      // Grouping under 'Outros' or adding dynamic key
+      statusCounts[p.status] = (statusCounts[p.status] || 0) + 1;
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -168,7 +182,7 @@ export default function IntelligentSummary({ processes, members }) {
                     <span className="text-xs text-slate-600">{concluídos}/{total} concluídos</span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-gradient-to-r from-indigo-500 to-violet-500 h-2 rounded-full transition-all"
                       style={{ width: `${taxa}%` }}
                     />
@@ -191,12 +205,30 @@ export default function IntelligentSummary({ processes, members }) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Object.entries(statusCounts).map(([status, count]) => (
-              <div key={status} className="text-center p-4 bg-slate-50 rounded-lg">
-                <div className="text-2xl font-bold text-slate-900">{count}</div>
-                <div className="text-xs text-slate-600 mt-1">{status}</div>
+            {noStatusCount > 0 && (
+              <div className="text-center p-4 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-2xl font-bold text-slate-900">{noStatusCount}</div>
+                <div className="text-xs text-slate-600 mt-1">Sem Status</div>
               </div>
-            ))}
+            )}
+            {Object.entries(statusCounts).map(([status, count]) => {
+              const config = statusConfig[status] || DEFAULT_STATUS_CONFIG;
+              // Use config colors for background/border if desired, logic below uses simple styling
+              // Let's use subtle background from config
+              return (
+                <div
+                  key={status}
+                  className={`text-center p-4 rounded-lg border border-transparent ${config.startColor}`}
+                >
+                  <div className={`text-2xl font-bold ${config.text?.replace('text-', 'text-opacity-90 text-') || 'text-slate-900'}`}>
+                    {count}
+                  </div>
+                  <div className={`text-xs mt-1 ${config.text || 'text-slate-600'}`}>
+                    {status}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -221,5 +253,3 @@ function MetricCard({ title, value, icon: Icon, color }) {
     </Card>
   );
 }
-
-const FileText = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;

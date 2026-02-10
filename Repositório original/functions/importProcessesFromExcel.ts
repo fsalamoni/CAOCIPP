@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
         // 1. Inicializar cliente e autenticar
         base44 = createClientFromRequest(req);
         user = await base44.auth.me();
-        
+
         if (!user) {
             return Response.json({ error: 'Não autorizado' }, { status: 401 });
         }
@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
         const { file_url, organization_id } = body;
 
         if (!file_url || !organization_id) {
-            return Response.json({ 
+            return Response.json({
                 error: 'Parâmetros faltando',
                 received: { file_url: !!file_url, organization_id: !!organization_id }
             }, { status: 400 });
@@ -26,10 +26,22 @@ Deno.serve(async (req) => {
 
         console.log('Iniciando importação:', { file_url, organization_id, user: user.email });
 
-        // 3. Baixar arquivo
+        // 3. Baixar arquivo COM VALIDAÇÃO DE TAMANHO (CRIT-002 FIX)
         const fileResponse = await fetch(file_url);
         if (!fileResponse.ok) {
             throw new Error('Falha ao baixar arquivo');
+        }
+
+        // CRIT-002 FIX: Validar tamanho do arquivo ANTES de processar
+        const contentLength = fileResponse.headers.get('content-length');
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
+
+        if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
+            return Response.json({
+                error: 'Arquivo muito grande',
+                details: `Tamanho máximo permitido: 10MB. Arquivo enviado: ${(parseInt(contentLength) / 1024 / 1024).toFixed(2)}MB`,
+                suggestion: 'Para arquivos maiores, divida em múltiplos arquivos menores.'
+            }, { status: 413 });
         }
 
         // Detectar tipo e processar
@@ -40,6 +52,15 @@ Deno.serve(async (req) => {
         if (isJson) {
             // Processar JSON
             const jsonText = await fileResponse.text();
+
+            // CRIT-002 FIX: Validar tamanho do texto JSON também
+            if (jsonText.length > MAX_FILE_SIZE) {
+                return Response.json({
+                    error: 'Arquivo JSON muito grande',
+                    details: `Tamanho máximo: 10MB.`
+                }, { status: 413 });
+            }
+
             excelData = JSON.parse(jsonText);
             if (!Array.isArray(excelData)) {
                 throw new Error('JSON deve ser um array de objetos');
@@ -47,12 +68,36 @@ Deno.serve(async (req) => {
         } else {
             // Processar Excel
             const arrayBuffer = await fileResponse.arrayBuffer();
+
+            // CRIT-002 FIX: Validar tamanho do buffer
+            if (arrayBuffer.byteLength > MAX_FILE_SIZE) {
+                return Response.json({
+                    error: 'Arquivo Excel muito grande',
+                    details: `Tamanho máximo: 10MB.`
+                }, { status: 413 });
+            }
+
             const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             excelData = XLSX.utils.sheet_to_json(firstSheet);
         }
 
-        console.log('Arquivo processado:', { type: isJson ? 'JSON' : 'Excel', rows: excelData.length, firstRow: excelData[0] });
+        // CRIT-002 FIX: Validar número de linhas
+        const MAX_ROWS = 5000;
+        if (excelData.length > MAX_ROWS) {
+            return Response.json({
+                error: 'Arquivo excede limite de registros',
+                details: `Máximo: ${MAX_ROWS} registros. Arquivo possui: ${excelData.length} registros.`,
+                suggestion: 'Use a função de importação em lote (batch import) para arquivos maiores.'
+            }, { status: 413 });
+        }
+
+        console.log('Arquivo processado e validado:', {
+            type: isJson ? 'JSON' : 'Excel',
+            rows: excelData.length,
+            firstRow: excelData[0],
+            sizeOk: true
+        });
 
         let created = 0, updated = 0, skipped = 0;
         const errors = [];
@@ -60,7 +105,7 @@ Deno.serve(async (req) => {
         // 4. Processar cada linha
         for (let i = 0; i < excelData.length; i++) {
             const row = excelData[i];
-            
+
             try {
                 // Extrair e limpar dados
                 const processNumber = String(row['Nº Processo'] || row['processo'] || row['Processo'] || '').trim();
@@ -83,7 +128,11 @@ Deno.serve(async (req) => {
                 let entryDate;
                 try {
                     if (typeof entryDateRaw === 'number') {
-                        const date = new Date((entryDateRaw - 25569) * 86400 * 1000);
+                        // Excel serial date number conversion
+                        // Note: Using constant for maintainability
+                        const EXCEL_EPOCH_OFFSET = 25569; // Days between 1900-01-01 and 1970-01-01
+                        const MS_PER_DAY = 86400 * 1000;
+                        const date = new Date((entryDateRaw - EXCEL_EPOCH_OFFSET) * MS_PER_DAY);
                         entryDate = date.toISOString().split('T')[0];
                     } else if (entryDateRaw instanceof Date) {
                         entryDate = entryDateRaw.toISOString().split('T')[0];
@@ -177,7 +226,7 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('ERRO CRÍTICO:', error);
-        return Response.json({ 
+        return Response.json({
             error: error.message,
             stack: error.stack,
             details: 'Erro ao processar importação'

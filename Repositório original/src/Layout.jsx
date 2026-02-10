@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
-import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
-import { 
-  LayoutDashboard, 
-  User, 
-  Building2, 
-  HelpCircle, 
-  FileText, 
-  LogOut, 
+import { useAuth } from '@/lib/FirebaseAuthContext';
+import { useOrganizations, useNotifications } from '@/hooks/useFirestore';
+import {
+  LayoutDashboard,
+  User,
+  Building2,
+  HelpCircle,
+  FileText,
+  LogOut,
   Bell,
   Menu,
   X
@@ -27,54 +27,33 @@ import {
 const publicPages = ['Landing', 'Help', 'Terms'];
 
 export default function Layout({ children, currentPageName }) {
-  const [user, setUser] = useState(null);
+  const { user, userProfile, signOut, isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isPublicPage = publicPages.includes(currentPageName);
 
-  useEffect(() => {
-    const getUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-      } catch (error) {
-        setUser(null);
-      }
-    };
-    if (!isPublicPage) {
-      getUser();
-    }
-  }, [isPublicPage]);
+  // Fetch user organizations
+  const { organizations } = useOrganizations(user?.uid);
 
-  // Buscar organizações do usuário
-  const { data: organizations = [] } = useQuery({
-    queryKey: ['user-organizations'],
-    queryFn: async () => {
-      const response = await base44.functions.invoke('getUserOrganizations', {});
-      return response.data.organizations || [];
-    },
-    enabled: !!user,
-    initialData: []
-  });
+  /* Notifications Hook */
+  const { notifications } = useNotifications();
 
-  // Buscar notificações não lidas
-  const { data: notifications = [] } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => base44.entities.Notification.filter({ user_id: user?.id, read: false }),
-    enabled: !!user,
-    initialData: []
-  });
-
-  const handleLogout = () => {
-    base44.auth.logout(createPageUrl('Home'));
+  const handleLogout = async () => {
+    await signOut();
+    window.location.href = createPageUrl('Landing');
   };
 
   if (isPublicPage) {
     return <>{children}</>;
   }
 
-  if (!user) {
+  if (!isAuthenticated || !user) {
     return <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">{children}</div>;
   }
+
+  // Display Name logic (Profile > Auth > Email)
+  const displayName = userProfile?.platform_name || user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+  const displayEmail = userProfile?.email || user?.email;
+  const initial = displayName?.[0]?.toUpperCase() || 'U';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -100,9 +79,12 @@ export default function Layout({ children, currentPageName }) {
                 <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
               ) : (
                 notifications.slice(0, 5).map(notif => (
-                  <DropdownMenuItem key={notif.id} className="flex-col items-start p-3">
-                    <div className="font-medium text-sm">{notif.title}</div>
-                    <div className="text-xs text-slate-500">{notif.message}</div>
+                  <DropdownMenuItem key={notif.id} className="flex-col items-start p-3 cursor-pointer hover:bg-slate-50">
+                    <div className="font-medium text-sm text-slate-900">{notif.title}</div>
+                    <div className="text-xs text-slate-500 mt-1">{notif.message}</div>
+                    <div className="text-[10px] text-slate-400 mt-2 w-full text-right">
+                      {new Date(notif.created_at?.seconds * 1000).toLocaleString()}
+                    </div>
                   </DropdownMenuItem>
                 ))
               )}
@@ -125,24 +107,24 @@ export default function Layout({ children, currentPageName }) {
           {/* Logo */}
           <div className="h-16 flex items-center px-6 border-b border-slate-200">
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              Processos
+              ProcessFlow
             </h1>
           </div>
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-4">
             <div className="space-y-1">
-              <NavItem 
-                to="Dashboard" 
-                icon={LayoutDashboard} 
-                label="Início" 
+              <NavItem
+                to="Dashboard"
+                icon={LayoutDashboard}
+                label="Início"
                 active={currentPageName === 'Dashboard'}
                 onClick={() => setSidebarOpen(false)}
               />
-              <NavItem 
-                to="Profile" 
-                icon={User} 
-                label="Meu Perfil" 
+              <NavItem
+                to="Profile"
+                icon={User}
+                label="Meu Perfil"
                 active={currentPageName === 'Profile'}
                 onClick={() => setSidebarOpen(false)}
               />
@@ -158,12 +140,12 @@ export default function Layout({ children, currentPageName }) {
                 </div>
                 <div className="space-y-1">
                   {organizations.map(org => (
-                    <NavItem 
+                    <NavItem
                       key={org.id}
                       to="Organization"
                       params={`?id=${org.id}`}
-                      icon={Building2} 
-                      label={org.name} 
+                      icon={Building2}
+                      label={org.name}
                       active={currentPageName === 'Organization' && window.location.search.includes(org.id)}
                       onClick={() => setSidebarOpen(false)}
                       badge={org.userRole === 'creator' ? 'Criador' : null}
@@ -174,17 +156,17 @@ export default function Layout({ children, currentPageName }) {
             )}
 
             <div className="mt-6 space-y-1">
-              <NavItem 
-                to="Help" 
-                icon={HelpCircle} 
-                label="Ajuda" 
+              <NavItem
+                to="Help"
+                icon={HelpCircle}
+                label="Ajuda"
                 active={currentPageName === 'Help'}
                 onClick={() => setSidebarOpen(false)}
               />
-              <NavItem 
-                to="Terms" 
-                icon={FileText} 
-                label="Termos de Uso" 
+              <NavItem
+                to="Terms"
+                icon={FileText}
+                label="Termos de Uso"
                 active={currentPageName === 'Terms'}
                 onClick={() => setSidebarOpen(false)}
               />
@@ -195,15 +177,15 @@ export default function Layout({ children, currentPageName }) {
           <div className="p-4 border-t border-slate-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold">
-                  {user?.platform_name?.[0]?.toUpperCase() || 'U'}
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold shadow-sm">
+                  {initial}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{user?.platform_name}</p>
-                  <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                  <p className="text-sm font-medium text-slate-700 truncate">{displayName}</p>
+                  <p className="text-xs text-slate-500 truncate" title={displayEmail}>{displayEmail}</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0">
+              <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50">
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
@@ -216,10 +198,10 @@ export default function Layout({ children, currentPageName }) {
         {/* Top Bar - Desktop */}
         <div className="hidden lg:flex h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200 items-center justify-between px-6 sticky top-0 z-30">
           <h2 className="text-lg font-semibold text-slate-800">
-            {currentPageName === 'Dashboard' ? 'Painel de Controle' : 
-             currentPageName === 'Profile' ? 'Meu Perfil' :
-             currentPageName === 'Organization' ? 'Órgão' :
-             currentPageName}
+            {currentPageName === 'Dashboard' ? 'Painel de Controle' :
+              currentPageName === 'Profile' ? 'Meu Perfil' :
+                currentPageName === 'Organization' ? 'Órgão' :
+                  currentPageName}
           </h2>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -257,7 +239,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 bg-black/50 z-30"
           onClick={() => setSidebarOpen(false)}
         />
@@ -268,13 +250,13 @@ export default function Layout({ children, currentPageName }) {
 
 function NavItem({ to, params = '', icon: Icon, label, active, badge, onClick }) {
   return (
-    <Link 
-      to={createPageUrl(to) + params} 
+    <Link
+      to={createPageUrl(to) + params}
       onClick={onClick}
       className={`
         flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
-        ${active 
-          ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md' 
+        ${active
+          ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md'
           : 'text-slate-700 hover:bg-slate-100'
         }
       `}

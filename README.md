@@ -1,6 +1,6 @@
 # CAOCIPP ProcessFlow
 
-Sistema de gestão de processos para o Centro de Apoio Operacional Cível e do Patrimônio Público (CAOCIPP).
+Sistema de gestão de processos para o Centro de Apoio Operacional.
 
 ## 🚀 Tecnologias
 

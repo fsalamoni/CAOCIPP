@@ -1,21 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/FirebaseAuthContext';
+import { useOrganizations } from '@/hooks/useFirestore';
+import { createOrganization, joinOrganization, updateProfile as updateUserProfile } from '@/services/functionsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { 
-  User, 
-  Building2, 
-  Plus, 
-  Copy, 
-  LogIn,
-  Calendar,
-  Shield,
-  Info
-} from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -24,391 +15,422 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  User,
+  Building2,
+  Plus,
+  LogIn,
+  Loader2,
+  Mail,
+  Briefcase,
+  LogOut,
+  CheckCircle
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { createPageUrl } from '../utils';
+import { logger } from '@/utils/logger';
 
 export default function Profile() {
-  const [user, setUser] = useState(null);
-  const [platformName, setPlatformName] = useState('');
-  const [userFunction, setUserFunction] = useState('');
-  const [notificationEmail, setNotificationEmail] = useState('');
+  const navigate = useNavigate();
+  const { user, userProfile, signOut, isLoadingAuth } = useAuth();
+  const { organizations, isLoading: orgsLoading } = useOrganizations();
+
+  // Profile edit state
+  const [platformName, setPlatformName] = useState(userProfile?.platform_name || '');
+  const [userFunction, setUserFunction] = useState(userProfile?.function || '');
+  const [notificationEmail, setNotificationEmail] = useState(userProfile?.notification_email || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Create organization dialog
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
+  const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgDesc, setNewOrgDesc] = useState('');
+  const [isCreatingOrg, setIsCreatingOrg] = useState(false);
+
+  // Join organization dialog
   const [joinOrgOpen, setJoinOrgOpen] = useState(false);
-  const queryClient = useQueryClient();
+  const [inviteCode, setInviteCode] = useState('');
+  const [isJoiningOrg, setIsJoiningOrg] = useState(false);
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        setPlatformName(currentUser.platform_name || '');
-        setUserFunction(currentUser.function || '');
-        setNotificationEmail(currentUser.notification_email || '');
-      } catch (error) {
-        // Se não autenticado, redireciona para Landing
-        window.location.href = '/Landing';
-      }
-    };
-    init();
-  }, []);
-
-  // Buscar órgãos
-  const { data: organizations = [], isLoading } = useQuery({
-    queryKey: ['user-organizations'],
-    queryFn: async () => {
-      const response = await base44.functions.invoke('getUserOrganizations', {});
-      return response.data.organizations || [];
-    },
-    enabled: !!user,
-    initialData: []
-  });
-
-  // Mutation para atualizar perfil
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await base44.functions.invoke('updateUserProfile', data);
-      return response.data;
-    },
-    onSuccess: (data) => {
-      toast.success('Perfil atualizado com sucesso!');
-      setUser(data.user);
-      setPlatformName(data.user.platform_name || '');
-      setUserFunction(data.user.function || '');
-      setNotificationEmail(data.user.notification_email || '');
-    },
-    onError: (error) => {
-      console.error('Erro:', error);
-      toast.error(error.response?.data?.error || error.message || 'Erro ao atualizar perfil');
+  // Update local state when userProfile changes
+  React.useEffect(() => {
+    if (userProfile) {
+      setPlatformName(userProfile.platform_name || '');
+      setUserFunction(userProfile.function || '');
+      setNotificationEmail(userProfile.notification_email || '');
     }
-  });
+  }, [userProfile]);
 
-  const handleUpdateProfile = (e) => {
-    e.preventDefault();
-    updateProfileMutation.mutate({ 
-      platform_name: platformName, 
-      function: userFunction,
-      notification_email: notificationEmail 
-    });
+  // Redirect if not authenticated
+  React.useEffect(() => {
+    if (!isLoadingAuth && !user) {
+      navigate('/Landing');
+    }
+  }, [isLoadingAuth, user, navigate]);
+
+  const handleSaveProfile = async () => {
+    try {
+      setIsSavingProfile(true);
+
+      await updateUserProfile({
+        platform_name: platformName,
+        function: userFunction,
+        notification_email: notificationEmail,
+      });
+
+      toast.success('Perfil atualizado com sucesso!');
+    } catch (error) {
+      logger.error('Error updating profile:', error);
+      toast.error('Erro ao atualizar perfil: ' + error.message);
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  if (!user) {
-    return <div className="flex items-center justify-center h-64">Carregando...</div>;
+  const handleCreateOrganization = async () => {
+    if (!newOrgName.trim()) {
+      toast.error('Nome da organização é obrigatório');
+      return;
+    }
+
+    try {
+      setIsCreatingOrg(true);
+
+      const orgId = await createOrganization(
+        { name: newOrgName, description: newOrgDesc },
+        user.uid
+      );
+
+      toast.success(`Organização "${newOrgName}" criada com sucesso!`);
+      setCreateOrgOpen(false);
+      setNewOrgName('');
+      setNewOrgDesc('');
+
+      // Refresh organizations list (the hook will auto-refresh)
+      navigate(`/Organization?id=${orgId}`);
+    } catch (error) {
+      logger.error('Error creating organization:', error);
+      toast.error('Erro ao criar organização: ' + error.message);
+    } finally {
+      setIsCreatingOrg(false);
+    }
+  };
+
+  const handleJoinOrganization = async () => {
+    if (!inviteCode.trim()) {
+      toast.error('Código de convite é obrigatório');
+      return;
+    }
+
+    try {
+      setIsJoiningOrg(true);
+
+      const orgId = await joinOrganizationByInvite(inviteCode, user.uid);
+
+      toast.success('Você entrou na organização com sucesso!');
+      setJoinOrgOpen(false);
+      setInviteCode('');
+
+      // Navigate to organization page
+      navigate(`/Organization?id=${orgId}`);
+    } catch (error) {
+      logger.error('Error joining organization:', error);
+      toast.error(error.message);
+    } finally {
+      setIsJoiningOrg(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/Landing');
+    } catch (error) {
+      logger.error('Error signing out:', error);
+      toast.error('Erro ao fazer logout');
+    }
+  };
+
+  if (isLoadingAuth || orgsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Profile Card */}
-      <Card className="shadow-sm border-slate-200">
-        <CardHeader className="border-b border-slate-100">
-          <CardTitle className="flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Informações do Perfil
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Perfil</h1>
+            <p className="text-slate-600 dark:text-slate-400 mt-1">
+              Gerencie suas informações e organizações
+            </p>
+          </div>
+          <Button variant="outline" onClick={handleSignOut} className="gap-2">
+            <LogOut className="w-4 h-4" />
+            Sair
+          </Button>
+        </div>
+
+        {/* Profile Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Informações Pessoais
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Label htmlFor="platform_name">Nome no Órgão *</Label>
-                  <div className="group cursor-help">
-                    <Info className="w-4 h-4 text-slate-400 hover:text-slate-600" />
-                    <div className="hidden group-hover:block absolute z-10 bg-slate-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap mt-1">
-                      Nome utilizado para identificação nos processos
-                    </div>
-                  </div>
-                </div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="bg-slate-100 dark:bg-slate-800"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Email gerenciado pelo Google
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="full_name">Nome Completo</Label>
+                <Input
+                  id="full_name"
+                  value={userProfile?.full_name || ''}
+                  disabled
+                  className="bg-slate-100 dark:bg-slate-800"
+                />
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="platform_name">Nome de Exibição</Label>
                 <Input
                   id="platform_name"
                   value={platformName}
                   onChange={(e) => setPlatformName(e.target.value)}
-                  placeholder="Seu nome na plataforma"
-                  className="mt-1"
-                  required
+                  placeholder="Como você quer ser chamado"
                 />
               </div>
-              <div>
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  value={user.email}
-                  disabled
-                  className="mt-1 bg-slate-50"
-                />
-              </div>
+
               <div>
                 <Label htmlFor="function">Função</Label>
                 <Select value={userFunction} onValueChange={setUserFunction}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione uma função" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione sua função" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="secretaria">Secretária</SelectItem>
+                    <SelectItem value="secretaria">Secretaria</SelectItem>
                     <SelectItem value="assessoria">Assessoria</SelectItem>
                     <SelectItem value="decisória">Decisória</SelectItem>
+                    <SelectItem value="Criador">Criador</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="notification_email">Email para Notificações</Label>
-                <Input
-                  id="notification_email"
-                  type="email"
-                  value={notificationEmail}
-                  onChange={(e) => setNotificationEmail(e.target.value)}
-                  placeholder="Email para receber notificações"
-                  className="mt-1"
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Se deixar em branco, as notificações serão enviadas para seu email de registro
-                </p>
-              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white text-2xl font-bold">
-                {platformName?.[0]?.toUpperCase() || 'U'}
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Membro desde</p>
-                <p className="font-medium text-slate-900">
-                  {format(new Date(user.created_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                </p>
-              </div>
+            <div>
+              <Label htmlFor="notification_email">Email para Notificações (opcional)</Label>
+              <Input
+                id="notification_email"
+                type="email"
+                value={notificationEmail}
+                onChange={(e) => setNotificationEmail(e.target.value)}
+                placeholder="email@example.com"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Deixe em branco para usar o email principal
+              </p>
             </div>
 
-            <Button 
-              type="submit" 
-              className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700"
-              disabled={updateProfileMutation.isPending}
+            <Button
+              onClick={handleSaveProfile}
+              disabled={isSavingProfile}
+              className="gap-2"
             >
-              {updateProfileMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              {isSavingProfile ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  Salvar Alterações
+                </>
+              )}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Organizations Card */}
-      <Card className="shadow-sm border-slate-200">
-        <CardHeader className="border-b border-slate-100">
-          <div className="flex items-center justify-between">
+        {/* Organizations */}
+        <Card>
+          <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5" />
-              Meus Órgãos
+              Minhas Organizações
             </CardTitle>
-            <div className="flex gap-2">
-              <CreateOrganizationDialog 
-                open={createOrgOpen} 
-                setOpen={setCreateOrgOpen}
-                onSuccess={() => queryClient.invalidateQueries(['user-organizations'])}
-              />
-              <JoinOrganizationDialog 
-                open={joinOrgOpen} 
-                setOpen={setJoinOrgOpen}
-                onSuccess={() => queryClient.invalidateQueries(['user-organizations'])}
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          {isLoading ? (
-            <div className="text-center py-8 text-slate-500">Carregando organizações...</div>
-          ) : organizations.length === 0 ? (
-            <div className="text-center py-12">
-              <Building2 className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-              <p className="text-slate-600 mb-4">Você ainda não faz parte de nenhum órgão</p>
-              <div className="flex items-center justify-center gap-3">
-                <Button onClick={() => setCreateOrgOpen(true)} className="bg-indigo-600 hover:bg-indigo-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Criar Órgão
-                </Button>
-                <Button onClick={() => setJoinOrgOpen(true)} variant="outline">
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Ingressar em Órgão
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {organizations.map(org => (
-                <div key={org.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-bold">
-                      {org.name[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">{org.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          org.userRole === 'creator' 
-                            ? 'bg-indigo-100 text-indigo-700' 
-                            : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {org.userRole === 'creator' ? 'Criador' : 'Membro'}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          Membro desde {format(new Date(org.joined_at), 'dd/MM/yyyy')}
-                        </span>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {organizations.length > 0 ? (
+              <div className="space-y-3">
+                {organizations.map(org => (
+                  <div
+                    key={org.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <h3 className="font-medium text-slate-900 dark:text-white">
+                        {org.name}
+                      </h3>
+                      {org.description && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          {org.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                        <span>Role: <strong>{org.userRole}</strong></span>
+                        <span>Membros: {org.stats?.members_count || 0}</span>
+                        <span>Processos: {org.stats?.processes_count || 0}</span>
                       </div>
                     </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate(`/Organization?id=${org.id}`)}
+                    >
+                      Ver Detalhes
+                    </Button>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => window.location.href = createPageUrl('Organization') + '?id=' + org.id}
-                  >
-                    Acessar
+                ))}
+              </div>
+            ) : (
+              <Alert>
+                <AlertDescription>
+                  Você ainda não faz parte de nenhuma organização.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex gap-3 pt-4 border-t">
+              {/* Create Organization Dialog */}
+              <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Criar Organização
                   </Button>
-                </div>
-              ))}
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Criar Nova Organização</DialogTitle>
+                    <DialogDescription>
+                      Crie uma organização para gerenciar processos administrativos
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <Label htmlFor="org_name">Nome da Organização *</Label>
+                      <Input
+                        id="org_name"
+                        value={newOrgName}
+                        onChange={(e) => setNewOrgName(e.target.value)}
+                        placeholder="Ex: Secretaria Municipal de Educação"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="org_desc">Descrição (opcional)</Label>
+                      <Textarea
+                        id="org_desc"
+                        value={newOrgDesc}
+                        onChange={(e) => setNewOrgDesc(e.target.value)}
+                        placeholder="Breve descrição da organização"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setCreateOrgOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleCreateOrganization} disabled={isCreatingOrg}>
+                      {isCreatingOrg ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Criando...
+                        </>
+                      ) : (
+                        'Criar Organização'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Join Organization Dialog */}
+              <Dialog open={joinOrgOpen} onOpenChange={setJoinOrgOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <LogIn className="w-4 h-4" />
+                    Entrar em Organização
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Entrar em Organização</DialogTitle>
+                    <DialogDescription>
+                      Digite o código de convite fornecido pelo administrador
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <Label htmlFor="invite_code">Código de Convite (8 caracteres)</Label>
+                    <Input
+                      id="invite_code"
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                      placeholder="ABC12XYZ"
+                      maxLength={8}
+                      className="uppercase font-mono text-lg tracking-wider"
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setJoinOrgOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleJoinOrganization} disabled={isJoiningOrg}>
+                      {isJoiningOrg ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Entrando...
+                        </>
+                      ) : (
+                        'Entrar'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  );
-}
-
-function CreateOrganizationDialog({ open, setOpen, onSuccess }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-
-  const createMutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await base44.functions.invoke('createOrganization', data);
-      return response.data;
-    },
-    onSuccess: (data) => {
-      toast.success('Órgão criado com sucesso!');
-      setOpen(false);
-      setName('');
-      setDescription('');
-      onSuccess();
-      setTimeout(() => {
-        window.location.href = createPageUrl('Organization') + '?id=' + data.organization.id;
-      }, 500);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Erro ao criar órgão');
-    }
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    createMutation.mutate({ name, description });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Criar Órgão
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Criar Novo Órgão</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div>
-            <Label htmlFor="org_name">Nome do Órgão *</Label>
-            <Input
-              id="org_name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Secretaria de Justiça"
-              required
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="org_description">Descrição</Label>
-            <Textarea
-              id="org_description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descreva seu órgão..."
-              rows={3}
-              className="mt-1"
-            />
-          </div>
-          <Button 
-            type="submit" 
-            className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700"
-            disabled={createMutation.isPending}
-          >
-            {createMutation.isPending ? 'Criando...' : 'Criar Órgão'}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function JoinOrganizationDialog({ open, setOpen, onSuccess }) {
-  const [inviteCode, setInviteCode] = useState('');
-
-  const joinMutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await base44.functions.invoke('joinOrganization', data);
-      return response.data;
-    },
-    onSuccess: () => {
-      toast.success('Você ingressou no órgão!');
-      setOpen(false);
-      setInviteCode('');
-      onSuccess();
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Código inválido');
-    }
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    joinMutation.mutate({ invite_code: inviteCode });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <LogIn className="w-4 h-4 mr-2" />
-          Ingressar
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Ingressar em Órgão</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div>
-            <Label htmlFor="invite_code">Código de Convite</Label>
-            <Input
-              id="invite_code"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              placeholder="Ex: ABC12345"
-              required
-              className="mt-1 uppercase"
-              maxLength={8}
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Insira o código de 8 caracteres fornecido pelo administrador
-            </p>
-          </div>
-          <Button 
-            type="submit" 
-            className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700"
-            disabled={joinMutation.isPending}
-          >
-            {joinMutation.isPending ? 'Ingressando...' : 'Ingressar'}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { CreateProcessSchema, validateData, sanitizeObject } from './validation.js';
 
 // Função para calcular o status
 function calculateStatus(processData) {
@@ -18,7 +19,25 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Não autenticado' }, { status: 401 });
   }
 
-  const processData = await req.json();
+  // HIGH-005 FIX: Validate and sanitize input
+  let processData;
+  try {
+    processData = await req.json();
+  } catch (error) {
+    return Response.json({ error: 'JSON inválido' }, { status: 400 });
+  }
+
+  // Sanitize all string fields
+  processData = sanitizeObject(processData);
+
+  // Validate schema
+  const validation = validateData(processData, CreateProcessSchema);
+  if (!validation.valid) {
+    return Response.json({
+      error: 'Dados inválidos',
+      details: validation.errors
+    }, { status: 422 });
+  }
 
   // Verificar se usuário pertence à organização
   const membership = await base44.entities.UserOrganization.filter({

@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const COLORS = {
-  "Em triagem": "#64748b",
   "Pendente": "#f59e0b",
   "Em elaboração": "#3b82f6",
   "Em revisão": "#8b5cf6",
@@ -65,30 +64,30 @@ export function ResponsibleBarChart({ data }) {
             <BarChart data={data} layout="vertical" margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis type="number" stroke="#64748b" />
-              <YAxis 
-                type="category" 
-                dataKey="name" 
-                width={100} 
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={100}
                 stroke="#64748b"
                 tick={{ fontSize: 12 }}
               />
-              <Tooltip 
-                contentStyle={{ 
+              <Tooltip
+                contentStyle={{
                   backgroundColor: '#fff',
                   border: 'none',
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
                 }}
               />
-              <Bar 
-                dataKey="total" 
-                fill="#1e3a5f" 
+              <Bar
+                dataKey="total"
+                fill="#1e3a5f"
                 radius={[0, 4, 4, 0]}
                 name="Total"
               />
-              <Bar 
-                dataKey="finalized" 
-                fill="#10b981" 
+              <Bar
+                dataKey="finalized"
+                fill="#10b981"
                 radius={[0, 4, 4, 0]}
                 name="Finalizados"
               />

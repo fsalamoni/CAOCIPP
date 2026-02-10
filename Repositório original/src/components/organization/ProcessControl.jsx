@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Search, Filter, Upload } from 'lucide-react';
-import { toast } from 'sonner';
-import ImportProgressModal from './ImportProgressModal';
+import { Search, Loader2, Upload } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -24,50 +21,51 @@ import {
 } from "@/components/ui/select";
 import CreateProcessButton from './CreateProcessButton';
 import EditProcessDialog from './EditProcessDialog';
-import ProcessStatusBadge from './ProcessStatusBadge';
+import ProcessTable from './ProcessTable';
+import StatusBadge from '../ui/StatusBadge';
+import ImportProgressModal from './ImportProgressModal';
 import { format } from 'date-fns';
+import { statusConfig } from '@/config/processStatus';
+import { importProcessesFromExcel, archiveProcess } from '@/services/functionsService';
+import { toast } from 'sonner';
 
-export default function ProcessControl({ organization, members, processes }) {
+export default function ProcessControl({
+  organization,
+  members,
+  processes,
+  userRole,
+  userId,
+  processesLoading,
+  processesError
+}) {
   const [editOpen, setEditOpen] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [responsibleFilter, setResponsibleFilter] = useState('all');
+
+  // Import state
   const [uploading, setUploading] = useState(false);
-  const [batchSize, setBatchSize] = useState(50);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, created: 0, updated: 0, errors: 0 });
   const [importComplete, setImportComplete] = useState(false);
   const [importStats, setImportStats] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!sessionId || !importModalOpen || importComplete) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`${window.location.origin}/api/functions/getImportProgress?sessionId=${sessionId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setImportProgress(data);
-        }
-      } catch (error) {
-        console.error('Erro ao buscar progresso:', error);
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [sessionId, importModalOpen, importComplete]);
-
-  const handleProcessCreated = () => {
-    queryClient.invalidateQueries(['organization-processes']);
-    queryClient.invalidateQueries(['dashboard-processes']);
-  };
 
   const handleEdit = (process) => {
     setSelectedProcess(process);
     setEditOpen(true);
+  };
+
+  const handleArchive = async (process) => {
+    if (!window.confirm(`Deseja realmente arquivar o processo ${process.process_number}?`)) return;
+
+    try {
+      await archiveProcess(process.id);
+      toast.success('Processo arquivado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao arquivar processo: ' + error.message);
+    }
+  };
+
+  const handleProcessMutation = () => {
+    // Refresh handled by hooks
   };
 
   const handleFileUpload = async (event) => {
@@ -80,9 +78,15 @@ export default function ProcessControl({ organization, members, processes }) {
       'text/csv',
       'application/json'
     ];
-    
+
     if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx?|csv|json)$/i)) {
       toast.error('Selecione arquivo Excel (.xlsx, .xls), CSV ou JSON');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo: 5MB');
       event.target.value = '';
       return;
     }
@@ -91,252 +95,182 @@ export default function ProcessControl({ organization, members, processes }) {
       setImportModalOpen(true);
       setImportComplete(false);
       setImportProgress({ current: 0, total: 0, created: 0, updated: 0, errors: 0 });
+      setUploading(true);
 
-      const uploadResult = await base44.integrations.Core.UploadFile({ file });
-      
-      const response = await base44.functions.invoke('importProcessesBatch', {
-        file_url: uploadResult.file_url,
-        organization_id: organization.id,
-        batch_size: batchSize
-      });
+      const fileData = await fileToBase64(file);
+      const result = await importProcessesFromExcel({ organizationId: organization.id, fileData });
 
-      const data = response.data;
-      setSessionId(data.sessionId);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Update stats with detailed results
       setImportStats({
-        created: data.created,
-        updated: data.updated,
-        total: data.total,
-        totalErrors: data.totalErrors
+        created: (result).created || 0,
+        updated: (result).updated || 0,
+        total: (result).total || 0,
+        totalErrors: (result).errors || 0
       });
-      
+
       setImportProgress({
-        current: data.total,
-        total: data.total,
-        created: data.created,
-        updated: data.updated,
-        errors: data.totalErrors
+        current: (result).total || 0,
+        total: (result).total || 0,
+        created: (result).created || 0,
+        updated: (result).updated || 0,
+        errors: (result).errors || 0
       });
-      
+
       setImportComplete(true);
-      
-      queryClient.invalidateQueries(['organization-processes']);
-      queryClient.invalidateQueries(['dashboard-processes']);
-      
+
+      // Show detailed success/error message
+      if ((result).errors > 0 && (result).errorDetails && (result).errorDetails.length > 0) {
+        // Show errors details
+        const errorSummary = (result).errorDetails.slice(0, 5).map((err) =>
+          `Linha ${err.row} (Processo ${err.processNumber}): ${err.error}`
+        ).join('\n');
+
+        const moreErrors = (result).errors > 5 ? `\n... e mais ${(result).errors - 5} erros` : '';
+
+        toast.error(
+          `${(result).message}\n\nErros encontrados:\n${errorSummary}${moreErrors}`,
+          { duration: 10000 }
+        );
+      } else {
+        toast.success((result).message || `Sucesso! ${(result).created} criados, ${(result).updated} atualizados`);
+      }
+
     } catch (error) {
-      toast.error(error.response?.data?.error || error.message || 'Erro na importação');
+      console.error('[ProcessControl] Import error:', error);
+
+      // Extract detailed error message from Firebase error
+      let errorMessage = 'Erro na importação';
+
+      if (error.code === 'functions/unauthenticated') {
+        errorMessage = 'Você precisa estar autenticado para importar processos';
+      } else if (error.code === 'functions/permission-denied') {
+        errorMessage = error.message || 'Você não tem permissão para importar processos nesta organização';
+      } else if (error.code === 'functions/invalid-argument') {
+        errorMessage = error.message || 'Arquivo inválido ou campos obrigatórios faltando';
+      } else if (error.code === 'functions/internal') {
+        errorMessage = error.message || 'Erro interno do servidor ao processar a importação';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage, { duration: 8000 });
       setImportModalOpen(false);
+      setImportComplete(false);
     } finally {
       event.target.value = '';
+      setUploading(false);
     }
   };
 
-  // Filtrar processos
-  const filteredProcesses = processes.filter(process => {
-    const matchesSearch = 
-      process.process_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      process.consultant?.toLowerCase().includes(searchTerm.toLowerCase());
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
-    let matchesStatus = false;
-    if (statusFilter === 'all') {
-      matchesStatus = true;
-    } else if (statusFilter === 'null') {
-      matchesStatus = !process.status;
-    } else {
-      matchesStatus = process.status === statusFilter;
-    }
-
-    const matchesResponsible = responsibleFilter === 'all' || process.responsible_user_id === responsibleFilter;
-
-    return matchesSearch && matchesStatus && matchesResponsible;
-  });
+  const uniqueStatuses = Object.keys(statusConfig);
 
   return (
-    <div className="space-y-6">
-      {/* Actions Bar */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full lg:w-auto">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Buscar por número ou consulente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+    <Card>
+      <CardContent className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+              Processos
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              {processes.length} {processes.length === 1 ? 'processo' : 'processos'} cadastrados
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-slate-700">Tamanho lote:</label>
-            <Input
-              type="number"
-              min="5"
-              max="100"
-              value={batchSize}
-              onChange={(e) => setBatchSize(parseInt(e.target.value) || 30)}
-              className="w-20"
+          <div className="flex gap-2">
+            {/* Import Button */}
+            <label htmlFor="excel-upload">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploading || processesLoading}
+                onClick={() => document.getElementById('excel-upload').click()}
+                className="cursor-pointer"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {uploading ? 'Importando...' : 'Importar Planilha'}
+              </Button>
+            </label>
+            <input
+              id="excel-upload"
+              type="file"
+              accept=".xlsx,.xls,.csv,.json"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {/* Create Process Button */}
+            <CreateProcessButton
+              organization={organization}
+              members={members}
+              onSuccess={handleProcessMutation}
             />
           </div>
-          
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-48">
-                      <SelectValue placeholder="Filtrar por status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os Status</SelectItem>
-                      <SelectItem value="null">Sem Status</SelectItem>
-                      <SelectItem value="Pendente">Pendente</SelectItem>
-                      <SelectItem value="Em elaboração">Em elaboração</SelectItem>
-                      <SelectItem value="Em revisão">Em revisão</SelectItem>
-                      <SelectItem value="Para revisão">Para revisão</SelectItem>
-                      <SelectItem value="Na pasta">Na pasta</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-          <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filtrar por responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Responsáveis</SelectItem>
-              {members.map(member => (
-                <SelectItem key={member.user_id} value={member.user_id}>
-                  {member.user_name}
-                </SelectItem>
-              ))}
-              <SelectItem value="null">Não atribuído</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
-        <div className="flex gap-2">
-          <label htmlFor="excel-upload">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={uploading}
-              onClick={() => document.getElementById('excel-upload').click()}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {uploading ? 'Importando...' : 'Importar'}
-            </Button>
-          </label>
-          <input
-            id="excel-upload"
-            type="file"
-            accept=".xlsx,.xls,.csv,.json"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          
-          <CreateProcessButton
-            organization={organization}
+        {/* Filters moved to ProcessTable for unified control */}
+
+        {/* Loading State */}
+        {processesLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {/* Error State */}
+        {processesError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Erro ao carregar processos: {processesError}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Processes Table - GRID MASTER INTEGRATION */}
+        {!processesLoading && !processesError && (
+          <ProcessTable
+            processes={processes}
             members={members}
-            onSuccess={handleProcessCreated}
+            onEdit={handleEdit}
+            onArchive={handleArchive}
           />
-        </div>
-      </div>
+        )}
 
-      {/* Processes Table */}
-      <Card className="shadow-sm border-slate-200">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50">
-                  <TableHead className="w-32">Nº Processo</TableHead>
-                  <TableHead>Consulente</TableHead>
-                  <TableHead>Local</TableHead>
-                  <TableHead>Data Entrada</TableHead>
-                  <TableHead>Responsável</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProcesses.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                      {searchTerm || statusFilter !== 'all' || responsibleFilter !== 'all' 
-                        ? 'Nenhum processo encontrado com os filtros aplicados' 
-                        : 'Nenhum processo cadastrado. Clique em "Adicionar Processo" para começar.'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredProcesses.map(process => (
-                    <TableRow key={process.id} className="hover:bg-slate-50">
-                      <TableCell className="font-mono font-medium text-sm">
-                        {process.process_number || '-'}
-                        {process.urgency_request && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium">
-                            URGENTE
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">{process.consultant || '-'}</TableCell>
-                      <TableCell className="text-slate-600">{process.location || '-'}</TableCell>
-                      <TableCell className="text-slate-600">
-                        {(() => {
-                          try {
-                            if (!process.entry_date) return '-';
-                            const date = new Date(process.entry_date);
-                            if (isNaN(date.getTime())) return '-';
-                            return format(date, 'dd/MM/yyyy');
-                          } catch {
-                            return '-';
-                          }
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {process.responsible_user_name || (
-                          <span className="text-slate-400 italic">Não atribuído</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <ProcessStatusBadge status={process.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(process)}
-                        >
-                          Editar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Edit Dialog - condicional rendering to force remount on open */}
+        {selectedProcess && editOpen && (
+          <EditProcessDialog
+            open={editOpen}
+            setOpen={setEditOpen}
+            process={selectedProcess}
+            members={members}
+            organizationId={organization.id}
+            userRole={userRole}
+            onSuccess={handleProcessMutation}
+          />
+        )}
 
-      {/* Import Progress Modal */}
-      <ImportProgressModal 
-        open={importModalOpen}
-        onClose={() => {
-          setImportModalOpen(false);
-          setImportComplete(false);
-        }}
-        progress={importProgress}
-        isComplete={importComplete}
-        stats={importStats}
-      />
-
-      {/* Edit Dialog */}
-      {selectedProcess && (
-        <EditProcessDialog
-          open={editOpen}
-          setOpen={setEditOpen}
-          process={selectedProcess}
-          members={members}
-          onSuccess={handleProcessCreated}
+        {/* Import Progress Modal */}
+        <ImportProgressModal
+          open={importModalOpen}
+          onClose={() => {
+            setImportModalOpen(false);
+            setImportComplete(false);
+          }}
+          progress={importProgress}
+          isComplete={importComplete}
+          stats={importStats}
         />
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }

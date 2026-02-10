@@ -1,412 +1,328 @@
-import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/FirebaseAuthContext';
+import { useOrganizations, useProcesses } from '@/hooks/useFirestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { 
-  FileText, 
-  Clock, 
-  CheckCircle, 
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import {
+  FileText,
+  Clock,
+  CheckCircle,
   AlertCircle,
   TrendingUp,
-  Calendar
+  Users,
+  Loader2,
+  PlusCircle,
+  Building2,
+  ArrowRight
 } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { format, subDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { createPageUrl } from '../utils';
+import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Legend,
+  LineChart,
+  Line
+} from 'recharts';
+
+const DEFAULT_COLOR = DEFAULT_STATUS_CONFIG.color;
 
 export default function Dashboard() {
-  const [user, setUser] = useState(null);
-  const [userOrganizations, setUserOrganizations] = useState([]);
-  const [userMap, setUserMap] = useState({});
-  const [dateRange, setDateRange] = useState({ start: subDays(new Date(), 30), end: new Date() });
+  const navigate = useNavigate();
+  const { user, isLoadingAuth, isAuthenticated } = useAuth();
+  const { organizations, isLoading: orgsLoading } = useOrganizations();
+  const [selectedOrgId, setSelectedOrgId] = useState(null);
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        if (!currentUser) {
-          window.location.href = createPageUrl('Landing');
-          return;
-        }
-        setUser(currentUser);
-        
-        // Buscar organizações do usuário
-        const response = await base44.functions.invoke('getUserOrganizations', {});
-        setUserOrganizations(response.data.organizations || []);
-        
-        // Buscar todos os usuários para criar mapa de platform_name
-        try {
-          const allUsers = await base44.entities.User.list();
-          const map = {};
-          allUsers.forEach(u => {
-            map[u.id] = u.platform_name || u.full_name;
-          });
-          setUserMap(map);
-        } catch (userError) {
-          // Continua mesmo se não conseguir buscar usuários
-          console.warn('Não foi possível buscar usuários para mapa', userError);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dashboard:', error);
-        window.location.href = createPageUrl('Landing');
-      }
-    };
-    init();
-  }, []);
+  // Redirect to landing if not authenticated
+  React.useEffect(() => {
+    if (!isLoadingAuth && !isAuthenticated) {
+      navigate('/Landing');
+    }
+  }, [isLoadingAuth, isAuthenticated, navigate]);
 
-  const organizationIds = userOrganizations.map(org => org.id);
+  // Auto-select first organization
+  React.useEffect(() => {
+    if (organizations.length > 0 && !selectedOrgId) {
+      setSelectedOrgId(organizations[0].id);
+    }
+  }, [organizations, selectedOrgId]);
 
-  // Buscar todos os processos das organizações do usuário
-  const { data: allProcesses = [] } = useQuery({
-    queryKey: ['dashboard-processes', organizationIds],
-    queryFn: async () => {
-      if (organizationIds.length === 0) return [];
-      
-      const processes = [];
-      for (const orgId of organizationIds) {
-        const orgProcesses = await base44.entities.Process.filter({ organization_id: orgId });
-        processes.push(...orgProcesses);
-      }
-      return processes;
-    },
-    enabled: organizationIds.length > 0,
-    initialData: []
-  });
+  // Fetch processes for selected organization
+  const { processes, isLoading: processesLoading } = useProcesses(selectedOrgId);
 
-  // Filtrar processos por data de entrada
-  const filteredByDate = allProcesses.filter(p => {
-    if (!p.entry_date) return false;
-    const entryDate = new Date(p.entry_date);
-    return entryDate >= dateRange.start && entryDate <= dateRange.end;
-  });
-
-  // Total de processos: se assessoria, conta processos onde é responsável; senão, todos do órgão
-  const userFirstOrg = userOrganizations[0];
-  const activeOrgProcesses = userFirstOrg 
-    ? allProcesses.filter(p => p.organization_id === userFirstOrg.id)
-    : [];
-  
-  let totalProcesses = 0;
-  if (user?.function === 'assessoria') {
-    totalProcesses = filteredByDate.filter(p => p.responsible_user_id === user?.id).length;
-  } else {
-    totalProcesses = filteredByDate.length;
-  }
-
-  const pendingProcesses = filteredByDate.filter(p => p.status === 'Pendente').length;
-  const inProgressProcesses = filteredByDate.filter(p => p.status === 'Em elaboração').length;
-  const urgentProcesses = filteredByDate.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
-
-  // Dados para gráfico de pizza (processos por status)
-  const statusData = [
-    { name: 'Em triagem', value: filteredByDate.filter(p => p.status === 'Em triagem').length, color: '#94a3b8' },
-    { name: 'Pendente', value: filteredByDate.filter(p => p.status === 'Pendente').length, color: '#f59e0b' },
-    { name: 'Em elaboração', value: filteredByDate.filter(p => p.status === 'Em elaboração').length, color: '#3b82f6' },
-    { name: 'Em revisão', value: filteredByDate.filter(p => p.status === 'Em revisão').length, color: '#8b5cf6' },
-    { name: 'Para revisão', value: filteredByDate.filter(p => p.status === 'Para revisão').length, color: '#ec4899' },
-    { name: 'no Arquivo', value: filteredByDate.filter(p => p.status === 'Na pasta').length, color: '#10b981' }
-  ].filter(item => item.value > 0);
-
-  // Dados para gráfico de barras (processos por responsável)
-  const processesPerResponsible = {};
-  filteredByDate.forEach(process => {
-    const responsible = process.responsible_user_id 
-      ? (userMap[process.responsible_user_id] || process.responsible_user_name || 'Não atribuído')
-      : 'Não atribuído';
-    processesPerResponsible[responsible] = (processesPerResponsible[responsible] || 0) + 1;
-  });
-
-  const responsibleData = Object.entries(processesPerResponsible)
-    .map(([name, count]) => ({ name, processos: count }))
-    .sort((a, b) => b.processos - a.processos);
-
-  // Últimos 5 processos analisados
-  let recentProcesses = [];
-  if (user?.function === 'assessoria') {
-    // Se assessoria: últimos processos arquivados (Na pasta) onde é responsável
-    recentProcesses = allProcesses
-      .filter(p => p.status === 'Na pasta' && p.responsible_user_id === user?.id)
-      .sort((a, b) => new Date(b.archived_date || b.updated_date) - new Date(a.archived_date || a.updated_date))
-      .slice(0, 5);
-  } else {
-    // Senão: últimos processos arquivados do órgão
-    recentProcesses = activeOrgProcesses
-      .filter(p => p.status === 'Na pasta')
-      .sort((a, b) => new Date(b.archived_date || b.updated_date) - new Date(a.archived_date || a.updated_date))
-      .slice(0, 5);
-  }
-
-  if (!user) {
+  // Loading State
+  if (isLoadingAuth || orgsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-600">Carregando...</p>
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-4" />
+          <p className="text-slate-600 font-medium">Carregando dashboard...</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">
-          Olá, {user.platform_name?.split(' ')[0] || 'Usuário'}! 👋
-        </h1>
-        <p className="text-slate-600 mt-1">
-          {userOrganizations.length === 0 
-            ? 'Crie ou entre em um órgão para começar' 
-            : 'Aqui está o resumo dos seus processos'
-          }
-        </p>
-      </div>
-
-      {/* Date Range Filter */}
-      {userOrganizations.length > 0 && (
-        <Card className="shadow-sm border-slate-200 mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-slate-500" />
-                <label className="text-sm font-medium text-slate-600">Data Inicial:</label>
-                <Input
-                  type="date"
-                  value={format(dateRange.start, 'yyyy-MM-dd')}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, start: new Date(e.target.value) }))}
-                  className="w-40"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-slate-600">Data Final:</label>
-                <Input
-                  type="date"
-                  value={format(dateRange.end, 'yyyy-MM-dd')}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, end: new Date(e.target.value) }))}
-                  className="w-40"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDateRange({ start: subDays(new Date(), 30), end: new Date() })}
-              >
-                Últimos 30 dias
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Empty State */}
-      {userOrganizations.length === 0 ? (
-        <Card className="shadow-sm border-slate-200">
-          <CardContent className="p-12 text-center">
-            <FileText className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">
-              Bem-vindo ao ProcessFlow!
-            </h3>
-            <p className="text-slate-600 mb-6 max-w-md mx-auto">
-              Para começar a gerenciar seus processos, você precisa criar ou entrar em um órgão.
-            </p>
-            <button
-              onClick={() => window.location.href = createPageUrl('Profile')}
-              className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-6 py-3 rounded-lg font-medium"
+  // Empty State (No Organizations)
+  if (organizations.length === 0) {
+    return (
+      <div className="min-h-screen p-8 flex items-center justify-center bg-slate-50">
+        <Card className="max-w-md w-full text-center p-6">
+          <div className="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+            <Building2 className="w-8 h-8 text-slate-400" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Bem-vindo ao ProcessFlow</h2>
+          <p className="text-slate-600 mb-6">
+            Você ainda não faz parte de nenhuma organização. Para começar, crie uma nova ou peça para ser convidado.
+          </p>
+          <div className="space-y-3">
+            <Button
+              onClick={() => navigate('/Profile')}
+              className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700"
             >
-              Ir para Meu Perfil
-            </button>
-          </CardContent>
+              <PlusCircle className="w-4 h-4" />
+              Criar ou Entrar em Organização
+            </Button>
+          </div>
         </Card>
-      ) : (
-        <>
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <KPICard 
-              title="Total de Processos"
-              value={totalProcesses}
-              icon={FileText}
-              color="from-indigo-500 to-violet-500"
-            />
-            <KPICard 
-              title="Processos Pendentes"
-              value={pendingProcesses}
-              icon={Clock}
-              color="from-amber-500 to-orange-500"
-            />
-            <KPICard 
-              title="Em Elaboração"
-              value={inProgressProcesses}
-              icon={TrendingUp}
-              color="from-blue-500 to-cyan-500"
-            />
-            <KPICard 
-              title="Processos Urgentes"
-              value={urgentProcesses}
-              icon={AlertCircle}
-              color="from-red-500 to-rose-500"
-            />
+      </div>
+    );
+  }
+
+  const selectedOrg = organizations.find(org => org.id === selectedOrgId);
+
+  // Calculate KPIs
+  const totalProcesses = processes.length;
+  const urgentProcesses = processes.filter(p => p.urgency_request).length;
+  const myProcesses = processes.filter(p => p.responsible_user_id === user?.uid).length;
+
+  // Status distribution for Charts
+  const statusCounts = processes.reduce((acc, p) => {
+    acc[p.status] = (acc[p.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  const statusData = Object.entries(statusCounts).map(([status, count]) => ({
+    name: status,
+    value: count,
+    color: statusConfig[status]?.color || DEFAULT_COLOR
+  }));
+
+  // Recent processes (last 5 for cleaner UI)
+  const recentProcesses = [...processes]
+    .sort((a, b) => {
+      const dateA = a.updated_at?.seconds || 0;
+      const dateB = b.updated_at?.seconds || 0;
+      return dateB - dateA;
+    })
+    .slice(0, 5);
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8 space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
+            <p className="text-slate-600 dark:text-slate-400 mt-1">
+              Visão geral de <span className="font-semibold text-indigo-600">{selectedOrg?.name}</span>
+            </p>
           </div>
 
-          {/* Charts */}
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Gráfico de Pizza - Status */}
-              <Card className="shadow-sm border-slate-200">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Processos por Status no {userFirstOrg?.name}</CardTitle>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Calendar className="w-4 h-4" />
-                  <span>{format(dateRange.start, 'dd/MM/yyyy')} - {format(dateRange.end, 'dd/MM/yyyy')}</span>
-                </div>
-              </div>
-            </CardHeader>
-          <CardContent>
-            {statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-slate-500">
-                Nenhum processo cadastrado
-              </div>
-            )}
-            </CardContent>
-            </Card>
-
-            {/* Gráfico de Barras - Responsável */}
-            <Card className="shadow-sm border-slate-200">
-            <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Processos por Responsável</CardTitle>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Calendar className="w-4 h-4" />
-                <span>{format(dateRange.start, 'dd/MM/yyyy')} - {format(dateRange.end, 'dd/MM/yyyy')}</span>
-              </div>
+          {/* Organization Selector */}
+          {organizations.length > 1 && (
+            <div className="relative">
+              <select
+                value={selectedOrgId || ''}
+                onChange={(e) => setSelectedOrgId(e.target.value)}
+                className="pl-4 pr-10 py-2 border border-slate-200 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none appearance-none cursor-pointer"
+              >
+                {organizations.map(org => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+              <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
-            </CardHeader>
-          <CardContent>
-            {responsibleData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={responsibleData}>
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="processos" fill="url(#colorGradient)" radius={[8, 8, 0, 0]} />
-                  <defs>
-                    <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6366f1" />
-                      <stop offset="100%" stopColor="#8b5cf6" />
-                    </linearGradient>
-                  </defs>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-slate-500">
-                Nenhum processo cadastrado
-              </div>
-            )}
-            </CardContent>
-            </Card>
-          </div>
+          )}
+        </div>
 
-          {/* Recent Processes */}
-          <Card className="shadow-sm border-slate-200">
-                <CardHeader>
-              <CardTitle className="text-lg">Últimos Processos Analisados</CardTitle>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <KpiCard
+            title="Total de Processos"
+            value={totalProcesses}
+            icon={FileText}
+            color="text-slate-600"
+            bgIcon="bg-slate-100"
+            subtext="Processos ativos"
+          />
+          <KpiCard
+            title="Processos Urgentes"
+            value={urgentProcesses}
+            icon={AlertCircle}
+            color="text-red-600"
+            bgIcon="bg-red-100"
+            subtext="Requerem atenção"
+          />
+          <KpiCard
+            title="Meus Processos"
+            value={myProcesses}
+            icon={Users}
+            color="text-blue-600"
+            bgIcon="bg-blue-100"
+            subtext="Atribuídos a você"
+          />
+          <KpiCard
+            title="Membros"
+            value={selectedOrg?.stats?.members_count || 0}
+            icon={Users}
+            color="text-green-600"
+            bgIcon="bg-green-100"
+            subtext="Total na equipe"
+          />
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+          {/* Status Distribution Chart */}
+          <Card className="lg:col-span-1 shadow-sm border-slate-200">
+            <CardHeader>
+              <CardTitle className="text-lg text-slate-800">Status dos Processos</CardTitle>
             </CardHeader>
             <CardContent>
-          {recentProcesses.length > 0 ? (
-            <div className="space-y-3">
-              {recentProcesses.map(process => (
-                <div key={process.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-900">{process.process_number}</span>
-                      {process.urgency_request && (
-                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium">
-                          URGENTE
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-600 mt-1">{process.consultant}</p>
-                    <p className="text-xs text-slate-500 mt-1">{process.location}</p>
-                  </div>
-                  <div className="text-right">
-                    <StatusBadge status={process.status} />
-                    <p className="text-xs text-slate-500 mt-1">
-                      {format(new Date(process.archived_date || process.updated_date), "dd/MM/yyyy", { locale: ptBR })}
-                    </p>
-                  </div>
+              {statusData.length > 0 ? (
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {statusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-slate-500">
-              Nenhum processo encontrado. Crie seu primeiro órgão para começar!
-            </div>
+              ) : (
+                <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                  <FileText className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-sm">Nenhum dado disponível</p>
+                </div>
               )}
             </CardContent>
           </Card>
-        </>
-      )}
+
+          {/* Recent Activity Feed */}
+          <Card className="lg:col-span-2 shadow-sm border-slate-200">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg text-slate-800">Atividade Recente</CardTitle>
+              <Button variant="ghost" size="sm" className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" onClick={() => navigate(`/Organization?id=${selectedOrgId}`)}>
+                Ver todos <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {recentProcesses.length > 0 ? (
+                  recentProcesses.map(process => {
+                    const statusInfo = statusConfig[process.status] || { startColor: 'bg-slate-100', text: 'text-slate-600', label: process.status };
+
+                    return (
+                      <div
+                        key={process.id}
+                        className="group flex items-start gap-4 p-4 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer"
+                        onClick={() => navigate(`/Organization?id=${selectedOrgId}`)} // TODO: Open specific process details
+                      >
+                        <div className={`w-10 h-10 rounded-full ${statusInfo.startColor} flex items-center justify-center shrink-0`}>
+                          <Clock className={`w-5 h-5 ${statusInfo.text}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-semibold text-slate-900 truncate">
+                              {process.process_number || 'Sem número'}
+                            </h4>
+                            <span className="text-xs text-slate-400 whitespace-nowrap">
+                              {/* Formatter for date would go here */}
+                              {new Date(process.updated_at?.seconds * 1000).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-600 truncate mb-2">
+                            {process.description || 'Sem descrição'}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className={`${statusInfo.startColor} ${statusInfo.text} border-0 hover:${statusInfo.startColor}`}>
+                              {statusInfo.label}
+                            </Badge>
+                            {process.urgency_request && (
+                              <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50">
+                                Urgente
+                              </Badge>
+                            )}
+                            <span className="text-xs text-slate-400 ml-auto flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {process.responsible_user_id === user?.uid ? 'Você' : 'Outro'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Clock className="w-6 h-6 text-slate-300" />
+                    </div>
+                    <p className="text-slate-500 font-medium">Nenhuma atividade recente</p>
+                    <p className="text-slate-400 text-sm">Os processos atualizados aparecerão aqui</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
 
-function KPICard({ title, value, icon: Icon, color }) {
+function KpiCard({ title, value, icon: Icon, color, bgIcon, subtext }) {
   return (
     <Card className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-600">{title}</p>
-            <h3 className="text-3xl font-bold text-slate-900 mt-2">{value}</h3>
+            <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+            <h3 className={`text-2xl font-bold ${color}`}>{value}</h3>
           </div>
-          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center`}>
-            <Icon className="w-7 h-7 text-white" />
+          <div className={`w-12 h-12 rounded-full ${bgIcon} flex items-center justify-center`}>
+            <Icon className={`w-6 h-6 ${color}`} />
           </div>
         </div>
+        {subtext && (
+          <p className="text-xs text-slate-400 mt-2">
+            {subtext}
+          </p>
+        )}
       </CardContent>
     </Card>
-  );
-}
-
-function StatusBadge({ status }) {
-  const statusConfig = {
-    'Em triagem': { color: 'bg-slate-100 text-slate-700 border-slate-200', icon: Clock },
-    'Pendente': { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock },
-    'Em elaboração': { color: 'bg-blue-100 text-blue-700 border-blue-200', icon: FileText },
-    'Em revisão': { color: 'bg-violet-100 text-violet-700 border-violet-200', icon: FileText },
-    'Para revisão': { color: 'bg-pink-100 text-pink-700 border-pink-200', icon: AlertCircle },
-    'Na pasta': { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle }
-  };
-
-  const config = statusConfig[status] || statusConfig['Em triagem'];
-  const Icon = config.icon;
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${config.color}`}>
-      <Icon className="w-3 h-3" />
-      {status}
-    </span>
   );
 }

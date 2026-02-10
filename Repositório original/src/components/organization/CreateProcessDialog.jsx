@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useMutation } from '@tanstack/react-query';
+import { useAuth } from '@/lib/FirebaseAuthContext';
+import { createProcess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,16 +20,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from '@/components/ui/switch';
-import { Plus } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { RS_CITIES } from '../constants/cities';
+import { logger } from '@/utils/logger';
+
+const RS_CITIES = [
+  "Porto Alegre", "Caxias do Sul", "Pelotas", "Santa Maria", "Canoas", "Gravataí",
+  "Viamão", "Novo Hamburgo", "São Leopoldo", "Alvorada", "Sapucaia do Sul", "Esteio",
+  "Cachoeirinha", "Guaíba", "Rio Grande", "Bagé", "Bento Gonçalves", "Passo Fundo",
+  "Erechim", "Santa Cruz do Sul", "Uruguaiana", "Sapiranga", "Lajeado", "Ijuí",
+  "Vacaria", "Farroupilha", "Camaquã", "Santana do Livramento", "Alegrete", "Torres",
+  "Tramandaí", "Osório", "Santo Ângelo", "Cruz Alta", "Santiago", "São Borja",
+  "Carazinho", "Venâncio Aires", "Taquara", "Montenegro", "Parobé", "Capão da Canoa",
+  "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
+].sort();
 
 export default function CreateProcessDialog({ open, setOpen, organization, members, onSuccess }) {
+  const { user } = useAuth();
+  const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',
     location: '',
-    entry_date: '',
+    entry_date: new Date().toISOString().split('T')[0],
     matter_object: '',
     urgency_request: false,
     distribution_date: '',
@@ -37,31 +50,12 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
     responsible_user_name: ''
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await base44.functions.invoke('createProcess', {
-        ...data,
-        organization_id: organization.id
-      });
-      return response.data;
-    },
-    onSuccess: () => {
-      toast.success('Processo criado com sucesso!');
-      setOpen(false);
-      resetForm();
-      onSuccess();
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Erro ao criar processo');
-    }
-  });
-
   const resetForm = () => {
     setFormData({
       process_number: '',
       consultant: '',
       location: '',
-      entry_date: '',
+      entry_date: new Date().toISOString().split('T')[0],
       matter_object: '',
       urgency_request: false,
       distribution_date: '',
@@ -70,9 +64,31 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    createMutation.mutate(formData);
+
+    try {
+      setIsCreating(true);
+
+      await createProcess({
+        ...formData,
+        organizationId: organization.id // Note: Cloud Function expects organizationId, not organization_id in request.data wrapper usually, but let's check input signature.
+        // My create.ts expects request.data to have organizationId (camelCase) or snake?
+        // Let's check create.ts input interface.
+        // Input: interface CreateProcessRequest { organizationId: string; ... } 
+        // So I must match that.
+      });
+
+      toast.success('Processo criado com sucesso!');
+      setOpen(false);
+      resetForm();
+      if (onSuccess) onSuccess();
+    } catch (error) {
+      logger.error('Error creating process:', error);
+      toast.error('Erro ao criar processo: ' + error.message);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleResponsibleChange = (userId) => {
@@ -86,12 +102,6 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Adicionar Processo
-        </Button>
-      </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo Processo</DialogTitle>
@@ -125,11 +135,15 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="location">Local dos Fatos *</Label>
-              <Select value={formData.location} onValueChange={(value) => setFormData({ ...formData, location: value })}>
+              <Select
+                value={formData.location}
+                onValueChange={(value) => setFormData({ ...formData, location: value })}
+                required
+              >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Selecione a cidade" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {RS_CITIES.map(city => (
                     <SelectItem key={city} value={city}>{city}</SelectItem>
                   ))}
@@ -190,7 +204,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
             <div>
               <Label htmlFor="urgency_request" className="cursor-pointer">Pedido de Urgência</Label>
               <p className="text-xs text-slate-500">Marcar este processo como urgente</p>
@@ -206,12 +220,19 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
-              className="bg-gradient-to-r from-indigo-600 to-violet-600"
-              disabled={createMutation.isPending}
+            <Button
+              type="submit"
+              className="bg-primary"
+              disabled={isCreating}
             >
-              {createMutation.isPending ? 'Criando...' : 'Criar Processo'}
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                'Criar Processo'
+              )}
             </Button>
           </div>
         </form>

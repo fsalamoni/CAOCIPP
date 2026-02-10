@@ -1,7 +1,7 @@
 # ⚙️ CAOCIPP - Features Reference
 
-**Version:** 1.0.0  
-**Last Updated:** 2026-02-05  
+**Version:** 1.1.0  
+**Last Updated:** 2026-02-10  
 **Purpose:** Complete features documentation with implementation details
 
 ---
@@ -36,8 +36,11 @@
 | **Processes** | Create Process | ✅ LIVE | P0 | Medium |
 | **Processes** | Edit Process | ✅ LIVE | P0 | Medium |
 | **Processes** | Delete Process | ✅ LIVE | P0 | Low |
-| **Processes** | Filter Processes | ✅ LIVE | P1 | Low |
-| **Processes** | Search Processes | ✅ LIVE | P1 | Low |
+| **Processes** | Filter Processes (Status/Search) | ✅ LIVE | P0 | Low |
+| **Processes** | Advanced Period Filters (De/Até) | ✅ LIVE | P1 | Medium |
+| **Processes** | Sorting (Natural/Date) | ✅ LIVE | P1 | Low |
+| **Processes** | Per-User View Persistence | ✅ LIVE | P1 | Medium |
+| **Processes** | Search Processes | ✅ LIVE | P0 | Low |
 | **Processes** | Mark Urgent | ✅ LIVE | P1 | Low |
 | **Processes** | Assign Responsible | ✅ LIVE | P1 | Low |
 | **Processes** | Access Restriction | ✅ LIVE | P2 | Low |
@@ -458,45 +461,31 @@ export async function deleteProcess(processId, organizationId) {
 
 **Warning:** No soft delete implemented (permanent)
 
-### 4. Filter & Search
+### 4. Search, Filter & Persistence
 
-**Description:** Users can filter and search processes
+**Description:** Users can filter, search and have their view preferences persisted.
 
 **Implementation:**
 
-**File:** `src/components/organization/ProcessControl.jsx`
+**File:** `src/components/organization/ProcessTable.jsx`  
+**Hook:** `useUserPreferences`
 
-**Client-Side Filtering:**
+**4.1 Persistence:**
+- Sort configuration and current page are saved to Firestore under `userPreferences/{user_id}`.
+- Data is restored on mount, ensuring a consistent experience across sessions.
 
-```javascript
-const filteredProcesses = processes.filter(process => {
-  // Search term (process number or consultant name)
-  const matchesSearch = 
-    process.process_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    process.consultant?.toLowerCase().includes(searchTerm.toLowerCase());
-  
-  // Status filter
-  let matchesStatus = false;
-  if (statusFilter === 'all') {
-    matchesStatus = true;
-  } else if (statusFilter === 'null') {
-    matchesStatus = !process.status;
-  } else {
-    matchesStatus = process.status === statusFilter;
-  }
-  
-  // Responsible filter
-  const matchesResponsible = responsibleFilter === 'all' || 
-    process.responsible_user_id === responsibleFilter;
-  
-  return matchesSearch && matchesStatus && matchesResponsible;
-});
-```
+**4.2 Date Range Filtering (De/Até):**
+- Users can filter by period for all process dates.
+- Exact match: If only "De" is provided.
+- Range match: If "De" and "Até" are provided.
 
-**Filter Options:**
-- **By Status:** All, Sem Status, Em triagem, Pendente, Em elaboração, Em revisão, Para revisão, Na pasta
-- **By Responsible:** All members + "Unassigned"
-- **Search:** Process number or consultant (case-insensitive, partial match)
+**4.3 Natural Sorting:**
+- The `process_number` uses a natural numeric collator for logical ordering (SIM 1 before SIM 10).
+
+**4.4 Filter Options:**
+- **By Status:** Refined list (Pendente, Em elaboração, Em revisão, Para revisão, Na pasta).
+- **By Responsible:** All members.
+- **Search:** Process number, consultant, or location (case-insensitive).
 
 **Performance:** Client-side filtering for <1000 processes. For larger datasets, implement server-side pagination.
 
