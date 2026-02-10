@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, AlertTriangle } from "lucide-react";
-import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from "date-fns";
+import { format, isWithinInterval, parseISO, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useUserPreferences } from "@/hooks/useFirestore";
 
@@ -180,21 +180,29 @@ export default function ProcessTable({
           if (!val) return false;
 
           const processDate = new Date(val);
+          if (!isValid(processDate)) return false;
 
           // Case 1: Only start or start == end -> exact day
           if ((start && !end) || (start && end && start === end)) {
-            const s = startOfDay(new Date(start));
-            const e = endOfDay(new Date(start));
+            const startD = new Date(start);
+            if (!isValid(startD)) return false;
+            const s = startOfDay(startD);
+            const e = endOfDay(startD);
             return processDate >= s && processDate <= e;
           }
           // Case 2: Only end
           if (!start && end) {
-            return processDate <= endOfDay(new Date(end));
+            const endD = new Date(end);
+            if (!isValid(endD)) return false;
+            return processDate <= endOfDay(endD);
           }
           // Case 3: Range
           if (start && end) {
-            return processDate >= startOfDay(new Date(start)) &&
-              processDate <= endOfDay(new Date(end));
+            const startD = new Date(start);
+            const endD = new Date(end);
+            if (!isValid(startD) || !isValid(endD)) return false;
+            return processDate >= startOfDay(startD) &&
+              processDate <= endOfDay(endD);
           }
           return true;
         });
@@ -258,7 +266,17 @@ export default function ProcessTable({
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
-    return format(new Date(dateStr), 'dd/MM/yyyy', { locale: ptBR });
+    // Check if it's already a Date object
+    const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
+
+    if (!isValid(date)) return 'Data Inválida';
+
+    try {
+      return format(date, 'dd/MM/yyyy', { locale: ptBR });
+    } catch (error) {
+      console.error('Error formatting date:', dateStr, error);
+      return 'Erro Data';
+    }
   };
 
   // Refined status list (removed "Para assinatura" as per request)
