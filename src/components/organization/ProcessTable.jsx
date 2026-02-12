@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,11 +106,19 @@ export default function ProcessTable({
     }
   }, [preferences, isInitialized, isLoadingPrefs]);
 
-  // Save preferences when sort, page, or itemsPerPage change
+  // Save preferences when sort, page, or itemsPerPage change (debounced)
+  const saveTimerRef = useRef(null);
   useEffect(() => {
     if (isInitialized) {
-      updatePreferences({ sortConfig, currentPage, itemsPerPage });
+      // Debounce: wait 300ms before saving to prevent excessive Firestore writes
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        updatePreferences({ sortConfig, currentPage, itemsPerPage });
+      }, 300);
     }
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, [sortConfig, currentPage, itemsPerPage, isInitialized, updatePreferences]);
 
   // Reset to page 1 when any filter changes
@@ -218,30 +226,104 @@ export default function ProcessTable({
       }
     });
 
-    // Robust Sorting
+    // ═══════════════════════════════════════════════════════════════════
+    // DEFINITIVE SORTING SYSTEM — Type-aware, direction-aware, null-safe
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Column type registry: which columns contain dates
+    const DATE_COLUMNS = new Set([
+      'entry_date',
+      'distribution_date',
+      'analysis_start_date',
+      'review_submission_date',
+      'review_return_date',
+      'archived_date',
+    ]);
+
+    // Universal date parser: converts any date representation to a numeric timestamp
+    // Handles: Firestore Timestamps, Date objects, ISO strings, dd/mm/yyyy strings
+    const parseDateToTimestamp = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+
+      // Firestore Timestamp object { seconds, nanoseconds }
+      if (typeof value === 'object' && value.seconds !== undefined) {
+        return value.seconds * 1000;
+      }
+
+      // Already a Date object
+      if (value instanceof Date) {
+        const t = value.getTime();
+        return isNaN(t) ? null : t;
+      }
+
+      // String date
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed === '') return null;
+
+        // Try direct parse first (handles ISO 8601 and many formats)
+        const directParse = new Date(trimmed);
+        if (!isNaN(directParse.getTime())) {
+          return directParse.getTime();
+        }
+
+        // Try dd/mm/yyyy format (common in Brazilian data)
+        const brMatch = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+        if (brMatch) {
+          const [, day, month, year] = brMatch;
+          const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+          if (!isNaN(parsed.getTime())) {
+            return parsed.getTime();
+          }
+        }
+
+        return null;
+      }
+
+      // Numeric value (epoch)
+      if (typeof value === 'number') {
+        return isNaN(value) ? null : value;
+      }
+
+      return null;
+    };
+
     const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
 
     result.sort((a, b) => {
-      let aValue = getProcessField(a, sortConfig.key);
-      let bValue = getProcessField(b, sortConfig.key);
+      const aRaw = getProcessField(a, sortConfig.key);
+      const bRaw = getProcessField(b, sortConfig.key);
 
-      // Handle nulls/undefineds - always at bottom
-      if (aValue === null || aValue === undefined) return 1;
-      if (bValue === null || bValue === undefined) return -1;
+      // ── Unified null/empty handling ──
+      // Missing values ALWAYS go to the bottom, regardless of sort direction
+      const aEmpty = (aRaw === null || aRaw === undefined || String(aRaw).trim() === '');
+      const bEmpty = (bRaw === null || bRaw === undefined || String(bRaw).trim() === '');
+
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;   // a missing → push to bottom
+      if (bEmpty) return -1;  // b missing → push to bottom
 
       let comparison = 0;
 
-      // Special handling for process_number (natural sort)
-      if (sortConfig.key === 'process_number') {
-        comparison = collator.compare(String(aValue), String(bValue));
+      // ── Date columns: compare as timestamps ──
+      if (DATE_COLUMNS.has(sortConfig.key)) {
+        const aTime = parseDateToTimestamp(aRaw);
+        const bTime = parseDateToTimestamp(bRaw);
+
+        // If parsing failed, treat as missing (push to bottom)
+        if (aTime === null && bTime === null) return 0;
+        if (aTime === null) return 1;
+        if (bTime === null) return -1;
+
+        comparison = aTime - bTime;
       }
-      // Date fields or other strings
+      // ── Process number: natural alphanumeric sort ──
+      else if (sortConfig.key === 'process_number') {
+        comparison = collator.compare(String(aRaw), String(bRaw));
+      }
+      // ── All other columns: string comparison with locale ──
       else {
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          comparison = aValue.localeCompare(bValue, 'pt-BR', { numeric: true });
-        } else {
-          comparison = aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-        }
+        comparison = String(aRaw).localeCompare(String(bRaw), 'pt-BR', { numeric: true, sensitivity: 'base' });
       }
 
       return sortConfig.direction === 'asc' ? comparison : -comparison;
