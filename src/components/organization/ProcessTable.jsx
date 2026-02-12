@@ -106,18 +106,33 @@ export default function ProcessTable({
     }
   }, [preferences, isInitialized, isLoadingPrefs]);
 
-  // Save preferences when sort, page, or itemsPerPage change (debounced)
+  // Save preferences when sort, page, or itemsPerPage change (debounced, flush on unmount)
   const saveTimerRef = useRef(null);
+  const latestPrefsRef = useRef(null);
+
   useEffect(() => {
     if (isInitialized) {
+      const prefsToSave = { sortConfig, currentPage, itemsPerPage };
+      latestPrefsRef.current = prefsToSave;
+
       // Debounce: wait 300ms before saving to prevent excessive Firestore writes
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        updatePreferences({ sortConfig, currentPage, itemsPerPage });
+        updatePreferences(prefsToSave);
+        latestPrefsRef.current = null; // Mark as saved
+        saveTimerRef.current = null;
       }, 300);
     }
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      // CRITICAL: On unmount, FLUSH pending save instead of canceling it
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      if (latestPrefsRef.current) {
+        updatePreferences(latestPrefsRef.current);
+        latestPrefsRef.current = null;
+      }
     };
   }, [sortConfig, currentPage, itemsPerPage, isInitialized, updatePreferences]);
 
