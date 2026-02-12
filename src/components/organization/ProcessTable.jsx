@@ -85,61 +85,80 @@ export default function ProcessTable({
     network_folder_path: ''
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: 'entry_date', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  // ═══════════════════════════════════════════════════════════════════
+  // BULLETPROOF PERSISTENCE — localStorage (instant) + Firestore (backup)
+  // localStorage is SYNCHRONOUS: reads happen before first render = zero race conditions
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Helper: read from localStorage (synchronous, safe)
+  const readLocalPref = (key, defaultValue) => {
+    try {
+      const stored = localStorage.getItem(`caocipp_pref_${key}`);
+      if (stored === null) return defaultValue;
+      return JSON.parse(stored);
+    } catch { return defaultValue; }
+  };
+
+  // Helper: write to localStorage (synchronous, instant)
+  const writeLocalPref = (key, value) => {
+    try {
+      localStorage.setItem(`caocipp_pref_${key}`, JSON.stringify(value));
+    } catch { /* quota exceeded — silently ignore */ }
+  };
+
+  // Initialize state from localStorage INLINE — synchronous, instant, no race conditions
+  const [sortConfig, setSortConfig] = useState(() => readLocalPref('sortConfig', { key: 'entry_date', direction: 'desc' }));
+  const [currentPage, setCurrentPage] = useState(1); // Always start at page 1
+  const [itemsPerPage, setItemsPerPage] = useState(() => readLocalPref('itemsPerPage', 20));
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load preferences when they become available
-  // Uses a ref to track what was last applied, allowing re-application
-  // if preferences change (e.g., after auth resolves and real data loads)
+  // LAYER 1: Write to localStorage IMMEDIATELY when values change (synchronous, instant)
+  useEffect(() => {
+    writeLocalPref('sortConfig', sortConfig);
+  }, [sortConfig]);
+
+  useEffect(() => {
+    writeLocalPref('itemsPerPage', itemsPerPage);
+  }, [itemsPerPage]);
+
+  // LAYER 2: When Firestore preferences load, sync them to localStorage too
+  // This keeps localStorage in sync if user logs in from another device
   const appliedPrefsRef = useRef(null);
   useEffect(() => {
-    if (isLoadingPrefs) return; // Still loading, wait
+    if (isLoadingPrefs) return;
 
     const prefsKey = JSON.stringify(preferences);
-
-    // Skip if these exact preferences were already applied
     if (appliedPrefsRef.current === prefsKey) return;
 
     if (preferences && typeof preferences === 'object') {
       const p = preferences;
-      if (p.sortConfig) setSortConfig(p.sortConfig);
-      if (p.currentPage != null) setCurrentPage(Number(p.currentPage) || 1);
-      if (p.itemsPerPage != null) setItemsPerPage(Number(p.itemsPerPage) || 20);
+      if (p.sortConfig) {
+        setSortConfig(p.sortConfig);
+        writeLocalPref('sortConfig', p.sortConfig);
+      }
+      if (p.itemsPerPage != null) {
+        const ipp = Number(p.itemsPerPage) || 20;
+        setItemsPerPage(ipp);
+        writeLocalPref('itemsPerPage', ipp);
+      }
     }
 
     appliedPrefsRef.current = prefsKey;
     if (!isInitialized) setIsInitialized(true);
   }, [preferences, isLoadingPrefs]);
 
-  // Save preferences when sort, page, or itemsPerPage change (debounced, flush on unmount)
+  // LAYER 3: Save to Firestore as background backup (debounced)
   const saveTimerRef = useRef(null);
-  const latestPrefsRef = useRef(null);
-
   useEffect(() => {
     if (isInitialized) {
-      const prefsToSave = { sortConfig, currentPage, itemsPerPage };
-      latestPrefsRef.current = prefsToSave;
-
-      // Debounce: wait 300ms before saving to prevent excessive Firestore writes
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        updatePreferences(prefsToSave);
-        latestPrefsRef.current = null; // Mark as saved
+        updatePreferences({ sortConfig, currentPage, itemsPerPage });
         saveTimerRef.current = null;
-      }, 300);
+      }, 500);
     }
     return () => {
-      // CRITICAL: On unmount, FLUSH pending save instead of canceling it
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      if (latestPrefsRef.current) {
-        updatePreferences(latestPrefsRef.current);
-        latestPrefsRef.current = null;
-      }
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, [sortConfig, currentPage, itemsPerPage, isInitialized, updatePreferences]);
 
