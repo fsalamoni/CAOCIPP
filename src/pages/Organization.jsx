@@ -164,10 +164,12 @@ export default function Organization() {
             <GeneralInfo
               organization={organization}
               members={members}
+              processes={processes}
               userRole={userRole}
               userId={user?.uid}
               membersLoading={membersLoading}
               membersError={membersError}
+              processesLoading={processesLoading}
             />
           </TabsContent>
 

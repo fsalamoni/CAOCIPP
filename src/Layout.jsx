@@ -107,7 +107,7 @@ export default function Layout({ children, currentPageName }) {
           {/* Logo */}
           <div className="h-16 flex items-center px-6 border-b border-slate-200">
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              ProcessFlow
+              Consultas CAO
             </h1>
           </div>
 

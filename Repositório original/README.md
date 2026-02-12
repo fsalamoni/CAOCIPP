@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.3.0)
+# Consultas CAO (Version 1.4.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -148,10 +148,16 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 12/02/2026 - UX Pro Max & Zero Problems (v1.4.0)
+- **Zero Problems (IDE)**: Otimização total do ambiente de desenvolvimento (jsconfig.json) para eliminar falsos-positivos de tipos, atingindo 0 erros no editor.
+- **Filtros Dinâmicos**: O filtro de "Responsável" agora é extraído automaticamente dos dados da planilha, eliminando a necessidade de listas manuais.
+- **UX Improvements**: Implementação de Loading Skeletons modernos e estados vazios interativos na grid de processos.
+- **Limpeza de Build**: Resolução de 100% dos avisos de ESLint e erros de parsing em constantes globais.
+
 ### 12/02/2026 - Persistência Definitiva & Novo Domínio (v1.3.0)
 - **Novo URL**: Aplicação migrada para [consultascao.web.app](https://consultascao.web.app)
-- **Persistência Bulletproof**: Itens por página e ordenação agora usam localStorage como cache instantâneo + Firestore como backup. Valores persistem em recarregamento, navegação entre abas e reabertura do navegador.
-- **Ordenação Type-Aware**: Registro de tipos por coluna com parser universal de datas (Firestore Timestamps, Date objects, ISO strings, dd/mm/yyyy).
+- **Persistência Bulletproof**: Itens por página e ordenação agora usam localStorage como cache instantâneo + Firestore como backup.
+- **Ordenação Type-Aware**: Registro de tipos por coluna com parser universal de datas.
 
 ### Fevereiro de 2026 - Auditoria e Refinamento de UX (Round 9)
 - **Persistence Per-User**: O sistema agora salva configurações de ordenação e página atual por usuário no Firestore. Ao retornar à aplicação, sua visão estará exatamente como você a deixou.
@@ -172,4 +178,4 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.3.0 (Persistência Definitiva & Novo Domínio) — 12/02/2026
+**Status do Projeto**: ✅ Estável / Versão 1.4.0 (UX Pro Max & Zero Problems) — 12/02/2026

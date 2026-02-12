@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses } from '@/hooks/useFirestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import {
   FileText,
@@ -14,8 +13,7 @@ import {
   Loader2,
   PlusCircle,
   Building2,
-  ArrowRight,
-  Flame
+  ArrowRight
 } from 'lucide-react';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import {
@@ -23,8 +21,7 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  Tooltip,
-  Legend
+  Tooltip
 } from 'recharts';
 
 const DEFAULT_COLOR = DEFAULT_STATUS_CONFIG.color;
@@ -33,7 +30,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, isLoadingAuth, isAuthenticated } = useAuth();
   const { organizations, isLoading: orgsLoading } = useOrganizations();
-  const [selectedOrgId, setSelectedOrgId] = useState(null);
 
   // Redirect to landing if not authenticated
   React.useEffect(() => {
@@ -41,16 +37,6 @@ export default function Dashboard() {
       navigate('/Landing');
     }
   }, [isLoadingAuth, isAuthenticated, navigate]);
-
-  // Auto-select first organization
-  React.useEffect(() => {
-    if (organizations.length > 0 && !selectedOrgId) {
-      setSelectedOrgId(organizations[0].id);
-    }
-  }, [organizations, selectedOrgId]);
-
-  // Fetch processes for selected organization
-  const { processes, isLoading: processesLoading } = useProcesses(selectedOrgId);
 
   // Loading State
   if (isLoadingAuth || orgsLoading) {
@@ -67,255 +53,322 @@ export default function Dashboard() {
   // Empty State (No Organizations)
   if (organizations.length === 0) {
     return (
-      <div className="min-h-screen p-8 flex items-center justify-center bg-slate-50">
-        <Card className="max-w-md w-full text-center p-6">
-          <div className="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-            <Building2 className="w-8 h-8 text-slate-400" />
+      <div className="min-h-screen p-8 flex items-center justify-center bg-slate-50 text-center">
+        <Card className="max-w-md w-full p-8 shadow-lg border-slate-200">
+          <div className="mx-auto w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
+            <Building2 className="w-10 h-10 text-indigo-400" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Bem-vindo ao ProcessFlow</h2>
-          <p className="text-slate-600 mb-6">
-            Você ainda não faz parte de nenhuma organização. Para começar, crie uma nova ou peça para ser convidado.
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Bem-vindo(a)!</h2>
+          <p className="text-slate-600 mb-8 leading-relaxed">
+            Você ainda não está vinculado(a) a nenhum órgão. Comece criando um novo ou solicite um convite.
           </p>
-          <div className="space-y-3">
-            <Button
-              onClick={() => navigate('/Profile')}
-              className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Criar ou Entrar em Organização
-            </Button>
-          </div>
+          <Button
+            onClick={() => navigate('/Profile')}
+            className="w-full h-12 gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-md"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Configurar meu Perfil
+          </Button>
         </Card>
       </div>
     );
   }
 
-  const selectedOrg = organizations.find(org => org.id === selectedOrgId);
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-10">
+        {/* Header */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+            Meu Início
+          </h1>
+          <p className="text-slate-500 font-medium text-lg">
+            Resumo das suas atividades e responsabilidades em cada órgão.
+          </p>
+        </div>
 
-  // Calculate KPIs
-  const totalProcesses = processes.length;
-  const urgentProcesses = processes.filter(p => p.urgency_request).length;
-  const myProcesses = processes.filter(p => p.responsible_user_id === user?.uid).length;
+        {/* Organizations List */}
+        <div className="space-y-12">
+          {organizations.map((org) => (
+            <UserOrganDashboard key={org.id} organization={org} user={user} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // Status distribution for Charts
-  const statusCounts = processes.reduce((acc, p) => {
-    acc[p.status] = (acc[p.status] || 0) + 1;
-    return acc;
-  }, {});
+function UserOrganDashboard({ organization, user }) {
+  const navigate = useNavigate();
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const { processes, isLoading } = useProcesses(organization.id);
 
-  const statusData = Object.entries(statusCounts).map(([status, count]) => ({
-    name: status,
-    value: count,
-    color: statusConfig[status]?.color || DEFAULT_COLOR
-  }));
+  // Normalize function name
+  const userFunc = (organization.userFunction || '').toLowerCase();
+  const isAssessor = userFunc.includes('assessor') || userFunc.includes('assessoria');
+  const isSecretaria = userFunc.includes('secretaria') || userFunc.includes('apoio');
+  const isDecisor = userFunc.includes('decisor') || userFunc.includes('decisória') || userFunc.includes('promotor') || userFunc.includes('procurador');
 
-  // Recent processes (last 5 for cleaner UI)
-  const recentProcesses = [...processes]
-    .sort((a, b) => {
-      const dateA = a.updated_at?.seconds || 0;
-      const dateB = b.updated_at?.seconds || 0;
-      return dateB - dateA;
-    })
-    .slice(0, 5);
+  // Available years for filter
+  const years = useMemo(() => {
+    const yearsSet = new Set([currentYear]);
+    processes.forEach(p => {
+      if (p.entry_date) {
+        const year = new Date(p.entry_date).getFullYear();
+        if (year && !isNaN(year)) yearsSet.add(year);
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [processes, currentYear]);
+
+  // Filter processes by year (for Total, Status Chart, etc.)
+  const filteredProcesses = useMemo(() => {
+    return processes.filter(p => {
+      if (!p.entry_date) return false;
+      return new Date(p.entry_date).getFullYear() === selectedYear;
+    });
+  }, [processes, selectedYear]);
+
+  // Role-based KPI Logic
+  const kpis = useMemo(() => {
+    const total = filteredProcesses.length;
+    // Urgent + Pending only (per requirement)
+    const urgent = filteredProcesses.filter(p => p.urgency_request && p.status === 'Pendente').length;
+
+    let mineCount = 0;
+    let mineLabel = "Meus Processos";
+    let mineSubtext = "Focado em você";
+
+    if (isDecisor) {
+      mineCount = filteredProcesses.filter(p => p.status === 'Em revisão').length;
+      mineLabel = "Para Revisão";
+      mineSubtext = "Aguardando seu despacho";
+    } else {
+      // Assessoria and others use responsible identity
+      mineCount = filteredProcesses.filter(p => p.responsible_user_id === user?.uid).length;
+      mineLabel = "Sob minha responsabilidade";
+    }
+
+    return { total, urgent, mineCount, mineLabel, mineSubtext };
+  }, [filteredProcesses, isDecisor, user?.uid]);
+
+  // Status distribution (filtered by year)
+  const statusData = useMemo(() => {
+    const counts = filteredProcesses.reduce((acc, p) => {
+      acc[p.status] = (acc[p.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(counts).map(([status, count]) => ({
+      name: status,
+      value: count,
+      color: statusConfig[status]?.color || DEFAULT_COLOR
+    }));
+  }, [filteredProcesses]);
+
+  // Activity logic
+  const activity = useMemo(() => {
+    const safeDateParse = (d) => {
+      if (!d) return 0;
+      if (d.seconds) return d.seconds * 1000;
+      const ts = new Date(d).getTime();
+      return isNaN(ts) ? 0 : ts;
+    };
+
+    if (isDecisor) {
+      // Recent revisions/returns
+      return [...processes]
+        .filter(p => p.review_submission_date || p.review_return_date)
+        .sort((a, b) => {
+          const dateA = Math.max(safeDateParse(a.review_return_date), safeDateParse(a.review_submission_date));
+          const dateB = Math.max(safeDateParse(b.review_return_date), safeDateParse(b.review_submission_date));
+          return dateB - dateA;
+        })
+        .slice(0, 5);
+    } else if (isSecretaria) {
+      // Any recent update in organ
+      return [...processes]
+        .sort((a, b) => safeDateParse(b.updated_at) - safeDateParse(a.updated_at))
+        .slice(0, 5);
+    } else {
+      // Assessoria: Movement by user
+      return [...processes]
+        .filter(p => p.updated_by === user?.uid || p.responsible_user_id === user?.uid)
+        .sort((a, b) => safeDateParse(b.updated_at) - safeDateParse(a.updated_at))
+        .slice(0, 5);
+    }
+  }, [processes, isDecisor, isSecretaria, user?.uid]);
+
+  if (isLoading) {
+    return (
+      <Card className="p-8 border-dashed bg-slate-50/50 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+      </Card>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8 space-y-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between group">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+            <Building2 className="w-5 h-5" />
+          </div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
-            <p className="text-slate-600 dark:text-slate-400 mt-1">
-              Visão geral de <span className="font-semibold text-indigo-600">{selectedOrg?.name}</span>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white capitalize">
+              {organization.name}
+            </h2>
+            <p className="text-sm text-slate-500 font-medium">
+              Sua função: <span className="text-indigo-600">{organization.userFunction || 'Membro'}</span>
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="h-10 pl-3 pr-8 rounded-lg border-slate-200 bg-white shadow-sm text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none"
+          >
+            {years.map(y => <option key={y} value={y}>Ano: {y}</option>)}
+          </select>
+          <Button
+            variant="ghost"
+            className="text-indigo-600 font-semibold hover:bg-indigo-50 px-4 h-10"
+            onClick={() => navigate(`/Organization?id=${organization.id}`)}
+          >
+            Acessar Órgão <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      </div>
 
-          {/* Organization Selector */}
-          {organizations.length > 1 && (
-            <div className="relative">
-              <select
-                value={selectedOrgId || ''}
-                onChange={(e) => setSelectedOrgId(e.target.value)}
-                className="pl-4 pr-10 py-2 border border-slate-200 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none appearance-none cursor-pointer"
-              >
-                {organizations.map(org => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </select>
-              <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* KPI: Total */}
+        <KpiCard
+          title="Total de Processos"
+          value={kpis.total}
+          icon={FileText}
+          color="text-slate-600"
+          bgIcon="bg-slate-100"
+          subtext={`Registrados em ${selectedYear}`}
+          onClick={() => navigate(`/Organization?id=${organization.id}`)}
+        />
+
+        {/* KPI: Urgentes */}
+        <KpiCard
+          title="Urgentes Pendentes"
+          value={kpis.urgent}
+          icon={AlertCircle}
+          color="text-red-600"
+          bgIcon="bg-red-100"
+          subtext="Requerem atenção"
+          onClick={() => navigate(`/Organization?id=${organization.id}&filter=urgent`)}
+          pulse={kpis.urgent > 0}
+        />
+
+        {/* KPI: Meus */}
+        <KpiCard
+          title={kpis.mineLabel}
+          value={kpis.mineCount}
+          icon={isDecisor ? Clock : Users}
+          color="text-blue-600"
+          bgIcon="bg-blue-100"
+          subtext={kpis.mineSubtext}
+          onClick={() => navigate(`/Organization?id=${organization.id}&filter=mine`)}
+        />
+
+        {/* Gráfico resumido lateral */}
+        <Card className="shadow-sm border-slate-200 flex flex-col justify-center p-4">
+          {statusData.length > 0 ? (
+            <div className="h-[120px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={35}
+                    outerRadius={45}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider">
+                Distribuição de Status
+              </p>
             </div>
+          ) : (
+            <div className="text-center text-xs text-slate-400 py-4">Sem dados para {selectedYear}</div>
           )}
-        </div>
+        </Card>
+      </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <KpiCard
-            title="Total de Processos"
-            value={totalProcesses}
-            icon={FileText}
-            color="text-slate-600"
-            bgIcon="bg-slate-100"
-            subtext="Processos ativos"
-            onClick={() => navigate(`/Organization?id=${selectedOrgId}`)}
-          />
-          <KpiCard
-            title="Processos Urgentes"
-            value={urgentProcesses}
-            icon={AlertCircle}
-            color="text-red-600"
-            bgIcon="bg-red-100"
-            subtext="Requerem atenção"
-            onClick={() => navigate(`/Organization?id=${selectedOrgId}&filter=urgent`)}
-            pulse={urgentProcesses > 0}
-          />
-          <KpiCard
-            title="Meus Processos"
-            value={myProcesses}
-            icon={Users}
-            color="text-blue-600"
-            bgIcon="bg-blue-100"
-            subtext="Atribuídos a você"
-            onClick={() => navigate(`/Organization?id=${selectedOrgId}&filter=mine`)}
-          />
-          <KpiCard
-            title="Membros"
-            value={selectedOrg?.stats?.members_count || 0}
-            icon={Users}
-            color="text-green-600"
-            bgIcon="bg-green-100"
-            subtext="Total na equipe"
-          />
-        </div>
-
-        {/* Urgency Alert */}
-        {urgentProcesses > 0 && (
-          <Alert className="border-rose-200 bg-rose-50">
-            <Flame className="w-4 h-4 text-rose-600" />
-            <AlertDescription className="text-rose-700 flex items-center justify-between">
-              <span>
-                <strong>{urgentProcesses}</strong> processo{urgentProcesses !== 1 ? 's' : ''} urgente{urgentProcesses !== 1 ? 's' : ''} requer{urgentProcesses !== 1 ? 'em' : ''} atenção imediata.
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-rose-600 hover:text-rose-700 hover:bg-rose-100 gap-1"
-                onClick={() => navigate(`/Organization?id=${selectedOrgId}&filter=urgent`)}
-              >
-                Ver urgentes <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* Status Distribution Chart */}
-          <Card className="lg:col-span-1 shadow-sm border-slate-200">
-            <CardHeader>
-              <CardTitle className="text-lg text-slate-800">Status dos Processos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statusData.length > 0 ? (
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={statusData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {statusData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-                  <FileText className="w-8 h-8 mb-2 opacity-50" />
-                  <p className="text-sm">Nenhum dado disponível</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity Feed */}
-          <Card className="lg:col-span-2 shadow-sm border-slate-200">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg text-slate-800">Atividade Recente</CardTitle>
-              <Button variant="ghost" size="sm" className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" onClick={() => navigate(`/Organization?id=${selectedOrgId}`)}>
-                Ver todos <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentProcesses.length > 0 ? (
-                  recentProcesses.map(process => {
-                    const statusInfo = statusConfig[process.status] || { startColor: 'bg-slate-100', text: 'text-slate-600', label: process.status };
-
-                    return (
-                      <div
-                        key={process.id}
-                        className="group flex items-start gap-4 p-4 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer"
-                        onClick={() => navigate(`/Organization?id=${selectedOrgId}`)} // TODO: Open specific process details
-                      >
-                        <div className={`w-10 h-10 rounded-full ${statusInfo.startColor} flex items-center justify-center shrink-0`}>
-                          <Clock className={`w-5 h-5 ${statusInfo.text}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-semibold text-slate-900 truncate">
-                              {process.process_number || 'Sem número'}
-                            </h4>
-                            <span className="text-xs text-slate-400 whitespace-nowrap">
-                              {/* Formatter for date would go here */}
-                              {new Date(process.updated_at?.seconds * 1000).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-600 truncate mb-2">
-                            {process.matter_object || process.description || 'Sem descrição'}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className={`${statusInfo.startColor} ${statusInfo.text} border-0 hover:${statusInfo.startColor}`}>
-                              {statusInfo.label}
-                            </Badge>
-                            {process.urgency_request && (
-                              <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50">
-                                Urgente
-                              </Badge>
-                            )}
-                            <span className="text-xs text-slate-400 ml-auto flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {process.responsible_user_id === user?.uid ? 'Você' : 'Outro'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Clock className="w-6 h-6 text-slate-300" />
+      {/* Activity Feed and Status Legend */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 shadow-sm border-slate-200 overflow-hidden">
+          <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100">
+            <CardTitle className="text-sm font-bold text-slate-600 flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              ATRIBUÍDO A VOCÊ (MOVIMENTAÇÕES RECENTES)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-slate-100">
+              {activity.length > 0 ? (
+                activity.map(p => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/Organization?id=${organization.id}`)}
+                  >
+                    <div className="flex-1 min-w-0 mr-4">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {p.process_number || 'Sem número'}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">
+                        {p.consulente || p.matter_object || 'Detalhes não informados'}
+                      </p>
                     </div>
-                    <p className="text-slate-500 font-medium">Nenhuma atividade recente</p>
-                    <p className="text-slate-400 text-sm">Os processos atualizados aparecerão aqui</p>
+                    <Badge
+                      variant="secondary"
+                      className={`${statusConfig[p.status]?.startColor || 'bg-slate-100'} ${statusConfig[p.status]?.text || 'text-slate-600'} text-[10px] px-2 py-0.5 border-0`}
+                    >
+                      {p.status}
+                    </Badge>
                   </div>
-                )}
+                ))
+              ) : (
+                <div className="p-10 text-center text-slate-400 text-sm">Nenhuma atividade recente identificada.</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="py-4 px-6 border-b border-slate-100">
+            <CardTitle className="text-sm font-bold text-slate-600 uppercase">Resumo Financeiro/Ano</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">Média de conclusões</span>
+                <span className="text-sm font-bold text-emerald-600">--%</span>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div className="bg-emerald-500 h-full w-[0%]" />
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed italic">
+                * Módulo de performance analítica em fase de desenvolvimento.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
