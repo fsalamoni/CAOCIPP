@@ -32,29 +32,27 @@ export function useOrganizations() {
             return;
         }
 
-        const fetchOrganizations = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        const membershipsRef = collection(db, 'userOrganizations');
+        const q = query(
+            membershipsRef,
+            where('user_id', '==', user.uid),
+            orderBy('joined_at', 'desc')
+        );
+
+        // Real-time listener for memberships
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
             try {
-                setIsLoading(true);
-                setError(null);
-
-                // 1. Get user's memberships
-                const membershipsRef = collection(db, 'userOrganizations');
-                const membershipsQuery = query(
-                    membershipsRef,
-                    where('user_id', '==', user.uid),
-                    orderBy('joined_at', 'desc')
-                );
-
-                const membershipsSnapshot = await getDocs(membershipsQuery);
-
-                if (membershipsSnapshot.empty) {
+                if (snapshot.empty) {
                     setOrganizations([]);
                     setIsLoading(false);
                     return;
                 }
 
-                // 2. Get organization details for each membership
-                const orgPromises = membershipsSnapshot.docs.map(async (membershipDoc) => {
+                // Get organization details for each membership
+                const orgPromises = snapshot.docs.map(async (membershipDoc) => {
                     const membership = membershipDoc.data();
                     const orgRef = doc(db, 'organizations', membership.organization_id);
                     const orgSnapshot = await getDoc(orgRef);
@@ -63,7 +61,7 @@ export function useOrganizations() {
                         return {
                             id: orgSnapshot.id,
                             ...orgSnapshot.data(),
-                            userRole: membership.role, // Add user's role in this org
+                            userRole: membership.role,
                             userFunction: membership.function,
                         };
                     }
@@ -74,14 +72,18 @@ export function useOrganizations() {
                 setOrganizations(orgs);
                 setIsLoading(false);
             } catch (err) {
-                logger.error('Error fetching organizations:', err);
+                logger.error('Error processing memberships update:', err);
                 setError(err.message);
                 setIsLoading(false);
             }
-        };
+        }, (err) => {
+            logger.error('Error listening to memberships:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
 
-        fetchOrganizations();
-    }, [user]);
+        return () => unsubscribe();
+    }, [user?.uid]);
 
     return { organizations, isLoading, error };
 }
@@ -103,45 +105,41 @@ export function useProcesses(organizationId, filters = {}) {
             return;
         }
 
-        const fetchProcesses = async () => {
-            try {
-                setIsLoading(true);
-                setError(null);
+        setIsLoading(true);
+        setError(null);
 
-                const processesRef = collection(db, 'processes');
-                let q = query(
-                    processesRef,
-                    where('organization_id', '==', organizationId),
-                    orderBy('updated_at', 'desc')
-                );
+        const processesRef = collection(db, 'processes');
+        let q;
 
-                // Apply filters
-                if (filters.status) {
-                    q = query(processesRef, where('organization_id', '==', organizationId), where('status', '==', filters.status), orderBy('entry_date', 'desc'));
-                }
-                if (filters.responsible_user_id) {
-                    q = query(processesRef, where('organization_id', '==', organizationId), where('responsible_user_id', '==', filters.responsible_user_id), orderBy('updated_at', 'desc'));
-                }
-                if (filters.urgency_request !== undefined) {
-                    q = query(processesRef, where('organization_id', '==', organizationId), where('urgency_request', '==', filters.urgency_request), orderBy('status', 'asc'));
-                }
+        // Apply filters - Note: In Firestore, we need to be careful with composite queries and onSnapshot
+        if (filters.status) {
+            q = query(processesRef, where('organization_id', '==', organizationId), where('status', '==', filters.status), orderBy('entry_date', 'desc'));
+        } else if (filters.responsible_user_id) {
+            q = query(processesRef, where('organization_id', '==', organizationId), where('responsible_user_id', '==', filters.responsible_user_id), orderBy('updated_at', 'desc'));
+        } else if (filters.urgency_request !== undefined) {
+            q = query(processesRef, where('organization_id', '==', organizationId), where('urgency_request', '==', filters.urgency_request), orderBy('status', 'asc'));
+        } else {
+            q = query(
+                processesRef,
+                where('organization_id', '==', organizationId),
+                orderBy('updated_at', 'desc')
+            );
+        }
 
-                const snapshot = await getDocs(q);
-                const processesData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const processesData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setProcesses(processesData);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to processes:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
 
-                setProcesses(processesData);
-                setIsLoading(false);
-            } catch (err) {
-                logger.error('Error fetching processes:', err);
-                setError(err.message);
-                setIsLoading(false);
-            }
-        };
-
-        fetchProcesses();
+        return () => unsubscribe();
     }, [organizationId, JSON.stringify(filters)]);
 
     return { processes, isLoading, error };

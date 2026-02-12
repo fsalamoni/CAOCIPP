@@ -39,7 +39,7 @@ export default function ProcessControl({
     if (!window.confirm(`Deseja realmente arquivar o processo ${process.process_number}?`)) return;
 
     try {
-      await archiveProcess(process.id);
+      await archiveProcess({ id: process.id, organizationId: organization.id });
       toast.success('Processo arquivado com sucesso!');
     } catch (error) {
       toast.error('Erro ao arquivar processo: ' + error.message);

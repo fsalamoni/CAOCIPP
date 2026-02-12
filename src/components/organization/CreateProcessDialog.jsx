@@ -69,14 +69,21 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
     try {
       setIsCreating(true);
 
-      await createProcess({
-        ...formData,
-        organizationId: organization.id // Note: Cloud Function expects organizationId, not organization_id in request.data wrapper usually, but let's check input signature.
-        // My create.ts expects request.data to have organizationId (camelCase) or snake?
-        // Let's check create.ts input interface.
-        // Input: interface CreateProcessRequest { organizationId: string; ... } 
-        // So I must match that.
-      });
+      // Map snake_case formData to camelCase expected by CreateProcessRequest in the Cloud Function
+      const mappedData = {
+        organizationId: organization.id,
+        processNumber: formData.process_number,
+        consultant: formData.consultant,
+        location: formData.location,
+        entryDate: formData.entry_date,
+        matterObject: formData.matter_object,
+        urgencyRequest: formData.urgency_request,
+        distributionDate: formData.distribution_date || null,
+        responsibleUserId: formData.responsible_user_id || null,
+        responsibleUserName: formData.responsible_user_name || null
+      };
+
+      await createProcess(mappedData);
 
       toast.success('Processo criado com sucesso!');
       setOpen(false);

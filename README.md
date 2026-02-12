@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.5.0)
+# Consultas CAO (Version 1.8.9)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -20,6 +20,8 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 - ✅ Sistema de status automatizado
 - ✅ Auditoria de Paridade de Dados (100% visibilidade DB ↔ UI)
 - ✅ Tratamento resiliente de dados históricos e assessores legados
+- ✅ Sincronização em tempo real (onSnapshot)
+- ✅ Hover inteligente e uniforme em colunas fixas
 
 ## 🛠️ Setup Local
 
@@ -93,7 +95,7 @@ npm run lint         # Lint do código
 
 ## 🌿 Workflow de Branches
 
-`` `
+```
 main           ← Produção (código estável)
 development    ← Desenvolvimento ativo
 feature/*      ← Features específicas
@@ -148,6 +150,12 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 12/02/2026 - Persistência, Real-time & UI Premium (v1.8.9)
+- **Correção de Persistência**: Alinhamento definitivo de campos (snake_case/camelCase) entre Frontend e Cloud Functions.
+- **Real-time Synchronization**: Listagem de processos agora utiliza `onSnapshot` para atualizações instantâneas.
+- **UI Hover Consistente**: Refinamento visual com `group-hover` estático para garantir destaque uniforme em colunas fixas.
+- **Service Layer Robustness**: Padronização dos serviços de Deletar e Arquivar com contexto organizacional.
+
 ### 12/02/2026 - Dashboard User-Centric & Multi-Filter (v1.5.0)
 - **Dashboard v2**: Interface per-organ automatizada, exibindo apenas o que é relevante para sua função atual.
 - **Lógica de Roles**: Assessoria, Secretaria e Decisória agora possuem KPIs e feeds de atividade distintos.
@@ -166,15 +174,6 @@ Consultas-CAO/
 - **Persistência Bulletproof**: Itens por página e ordenação agora usam localStorage como cache instantâneo + Firestore como backup.
 - **Ordenação Type-Aware**: Registro de tipos por coluna com parser universal de datas.
 
-### Fevereiro de 2026 - Auditoria e Refinamento de UX (Round 9)
-- **Persistence Per-User**: O sistema agora salva configurações de ordenação e página atual por usuário no Firestore. Ao retornar à aplicação, sua visão estará exatamente como você a deixou.
-- **Filtragem por Período Flexível (De/Até)**: Todos os filtros de data agora suportam intervalos. É possível filtrar processos por uma data única (preenchendo apenas "De") ou por um período completo (preenchendo "De" e "Até").
-- **Ordenação Natural**: O número do processo segue agora uma ordenação numérica inteligente (SIM 1, SIM 2, SIM 10).
-- **Auditoria de Paridade de Dados**: Garantia de 100% de visibilidade DB ↔ UI:
-    - **Normalização de Chaves**: Mapeamento agressivo de cabeçalhos do SIM (quebras de linha, espaços e termos legados).
-    - **Assessor Responsável**: Lógica de resolução que preserva nomes mesmo sem ID vinculado, usando placeholders seguros.
-    - **Remoção de Campos Obsoletos**: Simplificação do fluxo de trabalho conforme as regras de negócio atuais.
-
 ## 📝 Licença
 
 Este projeto é proprietário do Consultas CAO.
@@ -185,4 +184,4 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.5.0 (Dashboard User-Centric & Multi-Filter) — 12/02/2026
+**Status do Projeto**: ✅ Estável / Versão 1.8.9 (Persistência & Real-time UI) — 12/02/2026

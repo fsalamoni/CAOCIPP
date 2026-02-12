@@ -182,10 +182,32 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     try {
       setIsUpdating(true);
 
+      // Use snake_case keys to match Firestore schema and UI expectations
+      // The backend update.ts merges this record directly into Firestore
+      const updateData = {
+        process_number: formData.process_number,
+        consultant: formData.consultant,
+        location: formData.location,
+        entry_date: formData.entry_date,
+        matter_object: formData.matter_object,
+        urgency_request: formData.urgency_request,
+        distribution_date: formData.distribution_date || null,
+        responsible_user_id: formData.responsible_user_id || null,
+        responsible_user_name: formData.responsible_user_name || null,
+        analysis_start_date: formData.analysis_start_date || null,
+        observations: formData.observations || '',
+        review_submission_date: formData.review_submission_date || null,
+        review_return_date: formData.review_return_date || null,
+        access_restriction: formData.access_restriction,
+        archived_date: formData.archived_date || null,
+        network_folder: formData.network_folder || '',
+        status: formData.status
+      };
+
       await updateProcess({
         id: process.id,
-        organizationId: organizationId || process.organization_id, // Ensure we pass orgId context if validation needs it
-        changes: formData
+        organizationId: organizationId || process.organization_id,
+        changes: updateData
       });
 
       toast.success('Processo atualizado com sucesso!');
@@ -219,7 +241,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     try {
       setIsDeleting(true);
 
-      await deleteProcess(process.id);
+      await deleteProcess({ id: process.id, organizationId: organizationId || process.organization_id });
 
       toast.success('Processo excluído com sucesso!');
       setOpen(false);

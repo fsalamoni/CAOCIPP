@@ -268,7 +268,7 @@ export default function ProcessTable({
     {
       key: 'status', label: 'Status', defaultVisible: true,
       width: 'w-[160px]', sortable: true,
-      render: (process) => <StatusBadge status={getProcessField(process, 'status')} className="" />
+      render: (process) => <StatusBadge status={getProcessField(process, 'status')} variant="neutral" className="" />
     },
   ], []);
 
@@ -487,6 +487,66 @@ export default function ProcessTable({
     return format(date, 'dd/MM/yyyy', { locale: ptBR });
   };
 
+  const getStatusRowColor = (process) => {
+    const status = getProcessField(process, 'status');
+    const urgencyVal = getProcessField(process, 'urgency_request');
+    const isUrgent = urgencyVal === true || String(urgencyVal).toLowerCase().trim() === 'sim';
+
+    // Override: Urgent + Pending gets the red color
+    if (isUrgent && (status === 'Pendente' || !status)) {
+      return {
+        bg: "bg-[#FF7979]",
+        accent: "border-l-[#CC0000]",
+        border: "border-b-[#E06666]",
+        hover: "hover:bg-[#FF6060]",
+        groupHover: "group-hover:!bg-[#FF6060]"
+      };
+    }
+
+    switch (status) {
+      case "Em revisão":
+        return {
+          bg: "bg-[#B6DDE8]",
+          accent: "border-l-[#6FA8DC]",
+          border: "border-b-[#9BBDC6]",
+          hover: "hover:bg-[#A5C9D4]",
+          groupHover: "group-hover:!bg-[#A5C9D4]"
+        };
+      case "Em elaboração":
+        return {
+          bg: "bg-[#FFFF99]",
+          accent: "border-l-[#F1C232]",
+          border: "border-b-[#E1E17F]",
+          hover: "hover:bg-[#F0F08B]",
+          groupHover: "group-hover:!bg-[#F0F08B]"
+        };
+      case "Para revisão":
+        return {
+          bg: "bg-[#B6DDE8]",
+          accent: "border-l-[#6FA8DC]",
+          border: "border-b-[#9BBDC6]",
+          hover: "hover:bg-[#A5C9D4]",
+          groupHover: "group-hover:!bg-[#A5C9D4]"
+        };
+      case "Na pasta":
+        return {
+          bg: "bg-[#D7E4BC]",
+          accent: "border-l-[#93C47D]",
+          border: "border-b-[#C2D0A5]",
+          hover: "hover:bg-[#C9D6AF]",
+          groupHover: "group-hover:!bg-[#C9D6AF]"
+        };
+      default:
+        return {
+          bg: "bg-white",
+          accent: "border-l-slate-200",
+          border: "border-b-slate-100",
+          hover: "hover:bg-slate-50",
+          groupHover: "group-hover:!bg-slate-50"
+        };
+    }
+  };
+
   const statuses = ["Pendente", "Em elaboração", "Em revisão", "Para revisão", "Na pasta"];
 
   return (
@@ -697,26 +757,42 @@ export default function ProcessTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedProcesses.map((process) => (
-                  <TableRow key={process.id} className="hover:bg-slate-50/50 transition-all duration-150 group cursor-pointer" onClick={() => setSelectedProcess(process)}>
-                    {activeColumns.map(col => (
-                      <TableCell key={col.key} className={`${col.sticky === 'left' ? 'sticky left-0 z-10 bg-white border-r group-hover:bg-slate-50' : ''} ${col.align === 'center' ? 'text-center' : ''} transition-colors`}>
-                        {col.render(process)}
+                paginatedProcesses.map((process) => {
+                  const colors = getStatusRowColor(process);
+
+                  return (
+                    <TableRow
+                      key={process.id}
+                      className={`${colors.bg} ${colors.hover} ${colors.border} transition-all duration-150 group cursor-pointer border-b-[1.5px]`}
+                      onClick={() => setSelectedProcess(process)}
+                    >
+                      {activeColumns.map(col => {
+                        const isStickyLeft = col.sticky === 'left';
+                        const isFirstCol = col.key === 'process_number';
+
+                        return (
+                          <TableCell
+                            key={col.key}
+                            className={`py-3 transition-colors ${isStickyLeft ? `sticky left-0 z-10 ${colors.bg} border-r ${colors.groupHover}` : ''} ${isFirstCol ? `border-l-[4px] ${colors.accent}` : ''} ${col.align === 'center' ? 'text-center' : ''}`}
+                          >
+                            {col.render(process)}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className={`text-center sticky right-0 z-10 ${colors.bg} border-l ${colors.groupHover} transition-colors`}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-black/5"><MoreHorizontal className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(process); }}><Pencil className="w-4 h-4 mr-2 text-slate-500" />Editar</DropdownMenuItem>
+                            {!process.archived_date && <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onArchive(process); }} className="text-rose-600"><Archive className="w-4 h-4 mr-2" />Arquivar</DropdownMenuItem>}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
-                    ))}
-                    <TableCell className="text-center sticky right-0 z-10 bg-white border-l group-hover:bg-slate-50 transition-colors">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-slate-200"><MoreHorizontal className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => onEdit(process)}><Pencil className="w-4 h-4 mr-2 text-slate-500" />Editar</DropdownMenuItem>
-                          {!process.archived_date && <DropdownMenuItem onClick={() => onArchive(process)} className="text-rose-600"><Archive className="w-4 h-4 mr-2" />Arquivar</DropdownMenuItem>}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

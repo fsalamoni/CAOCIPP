@@ -16,7 +16,7 @@ export const createOrganization = async (data) => {
 
 export const joinOrganization = async (inviteCode) => {
     try {
-        const joinOrgFn = httpsCallable(functions, 'joinOrganization');
+        const joinOrgFn = httpsCallable(functions, 'joinOrganization', { timeout: 600000 });
         const result = await joinOrgFn({ inviteCode });
         return result.data;
     } catch (error) {
@@ -82,10 +82,10 @@ export const updateProcess = async (data) => {
     }
 };
 
-export const deleteProcess = async (id) => {
+export const deleteProcess = async ({ id, organizationId }) => {
     try {
         const deleteProcessFn = httpsCallable(functions, 'deleteProcess');
-        const result = await deleteProcessFn({ id });
+        const result = await deleteProcessFn({ id, organizationId });
         return result.data;
     } catch (error) {
         logger.error('Error calling deleteProcess:', error);
@@ -93,13 +93,23 @@ export const deleteProcess = async (id) => {
     }
 };
 
-export const archiveProcess = async (id) => {
+/**
+ * Archives a process by setting its archived_date to now
+ * Note: Cloud Function 'archiveProcess' was consolidated into 'updateProcess'
+ */
+export const archiveProcess = async ({ id, organizationId }) => {
     try {
-        const archiveProcessFn = httpsCallable(functions, 'archiveProcess');
-        const result = await archiveProcessFn({ id });
-        return result.data;
+        const now = new Date().toISOString().split('T')[0];
+        return await updateProcess({
+            id,
+            organizationId,
+            changes: {
+                archived_date: now,
+                status: 'Na pasta'
+            }
+        });
     } catch (error) {
-        logger.error('Error calling archiveProcess:', error);
+        logger.error('Error in archiveProcess:', error);
         throw error;
     }
 };
@@ -133,7 +143,7 @@ export const importProcessesFromExcel = async (data) => {
             fileDataLength: data.fileData?.length || 0
         });
 
-        const importFn = httpsCallable(functions, 'importProcessesFromExcel');
+        const importFn = httpsCallable(functions, 'importProcessesFromExcel', { timeout: 600000 });
         const result = await importFn(data);
 
         console.log('[importProcessesFromExcel] ✅ Success:', result.data);

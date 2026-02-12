@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations } from '@/hooks/useFirestore';
-import { createOrganization, updateProfile as updateUserProfile } from '@/services/functionsService';
+import { createOrganization, joinOrganization, updateProfile as updateUserProfile } from '@/services/functionsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -131,15 +131,25 @@ export default function Profile() {
 
     try {
       setIsJoiningOrg(true);
+      const cleanCode = inviteCode.trim().toUpperCase();
+      const result = await joinOrganization(cleanCode);
+      const orgId = result?.orgId;
+      const orgName = result?.message?.match(/organização (.*) com sucesso/)?.[1] || 'organização';
 
-      const orgId = await joinOrganizationByInvite(inviteCode, user.uid);
+      toast.success(`Você ingressou em ${orgName} com sucesso!`, {
+        duration: 5000,
+        description: 'Você será redirecionado em instantes.'
+      });
 
-      toast.success('Você entrou na organização com sucesso!');
       setJoinOrgOpen(false);
       setInviteCode('');
 
-      // Navigate to organization page
-      navigate(`/Organization?id=${orgId}`);
+      // Navigate to organization page after a short delay so they see the message
+      if (orgId) {
+        setTimeout(() => {
+          navigate(`/Organization?id=${orgId}`);
+        }, 1500);
+      }
     } catch (error) {
       logger.error('Error joining organization:', error);
       toast.error(error.message);

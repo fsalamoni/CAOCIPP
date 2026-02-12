@@ -77,7 +77,8 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
         }
         console.log(`[Import] Processing ${rows.length} processes (file type: ${fileType})...`);
         // 3. Process Rows with UPSERT logic
-        const batchSize = 450; // Firestore limit is 500, use 450 for safety
+        const batchSize = 450;
+        const lookupBatchSize = 50; // Process 50 lookups in parallel
         let batch = db.batch();
         let batchCount = 0;
         const stats = {
@@ -86,137 +87,120 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
             errors: 0,
             errorDetails: []
         };
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            try {
-                // Normalize process number (trim, uppercase)
-                // CRITICAL: Real files use "PROCESSO SIM\n(NÚMERO)" with line break!
-                const rawNumber = row['PROCESSO SIM\n(NÚMERO)'] || // Real format with \n
-                    row['PROCESSO SIM\\n(NÚMERO)'] || // Escaped version
-                    row['Número'] || row['Numero'] || row['NÚMERO'] ||
-                    row['número'] || row['numero'] || row['Process Number'] || '';
-                let processNumber = rawNumber.toString().trim();
-                // If no number, generate unique one
-                if (!processNumber || processNumber === 'SEM NÚMERO' || processNumber === '') {
-                    processNumber = `AUTO-${Date.now()}-${i}`;
-                    console.log(`[Import] Row ${i + 1}: Generated number ${processNumber}`);
+        // Process in chunks to balance parallelism and Firestore limits
+        for (let i = 0; i < rows.length; i += lookupBatchSize) {
+            const chunk = rows.slice(i, i + lookupBatchSize);
+            // Parallel lookups for the current chunk
+            const lookupPromises = chunk.map(async (row, index) => {
+                const rowIndex = i + index;
+                try {
+                    // Normalize process number
+                    const rawNumber = row['PROCESSO SIM\n(NÚMERO)'] ||
+                        row['PROCESSO SIM\\n(NÚMERO)'] ||
+                        row['Número'] || row['Numero'] || row['NÚMERO'] ||
+                        row['número'] || row['numero'] || row['Process Number'] || '';
+                    let processNumber = rawNumber.toString().trim();
+                    if (!processNumber || processNumber === 'SEM NÚMERO' || processNumber === '') {
+                        processNumber = `AUTO-${Date.now()}-${rowIndex}`;
+                    }
+                    // Extract entry date
+                    const entryDate = parseExcelDate(row['ENTRADA NO CAOPP\n(DATA)'] ||
+                        row['ENTRADA NO CAOPP\\n(DATA)'] ||
+                        row['Data Entrada'] || row['DATA ENTRADA']) || null;
+                    // Query existing
+                    const existingQuery = await db.collection('processes')
+                        .where('organization_id', '==', organizationId)
+                        .where('process_number', '==', processNumber)
+                        .where('entry_date', '==', entryDate)
+                        .limit(1)
+                        .get();
+                    return {
+                        row,
+                        rowIndex,
+                        processNumber,
+                        entryDate,
+                        existingDoc: existingQuery.empty ? null : existingQuery.docs[0],
+                        error: null
+                    };
                 }
-                // Extract entry date early for UPSERT logic
-                const entryDate = parseExcelDate(row['ENTRADA NO CAOPP\n(DATA)'] || // Real format with \n
-                    row['ENTRADA NO CAOPP\\n(DATA)'] || // Escaped
-                    row['Data Entrada'] || row['DATA ENTRADA']) || null;
-                // Query existing process by number + entry_date + organization
-                // NEW LOGIC: If same number BUT different date, it's a DIFFERENT process
-                const existingQuery = await db.collection('processes')
-                    .where('organization_id', '==', organizationId)
-                    .where('process_number', '==', processNumber)
-                    .where('entry_date', '==', entryDate)
-                    .limit(1)
-                    .get();
-                let processRef;
-                let isUpdate = false;
-                if (!existingQuery.empty) {
-                    // Process EXISTS with SAME NUMBER and SAME DATE - UPDATE
-                    processRef = existingQuery.docs[0].ref;
-                    isUpdate = true;
+                catch (err) {
+                    return { row, rowIndex, error: err.message || 'Erro no lookup' };
                 }
-                else {
-                    // Process DOES NOT EXIST (or has different date) - CREATE
-                    processRef = db.collection('processes').doc();
-                    isUpdate = false;
+            });
+            const results = await Promise.all(lookupPromises);
+            // Process results and add to batch
+            for (const res of results) {
+                if (res.error) {
+                    stats.errors++;
+                    stats.errorDetails.push({
+                        row: res.rowIndex + 1,
+                        processNumber: '?',
+                        error: res.error
+                    });
+                    continue;
                 }
-                // Build process data - FLEXIBLE (accept empty fields)
-                // CRITICAL: Real files use column names with \n line breaks!
-                const processData = {
-                    organization_id: organizationId,
-                    process_number: processNumber,
-                    // Core fields - EXACT names from real files
-                    consultant: (row['CONSULENTE'] || row['Consulente'] || row['consulente'] || '').toString().trim(),
-                    location: (row['LOCAL DOS FATOS\n(CIDADE)'] || // Real format with \n
-                        row['LOCAL DOS FATOS\\n(CIDADE)'] || // Escaped
-                        row['Local'] || row['LOCAL'] || row['Município'] || '').toString().trim(),
-                    matter_object: (row['MATÉRIA E OBJETO DA CONSULTA'] || // Real format
-                        row['Objeto'] || row['OBJETO'] || row['Assunto'] || '').toString().trim(),
-                    // Entry date - Already parsed above
-                    entry_date: entryDate,
-                    // Responsible user fields (separate name from ID)
-                    responsible_user_name: (row['ASSESSOR RESPONSÁVEL'] || // Real format
-                        row['Responsável'] || row['RESPONSÁVEL'] || '').toString().trim() || null,
-                    responsible_user_id: null, // Not in import files, leave null
-                    // Urgency - EXACT name from real files
-                    urgency_request: (row['PEDIDO DE URGÊNCIA'] === 'Sim' ||
-                        row['Solicitação de Urgência'] === 'Sim' ||
-                        row['Urgente'] === 'Sim'),
-                    // Observations - EXACT name from real files (long name!)
-                    observations: (row['OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'] ||
-                        row['Observações'] || row['Obs'] || '').toString().trim(),
-                    // === NEW WORKFLOW DATE FIELDS (from real files) ===
-                    // These are valuable for SLA analysis and workflow tracking
-                    distribution_date: parseExcelDate(row['DISTRIBUIÇÃO\n(DATA)'] || row['DISTRIBUIÇÃO\\n(DATA)']) || null,
-                    analysis_start_date: parseExcelDate(row['INÍCIO DA ANÁLISE\n(DATA)'] || row['INÍCIO DA ANÁLISE\\n(DATA)']) || null,
-                    review_submission_date: parseExcelDate(row['REMESSA AO DR. PARA REVISÃO (DATA)']) || null,
-                    review_return_date: parseExcelDate(row['DEVOLUÇÃO APÓS REVISÃO\n(DATA)'] ||
-                        row['DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)']) || null,
-                    archived_date: parseExcelDate(row['NA PASTA\nARQUIVADO\n(DATA)'] ||
-                        row['NA PASTA\\nARQUIVADO\\n(DATA)']) || null,
-                    // Extra metadata fields
-                    access_restriction: (row['RESTRIÇÃO DE ACESSO'] || '').toString().trim(),
-                    network_folder: (row['PASTA NA REDE'] || '').toString().trim(),
-                    // Timestamps
-                    updated_at: admin.firestore.FieldValue.serverTimestamp(),
-                    last_imported_at: admin.firestore.FieldValue.serverTimestamp()
-                };
-                // CALCULATE STATUS AUTOMATICALLY (AFTER all workflow dates are defined)
-                // This ensures status reflects the actual process state based on workflow progression
-                processData.status = (0, status_1.calculateStatus)(processData);
-                // Remove undefined values for updates (don't overwrite existing data with undefined)
-                if (isUpdate) {
-                    Object.keys(processData).forEach(key => {
-                        if (processData[key] === undefined) {
-                            delete processData[key];
-                        }
+                try {
+                    const { row, processNumber, entryDate, existingDoc } = res;
+                    const isUpdate = !!existingDoc;
+                    const processRef = isUpdate ? existingDoc.ref : db.collection('processes').doc();
+                    const processData = {
+                        organization_id: organizationId,
+                        process_number: processNumber,
+                        consultant: (row['CONSULENTE'] || row['Consulente'] || row['consulente'] || '').toString().trim(),
+                        location: (row['LOCAL DOS FATOS\n(CIDADE)'] ||
+                            row['LOCAL DOS FATOS\\n(CIDADE)'] ||
+                            row['Local'] || row['LOCAL'] || row['Município'] || '').toString().trim(),
+                        matter_object: (row['MATÉRIA E OBJETO DA CONSULTA'] ||
+                            row['Objeto'] || row['OBJETO'] || row['Assunto'] || '').toString().trim(),
+                        entry_date: entryDate,
+                        responsible_user_name: (row['ASSESSOR RESPONSÁVEL'] || row['Responsável'] || row['RESPONSÁVEL'] || '').toString().trim() || null,
+                        responsible_user_id: null,
+                        urgency_request: (row['PEDIDO DE URGÊNCIA'] === 'Sim' ||
+                            row['Solicitação de Urgência'] === 'Sim' ||
+                            row['Urgente'] === 'Sim'),
+                        observations: (row['OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'] ||
+                            row['Observações'] || row['Obs'] || '').toString().trim(),
+                        distribution_date: parseExcelDate(row['DISTRIBUIÇÃO\n(DATA)'] || row['DISTRIBUIÇÃO\\n(DATA)']) || null,
+                        analysis_start_date: parseExcelDate(row['INÍCIO DA ANÁLISE\n(DATA)'] || row['INÍCIO DA ANÁLISE\\n(DATA)']) || null,
+                        review_submission_date: parseExcelDate(row['REMESSA AO DR. PARA REVISÃO (DATA)']) || null,
+                        review_return_date: parseExcelDate(row['DEVOLUÇÃO APÓS REVISÃO\n(DATA)'] || row['DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)']) || null,
+                        archived_date: parseExcelDate(row['NA PASTA\nARQUIVADO\n(DATA)'] || row['NA PASTA\\nARQUIVADO\\n(DATA)']) || null,
+                        access_restriction: (row['RESTRIÇÃO DE ACESSO'] || '').toString().trim(),
+                        network_folder: (row['PASTA NA REDE'] || '').toString().trim(),
+                        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+                        last_imported_at: admin.firestore.FieldValue.serverTimestamp()
+                    };
+                    processData.status = (0, status_1.calculateStatus)(processData);
+                    if (isUpdate) {
+                        Object.keys(processData).forEach(key => {
+                            if (processData[key] === undefined)
+                                delete processData[key];
+                        });
+                        batch.update(processRef, processData);
+                        stats.updated++;
+                    }
+                    else {
+                        processData.id = processRef.id;
+                        processData.created_by = userId;
+                        processData.created_at = admin.firestore.FieldValue.serverTimestamp();
+                        batch.set(processRef, processData);
+                        stats.created++;
+                    }
+                    batchCount++;
+                    if (batchCount >= batchSize) {
+                        await batch.commit();
+                        batch = db.batch();
+                        batchCount = 0;
+                    }
+                }
+                catch (error) {
+                    stats.errors++;
+                    stats.errorDetails.push({
+                        row: res.rowIndex + 1,
+                        processNumber: res.processNumber || '?',
+                        error: error.message || 'Erro ao processar linha'
                     });
                 }
-                // If creating new, add creation fields
-                if (!isUpdate) {
-                    processData.id = processRef.id;
-                    processData.created_by = userId;
-                    processData.created_at = admin.firestore.FieldValue.serverTimestamp();
-                }
-                // Add to batch
-                if (isUpdate) {
-                    batch.update(processRef, processData);
-                    stats.updated++;
-                }
-                else {
-                    batch.set(processRef, processData);
-                    stats.created++;
-                }
-                batchCount++;
-                // Commit batch when reaching limit
-                if (batchCount >= batchSize) {
-                    await batch.commit();
-                    console.log(`[Import] ✅ Batch committed: ${batchCount} processes (${stats.created} created, ${stats.updated} updated)`);
-                    batch = db.batch();
-                    batchCount = 0;
-                }
-            }
-            catch (error) {
-                // Individual process error - LOG and CONTINUE (don't fail entire import)
-                stats.errors++;
-                const errorDetail = {
-                    row: i + 1,
-                    processNumber: row['Número'] || row['Numero'] || row['número'] || 'DESCONHECIDO',
-                    error: error.message || error.toString() || 'Erro desconhecido'
-                };
-                stats.errorDetails.push(errorDetail);
-                console.error(`[Import] ❌ Error on row ${i + 1}:`, {
-                    processNumber: errorDetail.processNumber,
-                    error: errorDetail.error,
-                    rowData: JSON.stringify(row).substring(0, 200) // First 200 chars
-                });
-                // Continue to next process - ERROR TOLERANCE
-                continue;
             }
         }
         // Commit remaining batch
