@@ -1,4 +1,4 @@
-# Consultas CAO (Final Version 1.2.0)
+# Consultas CAO (Version 1.3.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -7,7 +7,7 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 - **Frontend**: React 18 + Vite
 - **UI**: shadcn/ui + Tailwind CSS
 - **Backend**: Firebase (Auth + Firestore + Cloud Functions v2)
-- **Deploy**: Firebase Hosting
+- **Deploy**: Firebase Hosting → [consultascao.web.app](https://consultascao.web.app)
 
 ## 📋 Funcionalidades
 
@@ -148,6 +148,11 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 12/02/2026 - Persistência Definitiva & Novo Domínio (v1.3.0)
+- **Novo URL**: Aplicação migrada para [consultascao.web.app](https://consultascao.web.app)
+- **Persistência Bulletproof**: Itens por página e ordenação agora usam localStorage como cache instantâneo + Firestore como backup. Valores persistem em recarregamento, navegação entre abas e reabertura do navegador.
+- **Ordenação Type-Aware**: Registro de tipos por coluna com parser universal de datas (Firestore Timestamps, Date objects, ISO strings, dd/mm/yyyy).
+
 ### Fevereiro de 2026 - Auditoria e Refinamento de UX (Round 9)
 - **Persistence Per-User**: O sistema agora salva configurações de ordenação e página atual por usuário no Firestore. Ao retornar à aplicação, sua visão estará exatamente como você a deixou.
 - **Filtragem por Período Flexível (De/Até)**: Todos os filtros de data agora suportam intervalos. É possível filtrar processos por uma data única (preenchendo apenas "De") ou por um período completo (preenchendo "De" e "Até").
@@ -167,4 +172,4 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão Final 1.2.0 (Rebranding de Precisão) Concluída
+**Status do Projeto**: ✅ Estável / Versão 1.3.0 (Persistência Definitiva & Novo Domínio) — 12/02/2026

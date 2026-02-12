@@ -1,7 +1,7 @@
 # ⚙️ Consultas CAO - Features Reference
 
-**Version:** 1.2.0 - Final (Precision Rebranding)  
-**Last Updated:** 2026-02-10  
+**Version:** 1.3.0 (Persistência Definitiva & Novo Domínio)  
+**Last Updated:** 2026-02-12  
 **Purpose:** Complete features documentation with implementation details
 
 ---

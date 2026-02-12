@@ -39,5 +39,6 @@ git push origin main
 // turbo
 6. Deploy para Firebase
 ```bash
-npx firebase deploy --only hosting,functions
+npx firebase deploy --only hosting
 ```
+> Deploy agora vai para **consultascao.web.app** (configurado em `firebase.json` com `"site": "consultascao"`)

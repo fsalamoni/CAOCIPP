@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, AlertTriangle } from "lucide-react";
-import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from "date-fns";
+import { format, isWithinInterval, parseISO, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useUserPreferences } from "@/hooks/useFirestore";
 
@@ -85,29 +85,82 @@ export default function ProcessTable({
     network_folder_path: ''
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: 'entry_date', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  // ═══════════════════════════════════════════════════════════════════
+  // BULLETPROOF PERSISTENCE — localStorage (instant) + Firestore (backup)
+  // localStorage is SYNCHRONOUS: reads happen before first render = zero race conditions
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Helper: read from localStorage (synchronous, safe)
+  const readLocalPref = (key, defaultValue) => {
+    try {
+      const stored = localStorage.getItem(`caocipp_pref_${key}`);
+      if (stored === null) return defaultValue;
+      return JSON.parse(stored);
+    } catch { return defaultValue; }
+  };
+
+  // Helper: write to localStorage (synchronous, instant)
+  const writeLocalPref = (key, value) => {
+    try {
+      localStorage.setItem(`caocipp_pref_${key}`, JSON.stringify(value));
+    } catch { /* quota exceeded — silently ignore */ }
+  };
+
+  // Initialize state from localStorage INLINE — synchronous, instant, no race conditions
+  const [sortConfig, setSortConfig] = useState(() => readLocalPref('sortConfig', { key: 'entry_date', direction: 'desc' }));
+  const [currentPage, setCurrentPage] = useState(1); // Always start at page 1
+  const [itemsPerPage, setItemsPerPage] = useState(() => readLocalPref('itemsPerPage', 20));
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load preferences on mount
+  // LAYER 1: Write to localStorage IMMEDIATELY when values change (synchronous, instant)
   useEffect(() => {
-    if (!isLoadingPrefs && !isInitialized) {
-      if (preferences && typeof preferences === 'object') {
-        const p = preferences;
-        if (p.sortConfig) setSortConfig(p.sortConfig);
-        if (p.currentPage) setCurrentPage(p.currentPage);
-      }
-      setIsInitialized(true);
-    }
-  }, [preferences, isInitialized, isLoadingPrefs]);
+    writeLocalPref('sortConfig', sortConfig);
+  }, [sortConfig]);
 
-  // Save preferences when sort or page change
+  useEffect(() => {
+    writeLocalPref('itemsPerPage', itemsPerPage);
+  }, [itemsPerPage]);
+
+  // LAYER 2: When Firestore preferences load, sync them to localStorage too
+  // This keeps localStorage in sync if user logs in from another device
+  const appliedPrefsRef = useRef(null);
+  useEffect(() => {
+    if (isLoadingPrefs) return;
+
+    const prefsKey = JSON.stringify(preferences);
+    if (appliedPrefsRef.current === prefsKey) return;
+
+    if (preferences && typeof preferences === 'object') {
+      const p = preferences;
+      if (p.sortConfig) {
+        setSortConfig(p.sortConfig);
+        writeLocalPref('sortConfig', p.sortConfig);
+      }
+      if (p.itemsPerPage != null) {
+        const ipp = Number(p.itemsPerPage) || 20;
+        setItemsPerPage(ipp);
+        writeLocalPref('itemsPerPage', ipp);
+      }
+    }
+
+    appliedPrefsRef.current = prefsKey;
+    if (!isInitialized) setIsInitialized(true);
+  }, [preferences, isLoadingPrefs]);
+
+  // LAYER 3: Save to Firestore as background backup (debounced)
+  const saveTimerRef = useRef(null);
   useEffect(() => {
     if (isInitialized) {
-      updatePreferences({ sortConfig, currentPage });
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        updatePreferences({ sortConfig, currentPage, itemsPerPage });
+        saveTimerRef.current = null;
+      }, 500);
     }
-  }, [sortConfig, currentPage, isInitialized, updatePreferences]);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [sortConfig, currentPage, itemsPerPage, isInitialized, updatePreferences]);
 
   // Reset to page 1 when any filter changes
   // We exclude sortConfig from this to allow persistence of page and sort simultaneously
@@ -176,21 +229,29 @@ export default function ProcessTable({
           if (!val) return false;
 
           const processDate = new Date(val);
+          if (!isValid(processDate)) return false;
 
           // Case 1: Only start or start == end -> exact day
           if ((start && !end) || (start && end && start === end)) {
-            const s = startOfDay(new Date(start));
-            const e = endOfDay(new Date(start));
+            const startD = new Date(start);
+            if (!isValid(startD)) return false;
+            const s = startOfDay(startD);
+            const e = endOfDay(startD);
             return processDate >= s && processDate <= e;
           }
           // Case 2: Only end
           if (!start && end) {
-            return processDate <= endOfDay(new Date(end));
+            const endD = new Date(end);
+            if (!isValid(endD)) return false;
+            return processDate <= endOfDay(endD);
           }
           // Case 3: Range
           if (start && end) {
-            return processDate >= startOfDay(new Date(start)) &&
-              processDate <= endOfDay(new Date(end));
+            const startD = new Date(start);
+            const endD = new Date(end);
+            if (!isValid(startD) || !isValid(endD)) return false;
+            return processDate >= startOfDay(startD) &&
+              processDate <= endOfDay(endD);
           }
           return true;
         });
@@ -206,30 +267,104 @@ export default function ProcessTable({
       }
     });
 
-    // Robust Sorting
+    // ═══════════════════════════════════════════════════════════════════
+    // DEFINITIVE SORTING SYSTEM — Type-aware, direction-aware, null-safe
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Column type registry: which columns contain dates
+    const DATE_COLUMNS = new Set([
+      'entry_date',
+      'distribution_date',
+      'analysis_start_date',
+      'review_submission_date',
+      'review_return_date',
+      'archived_date',
+    ]);
+
+    // Universal date parser: converts any date representation to a numeric timestamp
+    // Handles: Firestore Timestamps, Date objects, ISO strings, dd/mm/yyyy strings
+    const parseDateToTimestamp = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+
+      // Firestore Timestamp object { seconds, nanoseconds }
+      if (typeof value === 'object' && value.seconds !== undefined) {
+        return value.seconds * 1000;
+      }
+
+      // Already a Date object
+      if (value instanceof Date) {
+        const t = value.getTime();
+        return isNaN(t) ? null : t;
+      }
+
+      // String date
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed === '') return null;
+
+        // Try direct parse first (handles ISO 8601 and many formats)
+        const directParse = new Date(trimmed);
+        if (!isNaN(directParse.getTime())) {
+          return directParse.getTime();
+        }
+
+        // Try dd/mm/yyyy format (common in Brazilian data)
+        const brMatch = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+        if (brMatch) {
+          const [, day, month, year] = brMatch;
+          const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+          if (!isNaN(parsed.getTime())) {
+            return parsed.getTime();
+          }
+        }
+
+        return null;
+      }
+
+      // Numeric value (epoch)
+      if (typeof value === 'number') {
+        return isNaN(value) ? null : value;
+      }
+
+      return null;
+    };
+
     const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
 
     result.sort((a, b) => {
-      let aValue = getProcessField(a, sortConfig.key);
-      let bValue = getProcessField(b, sortConfig.key);
+      const aRaw = getProcessField(a, sortConfig.key);
+      const bRaw = getProcessField(b, sortConfig.key);
 
-      // Handle nulls/undefineds - always at bottom
-      if (aValue === null || aValue === undefined) return 1;
-      if (bValue === null || bValue === undefined) return -1;
+      // ── Unified null/empty handling ──
+      // Missing values ALWAYS go to the bottom, regardless of sort direction
+      const aEmpty = (aRaw === null || aRaw === undefined || String(aRaw).trim() === '');
+      const bEmpty = (bRaw === null || bRaw === undefined || String(bRaw).trim() === '');
+
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;   // a missing → push to bottom
+      if (bEmpty) return -1;  // b missing → push to bottom
 
       let comparison = 0;
 
-      // Special handling for process_number (natural sort)
-      if (sortConfig.key === 'process_number') {
-        comparison = collator.compare(String(aValue), String(bValue));
+      // ── Date columns: compare as timestamps ──
+      if (DATE_COLUMNS.has(sortConfig.key)) {
+        const aTime = parseDateToTimestamp(aRaw);
+        const bTime = parseDateToTimestamp(bRaw);
+
+        // If parsing failed, treat as missing (push to bottom)
+        if (aTime === null && bTime === null) return 0;
+        if (aTime === null) return 1;
+        if (bTime === null) return -1;
+
+        comparison = aTime - bTime;
       }
-      // Date fields or other strings
+      // ── Process number: natural alphanumeric sort ──
+      else if (sortConfig.key === 'process_number') {
+        comparison = collator.compare(String(aRaw), String(bRaw));
+      }
+      // ── All other columns: string comparison with locale ──
       else {
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          comparison = aValue.localeCompare(bValue, 'pt-BR', { numeric: true });
-        } else {
-          comparison = aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-        }
+        comparison = String(aRaw).localeCompare(String(bRaw), 'pt-BR', { numeric: true, sensitivity: 'base' });
       }
 
       return sortConfig.direction === 'asc' ? comparison : -comparison;
@@ -241,7 +376,7 @@ export default function ProcessTable({
   const paginatedProcesses = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredAndSortedProcesses.slice(start, start + itemsPerPage);
-  }, [filteredAndSortedProcesses, currentPage]);
+  }, [filteredAndSortedProcesses, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredAndSortedProcesses.length / itemsPerPage);
 
@@ -254,7 +389,17 @@ export default function ProcessTable({
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
-    return format(new Date(dateStr), 'dd/MM/yyyy', { locale: ptBR });
+    // Check if it's already a Date object
+    const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
+
+    if (!isValid(date)) return 'Data Inválida';
+
+    try {
+      return format(date, 'dd/MM/yyyy', { locale: ptBR });
+    } catch (error) {
+      console.error('Error formatting date:', dateStr, error);
+      return 'Erro Data';
+    }
   };
 
   // Refined status list (removed "Para assinatura" as per request)

@@ -1,7 +1,7 @@
 # 🎨 Consultas CAO - Design System Reference
 
 **Version:** 1.0.0  
-**Last Updated:** 2026-02-05  
+**Last Updated:** 2026-02-12  
 **Purpose:** UI/UX design patterns and component guidelines
 
 ---

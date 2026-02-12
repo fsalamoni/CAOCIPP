@@ -297,11 +297,20 @@ export function useNotifications() {
  * Hook to manage user preferences with persistence
  */
 export function useUserPreferences() {
-    const { user } = useAuth();
+    const { user, isLoadingAuth } = useAuth();
     const [preferences, setPreferences] = useState({});
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        // CRITICAL: Don't resolve until auth is done loading.
+        // Without this check, user=null during initial auth check causes
+        // premature resolution with empty preferences, and ProcessTable
+        // marks itself as initialized before real data arrives.
+        if (isLoadingAuth) {
+            setIsLoading(true);
+            return;
+        }
+
         if (!user) {
             setPreferences({});
             setIsLoading(false);
@@ -316,7 +325,7 @@ export function useUserPreferences() {
         };
 
         fetchPreferences();
-    }, [user]);
+    }, [user, isLoadingAuth]);
 
     const updatePreferences = useCallback(async (newPrefs) => {
         if (!user) return;
@@ -326,7 +335,7 @@ export function useUserPreferences() {
 
         // Persistence
         await saveUserPreferences(user.uid, newPrefs);
-    }, [user]);
+    }, [user?.uid]);
 
     return { preferences, updatePreferences, isLoading };
 }
