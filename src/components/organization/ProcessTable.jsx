@@ -90,21 +90,28 @@ export default function ProcessTable({
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load preferences on mount
+  // Load preferences when they become available
+  // Uses a ref to track what was last applied, allowing re-application
+  // if preferences change (e.g., after auth resolves and real data loads)
+  const appliedPrefsRef = useRef(null);
   useEffect(() => {
-    if (!isLoadingPrefs && !isInitialized) {
-      if (preferences && typeof preferences === 'object') {
-        const p = preferences;
-        if (p.sortConfig) setSortConfig(p.sortConfig);
-        // Note: we do NOT restore currentPage on reload, as users usually expect to start at page 1
-        // unless they are navigating back. For now, let's keep it reset to 1 to avoid confusion if data changed.
-        // However, user specifically asked for "configuration to remain", so we will restore it if valid.
-        if (p.currentPage) setCurrentPage(Number(p.currentPage) || 1);
-        if (p.itemsPerPage) setItemsPerPage(Number(p.itemsPerPage) || 20);
-      }
-      setIsInitialized(true);
+    if (isLoadingPrefs) return; // Still loading, wait
+
+    const prefsKey = JSON.stringify(preferences);
+
+    // Skip if these exact preferences were already applied
+    if (appliedPrefsRef.current === prefsKey) return;
+
+    if (preferences && typeof preferences === 'object') {
+      const p = preferences;
+      if (p.sortConfig) setSortConfig(p.sortConfig);
+      if (p.currentPage != null) setCurrentPage(Number(p.currentPage) || 1);
+      if (p.itemsPerPage != null) setItemsPerPage(Number(p.itemsPerPage) || 20);
     }
-  }, [preferences, isInitialized, isLoadingPrefs]);
+
+    appliedPrefsRef.current = prefsKey;
+    if (!isInitialized) setIsInitialized(true);
+  }, [preferences, isLoadingPrefs]);
 
   // Save preferences when sort, page, or itemsPerPage change (debounced, flush on unmount)
   const saveTimerRef = useRef(null);
