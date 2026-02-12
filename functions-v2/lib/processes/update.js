@@ -5,7 +5,6 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -21,7 +20,6 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     if (!membershipSnap.exists) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
-    const role = (_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
     // Check if user is owner of process or admin/creator
     // For simplicity, we trust the membership logic here, but stricter rule would read process first.
     // Let's read process to be safe and also to update logs.
@@ -34,12 +32,10 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     if ((processData === null || processData === void 0 ? void 0 : processData.organization_id) !== organizationId) {
         throw new https_1.HttpsError('permission-denied', 'Process belongs to another organization');
     }
-    // Allow update if admin/creator OR responsible user
-    const isResponsible = (processData === null || processData === void 0 ? void 0 : processData.responsible_user_id) === userId;
-    const isManager = ['admin', 'creator'].includes(role);
-    if (!isManager && !isResponsible) {
-        // Members can usually update if they created it? Or just read?
-        // Current rules say: update if member AND (manager OR owner).
+    // Allow update if user is an authenticated member of the organization
+    // We already verified membershipSnap.exists above
+    const isMember = membershipSnap.exists;
+    if (!isMember) {
         throw new https_1.HttpsError('permission-denied', 'Insufficient permissions to update this process');
     }
     // 2. Apply updates

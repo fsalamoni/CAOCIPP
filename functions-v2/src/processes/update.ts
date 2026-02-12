@@ -26,10 +26,10 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         // 1. Verify permissions
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
+
         if (!membershipSnap.exists) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
-        const role = membershipSnap.data()?.role;
 
         // Check if user is owner of process or admin/creator
         // For simplicity, we trust the membership logic here, but stricter rule would read process first.
@@ -46,13 +46,11 @@ export const updateProcess = onCall<UpdateProcessRequest>(
             throw new HttpsError('permission-denied', 'Process belongs to another organization');
         }
 
-        // Allow update if admin/creator OR responsible user
-        const isResponsible = processData?.responsible_user_id === userId;
-        const isManager = ['admin', 'creator'].includes(role);
+        // Allow update if user is an authenticated member of the organization
+        // We already verified membershipSnap.exists above
+        const isMember = membershipSnap.exists;
 
-        if (!isManager && !isResponsible) {
-            // Members can usually update if they created it? Or just read?
-            // Current rules say: update if member AND (manager OR owner).
+        if (!isMember) {
             throw new HttpsError('permission-denied', 'Insufficient permissions to update this process');
         }
 

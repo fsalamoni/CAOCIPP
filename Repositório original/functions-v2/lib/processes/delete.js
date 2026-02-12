@@ -21,8 +21,8 @@ exports.deleteProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         throw new https_1.HttpsError('permission-denied', 'Not a member');
     }
     const role = (_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
-    if (!['admin', 'creator'].includes(role)) {
-        throw new https_1.HttpsError('permission-denied', 'Only admins can delete processes');
+    if (role !== 'creator') {
+        throw new https_1.HttpsError('permission-denied', 'Only the organization creator can delete processes');
     }
     // 2. Delete
     await db.collection('processes').doc(id).delete();

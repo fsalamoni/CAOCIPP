@@ -29,8 +29,8 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
             throw new HttpsError('permission-denied', 'Not a member');
         }
         const role = membershipSnap.data()?.role;
-        if (!['admin', 'creator'].includes(role)) {
-            throw new HttpsError('permission-denied', 'Only admins can delete processes');
+        if (role !== 'creator') {
+            throw new HttpsError('permission-denied', 'Only the organization creator can delete processes');
         }
 
         // 2. Delete
