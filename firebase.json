@@ -4,6 +4,7 @@
         "indexes": "firestore.indexes.json"
     },
     "hosting": {
+        "site": "consultascao",
         "public": "dist",
         "ignore": [
             "firebase.json",
