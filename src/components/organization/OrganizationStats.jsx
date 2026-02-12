@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import KPICard from "@/components/dashboard/KPICard";
 import { StatusPieChart, ResponsibleBarChart } from "@/components/dashboard/ProcessChart";
-import { FileText, Clock, CheckCircle, AlertTriangle, Users, TrendingUp } from "lucide-react";
+import { FileText, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { differenceInDays } from "date-fns";
 
 export default function OrganizationStats({ processes, members }) {

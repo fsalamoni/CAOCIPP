@@ -69,14 +69,16 @@ export const logger = {
 export function formatErrorMessage(error) {
     if (!error) return 'Erro desconhecido';
 
+    const err = /** @type {any} */ (error);
+
     // Network errors
     if (!navigator.onLine) {
         return 'Sem conexão com a internet. Verifique sua conexão e tente novamente.';
     }
 
     // HTTP errors
-    if (error.status) {
-        switch (error.status) {
+    if (err.status) {
+        switch (err.status) {
             case 401:
                 return 'Sessão expirada. Por favor, faça login novamente.';
             case 403:
@@ -84,7 +86,7 @@ export function formatErrorMessage(error) {
             case 404:
                 return 'Recurso não encontrado.';
             case 413:
-                return error.response?.data?.details || 'Arquivo muito grande.';
+                return err.response?.data?.details || 'Arquivo muito grande.';
             case 422:
                 return 'Dados inválidos. Verifique os campos e tente novamente.';
             case 429:
@@ -94,7 +96,7 @@ export function formatErrorMessage(error) {
             case 503:
                 return 'Erro no servidor. Tente novamente em alguns instantes.';
             default:
-                return error.response?.data?.error || error.message || 'Erro ao processar requisição.';
+                return err.response?.data?.error || err.message || 'Erro ao processar requisição.';
         }
     }
 
@@ -124,6 +126,8 @@ export function categorizeError(error) {
         redirectPath: null
     };
 
+    const err = /** @type {any} */ (error);
+
     if (!navigator.onLine) {
         category.type = 'network';
         category.isNetwork = true;
@@ -131,8 +135,8 @@ export function categorizeError(error) {
         return category;
     }
 
-    if (error.status) {
-        switch (error.status) {
+    if (err.status) {
+        switch (err.status) {
             case 401:
                 category.type = 'authentication';
                 category.isAuth = true;

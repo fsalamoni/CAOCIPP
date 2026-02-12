@@ -9,14 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import {
   FileText,
   Clock,
-  CheckCircle,
   AlertCircle,
-  TrendingUp,
   Users,
   Loader2,
   PlusCircle,
   Building2,
-  ArrowRight
+  ArrowRight,
+  Flame
 } from 'lucide-react';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import {
@@ -25,13 +24,7 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Legend,
-  LineChart,
-  Line
+  Legend
 } from 'recharts';
 
 const DEFAULT_COLOR = DEFAULT_STATUS_CONFIG.color;
@@ -165,6 +158,7 @@ export default function Dashboard() {
             color="text-slate-600"
             bgIcon="bg-slate-100"
             subtext="Processos ativos"
+            onClick={() => navigate(`/Organization?id=${selectedOrgId}`)}
           />
           <KpiCard
             title="Processos Urgentes"
@@ -173,6 +167,8 @@ export default function Dashboard() {
             color="text-red-600"
             bgIcon="bg-red-100"
             subtext="Requerem atenção"
+            onClick={() => navigate(`/Organization?id=${selectedOrgId}&filter=urgent`)}
+            pulse={urgentProcesses > 0}
           />
           <KpiCard
             title="Meus Processos"
@@ -181,6 +177,7 @@ export default function Dashboard() {
             color="text-blue-600"
             bgIcon="bg-blue-100"
             subtext="Atribuídos a você"
+            onClick={() => navigate(`/Organization?id=${selectedOrgId}&filter=mine`)}
           />
           <KpiCard
             title="Membros"
@@ -191,6 +188,26 @@ export default function Dashboard() {
             subtext="Total na equipe"
           />
         </div>
+
+        {/* Urgency Alert */}
+        {urgentProcesses > 0 && (
+          <Alert className="border-rose-200 bg-rose-50">
+            <Flame className="w-4 h-4 text-rose-600" />
+            <AlertDescription className="text-rose-700 flex items-center justify-between">
+              <span>
+                <strong>{urgentProcesses}</strong> processo{urgentProcesses !== 1 ? 's' : ''} urgente{urgentProcesses !== 1 ? 's' : ''} requer{urgentProcesses !== 1 ? 'em' : ''} atenção imediata.
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-100 gap-1"
+                onClick={() => navigate(`/Organization?id=${selectedOrgId}&filter=urgent`)}
+              >
+                Ver urgentes <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -266,7 +283,7 @@ export default function Dashboard() {
                             </span>
                           </div>
                           <p className="text-sm text-slate-600 truncate mb-2">
-                            {process.description || 'Sem descrição'}
+                            {process.matter_object || process.description || 'Sem descrição'}
                           </p>
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className={`${statusInfo.startColor} ${statusInfo.text} border-0 hover:${statusInfo.startColor}`}>
@@ -304,23 +321,27 @@ export default function Dashboard() {
   );
 }
 
-function KpiCard({ title, value, icon: Icon, color, bgIcon, subtext }) {
+function KpiCard({ title, value, icon: Icon, color, bgIcon, subtext, onClick, pulse }) {
   return (
-    <Card className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
+    <Card
+      className={`shadow-sm border-slate-200 transition-all duration-200 ${onClick ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-indigo-200' : 'hover:shadow-md'}`}
+      onClick={onClick}
+    >
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
             <h3 className={`text-2xl font-bold ${color}`}>{value}</h3>
           </div>
-          <div className={`w-12 h-12 rounded-full ${bgIcon} flex items-center justify-center`}>
+          <div className={`w-12 h-12 rounded-full ${bgIcon} flex items-center justify-center ${pulse ? 'animate-pulse' : ''}`}>
             <Icon className={`w-6 h-6 ${color}`} />
           </div>
         </div>
         {subtext && (
-          <p className="text-xs text-slate-400 mt-2">
-            {subtext}
-          </p>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-slate-400">{subtext}</p>
+            {onClick && <ArrowRight className="w-3.5 h-3.5 text-slate-300" />}
+          </div>
         )}
       </CardContent>
     </Card>

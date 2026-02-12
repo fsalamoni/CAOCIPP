@@ -1,7 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  TrendingUp,
   MapPin,
   Users,
   Clock,
@@ -9,7 +8,7 @@ import {
   AlertCircle,
   FileText // Added check to ensure it's imported
 } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 
 export default function IntelligentSummary({ processes, members }) {

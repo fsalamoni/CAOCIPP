@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations } from '@/hooks/useFirestore';
-import { createOrganization, joinOrganization, updateProfile as updateUserProfile } from '@/services/functionsService';
+import { createOrganization, updateProfile as updateUserProfile } from '@/services/functionsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,8 +31,6 @@ import {
   Plus,
   LogIn,
   Loader2,
-  Mail,
-  Briefcase,
   LogOut,
   CheckCircle
 } from 'lucide-react';

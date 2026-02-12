@@ -1,31 +1,12 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, Loader2, Upload } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import CreateProcessButton from './CreateProcessButton';
 import EditProcessDialog from './EditProcessDialog';
 import ProcessTable from './ProcessTable';
-import StatusBadge from '../ui/StatusBadge';
 import ImportProgressModal from './ImportProgressModal';
-import { format } from 'date-fns';
-import { statusConfig } from '@/config/processStatus';
 import { importProcessesFromExcel, archiveProcess } from '@/services/functionsService';
 import { toast } from 'sonner';
 
@@ -36,7 +17,8 @@ export default function ProcessControl({
   userRole,
   userId,
   processesLoading,
-  processesError
+  processesError,
+  initialFilter
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState(null);
@@ -100,57 +82,60 @@ export default function ProcessControl({
       const fileData = await fileToBase64(file);
       const result = await importProcessesFromExcel({ organizationId: organization.id, fileData });
 
+      /** @type {any} */
+      const res = result;
+
       // Update stats with detailed results
       setImportStats({
-        created: (result).created || 0,
-        updated: (result).updated || 0,
-        total: (result).total || 0,
-        totalErrors: (result).errors || 0
+        created: res?.created || 0,
+        updated: res?.updated || 0,
+        total: res?.total || 0,
+        totalErrors: res?.errors || 0
       });
 
       setImportProgress({
-        current: (result).total || 0,
-        total: (result).total || 0,
-        created: (result).created || 0,
-        updated: (result).updated || 0,
-        errors: (result).errors || 0
+        current: res?.total || 0,
+        total: res?.total || 0,
+        created: res?.created || 0,
+        updated: res?.updated || 0,
+        errors: res?.errors || 0
       });
 
       setImportComplete(true);
 
       // Show detailed success/error message
-      if ((result).errors > 0 && (result).errorDetails && (result).errorDetails.length > 0) {
+      if (res?.errors > 0 && res?.errorDetails && res?.errorDetails.length > 0) {
         // Show errors details
-        const errorSummary = (result).errorDetails.slice(0, 5).map((err) =>
+        const errorSummary = res.errorDetails.slice(0, 5).map((err) =>
           `Linha ${err.row} (Processo ${err.processNumber}): ${err.error}`
         ).join('\n');
 
-        const moreErrors = (result).errors > 5 ? `\n... e mais ${(result).errors - 5} erros` : '';
+        const moreErrors = res.errors > 5 ? `\n... e mais ${res.errors - 5} erros` : '';
 
         toast.error(
-          `${(result).message}\n\nErros encontrados:\n${errorSummary}${moreErrors}`,
+          `${res.message}\n\nErros encontrados:\n${errorSummary}${moreErrors}`,
           { duration: 10000 }
         );
       } else {
-        toast.success((result).message || `Sucesso! ${(result).created} criados, ${(result).updated} atualizados`);
+        toast.success(res?.message || `Sucesso! ${res?.created} criados, ${res?.updated} atualizados`);
       }
 
     } catch (error) {
       console.error('[ProcessControl] Import error:', error);
 
-      // Extract detailed error message from Firebase error
       let errorMessage = 'Erro na importação';
+      const err = /** @type {any} */ (error);
 
-      if (error.code === 'functions/unauthenticated') {
+      if (err.code === 'functions/unauthenticated') {
         errorMessage = 'Você precisa estar autenticado para importar processos';
-      } else if (error.code === 'functions/permission-denied') {
-        errorMessage = error.message || 'Você não tem permissão para importar processos nesta organização';
-      } else if (error.code === 'functions/invalid-argument') {
-        errorMessage = error.message || 'Arquivo inválido ou campos obrigatórios faltando';
-      } else if (error.code === 'functions/internal') {
-        errorMessage = error.message || 'Erro interno do servidor ao processar a importação';
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else if (err.code === 'functions/permission-denied') {
+        errorMessage = err.message || 'Você não tem permissão para importar processos nesta organização';
+      } else if (err.code === 'functions/invalid-argument') {
+        errorMessage = err.message || 'Arquivo inválido ou campos obrigatórios faltando';
+      } else if (err.code === 'functions/internal') {
+        errorMessage = err.message || 'Erro interno do servidor ao processar a importação';
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
       toast.error(errorMessage, { duration: 8000 });
@@ -165,13 +150,18 @@ export default function ProcessControl({
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === 'string') {
+          resolve(result.split(',')[1]);
+        } else {
+          reject(new Error('Failed to convert file to base64'));
+        }
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   };
-
-  const uniqueStatuses = Object.keys(statusConfig);
 
   return (
     <Card>
@@ -188,28 +178,26 @@ export default function ProcessControl({
           </div>
 
           <div className="flex gap-2">
-            {/* Import Button */}
-            <label htmlFor="excel-upload">
+            <label htmlFor="excel-upload" className="cursor-pointer">
               <Button
-                type="button"
+                asChild
                 variant="outline"
                 disabled={uploading || processesLoading}
-                onClick={() => document.getElementById('excel-upload').click()}
-                className="cursor-pointer"
               >
-                <Upload className="w-4 h-4 mr-2" />
-                {uploading ? 'Importando...' : 'Importar Planilha'}
+                <span>
+                  <Upload className="w-4 h-4 mr-2" />
+                  {uploading ? 'Importando...' : 'Importar Planilha'}
+                </span>
               </Button>
+              <input
+                id="excel-upload"
+                type="file"
+                accept=".xlsx,.xls,.csv,.json"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
             </label>
-            <input
-              id="excel-upload"
-              type="file"
-              accept=".xlsx,.xls,.csv,.json"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
 
-            {/* Create Process Button */}
             <CreateProcessButton
               organization={organization}
               members={members}
@@ -217,8 +205,6 @@ export default function ProcessControl({
             />
           </div>
         </div>
-
-        {/* Filters moved to ProcessTable for unified control */}
 
         {/* Loading State */}
         {processesLoading && (
@@ -236,17 +222,20 @@ export default function ProcessControl({
           </Alert>
         )}
 
-        {/* Processes Table - GRID MASTER INTEGRATION */}
-        {!processesLoading && !processesError && (
+        {/* Processes Table */}
+        {!processesError && (
           <ProcessTable
             processes={processes}
             members={members}
+            userId={userId}
+            isLoading={processesLoading}
             onEdit={handleEdit}
             onArchive={handleArchive}
+            initialFilter={initialFilter}
           />
         )}
 
-        {/* Edit Dialog - condicional rendering to force remount on open */}
+        {/* Edit Dialog */}
         {selectedProcess && editOpen && (
           <EditProcessDialog
             open={editOpen}

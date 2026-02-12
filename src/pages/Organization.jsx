@@ -180,6 +180,7 @@ export default function Organization() {
               userId={user?.uid}
               processesLoading={processesLoading}
               processesError={processesError}
+              initialFilter={searchParams.get('filter')}
             />
           </TabsContent>
 

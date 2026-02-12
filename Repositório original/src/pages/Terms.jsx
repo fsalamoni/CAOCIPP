@@ -19,8 +19,8 @@ export default function Terms() {
         </CardHeader>
         <CardContent className="prose prose-slate max-w-none">
           <p>
-            Ao acessar e usar esta plataforma de gerenciamento de processos jurídicos, você aceita 
-            e concorda em ficar vinculado aos termos e condições deste acordo. Se você não concordar 
+            Ao acessar e usar esta plataforma de gerenciamento de processos jurídicos, você aceita
+            e concorda em ficar vinculado aos termos e condições deste acordo. Se você não concordar
             com qualquer parte destes termos, não deverá usar a plataforma.
           </p>
         </CardContent>
@@ -47,8 +47,8 @@ export default function Terms() {
         </CardHeader>
         <CardContent className="prose prose-slate max-w-none">
           <p>
-            Levamos a privacidade a sério e estamos comprometidos em proteger seus dados pessoais. 
-            Todos os dados são armazenados de forma segura e criptografada. Não compartilhamos 
+            Levamos a privacidade a sério e estamos comprometidos em proteger seus dados pessoais.
+            Todos os dados são armazenados de forma segura e criptografada. Não compartilhamos
             suas informações com terceiros sem seu consentimento.
           </p>
           <ul className="space-y-2 mt-4">
@@ -66,8 +66,8 @@ export default function Terms() {
         </CardHeader>
         <CardContent className="prose prose-slate max-w-none">
           <p>
-            Ao criar uma organização, você se torna o "criador" e tem permissões adicionais para 
-            gerenciar membros e configurações. Membros convidados têm acesso aos processos mas 
+            Ao criar uma organização, você se torna o "criador" e tem permissões adicionais para
+            gerenciar membros e configurações. Membros convidados têm acesso aos processos mas
             permissões limitadas de administração.
           </p>
         </CardContent>
@@ -79,8 +79,8 @@ export default function Terms() {
         </CardHeader>
         <CardContent className="prose prose-slate max-w-none">
           <p>
-            A plataforma é fornecida "como está" sem garantias de qualquer tipo. Não nos 
-            responsabilizamos por perda de dados, interrupções de serviço ou danos decorrentes 
+            A plataforma é fornecida "como está" sem garantias de qualquer tipo. Não nos
+            responsabilizamos por perda de dados, interrupções de serviço ou danos decorrentes
             do uso da plataforma.
           </p>
         </CardContent>
@@ -92,8 +92,8 @@ export default function Terms() {
         </CardHeader>
         <CardContent className="prose prose-slate max-w-none">
           <p>
-            Reservamo-nos o direito de modificar estes termos a qualquer momento. Mudanças 
-            significativas serão notificadas através da plataforma. O uso continuado após 
+            Reservamo-nos o direito de modificar estes termos a qualquer momento. Mudanças
+            significativas serão notificadas através da plataforma. O uso continuado após
             modificações constitui aceitação dos novos termos.
           </p>
         </CardContent>

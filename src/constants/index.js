@@ -29,14 +29,14 @@ export const PROCESS_STATUSES = {
     EM_REVISAO: 'Em revisão',
     PARA_REVISAO: 'Para revisão',
     NA_PASTA: 'Na pasta'
-} as const;
+};
 
 // ========== USER ROLES ==========
 export const USER_ROLES = {
     CREATOR: 'creator',
     ADMIN: 'admin',
     MEMBER: 'member'
-} as const;
+};
 
 // ========== USER FUNCTIONS ==========
 export const USER_FUNCTIONS = {
@@ -44,7 +44,7 @@ export const USER_FUNCTIONS = {
     ASSESSORIA: 'assessoria',
     DECISORIA: 'decisória',
     CRIADOR: 'Criador'
-} as const;
+};
 
 // ========== PAGINATION ==========
 export const DEFAULT_PAGE_SIZE = 20;
@@ -73,7 +73,7 @@ export const NOTIFICATION_TYPES = {
     PROCESS_UPDATED: 'process_updated',
     MEMBER_ADDED: 'member_added',
     MEMBER_REMOVED: 'member_removed'
-} as const;
+};
 
 // ========== AUDIT LOG ACTIONS ==========
 export const AUDIT_ACTIONS = {
@@ -85,4 +85,4 @@ export const AUDIT_ACTIONS = {
     REMOVE_MEMBER: 'REMOVE_MEMBER',
     UPDATE_MEMBER: 'UPDATE_MEMBER',
     IMPORT_PROCESSES: 'IMPORT_PROCESSES'
-} as const;
+};
