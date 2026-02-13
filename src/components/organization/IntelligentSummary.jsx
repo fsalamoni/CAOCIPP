@@ -15,6 +15,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import TemporalMetrics from './TemporalMetrics';
+import { calculateBusinessDays } from '@/lib/dateUtils';
 
 export default function IntelligentSummary({ processes, members }) {
   const currentYear = new Date().getFullYear();
@@ -59,38 +60,23 @@ export default function IntelligentSummary({ processes, members }) {
   // 1. Tempo total médio (Entrada -> Devolução)
   const totalTimes = filteredProcesses
     .filter(p => p.entry_date && p.review_return_date)
-    .map(p => {
-      const start = new Date(p.entry_date);
-      const end = new Date(p.review_return_date);
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
-      return Math.floor((end - start) / (1000 * 60 * 60 * 24));
-    })
+    .map(p => calculateBusinessDays(p.entry_date, p.review_return_date))
     .filter(t => t !== null && t >= 0);
-  const avgTotalTime = totalTimes.length > 0 ? (totalTimes.reduce((a, b) => a + b, 0) / totalTimes.length).toFixed(1) : 0;
+  const avgTotalTime = totalTimes.length > 0 ? Math.ceil(totalTimes.reduce((a, b) => a + b, 0) / totalTimes.length) : 0;
 
   // 2. Tempo médio para análise de consultas (Início -> Remessa)
   const analysisTimes = filteredProcesses
     .filter(p => p.analysis_start_date && p.review_submission_date)
-    .map(p => {
-      const start = new Date(p.analysis_start_date);
-      const submission = new Date(p.review_submission_date);
-      if (isNaN(start.getTime()) || isNaN(submission.getTime())) return null;
-      return Math.floor((submission - start) / (1000 * 60 * 60 * 24));
-    })
+    .map(p => calculateBusinessDays(p.analysis_start_date, p.review_submission_date))
     .filter(t => t !== null && t >= 0);
-  const avgAnalysisTime = analysisTimes.length > 0 ? (analysisTimes.reduce((a, b) => a + b, 0) / analysisTimes.length).toFixed(1) : 0;
+  const avgAnalysisTime = analysisTimes.length > 0 ? Math.ceil(analysisTimes.reduce((a, b) => a + b, 0) / analysisTimes.length) : 0;
 
   // 3. Tempo médio para revisão de minutas (Remessa -> Devolução)
   const reviewStageTimes = filteredProcesses
     .filter(p => p.review_submission_date && p.review_return_date)
-    .map(p => {
-      const submission = new Date(p.review_submission_date);
-      const returnDate = new Date(p.review_return_date);
-      if (isNaN(submission.getTime()) || isNaN(returnDate.getTime())) return null;
-      return Math.floor((returnDate - submission) / (1000 * 60 * 60 * 24));
-    })
+    .map(p => calculateBusinessDays(p.review_submission_date, p.review_return_date))
     .filter(t => t !== null && t >= 0);
-  const avgReviewStageTime = reviewStageTimes.length > 0 ? (reviewStageTimes.reduce((a, b) => a + b, 0) / reviewStageTimes.length).toFixed(1) : 0;
+  const avgReviewStageTime = reviewStageTimes.length > 0 ? Math.ceil(reviewStageTimes.reduce((a, b) => a + b, 0) / reviewStageTimes.length) : 0;
 
   // Processos por localidade (top 10)
   const processesPerLocation = {};

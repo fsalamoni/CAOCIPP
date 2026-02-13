@@ -1,6 +1,6 @@
 # 📝 Migration Progress - Consultas CAO (Firebase)
 
-**Version:** 1.10.0 - Métricas de Temporalidade e Ajuste de Terminologia
+**Version:** 1.11.0 - Precisão Temporal (Dias Úteis)
 **Last Updated:** 2026-02-12  
 **Overall Progress:** 100% Complete ✅
 

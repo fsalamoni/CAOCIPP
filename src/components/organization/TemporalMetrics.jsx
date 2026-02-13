@@ -8,7 +8,7 @@ export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
             <CardHeader className="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 py-4">
                 <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
                     <History className="w-5 h-5 text-indigo-500" />
-                    Temporalidade das Consultas
+                    Temporalidade das Consultas (dias úteis)
                 </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
