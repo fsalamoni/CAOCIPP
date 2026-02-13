@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.11.1)
+# Consultas CAO (Version 1.11.2)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -150,6 +150,11 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 13/02/2026 - Hierarquia e Padronização de Termos (v1.11.2)
+- **Sincronização de Métricas**: As médias agora são calculadas exclusivamente sobre o conjunto de processos finalizados (com Devolução), garantindo que o **Tempo Total** seja logicamente superior ou igual às fases parciais (Análise e Revisão).
+- **Padronização Global**: Termino "Devolução após Revisão" (Capital R) aplicado de forma rigorosa em toda a interface, timeline e motor de importação.
+- **Precisão Operacional**: Descritivos ajustados para refletir exatamente os marcos solicitados na imagem de auditoria do fluxo.
+
 ### 13/02/2026 - Correção de Lógica Temporal (v1.11.1)
 - **Ajuste de Marcos Temporais**: A métrica de análise agora é calculada corretamente a partir da **Distribuição** até a **Remessa**.
 - **Descritivos Exatos**: Atualização dos subtextos das métricas para as definições operacionais precisas solicitadas (Entrada->Devolução, Distribuição->Remessa, Remessa->Devolução).
@@ -203,4 +208,4 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.11.1 (Correção Lógica Temporal) — 13/02/2026
+**Status do Projeto**: ✅ Estável / Versão 1.11.2 (Sincronização Temporal) — 13/02/2026

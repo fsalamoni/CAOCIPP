@@ -237,7 +237,7 @@ export default function ProcessTable({
       render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'review_submission_date'))}</span>
     },
     {
-      key: 'review_return_date', label: 'Devolução após revisão', defaultVisible: false,
+      key: 'review_return_date', label: 'Devolução após Revisão', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
       render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'review_return_date'))}</span>
     },

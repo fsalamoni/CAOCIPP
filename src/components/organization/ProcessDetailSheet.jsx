@@ -70,7 +70,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
         { label: 'Distribuição', key: 'distribution_date', icon: ArrowRight },
         { label: 'Início da Análise', key: 'analysis_start_date', icon: FileText },
         { label: 'Remessa p/ Revisão', key: 'review_submission_date', icon: Clock },
-        { label: 'Devolução após revisão', key: 'review_return_date', icon: CheckCircle2 },
+        { label: 'Devolução após Revisão', key: 'review_return_date', icon: CheckCircle2 },
         { label: 'Arquivamento', key: 'archived_date', icon: FolderOpen },
     ];
 
