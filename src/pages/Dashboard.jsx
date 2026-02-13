@@ -16,6 +16,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
+import { format, isValid } from 'date-fns';
+import { parseLocalDate } from '@/lib/dateUtils';
 import {
   PieChart,
   Pie,
@@ -114,10 +116,9 @@ function UserOrganDashboard({ organization, user }) {
   const years = useMemo(() => {
     const yearsSet = new Set([currentYear]);
     processes.forEach(p => {
-      if (p.entry_date) {
-        const year = new Date(p.entry_date).getFullYear();
-        if (year && !isNaN(year)) yearsSet.add(year);
-      }
+      const date = parseLocalDate(p.entry_date);
+      const year = isValid(date) ? date.getFullYear() : null;
+      if (year && !isNaN(year)) yearsSet.add(year);
     });
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [processes, currentYear]);
@@ -125,8 +126,9 @@ function UserOrganDashboard({ organization, user }) {
   // Filter processes by year (for Total, Status Chart, etc.)
   const filteredProcesses = useMemo(() => {
     return processes.filter(p => {
-      if (!p.entry_date) return false;
-      return new Date(p.entry_date).getFullYear() === selectedYear;
+      const date = parseLocalDate(p.entry_date);
+      if (!isValid(date)) return false;
+      return date.getFullYear() === selectedYear;
     });
   }, [processes, selectedYear]);
 
@@ -172,7 +174,8 @@ function UserOrganDashboard({ organization, user }) {
     const safeDateParse = (d) => {
       if (!d) return 0;
       if (d.seconds) return d.seconds * 1000;
-      const ts = new Date(d).getTime();
+      const date = parseLocalDate(d);
+      const ts = date.getTime();
       return isNaN(ts) ? 0 : ts;
     };
 

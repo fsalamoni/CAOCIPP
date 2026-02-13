@@ -12,6 +12,7 @@ import ProcessDetailSheet from "./ProcessDetailSheet";
 import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, Settings2, FileSearch, Columns3, Filter, FilterX, Clock } from "lucide-react";
 import { format, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseLocalDate } from "@/lib/dateUtils";
 import { useUserPreferences } from "@/hooks/useFirestore";
 
 export default function ProcessTable({
@@ -411,7 +412,7 @@ export default function ProcessTable({
         result = result.filter(p => {
           const val = getProcessField(p, fieldName);
           if (!val) return false;
-          const processDate = new Date(val);
+          const processDate = parseLocalDate(val);
           if (!isValid(processDate)) return false;
           if (start && !end) return processDate >= startOfDay(new Date(start)) && processDate <= endOfDay(new Date(start));
           if (!start && end) return processDate <= endOfDay(new Date(end));
@@ -482,7 +483,7 @@ export default function ProcessTable({
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     if (!isValid(date)) return 'Data Inválida';
     return format(date, 'dd/MM/yyyy', { locale: ptBR });
   };

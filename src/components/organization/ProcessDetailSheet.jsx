@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseLocalDate } from "@/lib/dateUtils";
 
 /**
  * ProcessDetailSheet — Side panel for viewing all details of a process.
@@ -43,7 +44,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
 
     const formatDate = (dateStr) => {
         if (!dateStr) return null;
-        const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
+        const date = parseLocalDate(dateStr);
         if (!isValid(date)) return null;
         try {
             return format(date, "dd/MM/yyyy", { locale: ptBR });

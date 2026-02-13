@@ -22,6 +22,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { format, isValid } from 'date-fns';
+import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
 
 const RS_CITIES = [
@@ -63,28 +65,10 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   const formatDateForInput = (value) => {
     if (!value) return '';
     try {
-      // If it's a Firestore Timestamp (has seconds)
-      if (typeof value === 'object' && value.seconds) {
-        return new Date(value.seconds * 1000).toISOString().split('T')[0];
+      const d = parseLocalDate(value);
+      if (isValid(d)) {
+        return format(d, 'yyyy-MM-dd');
       }
-
-      // If it's already a Date object
-      if (value instanceof Date) {
-        return value.toISOString().split('T')[0];
-      }
-
-      // If it's a string
-      if (typeof value === 'string') {
-        // If already YYYY-MM-DD, return it
-        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-
-        // Try to parse ISO string or other formats
-        const d = new Date(value);
-        if (!isNaN(d.getTime())) {
-          return d.toISOString().split('T')[0];
-        }
-      }
-
       return '';
     } catch (e) {
       console.error('Error formatting date:', value, e);

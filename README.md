@@ -212,4 +212,5 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.11.3 (Temporalidade Definitiva) — 13/02/2026
+**Status do Projeto**: ✅ Estável /# CAOCIPP v1.11.6 - Unified Temporal Intelligence
+ — 13/02/2026

@@ -13,9 +13,10 @@ import {
   History
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { format, isValid } from 'date-fns';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import TemporalMetrics from './TemporalMetrics';
-import { calculateBusinessDays } from '@/lib/dateUtils';
+import { calculateBusinessDays, parseLocalDate } from '@/lib/dateUtils';
 
 export default function IntelligentSummary({ processes, members }) {
   const currentYear = new Date().getFullYear();
@@ -31,10 +32,9 @@ export default function IntelligentSummary({ processes, members }) {
   const years = useMemo(() => {
     const yearsSet = new Set([currentYear]);
     processes.forEach(p => {
-      if (p.entry_date) {
-        const year = new Date(p.entry_date).getFullYear();
-        if (year && !isNaN(year)) yearsSet.add(year);
-      }
+      const date = parseLocalDate(p.entry_date);
+      const year = isValid(date) ? date.getFullYear() : null;
+      if (year && !isNaN(year)) yearsSet.add(year);
     });
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [processes, currentYear]);
@@ -42,8 +42,8 @@ export default function IntelligentSummary({ processes, members }) {
   // Filter processes by selected period
   const filteredProcesses = useMemo(() => {
     return processes.filter(p => {
-      if (!p.entry_date) return false;
-      const date = new Date(p.entry_date);
+      const date = parseLocalDate(p.entry_date);
+      if (!isValid(date)) return false;
       const yearMatch = date.getFullYear() === selectedYear;
       const monthMatch = selectedMonth === 'all' || date.getMonth() === Number(selectedMonth);
       return yearMatch && monthMatch;
@@ -57,31 +57,22 @@ export default function IntelligentSummary({ processes, members }) {
   const urgentProcesses = filteredProcesses.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
   const completionRate = totalProcesses > 0 ? ((finishedProcesses / totalProcesses) * 100).toFixed(1) : 0;
 
-  // Coorte Unificada: Apenas processos que possuem TODAS as datas do fluxo (fluxo completo e íntegro)
-  // Isso é matematicamente necessário para que as médias das etapas sejam sub-conjuntos 
-  // proporcionais da média total, garantindo que Total >= Análise e Total >= Revisão.
-  const temporalCohort = filteredProcesses.filter(p =>
-    p.entry_date &&
-    p.distribution_date &&
-    p.review_submission_date &&
-    p.review_return_date
-  );
-
-  const cohortSize = temporalCohort.length;
-
   // 1. Tempo total médio (Entrada -> Devolução após Revisão)
-  const avgTotalTime = cohortSize > 0
-    ? Math.ceil(temporalCohort.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / cohortSize)
+  const totalTimeData = filteredProcesses.filter(p => p.entry_date && p.review_return_date);
+  const avgTotalTime = totalTimeData.length > 0
+    ? Math.ceil(totalTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / totalTimeData.length)
     : 0;
 
   // 2. Tempo médio para análise de consultas (Distribuição -> Remessa p/ Revisão)
-  const avgAnalysisTime = cohortSize > 0
-    ? Math.ceil(temporalCohort.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / cohortSize)
+  const analysisTimeData = filteredProcesses.filter(p => p.distribution_date && p.review_submission_date);
+  const avgAnalysisTime = analysisTimeData.length > 0
+    ? Math.ceil(analysisTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / analysisTimeData.length)
     : 0;
 
   // 3. Tempo médio para revisão de minutas (Remessa p/ Revisão -> Devolução após Revisão)
-  const avgReviewStageTime = cohortSize > 0
-    ? Math.ceil(temporalCohort.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / cohortSize)
+  const reviewTimeData = filteredProcesses.filter(p => p.review_submission_date && p.review_return_date);
+  const avgReviewStageTime = reviewTimeData.length > 0
+    ? Math.ceil(reviewTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / reviewTimeData.length)
     : 0;
 
   // Processos por localidade (top 10)

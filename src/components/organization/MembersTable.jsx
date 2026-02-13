@@ -8,11 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MoreHorizontal, Pencil, UserMinus, Crown } from "lucide-react";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseLocalDate } from "@/lib/dateUtils";
 
-export default function MembersTable({ 
-  members, 
+export default function MembersTable({
+  members,
   currentUserId,
   isCreator,
   onUpdateFunction,
@@ -80,7 +81,10 @@ export default function MembersTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  {format(new Date(member.created_date), "dd/MM/yyyy", { locale: ptBR })}
+                  {(() => {
+                    const d = parseLocalDate(member.created_date || member.joined_at);
+                    return isValid(d) ? format(d, "dd/MM/yyyy", { locale: ptBR }) : '-';
+                  })()}
                 </TableCell>
                 {isCreator && (
                   <TableCell>
@@ -96,7 +100,7 @@ export default function MembersTable({
                             <Pencil className="w-4 h-4 mr-2" />
                             Editar Função
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onClick={() => onRemoveMember(member)}
                             className="text-rose-600"
                           >

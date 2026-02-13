@@ -17,8 +17,9 @@ import {
   Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { parseLocalDate } from '@/lib/dateUtils';
 import {
   Table,
   TableBody,
@@ -46,10 +47,9 @@ export default function GeneralInfo({ organization, members, processes = [], use
   const years = React.useMemo(() => {
     const yearsSet = new Set([currentYear]);
     processes.forEach(p => {
-      if (p.entry_date) {
-        const year = new Date(p.entry_date).getFullYear();
-        if (year && !isNaN(year)) yearsSet.add(year);
-      }
+      const date = parseLocalDate(p.entry_date);
+      const year = isValid(date) ? date.getFullYear() : null;
+      if (year && !isNaN(year)) yearsSet.add(year);
     });
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [processes, currentYear]);
@@ -57,8 +57,9 @@ export default function GeneralInfo({ organization, members, processes = [], use
   // Filter processes by selected year
   const filteredProcesses = React.useMemo(() => {
     return processes.filter(p => {
-      if (!p.entry_date) return false;
-      return new Date(p.entry_date).getFullYear() === selectedYear;
+      const date = parseLocalDate(p.entry_date);
+      if (!isValid(date)) return false;
+      return date.getFullYear() === selectedYear;
     });
   }, [processes, selectedYear]);
 

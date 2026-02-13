@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from '@/components/ui/switch';
+import { format } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
@@ -54,7 +55,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
       process_number: '',
       consultant: '',
       location: '',
-      entry_date: new Date().toISOString().split('T')[0],
+      entry_date: format(new Date(), 'yyyy-MM-dd'),
       matter_object: '',
       urgency_request: false,
       distribution_date: '',
