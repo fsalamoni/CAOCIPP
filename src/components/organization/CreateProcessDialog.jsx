@@ -42,7 +42,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
     process_number: '',
     consultant: '',
     location: '',
-    entry_date: new Date().toISOString().split('T')[0],
+    entry_date: format(new Date(), 'yyyy-MM-dd'),
     matter_object: '',
     urgency_request: false,
     distribution_date: '',

@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.11.3)
+# Consultas CAO (Version 1.11.7)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
