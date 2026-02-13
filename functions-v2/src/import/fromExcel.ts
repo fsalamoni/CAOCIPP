@@ -210,11 +210,33 @@ export const importProcessesFromExcel = onCall<ImportExcelRequest>(
                                 row['OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'] ||
                                 row['Observações'] || row['Obs'] || ''
                             ).toString().trim(),
-                            distribution_date: parseExcelDate(row['DISTRIBUIÇÃO\n(DATA)'] || row['DISTRIBUIÇÃO\\n(DATA)']) || null,
-                            analysis_start_date: parseExcelDate(row['INÍCIO DA ANÁLISE\n(DATA)'] || row['INÍCIO DA ANÁLISE\\n(DATA)']) || null,
-                            review_submission_date: parseExcelDate(row['REMESSA AO DR. PARA REVISÃO (DATA)']) || null,
-                            review_return_date: parseExcelDate(row['DEVOLUÇÃO APÓS REVISÃO\n(DATA)'] || row['DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)']) || null,
-                            archived_date: parseExcelDate(row['NA PASTA\nARQUIVADO\n(DATA)'] || row['NA PASTA\\nARQUIVADO\\n(DATA)']) || null,
+                            distribution_date: parseExcelDate(
+                                row['DISTRIBUIÇÃO\n(DATA)'] ||
+                                row['DISTRIBUIÇÃO\\n(DATA)'] ||
+                                row['DISTRIBUIÇÃO']
+                            ) || null,
+                            analysis_start_date: parseExcelDate(
+                                row['INÍCIO DA ANÁLISE\n(DATA)'] ||
+                                row['INÍCIO DA ANÁLISE\\n(DATA)'] ||
+                                row['INÍCIO DA ANÁLISE']
+                            ) || null,
+                            review_submission_date: parseExcelDate(
+                                row['REMESSA AO DR. PARA REVISÃO (DATA)'] ||
+                                row['REMESSA PARA REVISÃO'] ||
+                                row['Remessa']
+                            ) || null,
+                            review_return_date: parseExcelDate(
+                                row['DEVOLUÇÃO APÓS REVISÃO\n(DATA)'] ||
+                                row['DEVOLUÇÃO APÓS REVISÃO\\n(DATA)'] ||
+                                row['DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)'] ||
+                                row['DEVOLUÇÃO APÓS REVISÃO'] ||
+                                row['RETORNO DA REVISÃO']
+                            ) || null,
+                            archived_date: parseExcelDate(
+                                row['NA PASTA\nARQUIVADO\n(DATA)'] ||
+                                row['NA PASTA\\nARQUIVADO\\n(DATA)'] ||
+                                row['Arquivamento']
+                            ) || null,
                             access_restriction: (row['RESTRIÇÃO DE ACESSO'] || '').toString().trim(),
                             network_folder: (row['PASTA NA REDE'] || '').toString().trim(),
                             updated_at: admin.firestore.FieldValue.serverTimestamp(),

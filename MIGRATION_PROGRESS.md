@@ -1,6 +1,6 @@
 # 📝 Migration Progress - Consultas CAO (Firebase)
 
-**Version:** 1.9.1 - Permissões Expandidas e Segurança do Criador
+**Version:** 1.10.0 - Métricas de Temporalidade e Ajuste de Terminologia
 **Last Updated:** 2026-02-12  
 **Overall Progress:** 100% Complete ✅
 

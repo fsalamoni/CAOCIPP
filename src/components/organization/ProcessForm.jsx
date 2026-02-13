@@ -235,7 +235,7 @@ export default function ProcessForm({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="review_return_date">Devolução após Revisão</Label>
+                <Label htmlFor="review_return_date">Devolução após revisão</Label>
                 <Input
                   id="review_return_date"
                   type="date"

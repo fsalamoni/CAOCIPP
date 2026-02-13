@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.9.1)
+# Consultas CAO (Version 1.10.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -150,6 +150,14 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 13/02/2026 - Métricas de Temporalidade & Terminology Fix (v1.10.0)
+- **Quadro de Temporalidade**: Novo componente modular na aba de Resumos Inteligentes exibindo médias de:
+    - Tempo total (Entrada → Devolução)
+    - Tempo de Análise (Início → Remessa)
+    - Tempo de Revisão (Remessa → Devolução)
+- **Padronização de Termos**: Substituição global de "Retorno da Revisão" por **"Devolução após revisão"** para alinhamento com os fluxos originais de trabalho.
+- **Importação Robusta**: Mapeador de Excel atualizado para detectar automaticamente variações do novo termo ("DEVOLUÇÃO APÓS REVISÃO", "RETORNO DA REVISÃO", etc).
+
 ### 12/02/2026 - Persistência, Real-time & UI Premium (v1.8.9)
 - **Correção de Persistência**: Alinhamento definitivo de campos (snake_case/camelCase) entre Frontend e Cloud Functions.
 - **Real-time Synchronization**: Listagem de processos agora utiliza `onSnapshot` para atualizações instantâneas.
@@ -184,4 +192,4 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.8.9 (Persistência & Real-time UI) — 12/02/2026
+**Status do Projeto**: ✅ Estável / Versão 1.10.0 (Métricas de Temporalidade) — 13/02/2026

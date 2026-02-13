@@ -9,10 +9,12 @@ import {
   AlertCircle,
   FileText,
   CalendarDays,
-  ChevronDown
+  ChevronDown,
+  History
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
+import TemporalMetrics from './TemporalMetrics';
 
 export default function IntelligentSummary({ processes, members }) {
   const currentYear = new Date().getFullYear();
@@ -54,41 +56,41 @@ export default function IntelligentSummary({ processes, members }) {
   const urgentProcesses = filteredProcesses.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
   const completionRate = totalProcesses > 0 ? ((finishedProcesses / totalProcesses) * 100).toFixed(1) : 0;
 
-  // Tempo médio de remessa para revisão (em dias)
-  const reviewTimes = filteredProcesses
+  // 1. Tempo total médio (Entrada -> Devolução)
+  const totalTimes = filteredProcesses
+    .filter(p => p.entry_date && p.review_return_date)
+    .map(p => {
+      const start = new Date(p.entry_date);
+      const end = new Date(p.review_return_date);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+      return Math.floor((end - start) / (1000 * 60 * 60 * 24));
+    })
+    .filter(t => t !== null && t >= 0);
+  const avgTotalTime = totalTimes.length > 0 ? (totalTimes.reduce((a, b) => a + b, 0) / totalTimes.length).toFixed(1) : 0;
+
+  // 2. Tempo médio para análise de consultas (Início -> Remessa)
+  const analysisTimes = filteredProcesses
     .filter(p => p.analysis_start_date && p.review_submission_date)
     .map(p => {
-      try {
-        const start = new Date(p.analysis_start_date);
-        const submission = new Date(p.review_submission_date);
-        if (isNaN(start.getTime()) || isNaN(submission.getTime())) return null;
-        return Math.floor((submission - start) / (1000 * 60 * 60 * 24));
-      } catch {
-        return null;
-      }
+      const start = new Date(p.analysis_start_date);
+      const submission = new Date(p.review_submission_date);
+      if (isNaN(start.getTime()) || isNaN(submission.getTime())) return null;
+      return Math.floor((submission - start) / (1000 * 60 * 60 * 24));
     })
-    .filter(time => time !== null);
-  const avgReviewTime = reviewTimes.length > 0
-    ? (reviewTimes.reduce((a, b) => a + b, 0) / reviewTimes.length).toFixed(1)
-    : 0;
+    .filter(t => t !== null && t >= 0);
+  const avgAnalysisTime = analysisTimes.length > 0 ? (analysisTimes.reduce((a, b) => a + b, 0) / analysisTimes.length).toFixed(1) : 0;
 
-  // Tempo médio de devolução (em dias)
-  const returnTimes = filteredProcesses
+  // 3. Tempo médio para revisão de minutas (Remessa -> Devolução)
+  const reviewStageTimes = filteredProcesses
     .filter(p => p.review_submission_date && p.review_return_date)
     .map(p => {
-      try {
-        const submission = new Date(p.review_submission_date);
-        const returnDate = new Date(p.review_return_date);
-        if (isNaN(submission.getTime()) || isNaN(returnDate.getTime())) return null;
-        return Math.floor((returnDate - submission) / (1000 * 60 * 60 * 24));
-      } catch {
-        return null;
-      }
+      const submission = new Date(p.review_submission_date);
+      const returnDate = new Date(p.review_return_date);
+      if (isNaN(submission.getTime()) || isNaN(returnDate.getTime())) return null;
+      return Math.floor((returnDate - submission) / (1000 * 60 * 60 * 24));
     })
-    .filter(time => time !== null);
-  const avgReturnTime = returnTimes.length > 0
-    ? (returnTimes.reduce((a, b) => a + b, 0) / returnTimes.length).toFixed(1)
-    : 0;
+    .filter(t => t !== null && t >= 0);
+  const avgReviewStageTime = reviewStageTimes.length > 0 ? (reviewStageTimes.reduce((a, b) => a + b, 0) / reviewStageTimes.length).toFixed(1) : 0;
 
   // Processos por localidade (top 10)
   const processesPerLocation = {};
@@ -179,8 +181,8 @@ export default function IntelligentSummary({ processes, members }) {
           color="from-emerald-500 to-teal-500"
         />
         <MetricCard
-          title="Tempo Médio Revisão"
-          value={`${avgReviewTime} dias`}
+          title="Tempo Médio Fluxo"
+          value={`${avgTotalTime} dias`}
           icon={Clock}
           color="from-blue-500 to-cyan-500"
         />
@@ -192,47 +194,57 @@ export default function IntelligentSummary({ processes, members }) {
         />
       </div>
 
-      {/* Volume por Localidade */}
-      <Card className="shadow-sm border-slate-200">
-        <CardHeader className="border-b border-slate-50">
-          <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800">
-            <MapPin className="w-5 h-5 text-indigo-500" />
-            Distribuição por Localidade
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          {locationData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={locationData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                <XAxis type="number" hide />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={150}
-                  tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                />
-                <Bar
-                  dataKey="processos"
-                  fill="#6366f1"
-                  radius={[0, 6, 6, 0]}
-                  barSize={20}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
-              <FileText className="w-10 h-10 opacity-20" />
-              <p className="font-medium text-sm">Sem dados para este período</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Grid de Gráficos e Métricas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Volume por Localidade */}
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="border-b border-slate-50">
+            <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800">
+              <MapPin className="w-5 h-5 text-indigo-500" />
+              Distribuição por Localidade
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {locationData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={locationData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={150}
+                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                  />
+                  <Bar
+                    dataKey="processos"
+                    fill="#6366f1"
+                    radius={[0, 6, 6, 0]}
+                    barSize={20}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
+                <FileText className="w-10 h-10 opacity-20" />
+                <p className="font-medium text-sm">Sem dados para este período</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quadro de Temporalidade */}
+        <TemporalMetrics
+          totalAvg={avgTotalTime}
+          analysisAvg={avgAnalysisTime}
+          reviewAvg={avgReviewStageTime}
+        />
+      </div>
 
       {/* Resumo por Status */}
       <Card className="shadow-sm border-slate-200">
