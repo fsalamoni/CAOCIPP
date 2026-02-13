@@ -19,6 +19,7 @@ export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
                         value={totalAvg}
                         unit="dias"
                         color="text-indigo-600 bg-indigo-50"
+                        sublabel="Entre a data de Entrada no CAO e a Devolução após revisão"
                     />
                     <MetricItem
                         icon={FileEdit}
@@ -26,7 +27,7 @@ export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
                         value={analysisAvg}
                         unit="dias"
                         color="text-emerald-600 bg-emerald-50"
-                        sublabel="Desde o início da análise até a remessa"
+                        sublabel="Entre a data de Distribuição e a Remessa para Revisão"
                     />
                     <MetricItem
                         icon={CheckCircle2}
@@ -34,7 +35,7 @@ export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
                         value={reviewAvg}
                         unit="dias"
                         color="text-amber-600 bg-amber-50"
-                        sublabel="Entre a remessa e a devolução"
+                        sublabel="Entre a data de Remessa para Revisão e a Devolução após revisão"
                     />
                 </div>
             </CardContent>

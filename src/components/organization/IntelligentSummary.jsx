@@ -64,10 +64,10 @@ export default function IntelligentSummary({ processes, members }) {
     .filter(t => t !== null && t >= 0);
   const avgTotalTime = totalTimes.length > 0 ? Math.ceil(totalTimes.reduce((a, b) => a + b, 0) / totalTimes.length) : 0;
 
-  // 2. Tempo médio para análise de consultas (Início -> Remessa)
+  // 2. Tempo médio para análise de consultas (Distribuição -> Remessa)
   const analysisTimes = filteredProcesses
-    .filter(p => p.analysis_start_date && p.review_submission_date)
-    .map(p => calculateBusinessDays(p.analysis_start_date, p.review_submission_date))
+    .filter(p => p.distribution_date && p.review_submission_date)
+    .map(p => calculateBusinessDays(p.distribution_date, p.review_submission_date))
     .filter(t => t !== null && t >= 0);
   const avgAnalysisTime = analysisTimes.length > 0 ? Math.ceil(analysisTimes.reduce((a, b) => a + b, 0) / analysisTimes.length) : 0;
 

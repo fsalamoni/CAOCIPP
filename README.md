@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.11.0)
+# Consultas CAO (Version 1.11.1)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -150,6 +150,10 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 13/02/2026 - Correção de Lógica Temporal (v1.11.1)
+- **Ajuste de Marcos Temporais**: A métrica de análise agora é calculada corretamente a partir da **Distribuição** até a **Remessa**.
+- **Descritivos Exatos**: Atualização dos subtextos das métricas para as definições operacionais precisas solicitadas (Entrada->Devolução, Distribuição->Remessa, Remessa->Devolução).
+
 ### 13/02/2026 - Precisão Temporal (Dias Úteis) (v1.11.0)
 - **Cálculo de Dias Úteis**: As médias de temporalidade agora consideram apenas dias úteis (segunda a sexta), proporcionando uma visão mais realista do desempenho.
 - **Arredondamento Conservador**: Todas as médias são agora arredondadas para cima (Math.ceil), garantindo que tempos parciais sejam contabilizados como dias inteiros de trabalho.
@@ -199,4 +203,4 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.11.0 (Precisão Temporal) — 13/02/2026
+**Status do Projeto**: ✅ Estável / Versão 1.11.1 (Correção Lógica Temporal) — 13/02/2026
