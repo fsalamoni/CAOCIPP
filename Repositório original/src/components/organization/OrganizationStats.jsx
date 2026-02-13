@@ -4,6 +4,7 @@ import KPICard from "@/components/dashboard/KPICard";
 import { StatusPieChart, ResponsibleBarChart } from "@/components/dashboard/ProcessChart";
 import { FileText, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { differenceInDays } from "date-fns";
+import { parseLocalDate } from "@/lib/dateUtils";
 
 export default function OrganizationStats({ processes, members }) {
   const stats = useMemo(() => {
@@ -12,7 +13,7 @@ export default function OrganizationStats({ processes, members }) {
       acc[p.status] = (acc[p.status] || 0) + 1;
       return acc;
     }, {});
-    
+
     const urgent = processes.filter(p => p.urgency_request && p.status !== "Na pasta").length;
     const finalized = byStatus["Na pasta"] || 0;
     const inProgress = total - finalized;
@@ -21,16 +22,20 @@ export default function OrganizationStats({ processes, members }) {
     const processesWithReview = processes.filter(p => p.review_submission_date && p.distribution_date);
     const avgReviewTime = processesWithReview.length > 0
       ? Math.round(processesWithReview.reduce((sum, p) => {
-          return sum + differenceInDays(new Date(p.review_submission_date), new Date(p.distribution_date));
-        }, 0) / processesWithReview.length)
+        const d1 = parseLocalDate(p.review_submission_date);
+        const d2 = parseLocalDate(p.distribution_date);
+        return sum + differenceInDays(d1, d2);
+      }, 0) / processesWithReview.length)
       : 0;
 
     // Tempo médio de devolução
     const processesWithReturn = processes.filter(p => p.review_return_date && p.review_submission_date);
     const avgReturnTime = processesWithReturn.length > 0
       ? Math.round(processesWithReturn.reduce((sum, p) => {
-          return sum + differenceInDays(new Date(p.review_return_date), new Date(p.review_submission_date));
-        }, 0) / processesWithReturn.length)
+        const d1 = parseLocalDate(p.review_return_date);
+        const d2 = parseLocalDate(p.review_submission_date);
+        return sum + differenceInDays(d1, d2);
+      }, 0) / processesWithReturn.length)
       : 0;
 
     // Dados por responsável
@@ -55,7 +60,7 @@ export default function OrganizationStats({ processes, members }) {
     }, {});
 
     const topLocations = Object.entries(byLocation)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([name, value]) => ({ name, value }));
 
@@ -155,7 +160,7 @@ export default function OrganizationStats({ processes, members }) {
                     <span className="text-sm text-slate-500">{loc.value} processos</span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
                       style={{ width: `${(loc.value / stats.total) * 100}%` }}
                     />

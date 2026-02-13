@@ -68,14 +68,17 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         // Merge changes into current data to calculate new status
         const mergedData = { ...processData, ...changes };
 
-        // Status Logic:
-        // 1. If explicit status is provided in changes, USE IT (manual override)
-        // 2. If no status provided, Calculate it based on dates (automatic)
-        if (changes.status) {
-            // Respect manual status change
+        // Recalculate status
+        // Case A: Explicit status change (user manually selected a new status)
+        // Case B: No status provided or status is the same as current (allow auto-calculation from dates)
+        const statusInChanges = changes.status;
+        const currentStatus = processData.status;
+
+        if (statusInChanges && statusInChanges !== currentStatus) {
+            // Respect manual status override
         } else {
             const newStatus = calculateStatus(mergedData);
-            if (newStatus && newStatus !== processData.status) {
+            if (newStatus && newStatus !== currentStatus) {
                 changes.status = newStatus;
             }
         }

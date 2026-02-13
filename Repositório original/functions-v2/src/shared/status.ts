@@ -1,21 +1,19 @@
+import { getSmartField } from './fields';
+
 export interface ProcessStatusInput {
-    archived_date?: string | null;
-    review_return_date?: string | null;
-    review_submission_date?: string | null;
-    analysis_start_date?: string | null;
-    distribution_date?: string | null;
-    status?: string | null;
     [key: string]: any;
 }
 
 export function calculateStatus(process: ProcessStatusInput): string {
-    if (process.archived_date) return "Na pasta";
-    // Aligned with Deno version and recent refinements
-    if (process.review_return_date) return "Para revisão";
-    if (process.review_submission_date) return "Em revisão";
-    if (process.analysis_start_date) return "Em elaboração";
-    if (process.distribution_date) return "Pendente";
+    // 1. "Na pasta" (Verde): Se o campo de Arquivamento estiver preenchido.
+    if (getSmartField(process, 'archived_date')) return "Na pasta";
 
-    // existing status or default
-    return process.status || "Pendente";
+    // 2. "Em revisão" (Azul/Roxo): Se o campo Remessa p/ Revisão estiver preenchido.
+    if (getSmartField(process, 'review_submission_date')) return "Em revisão";
+
+    // 3. "Em elaboração" (Âmbar/Amarelo): Se o campo Início da Análise estiver preenchido.
+    if (getSmartField(process, 'analysis_start_date')) return "Em elaboração";
+
+    // 4. "Pendente" (Branco): Fallback final.
+    return getSmartField(process, 'status') || "Pendente";
 }

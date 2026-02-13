@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
+import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,7 +26,7 @@ export default function ProcessForm({
     process_number: "",
     consultant: "",
     location: "",
-    entry_date: new Date().toISOString().split('T')[0],
+    entry_date: format(new Date(), 'yyyy-MM-dd'),
     matter_object: "",
     urgency_request: false,
     distribution_date: "",

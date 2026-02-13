@@ -160,6 +160,19 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     }
   }, [process, members]);
 
+  // Dynamic status suggestion based on dates
+  useEffect(() => {
+    const suggestedStatus = calculateDerivedStatus(formData);
+    if (suggestedStatus !== formData.status) {
+      setFormData(prev => ({ ...prev, status: suggestedStatus }));
+    }
+  }, [
+    formData.archived_date,
+    formData.review_submission_date,
+    formData.analysis_start_date,
+    formData.status
+  ]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -409,8 +422,6 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                     <SelectItem value="Pendente">Pendente</SelectItem>
                     <SelectItem value="Em elaboração">Em elaboração</SelectItem>
                     <SelectItem value="Em revisão">Em revisão</SelectItem>
-                    <SelectItem value="Para revisão">Para revisão</SelectItem>
-                    <SelectItem value="Para assinatura">Para assinatura</SelectItem>
                     <SelectItem value="Na pasta">Na pasta</SelectItem>
                   </SelectContent>
                 </Select>

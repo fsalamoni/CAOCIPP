@@ -14,6 +14,8 @@ import { format, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { useUserPreferences } from "@/hooks/useFirestore";
+import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
+import { getProcessField, calculateDerivedStatus } from "@/utils/processUtils";
 
 export default function ProcessTable({
   processes,
@@ -26,52 +28,6 @@ export default function ProcessTable({
 }) {
   // Defensive helper to ensure 100% data visibility across different field name variations
   // Mirrors the logic found in EditProcessDialog
-  const getProcessField = (p, field) => {
-    if (!p) return '';
-
-    const aliases = {
-      process_number: ['process_number', 'numero', 'n_processo', 'processo', 'PROCESSO SIM\n(NÚMERO)', 'PROCESSO SIM\\n(NÚMERO)'],
-      consultant: ['consultant', 'consulente', 'cliente', 'interessado', 'CONSULENTE'],
-      location: ['location', 'local', 'cidade', 'local_fatos', 'municipio', 'LOCAL DOS FATOS\n(CIDADE)', 'LOCAL DOS FATOS\\n(CIDADE)'],
-      entry_date: ['entry_date', 'data_entrada', 'entrada', 'data', 'ENTRADA NO CAOPP\n(DATA)', 'ENTRADA NO CAOPP\\n(DATA)'],
-      matter_object: ['matter_object', 'objeto', 'assunto', 'materia', 'descricao', 'MATÉRIA E OBJETO DA CONSULTA'],
-      urgency_request: ['urgency_request', 'urgente', 'prioridade', 'PEDIDO DE URGÊNCIA', 'Solicitação de Urgência'],
-      distribution_date: ['distribution_date', 'data_distribuicao', 'distribuicao', 'DISTRIBUIÇÃO\n(DATA)', 'DISTRIBUIÇÃO\\n(DATA)'],
-      responsible_user_name: ['responsible_user_name', 'responsibleUserName', 'assessor', 'assessor_responsavel', 'responsavel'],
-      analysis_start_date: ['analysis_start_date', 'inicio_analise', 'data_inicio', 'INÍCIO DA ANÁLISE\n(DATA)', 'INÍCIO DA ANÁLISE\\n(DATA)'],
-      observations: ['observations', 'observacoes', 'notas', 'pontos_importantes', 'obs', 'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'],
-      review_submission_date: ['review_submission_date', 'remessa_revisao', 'data_revisao', 'remessa', 'REMESSA AO DR. PARA REVISÃO (DATA)'],
-      review_return_date: ['review_return_date', 'devolucao_revisao', 'retorno_revisao', 'retorno', 'DEVOLUÇÃO APÓS REVISÃO\n(DATA)', 'DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)'],
-      archived_date: ['archived_date', 'data_arquivamento', 'arquivamento', 'data_arquivo', 'NA PASTA\nARQUIVADO\n(DATA)', 'NA PASTA\\nARQUIVADO\\n(DATA)'],
-      network_folder: ['network_folder', 'network_folder_path', 'pasta', 'pasta_rede', 'caminho', 'PASTA NA REDE'],
-      status: ['status', 'situacao', 'estado'],
-      access_restriction: ['access_restriction', 'restricao', 'restrito', 'sigilo', 'RESTRIÇÃO DE ACESSO']
-    };
-
-    const keysToTry = aliases[field] || [field];
-
-    // 1. Direct match
-    for (const key of keysToTry) {
-      if (p[key] !== undefined && p[key] !== null && String(p[key]).trim() !== '') {
-        return p[key];
-      }
-    }
-
-    // 2. Normalized aggressive match
-    const normalize = (k) => k.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const normalizedKeys = keysToTry.map(normalize);
-    const pKeys = Object.keys(p);
-
-    for (const pk of pKeys) {
-      if (normalizedKeys.includes(normalize(pk))) {
-        if (p[pk] !== undefined && p[pk] !== null && String(p[pk]).trim() !== '') {
-          return p[pk];
-        }
-      }
-    }
-
-    return field === 'urgency_request' || field === 'access_restriction' ? false : '';
-  };
 
   const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
   const [search, setSearch] = useState("");
@@ -269,7 +225,7 @@ export default function ProcessTable({
     {
       key: 'status', label: 'Status', defaultVisible: true,
       width: 'w-[160px]', sortable: true,
-      render: (process) => <StatusBadge status={getProcessField(process, 'status')} variant="neutral" className="" />
+      render: (process) => <StatusBadge status={calculateDerivedStatus(process)} className="" />
     },
   ], []);
 
@@ -385,7 +341,7 @@ export default function ProcessTable({
     }
 
     if (statusFilter !== "all") {
-      result = result.filter(p => getProcessField(p, 'status') === statusFilter);
+      result = result.filter(p => calculateDerivedStatus(p) === statusFilter);
     }
 
     if (responsibleFilter !== "all") {
@@ -489,9 +445,9 @@ export default function ProcessTable({
   };
 
   const getStatusRowColor = (process) => {
-    const status = getProcessField(process, 'status');
-    const urgencyVal = getProcessField(process, 'urgency_request');
-    const isUrgent = urgencyVal === true || String(urgencyVal).toLowerCase().trim() === 'sim';
+    // Definitive v1.13.0: Derived status for coloring ensures ZERO LAG with dates
+    const status = calculateDerivedStatus(process);
+    const isUrgent = getProcessField(process, 'urgency_request') === true;
 
     // Override: Urgent + Pending gets the red color
     if (isUrgent && (status === 'Pendente' || !status)) {
@@ -504,51 +460,12 @@ export default function ProcessTable({
       };
     }
 
-    switch (status) {
-      case "Em revisão":
-        return {
-          bg: "bg-[#B6DDE8]",
-          accent: "border-l-[#6FA8DC]",
-          border: "border-b-[#9BBDC6]",
-          hover: "hover:bg-[#A5C9D4]",
-          groupHover: "group-hover:!bg-[#A5C9D4]"
-        };
-      case "Em elaboração":
-        return {
-          bg: "bg-[#FFFF99]",
-          accent: "border-l-[#F1C232]",
-          border: "border-b-[#E1E17F]",
-          hover: "hover:bg-[#F0F08B]",
-          groupHover: "group-hover:!bg-[#F0F08B]"
-        };
-      case "Para revisão":
-        return {
-          bg: "bg-[#B6DDE8]",
-          accent: "border-l-[#6FA8DC]",
-          border: "border-b-[#9BBDC6]",
-          hover: "hover:bg-[#A5C9D4]",
-          groupHover: "group-hover:!bg-[#A5C9D4]"
-        };
-      case "Na pasta":
-        return {
-          bg: "bg-[#D7E4BC]",
-          accent: "border-l-[#93C47D]",
-          border: "border-b-[#C2D0A5]",
-          hover: "hover:bg-[#C9D6AF]",
-          groupHover: "group-hover:!bg-[#C9D6AF]"
-        };
-      default:
-        return {
-          bg: "bg-white",
-          accent: "border-l-slate-200",
-          border: "border-b-slate-100",
-          hover: "hover:bg-slate-50",
-          groupHover: "group-hover:!bg-slate-50"
-        };
-    }
+    // Default to configuration from statusConfig
+    const config = statusConfig[status] || DEFAULT_STATUS_CONFIG;
+    return config.row || DEFAULT_STATUS_CONFIG.row;
   };
 
-  const statuses = ["Pendente", "Em elaboração", "Em revisão", "Para revisão", "Na pasta"];
+  const statuses = ["Pendente", "Em elaboração", "Em revisão", "Na pasta"];
 
   return (
     <div className="space-y-4">

@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseLocalDate } from "@/lib/dateUtils";
+import { calculateDerivedStatus } from "@/utils/processUtils";
 
 /**
  * ProcessDetailSheet — Side panel for viewing all details of a process.
@@ -43,7 +45,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
 
     const formatDate = (dateStr) => {
         if (!dateStr) return null;
-        const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
+        const date = parseLocalDate(dateStr);
         if (!isValid(date)) return null;
         try {
             return format(date, "dd/MM/yyyy", { locale: ptBR });
@@ -54,10 +56,10 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
 
     const field = (key) => getProcessField(process, key);
 
-    const isUrgent = (() => {
-        const val = field('urgency_request');
-        return val === true || String(val).toLowerCase().trim() === 'sim';
-    })();
+    const isUrgent = field('urgency_request') === true;
+
+    // Absolute v1.13.0 Resolution: Derived status avoids stale labels in the UI
+    const derivedStatus = calculateDerivedStatus(process);
 
     const isRestricted = (() => {
         const val = field('access_restriction');
@@ -70,7 +72,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
         { label: 'Distribuição', key: 'distribution_date', icon: ArrowRight },
         { label: 'Início da Análise', key: 'analysis_start_date', icon: FileText },
         { label: 'Remessa p/ Revisão', key: 'review_submission_date', icon: Clock },
-        { label: 'Retorno da Revisão', key: 'review_return_date', icon: CheckCircle2 },
+        { label: 'Devolução após Revisão', key: 'review_return_date', icon: CheckCircle2 },
         { label: 'Arquivamento', key: 'archived_date', icon: FolderOpen },
     ];
 
@@ -112,7 +114,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
                         </Button>
                     </div>
                     <div className="mt-3">
-                        <StatusBadge status={field('status')} className="" />
+                        <StatusBadge status={derivedStatus} className="" />
                     </div>
                 </SheetHeader>
 

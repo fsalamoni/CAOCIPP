@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.9.1)
+# Consultas CAO (Version 1.13.1)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -150,6 +150,34 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 13/02/2026 - Solução Definitiva de Temporalidade (v1.11.3)
+- **Coorte Unificada**: O quadro de Temporalidade agora utiliza uma amostra sincronizada de processos (Entry, Dist, Sub, Return), garantindo que a hierarquia logica (Total >= Etapas) seja mantida em 100% dos casos.
+- **Capitalização Rigorosa**: Padronização de "Devolução após Revisão" (Capital R) em toda a interface e lógica de sistema.
+
+### 13/02/2026 - Hierarquia e Padronização de Termos (v1.11.2)
+- **Sincronização de Métricas**: As médias agora são calculadas exclusivamente sobre o conjunto de processos finalizados (com Devolução), garantindo que o **Tempo Total** seja logicamente superior ou igual às fases parciais (Análise e Revisão).
+- **Padronização Global**: Termino "Devolução após Revisão" (Capital R) aplicado de forma rigorosa em toda a interface, timeline e motor de importação.
+- **Precisão Operacional**: Descritivos ajustados para refletir exatamente os marcos solicitados na imagem de auditoria do fluxo.
+
+### 13/02/2026 - Correção de Lógica Temporal (v1.11.1)
+- **Ajuste de Marcos Temporais**: A métrica de análise agora é calculada corretamente a partir da **Distribuição** até a **Remessa**.
+- **Descritivos Exatos**: Atualização dos subtextos das métricas para as definições operacionais precisas solicitadas (Entrada->Devolução, Distribuição->Remessa, Remessa->Devolução).
+
+### 13/02/2026 - Precisão Temporal (Dias Úteis) (v1.11.0)
+- **Cálculo de Dias Úteis**: As médias de temporalidade agora consideram apenas dias úteis (segunda a sexta), proporcionando uma visão mais realista do desempenho.
+- **Arredondamento Conservador**: Todas as médias são agora arredondadas para cima (Math.ceil), garantindo que tempos parciais sejam contabilizados como dias inteiros de trabalho.
+- **Identificação Visual**: Título do quadro atualizado para "Temporalidade das Consultas (dias úteis)".
+
+### 13/02/2026 - Métricas de Temporalidade & Terminology Fix (v1.10.0)
+
+### 13/02/2026 - Métricas de Temporalidade & Terminology Fix (v1.10.0)
+- **Quadro de Temporalidade**: Novo componente modular na aba de Resumos Inteligentes exibindo médias de:
+    - Tempo total (Entrada → Devolução)
+    - Tempo de Análise (Início → Remessa)
+    - Tempo de Revisão (Remessa → Devolução)
+- **Padronização de Termos**: Substituição global de "Retorno da Revisão" por **"Devolução após revisão"** para alinhamento com os fluxos originais de trabalho.
+- **Importação Robusta**: Mapeador de Excel atualizado para detectar automaticamente variações do novo termo ("DEVOLUÇÃO APÓS REVISÃO", "RETORNO DA REVISÃO", etc).
+
 ### 12/02/2026 - Persistência, Real-time & UI Premium (v1.8.9)
 - **Correção de Persistência**: Alinhamento definitivo de campos (snake_case/camelCase) entre Frontend e Cloud Functions.
 - **Real-time Synchronization**: Listagem de processos agora utiliza `onSnapshot` para atualizações instantâneas.
@@ -184,4 +212,5 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.8.9 (Persistência & Real-time UI) — 12/02/2026
+**Status do Projeto**: ✅ Estável /# CAOCIPP v1.11.6 - Unified Temporal Intelligence
+ — 13/02/2026

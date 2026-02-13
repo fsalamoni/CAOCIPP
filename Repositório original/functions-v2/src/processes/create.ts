@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { calculateStatus } from '../shared/status';
 
 interface CreateProcessRequest {
     organizationId: string;
@@ -46,8 +47,15 @@ export const createProcess = onCall<CreateProcessRequest>(
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 
-        // 2. Initial status logic
-        const status = 'Pendente'; // Default initial status
+        // 2. Initial status logic - Calculate based on provide dates
+        const status = calculateStatus({
+            entry_date: data.entryDate,
+            distribution_date: data.distributionDate,
+            analysis_start_date: data.analysisStartDate,
+            review_submission_date: data.reviewSubmissionDate,
+            review_return_date: data.reviewReturnDate,
+            archived_date: data.archivedDate
+        });
 
         // 3. Create process
         const processRef = db.collection('processes').doc();

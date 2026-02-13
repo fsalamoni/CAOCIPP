@@ -1,0 +1,205 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+interface ProcessEntity {
+    id: string;
+    process_number: string;
+    organization_id: string;
+    [key: string]: any;
+}
+
+interface ImportRow {
+    'PROCESSO SIM\n(NÚMERO)'?: string;
+    'CONSULENTE'?: string;
+    'LOCAL DOS FATOS\n(CIDADE)'?: string;
+    'ENTRADA NO CAOPP\n(DATA)'?: string;
+    'MATÉRIA E OBJETO DA CONSULTA'?: string;
+    'PEDIDO DE URGÊNCIA'?: string;
+    'DISTRIBUIÇÃO\n(DATA)'?: string;
+    'ASSESSOR RESPONSÁVEL'?: string;
+    'INÍCIO DA ANÁLISE\n(DATA)'?: string;
+    'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'?: string;
+    'REMESSA AO DR. PARA REVISÃO (DATA)'?: string;
+    'DEVOLUÇÃO APÓS REVISÃO\n(DATA)'?: string;
+    'RESTRIÇÃO DE ACESSO'?: string;
+    'NA PASTA\nARQUIVADO\n(DATA)'?: string;
+    'PASTA NA REDE'?: string;
+    [key: string]: any;
+}
+
+interface UpdateItem {
+    id: string;
+    data: any;
+}
+
+// @ts-ignore: Deno is defined in Deno environment
+Deno.serve(async (req: Request) => {
+    try {
+        const consultasCao = createClientFromRequest(req);
+        const user = await consultasCao.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Não autorizado' }, { status: 401 });
+        }
+
+        const body = await req.json();
+        const { file_url, organization_id } = body;
+
+        if (!file_url || !organization_id) {
+            return Response.json({ error: 'Parâmetros faltando' }, { status: 400 });
+        }
+
+        console.log('SINCRONIZAÇÃO COMPLETA (Consultas CAO) - INÍCIO');
+
+        // 1. BAIXAR JSON
+        const fileResponse = await fetch(file_url);
+        if (!fileResponse.ok) {
+            throw new Error('Falha ao baixar arquivo');
+        }
+
+        const jsonText = await fileResponse.text();
+        const allData: ImportRow[] = JSON.parse(jsonText);
+        console.log(`Total no arquivo: ${allData.length}`);
+
+        // 2. BUSCAR PROCESSOS EXISTENTES
+        const existing = await consultasCao.asServiceRole.entities.Process.filter({ organization_id }) as ProcessEntity[];
+        const existingMap = new Map<string, ProcessEntity>(existing.map(p => [p.process_number, p]));
+        console.log(`Existentes no banco: ${existing.length}`);
+
+        // 3. PREPARAR DADOS
+        const parseDate = (dateValue: any): string | null => {
+            if (!dateValue || dateValue === '') return null;
+            try {
+                if (typeof dateValue === 'number') {
+                    const date = new Date((dateValue - 25569) * 86400 * 1000);
+                    return date.toISOString().split('T')[0];
+                } else if (dateValue instanceof Date) {
+                    return dateValue.toISOString().split('T')[0];
+                } else {
+                    const dateStr = String(dateValue);
+                    if (dateStr.includes('/')) {
+                        const [month, day, year] = dateStr.split('/');
+                        const fullYear = year.length === 2 ? '20' + year : year;
+                        return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    }
+                    return dateStr;
+                }
+            } catch {
+                return null;
+            }
+        };
+
+        const toCreate: any[] = [];
+        const toUpdate: UpdateItem[] = [];
+        const fileNumbers = new Set<string>();
+
+        for (let i = 0; i < allData.length; i++) {
+            const row = allData[i];
+            const processNumber = String(row['PROCESSO SIM\n(NÚMERO)'] || '').trim();
+
+            if (!processNumber) continue;
+
+            fileNumbers.add(processNumber);
+
+            const processData: any = {
+                organization_id,
+                process_number: processNumber,
+                consultant: String(row['CONSULENTE'] || '').trim() || null,
+                location: String(row['LOCAL DOS FATOS\n(CIDADE)'] || '').trim() || null,
+                entry_date: parseDate(row['ENTRADA NO CAOPP\n(DATA)']),
+                matter_object: String(row['MATÉRIA E OBJETO DA CONSULTA'] || '').trim() || null,
+                urgency_request: row['PEDIDO DE URGÊNCIA'] === 'Sim',
+                distribution_date: parseDate(row['DISTRIBUIÇÃO\n(DATA)']),
+                responsible_user_name: row['ASSESSOR RESPONSÁVEL'] || null,
+                analysis_start_date: parseDate(row['INÍCIO DA ANÁLISE\n(DATA)']),
+                observations: row['OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'] || null,
+                review_submission_date: parseDate(row['REMESSA AO DR. PARA REVISÃO (DATA)']),
+                review_return_date: parseDate(row['DEVOLUÇÃO APÓS REVISÃO\n(DATA)']),
+                access_restriction: row['RESTRIÇÃO DE ACESSO'] === 'Sim',
+                archived_date: parseDate(row['NA PASTA\nARQUIVADO\n(DATA)']),
+                network_folder: row['PASTA NA REDE'] || null
+            };
+
+            const existingProcess = existingMap.get(processNumber);
+
+            if (!existingProcess) {
+                toCreate.push(processData);
+            } else {
+                // Verificar se há mudanças
+                let hasChanges = false;
+                for (const [key, value] of Object.entries(processData)) {
+                    if (key !== 'organization_id' && existingProcess[key] !== value) {
+                        hasChanges = true;
+                        break;
+                    }
+                }
+
+                if (hasChanges) {
+                    toUpdate.push({ id: existingProcess.id, data: processData });
+                }
+            }
+        }
+
+        // 4. IDENTIFICAR PROCESSOS PARA DELETAR
+        const toDelete = existing.filter(p => !fileNumbers.has(p.process_number));
+
+        console.log(`Para criar: ${toCreate.length}, Para atualizar: ${toUpdate.length}, Para deletar: ${toDelete.length}`);
+
+        // 5. EXECUTAR OPERAÇÕES
+        let created = 0, updated = 0, deleted = 0;
+
+        // Criar em lotes
+        for (let i = 0; i < toCreate.length; i += 20) {
+            const batch = toCreate.slice(i, i + 20);
+            await consultasCao.asServiceRole.entities.Process.bulkCreate(batch);
+            created += batch.length;
+            console.log(`Criados: ${created}/${toCreate.length}`);
+            await new Promise(r => setTimeout(r, 2500));
+        }
+
+        // Atualizar
+        for (let i = 0; i < toUpdate.length; i += 15) {
+            const batch = toUpdate.slice(i, i + 15);
+            for (const item of batch) {
+                await consultasCao.asServiceRole.entities.Process.update(item.id, item.data);
+                updated++;
+                await new Promise(r => setTimeout(r, 200));
+            }
+            console.log(`Atualizados: ${updated}/${toUpdate.length}`);
+            await new Promise(r => setTimeout(r, 2000));
+        }
+
+        // Deletar
+        for (let i = 0; i < toDelete.length; i += 10) {
+            const batch = toDelete.slice(i, i + 10);
+            for (const process of batch) {
+                await consultasCao.asServiceRole.entities.Process.delete(process.id);
+                deleted++;
+                await new Promise(r => setTimeout(r, 150));
+            }
+            console.log(`Deletados: ${deleted}/${toDelete.length}`);
+            await new Promise(r => setTimeout(r, 1500));
+        }
+
+        // 6. VERIFICAR RESULTADO FINAL
+        const final = await consultasCao.asServiceRole.entities.Process.filter({ organization_id });
+
+        return Response.json({
+            success: true,
+            summary: {
+                inFile: allData.length,
+                created,
+                updated,
+                deleted,
+                finalCount: final.length
+            }
+        });
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('ERRO (Full Sync):', errorMessage);
+        return Response.json({
+            error: errorMessage,
+            stack: error instanceof Error ? error.stack : undefined
+        }, { status: 500 });
+    }
+});

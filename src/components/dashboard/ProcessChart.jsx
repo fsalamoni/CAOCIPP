@@ -3,11 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const COLORS = {
-  "Pendente": "#f59e0b",
-  "Em elaboração": "#3b82f6",
+  "Pendente": "#64748b", // Using slate for white-on-white fallback visibility in charts
+  "Em elaboração": "#fbbf24",
   "Em revisão": "#8b5cf6",
-  "Para revisão": "#f97316",
-  "Na pasta": "#10b981"
+  "Na pasta": "#22c55e"
 };
 
 const CHART_COLORS = ['#1e3a5f', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#f97316'];

@@ -16,8 +16,6 @@ const ICONS = {
   'Pendente': Clock,
   'Em elaboração': FileText,
   'Em revisão': Eye,
-  'Para revisão': RefreshCcw,
-  'Para assinatura': PenTool,
   'Na pasta': CheckCircle
 };
 
