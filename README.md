@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.11.2)
+# Consultas CAO (Version 1.11.3)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -150,6 +150,10 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 13/02/2026 - Solução Definitiva de Temporalidade (v1.11.3)
+- **Coorte Unificada**: O quadro de Temporalidade agora utiliza uma amostra sincronizada de processos (Entry, Dist, Sub, Return), garantindo que a hierarquia logica (Total >= Etapas) seja mantida em 100% dos casos.
+- **Capitalização Rigorosa**: Padronização de "Devolução após Revisão" (Capital R) em toda a interface e lógica de sistema.
+
 ### 13/02/2026 - Hierarquia e Padronização de Termos (v1.11.2)
 - **Sincronização de Métricas**: As médias agora são calculadas exclusivamente sobre o conjunto de processos finalizados (com Devolução), garantindo que o **Tempo Total** seja logicamente superior ou igual às fases parciais (Análise e Revisão).
 - **Padronização Global**: Termino "Devolução após Revisão" (Capital R) aplicado de forma rigorosa em toda a interface, timeline e motor de importação.
@@ -208,4 +212,4 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável / Versão 1.11.2 (Sincronização Temporal) — 13/02/2026
+**Status do Projeto**: ✅ Estável / Versão 1.11.3 (Temporalidade Definitiva) — 13/02/2026

@@ -57,31 +57,32 @@ export default function IntelligentSummary({ processes, members }) {
   const urgentProcesses = filteredProcesses.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
   const completionRate = totalProcesses > 0 ? ((finishedProcesses / totalProcesses) * 100).toFixed(1) : 0;
 
-  // Conjunto sincronizado: Apenas processos que já foram devolvidos (fluxo completo)
-  // Isso garante que o Total seja sempre o maior marco, pois as médias parciais
-  // serão calculadas sobre a mesma base de processos finalizados.
-  const completedProcessesSet = filteredProcesses.filter(p => p.review_return_date);
+  // Coorte Unificada: Apenas processos que possuem TODAS as datas do fluxo (fluxo completo e íntegro)
+  // Isso é matematicamente necessário para que as médias das etapas sejam sub-conjuntos 
+  // proporcionais da média total, garantindo que Total >= Análise e Total >= Revisão.
+  const temporalCohort = filteredProcesses.filter(p =>
+    p.entry_date &&
+    p.distribution_date &&
+    p.review_submission_date &&
+    p.review_return_date
+  );
+
+  const cohortSize = temporalCohort.length;
 
   // 1. Tempo total médio (Entrada -> Devolução após Revisão)
-  const totalTimes = completedProcessesSet
-    .filter(p => p.entry_date)
-    .map(p => calculateBusinessDays(p.entry_date, p.review_return_date))
-    .filter(t => t !== null && t >= 0);
-  const avgTotalTime = totalTimes.length > 0 ? Math.ceil(totalTimes.reduce((a, b) => a + b, 0) / totalTimes.length) : 0;
+  const avgTotalTime = cohortSize > 0
+    ? Math.ceil(temporalCohort.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / cohortSize)
+    : 0;
 
   // 2. Tempo médio para análise de consultas (Distribuição -> Remessa p/ Revisão)
-  const analysisTimes = completedProcessesSet
-    .filter(p => p.distribution_date && p.review_submission_date)
-    .map(p => calculateBusinessDays(p.distribution_date, p.review_submission_date))
-    .filter(t => t !== null && t >= 0);
-  const avgAnalysisTime = analysisTimes.length > 0 ? Math.ceil(analysisTimes.reduce((a, b) => a + b, 0) / analysisTimes.length) : 0;
+  const avgAnalysisTime = cohortSize > 0
+    ? Math.ceil(temporalCohort.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / cohortSize)
+    : 0;
 
   // 3. Tempo médio para revisão de minutas (Remessa p/ Revisão -> Devolução após Revisão)
-  const reviewStageTimes = completedProcessesSet
-    .filter(p => p.review_submission_date)
-    .map(p => calculateBusinessDays(p.review_submission_date, p.review_return_date))
-    .filter(t => t !== null && t >= 0);
-  const avgReviewStageTime = reviewStageTimes.length > 0 ? Math.ceil(reviewStageTimes.reduce((a, b) => a + b, 0) / reviewStageTimes.length) : 0;
+  const avgReviewStageTime = cohortSize > 0
+    ? Math.ceil(temporalCohort.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / cohortSize)
+    : 0;
 
   // Processos por localidade (top 10)
   const processesPerLocation = {};
