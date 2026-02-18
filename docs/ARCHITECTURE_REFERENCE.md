@@ -1,6 +1,6 @@
 # 🏗️ CAO - Architecture Reference (Consultas CAO)
 
-**Version:** 1.4.0 - Kanban v2.1 & Audit Log  
+**Version:** 1.5.0 - Kanban v2.2 & UI Refinements  
 **Last Updated:** 2026-02-18  
 **Purpose:** Complete architectural documentation for the CAOCIPP platform
 

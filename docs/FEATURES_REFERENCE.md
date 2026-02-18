@@ -1,6 +1,6 @@
 # ⚙️ Consultas CAO - Features Reference
 
-**Version:** 1.4.0 (Kanban v2.1 & Audit Log)  
+**Version:** 1.5.0 (Kanban v2.2 & UI Refinements)  
 **Last Updated:** 2026-02-18  
 **Purpose:** Complete features documentation with implementation details
 
@@ -563,10 +563,12 @@ Archived Date → Process Complete
 **Forward Movement:**
 - Drag card to the next adjacent column
 - System prompts for required fields (date, responsible user)
+- **Assessor Auto-Select:** If user has "assessoria" function, the assignment dialog pre-selects them but allows changing to another assessor.
+- **Auto-Distribution:** Assigning a responsible automatically sets the `distribution_date` to today.
 - Status and relevant dates are updated automatically
 
 **Backward Movement:**
-- Drag card to the previous adjacent column
+- Drag card to the previous adjacent column (enabled by `pointerWithin` collision detection)
 - Only changes `status` — no dates or data erased
 - Exception: "Na pasta" (archived) cannot be moved backward; must edit manually
 
