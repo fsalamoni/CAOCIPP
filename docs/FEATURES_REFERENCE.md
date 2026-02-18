@@ -1,7 +1,7 @@
 # ⚙️ Consultas CAO - Features Reference
 
-**Version:** 1.3.0 (Persistência Definitiva & Novo Domínio)  
-**Last Updated:** 2026-02-12  
+**Version:** 1.4.0 (Kanban v2.1 & Audit Log)  
+**Last Updated:** 2026-02-18  
 **Purpose:** Complete features documentation with implementation details
 
 ---
@@ -51,7 +51,13 @@
 | **Profile** | Edit Display Name | ✅ LIVE | P1 | Low |
 | **Profile** | Edit Function | ✅ LIVE | P1 | Low |
 | **Profile** | Edit Notification Email | ✅ LIVE | P2 | Low |
-| **Import** | Excel/CSV Import | ⏸️ PAUSED | P2 | High |
+| **Import** | Excel/CSV Import | ✅ LIVE | P2 | High |
+| **Kanban** | Kanban Board (drag & drop) | ✅ LIVE | P1 | High |
+| **Kanban** | Backward Column Movement | ✅ LIVE | P1 | Medium |
+| **Kanban** | Eye Icon (Process Detail View) | ✅ LIVE | P1 | Low |
+| **Audit Log** | Per-Process Activity Log | ✅ LIVE | P1 | High |
+| **Audit Log** | Retroactive Log Backfill | ✅ LIVE | P2 | Medium |
+| **Audit Log** | Detailed Import Change Log | ✅ LIVE | P2 | Medium |
 | **Notifications** | In-App Notifications | ⏸️ PAUSED | P2 | Medium |
 | **Notifications** | Email Notifications | ⏸️ PAUSED | P3 | High |
 
@@ -537,6 +543,80 @@ Archived Date → Process Complete
 - Common values: "Em triagem", "Pendente", "Em elaboração", "Em revisão", "Para revisão", "Na pasta"
 - Used for filtering and analytics
 
+### 7. Kanban Board
+
+**Description:** Visual drag-and-drop board for process workflow management
+
+**Implementation:**
+
+**Files:**
+- `src/components/organization/KanbanBoard.jsx` — Main board with columns and drag logic
+- `src/components/organization/KanbanCard.jsx` — Individual process cards
+- `src/components/organization/KanbanTransitionDialog.jsx` — Transition confirmation
+
+**Columns (Status):**
+1. **Pendente** — Processes awaiting action
+2. **Em elaboração** — Processes being worked on
+3. **Em revisão** — Processes under review
+4. **Na pasta (Arquivados)** — Archived/completed processes
+
+**Forward Movement:**
+- Drag card to the next adjacent column
+- System prompts for required fields (date, responsible user)
+- Status and relevant dates are updated automatically
+
+**Backward Movement:**
+- Drag card to the previous adjacent column
+- Only changes `status` — no dates or data erased
+- Exception: "Na pasta" (archived) cannot be moved backward; must edit manually
+
+**Eye Icon (Detail View):**
+- Each card has an eye icon (👁) in the bottom-right corner
+- Clicking opens the `ProcessDetailSheet` side panel
+- From the sheet, users can click "Editar" to open `EditProcessDialog`
+- `stopPropagation` prevents the click from initiating a drag operation
+
+**Library:** `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`
+
+### 8. Per-Process Audit Log (Activity Log)
+
+**Description:** Every process has a permanent audit trail recording all user actions
+
+**Implementation:**
+
+**Backend (Cloud Functions v2):**
+- `functions-v2/src/processes/update.ts` — Logs field-level changes on every update
+- `functions-v2/src/processes/create.ts` — Logs initial creation
+- `functions-v2/src/import/fromExcel.ts` — Logs imports with detailed field diff
+- `functions-v2/src/processes/backfillLogs.ts` — One-time backfill for existing processes
+
+**Log Entry Format:**
+```json
+{
+  "date": "2026-02-18",
+  "time": "16:30:00",
+  "user_id": "abc123",
+  "user_name": "João Silva",
+  "action": "Campos atualizados: Consulente, Status",
+  "timestamp": "2026-02-18T19:30:00.000Z"
+}
+```
+
+**Storage:** Array field `activity_log` within each process document in Firestore
+
+**Frontend:**
+- `src/components/organization/ProcessLogDialog.jsx` — Searchable table of log entries
+- "Verificar Log" button in `EditProcessDialog` — visible only to org creator (admin)
+
+**Import Log Detail:**
+- When re-importing a spreadsheet, the system compares old vs new data
+- Log entry lists exactly which fields were modified (e.g., "Dados atualizados via planilha: Consulente, Local dos Fatos")
+- Existing logs are never erased (uses `arrayUnion`)
+
+**Backfill:**
+- Admin button in GeneralInfo to generate retroactive logs for existing processes
+- Uses `created_at`, `created_by`, and `last_imported_at` metadata to determine origin
+
 ---
 
 ## Dashboard & Analytics
@@ -840,11 +920,7 @@ const handleDelete = () => {
 
 ### Planned Enhancements
 
-1. **Excel/CSV Import** (Priority: P2)
-   - Bulk import processes from spreadsheet
-   - Validation and error reporting
-   - Progress tracking
-   - **Requires:** Cloud Functions + Cloud Storage
+1. ~~**Excel/CSV Import**~~ → ✅ IMPLEMENTED (v1.4.0)
 
 2. **Real-Time Collaboration** (Priority: P2)
    - Show who's viewing/editing a process
@@ -858,14 +934,10 @@ const handleDelete = () => {
 
 4. **Advanced Search** (Priority: P2)
    - Full-text search across all fields
-   - Date range filters
    - Saved searches
    - **Requires:** Algolia or similar search service
 
-5. **Audit Log** (Priority: P2)
-   - Track all changes to processes
-   - Who changed what and when
-   - **Requires:** Additional Firestore collection + UI
+5. ~~**Audit Log**~~ → ✅ IMPLEMENTED (v1.4.0)
 
 6. **Custom Reports** (Priority: P3)
    - Generate PDF reports
@@ -879,30 +951,14 @@ const handleDelete = () => {
 
 ---
 
-## Feature Configuration
-
-### Feature Flags (Future)
-
-For gradual rollout of new features:
-
-```javascript
-// src/config/features.js
-export const FEATURES = {
-  EXCEL_IMPORT: false,
-  EMAIL_NOTIFICATIONS: false,
-  ADVANCED_SEARCH: false,
-  AUDIT_LOG: false
-};
-```
-
----
-
 ## Conclusion
 
 The CAOCIPP platform provides comprehensive process management with:
-- ✅ **22 implemented features** covering authentication, organizations, processes, and analytics
+- ✅ **30+ implemented features** covering authentication, organizations, processes, Kanban, audit log, and analytics
 - ✅ **Secure, role-based access control**
-- ✅ **Intuitive UI with proper loading/error states**
+- ✅ **Kanban board with drag-and-drop and bidirectional movement**
+- ✅ **Per-process audit log with detailed change tracking**
+- ✅ **Excel import with field-level change descriptions**
 - ✅ **Real-time data updates**
 - ✅ **Responsive design**
 

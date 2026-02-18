@@ -44,29 +44,77 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     delete changes.organization_id;
     delete changes.created_at;
     delete changes.created_by;
+    delete changes.activity_log; // Prevent manual log manipulation
     changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
     changes.updated_by = userId;
     // Recalculate status
-    // Merge changes into current data to calculate new status
     const mergedData = Object.assign(Object.assign({}, processData), changes);
-    // Status Logic:
-    // 1. If explicit status is provided in changes, USE IT (manual override)
-    // 2. If no status provided, Calculate it based on dates (automatic)
-    if (changes.status) {
-        // Respect manual status change
+    const statusInChanges = changes.status;
+    const currentStatus = processData.status;
+    if (statusInChanges && statusInChanges !== currentStatus) {
+        // Respect manual status override
     }
     else {
         const newStatus = (0, status_1.calculateStatus)(mergedData);
-        if (newStatus && newStatus !== processData.status) {
+        if (newStatus && newStatus !== currentStatus) {
             changes.status = newStatus;
         }
     }
+    // 3. Build per-process activity log entry
+    const now = new Date();
+    const logDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const logTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
+    const userName = request.auth.token.name || 'Usuário desconhecido';
+    // Build human-readable action description
+    const fieldLabels = {
+        process_number: 'Número do Processo',
+        consultant: 'Consulente',
+        location: 'Local dos Fatos',
+        entry_date: 'Data de Entrada',
+        matter_object: 'Objeto da Consulta',
+        urgency_request: 'Pedido de Urgência',
+        distribution_date: 'Data de Distribuição',
+        responsible_user_id: 'Responsável',
+        responsible_user_name: 'Nome do Responsável',
+        analysis_start_date: 'Início da Análise',
+        observations: 'Observações',
+        review_submission_date: 'Remessa para Revisão',
+        review_return_date: 'Retorno da Revisão',
+        archived_date: 'Data de Arquivamento',
+        access_restriction: 'Restrição de Acesso',
+        network_folder: 'Pasta na Rede',
+        decision: 'Decisão',
+        status: 'Status',
+    };
+    const changedFields = Object.keys(changes)
+        .filter(k => !['updated_at', 'updated_by'].includes(k))
+        .map(k => fieldLabels[k] || k);
+    let actionDesc = '';
+    if (changedFields.length === 1 && changes.status && changes.status !== currentStatus) {
+        actionDesc = `Status alterado de "${currentStatus || 'Pendente'}" para "${changes.status}"`;
+    }
+    else if (changedFields.length > 0) {
+        actionDesc = `Campos atualizados: ${changedFields.join(', ')}`;
+    }
+    else {
+        actionDesc = 'Processo atualizado';
+    }
+    const logEntry = {
+        date: logDate,
+        time: logTime,
+        user_id: userId,
+        user_name: userName,
+        action: actionDesc,
+        timestamp: now.toISOString(),
+    };
+    // Append to activity_log array
+    changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
     await processRef.update(changes);
-    // 3. Audit Log
+    // 4. Global Audit Log (keep for backward compat)
     await db.collection('auditLogs').add({
         organization_id: organizationId,
         user_id: userId,
-        user_name: request.auth.token.name || '',
+        user_name: userName,
         action: 'UPDATE_PROCESS',
         details: { process_id: id, changes: Object.keys(changes) },
         timestamp: admin.firestore.FieldValue.serverTimestamp()

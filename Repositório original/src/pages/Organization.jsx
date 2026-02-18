@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
+import KanbanBoard from '../components/organization/KanbanBoard';
 
 export default function Organization() {
   const navigate = useNavigate();
@@ -153,6 +154,12 @@ export default function Organization() {
               Controle de Processos
             </TabsTrigger>
             <TabsTrigger
+              value="kanban"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              Painel Kanban
+            </TabsTrigger>
+            <TabsTrigger
               value="summary"
               className="data-[state=active]:bg-primary data-[state=active]:text-white"
             >
@@ -183,6 +190,17 @@ export default function Organization() {
               processesLoading={processesLoading}
               processesError={processesError}
               initialFilter={searchParams.get('filter')}
+            />
+          </TabsContent>
+
+          <TabsContent value="kanban">
+            <KanbanBoard
+              organization={organization}
+              members={members}
+              processes={processes}
+              userRole={userRole}
+              userId={user?.uid}
+              processesLoading={processesLoading}
             />
           </TabsContent>
 

@@ -106,9 +106,14 @@ export const importProcessesFromExcel = onCall<ImportExcelRequest>(
 
             // 3. Process Rows with UPSERT logic
             const batchSize = 450;
-            const lookupBatchSize = 50; // Process 50 lookups in parallel
+            const lookupBatchSize = 50;
             let batch = db.batch();
             let batchCount = 0;
+
+            const importNow = new Date();
+            const importLogDate = importNow.toISOString().split('T')[0];
+            const importLogTime = importNow.toTimeString().split(' ')[0];
+            const importUserName = request.auth.token.name || 'Usuário desconhecido';
 
             const stats: ImportStats = {
                 created: 0,
@@ -245,16 +250,68 @@ export const importProcessesFromExcel = onCall<ImportExcelRequest>(
 
                         processData.status = calculateStatus(processData);
 
+                        // Build detailed import log entry
+                        const fieldLabels: Record<string, string> = {
+                            process_number: 'Número do Processo',
+                            consultant: 'Consulente',
+                            location: 'Local dos Fatos',
+                            entry_date: 'Data de Entrada',
+                            matter_object: 'Objeto da Consulta',
+                            urgency_request: 'Pedido de Urgência',
+                            distribution_date: 'Data de Distribuição',
+                            responsible_user_name: 'Assessor Responsável',
+                            analysis_start_date: 'Início da Análise',
+                            observations: 'Observações',
+                            review_submission_date: 'Remessa para Revisão',
+                            review_return_date: 'Retorno da Revisão',
+                            archived_date: 'Data de Arquivamento',
+                            access_restriction: 'Restrição de Acesso',
+                            network_folder: 'Pasta na Rede',
+                            status: 'Status',
+                        };
+
+                        let importAction = '';
+                        if (isUpdate) {
+                            // Compare old vs new to list exactly what changed
+                            const oldData = existingDoc!.data() || {};
+                            const changedLabels: string[] = [];
+                            for (const [key, label] of Object.entries(fieldLabels)) {
+                                const oldVal = (oldData[key] ?? '').toString().trim();
+                                const newVal = (processData[key] ?? '').toString().trim();
+                                if (oldVal !== newVal && processData[key] !== undefined) {
+                                    changedLabels.push(label);
+                                }
+                            }
+                            if (changedLabels.length > 0) {
+                                importAction = `Dados atualizados via planilha: ${changedLabels.join(', ')}`;
+                            } else {
+                                importAction = 'Reimportação via planilha (sem alterações nos dados)';
+                            }
+                        } else {
+                            importAction = 'Processo criado via importação de planilha';
+                        }
+
+                        const importLogEntry = {
+                            date: importLogDate,
+                            time: importLogTime,
+                            user_id: userId,
+                            user_name: importUserName,
+                            action: importAction,
+                            timestamp: importNow.toISOString(),
+                        };
+
                         if (isUpdate) {
                             Object.keys(processData).forEach(key => {
                                 if (processData[key] === undefined) delete processData[key];
                             });
+                            processData.activity_log = admin.firestore.FieldValue.arrayUnion(importLogEntry);
                             batch.update(processRef, processData);
                             stats.updated++;
                         } else {
                             processData.id = processRef.id;
                             processData.created_by = userId;
                             processData.created_at = admin.firestore.FieldValue.serverTimestamp();
+                            processData.activity_log = [importLogEntry];
                             batch.set(processRef, processData);
                             stats.created++;
                         }

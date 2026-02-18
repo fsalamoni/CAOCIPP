@@ -59,6 +59,12 @@ export const createProcess = onCall<CreateProcessRequest>(
 
         // 3. Create process
         const processRef = db.collection('processes').doc();
+
+        const now = new Date();
+        const logDate = now.toISOString().split('T')[0];
+        const logTime = now.toTimeString().split(' ')[0];
+        const userName = request.auth.token.name || 'Usuário desconhecido';
+
         const processData = {
             id: processRef.id,
             organization_id: organizationId,
@@ -69,7 +75,6 @@ export const createProcess = onCall<CreateProcessRequest>(
             matter_object: data.matterObject || '',
             status: status,
             urgency_request: data.urgencyRequest || false,
-            // Enhanced fields mapping
             distribution_date: data.distributionDate || null,
             responsible_user_id: data.responsibleUserId || null,
             responsible_user_name: data.responsibleUserName || null,
@@ -79,11 +84,19 @@ export const createProcess = onCall<CreateProcessRequest>(
             review_return_date: data.reviewReturnDate || null,
             access_restriction: data.accessRestriction || false,
             archived_date: data.archivedDate || null,
-            network_folder: data.networkFolder || '', // Standardized field name
+            network_folder: data.networkFolder || '',
             decision: data.decision || '',
             created_by: userId,
             created_at: admin.firestore.FieldValue.serverTimestamp(),
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            activity_log: [{
+                date: logDate,
+                time: logTime,
+                user_id: userId,
+                user_name: userName,
+                action: 'Processo criado manualmente',
+                timestamp: now.toISOString(),
+            }],
         };
 
         await processRef.set(processData);

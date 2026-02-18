@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { removeMember, updateMember, clearOrganizationData } from '@/services/functionsService';
+import { removeMember, updateMember, clearOrganizationData, backfillProcessLogs } from '@/services/functionsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,8 @@ import {
   ShieldAlert,
   FileText,
   Target,
-  Clock
+  Clock,
+  ClipboardList
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, isValid } from 'date-fns';
@@ -37,6 +38,48 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { logger } from '@/utils/logger';
+
+function BackfillLogsButton({ organizationId }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleBackfill = async () => {
+    if (!window.confirm('Deseja gerar logs retroativos para processos que ainda não possuem?')) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await backfillProcessLogs(organizationId);
+      setResult(res);
+      toast.success(res.message || 'Logs gerados com sucesso!');
+    } catch (err) {
+      toast.error('Erro ao gerar logs: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <Button
+        onClick={handleBackfill}
+        disabled={loading}
+        variant="outline"
+        className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 whitespace-nowrap"
+      >
+        {loading ? (
+          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando...</>
+        ) : (
+          'Gerar Logs'
+        )}
+      </Button>
+      {result && (
+        <span className="text-xs text-slate-500">
+          {result.processed} atualizados, {result.skipped} já tinham log
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function GeneralInfo({ organization, members, processes = [], userRole, userId, membersLoading, membersError, processesLoading }) {
   const [isRemoving, setIsRemoving] = useState(false);
@@ -322,6 +365,29 @@ export default function GeneralInfo({ organization, members, processes = [], use
           )}
         </CardContent>
       </Card>
+
+      {/* Log Backfill - Only for Creator */}
+      {userRole === 'creator' && (
+        <Card className="shadow-sm border-indigo-200 bg-indigo-50/30">
+          <CardHeader>
+            <CardTitle className="text-lg text-indigo-700 flex items-center gap-2">
+              <ClipboardList className="w-5 h-5" />
+              Logs de Atividade
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border border-indigo-100 rounded-lg bg-white gap-4">
+              <div className="space-y-1">
+                <p className="font-semibold text-slate-900">Gerar Logs Retroativos</p>
+                <p className="text-sm text-slate-600">
+                  Criar registros de log iniciais para processos que ainda não possuem histórico de atividades. Processos que já possuem log não serão afetados.
+                </p>
+              </div>
+              <BackfillLogsButton organizationId={organization.id} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Danger Zone - Only for Creator */}
       {userRole === 'creator' && (

@@ -14,6 +14,7 @@ export { createProcess } from './processes/create';
 export { updateProcess } from './processes/update';
 export { deleteProcess } from './processes/delete';
 export { calculateProcessStatus } from './processes/calculateStatus';
+export { backfillProcessLogs } from './processes/backfillLogs';
 
 export { updateProfile } from './user/updateProfile';
 

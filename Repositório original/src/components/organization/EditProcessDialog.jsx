@@ -25,6 +25,8 @@ import { Loader2 } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
+import { calculateDerivedStatus } from '@/utils/processUtils';
+import ProcessLogDialog from './ProcessLogDialog';
 
 const RS_CITIES = [
   "Porto Alegre", "Caxias do Sul", "Pelotas", "Santa Maria", "Canoas", "Gravataí",
@@ -60,6 +62,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   });
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
 
   // Helper to safely format dates for input type="date" (YYYY-MM-DD)
   const formatDateForInput = (value) => {
@@ -255,279 +258,301 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator';
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>Editar Processo - {formData.process_number || process?.process_number || 'Sem Número'}</DialogTitle>
-          </div>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Editar Processo - {formData.process_number || process?.process_number || 'Sem Número'}</DialogTitle>
+            </div>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="mt-4">
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
-              <TabsTrigger value="workflow">Fluxo de Trabalho</TabsTrigger>
-              <TabsTrigger value="archive">Revisão e Arquivo</TabsTrigger>
-            </TabsList>
+          <form onSubmit={handleSubmit} className="mt-4">
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
+                <TabsTrigger value="workflow">Fluxo de Trabalho</TabsTrigger>
+                <TabsTrigger value="archive">Revisão e Arquivo</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="basic" className="space-y-4 mt-4">
-              <div className="grid md:grid-cols-2 gap-4">
+              <TabsContent value="basic" className="space-y-4 mt-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="process_number">Nº do Processo</Label>
+                    <Input
+                      id="process_number"
+                      value={formData.process_number || ''}
+                      onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
+                      required
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="consultant">Consulente</Label>
+                    <Input
+                      id="consultant"
+                      value={formData.consultant || ''}
+                      onChange={(e) => setFormData({ ...formData, consultant: e.target.value })}
+                      required
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="location">Local dos Fatos</Label>
+                    <Select
+                      value={formData.location || ''}
+                      onValueChange={(value) => setFormData({ ...formData, location: value })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RS_CITIES.map(city => (
+                          <SelectItem key={city} value={city}>{city}</SelectItem>
+                        ))}
+                        {/* Robust check: if the value in formData.location is NOT in RS_CITIES, we must add it as an item so Radix/Shadcn shows it */}
+                        {formData.location && !RS_CITIES.includes(formData.location) && (
+                          <SelectItem value={formData.location}>{formData.location}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="entry_date">Data de Entrada</Label>
+                    <Input
+                      id="entry_date"
+                      type="date"
+                      value={formData.entry_date || ''}
+                      onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <Label htmlFor="process_number">Nº do Processo</Label>
-                  <Input
-                    id="process_number"
-                    value={formData.process_number || ''}
-                    onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
-                    required
+                  <Label htmlFor="matter_object">Matéria e Objeto</Label>
+                  <Textarea
+                    id="matter_object"
+                    value={formData.matter_object || ''}
+                    onChange={(e) => setFormData({ ...formData, matter_object: e.target.value })}
+                    rows={3}
                     className="mt-1"
                   />
                 </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                  <Label>Pedido de Urgência</Label>
+                  <Switch
+                    checked={formData.urgency_request || false}
+                    onCheckedChange={(checked) => setFormData({ ...formData, urgency_request: checked })}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="workflow" className="space-y-4 mt-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="distribution_date">Data de Distribuição</Label>
+                    <Input
+                      id="distribution_date"
+                      type="date"
+                      value={formData.distribution_date || ''}
+                      onChange={(e) => setFormData({ ...formData, distribution_date: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="responsible">Assessor Responsável</Label>
+                    <Select
+                      value={formData.responsible_user_id || ''}
+                      onValueChange={handleResponsibleChange}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {members.map(member => (
+                          <SelectItem key={member.user_id} value={member.user_id}>
+                            {member.user_name}
+                          </SelectItem>
+                        ))}
+                        {/* Definitive fix: use the assigned ID (even placeholder) to match this item */}
+                        {formData.responsible_user_id && !members.find(m => m.user_id === formData.responsible_user_id) && formData.responsible_user_name && (
+                          <SelectItem value={formData.responsible_user_id}>
+                            {formData.responsible_user_name}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div>
-                  <Label htmlFor="consultant">Consulente</Label>
+                  <Label htmlFor="analysis_start_date">Início da Análise</Label>
                   <Input
-                    id="consultant"
-                    value={formData.consultant || ''}
-                    onChange={(e) => setFormData({ ...formData, consultant: e.target.value })}
-                    required
+                    id="analysis_start_date"
+                    type="date"
+                    value={formData.analysis_start_date || ''}
+                    onChange={(e) => setFormData({ ...formData, analysis_start_date: e.target.value })}
                     className="mt-1"
                   />
                 </div>
-              </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="location">Local dos Fatos</Label>
+                  <Label htmlFor="observations">Observações e Pontos Importantes</Label>
+                  <Textarea
+                    id="observations"
+                    value={formData.observations || ''}
+                    onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+                    placeholder="Observações sobre a análise..."
+                    rows={4}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="status">Status do Processo</Label>
                   <Select
-                    value={formData.location || ''}
-                    onValueChange={(value) => setFormData({ ...formData, location: value })}
+                    value={formData.status || ''}
+                    onValueChange={(value) => setFormData({ ...formData, status: value })}
                   >
                     <SelectTrigger className="mt-1">
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>
                     <SelectContent>
-                      {RS_CITIES.map(city => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
-                      {/* Robust check: if the value in formData.location is NOT in RS_CITIES, we must add it as an item so Radix/Shadcn shows it */}
-                      {formData.location && !RS_CITIES.includes(formData.location) && (
-                        <SelectItem value={formData.location}>{formData.location}</SelectItem>
-                      )}
+                      <SelectItem value="Pendente">Pendente</SelectItem>
+                      <SelectItem value="Em elaboração">Em elaboração</SelectItem>
+                      <SelectItem value="Em revisão">Em revisão</SelectItem>
+                      <SelectItem value="Na pasta">Na pasta</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="archive" className="space-y-4 mt-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="review_submission_date">Remessa para Revisão</Label>
+                    <Input
+                      id="review_submission_date"
+                      type="date"
+                      value={formData.review_submission_date || ''}
+                      onChange={(e) => setFormData({ ...formData, review_submission_date: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="review_return_date">Devolução após Revisão</Label>
+                    <Input
+                      id="review_return_date"
+                      type="date"
+                      value={formData.review_return_date || ''}
+                      onChange={(e) => setFormData({ ...formData, review_return_date: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <Label htmlFor="entry_date">Data de Entrada</Label>
+                  <Label htmlFor="archived_date">Data de Arquivamento</Label>
                   <Input
-                    id="entry_date"
+                    id="archived_date"
                     type="date"
-                    value={formData.entry_date || ''}
-                    onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
+                    value={formData.archived_date || ''}
+                    onChange={(e) => setFormData({ ...formData, archived_date: e.target.value })}
                     className="mt-1"
                   />
                 </div>
-              </div>
 
-              <div>
-                <Label htmlFor="matter_object">Matéria e Objeto</Label>
-                <Textarea
-                  id="matter_object"
-                  value={formData.matter_object || ''}
-                  onChange={(e) => setFormData({ ...formData, matter_object: e.target.value })}
-                  rows={3}
-                  className="mt-1"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <Label>Pedido de Urgência</Label>
-                <Switch
-                  checked={formData.urgency_request || false}
-                  onCheckedChange={(checked) => setFormData({ ...formData, urgency_request: checked })}
-                />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="workflow" className="space-y-4 mt-4">
-              <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="distribution_date">Data de Distribuição</Label>
+                  <Label htmlFor="network_folder">Pasta na Rede</Label>
                   <Input
-                    id="distribution_date"
-                    type="date"
-                    value={formData.distribution_date || ''}
-                    onChange={(e) => setFormData({ ...formData, distribution_date: e.target.value })}
+                    id="network_folder"
+                    value={formData.network_folder || ''}
+                    onChange={(e) => setFormData({ ...formData, network_folder: e.target.value })}
+                    placeholder="Caminho da pasta na rede..."
                     className="mt-1"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="responsible">Assessor Responsável</Label>
-                  <Select
-                    value={formData.responsible_user_id || ''}
-                    onValueChange={handleResponsibleChange}
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                  <Label>Restrição de Acesso</Label>
+                  <Switch
+                    checked={formData.access_restriction || false}
+                    onCheckedChange={(checked) => setFormData({ ...formData, access_restriction: checked })}
+                  />
+                </div>
+              </TabsContent>
+
+
+            </Tabs>
+
+            <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">
+              <div className="flex">
+                {canDelete && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={isDeleting || isUpdating}
                   >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {members.map(member => (
-                        <SelectItem key={member.user_id} value={member.user_id}>
-                          {member.user_name}
-                        </SelectItem>
-                      ))}
-                      {/* Definitive fix: use the assigned ID (even placeholder) to match this item */}
-                      {formData.responsible_user_id && !members.find(m => m.user_id === formData.responsible_user_id) && formData.responsible_user_name && (
-                        <SelectItem value={formData.responsible_user_id}>
-                          {formData.responsible_user_name}
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Excluindo...
+                      </>
+                    ) : (
+                      'Excluir'
+                    )}
+                  </Button>
+                )}
               </div>
-
-              <div>
-                <Label htmlFor="analysis_start_date">Início da Análise</Label>
-                <Input
-                  id="analysis_start_date"
-                  type="date"
-                  value={formData.analysis_start_date || ''}
-                  onChange={(e) => setFormData({ ...formData, analysis_start_date: e.target.value })}
-                  className="mt-1"
-                />
+              <div className="flex items-center gap-2">
+                {userRole === 'creator' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLogOpen(true)}
+                    className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                  >
+                    Verificar Log
+                  </Button>
+                )}
               </div>
-
-              <div>
-                <Label htmlFor="observations">Observações e Pontos Importantes</Label>
-                <Textarea
-                  id="observations"
-                  value={formData.observations || ''}
-                  onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                  placeholder="Observações sobre a análise..."
-                  rows={4}
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="status">Status do Processo</Label>
-                <Select
-                  value={formData.status || ''}
-                  onValueChange={(value) => setFormData({ ...formData, status: value })}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pendente">Pendente</SelectItem>
-                    <SelectItem value="Em elaboração">Em elaboração</SelectItem>
-                    <SelectItem value="Em revisão">Em revisão</SelectItem>
-                    <SelectItem value="Na pasta">Na pasta</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="archive" className="space-y-4 mt-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="review_submission_date">Remessa para Revisão</Label>
-                  <Input
-                    id="review_submission_date"
-                    type="date"
-                    value={formData.review_submission_date || ''}
-                    onChange={(e) => setFormData({ ...formData, review_submission_date: e.target.value })}
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="review_return_date">Devolução após Revisão</Label>
-                  <Input
-                    id="review_return_date"
-                    type="date"
-                    value={formData.review_return_date || ''}
-                    onChange={(e) => setFormData({ ...formData, review_return_date: e.target.value })}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="archived_date">Data de Arquivamento</Label>
-                <Input
-                  id="archived_date"
-                  type="date"
-                  value={formData.archived_date || ''}
-                  onChange={(e) => setFormData({ ...formData, archived_date: e.target.value })}
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="network_folder">Pasta na Rede</Label>
-                <Input
-                  id="network_folder"
-                  value={formData.network_folder || ''}
-                  onChange={(e) => setFormData({ ...formData, network_folder: e.target.value })}
-                  placeholder="Caminho da pasta na rede..."
-                  className="mt-1"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <Label>Restrição de Acesso</Label>
-                <Switch
-                  checked={formData.access_restriction || false}
-                  onCheckedChange={(checked) => setFormData({ ...formData, access_restriction: checked })}
-                />
-              </div>
-            </TabsContent>
-
-
-          </Tabs>
-
-          <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">
-            <div className="flex">
-              {canDelete && (
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Cancelar
+                </Button>
                 <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={isDeleting || isUpdating}
+                  type="submit"
+                  className="bg-primary"
+                  disabled={isUpdating || isDeleting}
                 >
-                  {isDeleting ? (
+                  {isUpdating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Excluindo...
+                      Salvando...
                     </>
                   ) : (
-                    'Excluir'
+                    'Salvar Alterações'
                   )}
                 </Button>
-              )}
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="bg-primary"
-                disabled={isUpdating || isDeleting}
-              >
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  'Salvar Alterações'
-                )}
-              </Button>
-            </div>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Process Activity Log Dialog */}
+      <ProcessLogDialog
+        open={logOpen}
+        onClose={() => setLogOpen(false)}
+        process={process}
+      />
+    </>
   );
 }

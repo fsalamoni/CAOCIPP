@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createProcess = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const status_1 = require("../shared/status");
 exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -20,10 +21,21 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     if (!membershipSnap.exists) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
-    // 2. Initial status logic
-    const status = 'Pendente'; // Default initial status
+    // 2. Initial status logic - Calculate based on provide dates
+    const status = (0, status_1.calculateStatus)({
+        entry_date: data.entryDate,
+        distribution_date: data.distributionDate,
+        analysis_start_date: data.analysisStartDate,
+        review_submission_date: data.reviewSubmissionDate,
+        review_return_date: data.reviewReturnDate,
+        archived_date: data.archivedDate
+    });
     // 3. Create process
     const processRef = db.collection('processes').doc();
+    const now = new Date();
+    const logDate = now.toISOString().split('T')[0];
+    const logTime = now.toTimeString().split(' ')[0];
+    const userName = request.auth.token.name || 'Usuário desconhecido';
     const processData = {
         id: processRef.id,
         organization_id: organizationId,
@@ -34,7 +46,6 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         matter_object: data.matterObject || '',
         status: status,
         urgency_request: data.urgencyRequest || false,
-        // Enhanced fields mapping
         distribution_date: data.distributionDate || null,
         responsible_user_id: data.responsibleUserId || null,
         responsible_user_name: data.responsibleUserName || null,
@@ -44,11 +55,19 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         review_return_date: data.reviewReturnDate || null,
         access_restriction: data.accessRestriction || false,
         archived_date: data.archivedDate || null,
-        network_folder: data.networkFolder || '', // Standardized field name
+        network_folder: data.networkFolder || '',
         decision: data.decision || '',
         created_by: userId,
         created_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        activity_log: [{
+                date: logDate,
+                time: logTime,
+                user_id: userId,
+                user_name: userName,
+                action: 'Processo criado manualmente',
+                timestamp: now.toISOString(),
+            }],
     };
     await processRef.set(processData);
     // 4. Update stats

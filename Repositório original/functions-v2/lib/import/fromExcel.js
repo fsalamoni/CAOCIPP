@@ -12,6 +12,7 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
     invoker: 'public', // Allow public invocation (Cloud Run level)
     cors: true // Enable CORS (should be automatic but being explicit)
 }, async (request) => {
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário deve estar autenticado');
     }
@@ -78,9 +79,13 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
         console.log(`[Import] Processing ${rows.length} processes (file type: ${fileType})...`);
         // 3. Process Rows with UPSERT logic
         const batchSize = 450;
-        const lookupBatchSize = 50; // Process 50 lookups in parallel
+        const lookupBatchSize = 50;
         let batch = db.batch();
         let batchCount = 0;
+        const importNow = new Date();
+        const importLogDate = importNow.toISOString().split('T')[0];
+        const importLogTime = importNow.toTimeString().split(' ')[0];
+        const importUserName = request.auth.token.name || 'Usuário desconhecido';
         const stats = {
             created: 0,
             updated: 0,
@@ -160,22 +165,84 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                             row['Urgente'] === 'Sim'),
                         observations: (row['OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'] ||
                             row['Observações'] || row['Obs'] || '').toString().trim(),
-                        distribution_date: parseExcelDate(row['DISTRIBUIÇÃO\n(DATA)'] || row['DISTRIBUIÇÃO\\n(DATA)']) || null,
-                        analysis_start_date: parseExcelDate(row['INÍCIO DA ANÁLISE\n(DATA)'] || row['INÍCIO DA ANÁLISE\\n(DATA)']) || null,
-                        review_submission_date: parseExcelDate(row['REMESSA AO DR. PARA REVISÃO (DATA)']) || null,
-                        review_return_date: parseExcelDate(row['DEVOLUÇÃO APÓS REVISÃO\n(DATA)'] || row['DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)']) || null,
-                        archived_date: parseExcelDate(row['NA PASTA\nARQUIVADO\n(DATA)'] || row['NA PASTA\\nARQUIVADO\\n(DATA)']) || null,
+                        distribution_date: parseExcelDate(row['DISTRIBUIÇÃO\n(DATA)'] ||
+                            row['DISTRIBUIÇÃO\\n(DATA)'] ||
+                            row['DISTRIBUIÇÃO']) || null,
+                        analysis_start_date: parseExcelDate(row['INÍCIO DA ANÁLISE\n(DATA)'] ||
+                            row['INÍCIO DA ANÁLISE\\n(DATA)'] ||
+                            row['INÍCIO DA ANÁLISE']) || null,
+                        review_submission_date: parseExcelDate(row['REMESSA AO DR. PARA REVISÃO (DATA)'] ||
+                            row['REMESSA PARA REVISÃO'] ||
+                            row['Remessa']) || null,
+                        review_return_date: parseExcelDate(row['DEVOLUÇÃO APÓS REVISÃO\n(DATA)'] ||
+                            row['DEVOLUÇÃO APÓS REVISÃO\\n(DATA)'] ||
+                            row['DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)'] ||
+                            row['DEVOLUÇÃO APÓS REVISÃO'] ||
+                            row['RETORNO DA REVISÃO']) || null,
+                        archived_date: parseExcelDate(row['NA PASTA\nARQUIVADO\n(DATA)'] ||
+                            row['NA PASTA\\nARQUIVADO\\n(DATA)'] ||
+                            row['Arquivamento']) || null,
                         access_restriction: (row['RESTRIÇÃO DE ACESSO'] || '').toString().trim(),
                         network_folder: (row['PASTA NA REDE'] || '').toString().trim(),
                         updated_at: admin.firestore.FieldValue.serverTimestamp(),
                         last_imported_at: admin.firestore.FieldValue.serverTimestamp()
                     };
                     processData.status = (0, status_1.calculateStatus)(processData);
+                    // Build detailed import log entry
+                    const fieldLabels = {
+                        process_number: 'Número do Processo',
+                        consultant: 'Consulente',
+                        location: 'Local dos Fatos',
+                        entry_date: 'Data de Entrada',
+                        matter_object: 'Objeto da Consulta',
+                        urgency_request: 'Pedido de Urgência',
+                        distribution_date: 'Data de Distribuição',
+                        responsible_user_name: 'Assessor Responsável',
+                        analysis_start_date: 'Início da Análise',
+                        observations: 'Observações',
+                        review_submission_date: 'Remessa para Revisão',
+                        review_return_date: 'Retorno da Revisão',
+                        archived_date: 'Data de Arquivamento',
+                        access_restriction: 'Restrição de Acesso',
+                        network_folder: 'Pasta na Rede',
+                        status: 'Status',
+                    };
+                    let importAction = '';
+                    if (isUpdate) {
+                        // Compare old vs new to list exactly what changed
+                        const oldData = existingDoc.data() || {};
+                        const changedLabels = [];
+                        for (const [key, label] of Object.entries(fieldLabels)) {
+                            const oldVal = ((_a = oldData[key]) !== null && _a !== void 0 ? _a : '').toString().trim();
+                            const newVal = ((_b = processData[key]) !== null && _b !== void 0 ? _b : '').toString().trim();
+                            if (oldVal !== newVal && processData[key] !== undefined) {
+                                changedLabels.push(label);
+                            }
+                        }
+                        if (changedLabels.length > 0) {
+                            importAction = `Dados atualizados via planilha: ${changedLabels.join(', ')}`;
+                        }
+                        else {
+                            importAction = 'Reimportação via planilha (sem alterações nos dados)';
+                        }
+                    }
+                    else {
+                        importAction = 'Processo criado via importação de planilha';
+                    }
+                    const importLogEntry = {
+                        date: importLogDate,
+                        time: importLogTime,
+                        user_id: userId,
+                        user_name: importUserName,
+                        action: importAction,
+                        timestamp: importNow.toISOString(),
+                    };
                     if (isUpdate) {
                         Object.keys(processData).forEach(key => {
                             if (processData[key] === undefined)
                                 delete processData[key];
                         });
+                        processData.activity_log = admin.firestore.FieldValue.arrayUnion(importLogEntry);
                         batch.update(processRef, processData);
                         stats.updated++;
                     }
@@ -183,6 +250,7 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                         processData.id = processRef.id;
                         processData.created_by = userId;
                         processData.created_at = admin.firestore.FieldValue.serverTimestamp();
+                        processData.activity_log = [importLogEntry];
                         batch.set(processRef, processData);
                         stats.created++;
                     }

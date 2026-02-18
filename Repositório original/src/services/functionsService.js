@@ -169,3 +169,14 @@ export const updateProfile = async (data) => {
         throw error;
     }
 };
+
+export const backfillProcessLogs = async (organizationId) => {
+    try {
+        const backfillFn = httpsCallable(functions, 'backfillProcessLogs', { timeout: 600000 });
+        const result = await backfillFn({ organizationId });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling backfillProcessLogs:', error);
+        throw error;
+    }
+};
