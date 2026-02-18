@@ -196,15 +196,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
                         </Section>
                     )}
 
-                    {/* Metadados */}
-                    <Section title="Metadados do Sistema">
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                            <MetaItem label="ID do Processo" value={process.id} />
-                            <MetaItem label="Criado em" value={formatDate(process.created_at) || formatDate(process.createdAt)} />
-                            <MetaItem label="Atualizado em" value={formatDate(process.updated_at) || formatDate(process.updatedAt)} />
-                            <MetaItem label="Resp. User ID" value={process.responsible_user_id} />
-                        </div>
-                    </Section>
+
                 </div>
             </SheetContent>
         </Sheet>

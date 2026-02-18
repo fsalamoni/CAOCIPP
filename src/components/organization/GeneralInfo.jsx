@@ -544,13 +544,17 @@ function EditFunctionDialog({ member, organizationId }) {
           </div>
           <div>
             <Label htmlFor="function">Função</Label>
-            <Input
+            <select
               id="function"
               value={functionValue}
               onChange={(e) => setFunctionValue(e.target.value)}
-              placeholder="Ex: Assessor Jurídico"
-              className="mt-1"
-            />
+              className="mt-1 w-full h-10 px-3 py-2 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-slate-800 dark:border-slate-700"
+            >
+              <option value="">Sem função definida</option>
+              <option value="assessoria">Assessoria</option>
+              <option value="secretaria">Secretaria</option>
+              <option value="decisória">Decisória</option>
+            </select>
           </div>
           <Button type="submit" className="w-full" disabled={isUpdating}>
             {isUpdating ? (

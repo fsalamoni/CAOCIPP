@@ -139,7 +139,7 @@ export default function Organization() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="processes" className="space-y-6">
+        <Tabs defaultValue="info" className="space-y-6">
           <TabsList className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1">
             <TabsTrigger
               value="info"
@@ -148,16 +148,16 @@ export default function Organization() {
               Informações Gerais
             </TabsTrigger>
             <TabsTrigger
-              value="processes"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white"
-            >
-              Controle de Processos
-            </TabsTrigger>
-            <TabsTrigger
               value="kanban"
               className="data-[state=active]:bg-primary data-[state=active]:text-white"
             >
-              Painel Kanban
+              Painel de Controle
+            </TabsTrigger>
+            <TabsTrigger
+              value="processes"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              Consultas do {organization.name}
             </TabsTrigger>
             <TabsTrigger
               value="summary"
@@ -180,6 +180,17 @@ export default function Organization() {
             />
           </TabsContent>
 
+          <TabsContent value="kanban">
+            <KanbanBoard
+              organization={organization}
+              members={members}
+              processes={processes}
+              userRole={userRole}
+              userId={user?.uid}
+              processesLoading={processesLoading}
+            />
+          </TabsContent>
+
           <TabsContent value="processes">
             <ProcessControl
               organization={organization}
@@ -190,17 +201,6 @@ export default function Organization() {
               processesLoading={processesLoading}
               processesError={processesError}
               initialFilter={searchParams.get('filter')}
-            />
-          </TabsContent>
-
-          <TabsContent value="kanban">
-            <KanbanBoard
-              organization={organization}
-              members={members}
-              processes={processes}
-              userRole={userRole}
-              userId={user?.uid}
-              processesLoading={processesLoading}
             />
           </TabsContent>
 
