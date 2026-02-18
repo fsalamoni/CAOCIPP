@@ -5,7 +5,8 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-    closestCenter,
+    pointerWithin,
+    closestCorners,
 } from '@dnd-kit/core';
 import {
     SortableContext,
@@ -239,28 +240,11 @@ export default function KanbanBoard({
         const today = new Date().toISOString().split('T')[0];
 
         if (fromStatus === 'Pendente' && toStatus === 'Em elaboração') {
-            if (isAssessor) {
-                try {
-                    await updateProcess({
-                        id: process.id,
-                        organizationId: organization.id,
-                        changes: {
-                            analysis_start_date: today,
-                            responsible_user_id: userId,
-                            responsible_user_name: userMember?.user_name || '',
-                            status: 'Em elaboração',
-                        },
-                    });
-                    toast.success(`Processo ${getProcessField(process, 'process_number')} iniciado!`);
-                } catch (err) {
-                    toast.error('Erro ao iniciar análise: ' + err.message);
-                }
-            } else {
-                setPendingProcess(process);
-                setPendingTarget(toStatus);
-                setDialogMode('assign');
-                setDialogOpen(true);
-            }
+            // Always show assign dialog; pre-select self if assessor
+            setPendingProcess(process);
+            setPendingTarget(toStatus);
+            setDialogMode('assign');
+            setDialogOpen(true);
             return;
         }
 
@@ -292,6 +276,7 @@ export default function KanbanBoard({
         if (dialogMode === 'assign') {
             changes = {
                 analysis_start_date: today,
+                distribution_date: today,
                 responsible_user_id: data.responsible_user_id,
                 responsible_user_name: data.responsible_user_name,
                 status: 'Em elaboração',
@@ -344,7 +329,7 @@ export default function KanbanBoard({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel Kanban</h2>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel de Controle</h2>
                     <p className="text-sm text-slate-500 mt-1">
                         Arraste os processos entre as colunas para avançar ou retornar o fluxo.
                     </p>
@@ -366,7 +351,13 @@ export default function KanbanBoard({
             {/* Kanban Board */}
             <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={(args) => {
+                    // Try pointerWithin first (most intuitive for columns)
+                    const pointerCollisions = pointerWithin(args);
+                    if (pointerCollisions.length > 0) return pointerCollisions;
+                    // Fallback to closestCorners for edge cases
+                    return closestCorners(args);
+                }}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
@@ -401,6 +392,7 @@ export default function KanbanBoard({
                     mode={dialogMode}
                     process={pendingProcess}
                     assessors={assessors}
+                    defaultAssessor={isAssessor ? userId : ''}
                     onConfirm={handleDialogConfirm}
                 />
             )}

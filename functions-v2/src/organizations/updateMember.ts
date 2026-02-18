@@ -49,7 +49,7 @@ export const updateMember = onCall<UpdateMemberRequest>(
         // 3. Update
         const updates: any = {};
         if (newRole) updates.role = newRole;
-        if (newFunction) updates.function = newFunction;
+        if (newFunction !== undefined) updates.function = newFunction;
         updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
 
         await targetRef.update(updates);

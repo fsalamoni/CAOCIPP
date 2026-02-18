@@ -36,9 +36,10 @@ export default function KanbanTransitionDialog({
     mode, // "assign" | "review" | "archive"
     process,
     assessors = [],
+    defaultAssessor = '',
     onConfirm,
 }) {
-    const [selectedAssessor, setSelectedAssessor] = useState('');
+    const [selectedAssessor, setSelectedAssessor] = useState(defaultAssessor);
     const [observations, setObservations] = useState(() =>
         getProcessField(process, 'observations') || ''
     );
