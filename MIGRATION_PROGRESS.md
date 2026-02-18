@@ -1,6 +1,6 @@
 # 📝 Migration Progress - Consultas CAO (Firebase)
 
-**Versão: 1.5.0 (Kanban v2.2 & UI Refinements)
+**Versão: 1.6.0 (Archive Date Input)
 **Last Updated:** 2026-02-18  
 **Overall Progress:** 100% Complete ✅
 

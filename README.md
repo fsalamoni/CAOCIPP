@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.5.0)
+# Consultas CAO (Version 1.6.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -26,6 +26,7 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 - ✅ Log de atividades por processo (auditoria completa)
 - ✅ Backfill retroativo de logs para processos existentes
 - ✅ Auto-distribuição e fluxo inteligente para assessores
+- ✅ Arquivamento com data de devolução manual
 - ✅ UI Refinada (abas reorganizadas, metadados ocultos)
 
 ## 🛠️ Setup Local

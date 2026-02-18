@@ -291,6 +291,7 @@ export default function KanbanBoard({
         } else if (dialogMode === 'archive') {
             changes = {
                 archived_date: today,
+                review_return_date: data.review_return_date || today,
                 status: 'Na pasta',
             };
         }

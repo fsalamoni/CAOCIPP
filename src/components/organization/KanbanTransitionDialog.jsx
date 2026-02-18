@@ -46,6 +46,9 @@ export default function KanbanTransitionDialog({
     const [networkFolder, setNetworkFolder] = useState(() =>
         getProcessField(process, 'network_folder') || ''
     );
+    const [reviewReturnDate, setReviewReturnDate] = useState(() =>
+        new Date().toISOString().split('T')[0]
+    );
     const [saving, setSaving] = useState(false);
 
     const processNumber = getProcessField(process, 'process_number') || 'Processo';
@@ -70,7 +73,9 @@ export default function KanbanTransitionDialog({
                     network_folder: networkFolder.trim(),
                 });
             } else if (mode === 'archive') {
-                await onConfirm({});
+                await onConfirm({
+                    review_return_date: reviewReturnDate
+                });
             }
             handleClose();
         } catch (err) {
@@ -84,6 +89,7 @@ export default function KanbanTransitionDialog({
         setSelectedAssessor('');
         setObservations(getProcessField(process, 'observations') || '');
         setNetworkFolder(getProcessField(process, 'network_folder') || '');
+        setReviewReturnDate(new Date().toISOString().split('T')[0]);
         setSaving(false);
         onClose();
     };
@@ -91,7 +97,8 @@ export default function KanbanTransitionDialog({
     const isValid = () => {
         if (mode === 'assign') return !!selectedAssessor;
         if (mode === 'review') return observations.trim().length > 0 && networkFolder.trim().length > 0;
-        return true; // archive
+        if (mode === 'archive') return !!reviewReturnDate;
+        return true;
     };
 
     const titles = {
@@ -185,11 +192,22 @@ export default function KanbanTransitionDialog({
 
                     {/* MODE: Archive (Confirmation) */}
                     {mode === 'archive' && (
-                        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                            <p className="text-sm text-green-800">
-                                O processo será marcado como <strong>"Na pasta"</strong> com a data de hoje.
-                                Você pode reverter esta ação pela aba "Controle de Processos".
-                            </p>
+                        <div className="space-y-4">
+                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                                <p className="text-sm text-green-800">
+                                    O processo será marcado como <strong>"Na pasta"</strong>.
+                                    Por favor, confirme a data de devolução.
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="return-date">Data de Devolução</Label>
+                                <Input
+                                    id="return-date"
+                                    type="date"
+                                    value={reviewReturnDate}
+                                    onChange={(e) => setReviewReturnDate(e.target.value)}
+                                />
+                            </div>
                         </div>
                     )}
                 </div>

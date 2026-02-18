@@ -1,6 +1,6 @@
 # ⚙️ Consultas CAO - Features Reference
 
-**Version:** 1.5.0 (Kanban v2.2 & UI Refinements)  
+**Version:** 1.6.0 (Archive Date Input)  
 **Last Updated:** 2026-02-18  
 **Purpose:** Complete features documentation with implementation details
 
@@ -571,6 +571,7 @@ Archived Date → Process Complete
 - Drag card to the previous adjacent column (enabled by `pointerWithin` collision detection)
 - Only changes `status` — no dates or data erased
 - Exception: "Na pasta" (archived) cannot be moved backward; must edit manually
+- **Archives:** Moving to "Arquivados" now prompts for a mandatory **Review Return Date** (Data de Devolução), defaulting to today but editable.
 
 **Eye Icon (Detail View):**
 - Each card has an eye icon (👁) in the bottom-right corner

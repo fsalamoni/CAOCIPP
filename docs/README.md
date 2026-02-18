@@ -164,4 +164,4 @@ Report via:
 
 **Last Updated:** 2026-02-18  
 **Total Documentation:** 6 reference docs + 4 guides + this index = 11 documents
-**Final Version:** 1.5.0 - Kanban v2.2 & UI Refinements ✅
+**Final Version:** 1.6.0 - Archive Date Input ✅
