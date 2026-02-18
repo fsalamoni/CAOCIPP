@@ -14,7 +14,7 @@ import { parseLocalDate } from '@/lib/dateUtils';
  *  - overlay: true when rendering inside DragOverlay
  *  - onViewDetails: callback(process) to open the detail sheet
  */
-export default function KanbanCard({ process, overlay = false, onViewDetails }) {
+export default function KanbanCard({ process, columnId, overlay = false, onViewDetails }) {
     const {
         attributes,
         listeners,
@@ -24,7 +24,7 @@ export default function KanbanCard({ process, overlay = false, onViewDetails }) 
         isDragging,
     } = useSortable({
         id: process.id,
-        data: { process },
+        data: { process, columnId },
     });
 
     const style = {

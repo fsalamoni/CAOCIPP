@@ -470,7 +470,7 @@ function KanbanColumn({ column, processes, onViewDetails }) {
                 <SortableContext items={processes.map(p => p.id)} strategy={verticalListSortingStrategy}>
                     {processes.length > 0 ? (
                         processes.map(p => (
-                            <KanbanCard key={p.id} process={p} onViewDetails={onViewDetails} />
+                            <KanbanCard key={p.id} process={p} columnId={column.id} onViewDetails={onViewDetails} />
                         ))
                     ) : (
                         <div className="flex flex-col items-center justify-center py-12 text-slate-300">
