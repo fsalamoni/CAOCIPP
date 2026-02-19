@@ -25,6 +25,7 @@ import KanbanCard from './KanbanCard';
 import KanbanTransitionDialog from './KanbanTransitionDialog';
 import ProcessDetailSheet from './ProcessDetailSheet';
 import EditProcessDialog from './EditProcessDialog';
+import CreateProcessButton from './CreateProcessButton';
 
 // === Column Definitions ===
 const KANBAN_COLUMNS = [
@@ -336,6 +337,7 @@ export default function KanbanBoard({
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <CreateProcessButton organization={organization} members={members} />
                     <select
                         value={selectedYear}
                         onChange={(e) => setSelectedYear(Number(e.target.value))}
