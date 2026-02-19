@@ -29,16 +29,7 @@ import { logger } from '@/utils/logger';
 import { calculateDerivedStatus } from '@/utils/processUtils';
 import ProcessLogDialog from './ProcessLogDialog';
 
-const RS_CITIES = [
-  "Porto Alegre", "Caxias do Sul", "Pelotas", "Santa Maria", "Canoas", "Gravataí",
-  "Viamão", "Novo Hamburgo", "São Leopoldo", "Alvorada", "Sapucaia do Sul", "Esteio",
-  "Cachoeirinha", "Guaíba", "Rio Grande", "Bagé", "Bento Gonçalves", "Passo Fundo",
-  "Erechim", "Santa Cruz do Sul", "Uruguaiana", "Sapiranga", "Lajeado", "Ijuí",
-  "Vacaria", "Farroupilha", "Camaquã", "Santana do Livramento", "Alegrete", "Torres",
-  "Tramandaí", "Osório", "Santo Ângelo", "Cruz Alta", "Santiago", "São Borja",
-  "Carazinho", "Venâncio Aires", "Taquara", "Montenegro", "Parobé", "Capão da Canoa",
-  "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
-].sort();
+import { RS_CITIES } from '@/utils/cities';
 
 export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId, userRole, organization }) {
   const { user } = useAuth();
@@ -178,7 +169,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     formData.archived_date,
     formData.review_submission_date,
     formData.analysis_start_date,
-    formData.status
+    formData.analysis_start_date
   ]);
 
   const handleSubmit = async (e) => {

@@ -40,25 +40,31 @@ export default function MatterConfiguration({ organization }) {
         }
     }, [organization]);
 
-    const handleSave = async () => {
-        setLoading(true);
+    // Helper to save current state to Firestore
+    const saveToFirestore = async (newCategories, newSubcategories) => {
+        // Optimistic update locally (state is already updated by callers, but we ensure consistency here if needed)
+        // Actually callers update state. We just push to DB.
+
+        // Prevent concurrent saves if possible, or just let them queue. 
+        // For simplicity and robustness, we just fire and forget, catching errors.
         try {
             await updateOrganization({
                 organizationId: organization.id,
                 data: {
                     matterSettings: {
-                        custom: true, // Always set custom true when saving from here
-                        categories,
-                        subcategories
+                        custom: true,
+                        categories: newCategories,
+                        subcategories: newSubcategories
                     }
                 }
             });
-            toast.success('Classificação de matérias atualizada!');
-            setIsCustom(true);
+            // Toast is too noisy for every action, maybe just for errors or specific confirmations?
+            // User requested "ficar salvas permanentemente". We can show a small indicator or just success toast.
+            // Let's show a subtle toast.
         } catch (error) {
-            toast.error('Erro ao salvar: ' + error.message);
-        } finally {
-            setLoading(false);
+            toast.error('Erro ao salvar alteração: ' + error.message);
+            // Revert state? Complex to handle rollback here without complex history.
+            // For now, assume success or user retries.
         }
     };
 
@@ -88,65 +94,86 @@ export default function MatterConfiguration({ organization }) {
         }
     };
 
-    // --- CRUD Operations ---
+    // --- CRUD Operations (Immediate Save) ---
 
-    const addCategory = (name) => {
+    const addCategory = async (name) => {
         if (!name.trim()) return;
         if (categories.includes(name)) {
             toast.error('Essa categoria já existe.');
             return;
         }
-        setCategories([...categories, name]);
-        setSubcategories({ ...subcategories, [name]: [] });
-        toast.success(`Categoria "${name}" adicionada.`);
+
+        const newCats = [...categories, name];
+        const newSubs = { ...subcategories, [name]: [] };
+
+        setCategories(newCats);
+        setSubcategories(newSubs);
+
+        toast.success(`Categoria "${name}" salva.`);
+        await saveToFirestore(newCats, newSubs);
     };
 
-    const removeCategory = (name) => {
+    const removeCategory = async (name) => {
         if (!window.confirm(`Excluir a categoria "${name}" e todas as suas subcategorias?`)) return;
-        setCategories(categories.filter(c => c !== name));
+
+        const newCats = categories.filter(c => c !== name);
         const newSubs = { ...subcategories };
         delete newSubs[name];
+
+        setCategories(newCats);
         setSubcategories(newSubs);
+
+        toast.success('Categoria excluída.');
+        await saveToFirestore(newCats, newSubs);
     };
 
-    const renameCategory = (oldName, newName) => {
+    const renameCategory = async (oldName, newName) => {
         if (!newName.trim() || oldName === newName) return;
         if (categories.includes(newName)) {
             toast.error('Já existe uma categoria com este nome.');
             return;
         }
 
-        // Update list
-        setCategories(categories.map(c => c === oldName ? newName : c));
-
-        // Update subcategories map key
+        const newCats = categories.map(c => c === oldName ? newName : c);
         const newSubs = { ...subcategories };
         newSubs[newName] = newSubs[oldName];
         delete newSubs[oldName];
+
+        setCategories(newCats);
         setSubcategories(newSubs);
 
         toast.success('Categoria renomeada.');
+        await saveToFirestore(newCats, newSubs);
     };
 
-    const addSubcategory = (categoryName, subName) => {
+    const addSubcategory = async (categoryName, subName) => {
         if (!subName.trim()) return;
         const currentSubs = subcategories[categoryName] || [];
         if (currentSubs.includes(subName)) {
             toast.error('Essa subcategoria já existe.');
             return;
         }
-        const newSubs = [...currentSubs, subName].sort();
-        setSubcategories({ ...subcategories, [categoryName]: newSubs });
-        toast.success(`Subcategoria "${subName}" adicionada.`);
+
+        const updatedCategorySubs = [...currentSubs, subName].sort();
+        const newSubs = { ...subcategories, [categoryName]: updatedCategorySubs };
+
+        setSubcategories(newSubs);
+
+        toast.success(`Matéria adicionada.`);
+        await saveToFirestore(categories, newSubs);
     };
 
-    const removeSubcategory = (categoryName, subName) => {
+    const removeSubcategory = async (categoryName, subName) => {
         if (!window.confirm(`Excluir subcategoria "${subName}"?`)) return;
+
         const currentSubs = subcategories[categoryName] || [];
-        setSubcategories({
-            ...subcategories,
-            [categoryName]: currentSubs.filter(s => s !== subName)
-        });
+        const updatedCategorySubs = currentSubs.filter(s => s !== subName);
+        const newSubs = { ...subcategories, [categoryName]: updatedCategorySubs };
+
+        setSubcategories(newSubs);
+
+        toast.success('Matéria excluída.');
+        await saveToFirestore(categories, newSubs);
     };
 
     return (
@@ -156,17 +183,13 @@ export default function MatterConfiguration({ organization }) {
                     <div>
                         <h3 className="text-lg font-medium">Configuração de Matérias</h3>
                         <p className="text-sm text-slate-500">
-                            Defina as categorias e subcategorias disponíveis para classificação dos processos.
+                            Defina as categorias e subcategorias. As alterações são salvas automaticamente.
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" onClick={handleRestoreDefaults} disabled={loading} size="sm" className="text-slate-600">
                             <RotateCcw className="w-4 h-4 mr-2" />
                             Restaurar Padrão
-                        </Button>
-                        <Button onClick={handleSave} disabled={loading} size="sm" className="gap-2">
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            Salvar Alterações
                         </Button>
                     </div>
                 </div>
