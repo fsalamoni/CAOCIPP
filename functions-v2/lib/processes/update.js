@@ -79,6 +79,8 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         location: 'Local dos Fatos',
         entry_date: 'Data de Entrada',
         matter_object: 'Objeto da Consulta',
+        matter_category: 'Matéria (Geral)',
+        matter_subcategory: 'Matéria (Específica)',
         urgency_request: 'Pedido de Urgência',
         distribution_date: 'Data de Distribuição',
         responsible_user_id: 'Responsável',

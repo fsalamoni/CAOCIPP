@@ -9,6 +9,8 @@ interface CreateProcessRequest {
     location: string;
     entryDate: string;
     matterObject: string;
+    matterCategory?: string;
+    matterSubcategory?: string;
     urgencyRequest: boolean;
     responsibleUserId: string;
     responsibleUserName: string;
@@ -73,6 +75,8 @@ export const createProcess = onCall<CreateProcessRequest>(
             location: data.location || '',
             entry_date: data.entryDate || null,
             matter_object: data.matterObject || '',
+            matter_category: data.matterCategory || '',
+            matter_subcategory: data.matterSubcategory || '',
             status: status,
             urgency_request: data.urgencyRequest || false,
             distribution_date: data.distributionDate || null,

@@ -15,6 +15,7 @@ import {
 import { useDroppable } from '@dnd-kit/core';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Loader2, Inbox, Pencil, Eye, FolderCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateDerivedStatus, getProcessField } from '@/utils/processUtils';
@@ -26,6 +27,7 @@ import KanbanTransitionDialog from './KanbanTransitionDialog';
 import ProcessDetailSheet from './ProcessDetailSheet';
 import EditProcessDialog from './EditProcessDialog';
 import CreateProcessButton from './CreateProcessButton';
+
 
 // === Column Definitions ===
 const KANBAN_COLUMNS = [
@@ -337,6 +339,7 @@ export default function KanbanBoard({
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+
                     <CreateProcessButton organization={organization} members={members} />
                     <select
                         value={selectedYear}
@@ -462,9 +465,11 @@ function KanbanColumn({ column, processes, onViewDetails }) {
                     <ColIcon className={`w-4 h-4 ${column.headerText}`} />
                     <span className={`text-sm font-bold ${column.headerText}`}>{column.label}</span>
                 </div>
-                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 h-5 bg-white/80 text-slate-600 border border-slate-200">
+                <Badge variant="secondary" className="bg-white/50 text-slate-600 border-0">
                     {processes.length}
                 </Badge>
+
+
             </div>
 
             <div className={`flex-1 p-3 space-y-2 ${column.columnBg} rounded-b-xl overflow-y-auto`}

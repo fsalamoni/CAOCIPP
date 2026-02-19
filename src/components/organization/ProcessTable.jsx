@@ -138,6 +138,21 @@ export default function ProcessTable({
       )
     },
     {
+      key: 'matter_category', label: 'Matéria', defaultVisible: true,
+      width: 'w-[180px]', sortable: true,
+      render: (process) => {
+        const cat = getProcessField(process, 'matter_category');
+        const sub = getProcessField(process, 'matter_subcategory');
+        if (!cat) return <span className="text-slate-400">-</span>;
+        return (
+          <div className="text-[13px] leading-tight text-slate-700">
+            <div className="font-medium line-clamp-1" title={cat}>{cat}</div>
+            {sub && <div className="text-slate-500 line-clamp-1" title={sub}>{sub}</div>}
+          </div>
+        );
+      }
+    },
+    {
       key: 'matter_object', label: 'Objeto da Consulta', defaultVisible: true,
       width: 'w-[300px]', sortable: true,
       render: (process) => (

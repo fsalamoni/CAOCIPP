@@ -7,6 +7,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider as FirebaseAuthProvider, useAuth } from '@/lib/FirebaseAuthContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { runBackfill } from '@/utils/backfillMatter';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -54,6 +55,11 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  // Expose backfill tool to window for manual execution
+  if (typeof window !== 'undefined') {
+    window.runBackfill = runBackfill;
+  }
+
   return (
     <ErrorBoundary>
       <FirebaseAuthProvider>

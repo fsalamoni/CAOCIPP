@@ -373,8 +373,11 @@ Administrative process/inquiry requiring analysis and decision.
 ### Consulta
 Inquiry or consultation request submitted to CAOCIPP.
 
-### Matéria e Objeto
-Subject matter and purpose of the inquiry.
+### Objeto da Consulta
+Subject matter and purpose of the inquiry (free text).
+
+### Matéria da Consulta
+Categorization of the inquiry into General (e.g., Cível) and Specific (e.g., Família) topics.
 
 ### Local dos Fatos
 City/location where the matter occurred.

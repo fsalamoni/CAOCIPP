@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import MatterCategorySelect from './MatterCategorySelect';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { updateProcess, deleteProcess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     consultant: '',
     location: '',
     entry_date: '',
+    matter_category: '',
+    matter_subcategory: '',
     matter_object: '',
     urgency_request: false,
     distribution_date: '',
@@ -146,6 +149,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         consultant: getValue(['consultant', 'consulente', 'cliente', 'interessado', 'CONSULENTE']),
         location: getValue(['location', 'local', 'cidade', 'local_fatos', 'municipio', 'LOCAL DOS FATOS\n(CIDADE)', 'LOCAL DOS FATOS\\n(CIDADE)']),
         entry_date: formatDateForInput(getValue(['entry_date', 'data_entrada', 'entrada', 'data', 'ENTRADA NO CAOPP\n(DATA)', 'ENTRADA NO CAOPP\\n(DATA)'])),
+        matter_category: getValue(['matter_category']),
+        matter_subcategory: getValue(['matter_subcategory']),
         matter_object: getValue(['matter_object', 'objeto', 'assunto', 'materia', 'descricao', 'MATÉRIA E OBJETO DA CONSULTA']),
         urgency_request: getBoolValue(['urgency_request', 'urgente', 'prioridade', 'urgente', 'PEDIDO DE URGÊNCIA', 'Solicitação de Urgência'], false),
         distribution_date: formatDateForInput(getValue(['distribution_date', 'data_distribuicao', 'distribuicao', 'DISTRIBUIÇÃO\n(DATA)', 'DISTRIBUIÇÃO\\n(DATA)'])),
@@ -189,6 +194,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         consultant: formData.consultant,
         location: formData.location,
         entry_date: formData.entry_date,
+        matter_category: formData.matter_category || '',
+        matter_subcategory: formData.matter_subcategory || '',
         matter_object: formData.matter_object,
         urgency_request: formData.urgency_request,
         distribution_date: formData.distribution_date || null,
@@ -332,8 +339,15 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   </div>
                 </div>
 
+                <MatterCategorySelect
+                  category={formData.matter_category}
+                  subcategory={formData.matter_subcategory}
+                  onCategoryChange={(val) => setFormData({ ...formData, matter_category: val, matter_subcategory: '' })}
+                  onSubcategoryChange={(val) => setFormData({ ...formData, matter_subcategory: val })}
+                />
+
                 <div>
-                  <Label htmlFor="matter_object">Matéria e Objeto</Label>
+                  <Label htmlFor="matter_object">Objeto da Consulta</Label>
                   <Textarea
                     id="matter_object"
                     value={formData.matter_object || ''}
