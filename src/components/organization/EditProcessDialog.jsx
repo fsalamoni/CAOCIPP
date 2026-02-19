@@ -40,7 +40,7 @@ const RS_CITIES = [
   "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
 ].sort();
 
-export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId, userRole }) {
+export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId, userRole, organization }) {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     process_number: '',
@@ -344,6 +344,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   subcategory={formData.matter_subcategory}
                   onCategoryChange={(val) => setFormData({ ...formData, matter_category: val, matter_subcategory: '' })}
                   onSubcategoryChange={(val) => setFormData({ ...formData, matter_subcategory: val })}
+                  organization={organization}
                 />
 
                 <div>

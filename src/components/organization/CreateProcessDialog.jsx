@@ -182,6 +182,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
             subcategory={formData.matter_subcategory}
             onCategoryChange={(val) => setFormData({ ...formData, matter_category: val, matter_subcategory: '' })}
             onSubcategoryChange={(val) => setFormData({ ...formData, matter_subcategory: val })}
+            organization={organization}
           />
 
           <div>

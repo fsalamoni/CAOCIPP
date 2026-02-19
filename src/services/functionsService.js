@@ -59,6 +59,18 @@ export const clearOrganizationData = async (organizationId) => {
     }
 };
 
+export const updateOrganization = async (data) => {
+    try {
+        // data: { organizationId, data: { name?, description?, matterSettings?, summarySettings? } }
+        const updateOrgFn = httpsCallable(functions, 'updateOrganization');
+        const result = await updateOrgFn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling updateOrganization:', error);
+        throw error;
+    }
+};
+
 // Process Functions
 export const createProcess = async (data) => {
     try {

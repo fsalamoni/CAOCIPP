@@ -11,7 +11,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
+
 import KanbanBoard from '../components/organization/KanbanBoard';
+import AdminManagement from '../components/organization/admin/AdminManagement';
 
 export default function Organization() {
   const navigate = useNavigate();
@@ -45,6 +47,11 @@ export default function Organization() {
 
   // Fetch processes
   const { processes, isLoading: processesLoading, error: processesError } = useProcesses(selectedOrgId);
+
+  // Filter active members for general views and process management
+  const activeMembers = React.useMemo(() => {
+    return members.filter(m => m.active !== false);
+  }, [members]);
 
   // Find user's membership to determine role
   const userMembership = members.find(m => m.user_id === user?.uid);
@@ -165,12 +172,20 @@ export default function Organization() {
             >
               Resumos Inteligentes
             </TabsTrigger>
+            {userRole === 'creator' && (
+              <TabsTrigger
+                value="admin"
+                className="data-[state=active]:bg-primary data-[state=active]:text-white"
+              >
+                Gestão Administrativa
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="info">
             <GeneralInfo
               organization={organization}
-              members={members}
+              members={activeMembers}
               processes={processes}
               userRole={userRole}
               userId={user?.uid}
@@ -183,7 +198,7 @@ export default function Organization() {
           <TabsContent value="kanban">
             <KanbanBoard
               organization={organization}
-              members={members}
+              members={activeMembers}
               processes={processes}
               userRole={userRole}
               userId={user?.uid}
@@ -194,7 +209,7 @@ export default function Organization() {
           <TabsContent value="processes">
             <ProcessControl
               organization={organization}
-              members={members}
+              members={activeMembers}
               processes={processes}
               userRole={userRole}
               userId={user?.uid}
@@ -207,12 +222,21 @@ export default function Organization() {
           <TabsContent value="summary">
             <IntelligentSummary
               processes={processes}
-              members={members}
+              members={activeMembers}
               organization={organization}
+            />
+
+          </TabsContent>
+
+          <TabsContent value="admin">
+            <AdminManagement
+              organization={organization}
+              members={members}
+              userRole={userRole}
             />
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </div >
   );
 }

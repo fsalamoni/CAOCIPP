@@ -9,6 +9,7 @@ export { joinOrganization } from './organizations/join';
 export { removeMember } from './organizations/removeMember';
 export { updateMember } from './organizations/updateMember';
 export { clearOrganizationData } from './organizations/clearData';
+export { updateOrganization } from './organizations/update';
 
 export { createProcess } from './processes/create';
 export { updateProcess } from './processes/update';

@@ -8,7 +8,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
-// === Matéria Geral ===
+// === Matéria Geral (Padrão) ===
 const MATTER_CATEGORIES = [
     'Proteção da moralidade e do patrimônio público',
     'Cível',
@@ -17,7 +17,7 @@ const MATTER_CATEGORIES = [
     'Matéria de outro CAO',
 ];
 
-// === Matéria Específica (dependente da Geral) ===
+// === Matéria Específica (Padrão) ===
 const MATTER_SUBCATEGORIES = {
     'Proteção da moralidade e do patrimônio público': [
         'ACP / TAC / FRBL',
@@ -53,6 +53,7 @@ const MATTER_SUBCATEGORIES = {
 
 /**
  * MatterCategorySelect — Cascading selects for Matéria da Consulta.
+ * Supports dynamic categories from organization settings.
  *
  * Props:
  *  - category: current general category value
@@ -60,6 +61,7 @@ const MATTER_SUBCATEGORIES = {
  *  - onCategoryChange(value): callback when general category changes
  *  - onSubcategoryChange(value): callback when specific subcategory changes
  *  - disabled: optional, disables both selects
+ *  - organization: optional, organization object containing custom settings
  */
 export default function MatterCategorySelect({
     category = '',
@@ -67,8 +69,23 @@ export default function MatterCategorySelect({
     onCategoryChange,
     onSubcategoryChange,
     disabled = false,
+    organization
 }) {
-    const subcategories = category ? (MATTER_SUBCATEGORIES[category] || []) : [];
+    // Determine if we should use custom settings or defaults
+    const isCustom = organization?.matterSettings?.custom;
+
+    // Get the list of categories (General)
+    const categoriesList = isCustom
+        ? (organization.matterSettings.categories || [])
+        : MATTER_CATEGORIES;
+
+    // Get the map of subcategories
+    const subcategoriesMap = isCustom
+        ? (organization.matterSettings.subcategories || {})
+        : MATTER_SUBCATEGORIES;
+
+    // Get specific subcategories for the selected general category
+    const subcategories = category ? (subcategoriesMap[category] || []) : [];
     const hasSubcategories = subcategories.length > 0;
 
     const handleCategoryChange = (value) => {
@@ -89,7 +106,7 @@ export default function MatterCategorySelect({
                         <SelectValue placeholder="Selecione a matéria geral..." />
                     </SelectTrigger>
                     <SelectContent>
-                        {MATTER_CATEGORIES.map(cat => (
+                        {categoriesList.map(cat => (
                             <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                         ))}
                     </SelectContent>

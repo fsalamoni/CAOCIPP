@@ -54,8 +54,12 @@ export const removeMember = onCall<RemoveMemberRequest>(
             throw new HttpsError('permission-denied', 'Cannot remove the organization creator');
         }
 
-        // 3. Remove membership
-        await targetMembershipRef.delete();
+        // 3. Soft remove membership
+        // Instead of deleting, we mark as inactive and set left_at
+        await targetMembershipRef.update({
+            active: false,
+            left_at: admin.firestore.FieldValue.serverTimestamp()
+        });
 
         // 4. Update stats
         const orgRef = db.collection('organizations').doc(organizationId);

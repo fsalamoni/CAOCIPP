@@ -243,6 +243,7 @@ export default function ProcessControl({
             process={selectedProcess}
             members={members}
             organizationId={organization.id}
+            organization={organization}
             userRole={userRole}
             onSuccess={handleProcessMutation}
           />

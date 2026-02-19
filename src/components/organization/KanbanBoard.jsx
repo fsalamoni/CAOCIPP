@@ -430,6 +430,7 @@ export default function KanbanBoard({
                         setEditProcess(null);
                     }}
                     organizationId={organization.id}
+                    organization={organization}
                     userRole={userRole}
                 />
             )}

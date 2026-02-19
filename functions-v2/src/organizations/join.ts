@@ -47,20 +47,41 @@ export const joinOrganization = onCall<JoinOrgRequest>(
                 const membershipDoc = await transaction.get(membershipRef);
 
                 if (membershipDoc.exists) {
-                    throw new HttpsError('already-exists', 'Você já é membro desta organização.');
-                }
+                    const memberData = membershipDoc.data();
+                    // If member is active, throw error
+                    if (memberData?.active !== false) {
+                        throw new HttpsError('already-exists', 'Você já é membro desta organização.');
+                    }
 
-                // 3. Create membership
-                transaction.set(membershipRef, {
-                    id: `${userId}_${orgId}`,
-                    user_id: userId,
-                    organization_id: orgId,
-                    user_email: userEmail,
-                    user_name: userName,
-                    role: 'member',
-                    function: 'Membro',
-                    joined_at: admin.firestore.FieldValue.serverTimestamp()
-                });
+                    // If inactive (soft deleted), reactivate
+                    transaction.update(membershipRef, {
+                        role: 'member',
+                        function: 'Membro',
+                        active: true,
+                        // We update joined_at to request time to reflect "new" entry, 
+                        // or we could keep original and add "rejoined_at". 
+                        // User requested "Data de Entrada e Saída". 
+                        // If we overwrite joined_at, we lose original entry.
+                        // But if we don't, it looks like they were always there.
+                        // Simple approach: Overwrite joined_at to now (new term).
+                        // And clear left_at.
+                        joined_at: admin.firestore.FieldValue.serverTimestamp(),
+                        left_at: admin.firestore.FieldValue.delete()
+                    });
+                } else {
+                    // 3. Create new membership
+                    transaction.set(membershipRef, {
+                        id: `${userId}_${orgId}`,
+                        user_id: userId,
+                        organization_id: orgId,
+                        user_email: userEmail,
+                        user_name: userName,
+                        role: 'member',
+                        function: 'Membro',
+                        active: true, // Mark as active
+                        joined_at: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                }
 
                 // 4. Update organization stats
                 transaction.update(orgDoc.ref, {
