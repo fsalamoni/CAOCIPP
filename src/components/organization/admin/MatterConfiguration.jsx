@@ -28,7 +28,14 @@ export default function MatterConfiguration({ organization }) {
     const [loading, setLoading] = useState(false);
     const [isCustom, setIsCustom] = useState(false);
 
+    // Ref to track saving state and prevent dirty reads from overwriting optimistic UI
+    const isSavingRef = React.useRef(false);
+
     useEffect(() => {
+        // If we are currently saving, do not overwrite local state with remote data
+        // This prevents the "disappearing item" glitch if the listener fires with old data before the write confirms
+        if (isSavingRef.current) return;
+
         if (organization.matterSettings && organization.matterSettings.custom) {
             setCategories(organization.matterSettings.categories || []);
             setSubcategories(organization.matterSettings.subcategories || {});
@@ -42,12 +49,9 @@ export default function MatterConfiguration({ organization }) {
 
     // Helper to save current state to Firestore
     const saveToFirestore = async (newCategories, newSubcategories) => {
-        // Optimistic update locally (state is already updated by callers, but we ensure consistency here if needed)
-        // Actually callers update state. We just push to DB.
-
-        // Prevent concurrent saves if possible, or just let them queue. 
-        // For simplicity and robustness, we just fire and forget, catching errors.
+        isSavingRef.current = true;
         try {
+            console.log('Saving to Firestore:', { newCategories, newSubcategories });
             await updateOrganization({
                 organizationId: organization.id,
                 data: {
@@ -58,13 +62,15 @@ export default function MatterConfiguration({ organization }) {
                     }
                 }
             });
-            // Toast is too noisy for every action, maybe just for errors or specific confirmations?
-            // User requested "ficar salvas permanentemente". We can show a small indicator or just success toast.
-            // Let's show a subtle toast.
+            console.log('Save success');
         } catch (error) {
+            console.error('Save error:', error);
             toast.error('Erro ao salvar alteração: ' + error.message);
-            // Revert state? Complex to handle rollback here without complex history.
-            // For now, assume success or user retries.
+        } finally {
+            // Keep the lock for a short period to allow propagation
+            setTimeout(() => {
+                isSavingRef.current = false;
+            }, 2000);
         }
     };
 
@@ -270,26 +276,33 @@ export default function MatterConfiguration({ organization }) {
 function AddItemInput({ placeholder, onAdd, buttonText, size = 'default' }) {
     const [value, setValue] = useState('');
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    const handleAdd = () => {
         if (!value.trim()) return;
         onAdd(value);
         setValue('');
     };
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAdd();
+        }
+    };
+
     return (
-        <form onSubmit={handleSubmit} className="flex-1 flex gap-2">
+        <div className="flex-1 flex gap-2">
             <Input
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 className={size === 'sm' ? 'h-8 text-sm' : ''}
             />
-            <Button type="submit" variant="secondary" className={size === 'sm' ? 'h-8 px-3' : ''}>
+            <Button onClick={handleAdd} variant="secondary" className={size === 'sm' ? 'h-8 px-3' : ''}>
                 <Plus className="w-4 h-4 mr-1" />
                 {buttonText}
             </Button>
-        </form>
+        </div>
     );
 }
 
