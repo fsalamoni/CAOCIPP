@@ -22,7 +22,7 @@ export default function AdminManagement({ organization, members, userRole }) {
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-2">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Gestão Administrativa</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel Administrativo</h2>
                 <p className="text-slate-500">
                     Gerencie todos os aspectos da organização: detalhes, membros, classificação de processos e configurações de IA.
                 </p>

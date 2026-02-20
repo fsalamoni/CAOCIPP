@@ -42,6 +42,9 @@
         {
             "source": "functions-v2",
             "codebase": "default",
+            "predeploy": [
+                "npm --prefix \"$RESOURCE_DIR\" run build:local"
+            ],
             "ignore": [
                 "node_modules",
                 ".git",

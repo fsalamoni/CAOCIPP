@@ -177,7 +177,7 @@ export default function Organization() {
                 value="admin"
                 className="data-[state=active]:bg-primary data-[state=active]:text-white"
               >
-                Gestão Administrativa
+                Painel Administrativo
               </TabsTrigger>
             )}
           </TabsList>

@@ -39,8 +39,12 @@ exports.removeMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     if (targetRole === 'creator') {
         throw new https_1.HttpsError('permission-denied', 'Cannot remove the organization creator');
     }
-    // 3. Remove membership
-    await targetMembershipRef.delete();
+    // 3. Soft remove membership
+    // Instead of deleting, we mark as inactive and set left_at
+    await targetMembershipRef.update({
+        active: false,
+        left_at: admin.firestore.FieldValue.serverTimestamp()
+    });
     // 4. Update stats
     const orgRef = db.collection('organizations').doc(organizationId);
     await orgRef.update({

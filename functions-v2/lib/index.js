@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -16,10 +16,12 @@ var updateMember_1 = require("./organizations/updateMember");
 Object.defineProperty(exports, "updateMember", { enumerable: true, get: function () { return updateMember_1.updateMember; } });
 var clearData_1 = require("./organizations/clearData");
 Object.defineProperty(exports, "clearOrganizationData", { enumerable: true, get: function () { return clearData_1.clearOrganizationData; } });
+var update_1 = require("./organizations/update");
+Object.defineProperty(exports, "updateOrganization", { enumerable: true, get: function () { return update_1.updateOrganization; } });
 var create_2 = require("./processes/create");
 Object.defineProperty(exports, "createProcess", { enumerable: true, get: function () { return create_2.createProcess; } });
-var update_1 = require("./processes/update");
-Object.defineProperty(exports, "updateProcess", { enumerable: true, get: function () { return update_1.updateProcess; } });
+var update_2 = require("./processes/update");
+Object.defineProperty(exports, "updateProcess", { enumerable: true, get: function () { return update_2.updateProcess; } });
 var delete_1 = require("./processes/delete");
 Object.defineProperty(exports, "deleteProcess", { enumerable: true, get: function () { return delete_1.deleteProcess; } });
 var calculateStatus_1 = require("./processes/calculateStatus");
