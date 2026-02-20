@@ -170,7 +170,15 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[300px] p-0" align="start">
-                  <Command>
+                  <Command
+                    filter={(value, search) => {
+                      if (value.toLowerCase().includes(search.toLowerCase())) return 1;
+                      const normalizedValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                      const normalizedSearch = search.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                      if (normalizedValue.includes(normalizedSearch)) return 1;
+                      return 0;
+                    }}
+                  >
                     <CommandInput placeholder="Buscar cidade..." />
                     <CommandList>
                       <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
