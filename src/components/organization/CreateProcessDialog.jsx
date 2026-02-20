@@ -21,7 +21,21 @@ import {
 } from "@/components/ui/select";
 import { Switch } from '@/components/ui/switch';
 import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 
@@ -30,6 +44,7 @@ import { RS_CITIES } from '@/utils/cities';
 export default function CreateProcessDialog({ open, setOpen, organization, members, onSuccess }) {
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',
@@ -140,20 +155,52 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="location">Local dos Fatos *</Label>
-              <Select
-                value={formData.location}
-                onValueChange={(value) => setFormData({ ...formData, location: value })}
-                required
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione a cidade" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {RS_CITIES.map(city => (
-                    <SelectItem key={city} value={city}>{city}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={locationOpen} onOpenChange={setLocationOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={locationOpen}
+                    className="w-full justify-between mt-1 font-normal"
+                  >
+                    {formData.location
+                      ? formData.location
+                      : "Selecione a cidade..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar cidade..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+                      <CommandGroup>
+                        {RS_CITIES.map((city) => (
+                          <CommandItem
+                            key={city}
+                            value={city}
+                            onSelect={(currentValue) => {
+                              // CommandItem lowercases the value by default unless specified, 
+                              // but we want the exact case from the array.
+                              const actualCity = RS_CITIES.find(c => c.toLowerCase() === currentValue.toLowerCase()) || currentValue;
+                              setFormData({ ...formData, location: actualCity });
+                              setLocationOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.location === city ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {city}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label htmlFor="entry_date">Data de Entrada *</Label>

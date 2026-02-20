@@ -22,7 +22,21 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
@@ -57,6 +71,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
 
   // Helper to safely format dates for input type="date" (YYYY-MM-DD)
   const formatDateForInput = (value) => {
@@ -300,23 +315,63 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="location">Local dos Fatos</Label>
-                    <Select
-                      value={formData.location || ''}
-                      onValueChange={(value) => setFormData({ ...formData, location: value })}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RS_CITIES.map(city => (
-                          <SelectItem key={city} value={city}>{city}</SelectItem>
-                        ))}
-                        {/* Robust check: if the value in formData.location is NOT in RS_CITIES, we must add it as an item so Radix/Shadcn shows it */}
-                        {formData.location && !RS_CITIES.includes(formData.location) && (
-                          <SelectItem value={formData.location}>{formData.location}</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={locationOpen} onOpenChange={setLocationOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={locationOpen}
+                          className="w-full justify-between mt-1 font-normal"
+                        >
+                          {formData.location
+                            ? formData.location
+                            : "Selecione a cidade..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar cidade..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+                            <CommandGroup>
+                              {RS_CITIES.map((city) => (
+                                <CommandItem
+                                  key={city}
+                                  value={city}
+                                  onSelect={(currentValue) => {
+                                    const actualCity = RS_CITIES.find(c => c.toLowerCase() === currentValue.toLowerCase()) || currentValue;
+                                    setFormData({ ...formData, location: actualCity });
+                                    setLocationOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      formData.location === city ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {city}
+                                </CommandItem>
+                              ))}
+                              {formData.location && !RS_CITIES.includes(formData.location) && (
+                                <CommandItem
+                                  key="custom-location"
+                                  value={formData.location}
+                                  onSelect={(currentValue) => {
+                                    setFormData({ ...formData, location: currentValue });
+                                    setLocationOpen(false);
+                                  }}
+                                >
+                                  <Check className="mr-2 h-4 w-4 opacity-100" />
+                                  {formData.location} (Histórico)
+                                </CommandItem>
+                              )}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div>
                     <Label htmlFor="entry_date">Data de Entrada</Label>
