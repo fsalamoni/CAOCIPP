@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import MatterCategorySelect from './MatterCategorySelect';
 import { Button } from "@/components/ui/button";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -27,6 +28,8 @@ export default function ProcessForm({
     consultant: "",
     location: "",
     entry_date: format(new Date(), 'yyyy-MM-dd'),
+    matter_category: "",
+    matter_subcategory: "",
     matter_object: "",
     urgency_request: false,
     distribution_date: "",
@@ -126,11 +129,18 @@ export default function ProcessForm({
               </div>
             </div>
 
+            <MatterCategorySelect
+              category={formData.matter_category}
+              subcategory={formData.matter_subcategory}
+              onCategoryChange={(val) => handleChange("matter_category", val)}
+              onSubcategoryChange={(val) => handleChange("matter_subcategory", val)}
+            />
+
             <div className="space-y-2">
-              <Label htmlFor="matter_object">Matéria e Objeto da Consulta *</Label>
+              <Label htmlFor="matter_object">Objeto da Consulta *</Label>
               <Textarea
                 id="matter_object"
-                placeholder="Descreva a matéria e objeto da consulta..."
+                placeholder="Descreva o objeto da consulta..."
                 value={formData.matter_object}
                 onChange={(e) => handleChange("matter_object", e.target.value)}
                 rows={3}

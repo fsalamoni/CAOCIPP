@@ -22,7 +22,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
-import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, CheckCircle2 } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -270,6 +270,13 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   // Permission check for delete button
   const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator';
 
+  const renderValidationSignal = (field) => {
+    if (formData[field] && String(formData[field]).trim() !== '') {
+      return <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in duration-300" />;
+    }
+    return null;
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -291,37 +298,55 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
               <TabsContent value="basic" className="space-y-4 mt-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="process_number">Nº do Processo</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="process_number">Nº do Processo</Label>
+                      {renderValidationSignal('process_number')}
+                    </div>
                     <Input
                       id="process_number"
                       value={formData.process_number || ''}
                       onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
                       required
-                      className="mt-1"
+                      className={cn(
+                        "mt-1 transition-all duration-300",
+                        formData.process_number ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
+                      )}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="consultant">Consulente</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="consultant">Consulente</Label>
+                      {renderValidationSignal('consultant')}
+                    </div>
                     <Input
                       id="consultant"
                       value={formData.consultant || ''}
                       onChange={(e) => setFormData({ ...formData, consultant: e.target.value })}
                       required
-                      className="mt-1"
+                      className={cn(
+                        "mt-1 transition-all duration-300",
+                        formData.consultant ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
+                      )}
                     />
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="location">Local dos Fatos</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="location">Local dos Fatos</Label>
+                      {renderValidationSignal('location')}
+                    </div>
                     <Popover open={locationOpen} onOpenChange={setLocationOpen}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           role="combobox"
                           aria-expanded={locationOpen}
-                          className="w-full justify-between mt-1 font-normal"
+                          className={cn(
+                            "w-full justify-between mt-1 font-normal transition-all duration-300",
+                            formData.location ? "border-emerald-200 bg-emerald-50/10" : ""
+                          )}
                         >
                           {formData.location
                             ? formData.location
@@ -382,13 +407,19 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                     </Popover>
                   </div>
                   <div>
-                    <Label htmlFor="entry_date">Data de Entrada</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="entry_date">Data de Entrada</Label>
+                      {renderValidationSignal('entry_date')}
+                    </div>
                     <Input
                       id="entry_date"
                       type="date"
                       value={formData.entry_date || ''}
                       onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
-                      className="mt-1"
+                      className={cn(
+                        "mt-1 transition-all duration-300",
+                        formData.entry_date ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
+                      )}
                     />
                   </div>
                 </div>

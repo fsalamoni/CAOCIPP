@@ -47,6 +47,13 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     delete changes.activity_log; // Prevent manual log manipulation
     changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
     changes.updated_by = userId;
+    // Auto-fill distribution_date when responsible changes
+    if (changes.responsible_user_id &&
+        changes.responsible_user_id !== processData.responsible_user_id &&
+        !changes.distribution_date) {
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        changes.distribution_date = today;
+    }
     // Recalculate status
     const mergedData = Object.assign(Object.assign({}, processData), changes);
     const statusInChanges = changes.status;
@@ -72,6 +79,8 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         location: 'Local dos Fatos',
         entry_date: 'Data de Entrada',
         matter_object: 'Objeto da Consulta',
+        matter_category: 'Matéria (Geral)',
+        matter_subcategory: 'Matéria (Específica)',
         urgency_request: 'Pedido de Urgência',
         distribution_date: 'Data de Distribuição',
         responsible_user_id: 'Responsável',

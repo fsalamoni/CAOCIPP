@@ -5,7 +5,8 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-    closestCenter,
+    pointerWithin,
+    closestCorners,
 } from '@dnd-kit/core';
 import {
     SortableContext,
@@ -14,6 +15,7 @@ import {
 import { useDroppable } from '@dnd-kit/core';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Loader2, Inbox, Pencil, Eye, FolderCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateDerivedStatus, getProcessField } from '@/utils/processUtils';
@@ -24,6 +26,9 @@ import KanbanCard from './KanbanCard';
 import KanbanTransitionDialog from './KanbanTransitionDialog';
 import ProcessDetailSheet from './ProcessDetailSheet';
 import EditProcessDialog from './EditProcessDialog';
+import CreateProcessButton from './CreateProcessButton';
+import EmptyState from '../ui/EmptyState';
+
 
 // === Column Definitions ===
 const KANBAN_COLUMNS = [
@@ -239,28 +244,11 @@ export default function KanbanBoard({
         const today = new Date().toISOString().split('T')[0];
 
         if (fromStatus === 'Pendente' && toStatus === 'Em elaboração') {
-            if (isAssessor) {
-                try {
-                    await updateProcess({
-                        id: process.id,
-                        organizationId: organization.id,
-                        changes: {
-                            analysis_start_date: today,
-                            responsible_user_id: userId,
-                            responsible_user_name: userMember?.user_name || '',
-                            status: 'Em elaboração',
-                        },
-                    });
-                    toast.success(`Processo ${getProcessField(process, 'process_number')} iniciado!`);
-                } catch (err) {
-                    toast.error('Erro ao iniciar análise: ' + err.message);
-                }
-            } else {
-                setPendingProcess(process);
-                setPendingTarget(toStatus);
-                setDialogMode('assign');
-                setDialogOpen(true);
-            }
+            // Always show assign dialog; pre-select self if assessor
+            setPendingProcess(process);
+            setPendingTarget(toStatus);
+            setDialogMode('assign');
+            setDialogOpen(true);
             return;
         }
 
@@ -292,6 +280,7 @@ export default function KanbanBoard({
         if (dialogMode === 'assign') {
             changes = {
                 analysis_start_date: today,
+                distribution_date: today,
                 responsible_user_id: data.responsible_user_id,
                 responsible_user_name: data.responsible_user_name,
                 status: 'Em elaboração',
@@ -306,6 +295,7 @@ export default function KanbanBoard({
         } else if (dialogMode === 'archive') {
             changes = {
                 archived_date: today,
+                review_return_date: data.review_return_date || today,
                 status: 'Na pasta',
             };
         }
@@ -344,12 +334,14 @@ export default function KanbanBoard({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel Kanban</h2>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel de Controle</h2>
                     <p className="text-sm text-slate-500 mt-1">
                         Arraste os processos entre as colunas para avançar ou retornar o fluxo.
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+
+                    <CreateProcessButton organization={organization} members={members} />
                     <select
                         value={selectedYear}
                         onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -366,7 +358,13 @@ export default function KanbanBoard({
             {/* Kanban Board */}
             <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={(args) => {
+                    // Try pointerWithin first (most intuitive for columns)
+                    const pointerCollisions = pointerWithin(args);
+                    if (pointerCollisions.length > 0) return pointerCollisions;
+                    // Fallback to closestCorners for edge cases
+                    return closestCorners(args);
+                }}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
@@ -401,6 +399,7 @@ export default function KanbanBoard({
                     mode={dialogMode}
                     process={pendingProcess}
                     assessors={assessors}
+                    defaultAssessor={isAssessor ? userId : ''}
                     onConfirm={handleDialogConfirm}
                 />
             )}
@@ -432,6 +431,7 @@ export default function KanbanBoard({
                         setEditProcess(null);
                     }}
                     organizationId={organization.id}
+                    organization={organization}
                     userRole={userRole}
                 />
             )}
@@ -467,9 +467,11 @@ function KanbanColumn({ column, processes, onViewDetails }) {
                     <ColIcon className={`w-4 h-4 ${column.headerText}`} />
                     <span className={`text-sm font-bold ${column.headerText}`}>{column.label}</span>
                 </div>
-                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 h-5 bg-white/80 text-slate-600 border border-slate-200">
+                <Badge variant="secondary" className="bg-white/50 text-slate-600 border-0">
                     {processes.length}
                 </Badge>
+
+
             </div>
 
             <div className={`flex-1 p-3 space-y-2 ${column.columnBg} rounded-b-xl overflow-y-auto`}
@@ -478,13 +480,15 @@ function KanbanColumn({ column, processes, onViewDetails }) {
                 <SortableContext items={processes.map(p => p.id)} strategy={verticalListSortingStrategy}>
                     {processes.length > 0 ? (
                         processes.map(p => (
-                            <KanbanCard key={p.id} process={p} onViewDetails={onViewDetails} />
+                            <KanbanCard key={p.id} process={p} columnId={column.id} onViewDetails={onViewDetails} />
                         ))
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-300">
-                            <ColIcon className="w-8 h-8 mb-2 opacity-40" />
-                            <p className="text-xs text-center">{column.emptyText}</p>
-                        </div>
+                        <EmptyState
+                            icon={ColIcon}
+                            title={column.emptyText}
+                            description="Não há processos nesta etapa do fluxo no momento."
+                            className="py-12 border-none shadow-none bg-transparent"
+                        />
                     )}
                 </SortableContext>
             </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import MatterCategorySelect from './MatterCategorySelect';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { updateProcess, deleteProcess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
@@ -21,31 +22,38 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, CheckCircle2 } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
 import { calculateDerivedStatus } from '@/utils/processUtils';
 import ProcessLogDialog from './ProcessLogDialog';
 
-const RS_CITIES = [
-  "Porto Alegre", "Caxias do Sul", "Pelotas", "Santa Maria", "Canoas", "Gravataí",
-  "Viamão", "Novo Hamburgo", "São Leopoldo", "Alvorada", "Sapucaia do Sul", "Esteio",
-  "Cachoeirinha", "Guaíba", "Rio Grande", "Bagé", "Bento Gonçalves", "Passo Fundo",
-  "Erechim", "Santa Cruz do Sul", "Uruguaiana", "Sapiranga", "Lajeado", "Ijuí",
-  "Vacaria", "Farroupilha", "Camaquã", "Santana do Livramento", "Alegrete", "Torres",
-  "Tramandaí", "Osório", "Santo Ângelo", "Cruz Alta", "Santiago", "São Borja",
-  "Carazinho", "Venâncio Aires", "Taquara", "Montenegro", "Parobé", "Capão da Canoa",
-  "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
-].sort();
+import { RS_CITIES } from '@/utils/cities';
 
-export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId, userRole }) {
+export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId, userRole, organization }) {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',
     location: '',
     entry_date: '',
+    matter_category: '',
+    matter_subcategory: '',
     matter_object: '',
     urgency_request: false,
     distribution_date: '',
@@ -63,6 +71,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
 
   // Helper to safely format dates for input type="date" (YYYY-MM-DD)
   const formatDateForInput = (value) => {
@@ -146,6 +155,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         consultant: getValue(['consultant', 'consulente', 'cliente', 'interessado', 'CONSULENTE']),
         location: getValue(['location', 'local', 'cidade', 'local_fatos', 'municipio', 'LOCAL DOS FATOS\n(CIDADE)', 'LOCAL DOS FATOS\\n(CIDADE)']),
         entry_date: formatDateForInput(getValue(['entry_date', 'data_entrada', 'entrada', 'data', 'ENTRADA NO CAOPP\n(DATA)', 'ENTRADA NO CAOPP\\n(DATA)'])),
+        matter_category: getValue(['matter_category']),
+        matter_subcategory: getValue(['matter_subcategory']),
         matter_object: getValue(['matter_object', 'objeto', 'assunto', 'materia', 'descricao', 'MATÉRIA E OBJETO DA CONSULTA']),
         urgency_request: getBoolValue(['urgency_request', 'urgente', 'prioridade', 'urgente', 'PEDIDO DE URGÊNCIA', 'Solicitação de Urgência'], false),
         distribution_date: formatDateForInput(getValue(['distribution_date', 'data_distribuicao', 'distribuicao', 'DISTRIBUIÇÃO\n(DATA)', 'DISTRIBUIÇÃO\\n(DATA)'])),
@@ -173,7 +184,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     formData.archived_date,
     formData.review_submission_date,
     formData.analysis_start_date,
-    formData.status
+    formData.analysis_start_date
   ]);
 
   const handleSubmit = async (e) => {
@@ -189,6 +200,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         consultant: formData.consultant,
         location: formData.location,
         entry_date: formData.entry_date,
+        matter_category: formData.matter_category || '',
+        matter_subcategory: formData.matter_subcategory || '',
         matter_object: formData.matter_object,
         urgency_request: formData.urgency_request,
         distribution_date: formData.distribution_date || null,
@@ -257,6 +270,13 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   // Permission check for delete button
   const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator';
 
+  const renderValidationSignal = (field) => {
+    if (formData[field] && String(formData[field]).trim() !== '') {
+      return <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in duration-300" />;
+    }
+    return null;
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -278,62 +298,142 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
               <TabsContent value="basic" className="space-y-4 mt-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="process_number">Nº do Processo</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="process_number">Nº do Processo</Label>
+                      {renderValidationSignal('process_number')}
+                    </div>
                     <Input
                       id="process_number"
                       value={formData.process_number || ''}
                       onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
                       required
-                      className="mt-1"
+                      className={cn(
+                        "mt-1 transition-all duration-300",
+                        formData.process_number ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
+                      )}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="consultant">Consulente</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="consultant">Consulente</Label>
+                      {renderValidationSignal('consultant')}
+                    </div>
                     <Input
                       id="consultant"
                       value={formData.consultant || ''}
                       onChange={(e) => setFormData({ ...formData, consultant: e.target.value })}
                       required
-                      className="mt-1"
+                      className={cn(
+                        "mt-1 transition-all duration-300",
+                        formData.consultant ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
+                      )}
                     />
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="location">Local dos Fatos</Label>
-                    <Select
-                      value={formData.location || ''}
-                      onValueChange={(value) => setFormData({ ...formData, location: value })}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RS_CITIES.map(city => (
-                          <SelectItem key={city} value={city}>{city}</SelectItem>
-                        ))}
-                        {/* Robust check: if the value in formData.location is NOT in RS_CITIES, we must add it as an item so Radix/Shadcn shows it */}
-                        {formData.location && !RS_CITIES.includes(formData.location) && (
-                          <SelectItem value={formData.location}>{formData.location}</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="location">Local dos Fatos</Label>
+                      {renderValidationSignal('location')}
+                    </div>
+                    <Popover open={locationOpen} onOpenChange={setLocationOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={locationOpen}
+                          className={cn(
+                            "w-full justify-between mt-1 font-normal transition-all duration-300",
+                            formData.location ? "border-emerald-200 bg-emerald-50/10" : ""
+                          )}
+                        >
+                          {formData.location
+                            ? formData.location
+                            : "Selecione a cidade..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command
+                          filter={(value, search) => {
+                            if (value.toLowerCase().includes(search.toLowerCase())) return 1;
+                            const normalizedValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                            const normalizedSearch = search.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                            if (normalizedValue.includes(normalizedSearch)) return 1;
+                            return 0;
+                          }}
+                        >
+                          <CommandInput placeholder="Buscar cidade..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+                            <CommandGroup>
+                              {RS_CITIES.map((city) => (
+                                <CommandItem
+                                  key={city}
+                                  value={city}
+                                  onSelect={(currentValue) => {
+                                    const actualCity = RS_CITIES.find(c => c.toLowerCase() === currentValue.toLowerCase()) || currentValue;
+                                    setFormData({ ...formData, location: actualCity });
+                                    setLocationOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      formData.location === city ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {city}
+                                </CommandItem>
+                              ))}
+                              {formData.location && !RS_CITIES.includes(formData.location) && (
+                                <CommandItem
+                                  key="custom-location"
+                                  value={formData.location}
+                                  onSelect={(currentValue) => {
+                                    setFormData({ ...formData, location: currentValue });
+                                    setLocationOpen(false);
+                                  }}
+                                >
+                                  <Check className="mr-2 h-4 w-4 opacity-100" />
+                                  {formData.location} (Histórico)
+                                </CommandItem>
+                              )}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div>
-                    <Label htmlFor="entry_date">Data de Entrada</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="entry_date">Data de Entrada</Label>
+                      {renderValidationSignal('entry_date')}
+                    </div>
                     <Input
                       id="entry_date"
                       type="date"
                       value={formData.entry_date || ''}
                       onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
-                      className="mt-1"
+                      className={cn(
+                        "mt-1 transition-all duration-300",
+                        formData.entry_date ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
+                      )}
                     />
                   </div>
                 </div>
 
+                <MatterCategorySelect
+                  category={formData.matter_category}
+                  subcategory={formData.matter_subcategory}
+                  onCategoryChange={(val) => setFormData({ ...formData, matter_category: val, matter_subcategory: '' })}
+                  onSubcategoryChange={(val) => setFormData({ ...formData, matter_subcategory: val })}
+                  organization={organization}
+                />
+
                 <div>
-                  <Label htmlFor="matter_object">Matéria e Objeto</Label>
+                  <Label htmlFor="matter_object">Objeto da Consulta</Label>
                   <Textarea
                     id="matter_object"
                     value={formData.matter_object || ''}

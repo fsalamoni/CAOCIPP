@@ -6,6 +6,11 @@ import { Lock, AlertCircle, User, FolderOpen, Calendar, Eye } from 'lucide-react
 import { getProcessField } from '@/utils/processUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger
+} from "@/components/ui/tooltip";
 
 /**
  * KanbanCard — Visual card for a process in the Kanban board.
@@ -14,7 +19,7 @@ import { parseLocalDate } from '@/lib/dateUtils';
  *  - overlay: true when rendering inside DragOverlay
  *  - onViewDetails: callback(process) to open the detail sheet
  */
-export default function KanbanCard({ process, overlay = false, onViewDetails }) {
+export default function KanbanCard({ process, columnId, overlay = false, onViewDetails }) {
     const {
         attributes,
         listeners,
@@ -24,7 +29,7 @@ export default function KanbanCard({ process, overlay = false, onViewDetails }) 
         isDragging,
     } = useSortable({
         id: process.id,
-        data: { process },
+        data: { process, columnId },
     });
 
     const style = {
@@ -81,15 +86,25 @@ export default function KanbanCard({ process, overlay = false, onViewDetails }) 
                 </span>
                 <div className="flex items-center gap-1 shrink-0">
                     {isUrgent && (
-                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 border-none bg-rose-500 animate-pulse">
-                            <AlertCircle className="w-2.5 h-2.5 mr-0.5" />
-                            URG
-                        </Badge>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 border-none bg-rose-500 animate-pulse cursor-help">
+                                    <AlertCircle className="w-2.5 h-2.5 mr-0.5" />
+                                    URG
+                                </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Prioridade Urgente</TooltipContent>
+                        </Tooltip>
                     )}
                     {isRestricted && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50">
-                            <Lock className="w-2.5 h-2.5" />
-                        </Badge>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50 cursor-help">
+                                    <Lock className="w-2.5 h-2.5" />
+                                </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Acesso Restrito</TooltipContent>
+                        </Tooltip>
                     )}
                 </div>
             </div>
@@ -137,15 +152,19 @@ export default function KanbanCard({ process, overlay = false, onViewDetails }) 
                     )}
                     {/* Eye icon — opens detail sheet, does NOT trigger drag */}
                     {!overlay && onViewDetails && (
-                        <button
-                            type="button"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={handleEyeClick}
-                            className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition-colors"
-                            title="Ver detalhes"
-                        >
-                            <Eye className="w-3.5 h-3.5" />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    type="button"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={handleEyeClick}
+                                    className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                                >
+                                    <Eye className="w-3.5 h-3.5" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Ver detalhes do processo</TooltipContent>
+                        </Tooltip>
                     )}
                 </div>
             </div>

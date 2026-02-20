@@ -35,7 +35,7 @@ exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     const updates = {};
     if (newRole)
         updates.role = newRole;
-    if (newFunction)
+    if (newFunction !== undefined)
         updates.function = newFunction;
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     await targetRef.update(updates);

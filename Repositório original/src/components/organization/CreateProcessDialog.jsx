@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import MatterCategorySelect from './MatterCategorySelect';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { createProcess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
@@ -20,29 +21,37 @@ import {
 } from "@/components/ui/select";
 import { Switch } from '@/components/ui/switch';
 import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 
-const RS_CITIES = [
-  "Porto Alegre", "Caxias do Sul", "Pelotas", "Santa Maria", "Canoas", "Gravataí",
-  "Viamão", "Novo Hamburgo", "São Leopoldo", "Alvorada", "Sapucaia do Sul", "Esteio",
-  "Cachoeirinha", "Guaíba", "Rio Grande", "Bagé", "Bento Gonçalves", "Passo Fundo",
-  "Erechim", "Santa Cruz do Sul", "Uruguaiana", "Sapiranga", "Lajeado", "Ijuí",
-  "Vacaria", "Farroupilha", "Camaquã", "Santana do Livramento", "Alegrete", "Torres",
-  "Tramandaí", "Osório", "Santo Ângelo", "Cruz Alta", "Santiago", "São Borja",
-  "Carazinho", "Venâncio Aires", "Taquara", "Montenegro", "Parobé", "Capão da Canoa",
-  "Estância Velha", "Campo Bom", "Marau", "Soledade", "Lagoa Vermelha", "Getúlio Vargas"
-].sort();
+import { RS_CITIES } from '@/utils/cities';
 
 export default function CreateProcessDialog({ open, setOpen, organization, members, onSuccess }) {
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',
     location: '',
     entry_date: format(new Date(), 'yyyy-MM-dd'),
+    matter_category: '',
+    matter_subcategory: '',
     matter_object: '',
     urgency_request: false,
     distribution_date: '',
@@ -56,6 +65,8 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
       consultant: '',
       location: '',
       entry_date: format(new Date(), 'yyyy-MM-dd'),
+      matter_category: '',
+      matter_subcategory: '',
       matter_object: '',
       urgency_request: false,
       distribution_date: '',
@@ -77,6 +88,8 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
         consultant: formData.consultant,
         location: formData.location,
         entryDate: formData.entry_date,
+        matterCategory: formData.matter_category || '',
+        matterSubcategory: formData.matter_subcategory || '',
         matterObject: formData.matter_object,
         urgencyRequest: formData.urgency_request,
         distributionDate: formData.distribution_date || null,
@@ -142,20 +155,60 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="location">Local dos Fatos *</Label>
-              <Select
-                value={formData.location}
-                onValueChange={(value) => setFormData({ ...formData, location: value })}
-                required
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione a cidade" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {RS_CITIES.map(city => (
-                    <SelectItem key={city} value={city}>{city}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={locationOpen} onOpenChange={setLocationOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={locationOpen}
+                    className="w-full justify-between mt-1 font-normal"
+                  >
+                    {formData.location
+                      ? formData.location
+                      : "Selecione a cidade..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command
+                    filter={(value, search) => {
+                      if (value.toLowerCase().includes(search.toLowerCase())) return 1;
+                      const normalizedValue = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                      const normalizedSearch = search.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                      if (normalizedValue.includes(normalizedSearch)) return 1;
+                      return 0;
+                    }}
+                  >
+                    <CommandInput placeholder="Buscar cidade..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+                      <CommandGroup>
+                        {RS_CITIES.map((city) => (
+                          <CommandItem
+                            key={city}
+                            value={city}
+                            onSelect={(currentValue) => {
+                              // CommandItem lowercases the value by default unless specified, 
+                              // but we want the exact case from the array.
+                              const actualCity = RS_CITIES.find(c => c.toLowerCase() === currentValue.toLowerCase()) || currentValue;
+                              setFormData({ ...formData, location: actualCity });
+                              setLocationOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.location === city ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {city}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label htmlFor="entry_date">Data de Entrada *</Label>
@@ -170,13 +223,21 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
             </div>
           </div>
 
+          <MatterCategorySelect
+            category={formData.matter_category}
+            subcategory={formData.matter_subcategory}
+            onCategoryChange={(val) => setFormData({ ...formData, matter_category: val, matter_subcategory: '' })}
+            onSubcategoryChange={(val) => setFormData({ ...formData, matter_subcategory: val })}
+            organization={organization}
+          />
+
           <div>
-            <Label htmlFor="matter_object">Matéria e Objeto da Consulta *</Label>
+            <Label htmlFor="matter_object">Objeto da Consulta *</Label>
             <Textarea
               id="matter_object"
               value={formData.matter_object}
               onChange={(e) => setFormData({ ...formData, matter_object: e.target.value })}
-              placeholder="Descreva a matéria e objeto da consulta..."
+              placeholder="Descreva o objeto da consulta..."
               rows={3}
               required
               className="mt-1"

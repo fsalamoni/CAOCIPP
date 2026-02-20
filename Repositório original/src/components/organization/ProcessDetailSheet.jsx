@@ -125,6 +125,17 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
                     <Section title="Dados Principais">
                         <DetailItem icon={User} label="Consulente" value={field('consultant')} />
                         <DetailItem icon={MapPin} label="Local dos Fatos" value={field('location')} />
+                        {field('matter_category') && (
+                            <div className="pt-2">
+                                <p className="text-xs font-medium text-slate-500 mb-1.5">Matéria da Consulta</p>
+                                <div className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-1">
+                                    <p><span className="font-medium">Geral:</span> {field('matter_category')}</p>
+                                    {field('matter_subcategory') && (
+                                        <p><span className="font-medium">Específica:</span> {field('matter_subcategory')}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         <div className="pt-2">
                             <p className="text-xs font-medium text-slate-500 mb-1.5">Objeto da Consulta</p>
                             <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-100">
@@ -196,15 +207,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
                         </Section>
                     )}
 
-                    {/* Metadados */}
-                    <Section title="Metadados do Sistema">
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                            <MetaItem label="ID do Processo" value={process.id} />
-                            <MetaItem label="Criado em" value={formatDate(process.created_at) || formatDate(process.createdAt)} />
-                            <MetaItem label="Atualizado em" value={formatDate(process.updated_at) || formatDate(process.updatedAt)} />
-                            <MetaItem label="Resp. User ID" value={process.responsible_user_id} />
-                        </div>
-                    </Section>
+
                 </div>
             </SheetContent>
         </Sheet>

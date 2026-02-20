@@ -16,6 +16,13 @@ import { parseLocalDate } from "@/lib/dateUtils";
 import { useUserPreferences } from "@/hooks/useFirestore";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getProcessField, calculateDerivedStatus } from "@/utils/processUtils";
+import EmptyState from '../ui/EmptyState';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
+import { SearchX, FileX2 } from 'lucide-react';
 
 export default function ProcessTable({
   processes,
@@ -30,7 +37,12 @@ export default function ProcessTable({
   // Mirrors the logic found in EditProcessDialog
 
   const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => localStorage.getItem('processSearchTerm') || "");
+
+  useEffect(() => {
+    localStorage.setItem('processSearchTerm', search);
+  }, [search]);
+
   const [statusFilter, setStatusFilter] = useState("all");
   const [responsibleFilter, setResponsibleFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
@@ -122,8 +134,15 @@ export default function ProcessTable({
         })();
         return (
           <div className="flex items-center gap-2">
-            {isUrgent && <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse" title="Urgente" />}
-            <span className="font-medium">{getProcessField(process, 'process_number')}</span>
+            {isUrgent && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="right">Prioridade Urgente</TooltipContent>
+              </Tooltip>
+            )}
+            <span className="font-semibold text-slate-800 dark:text-slate-100">{getProcessField(process, 'process_number')}</span>
           </div>
         );
       }
@@ -136,6 +155,21 @@ export default function ProcessTable({
           {getProcessField(process, 'consultant')}
         </div>
       )
+    },
+    {
+      key: 'matter_category', label: 'Matéria', defaultVisible: true,
+      width: 'w-[180px]', sortable: true,
+      render: (process) => {
+        const cat = getProcessField(process, 'matter_category');
+        const sub = getProcessField(process, 'matter_subcategory');
+        if (!cat) return <span className="text-slate-400">-</span>;
+        return (
+          <div className="text-[13px] leading-tight text-slate-700">
+            <div className="font-medium line-clamp-1" title={cat}>{cat}</div>
+            {sub && <div className="text-slate-500 line-clamp-1" title={sub}>{sub}</div>}
+          </div>
+        );
+      }
     },
     {
       key: 'matter_object', label: 'Objeto da Consulta', defaultVisible: true,
@@ -158,12 +192,12 @@ export default function ProcessTable({
     {
       key: 'entry_date', label: 'Entrada', defaultVisible: true,
       width: 'w-[110px]', sortable: true,
-      render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'entry_date'))}</span>
+      render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'entry_date'))}</span>
     },
     {
       key: 'distribution_date', label: 'Distribuição', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
-      render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'distribution_date'))}</span>
+      render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'distribution_date'))}</span>
     },
     {
       key: 'responsible_user_name', label: 'Assessor Responsável', defaultVisible: true,
@@ -177,7 +211,7 @@ export default function ProcessTable({
     {
       key: 'analysis_start_date', label: 'Início Análise', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
-      render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'analysis_start_date'))}</span>
+      render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'analysis_start_date'))}</span>
     },
     {
       key: 'observations', label: 'Observações', defaultVisible: false,
@@ -191,12 +225,12 @@ export default function ProcessTable({
     {
       key: 'review_submission_date', label: 'Para Revisão', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
-      render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'review_submission_date'))}</span>
+      render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'review_submission_date'))}</span>
     },
     {
       key: 'review_return_date', label: 'Devolução após Revisão', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
-      render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'review_return_date'))}</span>
+      render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'review_return_date'))}</span>
     },
     {
       key: 'access_restriction', label: 'Restrição', defaultVisible: false,
@@ -211,7 +245,7 @@ export default function ProcessTable({
     {
       key: 'archived_date', label: 'Arquivado em', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
-      render: (process) => <span className="text-slate-600">{formatDate(getProcessField(process, 'archived_date'))}</span>
+      render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'archived_date'))}</span>
     },
     {
       key: 'network_folder', label: 'Pasta na Rede', defaultVisible: false,
@@ -331,12 +365,33 @@ export default function ProcessTable({
     let result = [...processes];
 
     if (search) {
-      const searchLower = search.toLowerCase();
+      const searchLower = search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      const extractAllText = (obj) => {
+        if (!obj) return '';
+        if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+          return String(obj) + ' ';
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(extractAllText).join(' ');
+        }
+        if (typeof obj === 'object') {
+          // Attempt to format Firebase Timestamps
+          if (obj.seconds) {
+            try {
+              const d = new Date(obj.seconds * 1000);
+              return `${("0" + d.getDate()).slice(-2)}/${("0" + (d.getMonth() + 1)).slice(-2)}/${d.getFullYear()} `;
+            } catch (e) { return ''; }
+          }
+          return Object.values(obj).map(extractAllText).join(' ');
+        }
+        return '';
+      };
+
       result = result.filter(p => {
-        const num = String(getProcessField(p, 'process_number')).toLowerCase();
-        const con = String(getProcessField(p, 'consultant')).toLowerCase();
-        const loc = String(getProcessField(p, 'location')).toLowerCase();
-        return num.includes(searchLower) || con.includes(searchLower) || loc.includes(searchLower);
+        const allText = extractAllText(p).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const derivedStatus = calculateDerivedStatus(p).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return allText.includes(searchLower) || derivedStatus.includes(searchLower);
       });
     }
 
@@ -605,7 +660,7 @@ export default function ProcessTable({
                   <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">{activeColumns.length}</Badge>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 p-3 shadow-xl border-slate-200">
+              <PopoverContent className="w-80 p-4 shadow-xl border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl mt-2">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-slate-700">Colunas Visíveis</h4>
@@ -636,17 +691,23 @@ export default function ProcessTable({
         <div className="overflow-x-auto">
           <Table style={{ minWidth: `${tableMinWidth}px` }}>
             <TableHeader>
-              <TableRow className="bg-slate-50">
-                {activeColumns.map(col => (
-                  <TableHead key={col.key} className={`font-semibold ${col.width} ${col.sticky === 'left' ? 'sticky left-0 z-20 bg-slate-50 border-r' : ''} ${col.align === 'center' ? 'text-center' : ''}`}>
-                    {col.sortable ? (
-                      <Button variant="ghost" size="sm" onClick={() => handleSort(col.key)} className="-ml-2 h-8 font-semibold">
-                        {col.label} <ArrowUpDown className={`w-3 h-3 ml-1 ${sortConfig.key === col.key ? 'text-indigo-600' : ''}`} />
-                      </Button>
-                    ) : col.label}
-                  </TableHead>
-                ))}
-                <TableHead className="font-semibold text-center sticky right-0 z-20 bg-slate-50 border-l w-[80px]">Ações</TableHead>
+              <TableRow className="bg-slate-50 shadow-sm">
+                {activeColumns.map(col => {
+                  const isStickyLeft = col.sticky === 'left';
+                  return (
+                    <TableHead
+                      key={col.key}
+                      className={`font-semibold ${col.width} bg-slate-50 sticky top-0 z-30 ${isStickyLeft ? 'left-0 z-40 border-r' : ''} ${col.align === 'center' ? 'text-center' : ''}`}
+                    >
+                      {col.sortable ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleSort(col.key)} className="-ml-2 h-8 font-semibold">
+                          {col.label} <ArrowUpDown className={`w-3 h-3 ml-1 ${sortConfig.key === col.key ? 'text-indigo-600' : ''}`} />
+                        </Button>
+                      ) : col.label}
+                    </TableHead>
+                  )
+                })}
+                <TableHead className="font-semibold text-center sticky top-0 right-0 z-40 bg-slate-50 border-l w-[80px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -663,15 +724,24 @@ export default function ProcessTable({
                 ))
               ) : paginatedProcesses.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={activeColumns.length + 1} className="text-center py-16 text-slate-500">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="bg-slate-50 p-4 rounded-full"><FileSearch className="w-10 h-10 text-slate-300" /></div>
-                      <div className="space-y-1">
-                        <p className="font-medium text-slate-600">Nenhum processo encontrado</p>
-                        <p className="text-sm text-slate-400">Tente ajustar seus filtros ou busca</p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={clearFilters} className="mt-2 text-indigo-600 border-indigo-100 hover:bg-indigo-50">Limpar Filtros</Button>
-                    </div>
+                  <TableCell colSpan={activeColumns.length + 1} className="py-20">
+                    <EmptyState
+                      icon={search ? SearchX : FileX2}
+                      title={search ? "Nenhum processo encontrado" : "Nenhum processo cadastrado"}
+                      description={search
+                        ? `Não encontramos resultados para "${search}". Verifique a ortografia ou tente outros termos.`
+                        : "Esta organização ainda não possui processos registrados."}
+                      action={search && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={clearFilters}
+                          className="mt-4 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-900/50 dark:hover:bg-indigo-950/50"
+                        >
+                          Limpar Busca e Filtros
+                        </Button>
+                      )}
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -702,9 +772,21 @@ export default function ProcessTable({
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-black/5"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuContent align="end" className="w-48 border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl">
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(process); }}><Pencil className="w-4 h-4 mr-2 text-slate-500" />Editar</DropdownMenuItem>
-                            {!process.archived_date && <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onArchive(process); }} className="text-rose-600"><Archive className="w-4 h-4 mr-2" />Arquivar</DropdownMenuItem>}
+                            {!process.archived_date && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <DropdownMenuItem
+                                    onClick={(e) => { e.stopPropagation(); onArchive(process); }}
+                                    className="text-rose-600 focus:text-rose-600"
+                                  >
+                                    <Archive className="w-4 h-4 mr-2" />Arquivar
+                                  </DropdownMenuItem>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">Move o processo para a aba de arquivados</TooltipContent>
+                              </Tooltip>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -726,7 +808,7 @@ export default function ProcessTable({
       />
 
       {filteredAndSortedProcesses.length > 0 && (
-        <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+        <div className="sticky bottom-0 mt-4 flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)] z-20">
           <div className="flex items-center gap-4">
             <p className="text-sm text-slate-500">Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredAndSortedProcesses.length)} de {filteredAndSortedProcesses.length} processos</p>
             <div className="flex items-center gap-2">

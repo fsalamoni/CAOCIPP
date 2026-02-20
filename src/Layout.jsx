@@ -12,7 +12,11 @@ import {
   LogOut,
   Bell,
   Menu,
-  X
+  X,
+  Search,
+  Sparkles,
+  Settings,
+  Archive
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,9 +28,16 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
+import { useLocation } from 'react-router-dom';
+
 const publicPages = ['Landing', 'Help', 'Terms'];
 
 export default function Layout({ children, currentPageName }) {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const activeOrgId = searchParams.get('id');
+  const activeTab = searchParams.get('tab') || 'info';
+
   const { user, userProfile, signOut, isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isPublicPage = publicPages.includes(currentPageName);
@@ -139,18 +150,71 @@ export default function Layout({ children, currentPageName }) {
                   </h3>
                 </div>
                 <div className="space-y-1">
-                  {organizations.map(org => (
-                    <NavItem
-                      key={org.id}
-                      to="Organization"
-                      params={`?id=${org.id}`}
-                      icon={Building2}
-                      label={org.name}
-                      active={currentPageName === 'Organization' && window.location.search.includes(org.id)}
-                      onClick={() => setSidebarOpen(false)}
-                      badge={org.userRole === 'creator' ? 'Criador' : null}
-                    />
-                  ))}
+                  {organizations.map(org => {
+                    const isOrgActive = currentPageName === 'Organization' && activeOrgId === org.id;
+
+                    return (
+                      <div key={org.id}>
+                        <NavItem
+                          to="Organization"
+                          params={`?id=${org.id}`}
+                          icon={Building2}
+                          label={org.name}
+                          active={isOrgActive}
+                          onClick={() => setSidebarOpen(false)}
+                          badge={org.userRole === 'creator' ? 'Criador' : null}
+                        />
+
+                        {/* Sub-navigation for active organization */}
+                        {isOrgActive && (
+                          <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
+                            <SubNavItem
+                              to="Organization"
+                              params={`?id=${org.id}&tab=info`}
+                              icon={Building2}
+                              label="Informações"
+                              active={activeTab === 'info'}
+                              onClick={() => setSidebarOpen(false)}
+                            />
+                            <SubNavItem
+                              to="Organization"
+                              params={`?id=${org.id}&tab=kanban`}
+                              icon={LayoutDashboard}
+                              label="Kanban"
+                              active={activeTab === 'kanban'}
+                              onClick={() => setSidebarOpen(false)}
+                            />
+                            <SubNavItem
+                              to="Organization"
+                              params={`?id=${org.id}&tab=processes`}
+                              icon={Search}
+                              label="Consultas"
+                              active={activeTab === 'processes'}
+                              onClick={() => setSidebarOpen(false)}
+                            />
+                            <SubNavItem
+                              to="Organization"
+                              params={`?id=${org.id}&tab=summary`}
+                              icon={Sparkles}
+                              label="Resumos IA"
+                              active={activeTab === 'summary'}
+                              onClick={() => setSidebarOpen(false)}
+                            />
+                            {org.userRole === 'creator' && (
+                              <SubNavItem
+                                to="Organization"
+                                params={`?id=${org.id}&tab=admin`}
+                                icon={Settings}
+                                label="Admin"
+                                active={activeTab === 'admin'}
+                                onClick={() => setSidebarOpen(false)}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -262,12 +326,31 @@ function NavItem({ to, params = '', icon: Icon, label, active, badge, onClick })
       `}
     >
       <Icon className="w-5 h-5 shrink-0" />
-      <span className="text-sm font-medium flex-1">{label}</span>
+      <span className="text-sm font-medium flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
       {badge && !active && (
-        <Badge variant="secondary" className="text-xs">
+        <Badge variant="secondary" className="text-[10px] px-1 h-4">
           {badge}
         </Badge>
       )}
+    </Link>
+  );
+}
+
+function SubNavItem({ to, params = '', icon: Icon, label, active, onClick }) {
+  return (
+    <Link
+      to={createPageUrl(to) + params}
+      onClick={onClick}
+      className={`
+        flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-all text-xs
+        ${active
+          ? 'bg-slate-100 text-primary font-semibold'
+          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+        }
+      `}
+    >
+      <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? 'text-primary' : ''}`} />
+      <span className="truncate">{label}</span>
     </Link>
   );
 }

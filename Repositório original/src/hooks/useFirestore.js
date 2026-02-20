@@ -58,11 +58,15 @@ export function useOrganizations() {
                     const orgSnapshot = await getDoc(orgRef);
 
                     if (orgSnapshot.exists()) {
+                        // Filter out inactive memberships (soft deleted)
+                        if (membership.active === false) return null;
+
                         return {
                             id: orgSnapshot.id,
                             ...orgSnapshot.data(),
                             userRole: membership.role,
                             userFunction: membership.function,
+                            userActive: membership.active // Should be true or undefined
                         };
                     }
                     return null;

@@ -27,6 +27,7 @@ import KanbanTransitionDialog from './KanbanTransitionDialog';
 import ProcessDetailSheet from './ProcessDetailSheet';
 import EditProcessDialog from './EditProcessDialog';
 import CreateProcessButton from './CreateProcessButton';
+import EmptyState from '../ui/EmptyState';
 
 
 // === Column Definitions ===
@@ -482,10 +483,12 @@ function KanbanColumn({ column, processes, onViewDetails }) {
                             <KanbanCard key={p.id} process={p} columnId={column.id} onViewDetails={onViewDetails} />
                         ))
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-300">
-                            <ColIcon className="w-8 h-8 mb-2 opacity-40" />
-                            <p className="text-xs text-center">{column.emptyText}</p>
-                        </div>
+                        <EmptyState
+                            icon={ColIcon}
+                            title={column.emptyText}
+                            description="Não há processos nesta etapa do fluxo no momento."
+                            className="py-12 border-none shadow-none bg-transparent"
+                        />
                     )}
                 </SortableContext>
             </div>

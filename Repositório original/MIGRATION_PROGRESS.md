@@ -1,7 +1,7 @@
 # 📝 Migration Progress - Consultas CAO (Firebase)
 
-**Versão: 1.13.1 (Absolute Status & Zero Lag)
-**Last Updated:** 2026-02-13  
+**Versão: 1.6.0 (Archive Date Input)
+**Last Updated:** 2026-02-18  
 **Overall Progress:** 100% Complete ✅
 
 ---

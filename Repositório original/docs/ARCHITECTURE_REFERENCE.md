@@ -1,7 +1,7 @@
 # 🏗️ CAO - Architecture Reference (Consultas CAO)
 
-**Version:** 1.2.0 - Final (Precision Rebranding)  
-**Last Updated:** 2026-02-12  
+**Version:** 1.6.0 - Archive Date Input  
+**Last Updated:** 2026-02-18  
 **Purpose:** Complete architectural documentation for the CAOCIPP platform
 
 ---
@@ -337,7 +337,16 @@ CAOCIPP/
   created_by: string,               // Creator user_id
   created_at: Timestamp,            // Creation timestamp
   updated_at: Timestamp,            // Last update
-  updated_by: string                // Last updater user_id
+  updated_by: string,               // Last updater user_id
+  last_imported_at: Timestamp,      // Last spreadsheet import (if any)
+  activity_log: Array<{             // Per-process audit trail
+    date: string,                   // YYYY-MM-DD
+    time: string,                   // HH:MM:SS
+    user_id: string,                // Who performed the action
+    user_name: string,              // Human-readable name
+    action: string,                 // Description of what changed
+    timestamp: string               // ISO 8601 full timestamp
+  }>
 }
 ```
 
@@ -401,7 +410,12 @@ App
 │   │               │   │       ├── CreateProcessButton
 │   │               │   │       ├── Filters
 │   │               │   │       ├── ProcessTable
-│   │               │   │       └── EditProcessDialog
+│   │               │   │       ├── ProcessDetailSheet
+│   │               │   │       ├── EditProcessDialog
+│   │               │   │       │   └── ProcessLogDialog (admin only)
+│   │               │   │       └── KanbanBoard
+│   │               │   │           ├── KanbanCard (eye icon → ProcessDetailSheet)
+│   │               │   │           └── KanbanTransitionDialog
 │   │               │   └── Tab: Resumos
 │   │               │       └── IntelligentSummary
 │   │               │           ├── KPI Cards
@@ -735,7 +749,13 @@ Firebase Platform
 ├── Firebase Hosting → CDN Distribution
 ├── Firebase Authentication → User Management
 ├── Firestore → Database
-└── (Future) Cloud Functions → Backend Logic
+└── Cloud Functions v2 → Backend Logic
+    ├── createProcess → Process creation + activity_log init
+    ├── updateProcess → Process updates + activity_log append
+    ├── deleteProcess → Process deletion
+    ├── importProcessesFromExcel → Spreadsheet import + field-level diff log
+    ├── backfillProcessLogs → One-time retroactive log generation
+    └── calculateProcessStatus → Status calculation
 ```
 
 ---

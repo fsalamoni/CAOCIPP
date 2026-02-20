@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses, useOrganizationMembers, useOrganizationRealtime } from '@/hooks/useFirestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ArrowLeft, Loader2, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -21,8 +22,9 @@ export default function Organization() {
   const { user, isLoadingAuth, isAuthenticated } = useAuth();
   const { organizations, isLoading: orgsLoading } = useOrganizations();
 
-  // Get organization ID from URL params or use first organization
+  // Get organization ID and tab from URL params
   const urlOrgId = searchParams.get('id');
+  const activeTab = searchParams.get('tab') || 'info';
   const [selectedOrgId, setSelectedOrgId] = useState(urlOrgId);
 
   // Redirect if not authenticated
@@ -104,27 +106,32 @@ export default function Organization() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8">
-      <div className="max-w-none mx-auto space-y-6 px-4">
+    <TooltipProvider delayDuration={400}>
+      <div className="min-h-full flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/Profile')}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {organization.name}
-            </h1>
-            {organization.description && (
-              <p className="text-slate-600 dark:text-slate-400 mt-1">
-                {organization.description}
-              </p>
-            )}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 rounded-xl mb-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={() => navigate('/Profile')}
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate">
+                {organization.name}
+              </h1>
+              {organization.description && (
+                <p className="text-slate-600 dark:text-slate-400 mt-0.5 text-sm truncate hidden md:block">
+                  {organization.description}
+                </p>
+              )}
+            </div>
           </div>
+
+          <div className="flex-1" />
 
           {/* Organization Selector (if multiple) */}
           {organizations.length > 1 && (
@@ -132,9 +139,9 @@ export default function Organization() {
               value={selectedOrgId || ''}
               onChange={(e) => {
                 setSelectedOrgId(e.target.value);
-                navigate(`/Organization?id=${e.target.value}`);
+                navigate(`/Organization?id=${e.target.value}&tab=${activeTab}`);
               }}
-              className="px-4 py-2 border rounded-lg bg-white dark:bg-slate-800"
+              className="w-full sm:w-auto px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-primary/50"
             >
               {organizations.map(org => (
                 <option key={org.id} value={org.id}>
@@ -143,46 +150,11 @@ export default function Organization() {
               ))}
             </select>
           )}
-        </div>
+        </header>
 
-        {/* Tabs */}
-        <Tabs defaultValue="info" className="space-y-6">
-          <TabsList className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1">
-            <TabsTrigger
-              value="info"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white"
-            >
-              Informações Gerais
-            </TabsTrigger>
-            <TabsTrigger
-              value="kanban"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white"
-            >
-              Painel de Controle
-            </TabsTrigger>
-            <TabsTrigger
-              value="processes"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white"
-            >
-              Consultas do {organization.name}
-            </TabsTrigger>
-            <TabsTrigger
-              value="summary"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white"
-            >
-              Resumos Inteligentes
-            </TabsTrigger>
-            {userRole === 'creator' && (
-              <TabsTrigger
-                value="admin"
-                className="data-[state=active]:bg-primary data-[state=active]:text-white"
-              >
-                Painel Administrativo
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <TabsContent value="info">
+        {/* Main Content Area */}
+        <div className="flex-1 min-h-0">
+          {activeTab === 'info' && (
             <GeneralInfo
               organization={organization}
               members={activeMembers}
@@ -193,9 +165,9 @@ export default function Organization() {
               membersError={membersError}
               processesLoading={processesLoading}
             />
-          </TabsContent>
+          )}
 
-          <TabsContent value="kanban">
+          {activeTab === 'kanban' && (
             <KanbanBoard
               organization={organization}
               members={activeMembers}
@@ -204,9 +176,9 @@ export default function Organization() {
               userId={user?.uid}
               processesLoading={processesLoading}
             />
-          </TabsContent>
+          )}
 
-          <TabsContent value="processes">
+          {activeTab === 'processes' && (
             <ProcessControl
               organization={organization}
               members={activeMembers}
@@ -217,26 +189,25 @@ export default function Organization() {
               processesError={processesError}
               initialFilter={searchParams.get('filter')}
             />
-          </TabsContent>
+          )}
 
-          <TabsContent value="summary">
+          {activeTab === 'summary' && (
             <IntelligentSummary
               processes={processes}
               members={activeMembers}
               organization={organization}
             />
+          )}
 
-          </TabsContent>
-
-          <TabsContent value="admin">
+          {activeTab === 'admin' && userRole === 'creator' && (
             <AdminManagement
               organization={organization}
               members={members}
               userRole={userRole}
             />
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </div>
-    </div >
+    </TooltipProvider>
   );
 }
