@@ -30,7 +30,12 @@ export default function ProcessTable({
   // Mirrors the logic found in EditProcessDialog
 
   const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => localStorage.getItem('processSearchTerm') || "");
+
+  useEffect(() => {
+    localStorage.setItem('processSearchTerm', search);
+  }, [search]);
+
   const [statusFilter, setStatusFilter] = useState("all");
   const [responsibleFilter, setResponsibleFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
@@ -346,12 +351,33 @@ export default function ProcessTable({
     let result = [...processes];
 
     if (search) {
-      const searchLower = search.toLowerCase();
+      const searchLower = search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      const extractAllText = (obj) => {
+        if (!obj) return '';
+        if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+          return String(obj) + ' ';
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(extractAllText).join(' ');
+        }
+        if (typeof obj === 'object') {
+          // Attempt to format Firebase Timestamps
+          if (obj.seconds) {
+            try {
+              const d = new Date(obj.seconds * 1000);
+              return `${("0" + d.getDate()).slice(-2)}/${("0" + (d.getMonth() + 1)).slice(-2)}/${d.getFullYear()} `;
+            } catch (e) { return ''; }
+          }
+          return Object.values(obj).map(extractAllText).join(' ');
+        }
+        return '';
+      };
+
       result = result.filter(p => {
-        const num = String(getProcessField(p, 'process_number')).toLowerCase();
-        const con = String(getProcessField(p, 'consultant')).toLowerCase();
-        const loc = String(getProcessField(p, 'location')).toLowerCase();
-        return num.includes(searchLower) || con.includes(searchLower) || loc.includes(searchLower);
+        const allText = extractAllText(p).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const derivedStatus = calculateDerivedStatus(p).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return allText.includes(searchLower) || derivedStatus.includes(searchLower);
       });
     }
 
