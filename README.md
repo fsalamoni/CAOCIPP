@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.13.0)
+# Consultas CAO (Version 1.13.1)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -158,6 +158,9 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 20/02/2026 - Refinamento de Rótulos (v1.13.1)
+- **Nomenclatura Formal**: Ajuste dos nomes das guias no sidebar global para nomes descritivos completos: "Informações Gerais", "Painel de Controle", "Resumos Inteligentes" e "Painel Administrativo".
+
 ### 20/02/2026 - Navegação Unificada & UI/UX Pro Max (v1.13.0)
 - **Sidebar Global Contextual**: Migração da navegação interna dos órgãos para o sidebar principal da plataforma. Sub-itens (Info, Kanban, Consultas, IA, Admin) agora aparecem de forma subordinada ao órgão ativo.
 - **Sincronização via URL**: Estado da página (tabs) agora é totalmente controlado por `searchParams` (`?tab=...`), permitindo compartilhamento de links e persistência ao recarregar.
@@ -227,5 +230,5 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável /# CAOCIPP v1.13.0 - UI/UX Pro Max 
+**Status do Projeto**: ✅ Estável /# CAOCIPP v1.13.1 - Formal Labels
  — 20/02/2026

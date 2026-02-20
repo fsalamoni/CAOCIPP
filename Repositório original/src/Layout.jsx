@@ -172,7 +172,7 @@ export default function Layout({ children, currentPageName }) {
                               to="Organization"
                               params={`?id=${org.id}&tab=info`}
                               icon={Building2}
-                              label="Informações"
+                              label="Informações Gerais"
                               active={activeTab === 'info'}
                               onClick={() => setSidebarOpen(false)}
                             />
@@ -180,7 +180,7 @@ export default function Layout({ children, currentPageName }) {
                               to="Organization"
                               params={`?id=${org.id}&tab=kanban`}
                               icon={LayoutDashboard}
-                              label="Kanban"
+                              label="Painel de Controle"
                               active={activeTab === 'kanban'}
                               onClick={() => setSidebarOpen(false)}
                             />
@@ -196,7 +196,7 @@ export default function Layout({ children, currentPageName }) {
                               to="Organization"
                               params={`?id=${org.id}&tab=summary`}
                               icon={Sparkles}
-                              label="Resumos IA"
+                              label="Resumos Inteligentes"
                               active={activeTab === 'summary'}
                               onClick={() => setSidebarOpen(false)}
                             />
@@ -205,7 +205,7 @@ export default function Layout({ children, currentPageName }) {
                                 to="Organization"
                                 params={`?id=${org.id}&tab=admin`}
                                 icon={Settings}
-                                label="Admin"
+                                label="Painel Administrativo"
                                 active={activeTab === 'admin'}
                                 onClick={() => setSidebarOpen(false)}
                               />

@@ -1,6 +1,8 @@
-# Consultas CAO (Version 1.6.0)
+# Consultas CAO (Version 1.13.1)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
+
+**Last Updated:** 20/02/2026
 
 ## 🚀 Tecnologias
 
@@ -156,7 +158,17 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
-### 13/02/2026 - Solução Definitiva de Temporalidade (v1.11.3)
+### 20/02/2026 - Refinamento de Rótulos (v1.13.1)
+- **Nomenclatura Formal**: Ajuste dos nomes das guias no sidebar global para nomes descritivos completos: "Informações Gerais", "Painel de Controle", "Resumos Inteligentes" e "Painel Administrativo".
+
+### 20/02/2026 - Navegação Unificada & UI/UX Pro Max (v1.13.0)
+- **Sidebar Global Contextual**: Migração da navegação interna dos órgãos para o sidebar principal da plataforma. Sub-itens (Info, Kanban, Consultas, IA, Admin) agora aparecem de forma subordinada ao órgão ativo.
+- **Sincronização via URL**: Estado da página (tabs) agora é totalmente controlado por `searchParams` (`?tab=...`), permitindo compartilhamento de links e persistência ao recarregar.
+- **Layouts Aderentes (Sticky)**: Cabeçalhos de tabela e barras de paginação fixados no topo/base da tela para navegação sem perda de contexto em listas longas.
+- **Feedback Visual de Validação**: Implementação de sinais de validação inline (ícones de check verde) em formulários de edição para campos obrigatórios preenchidos.
+- **Humanização de Estados Vazios**: Substituição de telas em branco por ilustrações e mensagens contextuais para buscas sem resultado e colunas de Kanban vazias.
+
+### 13/02/2026 - Solução Definitiva de Temporalidade (v1.11.6)
 - **Coorte Unificada**: O quadro de Temporalidade agora utiliza uma amostra sincronizada de processos (Entry, Dist, Sub, Return), garantindo que a hierarquia logica (Total >= Etapas) seja mantida em 100% dos casos.
 - **Capitalização Rigorosa**: Padronização de "Devolução após Revisão" (Capital R) em toda a interface e lógica de sistema.
 
@@ -218,5 +230,5 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável /# CAOCIPP v1.11.6 - Unified Temporal Intelligence
- — 13/02/2026
+**Status do Projeto**: ✅ Estável /# CAOCIPP v1.13.1 - Formal Labels
+ — 20/02/2026
