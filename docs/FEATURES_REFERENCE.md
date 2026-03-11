@@ -1,7 +1,7 @@
 # ⚙️ Consultas CAO - Features Reference
 
-**Version:** 1.6.0 (Archive Date Input)  
-**Last Updated:** 2026-02-18  
+**Version:** 1.14.0 (Expedientes Administrativos)  
+**Last Updated:** 2026-03-11  
 **Purpose:** Complete features documentation with implementation details
 
 ---

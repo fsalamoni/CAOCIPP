@@ -103,15 +103,26 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                     const rawNumber = row['PROCESSO SIM\n(NÚMERO)'] ||
                         row['PROCESSO SIM\\n(NÚMERO)'] ||
                         row['Número'] || row['Numero'] || row['NÚMERO'] ||
-                        row['número'] || row['numero'] || row['Process Number'] || '';
+                        row['número'] || row['numero'] || row['Process Number'] || row['process_number'] || '';
                     let processNumber = rawNumber.toString().trim();
                     if (!processNumber || processNumber === 'SEM NÚMERO' || processNumber === '') {
                         processNumber = `AUTO-${Date.now()}-${rowIndex}`;
                     }
+                    const consultantVal = (row['CONSULENTE'] || row['Consulente'] || row['consulente'] || row['consultant'] || '').toString().trim();
+                    const locationVal = (row['LOCAL DOS FATOS\n(CIDADE)'] ||
+                        row['LOCAL DOS FATOS\\n(CIDADE)'] ||
+                        row['Local'] || row['LOCAL'] || row['Município'] || row['location'] || '').toString().trim();
+                    const objectVal = (row['MATÉRIA E OBJETO DA CONSULTA'] ||
+                        row['Objeto'] || row['OBJETO'] || row['Assunto'] || row['matter_object'] || '').toString().trim();
                     // Extract entry date
                     const entryDate = parseExcelDate(row['ENTRADA NO CAOPP\n(DATA)'] ||
                         row['ENTRADA NO CAOPP\\n(DATA)'] ||
-                        row['Data Entrada'] || row['DATA ENTRADA']) || null;
+                        row['Data Entrada'] || row['DATA ENTRADA'] || row['entry_date']) || null;
+                    const isGarbageRow = processNumber.startsWith('AUTO-') &&
+                        !consultantVal && !locationVal && !objectVal && !entryDate;
+                    if (isGarbageRow) {
+                        return { row, rowIndex, skip: true };
+                    }
                     // Query existing
                     const existingQuery = await db.collection('processes')
                         .where('organization_id', '==', organizationId)
@@ -124,17 +135,23 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                         rowIndex,
                         processNumber,
                         entryDate,
+                        consultantVal,
+                        locationVal,
+                        objectVal,
                         existingDoc: existingQuery.empty ? null : existingQuery.docs[0],
-                        error: null
+                        error: null,
+                        skip: false
                     };
                 }
                 catch (err) {
-                    return { row, rowIndex, error: err.message || 'Erro no lookup' };
+                    return { row, rowIndex, error: err.message || 'Erro no lookup', skip: false };
                 }
             });
             const results = await Promise.all(lookupPromises);
             // Process results and add to batch
             for (const res of results) {
+                if (res.skip)
+                    continue;
                 if (res.error) {
                     stats.errors++;
                     stats.errorDetails.push({
@@ -145,26 +162,25 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                     continue;
                 }
                 try {
-                    const { row, processNumber, entryDate, existingDoc } = res;
+                    const { row, processNumber, entryDate, consultantVal, locationVal, objectVal, existingDoc } = res;
                     const isUpdate = !!existingDoc;
                     const processRef = isUpdate ? existingDoc.ref : db.collection('processes').doc();
                     const processData = {
                         organization_id: organizationId,
                         process_number: processNumber,
-                        consultant: (row['CONSULENTE'] || row['Consulente'] || row['consulente'] || '').toString().trim(),
-                        location: (row['LOCAL DOS FATOS\n(CIDADE)'] ||
-                            row['LOCAL DOS FATOS\\n(CIDADE)'] ||
-                            row['Local'] || row['LOCAL'] || row['Município'] || '').toString().trim(),
-                        matter_object: (row['MATÉRIA E OBJETO DA CONSULTA'] ||
-                            row['Objeto'] || row['OBJETO'] || row['Assunto'] || '').toString().trim(),
+                        consultant: consultantVal,
+                        location: locationVal,
+                        matter_object: objectVal,
                         entry_date: entryDate,
-                        responsible_user_name: (row['ASSESSOR RESPONSÁVEL'] || row['Responsável'] || row['RESPONSÁVEL'] || '').toString().trim() || null,
-                        responsible_user_id: null,
+                        responsible_user_name: (row['ASSESSOR RESPONSÁVEL'] || row['Responsável'] || row['RESPONSÁVEL'] || row['responsible_user_name'] || '').toString().trim() || null,
+                        responsible_user_id: row['responsible_user_id'] || null,
                         urgency_request: (row['PEDIDO DE URGÊNCIA'] === 'Sim' ||
                             row['Solicitação de Urgência'] === 'Sim' ||
-                            row['Urgente'] === 'Sim'),
+                            row['Urgente'] === 'Sim' ||
+                            row['urgency_request'] === true ||
+                            row['urgency_request'] === 'true'),
                         observations: (row['OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA'] ||
-                            row['Observações'] || row['Obs'] || '').toString().trim(),
+                            row['Observações'] || row['Obs'] || row['observations'] || '').toString().trim(),
                         distribution_date: parseExcelDate(row['DISTRIBUIÇÃO\n(DATA)'] ||
                             row['DISTRIBUIÇÃO\\n(DATA)'] ||
                             row['DISTRIBUIÇÃO']) || null,

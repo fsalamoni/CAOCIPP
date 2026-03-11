@@ -20,3 +20,8 @@ export { backfillProcessLogs } from './processes/backfillLogs';
 export { updateProfile } from './user/updateProfile';
 
 export { importProcessesFromExcel } from './import/fromExcel';
+
+export { createExpediente } from './expedientes/create';
+export { updateExpediente } from './expedientes/update';
+export { deleteExpediente } from './expedientes/delete';
+export { importExpedientesFromExcel } from './import/fromExcelExpedientes';

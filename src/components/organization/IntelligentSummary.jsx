@@ -18,7 +18,7 @@ import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import TemporalMetrics from './TemporalMetrics';
 import { calculateBusinessDays, parseLocalDate } from '@/lib/dateUtils';
 
-export default function IntelligentSummary({ processes, members }) {
+export default function IntelligentSummary({ processes = [], members, expedientes = [] }) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' or 0-11
@@ -107,6 +107,70 @@ export default function IntelligentSummary({ processes, members }) {
     }
   });
 
+  // ========== EXPEDIENTES METRICS ==========
+  const filteredExpedientes = useMemo(() => {
+    return expedientes.filter(p => {
+      const date = parseLocalDate(p.entry_date);
+      if (!isValid(date)) return false;
+      const yearMatch = date.getFullYear() === selectedYear;
+      const monthMatch = selectedMonth === 'all' || date.getMonth() === Number(selectedMonth);
+      return yearMatch && monthMatch;
+    });
+  }, [expedientes, selectedYear, selectedMonth]);
+
+  const totalExpedientes = filteredExpedientes.length;
+  // 'Na pasta' is the finished status in config
+  const finishedExpedientes = filteredExpedientes.filter(p => p.status === 'Na pasta').length;
+  const urgentExpedientes = filteredExpedientes.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
+  const expCompletionRate = totalExpedientes > 0 ? ((finishedExpedientes / totalExpedientes) * 100).toFixed(1) : 0;
+
+  // 1. Tempo total médio Expediente (Entrada -> Devolução após Revisão)
+  const expTotalTimeData = filteredExpedientes.filter(p => p.entry_date && p.review_return_date);
+  const expAvgTotalTime = expTotalTimeData.length > 0
+    ? Math.ceil(expTotalTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / expTotalTimeData.length)
+    : 0;
+
+  // 2. Tempo médio análise Expediente (Distribuição -> Remessa p/ Revisão)
+  const expAnalysisTimeData = filteredExpedientes.filter(p => p.distribution_date && p.review_submission_date);
+  const expAvgAnalysisTime = expAnalysisTimeData.length > 0
+    ? Math.ceil(expAnalysisTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / expAnalysisTimeData.length)
+    : 0;
+
+  // 3. Tempo médio revisão Expediente (Remessa p/ Revisão -> Devolução após Revisão)
+  const expReviewTimeData = filteredExpedientes.filter(p => p.review_submission_date && p.review_return_date);
+  const expAvgReviewStageTime = expReviewTimeData.length > 0
+    ? Math.ceil(expReviewTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / expReviewTimeData.length)
+    : 0;
+
+  // Expedientes por Origem (top 10)
+  const expedientesPerOrigin = {};
+  filteredExpedientes.forEach(p => {
+    const origin = p.origin || 'Não informado';
+    expedientesPerOrigin[origin] = (expedientesPerOrigin[origin] || 0) + 1;
+  });
+  const originData = Object.entries(expedientesPerOrigin)
+    .map(([name, count]) => ({ name, expedientes: count }))
+    .sort((a, b) => b.expedientes - a.expedientes)
+    .slice(0, 10);
+
+  // Expedientes por status
+  const expStatusCounts = {};
+  Object.keys(statusConfig).forEach(status => {
+    expStatusCounts[status] = 0;
+  });
+  let expNoStatusCount = 0;
+
+  filteredExpedientes.forEach(p => {
+    if (!p.status) {
+      expNoStatusCount++;
+    } else if (expStatusCounts.hasOwnProperty(p.status)) {
+      expStatusCounts[p.status]++;
+    } else {
+      expStatusCounts[p.status] = (expStatusCounts[p.status] || 0) + 1;
+    }
+  });
+
+
   return (
     <div className="space-y-6">
       {/* Filters Header */}
@@ -147,6 +211,10 @@ export default function IntelligentSummary({ processes, members }) {
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-2 mt-8">
+        <h2 className="text-xl font-bold text-slate-800">Métricas: Consultas (Processos)</h2>
       </div>
 
       {/* KPI Cards */}
@@ -263,6 +331,128 @@ export default function IntelligentSummary({ processes, members }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ==============================================
+          EXPEDIENTES SECTION 
+      ============================================== */}
+      
+      <div className="flex items-center gap-2 mb-2 mt-12 pt-8 border-t border-slate-200 dark:border-slate-800">
+        <h2 className="text-xl font-bold text-slate-800">Métricas: Expedientes Administrativos</h2>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          title="Total de Expedientes"
+          value={totalExpedientes}
+          icon={FileText}
+          color="from-indigo-500 to-violet-500"
+        />
+        <MetricCard
+          title="Taxa de Conclusão"
+          value={`${expCompletionRate}%`}
+          icon={Target}
+          color="from-emerald-500 to-teal-500"
+        />
+        <MetricCard
+          title="Tempo Médio Fluxo"
+          value={`${expAvgTotalTime} dias`}
+          icon={Clock}
+          color="from-blue-500 to-cyan-500"
+        />
+        <MetricCard
+          title="Expedientes Urgentes"
+          value={urgentExpedientes}
+          icon={AlertCircle}
+          color="from-red-500 to-rose-500"
+        />
+      </div>
+
+      {/* Grid de Gráficos e Métricas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Volume por Origem */}
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="border-b border-slate-50">
+            <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800">
+              <MapPin className="w-5 h-5 text-indigo-500" />
+              Distribuição por Origem
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {originData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={originData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={150}
+                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                  />
+                  <Bar
+                    dataKey="expedientes"
+                    fill="#6366f1"
+                    radius={[0, 6, 6, 0]}
+                    barSize={20}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
+                <FileText className="w-10 h-10 opacity-20" />
+                <p className="font-medium text-sm">Sem dados para este período</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quadro de Temporalidade */}
+        <TemporalMetrics
+          totalAvg={expAvgTotalTime}
+          analysisAvg={expAvgAnalysisTime}
+          reviewAvg={expAvgReviewStageTime}
+        />
+      </div>
+
+      {/* Resumo por Status */}
+      <Card className="shadow-sm border-slate-200">
+        <CardHeader>
+          <CardTitle className="text-lg">Resumo por Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {expNoStatusCount > 0 && (
+              <div className="text-center p-4 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-2xl font-bold text-slate-900">{expNoStatusCount}</div>
+                <div className="text-xs text-slate-600 mt-1">Sem Status</div>
+              </div>
+            )}
+            {Object.entries(expStatusCounts).map(([status, count]) => {
+              const config = statusConfig[status] || DEFAULT_STATUS_CONFIG;
+              return (
+                <div
+                  key={status}
+                  className={`text-center p-4 rounded-lg border border-transparent ${config.startColor}`}
+                >
+                  <div className={`text-2xl font-bold ${config.text?.replace('text-', 'text-opacity-90 text-') || 'text-slate-900'}`}>
+                    {count}
+                  </div>
+                  <div className={`text-xs mt-1 ${config.text || 'text-slate-600'}`}>
+                    {status}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+      
     </div>
   );
 }

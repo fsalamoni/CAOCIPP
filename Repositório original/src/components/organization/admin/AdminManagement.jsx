@@ -1,12 +1,13 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Users, Database, Bot, AlertTriangle } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText } from 'lucide-react';
 
 // Sub-components (to be created)
 import OrganizationDetails from './OrganizationDetails';
 import MemberManagement from './MemberManagement';
 import MatterConfiguration from './MatterConfiguration';
+import ExpedienteConfiguration from './ExpedienteConfiguration';
 import AISettings from './AISettings';
 import DangerZone from './DangerZone';
 
@@ -42,6 +43,10 @@ export default function AdminManagement({ organization, members, userRole }) {
                         <Database className="w-4 h-4" />
                         Classificação (Matérias)
                     </TabsTrigger>
+                    <TabsTrigger value="expedientes" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <FileText className="w-4 h-4" />
+                        Expedientes
+                    </TabsTrigger>
                     <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <Bot className="w-4 h-4" />
                         Inteligência Artificial
@@ -62,6 +67,10 @@ export default function AdminManagement({ organization, members, userRole }) {
 
                 <TabsContent value="matters">
                     <MatterConfiguration organization={organization} />
+                </TabsContent>
+
+                <TabsContent value="expedientes">
+                    <ExpedienteConfiguration organization={organization} />
                 </TabsContent>
 
                 <TabsContent value="ai">

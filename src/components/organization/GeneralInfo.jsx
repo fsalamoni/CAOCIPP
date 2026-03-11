@@ -39,7 +39,7 @@ import { logger } from '@/utils/logger';
 
 
 
-export default function GeneralInfo({ organization, members, processes = [], userRole, userId, membersLoading, membersError, processesLoading }) {
+export default function GeneralInfo({ organization, members, processes = [], expedientes = [], userRole, userId, membersLoading, membersError, processesLoading }) {
   const [isRemoving, setIsRemoving] = useState(false);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -98,6 +98,27 @@ export default function GeneralInfo({ organization, members, processes = [], use
     return { total, finished, urgentPending, completionRate, workload };
   }, [filteredProcesses, members]);
 
+  // Filter expedientes by selected year
+  const filteredExpedientes = React.useMemo(() => {
+    return expedientes.filter(p => {
+      const date = parseLocalDate(p.entry_date);
+      if (!isValid(date)) return false;
+      return date.getFullYear() === selectedYear;
+    });
+  }, [expedientes, selectedYear]);
+
+  // Calculate Expedientes Metrics
+  const expedienteMetrics = React.useMemo(() => {
+    if (!filteredExpedientes || filteredExpedientes.length === 0) return null;
+
+    const total = filteredExpedientes.length;
+    const finished = filteredExpedientes.filter(p => p.status === 'Na pasta').length;
+    const urgentPending = filteredExpedientes.filter(p => p.urgency_request && p.status === 'Pendente').length;
+    const completionRate = total > 0 ? ((finished / total) * 100).toFixed(0) : 0;
+
+    return { total, finished, urgentPending, completionRate };
+  }, [filteredExpedientes]);
+
   const copyInviteCode = () => {
     navigator.clipboard.writeText(organization.invite_code);
     toast.success('Código copiado para a área de transferência!');
@@ -151,8 +172,11 @@ export default function GeneralInfo({ organization, members, processes = [], use
         </div>
       </div>
 
-      {/* Metrics Section - Organ Health */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Metrics Section - Processos */}
+      <div className="mb-2">
+           <h3 className="text-sm font-bold text-slate-700 bg-slate-100 py-1.5 px-3 rounded-md w-max inline-flex">Consultas (Processos)</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <Card className="shadow-sm border-slate-200 bg-white">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
@@ -197,6 +221,60 @@ export default function GeneralInfo({ organization, members, processes = [], use
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa de Conclusão</p>
               <h3 className="text-2xl font-black text-slate-900">{metrics?.completionRate || 0}%</h3>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Metrics Section - Expedientes */}
+      <div className="mb-2">
+           <h3 className="text-sm font-bold text-slate-700 bg-slate-100 py-1.5 px-3 rounded-md w-max inline-flex">Expedientes Administrativos</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card className="shadow-sm border-slate-200 bg-white">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+              <FileText className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total (Expedientes)</p>
+              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.total || 0}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-slate-200 bg-white">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+              <Target className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Concluídos</p>
+              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.finished || 0}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-slate-200 bg-white">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-600">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Urgentes Pendentes</p>
+              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.urgentPending || 0}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-slate-200 bg-white">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa de Conclusão</p>
+              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.completionRate || 0}%</h3>
             </div>
           </CardContent>
         </Card>

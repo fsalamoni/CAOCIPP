@@ -194,6 +194,22 @@ export default function Layout({ children, currentPageName }) {
                             />
                             <SubNavItem
                               to="Organization"
+                              params={`?id=${org.id}&tab=kanban-expedientes`}
+                              icon={LayoutDashboard}
+                              label="Painel de Expedientes"
+                              active={activeTab === 'kanban-expedientes'}
+                              onClick={() => setSidebarOpen(false)}
+                            />
+                            <SubNavItem
+                              to="Organization"
+                              params={`?id=${org.id}&tab=expedientes`}
+                              icon={FileText}
+                              label="Expedientes"
+                              active={activeTab === 'expedientes'}
+                              onClick={() => setSidebarOpen(false)}
+                            />
+                            <SubNavItem
+                              to="Organization"
                               params={`?id=${org.id}&tab=summary`}
                               icon={Sparkles}
                               label="Resumos Inteligentes"

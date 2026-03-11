@@ -94,6 +94,31 @@ service cloud.firestore {
                       hasRole(resource.data.organization_id, ['creator', 'admin']);
     }
     
+    // ========== EXPEDIENTES ADMINISTRATIVOS ==========
+    
+    match /expedientes/{expedienteId} {
+      // Membros da organização podem ler expedientes
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      
+      // Membros podem criar expedientes
+      allow create: if isAuthenticated() && 
+                      isMemberOf(request.resource.data.organization_id);
+      
+      // Pode atualizar se for:
+      // 1. Admin/creator da organização, OU
+      // 2. Responsável pelo expediente
+      allow update: if isAuthenticated() && 
+                      isMemberOf(resource.data.organization_id) && (
+                        hasRole(resource.data.organization_id, ['creator', 'admin']) ||
+                        isOwner(resource.data.responsible_user_id)
+                      );
+      
+      // Apenas admin/creator podem deletar
+      allow delete: if isAuthenticated() && 
+                      isMemberOf(resource.data.organization_id) &&
+                      hasRole(resource.data.organization_id, ['creator', 'admin']);
+    }
+    
     // ========== AUDIT LOGS ==========
     
     match /auditLogs/{logId} {

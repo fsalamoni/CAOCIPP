@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useProcesses, useOrganizationMembers, useOrganizationRealtime } from '@/hooks/useFirestore';
+import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime } from '@/hooks/useFirestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowLeft, Loader2, Menu } from 'lucide-react';
@@ -11,9 +11,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 // Import organization components
 import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
+import ExpedienteControl from '../components/organization/ExpedienteControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
 
 import KanbanBoard from '../components/organization/KanbanBoard';
+import ExpedienteKanbanBoard from '../components/organization/ExpedienteKanbanBoard';
 import AdminManagement from '../components/organization/admin/AdminManagement';
 
 export default function Organization() {
@@ -49,6 +51,9 @@ export default function Organization() {
 
   // Fetch processes
   const { processes, isLoading: processesLoading, error: processesError } = useProcesses(selectedOrgId);
+
+  // Fetch expedientes
+  const { expedientes, isLoading: expedientesLoading, error: expedientesError } = useExpedientes(selectedOrgId);
 
   // Filter active members for general views and process management
   const activeMembers = React.useMemo(() => {
@@ -187,6 +192,30 @@ export default function Organization() {
               userId={user?.uid}
               processesLoading={processesLoading}
               processesError={processesError}
+              initialFilter={searchParams.get('filter')}
+            />
+          )}
+
+          {activeTab === 'kanban-expedientes' && (
+            <ExpedienteKanbanBoard
+              organization={organization}
+              members={activeMembers}
+              expedientes={expedientes}
+              userRole={userRole}
+              userId={user?.uid}
+              expedientesLoading={expedientesLoading}
+            />
+          )}
+
+          {activeTab === 'expedientes' && (
+            <ExpedienteControl
+              organization={organization}
+              members={activeMembers}
+              expedientes={expedientes}
+              userRole={userRole}
+              userId={user?.uid}
+              expedientesLoading={expedientesLoading}
+              expedientesError={expedientesError}
               initialFilter={searchParams.get('filter')}
             />
           )}

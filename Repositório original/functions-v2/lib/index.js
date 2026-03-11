@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -32,4 +32,12 @@ var updateProfile_1 = require("./user/updateProfile");
 Object.defineProperty(exports, "updateProfile", { enumerable: true, get: function () { return updateProfile_1.updateProfile; } });
 var fromExcel_1 = require("./import/fromExcel");
 Object.defineProperty(exports, "importProcessesFromExcel", { enumerable: true, get: function () { return fromExcel_1.importProcessesFromExcel; } });
+var create_3 = require("./expedientes/create");
+Object.defineProperty(exports, "createExpediente", { enumerable: true, get: function () { return create_3.createExpediente; } });
+var update_3 = require("./expedientes/update");
+Object.defineProperty(exports, "updateExpediente", { enumerable: true, get: function () { return update_3.updateExpediente; } });
+var delete_2 = require("./expedientes/delete");
+Object.defineProperty(exports, "deleteExpediente", { enumerable: true, get: function () { return delete_2.deleteExpediente; } });
+var fromExcelExpedientes_1 = require("./import/fromExcelExpedientes");
+Object.defineProperty(exports, "importExpedientesFromExcel", { enumerable: true, get: function () { return fromExcelExpedientes_1.importExpedientesFromExcel; } });
 //# sourceMappingURL=index.js.map

@@ -192,3 +192,79 @@ export const backfillProcessLogs = async (organizationId) => {
         throw error;
     }
 };
+
+// ========== EXPEDIENTE FUNCTIONS ==========
+
+export const createExpediente = async (data) => {
+    try {
+        const createExpedienteFn = httpsCallable(functions, 'createExpediente');
+        const result = await createExpedienteFn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling createExpediente:', error);
+        throw error;
+    }
+};
+
+export const updateExpediente = async (data) => {
+    try {
+        const updateExpedienteFn = httpsCallable(functions, 'updateExpediente');
+        const result = await updateExpedienteFn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling updateExpediente:', error);
+        throw error;
+    }
+};
+
+export const deleteExpediente = async ({ id, organizationId }) => {
+    try {
+        const deleteExpedienteFn = httpsCallable(functions, 'deleteExpediente');
+        const result = await deleteExpedienteFn({ id, organizationId });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling deleteExpediente:', error);
+        throw error;
+    }
+};
+
+export const archiveExpediente = async ({ id, organizationId }) => {
+    try {
+        const now = new Date().toISOString().split('T')[0];
+        return await updateExpediente({
+            id,
+            organizationId,
+            changes: {
+                archived_date: now,
+                status: 'Na pasta'
+            }
+        });
+    } catch (error) {
+        logger.error('Error in archiveExpediente:', error);
+        throw error;
+    }
+};
+
+export const importExpedientesFromExcel = async (data) => {
+    try {
+        const { auth } = await import('@/config/firebase');
+
+        if (!auth.currentUser) {
+            throw new Error('Você precisa estar autenticado para importar expedientes');
+        }
+
+        try {
+            await auth.currentUser.getIdToken(true);
+        } catch (tokenError) {
+            throw new Error('Erro ao renovar autenticação. Faça login novamente.');
+        }
+
+        const importFn = httpsCallable(functions, 'importExpedientesFromExcel', { timeout: 600000 });
+        const result = await importFn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling importExpedientesFromExcel:', error);
+        throw error;
+    }
+};
+

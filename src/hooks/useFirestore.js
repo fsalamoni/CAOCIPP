@@ -341,3 +341,49 @@ export function useUserPreferences() {
 
     return { preferences, updatePreferences, isLoading };
 }
+
+/**
+ * Hook to fetch expedientes for a specific organization (real-time)
+ * @param {string} organizationId - Organization ID
+ */
+export function useExpedientes(organizationId) {
+    const [expedientes, setExpedientes] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!organizationId) {
+            setExpedientes([]);
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        const expedientesRef = collection(db, 'expedientes');
+        const q = query(
+            expedientesRef,
+            where('organization_id', '==', organizationId),
+            orderBy('updated_at', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const expedientesData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setExpedientes(expedientesData);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to expedientes:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [organizationId]);
+
+    return { expedientes, isLoading, error };
+}
+
