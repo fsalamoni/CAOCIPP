@@ -1,8 +1,8 @@
-# Consultas CAO (Version 1.13.1)
+# Consultas CAO (Version 1.14.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
-**Last Updated:** 20/02/2026
+**Last Updated:** 11/03/2026
 
 ## 🚀 Tecnologias
 
@@ -24,8 +24,9 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 - ✅ Tratamento resiliente de dados históricos e assessores legados
 - ✅ Sincronização em tempo real (onSnapshot)
 - ✅ Hover inteligente e uniforme em colunas fixas
-- ✅ Quadro Kanban com drag-and-drop bidirecional
-- ✅ Log de atividades por processo (auditoria completa)
+- ✅ Módulo Dedicado de Expedientes Administrativos
+- ✅ Quadro Kanban com drag-and-drop bidirecional (Consultas e Expedientes)
+- ✅ Log de atividades estruturado (auditoria completa)
 - ✅ Backfill retroativo de logs para processos existentes
 - ✅ Auto-distribuição e fluxo inteligente para assessores
 - ✅ Arquivamento com data de devolução manual
@@ -158,6 +159,12 @@ Consultas-CAO/
 
 ## 📝 Atualizações Recentes
 
+### 11/03/2026 - Módulo de Expedientes Administrativos (v1.14.0)
+- **Novo Controle de Expedientes**: Criação de fluxos independentes de Consultas, com tela de visualização, formulários e banco de dados próprios.
+- **Dois Kanbans**: A visualização em Kanban agora engloba um painel para as Consultas e um painel apartado para os Expedientes.
+- **Métricas Duplas**: Integração de KPIs analíticos dedicados aos Expedientes dentro do `GeneralInfo` e do `IntelligentSummary`.
+- **Importação Anti-lixo**: Nova verificação nas Cloud Functions de importação do Excel para ignorar linhas integralmente vazias nas planilhas.
+
 ### 20/02/2026 - Refinamento de Rótulos (v1.13.1)
 - **Nomenclatura Formal**: Ajuste dos nomes das guias no sidebar global para nomes descritivos completos: "Informações Gerais", "Painel de Controle", "Resumos Inteligentes" e "Painel Administrativo".
 
@@ -230,5 +237,5 @@ Este projeto é proprietário do Consultas CAO.
 
 ---
 
-**Status do Projeto**: ✅ Estável /# CAOCIPP v1.13.1 - Formal Labels
- — 20/02/2026
+**Status do Projeto**: ✅ Estável /# CAOCIPP v1.14.0 - Expedientes Administrativos
+ — 11/03/2026

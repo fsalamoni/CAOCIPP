@@ -1,7 +1,7 @@
 # 🏗️ CAO - Architecture Reference (Consultas CAO)
 
-**Version:** 1.6.0 - Archive Date Input  
-**Last Updated:** 2026-02-18  
+**Version:** 1.14.0 - Expedientes Administrativos  
+**Last Updated:** 2026-03-11  
 **Purpose:** Complete architectural documentation for the CAOCIPP platform
 
 ---
@@ -126,7 +126,13 @@ CAOCIPP/
 │   │   ├── organization/        # Organization-specific components
 │   │   │   ├── CreateProcessButton.jsx
 │   │   │   ├── CreateProcessDialog.jsx
+│   │   │   ├── CreateExpedienteDialog.jsx
 │   │   │   ├── EditProcessDialog.jsx
+│   │   │   ├── EditExpedienteDialog.jsx
+│   │   │   ├── ExpedienteControl.jsx
+│   │   │   ├── ExpedienteTable.jsx
+│   │   │   ├── ExpedienteDetailSheet.jsx
+│   │   │   ├── ExpedienteKanbanBoard.jsx
 │   │   │   ├── GeneralInfo.jsx
 │   │   │   ├── IntelligentSummary.jsx
 │   │   │   ├── ProcessControl.jsx
@@ -360,7 +366,48 @@ CAOCIPP/
 
 **Security:** Read/write by org members, delete by creator/admin
 
-#### 5. `notifications` (Optional - Placeholder)
+#### 5. `expedientes`
+**Purpose:** Administrative expedient tracking
+
+```javascript
+{
+  // Document ID: Auto-generated
+  organization_id: string,          // Reference to organizations
+  expediente_number: string,        // Expediente identifier
+  origin: string,                   // Origin/Source (SIM, GAB-PGJ, etc.)
+  system: string,                   // System identifier
+  entry_date: string,               // YYYY-MM-DD format
+  matter: string,                   // Subject/Matter
+  status: string,                   // Current status
+  urgency_request: boolean,         // Urgent flag
+  responsible_user_id: string,      // Assigned user ID
+  responsible_user_name: string,    // Denormalized user name
+  distribution_date: string,        // Distribution date
+  analysis_start_date: string,      // Analysis start
+  review_submission_date: string,   // Sent to review
+  review_return_date: string,       // Returned from review
+  archived_date: string,            // Archived date
+  observations: string,             // Notes
+  network_folder: string,           // Network path
+  created_by: string,               // Creator user_id
+  created_at: Timestamp,            // Creation timestamp
+  updated_at: Timestamp,            // Last update
+  updated_by: string,               // Last updater user_id
+  activity_log: Array<{             // Per-expediente audit trail
+    // (Same format as processes)
+  }>
+}
+```
+
+**Indexes:**
+- `organization_id` + `created_at` (composite, descending)
+- `organization_id` + `status` (composite)
+- `organization_id` + `entry_date` (composite, descending)
+- `organization_id` + `expediente_number` (composite)
+
+**Security:** Read/write by org members, delete by creator/admin
+
+#### 6. `notifications` (Optional - Placeholder)
 **Purpose:** User notifications
 
 ```javascript
@@ -416,6 +463,15 @@ App
 │   │               │   │       └── KanbanBoard
 │   │               │   │           ├── KanbanCard (eye icon → ProcessDetailSheet)
 │   │               │   │           └── KanbanTransitionDialog
+│   │               │   ├── Tab: Expedientes
+│   │               │   │   └── ExpedienteControl
+│   │               │   │       ├── CreateExpedienteDialog
+│   │               │   │       ├── ExpedienteTable
+│   │               │   │       ├── ExpedienteDetailSheet
+│   │               │   │       ├── EditExpedienteDialog
+│   │               │   │       └── ExpedienteKanbanBoard
+│   │               │   │           │   ├── ExpedienteKanbanCard (eye icon → ExpedienteDetailSheet)
+│   │               │   │           │   └── (Transition Logic similar to processes)
 │   │               │   └── Tab: Resumos
 │   │               │       └── IntelligentSummary
 │   │               │           ├── KPI Cards
@@ -754,8 +810,13 @@ Firebase Platform
     ├── updateProcess → Process updates + activity_log append
     ├── deleteProcess → Process deletion
     ├── importProcessesFromExcel → Spreadsheet import + field-level diff log
+    ├── createExpediente → Expediente creation + activity_log init
+    ├── updateExpediente → Expediente updates + activity_log append
+    ├── deleteExpediente → Expediente deletion
+    ├── importExpedientesFromExcel → Expediente spreadsheet import
     ├── backfillProcessLogs → One-time retroactive log generation
-    └── calculateProcessStatus → Status calculation
+    ├── calculateProcessStatus → Status calculation
+    └── calculateExpedienteStatus → Status calculation for expedientes
 ```
 
 ---

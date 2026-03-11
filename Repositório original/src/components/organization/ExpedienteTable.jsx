@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "@/components/ui/StatusBadge";
+import ExpedienteDetailSheet from "./ExpedienteDetailSheet";
 import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, Settings2, Columns3, Filter, FilterX, Clock } from "lucide-react";
 import { format, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -55,6 +56,7 @@ export default function ExpedienteTable({
     archived: { start: '', end: '' }
   });
   const [isAniversarianteFilter, setIsAniversarianteFilter] = useState(false);
+  const [selectedExpediente, setSelectedExpediente] = useState(null);
 
   const dynamicResponsibleNames = useMemo(() => {
     const names = new Set();
@@ -733,7 +735,7 @@ export default function ExpedienteTable({
                     <TableRow
                       key={exp.id}
                       className={`${colors.bg} ${colors.hover} ${colors.border} transition-all duration-150 group cursor-pointer border-b-[1.5px]`}
-                      onClick={() => onEdit(exp)}
+                      onClick={() => setSelectedExpediente(exp)}
                     >
                       {activeColumns.map(col => {
                         const isStickyLeft = col.sticky === 'left';
@@ -779,6 +781,14 @@ export default function ExpedienteTable({
           </Table>
         </div>
       </div>
+
+      <ExpedienteDetailSheet
+        expediente={selectedExpediente}
+        open={!!selectedExpediente}
+        onClose={() => setSelectedExpediente(null)}
+        onEdit={onEdit}
+        getExpedienteField={getExpedienteField}
+      />
 
       {filteredAndSortedExpedientes.length > 0 && (
         <div className="sticky bottom-0 mt-4 flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)] z-20">

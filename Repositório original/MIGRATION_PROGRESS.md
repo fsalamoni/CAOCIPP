@@ -1,7 +1,7 @@
 # 📝 Migration Progress - Consultas CAO (Firebase)
 
-**Versão:** 1.13.1 (Formal Labels & Sidebar Refinement)  
-**Last Updated:** 2026-02-20  
+**Versão:** 1.14.0 (Expedientes Administrativos)  
+**Last Updated:** 2026-03-11  
 **Overall Progress:** 100% Complete ✅
 
 ---
@@ -30,13 +30,14 @@
 
 ### Organization Sub-Components (100%) ✅
 - [x] `ProcessControl.jsx` - Process table + CRUD operations
-- [x] `CreateProcessDialog.jsx` - Create process with Firebase
-- [x] `EditProcessDialog.jsx` - Edit/Delete process with Firebase (With validation icons)
-- [x] `GeneralInfo.jsx` - Organization info + member management
-- [x] `KanbanBoard.jsx` - Real-time process board with drag-and-drop
+- [x] `ExpedienteControl.jsx` - Expedientes table + CRUD operations
+- [x] `CreateProcessDialog.jsx` & `CreateExpedienteDialog.jsx`
+- [x] `EditProcessDialog.jsx` & `EditExpedienteDialog.jsx`
+- [x] `GeneralInfo.jsx` - Organization info + member management + metrics
+- [x] `KanbanBoard.jsx` & `ExpedienteKanbanBoard.jsx`
 - [x] `IntelligentSummary.jsx` - Analytics and Temporal Metrics
 - [x] `AdminManagement.jsx` - Advanced organization settings
-- [x] `EmptyState.jsx` - Humanized empty states for empty views
+- [x] `EmptyState.jsx` - Humanized empty states
 
 ### App Structure (100%)
 - [x] `App.jsx` - Updated to FirebaseAuthProvider
@@ -51,12 +52,11 @@ All components are running on Firebase and Cloud Functions v2. The legacy Base44
 
 ---
 
-## 🚀 Recent Improvements (20/02/2026)
-- **Navegação Global**: Sidebar centralizado no Layout para melhor fluxo.
-- **Sticky Headers**: UX aprimorada em tabelas longas (ProcessTable).
-- **Campos de Validação**: Feedback imediato para o usuário em formulários.
-- **Micro-interações**: Tooltips contextuais em indicadores e botões críticos.
-- **Resiliência**: Tratamento de dados históricos e assessores legados.
+## 🚀 Recent Improvements (11/03/2026)
+- **Expedientes Administrativos**: Novo módulo exclusivo com CRUD separado.
+- **Painel de Expedientes**: Kanban Board paralelo e dedicado apenas para Expedientes.
+- **Importação Anti-lixo**: Filtros estritos no backend para evitar criação de expedientes e consultas "fantasmas".
+- **Resumos Compartilhados**: `GeneralInfo` e `IntelligentSummary` agora reportam estatísticas de Consultas e Expedientes lado a lado.
 
 ---
 

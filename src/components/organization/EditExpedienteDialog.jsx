@@ -155,6 +155,11 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!formData.expediente_number?.trim()) {
+      toast.error('O Número do Expediente é obrigatório.');
+      return;
+    }
+
     try {
       setIsUpdating(true);
 
@@ -262,7 +267,6 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                       id="expediente_number"
                       value={formData.expediente_number || ''}
                       onChange={(e) => setFormData({ ...formData, expediente_number: e.target.value })}
-                      required
                       className={cn(
                         "mt-1 transition-all duration-300",
                         formData.expediente_number ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
