@@ -55,7 +55,15 @@
 | **Kanban** | Kanban Board (drag & drop) | ✅ LIVE | P1 | High |
 | **Kanban** | Backward Column Movement | ✅ LIVE | P1 | Medium |
 | **Kanban** | Eye Icon (Process Detail View) | ✅ LIVE | P1 | Low |
+| **Expedientes** | Criar Expediente | ✅ LIVE | P0 | Medium |
+| **Expedientes** | Editar Expediente | ✅ LIVE | P0 | Medium |
+| **Expedientes** | Excluir Expediente | ✅ LIVE | P0 | Low |
+| **Expedientes** | Kanban de Expedientes | ✅ LIVE | P1 | High |
+| **Expedientes** | Importar via Excel | ✅ LIVE | P2 | High |
+| **Expedientes** | Dashboard de Expedientes | ✅ LIVE | P1 | Medium |
+| **Expedientes** | Painel Lateral de Detalhes | ✅ LIVE | P1 | Medium |
 | **Audit Log** | Per-Process Activity Log | ✅ LIVE | P1 | High |
+| **Audit Log** | Per-Expediente Activity Log | ✅ LIVE | P1 | High |
 | **Audit Log** | Retroactive Log Backfill | ✅ LIVE | P2 | Medium |
 | **Audit Log** | Detailed Import Change Log | ✅ LIVE | P2 | Medium |
 | **Notifications** | In-App Notifications | ⏸️ PAUSED | P2 | Medium |

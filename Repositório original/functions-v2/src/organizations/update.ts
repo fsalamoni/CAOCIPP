@@ -12,6 +12,10 @@ interface UpdateOrganizationRequest {
             subcategories: Record<string, string[]>;
         };
         summarySettings?: Record<string, any>;
+        expedienteSettings?: {
+            systems: string[];
+            origins: string[];
+        };
     };
 }
 
@@ -52,6 +56,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.description !== undefined) updates.description = data.description;
         if (data.matterSettings !== undefined) updates.matterSettings = data.matterSettings;
         if (data.summarySettings !== undefined) updates.summarySettings = data.summarySettings;
+        if (data.expedienteSettings !== undefined) updates.expedienteSettings = data.expedienteSettings;
 
         updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
 

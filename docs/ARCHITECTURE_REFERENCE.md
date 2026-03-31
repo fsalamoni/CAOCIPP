@@ -1,7 +1,7 @@
 # 🏗️ CAO - Architecture Reference (Consultas CAO)
 
-**Version:** 1.14.0 - Expedientes Administrativos  
-**Last Updated:** 2026-03-11  
+**Version:** 1.14.1 - Expedientes Administrativos  
+**Last Updated:** 2026-03-31  
 **Purpose:** Complete architectural documentation for the CAOCIPP platform
 
 ---

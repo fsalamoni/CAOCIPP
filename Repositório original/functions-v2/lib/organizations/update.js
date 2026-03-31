@@ -36,6 +36,8 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.matterSettings = data.matterSettings;
     if (data.summarySettings !== undefined)
         updates.summarySettings = data.summarySettings;
+    if (data.expedienteSettings !== undefined)
+        updates.expedienteSettings = data.expedienteSettings;
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     if (Object.keys(updates).length === 0) {
         return { success: true, message: 'No changes detected' };
