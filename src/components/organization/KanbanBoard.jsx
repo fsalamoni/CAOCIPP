@@ -334,7 +334,7 @@ export default function KanbanBoard({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel de Controle</h2>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel de Consultas</h2>
                     <p className="text-sm text-slate-500 mt-1">
                         Arraste os processos entre as colunas para avançar ou retornar o fluxo.
                     </p>

@@ -1,6 +1,6 @@
 # ⚙️ Consultas CAO - Features Reference
 
-**Version:** 1.14.1 (Expedientes Administrativos)  
+**Version:** 1.14.2 (Expedientes Administrativos)  
 **Last Updated:** 2026-03-31  
 **Purpose:** Complete features documentation with implementation details
 

@@ -180,7 +180,7 @@ export default function Layout({ children, currentPageName }) {
                               to="Organization"
                               params={`?id=${org.id}&tab=kanban`}
                               icon={LayoutDashboard}
-                              label="Painel de Controle"
+                              label="Painel de Consultas"
                               active={activeTab === 'kanban'}
                               onClick={() => setSidebarOpen(false)}
                             />
@@ -278,7 +278,7 @@ export default function Layout({ children, currentPageName }) {
         {/* Top Bar - Desktop */}
         <div className="hidden lg:flex h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200 items-center justify-between px-6 sticky top-0 z-30">
           <h2 className="text-lg font-semibold text-slate-800">
-            {currentPageName === 'Dashboard' ? 'Painel de Controle' :
+            {currentPageName === 'Dashboard' ? 'Painel de Consultas' :
               currentPageName === 'Profile' ? 'Meu Perfil' :
                 currentPageName === 'Organization' ? 'Órgão' :
                   currentPageName}
