@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { removeMember, updateMember } from '@/services/functionsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Copy,
   Calendar,
@@ -37,6 +36,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { logger } from '@/utils/logger';
 import { formatPersonName } from '@/utils/nameUtils';
+import { getExpedienteField, calculateExpedienteDerivedStatus } from '@/utils/expedienteUtils';
 
 
 
@@ -53,8 +53,13 @@ export default function GeneralInfo({ organization, members, processes = [], exp
       const year = isValid(date) ? date.getFullYear() : null;
       if (year && !isNaN(year)) yearsSet.add(year);
     });
+    expedientes.forEach(e => {
+      const date = parseLocalDate(getExpedienteField(e, 'entry_date'));
+      const year = isValid(date) ? date.getFullYear() : null;
+      if (year && !isNaN(year)) yearsSet.add(year);
+    });
     return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [processes, currentYear]);
+  }, [processes, expedientes, currentYear]);
 
   // Filter processes by selected year
   const filteredProcesses = React.useMemo(() => {
@@ -104,8 +109,8 @@ export default function GeneralInfo({ organization, members, processes = [], exp
 
   // Filter expedientes by selected year
   const filteredExpedientes = React.useMemo(() => {
-    return expedientes.filter(p => {
-      const date = parseLocalDate(p.entry_date);
+    return expedientes.filter(e => {
+      const date = parseLocalDate(getExpedienteField(e, 'entry_date'));
       if (!isValid(date)) return false;
       return date.getFullYear() === selectedYear;
     });
@@ -116,8 +121,10 @@ export default function GeneralInfo({ organization, members, processes = [], exp
     if (!filteredExpedientes || filteredExpedientes.length === 0) return null;
 
     const total = filteredExpedientes.length;
-    const finished = filteredExpedientes.filter(p => p.status === 'Na pasta').length;
-    const urgentPending = filteredExpedientes.filter(p => p.urgency_request && p.status === 'Pendente').length;
+    const finished = filteredExpedientes.filter(e => calculateExpedienteDerivedStatus(e) === 'Na pasta').length;
+    const urgentPending = filteredExpedientes.filter(e =>
+      getExpedienteField(e, 'urgency_request') === true && calculateExpedienteDerivedStatus(e) === 'Pendente'
+    ).length;
     const completionRate = total > 0 ? ((finished / total) * 100).toFixed(0) : 0;
 
     return { total, finished, urgentPending, completionRate };
