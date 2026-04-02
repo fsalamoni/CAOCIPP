@@ -34,7 +34,9 @@ export function getExpedienteField(exp, fieldKey) {
     // 1. Precise Match
     for (const alias of aliases) {
         if (exp[alias] !== undefined && exp[alias] !== null && String(exp[alias]).trim() !== '') {
-            return exp[alias];
+            const value = exp[alias];
+            if (fieldKey === 'responsible_user_name') return formatPersonName(String(value));
+            return value;
         }
     }
 
@@ -47,6 +49,7 @@ export function getExpedienteField(exp, fieldKey) {
         if (normalizedTargetAliases.includes(normalize(dbKey))) {
             const val = exp[dbKey];
             if (val !== undefined && val !== null && String(val).trim() !== '') {
+                if (fieldKey === 'responsible_user_name') return formatPersonName(String(val));
                 return val;
             }
         }
@@ -72,3 +75,4 @@ export function calculateExpedienteDerivedStatus(exp) {
     // 4. Fallback: Pendente ou Status original se manual.
     return getExpedienteField(exp, 'status') || "Pendente";
 }
+import { formatPersonName } from '@/utils/nameUtils';

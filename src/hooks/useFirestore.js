@@ -14,6 +14,7 @@ import { db } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { logger } from '@/utils/logger';
 import { getUserPreferences, saveUserPreferences } from '@/services/firestoreService';
+import { formatPersonName } from '@/utils/nameUtils';
 
 /**
  * Hook to fetch user's organizations
@@ -66,6 +67,7 @@ export function useOrganizations() {
                             ...orgSnapshot.data(),
                             userRole: membership.role,
                             userFunction: membership.function,
+                            userName: formatPersonName(membership.user_name || ''),
                             userActive: membership.active // Should be true or undefined
                         };
                     }
@@ -180,7 +182,8 @@ export function useOrganizationMembers(organizationId) {
                 const snapshot = await getDocs(q);
                 const membersData = snapshot.docs.map(doc => ({
                     id: doc.id,
-                    ...doc.data()
+                    ...doc.data(),
+                    user_name: formatPersonName(doc.data()?.user_name || '')
                 }));
 
                 setMembers(membersData);
@@ -387,3 +390,138 @@ export function useExpedientes(organizationId) {
     return { expedientes, isLoading, error };
 }
 
+/**
+ * Hook to fetch processes assigned to a user in a specific organization (real-time)
+ */
+export function useMyProcesses(organizationId, userId) {
+    const [processes, setProcesses] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!organizationId || !userId) {
+            setProcesses([]);
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        const processesRef = collection(db, 'processes');
+        const q = query(
+            processesRef,
+            where('organization_id', '==', organizationId),
+            where('responsible_user_id', '==', userId),
+            orderBy('updated_at', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setProcesses(data);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to my processes:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [organizationId, userId]);
+
+    return { processes, isLoading, error };
+}
+
+/**
+ * Hook to fetch expedientes assigned to a user in a specific organization (real-time)
+ */
+export function useMyExpedientes(organizationId, userId) {
+    const [expedientes, setExpedientes] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!organizationId || !userId) {
+            setExpedientes([]);
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        const expedientesRef = collection(db, 'expedientes');
+        const q = query(
+            expedientesRef,
+            where('organization_id', '==', organizationId),
+            where('responsible_user_id', '==', userId),
+            orderBy('updated_at', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setExpedientes(data);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to my expedientes:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [organizationId, userId]);
+
+    return { expedientes, isLoading, error };
+}
+
+/**
+ * Hook to fetch organization names mapped by user id
+ */
+export function useOrganizationUserNameMap(organizationId) {
+    const [nameMap, setNameMap] = useState({});
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!organizationId) {
+            setNameMap({});
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        const membershipsRef = collection(db, 'userOrganizations');
+        const q = query(
+            membershipsRef,
+            where('organization_id', '==', organizationId)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const map = {};
+            snapshot.docs.forEach((membershipDoc) => {
+                const membership = membershipDoc.data();
+                if (membership?.user_id) {
+                    map[membership.user_id] = formatPersonName(membership.user_name || '');
+                }
+            });
+            setNameMap(map);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to organization user names:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [organizationId]);
+
+    return { nameMap, isLoading, error };
+}

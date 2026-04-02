@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useProcesses } from '@/hooks/useFirestore';
+import { useOrganizations, useProcesses, useExpedientes, useMyProcesses, useMyExpedientes } from '@/hooks/useFirestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -105,6 +105,9 @@ function UserOrganDashboard({ organization, user }) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const { processes, isLoading } = useProcesses(organization.id);
+  const { expedientes } = useExpedientes(organization.id);
+  const { processes: myProcesses } = useMyProcesses(organization.id, user?.uid);
+  const { expedientes: myExpedientes } = useMyExpedientes(organization.id, user?.uid);
 
   // Normalize function name
   const userFunc = (organization.userFunction || '').toLowerCase();
@@ -131,6 +134,30 @@ function UserOrganDashboard({ organization, user }) {
       return date.getFullYear() === selectedYear;
     });
   }, [processes, selectedYear]);
+
+  const filteredExpedientes = useMemo(() => {
+    return expedientes.filter(e => {
+      const date = parseLocalDate(e.entry_date);
+      if (!isValid(date)) return false;
+      return date.getFullYear() === selectedYear;
+    });
+  }, [expedientes, selectedYear]);
+
+  const myProcessesInYear = useMemo(() => {
+    return myProcesses.filter(p => {
+      const date = parseLocalDate(p.entry_date);
+      if (!isValid(date)) return false;
+      return date.getFullYear() === selectedYear;
+    }).length;
+  }, [myProcesses, selectedYear]);
+
+  const myExpedientesInYear = useMemo(() => {
+    return myExpedientes.filter(e => {
+      const date = parseLocalDate(e.entry_date);
+      if (!isValid(date)) return false;
+      return date.getFullYear() === selectedYear;
+    }).length;
+  }, [myExpedientes, selectedYear]);
 
   // Role-based KPI Logic
   const kpis = useMemo(() => {
@@ -280,8 +307,18 @@ function UserOrganDashboard({ organization, user }) {
           onClick={() => navigate(`/Organization?id=${organization.id}&filter=mine`)}
         />
 
+        <KpiCard
+          title="Total de Expedientes"
+          value={filteredExpedientes.length}
+          icon={FileText}
+          color="text-violet-600"
+          bgIcon="bg-violet-100"
+          subtext={`Meus: ${myExpedientesInYear}`}
+          onClick={() => navigate(`/Organization?id=${organization.id}&tab=expedientes`)}
+        />
+
         {/* Gráfico resumido lateral */}
-        <Card className="shadow-sm border-slate-200 flex flex-col justify-center p-4">
+        <Card className="shadow-sm border-slate-200 flex flex-col justify-center p-4 lg:col-span-4">
           {statusData.length > 0 ? (
             <div className="h-[120px] w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -304,6 +341,9 @@ function UserOrganDashboard({ organization, user }) {
               </ResponsiveContainer>
               <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider">
                 Distribuição de Status
+              </p>
+              <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider mt-1">
+                Minhas consultas: {myProcessesInYear} · Meus expedientes: {myExpedientesInYear}
               </p>
             </div>
           ) : (

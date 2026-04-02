@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
+import { formatPersonName } from '../shared/normalization';
 
 interface CreateProcessRequest {
     organizationId: string;
@@ -81,7 +82,7 @@ export const createProcess = onCall<CreateProcessRequest>(
             urgency_request: data.urgencyRequest || false,
             distribution_date: data.distributionDate || null,
             responsible_user_id: data.responsibleUserId || null,
-            responsible_user_name: data.responsibleUserName || null,
+            responsible_user_name: data.responsibleUserName ? formatPersonName(data.responsibleUserName) : null,
             analysis_start_date: data.analysisStartDate || null,
             observations: data.observations || '',
             review_submission_date: data.reviewSubmissionDate || null,

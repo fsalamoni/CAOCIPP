@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime } from '@/hooks/useFirestore';
+import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowLeft, Loader2, Menu } from 'lucide-react';
@@ -48,6 +48,7 @@ export default function Organization() {
 
   // Fetch members
   const { members, isLoading: membersLoading, error: membersError } = useOrganizationMembers(selectedOrgId);
+  const { nameMap: userNameMap } = useOrganizationUserNameMap(selectedOrgId);
 
   // Fetch processes
   const { processes, isLoading: processesLoading, error: processesError } = useProcesses(selectedOrgId);
@@ -164,11 +165,13 @@ export default function Organization() {
               organization={organization}
               members={activeMembers}
               processes={processes}
+              expedientes={expedientes}
               userRole={userRole}
               userId={user?.uid}
               membersLoading={membersLoading}
               membersError={membersError}
               processesLoading={processesLoading}
+              userNameMap={userNameMap}
             />
           )}
 
@@ -223,6 +226,7 @@ export default function Organization() {
           {activeTab === 'summary' && (
             <IntelligentSummary
               processes={processes}
+              expedientes={expedientes}
               members={activeMembers}
               organization={organization}
             />

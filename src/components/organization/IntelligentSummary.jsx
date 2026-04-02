@@ -36,8 +36,13 @@ export default function IntelligentSummary({ processes = [], members, expediente
       const year = isValid(date) ? date.getFullYear() : null;
       if (year && !isNaN(year)) yearsSet.add(year);
     });
+    expedientes.forEach(e => {
+      const date = parseLocalDate(e.entry_date);
+      const year = isValid(date) ? date.getFullYear() : null;
+      if (year && !isNaN(year)) yearsSet.add(year);
+    });
     return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [processes, currentYear]);
+  }, [processes, expedientes, currentYear]);
 
   // Filter processes by selected period
   const filteredProcesses = useMemo(() => {

@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
+import { formatPersonName } from '../shared/normalization';
 
 interface UpdateProcessRequest {
     id: string;
@@ -61,6 +62,10 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         delete changes.created_at;
         delete changes.created_by;
         delete changes.activity_log; // Prevent manual log manipulation
+
+        if (typeof changes.responsible_user_name === 'string') {
+            changes.responsible_user_name = formatPersonName(changes.responsible_user_name);
+        }
 
         changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
         changes.updated_by = userId;

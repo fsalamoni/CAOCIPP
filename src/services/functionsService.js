@@ -268,3 +268,13 @@ export const importExpedientesFromExcel = async (data) => {
     }
 };
 
+export const bulkReplaceFieldValues = async (data) => {
+    try {
+        const replaceFn = httpsCallable(functions, 'bulkReplaceFieldValues', { timeout: 600000 });
+        const result = await replaceFn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling bulkReplaceFieldValues:', error);
+        throw error;
+    }
+};

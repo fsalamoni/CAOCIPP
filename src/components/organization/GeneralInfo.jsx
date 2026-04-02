@@ -36,10 +36,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { logger } from '@/utils/logger';
+import { formatPersonName } from '@/utils/nameUtils';
 
 
 
-export default function GeneralInfo({ organization, members, processes = [], expedientes = [], userRole, userId, membersLoading, membersError, processesLoading }) {
+export default function GeneralInfo({ organization, members, processes = [], expedientes = [], userRole, userId, membersLoading, membersError, processesLoading, userNameMap = {} }) {
   const [isRemoving, setIsRemoving] = useState(false);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -79,7 +80,10 @@ export default function GeneralInfo({ organization, members, processes = [], exp
     // First, map member IDs to names for clean display
     const memberIdToName = {};
     members.forEach(m => {
-      memberIdToName[m.user_id] = m.user_name;
+      memberIdToName[m.user_id] = formatPersonName(m.user_name || '');
+    });
+    Object.entries(userNameMap || {}).forEach(([id, name]) => {
+      if (name) memberIdToName[id] = formatPersonName(String(name));
     });
 
     filteredProcesses.forEach(p => {
@@ -91,12 +95,12 @@ export default function GeneralInfo({ organization, members, processes = [], exp
         respName = memberIdToName[respId];
       }
 
-      const key = respName || (respId ? `Usuário ID: ${respId}` : 'Sem Responsável');
+      const key = formatPersonName(respName || '') || (respId ? `Usuário ID: ${respId}` : 'Sem Responsável');
       workload[key] = (workload[key] || 0) + 1;
     });
 
     return { total, finished, urgentPending, completionRate, workload };
-  }, [filteredProcesses, members]);
+  }, [filteredProcesses, members, userNameMap]);
 
   // Filter expedientes by selected year
   const filteredExpedientes = React.useMemo(() => {
@@ -355,7 +359,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
                 <TableBody>
                   {members.map(member => (
                     <TableRow key={member.id}>
-                      <TableCell className="font-medium">{member.user_name}</TableCell>
+                      <TableCell className="font-medium">{formatPersonName(member.user_name || '')}</TableCell>
                       <TableCell className="text-slate-600">{member.user_email}</TableCell>
                       <TableCell>
                         {userRole === 'creator' && member.role !== 'creator' ? (
@@ -447,7 +451,7 @@ function EditFunctionDialog({ member, organizationId }) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div>
-            <Label>Membro: {member.user_name}</Label>
+            <Label>Membro: {formatPersonName(member.user_name || '')}</Label>
           </div>
           <div>
             <Label htmlFor="function">Função</Label>
