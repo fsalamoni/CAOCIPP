@@ -1,3 +1,5 @@
+import { formatPersonName } from '@/utils/nameUtils';
+
 // processUtils.js - Centralized Logic for Consultas CAOPP (v1.13.0)
 
 /**
@@ -70,4 +72,3 @@ export function calculateDerivedStatus(p) {
     // 4. Fallback: Pendente (Branco) ou Status original se manual.
     return getProcessField(p, 'status') || "Pendente";
 }
-import { formatPersonName } from '@/utils/nameUtils';

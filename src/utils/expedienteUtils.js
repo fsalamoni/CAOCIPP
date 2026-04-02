@@ -1,3 +1,5 @@
+import { formatPersonName } from '@/utils/nameUtils';
+
 // expedienteUtils.js - Centralized Logic for Expedientes Administrativos
 
 /**
@@ -75,4 +77,3 @@ export function calculateExpedienteDerivedStatus(exp) {
     // 4. Fallback: Pendente ou Status original se manual.
     return getExpedienteField(exp, 'status') || "Pendente";
 }
-import { formatPersonName } from '@/utils/nameUtils';

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -18,6 +18,8 @@ var clearData_1 = require("./organizations/clearData");
 Object.defineProperty(exports, "clearOrganizationData", { enumerable: true, get: function () { return clearData_1.clearOrganizationData; } });
 var update_1 = require("./organizations/update");
 Object.defineProperty(exports, "updateOrganization", { enumerable: true, get: function () { return update_1.updateOrganization; } });
+var bulkReplaceFieldValues_1 = require("./organizations/bulkReplaceFieldValues");
+Object.defineProperty(exports, "bulkReplaceFieldValues", { enumerable: true, get: function () { return bulkReplaceFieldValues_1.bulkReplaceFieldValues; } });
 var create_2 = require("./processes/create");
 Object.defineProperty(exports, "createProcess", { enumerable: true, get: function () { return create_2.createProcess; } });
 var update_2 = require("./processes/update");
