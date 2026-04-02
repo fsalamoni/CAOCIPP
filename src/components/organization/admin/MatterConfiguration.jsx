@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Accordion,
     AccordionContent,
@@ -19,7 +18,7 @@ import {
 import { updateOrganization } from '@/services/functionsService';
 import { MATTER_CATEGORIES as DEFAULT_CATEGORIES, MATTER_SUBCATEGORIES as DEFAULT_SUBCATEGORIES } from '@/components/organization/MatterCategorySelect';
 import { toast } from 'sonner';
-import { Loader2, Save, Plus, Trash2, Edit2, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Edit2, RotateCcw } from 'lucide-react';
 
 export default function MatterConfiguration({ organization }) {
     // Initialize state from organization settings or defaults

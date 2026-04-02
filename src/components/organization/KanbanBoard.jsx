@@ -15,7 +15,6 @@ import {
 import { useDroppable } from '@dnd-kit/core';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Loader2, Inbox, Pencil, Eye, FolderCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateDerivedStatus, getProcessField } from '@/utils/processUtils';

@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { formatPersonName } from '../shared/normalization';
 
 interface JoinOrgRequest {
     inviteCode: string;
@@ -23,7 +24,7 @@ export const joinOrganization = onCall<JoinOrgRequest>(
         const db = admin.firestore();
         const userId = request.auth.uid;
         const userEmail = request.auth.token.email || '';
-        const userName = request.auth.token.name || '';
+        const userName = formatPersonName(request.auth.token.name || '');
 
         try {
             const result = await db.runTransaction(async (transaction) => {

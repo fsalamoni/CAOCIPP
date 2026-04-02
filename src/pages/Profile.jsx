@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
+import { formatPersonName } from '@/utils/nameUtils';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ export default function Profile() {
       setIsSavingProfile(true);
 
       await updateUserProfile({
-        platform_name: platformName,
+        platform_name: formatPersonName(platformName),
         function: userFunction,
         notification_email: notificationEmail,
       });
@@ -219,12 +220,12 @@ export default function Profile() {
 
               <div>
                 <Label htmlFor="full_name">Nome Completo</Label>
-                <Input
-                  id="full_name"
-                  value={userProfile?.full_name || ''}
-                  disabled
-                  className="bg-slate-100 dark:bg-slate-800"
-                />
+                  <Input
+                    id="full_name"
+                    value={formatPersonName(userProfile?.full_name || '')}
+                    disabled
+                    className="bg-slate-100 dark:bg-slate-800"
+                  />
               </div>
             </div>
 
