@@ -4,19 +4,16 @@ import {
     SheetContent,
     SheetHeader,
     SheetTitle,
-    SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/ui/StatusBadge";
 import {
     Pencil,
-    MapPin,
     Calendar,
     User,
     FileText,
     FolderOpen,
-    Lock,
     Clock,
     CheckCircle2,
     Circle,

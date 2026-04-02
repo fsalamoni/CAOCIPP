@@ -1,7 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import {
   MapPin,
   Clock,
@@ -9,11 +7,10 @@ import {
   AlertCircle,
   FileText,
   CalendarDays,
-  ChevronDown,
-  History
+  ChevronDown
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { format, isValid } from 'date-fns';
+import { isValid } from 'date-fns';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import TemporalMetrics from './TemporalMetrics';
 import { calculateBusinessDays, parseLocalDate } from '@/lib/dateUtils';

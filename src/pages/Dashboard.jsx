@@ -16,7 +16,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
-import { format, isValid } from 'date-fns';
+import { isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import {
   PieChart,

@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ArrowLeft, Loader2, Menu } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 

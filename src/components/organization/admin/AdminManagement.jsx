@@ -1,6 +1,5 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings, Users, Database, Bot, AlertTriangle, FileText } from 'lucide-react';
 
 // Sub-components (to be created)
