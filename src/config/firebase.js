@@ -6,15 +6,27 @@ import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth'
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
+// Official project fallback configuration.
+// This avoids production outage if build-time env vars are not available.
+const fallbackFirebaseConfig = {
+    apiKey: 'AIzaSyAyfzs8Z5hLSteHEbNWLGNbFpVoKqdPk-Q',
+    authDomain: 'protagonista-rpg.firebaseapp.com',
+    projectId: 'protagonista-rpg',
+    storageBucket: 'protagonista-rpg.firebasestorage.app',
+    messagingSenderId: '745680303218',
+    appId: '1:745680303218:web:7f5df5b7e0b682f0d3feeb',
+    measurementId: 'G-CY18T83H6D',
+};
+
 // Firebase configuration from environment variables
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || fallbackFirebaseConfig.apiKey,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || fallbackFirebaseConfig.authDomain,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || fallbackFirebaseConfig.projectId,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || fallbackFirebaseConfig.storageBucket,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || fallbackFirebaseConfig.messagingSenderId,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || fallbackFirebaseConfig.appId,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || fallbackFirebaseConfig.measurementId,
 };
 
 // Validate configuration
@@ -31,9 +43,26 @@ const missingVars = requiredEnvVars.filter(
     varName => !import.meta.env[varName]
 );
 
-if (missingVars.length > 0 && import.meta.env.PROD) {
+const requiredConfigFields = [
+    'apiKey',
+    'authDomain',
+    'projectId',
+    'storageBucket',
+    'messagingSenderId',
+    'appId',
+];
+
+const missingConfigFields = requiredConfigFields.filter(
+    fieldName => !firebaseConfig[fieldName]
+);
+
+if (missingConfigFields.length > 0 && import.meta.env.PROD) {
     console.error('Missing required Firebase environment variables:', missingVars);
     throw new Error('Firebase configuration is incomplete. Check your .env file.');
+}
+
+if (missingVars.length > 0 && import.meta.env.PROD) {
+    console.warn('Missing VITE Firebase env vars. Using fallback project config.');
 }
 
 // Initialize Firebase
