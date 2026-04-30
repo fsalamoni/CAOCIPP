@@ -80,9 +80,9 @@ const KANBAN_COLUMNS = [
     },
 ];
 
-// Valid transitions: forward only for advancing, backward allowed except from Na pasta
+// Valid transitions: forward only for advancing to the next stage.
+// Backward transitions are computed dynamically and may move to any previous stage.
 const VALID_FORWARD = { 0: [1], 1: [2], 2: [3], 3: [] };
-const VALID_BACKWARD = { 0: [], 1: [0], 2: [1], 3: [] }; // Na pasta blocked
 
 const DATE_SORT_KEYS = new Set([
     'entry_date',
@@ -507,15 +507,16 @@ export default function ExpedienteKanbanBoard({
         const currentIdx = getColumnIndex(currentStatus);
         const targetIdx = getColumnIndex(targetColumnId);
 
+        if (currentIdx < 0 || targetIdx < 0) {
+            toast.error('Não foi possível identificar a coluna de origem ou destino.', { duration: 3000 });
+            return;
+        }
+
         const isForward = VALID_FORWARD[currentIdx]?.includes(targetIdx);
-        const isBackward = VALID_BACKWARD[currentIdx]?.includes(targetIdx);
+        const isBackward = targetIdx < currentIdx;
 
         if (!isForward && !isBackward) {
-            if (currentIdx === 3) {
-                toast.error('Expedientes arquivados não podem ser movidos. Use a edição para alterar.', { duration: 3000 });
-            } else {
-                toast.error('Movimente apenas para colunas adjacentes.', { duration: 3000 });
-            }
+            toast.error('Para avançar o fluxo, mova apenas para a próxima coluna.', { duration: 3000 });
             return;
         }
 
@@ -530,16 +531,40 @@ export default function ExpedienteKanbanBoard({
         setActiveId(null);
     }, []);
 
-    // === Backward Move: change status only, keep all existing data ===
+    // === Backward Move ===
     const handleBackwardMove = async (expediente, fromStatus, toStatus) => {
         const expedienteNumber = getExpedienteField(expediente, 'expediente_number');
         const colLabel = KANBAN_COLUMNS.find(c => c.id === toStatus)?.label || toStatus;
+
+        const rollbackByStatus = {
+            Pendente: {
+                analysis_start_date: null,
+                review_submission_date: null,
+                review_return_date: null,
+                archived_date: null,
+                responsible_user_id: null,
+                responsible_user_name: null,
+            },
+            'Em elaboração': {
+                review_submission_date: null,
+                review_return_date: null,
+                archived_date: null,
+            },
+            'Em revisão': {
+                archived_date: null,
+            },
+        };
+
+        const changes = {
+            status: toStatus,
+            ...(rollbackByStatus[toStatus] || {}),
+        };
 
         try {
             await updateExpediente({
                 id: expediente.id,
                 organizationId: organization.id,
-                changes: { status: toStatus },
+                changes,
             });
             toast.success(`Expediente ${expedienteNumber} retornou para "${colLabel}".`);
         } catch (err) {
