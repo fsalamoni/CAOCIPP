@@ -10,7 +10,7 @@
 
 ### Prerequisites
 
-- Node.js 18+ installed
+- Node.js 22+ installed
 - Git installed
 - Firebase CLI installed (`npm install -g firebase-tools`)
 - Code editor (VS Code recommended)
@@ -509,7 +509,7 @@ export async function createProcess(data, creatorUid) {
 ### "npm install" fails
 - Delete `node_modules` and `package-lock.json`
 - Run `npm install` again
-- Check Node.js version (need 18+)
+- Check Node.js version (need 22+)
 
 ### Firebase connection errors
 - Check `.env` file has correct values

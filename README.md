@@ -36,7 +36,7 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 
 ### Pré-requisitos
 
-- Node.js 18+ 
+- Node.js 22+ 
 - npm ou yarn
 - Conta Firebase
 

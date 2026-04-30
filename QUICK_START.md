@@ -3,7 +3,7 @@
 ## Passo 1: Verificar Pré-requisitos ✅
 
 Você precisa ter instalado:
-- ✅ Node.js 18+ 
+- ✅ Node.js 22+ 
 - ✅ npm ou yarn
 
 ## Passo 2: Instalar Dependências
