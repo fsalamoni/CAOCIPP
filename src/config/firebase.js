@@ -3,7 +3,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 // Official project fallback configuration.
@@ -18,30 +18,15 @@ const fallbackFirebaseConfig = {
     measurementId: 'G-CY18T83H6D',
 };
 
-// Firebase configuration from environment variables
-const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || fallbackFirebaseConfig.apiKey,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || fallbackFirebaseConfig.authDomain,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || fallbackFirebaseConfig.projectId,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || fallbackFirebaseConfig.storageBucket,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || fallbackFirebaseConfig.messagingSenderId,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || fallbackFirebaseConfig.appId,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || fallbackFirebaseConfig.measurementId,
+const envFirebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
-
-// Validate configuration
-const requiredEnvVars = [
-    'VITE_FIREBASE_API_KEY',
-    'VITE_FIREBASE_AUTH_DOMAIN',
-    'VITE_FIREBASE_PROJECT_ID',
-    'VITE_FIREBASE_STORAGE_BUCKET',
-    'VITE_FIREBASE_MESSAGING_SENDER_ID',
-    'VITE_FIREBASE_APP_ID',
-];
-
-const missingVars = requiredEnvVars.filter(
-    varName => !import.meta.env[varName]
-);
 
 const requiredConfigFields = [
     'apiKey',
@@ -52,17 +37,42 @@ const requiredConfigFields = [
     'appId',
 ];
 
-const missingConfigFields = requiredConfigFields.filter(
-    fieldName => !firebaseConfig[fieldName]
+const placeholderConfigPatterns = [
+    /^your_/,
+    /^sua_/,
+    /^seu_/,
+    /your-project-id/,
+    /your_project_id/,
+    /sua_api_key/,
+    /seu_project_id/,
+];
+
+const isPlaceholderValue = (value) => {
+    if (typeof value !== 'string') {
+        return false;
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+    return placeholderConfigPatterns.some(pattern => pattern.test(normalizedValue));
+};
+
+const invalidEnvConfigFields = requiredConfigFields.filter(
+    fieldName => !envFirebaseConfig[fieldName] || isPlaceholderValue(envFirebaseConfig[fieldName])
 );
 
-if (missingConfigFields.length > 0 && import.meta.env.PROD) {
-    console.error('Missing required Firebase environment variables:', missingVars);
-    throw new Error('Firebase configuration is incomplete. Check your .env file.');
-}
+const shouldUseFallbackConfig = invalidEnvConfigFields.length > 0;
 
-if (missingVars.length > 0 && import.meta.env.PROD) {
-    console.warn('Missing VITE Firebase env vars. Using fallback project config.');
+// Firebase configuration from environment variables.
+// If the deployed environment has incomplete/example values, use the official
+// project configuration instead of initializing a broken app with no database.
+const firebaseConfig = shouldUseFallbackConfig
+    ? fallbackFirebaseConfig
+    : envFirebaseConfig;
+
+if (shouldUseFallbackConfig && import.meta.env.PROD) {
+    console.warn('Invalid or missing VITE Firebase env vars. Using fallback project config.', {
+        invalidEnvConfigFields,
+    });
 }
 
 // Initialize Firebase
@@ -70,7 +80,10 @@ export const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    ignoreUndefinedProperties: true,
+});
 export const functions = getFunctions(app, 'southamerica-east1'); // São Paulo region
 export const googleProvider = new GoogleAuthProvider();
 
