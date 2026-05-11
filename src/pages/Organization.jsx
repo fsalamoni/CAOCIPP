@@ -41,15 +41,16 @@ export default function Organization() {
       return;
     }
 
-    if (urlOrgId && urlOrgId !== selectedOrgId && organizations.some(org => org.id === urlOrgId)) {
+    const hasUrlOrganization = urlOrgId && organizations.some(org => org.id === urlOrgId);
+    const hasSelectedOrganization = selectedOrgId && organizations.some(org => org.id === selectedOrgId);
+
+    if (urlOrgId && urlOrgId !== selectedOrgId && hasUrlOrganization) {
       setSelectedOrgId(urlOrgId);
       return;
     }
 
-    const hasSelectedOrganization = selectedOrgId && organizations.some(org => org.id === selectedOrgId);
-
     if (!hasSelectedOrganization) {
-      const fallbackOrgId = urlOrgId && organizations.some(org => org.id === urlOrgId)
+      const fallbackOrgId = hasUrlOrganization
         ? urlOrgId
         : organizations[0].id;
 
