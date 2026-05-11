@@ -28,20 +28,6 @@ const envFirebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Validate configuration
-const requiredEnvVars = [
-    'VITE_FIREBASE_API_KEY',
-    'VITE_FIREBASE_AUTH_DOMAIN',
-    'VITE_FIREBASE_PROJECT_ID',
-    'VITE_FIREBASE_STORAGE_BUCKET',
-    'VITE_FIREBASE_MESSAGING_SENDER_ID',
-    'VITE_FIREBASE_APP_ID',
-];
-
-const missingVars = requiredEnvVars.filter(
-    varName => !import.meta.env[varName]
-);
-
 const requiredConfigFields = [
     'apiKey',
     'authDomain',
@@ -50,10 +36,6 @@ const requiredConfigFields = [
     'messagingSenderId',
     'appId',
 ];
-
-const missingConfigFields = requiredConfigFields.filter(
-    fieldName => !envFirebaseConfig[fieldName]
-);
 
 const isPlaceholderValue = (value) => {
     if (typeof value !== 'string') {
@@ -87,8 +69,6 @@ const firebaseConfig = shouldUseFallbackConfig
 
 if (shouldUseFallbackConfig && import.meta.env.PROD) {
     console.warn('Invalid or missing VITE Firebase env vars. Using fallback project config.', {
-        missingVars,
-        missingConfigFields,
         invalidEnvConfigFields,
     });
 }
