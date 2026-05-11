@@ -104,10 +104,11 @@ export default function Profile() {
     try {
       setIsCreatingOrg(true);
 
-      const orgId = await createOrganization(
+      const result = await createOrganization(
         { name: newOrgName, description: newOrgDesc },
         user.uid
       );
+      const orgId = result?.organizationId || result?.orgId || result;
 
       toast.success(`Organização "${newOrgName}" criada com sucesso!`);
       setCreateOrgOpen(false);
@@ -115,7 +116,11 @@ export default function Profile() {
       setNewOrgDesc('');
 
       // Refresh organizations list (the hook will auto-refresh)
-      navigate(`/Organization?id=${orgId}`);
+      if (orgId) {
+        navigate(`/Organization?id=${orgId}`);
+      } else {
+        navigate('/Organization');
+      }
     } catch (error) {
       logger.error('Error creating organization:', error);
       toast.error('Erro ao criar organização: ' + error.message);
