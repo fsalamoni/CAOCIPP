@@ -6,18 +6,6 @@ import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth'
 import { initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
-// Official project fallback configuration.
-// This avoids production outage if build-time env vars are not available.
-const fallbackFirebaseConfig = {
-    apiKey: 'AIzaSyAyfzs8Z5hLSteHEbNWLGNbFpVoKqdPk-Q',
-    authDomain: 'protagonista-rpg.firebaseapp.com',
-    projectId: 'protagonista-rpg',
-    storageBucket: 'protagonista-rpg.firebasestorage.app',
-    messagingSenderId: '745680303218',
-    appId: '1:745680303218:web:7f5df5b7e0b682f0d3feeb',
-    measurementId: 'G-CY18T83H6D',
-};
-
 const envFirebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -60,20 +48,23 @@ const invalidEnvConfigFields = requiredConfigFields.filter(
     fieldName => !envFirebaseConfig[fieldName] || isPlaceholderValue(envFirebaseConfig[fieldName])
 );
 
-const shouldUseFallbackConfig = invalidEnvConfigFields.length > 0;
+if (invalidEnvConfigFields.length > 0) {
+    const errorMessage = 'Firebase configuration is incomplete or contains placeholder values.';
 
-// Firebase configuration from environment variables.
-// If the deployed environment has incomplete/example values, use the official
-// project configuration instead of initializing a broken app with no database.
-const firebaseConfig = shouldUseFallbackConfig
-    ? fallbackFirebaseConfig
-    : envFirebaseConfig;
+    if (import.meta.env.PROD) {
+        console.error(errorMessage, {
+            invalidEnvConfigFields,
+        });
+        throw new Error(errorMessage);
+    }
 
-if (shouldUseFallbackConfig && import.meta.env.PROD) {
-    console.warn('Invalid or missing VITE Firebase env vars. Using fallback project config.', {
+    console.warn('Invalid or missing VITE Firebase env vars in development.', {
         invalidEnvConfigFields,
     });
 }
+
+// Firebase configuration from environment variables.
+const firebaseConfig = envFirebaseConfig;
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
