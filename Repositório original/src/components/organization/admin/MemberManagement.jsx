@@ -22,6 +22,7 @@ import { Loader2, Trash2, Edit2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { logger } from '@/utils/logger';
+import { formatPersonName } from '@/utils/nameUtils';
 
 export default function MemberManagement({ organization, members }) {
     const [isRemoving, setIsRemoving] = useState(false);
@@ -74,7 +75,7 @@ export default function MemberManagement({ organization, members }) {
                                 return (
                                     <TableRow key={member.id} className={!isActive ? "bg-slate-50 dark:bg-slate-800/50 opacity-75" : ""}>
                                         <TableCell className="font-medium">
-                                            {member.user_name}
+                                            {formatPersonName(member.user_name || '')}
                                             {!isActive && <span className="ml-2 text-xs italic text-slate-500">(Ex-membro)</span>}
                                         </TableCell>
                                         <TableCell className="text-slate-600">{member.user_email}</TableCell>
@@ -173,7 +174,7 @@ function EditFunctionDialog({ member, organizationId }) {
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                     <div>
-                        <Label>Membro: {member.user_name}</Label>
+                        <Label>Membro: {formatPersonName(member.user_name || '')}</Label>
                     </div>
                     <div>
                         <Label htmlFor="function">Função</Label>

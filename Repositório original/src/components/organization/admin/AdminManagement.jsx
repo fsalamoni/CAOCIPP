@@ -1,6 +1,5 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings, Users, Database, Bot, AlertTriangle, FileText } from 'lucide-react';
 
 // Sub-components (to be created)
@@ -10,6 +9,7 @@ import MatterConfiguration from './MatterConfiguration';
 import ExpedienteConfiguration from './ExpedienteConfiguration';
 import AISettings from './AISettings';
 import DangerZone from './DangerZone';
+import BulkReplaceTool from './BulkReplaceTool';
 
 export default function AdminManagement({ organization, members, userRole }) {
     if (userRole !== 'creator') {
@@ -47,6 +47,10 @@ export default function AdminManagement({ organization, members, userRole }) {
                         <FileText className="w-4 h-4" />
                         Expedientes
                     </TabsTrigger>
+                    <TabsTrigger value="padronizacao" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <Database className="w-4 h-4" />
+                        Padronização em Bloco
+                    </TabsTrigger>
                     <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <Bot className="w-4 h-4" />
                         Inteligência Artificial
@@ -71,6 +75,10 @@ export default function AdminManagement({ organization, members, userRole }) {
 
                 <TabsContent value="expedientes">
                     <ExpedienteConfiguration organization={organization} />
+                </TabsContent>
+
+                <TabsContent value="padronizacao">
+                    <BulkReplaceTool organization={organization} />
                 </TabsContent>
 
                 <TabsContent value="ai">

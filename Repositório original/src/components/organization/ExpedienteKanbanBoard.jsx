@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     DndContext,
     DragOverlay,
@@ -16,7 +16,9 @@ import { useDroppable } from '@dnd-kit/core';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Inbox, Pencil, Eye, FolderCheck, Plus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Inbox, Pencil, Eye, FolderCheck, Plus, SlidersHorizontal, FilterX, ArrowUpDown, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateExpedienteDerivedStatus, getExpedienteField } from '@/utils/expedienteUtils';
 import { updateExpediente } from '@/services/functionsService';
@@ -28,6 +30,7 @@ import ExpedienteDetailSheet from './ExpedienteDetailSheet';
 import EditExpedienteDialog from './EditExpedienteDialog';
 import CreateExpedienteDialog from './CreateExpedienteDialog';
 import EmptyState from '../ui/EmptyState';
+import { useUserPreferences } from '@/hooks/useFirestore';
 
 // === Column Definitions ===
 const KANBAN_COLUMNS = [
@@ -77,9 +80,55 @@ const KANBAN_COLUMNS = [
     },
 ];
 
-// Valid transitions: forward only for advancing, backward allowed except from Na pasta
+// Valid transitions: forward only for advancing to the next stage.
+// Backward transitions are computed dynamically and may move to any previous stage.
 const VALID_FORWARD = { 0: [1], 1: [2], 2: [3], 3: [] };
-const VALID_BACKWARD = { 0: [], 1: [0], 2: [1], 3: [] }; // Na pasta blocked
+
+const DATE_SORT_KEYS = new Set([
+    'entry_date',
+    'distribution_date',
+    'analysis_start_date',
+    'review_submission_date',
+    'review_return_date',
+    'archived_date',
+]);
+
+const EXPEDIENTE_SORT_OPTIONS = [
+    { key: 'urgency_request', label: 'Urgência' },
+    { key: 'entry_date', label: 'Entrada no órgão' },
+    { key: 'expediente_number', label: 'Número do expediente' },
+    { key: 'system', label: 'Sistema' },
+    { key: 'origin', label: 'Origem' },
+    { key: 'responsible_user_name', label: 'Responsável' },
+];
+
+const buildDefaultExpedienteFilters = () => ({
+    urgency: 'all',
+    responsible: 'all',
+    system: 'all',
+    origin: 'all',
+});
+
+const buildDefaultExpedienteSortRules = () => ([
+    { key: 'urgency_request', direction: 'desc' },
+    { key: 'entry_date', direction: 'asc' },
+]);
+
+const isUrgencyMarked = (value) =>
+    value === true || String(value ?? '').toLowerCase().trim() === 'sim';
+
+const sanitizeSortRules = (rules) => {
+    if (!Array.isArray(rules)) return [];
+
+    const validKeys = new Set(EXPEDIENTE_SORT_OPTIONS.map(option => option.key));
+    return rules
+        .map(rule => ({
+            key: rule?.key,
+            direction: rule?.direction === 'desc' ? 'desc' : 'asc',
+        }))
+        .filter(rule => validKeys.has(rule.key))
+        .slice(0, 3);
+};
 
 export default function ExpedienteKanbanBoard({
     organization,
@@ -89,6 +138,8 @@ export default function ExpedienteKanbanBoard({
     userId,
     expedientesLoading,
 }) {
+    const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
+
     const [activeId, setActiveId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogMode, setDialogMode] = useState('assign');
@@ -109,6 +160,9 @@ export default function ExpedienteKanbanBoard({
     // Year filter
     const currentYear = new Date().getFullYear();
     const [selectedYear, setSelectedYear] = useState(currentYear);
+    const [viewFilters, setViewFilters] = useState(() => buildDefaultExpedienteFilters());
+    const [sortRules, setSortRules] = useState(() => buildDefaultExpedienteSortRules());
+    const [isPrefsInitialized, setIsPrefsInitialized] = useState(false);
 
     const years = useMemo(() => {
         const yearsSet = new Set([currentYear]);
@@ -120,13 +174,180 @@ export default function ExpedienteKanbanBoard({
         return Array.from(yearsSet).sort((a, b) => b - a);
     }, [expedientes, currentYear]);
 
+    const availableResponsibleNames = useMemo(() => {
+        const names = new Set();
+        expedientes.forEach(expediente => {
+            const value = getExpedienteField(expediente, 'responsible_user_name');
+            if (value && typeof value === 'string' && value.trim()) {
+                names.add(value.trim());
+            }
+        });
+        return Array.from(names).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }, [expedientes]);
+
+    const availableSystems = useMemo(() => {
+        const systems = new Set();
+        expedientes.forEach(expediente => {
+            const value = getExpedienteField(expediente, 'system');
+            if (value && typeof value === 'string' && value.trim()) {
+                systems.add(value.trim());
+            }
+        });
+        return Array.from(systems).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }, [expedientes]);
+
+    const availableOrigins = useMemo(() => {
+        const origins = new Set();
+        expedientes.forEach(expediente => {
+            const value = getExpedienteField(expediente, 'origin');
+            if (value && typeof value === 'string' && value.trim()) {
+                origins.add(value.trim());
+            }
+        });
+        return Array.from(origins).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }, [expedientes]);
+
+    const appliedPrefsRef = useRef(null);
+    useEffect(() => {
+        if (isLoadingPrefs) return;
+
+        const prefsSlice = {
+            filters: preferences?.kanban_expediente_filters || null,
+            sortRules: preferences?.kanban_expediente_sortRules || null,
+        };
+        const prefsKey = JSON.stringify(prefsSlice);
+        if (appliedPrefsRef.current === prefsKey) {
+            if (!isPrefsInitialized) setIsPrefsInitialized(true);
+            return;
+        }
+
+        const loadedFilters =
+            prefsSlice.filters && typeof prefsSlice.filters === 'object'
+                ? {
+                    ...buildDefaultExpedienteFilters(),
+                    urgency: prefsSlice.filters.urgency || 'all',
+                    responsible: prefsSlice.filters.responsible || 'all',
+                    system: prefsSlice.filters.system || 'all',
+                    origin: prefsSlice.filters.origin || 'all',
+                }
+                : buildDefaultExpedienteFilters();
+
+        const loadedSortRules = sanitizeSortRules(prefsSlice.sortRules);
+
+        setViewFilters(loadedFilters);
+        setSortRules(loadedSortRules.length > 0 ? loadedSortRules : buildDefaultExpedienteSortRules());
+        appliedPrefsRef.current = prefsKey;
+
+        if (!isPrefsInitialized) {
+            setIsPrefsInitialized(true);
+        }
+    }, [preferences, isLoadingPrefs, isPrefsInitialized]);
+
+    const effectiveSortRules = useMemo(() => {
+        const sanitized = sanitizeSortRules(sortRules);
+        return sanitized.length > 0 ? sanitized : buildDefaultExpedienteSortRules();
+    }, [sortRules]);
+
+    const saveTimerRef = useRef(null);
+    useEffect(() => {
+        if (!isPrefsInitialized) return;
+
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+        }
+
+        saveTimerRef.current = setTimeout(() => {
+            updatePreferences({
+                kanban_expediente_filters: viewFilters,
+                kanban_expediente_sortRules: effectiveSortRules,
+            });
+        }, 500);
+
+        return () => clearTimeout(saveTimerRef.current);
+    }, [viewFilters, effectiveSortRules, isPrefsInitialized, updatePreferences]);
+
+    const getComparableValue = useCallback((expediente, key) => {
+        if (key === 'urgency_request') {
+            return isUrgencyMarked(getExpedienteField(expediente, 'urgency_request')) ? 1 : 0;
+        }
+
+        const rawValue = getExpedienteField(expediente, key);
+        if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
+            return null;
+        }
+
+        if (DATE_SORT_KEYS.has(key)) {
+            const parsedDate = parseLocalDate(rawValue);
+            return isValid(parsedDate) ? parsedDate.getTime() : null;
+        }
+
+        return String(rawValue);
+    }, []);
+
+    const compareExpedientes = useCallback((a, b) => {
+        for (const rule of effectiveSortRules) {
+            const valueA = getComparableValue(a, rule.key);
+            const valueB = getComparableValue(b, rule.key);
+
+            if (valueA === null && valueB === null) continue;
+            if (valueA === null) return 1;
+            if (valueB === null) return -1;
+
+            let comparison = 0;
+            if (typeof valueA === 'number' && typeof valueB === 'number') {
+                comparison = valueA - valueB;
+            } else {
+                comparison = String(valueA).localeCompare(String(valueB), 'pt-BR', {
+                    numeric: true,
+                    sensitivity: 'base',
+                });
+            }
+
+            if (comparison !== 0) {
+                return rule.direction === 'asc' ? comparison : -comparison;
+            }
+        }
+
+        return 0;
+    }, [effectiveSortRules, getComparableValue]);
+
     const filteredExpedientes = useMemo(() => {
         return expedientes.filter(p => {
             const date = parseLocalDate(getExpedienteField(p, 'entry_date'));
-            if (!isValid(date)) return false;
-            return date.getFullYear() === selectedYear;
+            if (!isValid(date)) {
+                return false;
+            }
+
+            if (date.getFullYear() !== selectedYear) {
+                return false;
+            }
+
+            const isUrgent = isUrgencyMarked(getExpedienteField(p, 'urgency_request'));
+            if (viewFilters.urgency === 'urgent' && !isUrgent) {
+                return false;
+            }
+            if (viewFilters.urgency === 'normal' && isUrgent) {
+                return false;
+            }
+
+            if (
+                viewFilters.responsible !== 'all' &&
+                getExpedienteField(p, 'responsible_user_name') !== viewFilters.responsible
+            ) {
+                return false;
+            }
+
+            if (viewFilters.system !== 'all' && getExpedienteField(p, 'system') !== viewFilters.system) {
+                return false;
+            }
+
+            if (viewFilters.origin !== 'all' && getExpedienteField(p, 'origin') !== viewFilters.origin) {
+                return false;
+            }
+
+            return true;
         });
-    }, [expedientes, selectedYear]);
+    }, [expedientes, selectedYear, viewFilters]);
 
     // User role detection
     const userMember = useMemo(() =>
@@ -151,8 +372,22 @@ export default function ExpedienteKanbanBoard({
             const status = calculateExpedienteDerivedStatus(p);
             (grouped[status] || grouped['Pendente']).push(p);
         });
+
+        Object.keys(grouped).forEach(statusKey => {
+            grouped[statusKey] = grouped[statusKey]
+                .map((item, index) => ({ item, index }))
+                .sort((a, b) => {
+                    const ruleComparison = compareExpedientes(a.item, b.item);
+                    if (ruleComparison !== 0) {
+                        return ruleComparison;
+                    }
+                    return a.index - b.index;
+                })
+                .map(({ item }) => item);
+        });
+
         return grouped;
-    }, [filteredExpedientes]);
+    }, [filteredExpedientes, compareExpedientes]);
 
     const activeExpediente = useMemo(() => {
         if (!activeId) return null;
@@ -165,6 +400,78 @@ export default function ExpedienteKanbanBoard({
 
     const getColumnIndex = (status) =>
         KANBAN_COLUMNS.findIndex(col => col.id === status);
+
+    const activeFiltersCount = useMemo(() => {
+        let count = 0;
+        if (viewFilters.urgency !== 'all') count += 1;
+        if (viewFilters.responsible !== 'all') count += 1;
+        if (viewFilters.system !== 'all') count += 1;
+        if (viewFilters.origin !== 'all') count += 1;
+        return count;
+    }, [viewFilters]);
+
+    const handleFilterChange = useCallback((key, value) => {
+        setViewFilters(prev => ({ ...prev, [key]: value }));
+    }, []);
+
+    const clearFilters = useCallback(() => {
+        setViewFilters(buildDefaultExpedienteFilters());
+    }, []);
+
+    const resetSortRules = useCallback(() => {
+        setSortRules(buildDefaultExpedienteSortRules());
+    }, []);
+
+    const resetViewConfig = useCallback(() => {
+        setViewFilters(buildDefaultExpedienteFilters());
+        setSortRules(buildDefaultExpedienteSortRules());
+    }, []);
+
+    const addSortRule = useCallback(() => {
+        setSortRules(prev => {
+            const current = sanitizeSortRules(prev);
+            if (current.length >= 3) return current;
+
+            const usedKeys = new Set(current.map(rule => rule.key));
+            const nextKey = EXPEDIENTE_SORT_OPTIONS.find(option => !usedKeys.has(option.key))?.key || 'entry_date';
+
+            return [...current, { key: nextKey, direction: 'asc' }];
+        });
+    }, []);
+
+    const updateSortRuleKey = useCallback((index, nextKey) => {
+        setSortRules(prev => {
+            const current = sanitizeSortRules(prev);
+            if (!current[index]) return current;
+
+            const next = [...current];
+            next[index] = { ...next[index], key: nextKey };
+            return next;
+        });
+    }, []);
+
+    const updateSortRuleDirection = useCallback((index, nextDirection) => {
+        setSortRules(prev => {
+            const current = sanitizeSortRules(prev);
+            if (!current[index]) return current;
+
+            const next = [...current];
+            next[index] = {
+                ...next[index],
+                direction: nextDirection === 'desc' ? 'desc' : 'asc',
+            };
+            return next;
+        });
+    }, []);
+
+    const removeSortRule = useCallback((index) => {
+        setSortRules(prev => {
+            const current = sanitizeSortRules(prev);
+            if (current.length <= 1) return current;
+
+            return current.filter((_, idx) => idx !== index);
+        });
+    }, []);
 
     // === Eye Icon: View Details ===
     const handleViewDetails = useCallback((expediente) => {
@@ -200,15 +507,16 @@ export default function ExpedienteKanbanBoard({
         const currentIdx = getColumnIndex(currentStatus);
         const targetIdx = getColumnIndex(targetColumnId);
 
+        if (currentIdx < 0 || targetIdx < 0) {
+            toast.error('Não foi possível identificar a coluna de origem ou destino.', { duration: 3000 });
+            return;
+        }
+
         const isForward = VALID_FORWARD[currentIdx]?.includes(targetIdx);
-        const isBackward = VALID_BACKWARD[currentIdx]?.includes(targetIdx);
+        const isBackward = targetIdx < currentIdx;
 
         if (!isForward && !isBackward) {
-            if (currentIdx === 3) {
-                toast.error('Expedientes arquivados não podem ser movidos. Use a edição para alterar.', { duration: 3000 });
-            } else {
-                toast.error('Movimente apenas para colunas adjacentes.', { duration: 3000 });
-            }
+            toast.error('Para avançar o fluxo, mova apenas para a próxima coluna.', { duration: 3000 });
             return;
         }
 
@@ -223,16 +531,40 @@ export default function ExpedienteKanbanBoard({
         setActiveId(null);
     }, []);
 
-    // === Backward Move: change status only, keep all existing data ===
+    // === Backward Move ===
     const handleBackwardMove = async (expediente, fromStatus, toStatus) => {
         const expedienteNumber = getExpedienteField(expediente, 'expediente_number');
         const colLabel = KANBAN_COLUMNS.find(c => c.id === toStatus)?.label || toStatus;
+
+        const rollbackByStatus = {
+            Pendente: {
+                analysis_start_date: null,
+                review_submission_date: null,
+                review_return_date: null,
+                archived_date: null,
+                responsible_user_id: null,
+                responsible_user_name: null,
+            },
+            'Em elaboração': {
+                review_submission_date: null,
+                review_return_date: null,
+                archived_date: null,
+            },
+            'Em revisão': {
+                archived_date: null,
+            },
+        };
+
+        const changes = {
+            status: toStatus,
+            ...(rollbackByStatus[toStatus] || {}),
+        };
 
         try {
             await updateExpediente({
                 id: expediente.id,
                 organizationId: organization.id,
-                changes: { status: toStatus },
+                changes,
             });
             toast.success(`Expediente ${expedienteNumber} retornou para "${colLabel}".`);
         } catch (err) {
@@ -330,14 +662,14 @@ export default function ExpedienteKanbanBoard({
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel de Expedientes</h2>
                     <p className="text-sm text-slate-500 mt-1">
                         Arraste os expedientes entre as colunas para gerenciar as etapas do fluxo de trabalho.
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                     <Button
                         onClick={() => setCreateOpen(true)}
                         className="bg-indigo-600 hover:bg-indigo-700"
@@ -345,6 +677,157 @@ export default function ExpedienteKanbanBoard({
                         <Plus className="w-4 h-4 mr-2" />
                         Adicionar Expediente
                     </Button>
+
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="h-10 gap-2">
+                                <SlidersHorizontal className="w-4 h-4" />
+                                Filtros e ordem
+                                {activeFiltersCount > 0 && (
+                                    <Badge className="h-5 min-w-[20px] bg-indigo-600 px-1.5 text-[10px] text-white hover:bg-indigo-600">
+                                        {activeFiltersCount}
+                                    </Badge>
+                                )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-[420px] space-y-4 p-4">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <h4 className="text-sm font-semibold text-slate-800">Configurar visualização</h4>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={resetViewConfig}
+                                    className="h-8 gap-1 text-[11px] font-semibold uppercase tracking-tight text-indigo-600 hover:text-indigo-700"
+                                >
+                                    <FilterX className="h-3.5 w-3.5" />
+                                    Restaurar padrão
+                                </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Filtros por coluna</p>
+
+                                <Select value={viewFilters.urgency} onValueChange={(value) => handleFilterChange('urgency', value)}>
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="Urgência" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Urgência: todas</SelectItem>
+                                        <SelectItem value="urgent">Somente urgentes</SelectItem>
+                                        <SelectItem value="normal">Somente não urgentes</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <Select value={viewFilters.responsible} onValueChange={(value) => handleFilterChange('responsible', value)}>
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="Responsável" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Responsável: todos</SelectItem>
+                                        {availableResponsibleNames.map(name => (
+                                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <Select value={viewFilters.system} onValueChange={(value) => handleFilterChange('system', value)}>
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="Sistema" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Sistema: todos</SelectItem>
+                                        {availableSystems.map(system => (
+                                            <SelectItem key={system} value={system}>{system}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <Select value={viewFilters.origin} onValueChange={(value) => handleFilterChange('origin', value)}>
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="Origem" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Origem: todas</SelectItem>
+                                        {availableOrigins.map(origin => (
+                                            <SelectItem key={origin} value={origin}>{origin}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <div className="flex justify-end pt-1">
+                                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs text-slate-600">
+                                        Limpar filtros
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 border-t border-slate-100 pt-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                        <ArrowUpDown className="h-3.5 w-3.5" />
+                                        Ordem por colunas
+                                    </p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addSortRule}
+                                        disabled={sortRules.length >= 3}
+                                        className="h-8 gap-1 text-xs"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Adicionar
+                                    </Button>
+                                </div>
+
+                                <p className="text-[11px] text-slate-500">
+                                    Padrão: urgentes primeiro, depois entrada no órgão dos mais antigos para os mais novos.
+                                </p>
+
+                                {sortRules.map((rule, index) => (
+                                    <div key={`${rule.key}-${index}`} className="grid grid-cols-[1fr_110px_auto] items-center gap-2">
+                                        <Select value={rule.key} onValueChange={(value) => updateSortRuleKey(index, value)}>
+                                            <SelectTrigger className="h-9">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {EXPEDIENTE_SORT_OPTIONS.map(option => (
+                                                    <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select value={rule.direction} onValueChange={(value) => updateSortRuleDirection(index, value)}>
+                                            <SelectTrigger className="h-9">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="asc">Crescente</SelectItem>
+                                                <SelectItem value="desc">Decrescente</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={sortRules.length <= 1}
+                                            onClick={() => removeSortRule(index)}
+                                            className="h-9 w-9 text-slate-500"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))}
+
+                                <div className="flex justify-end pt-1">
+                                    <Button variant="ghost" size="sm" onClick={resetSortRules} className="h-8 text-xs text-slate-600">
+                                        Resetar ordem
+                                    </Button>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+
                     <select
                         value={selectedYear}
                         onChange={(e) => setSelectedYear(Number(e.target.value))}

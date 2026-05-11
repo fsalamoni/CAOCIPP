@@ -2,7 +2,7 @@
 
 ## 📋 Prerequisites
 
-- Node.js 18+ installed
+- Node.js 22+ installed
 - Google account
 - Firebase CLI installed: `npm install -g firebase-tools`
 

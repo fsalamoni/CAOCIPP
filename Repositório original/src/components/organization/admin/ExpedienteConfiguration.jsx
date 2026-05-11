@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { updateOrganization } from '@/services/functionsService';
 import { toast } from 'sonner';
-import { Loader2, Save, Plus, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, RotateCcw } from 'lucide-react';
 
 const DEFAULT_SYSTEMS = ['SIM', 'SGP', 'SPU', 'E-mail'];
 const DEFAULT_ORIGINS = ['SUBINST', 'SUBADM', 'Gabinete PGJ', 'SUBGES', 'Outros'];

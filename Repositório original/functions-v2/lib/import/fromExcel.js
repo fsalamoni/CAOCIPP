@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const XLSX = require("xlsx");
 const status_1 = require("../shared/status");
+const normalization_1 = require("../shared/normalization");
 exports.importProcessesFromExcel = (0, https_1.onCall)({
     region: 'southamerica-east1',
     memory: '1GiB',
@@ -172,7 +173,7 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                         location: locationVal,
                         matter_object: objectVal,
                         entry_date: entryDate,
-                        responsible_user_name: (row['ASSESSOR RESPONSÁVEL'] || row['Responsável'] || row['RESPONSÁVEL'] || row['responsible_user_name'] || '').toString().trim() || null,
+                        responsible_user_name: (row['ASSESSOR RESPONSÁVEL'] || row['Responsável'] || row['RESPONSÁVEL'] || row['responsible_user_name'] || '').toString().trim() ? (0, normalization_1.formatPersonName)((row['ASSESSOR RESPONSÁVEL'] || row['Responsável'] || row['RESPONSÁVEL'] || row['responsible_user_name'] || '').toString().trim()) : null,
                         responsible_user_id: row['responsible_user_id'] || null,
                         urgency_request: (row['PEDIDO DE URGÊNCIA'] === 'Sim' ||
                             row['Solicitação de Urgência'] === 'Sim' ||
