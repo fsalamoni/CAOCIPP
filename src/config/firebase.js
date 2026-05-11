@@ -37,21 +37,23 @@ const requiredConfigFields = [
     'appId',
 ];
 
+const placeholderConfigPatterns = [
+    /^your_/,
+    /^sua_/,
+    /^seu_/,
+    /your-project-id/,
+    /your_project_id/,
+    /sua_api_key/,
+    /seu_project_id/,
+];
+
 const isPlaceholderValue = (value) => {
     if (typeof value !== 'string') {
         return false;
     }
 
     const normalizedValue = value.trim().toLowerCase();
-    return (
-        normalizedValue.startsWith('your_') ||
-        normalizedValue.startsWith('sua_') ||
-        normalizedValue.startsWith('seu_') ||
-        normalizedValue.includes('your-project-id') ||
-        normalizedValue.includes('your_project_id') ||
-        normalizedValue.includes('sua_api_key') ||
-        normalizedValue.includes('seu_project_id')
-    );
+    return placeholderConfigPatterns.some(pattern => pattern.test(normalizedValue));
 };
 
 const invalidEnvConfigFields = requiredConfigFields.filter(
