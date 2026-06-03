@@ -22,8 +22,8 @@ export const upsertEntityType = (organizationId, entityType) =>
 export const deleteEntityType = (organizationId, entityTypeId) =>
     call('deleteEntityType', { organizationId, entityTypeId });
 
-export const createRecord = (organizationId, entityTypeId, values, phase) =>
-    call('createRecord', { organizationId, entityTypeId, values, phase });
+export const createRecord = (organizationId, entityTypeId, values, phase, recordType) =>
+    call('createRecord', { organizationId, entityTypeId, values, phase, record_type: recordType });
 
 export const updateRecord = (payload) =>
     // payload: { organizationId, recordId, values?, phase?, comment? }

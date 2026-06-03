@@ -41,15 +41,24 @@ export default function GenericKanbanBoard({
         [entityType]
     );
 
+    const recordTypes = useMemo(() => entityType?.record_types || [], [entityType]);
+    const typesByKey = useMemo(() => Object.fromEntries(recordTypes.map((t) => [t.key, t])), [recordTypes]);
+    const [typeFilter, setTypeFilter] = useState([]);
+    const toggleTypeFilter = (key) => setTypeFilter((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+    const visibleRecords = useMemo(
+        () => (typeFilter.length ? records.filter((r) => typeFilter.includes(r.record_type)) : records),
+        [records, typeFilter]
+    );
+
     const byPhase = useMemo(() => {
         const map = {};
         for (const p of phases) map[p.key] = [];
-        for (const r of records) {
+        for (const r of visibleRecords) {
             const key = map[r.phase] ? r.phase : phases[0]?.key;
             if (key && map[key]) map[key].push(r);
         }
         return map;
-    }, [records, phases]);
+    }, [visibleRecords, phases]);
 
     const activeRecord = useMemo(
         () => records.find((r) => r.id === activeId),
@@ -87,11 +96,35 @@ export default function GenericKanbanBoard({
 
     return (
         <div className="space-y-3">
-            {canCreate && (
-                <div className="flex justify-end">
-                    <Button size="sm" onClick={onCreate}>
-                        <Plus className="mr-1.5 h-4 w-4" /> Novo {entityType?.label_singular}
-                    </Button>
+            {(recordTypes.length > 0 || canCreate) && (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {recordTypes.map((t) => {
+                            const active = typeFilter.includes(t.key);
+                            return (
+                                <button
+                                    key={t.key}
+                                    type="button"
+                                    onClick={() => toggleTypeFilter(t.key)}
+                                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${active ? 'border-transparent text-white' : 'bg-background hover:bg-muted'}`}
+                                    style={active ? { backgroundColor: t.color || '#64748b' } : { borderColor: t.color || '#cbd5e1' }}
+                                >
+                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: active ? '#ffffff' : (t.color || '#94a3b8') }} />
+                                    {t.label}
+                                </button>
+                            );
+                        })}
+                        {typeFilter.length > 0 && (
+                            <button type="button" onClick={() => setTypeFilter([])} className="text-xs text-muted-foreground hover:underline px-1">
+                                Limpar filtro
+                            </button>
+                        )}
+                    </div>
+                    {canCreate && (
+                        <Button size="sm" onClick={onCreate}>
+                            <Plus className="mr-1.5 h-4 w-4" /> Novo {entityType?.label_singular}
+                        </Button>
+                    )}
                 </div>
             )}
             <DndContext
@@ -109,6 +142,7 @@ export default function GenericKanbanBoard({
                             records={byPhase[phase.key] || []}
                             primaryFields={primaryFields}
                             membersById={membersById}
+                            typesByKey={typesByKey}
                             onOpen={onOpen}
                             draggable={canEdit}
                         />
@@ -120,6 +154,7 @@ export default function GenericKanbanBoard({
                             record={activeRecord}
                             primaryFields={primaryFields}
                             membersById={membersById}
+                            typesByKey={typesByKey}
                             dragging
                         />
                     )}
@@ -129,7 +164,7 @@ export default function GenericKanbanBoard({
     );
 }
 
-function KanbanColumn({ phase, records, primaryFields, membersById, onOpen, draggable }) {
+function KanbanColumn({ phase, records, primaryFields, membersById, typesByKey, onOpen, draggable }) {
     const { setNodeRef, isOver } = useDroppable({ id: phase.key });
     const overLimit = phase.wip_limit && records.length > phase.wip_limit;
     return (
@@ -159,6 +194,7 @@ function KanbanColumn({ phase, records, primaryFields, membersById, onOpen, drag
                             record={r}
                             primaryFields={primaryFields}
                             membersById={membersById}
+                            typesByKey={typesByKey}
                             onOpen={onOpen}
                             draggable={draggable}
                         />
@@ -169,7 +205,7 @@ function KanbanColumn({ phase, records, primaryFields, membersById, onOpen, drag
     );
 }
 
-function DraggableCard({ record, primaryFields, membersById, onOpen, draggable }) {
+function DraggableCard({ record, primaryFields, membersById, typesByKey, onOpen, draggable }) {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: record.id, disabled: !draggable,
     });
@@ -184,14 +220,25 @@ function DraggableCard({ record, primaryFields, membersById, onOpen, draggable }
                 record={record}
                 primaryFields={primaryFields}
                 membersById={membersById}
+                typesByKey={typesByKey}
             />
         </div>
     );
 }
 
-function RecordCardContent({ record, primaryFields, membersById, dragging }) {
+function RecordCardContent({ record, primaryFields, membersById, typesByKey, dragging }) {
+    const type = typesByKey?.[record.record_type];
     return (
-        <Card className={`p-3 space-y-1 ${dragging ? 'shadow-lg ring-2 ring-primary' : 'hover:shadow-sm'}`}>
+        <Card
+            className={`p-3 space-y-1 border-l-4 ${dragging ? 'shadow-lg ring-2 ring-primary' : 'hover:shadow-sm'}`}
+            style={{ borderLeftColor: type?.color || 'transparent' }}
+        >
+            {type && (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: type.color }}>
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: type.color }} />
+                    {type.label}
+                </div>
+            )}
             {primaryFields.map((f, i) => {
                 const val = formatFieldValue(f, record.values?.[f.key], { membersById });
                 return (

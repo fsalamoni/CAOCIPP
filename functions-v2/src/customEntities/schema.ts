@@ -77,6 +77,14 @@ export interface ImportMapping {
     match: string;
 }
 
+// Tipo de processo: categorias que compartilham o MESMO trâmite (fases), mas
+// se distinguem por cor/rótulo (ex.: "Consulta", "Representação"). Opcional.
+export interface RecordTypeDef {
+    key: string;
+    label: string;
+    color?: string;
+}
+
 export type RequirementType = 'field_required' | 'field_condition' | 'min_value' | 'approval';
 export type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'filled' | 'empty';
 
@@ -125,6 +133,8 @@ export interface EntityTypeDef {
     form_mode?: 'tabs' | 'sections' | 'single';
     // Regras de importação de planilha salvas com o tipo (reutilizáveis).
     import_mappings?: ImportMapping[];
+    // Tipos de processo (categorias coloridas) que seguem o mesmo trâmite.
+    record_types?: RecordTypeDef[];
 }
 
 const SLUG_RE = /^[a-z][a-z0-9_]{0,39}$/;
@@ -348,8 +358,30 @@ export function sanitizeEntityTypeDefinition(input: any): EntityTypeDef {
         ...(input.form_layout ? { form_layout: sanitizeFormLayout(input.form_layout, fieldKeySet) } : {}),
         ...(input.table_layout ? { table_layout: sanitizeTableLayout(input.table_layout, fieldKeySet) } : {}),
         ...(input.import_mappings ? { import_mappings: sanitizeImportMappings(input.import_mappings, fieldKeySet) } : {}),
+        // Sempre presente (mesmo vazio) para permitir limpar a lista com merge.
+        record_types: sanitizeRecordTypes(input.record_types),
         ...(input.kpi_config ? { kpi_config: sanitizeKpiConfig(input.kpi_config) } : {}),
     };
+    return out;
+}
+
+function sanitizeRecordTypes(input: any): RecordTypeDef[] {
+    const arr = Array.isArray(input) ? input : [];
+    const seen = new Set<string>();
+    const out: RecordTypeDef[] = [];
+    arr.forEach((t: any, idx: number) => {
+        const label = String(t?.label || '').trim();
+        if (!label) return;
+        let key = String(t?.key || '').trim();
+        if (!SLUG_RE.test(key)) key = `t_${idx}`;
+        if (seen.has(key)) key = `${key}_${idx}`;
+        seen.add(key);
+        out.push({
+            key,
+            label,
+            ...(t?.color ? { color: String(t.color) } : {}),
+        });
+    });
     return out;
 }
 

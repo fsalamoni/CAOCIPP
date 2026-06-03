@@ -4,7 +4,11 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import GenericFieldInput from './GenericFieldInput';
 import { emptyValueForType } from '@/lib/fieldTypes';
@@ -42,6 +46,10 @@ export default function GenericRecordForm({
     const [values, setValues] = useState(buildInitial);
     const [errors, setErrors] = useState({});
 
+    // Tipo de processo (categoria colorida), se o tipo de entidade tiver.
+    const recordTypes = useMemo(() => entityType?.record_types || [], [entityType]);
+    const [recordType, setRecordType] = useState(record?.record_type || '');
+
     // Agrupa os campos em abas-por-fase / seções / lista única.
     const groups = useMemo(() => resolveFormGroups(entityType), [entityType]);
     const useTabs = groups.mode === 'tabs';
@@ -51,6 +59,7 @@ export default function GenericRecordForm({
         if (open) {
             setValues(buildInitial());
             setErrors({});
+            setRecordType(record?.record_type || '');
             setActiveTab(groups.tabs[0]?.key || '');
         }
     }, [open, record?.id, entityType?.id]);
@@ -89,8 +98,8 @@ export default function GenericRecordForm({
         const payloadValues = values;
         onOpenChange(false);
         const action = editing
-            ? updateRecord({ organizationId, recordId, values: payloadValues })
-            : createRecord(organizationId, entityType.id, payloadValues);
+            ? updateRecord({ organizationId, recordId, values: payloadValues, record_type: recordType })
+            : createRecord(organizationId, entityType.id, payloadValues, undefined, recordType);
         toast.promise(action, {
             loading: editing
                 ? `Salvando ${entityType.label_singular}...`
@@ -118,6 +127,31 @@ export default function GenericRecordForm({
                             : 'Preencha as informações abaixo.'}
                     </DialogDescription>
                 </DialogHeader>
+
+                {recordTypes.length > 0 && (
+                    <div className="flex items-center gap-2 pb-1 border-b">
+                        <Label className="text-xs whitespace-nowrap">Tipo de processo</Label>
+                        <Select
+                            value={recordType || '__none__'}
+                            onValueChange={(v) => setRecordType(v === '__none__' ? '' : v)}
+                        >
+                            <SelectTrigger className="h-8 w-64">
+                                <SelectValue placeholder="Selecione o tipo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__none__">— Sem tipo —</SelectItem>
+                                {recordTypes.map((t) => (
+                                    <SelectItem key={t.key} value={t.key}>
+                                        <span className="inline-flex items-center gap-2">
+                                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color || '#94a3b8' }} />
+                                            {t.label}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
 
                 {useTabs ? (
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">

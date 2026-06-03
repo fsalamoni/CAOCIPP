@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -27,6 +27,7 @@ const slugify = (s) => String(s || '')
     .slice(0, 40) || 'campo';
 
 const PHASE_COLORS = ['#64748b', '#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'];
+const TYPE_COLORS = ['#0ea5e9', '#f43f5e', '#22c55e', '#a855f7', '#f59e0b', '#14b8a6', '#6366f1', '#ec4899'];
 
 function newField() {
     return { key: '', label: '', type: 'text', required: false, options: [], help: '', table: { show: true }, form: { show: true } };
@@ -56,10 +57,25 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                 : [newField()])
     );
     const [phases, setPhases] = useState(
-        entityType?.phases?.length ? entityType.phases.slice() : [newPhase(0), { ...newPhase(1), label: 'Concluído', key: 'concluido', is_final: true }]
+        entityType?.phases?.length
+            ? entityType.phases.slice()
+            : [{ ...newPhase(0), label: 'Entrada', key: 'entrada' }, { ...newPhase(1), label: 'Concluído', key: 'concluido', is_final: true }]
     );
+    const [recordTypes, setRecordTypes] = useState(entityType?.record_types || []);
     const [transitions, setTransitions] = useState(entityType?.transitions || []);
     const [saving, setSaving] = useState(false);
+    const [builderTab, setBuilderTab] = useState('info');
+
+    // Toda coluna precisa estar em uma fase: ao abrir, vincula as soltas à fase inicial.
+    useEffect(() => {
+        setFields((prev) => {
+            if (prev.every((f) => f.phase)) return prev;
+            const init = phases.find((p) => p.is_initial) || phases[0];
+            const key = init?.key || (init?.label ? slugify(init.label) : '');
+            if (!key) return prev;
+            return prev.map((f) => (f.phase ? f : { ...f, phase: key }));
+        });
+    }, []);
     const [advancedFields, setAdvancedFields] = useState({});
     const toggleAdvanced = (idx) => setAdvancedFields((prev) => ({ ...prev, [idx]: !prev[idx] }));
     const updateValidation = (idx, patch) => updateField(idx, { validation: { ...(fields[idx].validation || {}), ...patch } });
@@ -108,10 +124,13 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     const addPhase = () => setPhases((prev) => [...prev, newPhase(prev.length)]);
     const removePhase = (idx) => {
         const removed = phases[idx];
-        setPhases((prev) => prev.filter((_, i) => i !== idx));
-        // Desvincula colunas que estavam nesta fase.
-        if (removed?.key) {
-            setFields((prev) => prev.map((f) => (f.phase === removed.key ? { ...f, phase: undefined, required_to_advance: false } : f)));
+        const remaining = phases.filter((_, i) => i !== idx);
+        setPhases(remaining);
+        // Toda coluna fica em alguma fase: realoca para a fase inicial/primeira restante.
+        if (removed?.key && remaining.length) {
+            const fb = remaining.find((p) => p.is_initial) || remaining[0];
+            const fbKey = fb?.key || slugify(fb?.label || '');
+            setFields((prev) => prev.map((f) => (f.phase === removed.key ? { ...f, phase: fbKey, required_to_advance: false } : f)));
         }
     };
     // ---- Atribuição de colunas a fases ----
@@ -124,6 +143,17 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     }));
     const setFieldRequired = (fieldKey, val) => setFields((prev) => prev.map((f) => (fieldKeyOf(f) === fieldKey ? { ...f, required: val } : f)));
     const setFieldAdvance = (fieldKey, val) => setFields((prev) => prev.map((f) => (fieldKeyOf(f) === fieldKey ? { ...f, required_to_advance: val } : f)));
+
+    // ---- Tipos de processo (categorias coloridas) ----
+    const addRecordType = () => setRecordTypes((prev) => [...prev, { key: '', label: '', color: TYPE_COLORS[prev.length % TYPE_COLORS.length] }]);
+    const updateRecordType = (idx, patch) => setRecordTypes((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+    const updateRecordTypeLabel = (idx, label) => {
+        const t = recordTypes[idx];
+        const patch = { label };
+        if (!t.key || t.key === slugify(t.label)) patch.key = slugify(label);
+        updateRecordType(idx, patch);
+    };
+    const removeRecordType = (idx) => setRecordTypes((prev) => prev.filter((_, i) => i !== idx));
     const setInitial = (idx) => setPhases((prev) => prev.map((p, i) => ({ ...p, is_initial: i === idx })));
     const movePhase = (idx, dir) => setPhases((prev) => {
         const arr = prev.slice();
@@ -164,13 +194,15 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     const handleSave = async () => {
         if (!labelSingular.trim() || !labelPlural.trim()) {
             toast.error('Informe o nome no singular e no plural.');
+            setBuilderTab('info');
             return;
         }
         const cleanFields = fields
             .filter((f) => f.label.trim())
             .map(({ _sourceIndex, ...f }) => ({ ...f, key: f.key || slugify(f.label) }));
         if (cleanFields.length === 0) {
-            toast.error('Crie pelo menos um campo.');
+            toast.error('Crie pelo menos uma coluna.');
+            setBuilderTab('fields');
             return;
         }
         const cleanPhases = phases
@@ -178,6 +210,15 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
             .map((p) => ({ ...p, key: p.key || slugify(p.label) }));
         if (cleanPhases.length === 0) {
             toast.error('Crie pelo menos uma fase.');
+            setBuilderTab('phases');
+            return;
+        }
+        // Regra do novo modelo: toda coluna precisa estar em uma fase existente.
+        const phaseKeySet = new Set(cleanPhases.map((p) => p.key));
+        const orphan = cleanFields.find((f) => !f.phase || !phaseKeySet.has(f.phase));
+        if (orphan) {
+            toast.error(`A coluna "${orphan.label}" precisa estar em uma fase.`);
+            setBuilderTab('fields');
             return;
         }
 
@@ -191,6 +232,9 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
             fields: cleanFields,
             phases: cleanPhases,
             transitions: transitions.filter((t) => t.to),
+            record_types: recordTypes
+                .filter((t) => t.label.trim())
+                .map((t) => ({ ...t, key: t.key || slugify(t.label) })),
         };
 
         setSaving(true);
@@ -222,11 +266,12 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                     </DialogDescription>
                 </DialogHeader>
 
-                <Tabs defaultValue="info" className="flex-1 flex flex-col min-h-0">
-                    <TabsList className="grid grid-cols-4 w-full">
+                <Tabs value={builderTab} onValueChange={setBuilderTab} className="flex-1 flex flex-col min-h-0">
+                    <TabsList className="grid grid-cols-5 w-full">
                         <TabsTrigger value="info">Identificação</TabsTrigger>
-                        <TabsTrigger value="fields">Campos</TabsTrigger>
+                        <TabsTrigger value="fields">Colunas</TabsTrigger>
                         <TabsTrigger value="phases">Fases</TabsTrigger>
+                        <TabsTrigger value="types">Tipos</TabsTrigger>
                         <TabsTrigger value="rules">Regras</TabsTrigger>
                     </TabsList>
 
@@ -301,6 +346,20 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                         <Button variant="ghost" size="icon" onClick={() => removeField(idx)} className="text-red-500 hover:text-red-600">
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
+                                    </div>
+
+                                    <div className="pl-8 flex items-center gap-2 flex-wrap">
+                                        <Label className="text-xs whitespace-nowrap">Fase desta coluna</Label>
+                                        <Select value={f.phase || ''} onValueChange={(v) => updateField(idx, { phase: v })}>
+                                            <SelectTrigger className="h-8 w-56"><SelectValue placeholder="Selecione a fase" /></SelectTrigger>
+                                            <SelectContent>
+                                                {phaseOptions.map((p) => {
+                                                    const pk = p.key || slugify(p.label);
+                                                    return <SelectItem key={pk} value={pk}>{p.label}</SelectItem>;
+                                                })}
+                                            </SelectContent>
+                                        </Select>
+                                        {!f.phase && <span className="text-[11px] text-amber-600">Defina a fase desta coluna</span>}
                                     </div>
 
                                     {FIELD_TYPE_META[f.type]?.hasOptions && (
@@ -493,6 +552,39 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                 </Card>
                             ))}
                             <Button variant="outline" onClick={addPhase}><Plus className="mr-1.5 h-4 w-4" />Adicionar fase</Button>
+                        </TabsContent>
+
+                        {/* TIPOS DE PROCESSO */}
+                        <TabsContent value="types" className="space-y-3 mt-0">
+                            <p className="text-xs text-muted-foreground">
+                                Tipos de processo (opcional) são categorias que seguem o MESMO trâmite (as mesmas fases),
+                                mas se distinguem por cor — ex.: "Consulta" e "Representação". A cor aparece nos cartões do painel,
+                                na tabela e no formulário.
+                            </p>
+                            {recordTypes.length === 0 && (
+                                <p className="text-[11px] text-muted-foreground">Nenhum tipo ainda. Sem tipos, os registros usam a cor padrão.</p>
+                            )}
+                            {recordTypes.map((t, idx) => (
+                                <Card key={idx} className="p-2.5">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="color"
+                                            value={t.color || '#0ea5e9'}
+                                            onChange={(e) => updateRecordType(idx, { color: e.target.value })}
+                                            className="h-8 w-8 rounded border cursor-pointer shrink-0"
+                                            title="Cor do tipo"
+                                        />
+                                        <Input
+                                            className="h-8 flex-1"
+                                            value={t.label}
+                                            onChange={(e) => updateRecordTypeLabel(idx, e.target.value)}
+                                            placeholder="Ex.: Consulta"
+                                        />
+                                        <Button variant="ghost" size="icon" onClick={() => removeRecordType(idx)} className="text-red-500 shrink-0"><Trash2 className="h-4 w-4" /></Button>
+                                    </div>
+                                </Card>
+                            ))}
+                            <Button variant="outline" onClick={addRecordType}><Plus className="mr-1.5 h-4 w-4" />Adicionar tipo</Button>
                         </TabsContent>
 
                         {/* REGRAS */}

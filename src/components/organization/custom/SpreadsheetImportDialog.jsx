@@ -42,12 +42,13 @@ export default function SpreadsheetImportDialog({
     const [proposed, setProposed] = useState([]); // structure: [{...field, _include}]
     const [mapping, setMapping] = useState({}); // data: { fieldKey: columnIndex }
     const [phaseColumn, setPhaseColumn] = useState(IGNORE);
+    const [typeColumn, setTypeColumn] = useState(IGNORE);
     const [importing, setImporting] = useState(false);
     const [result, setResult] = useState(null);
 
     const reset = useCallback(() => {
         setFileName(''); setParsing(false); setParsed(null); setProposed([]);
-        setMapping({}); setPhaseColumn(IGNORE); setImporting(false); setResult(null);
+        setMapping({}); setPhaseColumn(IGNORE); setTypeColumn(IGNORE); setImporting(false); setResult(null);
     }, []);
 
     const handleOpenChange = (v) => {
@@ -95,6 +96,7 @@ export default function SpreadsheetImportDialog({
         () => (entityType?.phases || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
         [entityType]
     );
+    const recordTypes = useMemo(() => entityType?.record_types || [], [entityType]);
 
     const resolvePhase = useCallback((rowCells) => {
         if (phaseColumn === IGNORE) return undefined;
@@ -104,6 +106,14 @@ export default function SpreadsheetImportDialog({
         const hit = phases.find((p) => normalizeHeader(p.label) === norm || normalizeHeader(p.key) === norm);
         return hit?.key;
     }, [phaseColumn, phases]);
+
+    const resolveType = useCallback((rowCells) => {
+        if (typeColumn === IGNORE) return undefined;
+        const norm = normalizeHeader(rowCells[Number(typeColumn)]);
+        if (!norm) return undefined;
+        const hit = recordTypes.find((t) => normalizeHeader(t.label) === norm || normalizeHeader(t.key) === norm);
+        return hit?.key;
+    }, [typeColumn, recordTypes]);
 
     const buildRows = useCallback(() => {
         const fieldByKey = Object.fromEntries((entityType?.fields || []).map((f) => [f.key, f]));
@@ -115,9 +125,9 @@ export default function SpreadsheetImportDialog({
                 if (!field) continue;
                 values[fieldKey] = coerceImportedValue(field, cells[Number(colIdx)]);
             }
-            return { values, phase: resolvePhase(cells) };
+            return { values, phase: resolvePhase(cells), record_type: resolveType(cells) };
         });
-    }, [parsed, mapping, entityType, resolvePhase]);
+    }, [parsed, mapping, entityType, resolvePhase, resolveType]);
 
     const mappedCount = useMemo(
         () => Object.values(mapping).filter((v) => v !== undefined && Number(v) >= 0).length,
@@ -260,6 +270,22 @@ export default function SpreadsheetImportDialog({
                                         <SelectTrigger className="h-8 flex-1 min-w-[180px]"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value={IGNORE}>Usar a fase inicial</SelectItem>
+                                            {columnOptions.map((c) => (
+                                                <SelectItem key={c.index} value={String(c.index)}>{c.letter} · {c.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {recordTypes.length > 0 && (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="w-56 shrink-0 text-sm">Coluna que define o tipo <span className="text-muted-foreground">(opcional)</span></div>
+                                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                    <Select value={typeColumn} onValueChange={setTypeColumn}>
+                                        <SelectTrigger className="h-8 flex-1 min-w-[180px]"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={IGNORE}>Sem tipo</SelectItem>
                                             {columnOptions.map((c) => (
                                                 <SelectItem key={c.index} value={String(c.index)}>{c.letter} · {c.name}</SelectItem>
                                             ))}

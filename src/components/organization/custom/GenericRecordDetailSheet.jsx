@@ -39,8 +39,14 @@ export default function GenericRecordDetailSheet({
         () => Object.fromEntries((entityType?.phases || []).map((p) => [p.key, p])),
         [entityType]
     );
+    const typesByKey = useMemo(
+        () => Object.fromEntries((entityType?.record_types || []).map((t) => [t.key, t])),
+        [entityType]
+    );
 
     if (!record) return null;
+
+    const recordType = typesByKey[record.record_type];
 
     const currentPhase = phasesByKey[record.phase];
     const otherPhases = (entityType?.phases || []).filter((p) => p.key !== record.phase);
@@ -86,13 +92,18 @@ export default function GenericRecordDetailSheet({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full sm:max-w-lg flex flex-col p-0">
                 <SheetHeader className="p-6 pb-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <Badge
                             variant="outline"
                             style={currentPhase?.color ? { borderColor: currentPhase.color, color: currentPhase.color } : undefined}
                         >
                             {currentPhase?.label || record.phase || '—'}
                         </Badge>
+                        {recordType && (
+                            <Badge variant="outline" style={{ borderColor: recordType.color, color: recordType.color }}>
+                                {recordType.label}
+                            </Badge>
+                        )}
                     </div>
                     <SheetTitle>{entityType?.label_singular}</SheetTitle>
                     <SheetDescription>Detalhes do registro</SheetDescription>

@@ -24,6 +24,10 @@ export default function GenericRecordTable({
         [members]
     );
 
+    const recordTypes = useMemo(() => entityType?.record_types || [], [entityType]);
+    const typesByKey = useMemo(() => Object.fromEntries(recordTypes.map((t) => [t.key, t])), [recordTypes]);
+    const hasTypes = recordTypes.length > 0;
+
     const columns = useMemo(() => {
         const layoutCols = entityType?.table_layout?.columns;
         if (layoutCols?.length) {
@@ -46,13 +50,16 @@ export default function GenericRecordTable({
     const filtered = useMemo(() => {
         if (!search.trim()) return records;
         const q = search.toLowerCase();
-        return records.filter((r) =>
-            columns.some((c) => {
+        return records.filter((r) => {
+            const inColumns = columns.some((c) => {
                 const txt = formatFieldValue(c, r.values?.[c.key], { membersById });
                 return String(txt).toLowerCase().includes(q);
-            })
-        );
-    }, [records, search, columns, membersById]);
+            });
+            if (inColumns) return true;
+            const typeLabel = typesByKey[r.record_type]?.label;
+            return typeLabel ? typeLabel.toLowerCase().includes(q) : false;
+        });
+    }, [records, search, columns, membersById, typesByKey]);
 
     return (
         <div className="space-y-4">
@@ -90,6 +97,7 @@ export default function GenericRecordTable({
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-32">Fase</TableHead>
+                                    {hasTypes && <TableHead className="w-28">Tipo</TableHead>}
                                     {columns.map((c) => (
                                         <TableHead key={c.key}>{c.label}</TableHead>
                                     ))}
@@ -113,6 +121,20 @@ export default function GenericRecordTable({
                                                     {phase?.label || r.phase || '—'}
                                                 </Badge>
                                             </TableCell>
+                                            {hasTypes && (
+                                                <TableCell>
+                                                    {typesByKey[r.record_type] ? (
+                                                        <Badge
+                                                            variant="outline"
+                                                            style={{ borderColor: typesByKey[r.record_type].color, color: typesByKey[r.record_type].color }}
+                                                        >
+                                                            {typesByKey[r.record_type].label}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">—</span>
+                                                    )}
+                                                </TableCell>
+                                            )}
                                             {columns.map((c) => (
                                                 <TableCell key={c.key} className="max-w-[240px] truncate">
                                                     {formatFieldValue(c, r.values?.[c.key], { membersById })}

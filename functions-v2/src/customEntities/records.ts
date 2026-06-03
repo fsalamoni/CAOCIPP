@@ -38,6 +38,13 @@ function phasesReachedUpTo(def: EntityTypeDef, phaseKey: string): Set<string> {
     return new Set(phases.filter((p) => (p.order ?? 0) <= curOrder).map((p) => p.key));
 }
 
+/** Valida um tipo de processo contra a definição. Retorna a chave válida ou null. */
+function resolveRecordType(def: EntityTypeDef, value: unknown): string | null {
+    const key = String(value ?? '').trim();
+    if (!key) return null;
+    return (def.record_types || []).some((t) => t.key === key) ? key : null;
+}
+
 function nowParts() {
     const now = new Date();
     return {
@@ -67,6 +74,7 @@ interface CreateRecordRequest {
     entityTypeId: string;
     values: Record<string, unknown>;
     phase?: string;
+    record_type?: string;
 }
 
 export const createRecord = onCall<CreateRecordRequest>(
@@ -74,7 +82,7 @@ export const createRecord = onCall<CreateRecordRequest>(
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticação necessária.');
         const userId = request.auth.uid;
-        const { organizationId, entityTypeId, values, phase } = request.data || ({} as CreateRecordRequest);
+        const { organizationId, entityTypeId, values, phase, record_type } = request.data || ({} as CreateRecordRequest);
         if (!organizationId || !entityTypeId) {
             throw new HttpsError('invalid-argument', 'organizationId e entityTypeId são obrigatórios.');
         }
@@ -112,6 +120,7 @@ export const createRecord = onCall<CreateRecordRequest>(
             entity_key: def.key || null,
             values: normalized,
             phase: targetPhase,
+            record_type: resolveRecordType(def, record_type),
             created_by: userId,
             created_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_by: userId,
@@ -153,6 +162,7 @@ interface UpdateRecordRequest {
     values?: Record<string, unknown>;
     phase?: string;
     comment?: string;
+    record_type?: string;
 }
 
 export const updateRecord = onCall<UpdateRecordRequest>(
@@ -160,7 +170,7 @@ export const updateRecord = onCall<UpdateRecordRequest>(
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticação necessária.');
         const userId = request.auth.uid;
-        const { organizationId, recordId, values, phase, comment } = request.data || ({} as UpdateRecordRequest);
+        const { organizationId, recordId, values, phase, comment, record_type } = request.data || ({} as UpdateRecordRequest);
         if (!organizationId || !recordId) {
             throw new HttpsError('invalid-argument', 'organizationId e recordId são obrigatórios.');
         }
@@ -223,6 +233,16 @@ export const updateRecord = onCall<UpdateRecordRequest>(
             logActions.push(`Fase: ${fromLabel} → ${toLabel}${comment ? ` (${comment})` : ''}`);
         }
 
+        // Mudança de tipo de processo.
+        if (record_type !== undefined) {
+            const newType = resolveRecordType(def, record_type);
+            if (newType !== (current.record_type || null)) {
+                updates.record_type = newType;
+                const typeLabel = (def.record_types || []).find((t) => t.key === newType)?.label || (newType || 'sem tipo');
+                logActions.push(`Tipo: ${typeLabel}`);
+            }
+        }
+
         if (logActions.length === 0) {
             return { success: true, message: 'Nenhuma alteração.' };
         }
@@ -248,6 +268,7 @@ export const updateRecord = onCall<UpdateRecordRequest>(
 interface ImportRecordRow {
     values: Record<string, unknown>;
     phase?: string;
+    record_type?: string;
 }
 interface ImportRecordsRequest {
     organizationId: string;
@@ -284,7 +305,7 @@ export const importRecords = onCall<ImportRecordsRequest>(
         const { logDate, logTime, iso } = nowParts();
 
         // Valida e normaliza cada linha antes de gravar.
-        const valid: { values: Record<string, unknown>; phase: string }[] = [];
+        const valid: { values: Record<string, unknown>; phase: string; record_type: string | null }[] = [];
         const errorDetails: { row: number; error: string }[] = [];
         rows.forEach((row, i) => {
             const phase = row?.phase && phaseKeys.has(row.phase) ? row.phase : fallbackPhase;
@@ -294,7 +315,7 @@ export const importRecords = onCall<ImportRecordsRequest>(
                 errorDetails.push({ row: i + 1, error: Object.values(errors)[0] || 'Dados inválidos.' });
                 return;
             }
-            valid.push({ values: normalized, phase });
+            valid.push({ values: normalized, phase, record_type: resolveRecordType(def, row?.record_type) });
         });
 
         if (valid.length === 0) {
@@ -319,6 +340,7 @@ export const importRecords = onCall<ImportRecordsRequest>(
                     entity_key: def.key || null,
                     values: item.values,
                     phase: item.phase,
+                    record_type: item.record_type,
                     created_by: userId,
                     created_at: admin.firestore.FieldValue.serverTimestamp(),
                     updated_by: userId,
