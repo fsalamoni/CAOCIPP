@@ -104,6 +104,17 @@ export function evaluatePhaseTransition(
     const toExists = (def.phases || []).some((p) => p.key === toPhase);
     if (!toExists) return { allowed: false, reason: 'Fase de destino inexistente.' };
 
+    // Requisitos implícitos: colunas marcadas como "requisito para avançar" na
+    // fase de origem precisam estar preenchidas para o registro sair dela.
+    const advanceFields = (def.fields || []).filter(
+        (f: any) => f?.required_to_advance === true && f?.phase === fromPhase
+    );
+    for (const f of advanceFields) {
+        if (isEmpty(values[f.key])) {
+            return { allowed: false, reason: `Preencha "${f.label}" para avançar de fase.` };
+        }
+    }
+
     const rule = findRule(def.transitions, fromPhase, toPhase);
     if (!rule || !rule.requirements || rule.requirements.length === 0) {
         return { allowed: true, rule: rule || undefined };

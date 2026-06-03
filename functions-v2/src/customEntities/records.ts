@@ -29,6 +29,15 @@ function initialPhase(def: EntityTypeDef): string {
     return init?.key || '';
 }
 
+/** Conjunto de fases já alcançadas até `phaseKey` (por ordem). Usado para só
+ *  exigir colunas obrigatórias das fases que o registro já atingiu. */
+function phasesReachedUpTo(def: EntityTypeDef, phaseKey: string): Set<string> {
+    const phases = (def.phases || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const cur = phases.find((p) => p.key === phaseKey);
+    const curOrder = cur?.order ?? 0;
+    return new Set(phases.filter((p) => (p.order ?? 0) <= curOrder).map((p) => p.key));
+}
+
 function nowParts() {
     const now = new Date();
     return {
@@ -74,14 +83,17 @@ export const createRecord = onCall<CreateRecordRequest>(
         await getMembership(db, userId, organizationId);
         const def = await getEntityType(db, organizationId, entityTypeId);
 
-        const { ok, errors, normalized } = validateRecordValues(def.fields as FieldDef[], values || {});
-        if (!ok) {
-            throw new HttpsError('invalid-argument', Object.values(errors)[0] || 'Dados inválidos.', { errors });
-        }
-
         let targetPhase = initialPhase(def);
         if (phase && (def.phases || []).some((p) => p.key === phase)) {
             targetPhase = phase;
+        }
+
+        // Só exige colunas obrigatórias das fases já alcançadas (a fase inicial,
+        // por padrão). Colunas de fases posteriores são cobradas ao avançar.
+        const requiredPhases = phasesReachedUpTo(def, targetPhase);
+        const { ok, errors, normalized } = validateRecordValues(def.fields as FieldDef[], values || {}, { requiredPhases });
+        if (!ok) {
+            throw new HttpsError('invalid-argument', Object.values(errors)[0] || 'Dados inválidos.', { errors });
         }
 
         const ref = db.collection('customRecords').doc();
@@ -227,6 +239,123 @@ export const updateRecord = onCall<UpdateRecordRequest>(
         await writeHistory(ref, entry);
 
         return { success: true };
+    }
+);
+
+// ---------------------------------------------------------------------------
+// importRecords — criação em lote a partir de planilha (já mapeada no cliente)
+// ---------------------------------------------------------------------------
+interface ImportRecordRow {
+    values: Record<string, unknown>;
+    phase?: string;
+}
+interface ImportRecordsRequest {
+    organizationId: string;
+    entityTypeId: string;
+    rows: ImportRecordRow[];
+}
+
+const IMPORT_MAX_ROWS = 5000;
+const IMPORT_BATCH_SIZE = 400;
+
+export const importRecords = onCall<ImportRecordsRequest>(
+    { region: REGION, timeoutSeconds: 540, memory: '512MiB' },
+    async (request) => {
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+        const userId = request.auth.uid;
+        const { organizationId, entityTypeId, rows } = request.data || ({} as ImportRecordsRequest);
+        if (!organizationId || !entityTypeId) {
+            throw new HttpsError('invalid-argument', 'organizationId e entityTypeId são obrigatórios.');
+        }
+        if (!Array.isArray(rows) || rows.length === 0) {
+            throw new HttpsError('invalid-argument', 'Nenhuma linha para importar.');
+        }
+        if (rows.length > IMPORT_MAX_ROWS) {
+            throw new HttpsError('invalid-argument', `Máximo de ${IMPORT_MAX_ROWS} linhas por importação.`);
+        }
+
+        const db = admin.firestore();
+        await getMembership(db, userId, organizationId);
+        const def = await getEntityType(db, organizationId, entityTypeId);
+
+        const fallbackPhase = initialPhase(def);
+        const phaseKeys = new Set((def.phases || []).map((p) => p.key));
+        const userName = request.auth.token.name || 'Usuário desconhecido';
+        const { logDate, logTime, iso } = nowParts();
+
+        // Valida e normaliza cada linha antes de gravar.
+        const valid: { values: Record<string, unknown>; phase: string }[] = [];
+        const errorDetails: { row: number; error: string }[] = [];
+        rows.forEach((row, i) => {
+            const phase = row?.phase && phaseKeys.has(row.phase) ? row.phase : fallbackPhase;
+            const requiredPhases = phasesReachedUpTo(def, phase);
+            const { ok, errors, normalized } = validateRecordValues(def.fields as FieldDef[], (row?.values) || {}, { requiredPhases });
+            if (!ok) {
+                errorDetails.push({ row: i + 1, error: Object.values(errors)[0] || 'Dados inválidos.' });
+                return;
+            }
+            valid.push({ values: normalized, phase });
+        });
+
+        if (valid.length === 0) {
+            return { success: false, created: 0, failed: errorDetails.length, total: rows.length, errorDetails: errorDetails.slice(0, 20) };
+        }
+
+        // Grava em lotes (Firestore: máx. 500 operações por batch).
+        let created = 0;
+        for (let i = 0; i < valid.length; i += IMPORT_BATCH_SIZE) {
+            const slice = valid.slice(i, i + IMPORT_BATCH_SIZE);
+            const batch = db.batch();
+            for (const item of slice) {
+                const ref = db.collection('customRecords').doc();
+                const entry = {
+                    date: logDate, time: logTime, user_id: userId, user_name: userName,
+                    action: `${def.label_singular} importado de planilha`, timestamp: iso,
+                };
+                batch.set(ref, {
+                    id: ref.id,
+                    organization_id: organizationId,
+                    entity_type_id: entityTypeId,
+                    entity_key: def.key || null,
+                    values: item.values,
+                    phase: item.phase,
+                    created_by: userId,
+                    created_at: admin.firestore.FieldValue.serverTimestamp(),
+                    updated_by: userId,
+                    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+                    activity_log: [entry],
+                    imported: true,
+                });
+            }
+            await batch.commit();
+            created += slice.length;
+        }
+
+        // Atualiza contador do tipo no doc do órgão (best-effort).
+        try {
+            await db.collection('organizations').doc(organizationId).update({
+                [`stats.custom_records.${entityTypeId}`]: admin.firestore.FieldValue.increment(created),
+            });
+        } catch (e) {
+            console.error('[importRecords stats inc]', e);
+        }
+
+        await db.collection('auditLogs').add({
+            organization_id: organizationId,
+            user_id: userId,
+            user_name: request.auth.token.name || '',
+            action: 'IMPORT_RECORDS',
+            details: { entity_type_id: entityTypeId, created, failed: errorDetails.length, total: rows.length },
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {
+            success: true,
+            created,
+            failed: errorDetails.length,
+            total: rows.length,
+            errorDetails: errorDetails.slice(0, 20),
+        };
     }
 );
 

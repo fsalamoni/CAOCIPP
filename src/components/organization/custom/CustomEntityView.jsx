@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useEntityType, useRecords } from '@/hooks/useCustomEntities';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileSpreadsheet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import GenericRecordTable from './GenericRecordTable';
 import GenericKanbanBoard from './GenericKanbanBoard';
 import GenericSummary from './GenericSummary';
 import GenericRecordForm from './GenericRecordForm';
 import GenericRecordDetailSheet from './GenericRecordDetailSheet';
+import SpreadsheetImportDialog from './SpreadsheetImportDialog';
 
 /**
  * Orquestra a visualização de um tipo de entidade personalizado.
@@ -21,6 +23,7 @@ export default function CustomEntityView({ mode, entityTypeId, organizationId, m
     const [editingRecord, setEditingRecord] = useState(null);
     const [detailRecord, setDetailRecord] = useState(null);
     const [detailOpen, setDetailOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
 
     const canEdit = ['creator', 'admin', 'member'].includes(userRole);
     const canCreate = canEdit;
@@ -50,6 +53,14 @@ export default function CustomEntityView({ mode, entityTypeId, organizationId, m
 
     return (
         <div>
+            {canCreate && (
+                <div className="flex justify-end mb-2">
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setImportOpen(true)}>
+                        <FileSpreadsheet className="h-4 w-4" /> Importar dados
+                    </Button>
+                </div>
+            )}
+
             {mode === 'panel' && (
                 <GenericKanbanBoard
                     entityType={entityType}
@@ -105,6 +116,15 @@ export default function CustomEntityView({ mode, entityTypeId, organizationId, m
                 canDelete={canDelete}
                 onEdit={openEdit}
                 onChanged={() => {}}
+            />
+
+            <SpreadsheetImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                mode="data"
+                organizationId={organizationId}
+                entityType={entityType}
+                onImported={() => {}}
             />
         </div>
     );

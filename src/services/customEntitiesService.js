@@ -31,3 +31,7 @@ export const updateRecord = (payload) =>
 
 export const deleteRecord = (organizationId, recordId) =>
     call('deleteRecord', { organizationId, recordId });
+
+export const importRecords = (organizationId, entityTypeId, rows) =>
+    // rows: [{ values: {fieldKey: value}, phase? }]
+    call('importRecords', { organizationId, entityTypeId, rows }, { timeout: 540000 });

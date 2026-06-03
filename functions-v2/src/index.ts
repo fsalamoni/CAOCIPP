@@ -49,4 +49,4 @@ export { backfillHistory } from './platform/historyBackfill';
 
 // ========== Páginas e processos personalizados (flag: custom_entities) ==========
 export { upsertEntityType, deleteEntityType } from './customEntities/entityTypes';
-export { createRecord, updateRecord, deleteRecord } from './customEntities/records';
+export { createRecord, updateRecord, deleteRecord, importRecords } from './customEntities/records';

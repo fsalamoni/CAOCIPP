@@ -7,12 +7,13 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Loader2, LayoutGrid, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, LayoutGrid, ChevronUp, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { useOrganizationMembers } from '@/hooks/useFirestore';
 import { deleteEntityType, upsertEntityType } from '@/services/customEntitiesService';
 import EntityTypeBuilder from '@/components/organization/custom/EntityTypeBuilder';
+import SpreadsheetImportDialog from '@/components/organization/custom/SpreadsheetImportDialog';
 
 /**
  * Lista e gerencia as páginas personalizadas (tipos de entidade) do órgão.
@@ -26,9 +27,13 @@ export default function EntityTypesManager({ organization }) {
     const [editing, setEditing] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
     const [busyId, setBusyId] = useState(null);
+    const [importOpen, setImportOpen] = useState(false);
+    const [importedFields, setImportedFields] = useState(null);
+    const [builderNonce, setBuilderNonce] = useState(0);
 
-    const openCreate = () => { setEditing(null); setBuilderOpen(true); };
-    const openEdit = (et) => { setEditing(et); setBuilderOpen(true); };
+    const openCreate = () => { setEditing(null); setImportedFields(null); setBuilderNonce((n) => n + 1); setBuilderOpen(true); };
+    const openEdit = (et) => { setEditing(et); setImportedFields(null); setBuilderNonce((n) => n + 1); setBuilderOpen(true); };
+    const handleStructureReady = (fields) => { setEditing(null); setImportedFields(fields); setBuilderNonce((n) => n + 1); setBuilderOpen(true); };
 
     const toggleEnabled = async (et) => {
         setBusyId(et.id);
@@ -81,9 +86,14 @@ export default function EntityTypesManager({ organization }) {
                         Crie suas próprias páginas com campos, painel de fases e regras — sem programar.
                     </p>
                 </div>
-                <Button onClick={openCreate} className="gap-1.5 shrink-0">
-                    <Plus className="h-4 w-4" /> Nova página
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                    <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-1.5">
+                        <FileSpreadsheet className="h-4 w-4" /> Importar planilha
+                    </Button>
+                    <Button onClick={openCreate} className="gap-1.5">
+                        <Plus className="h-4 w-4" /> Nova página
+                    </Button>
+                </div>
             </div>
 
             {isLoading ? (
@@ -156,12 +166,22 @@ export default function EntityTypesManager({ organization }) {
             )}
 
             <EntityTypeBuilder
+                key={`${editing?.id || 'new'}-${builderNonce}`}
                 open={builderOpen}
                 onOpenChange={setBuilderOpen}
                 organizationId={organizationId}
                 members={members}
                 entityType={editing}
+                initialFields={importedFields}
                 onSaved={() => {}}
+            />
+
+            <SpreadsheetImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                mode="structure"
+                organizationId={organizationId}
+                onStructureReady={handleStructureReady}
             />
         </div>
     );

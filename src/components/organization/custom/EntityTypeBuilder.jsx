@@ -15,7 +15,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-    Plus, Trash2, GripVertical, Loader2, ChevronUp, ChevronDown, Settings2,
+    Plus, Trash2, Loader2, ChevronUp, ChevronDown, Settings2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FIELD_TYPE_LIST, FIELD_TYPE_META } from '@/lib/fieldTypes';
@@ -37,9 +37,10 @@ function newPhase(i) {
 
 /**
  * Construtor no-code de tipos de entidade.
- * props: open, onOpenChange, organizationId, members, entityType (edição), onSaved
+ * props: open, onOpenChange, organizationId, members, entityType (edição),
+ *        initialFields (pré-preenchimento ao importar planilha), onSaved
  */
-export default function EntityTypeBuilder({ open, onOpenChange, organizationId, members = [], entityType, onSaved }) {
+export default function EntityTypeBuilder({ open, onOpenChange, organizationId, members = [], entityType, initialFields, onSaved }) {
     const isEdit = !!entityType;
 
     const [labelSingular, setLabelSingular] = useState(entityType?.label_singular || '');
@@ -48,7 +49,11 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     const [color, setColor] = useState(entityType?.color || '#3b82f6');
     const [enabled, setEnabled] = useState(entityType?.enabled !== false);
     const [fields, setFields] = useState(
-        entityType?.fields?.length ? entityType.fields.map((f) => ({ ...f, options: f.options || [] })) : [newField()]
+        entityType?.fields?.length
+            ? entityType.fields.map((f) => ({ ...f, options: f.options || [] }))
+            : (initialFields?.length
+                ? initialFields.map((f) => ({ ...f, options: f.options || [] }))
+                : [newField()])
     );
     const [phases, setPhases] = useState(
         entityType?.phases?.length ? entityType.phases.slice() : [newPhase(0), { ...newPhase(1), label: 'Concluído', key: 'concluido', is_final: true }]
@@ -86,12 +91,39 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     const updatePhase = (idx, patch) => setPhases((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
     const updatePhaseLabel = (idx, label) => {
         const p = phases[idx];
+        const oldKey = p.key;
         const patch = { label };
         if (!p.key || p.key === slugify(p.label)) patch.key = slugify(label);
         updatePhase(idx, patch);
+        // Ao mudar a chave, remapeia colunas e regras que apontam para a fase.
+        if (patch.key && oldKey && patch.key !== oldKey) {
+            setFields((prev) => prev.map((f) => (f.phase === oldKey ? { ...f, phase: patch.key } : f)));
+            setTransitions((prev) => prev.map((t) => ({
+                ...t,
+                from: t.from === oldKey ? patch.key : t.from,
+                to: t.to === oldKey ? patch.key : t.to,
+            })));
+        }
     };
     const addPhase = () => setPhases((prev) => [...prev, newPhase(prev.length)]);
-    const removePhase = (idx) => setPhases((prev) => prev.filter((_, i) => i !== idx));
+    const removePhase = (idx) => {
+        const removed = phases[idx];
+        setPhases((prev) => prev.filter((_, i) => i !== idx));
+        // Desvincula colunas que estavam nesta fase.
+        if (removed?.key) {
+            setFields((prev) => prev.map((f) => (f.phase === removed.key ? { ...f, phase: undefined, required_to_advance: false } : f)));
+        }
+    };
+    // ---- Atribuição de colunas a fases ----
+    const fieldKeyOf = (f) => f.key || slugify(f.label);
+    const assignFieldToPhase = (fieldKey, phaseKey) => setFields((prev) => prev.map((f) => {
+        if (fieldKeyOf(f) !== fieldKey) return f;
+        return phaseKey
+            ? { ...f, phase: phaseKey }
+            : { ...f, phase: undefined, required_to_advance: false };
+    }));
+    const setFieldRequired = (fieldKey, val) => setFields((prev) => prev.map((f) => (fieldKeyOf(f) === fieldKey ? { ...f, required: val } : f)));
+    const setFieldAdvance = (fieldKey, val) => setFields((prev) => prev.map((f) => (fieldKeyOf(f) === fieldKey ? { ...f, required_to_advance: val } : f)));
     const setInitial = (idx) => setPhases((prev) => prev.map((p, i) => ({ ...p, is_initial: i === idx })));
     const movePhase = (idx, dir) => setPhases((prev) => {
         const arr = prev.slice();
@@ -136,7 +168,7 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
         }
         const cleanFields = fields
             .filter((f) => f.label.trim())
-            .map((f) => ({ ...f, key: f.key || slugify(f.label) }));
+            .map(({ _sourceIndex, ...f }) => ({ ...f, key: f.key || slugify(f.label) }));
         if (cleanFields.length === 0) {
             toast.error('Crie pelo menos um campo.');
             return;
@@ -364,7 +396,10 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
 
                         {/* FASES */}
                         <TabsContent value="phases" className="space-y-3 mt-0">
-                            <p className="text-xs text-muted-foreground">As fases viram as colunas do painel (kanban). A fase inicial recebe novos registros.</p>
+                            <p className="text-xs text-muted-foreground">
+                                As fases viram as colunas do painel (kanban) e as abas do formulário. A fase inicial recebe novos registros.
+                                Atribua colunas a cada fase para que o formulário de criar/editar mostre uma aba por fase.
+                            </p>
                             {phases.map((p, idx) => (
                                 <Card key={idx} className="p-3 space-y-2">
                                     <div className="flex items-center gap-2">
@@ -402,6 +437,58 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                                 placeholder="—"
                                             />
                                         </label>
+                                    </div>
+
+                                    <div className="pl-8 space-y-1">
+                                        <Label className="text-xs">Descrição da fase (opcional)</Label>
+                                        <Textarea
+                                            value={p.description || ''}
+                                            onChange={(e) => updatePhase(idx, { description: e.target.value })}
+                                            placeholder="Explique o que acontece nesta fase (aparece no topo da aba)."
+                                            className="min-h-[52px] text-sm"
+                                        />
+                                    </div>
+
+                                    <div className="pl-8 space-y-2 border-t pt-3">
+                                        <Label className="text-xs">Colunas desta fase</Label>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Marque as colunas que compõem esta fase. Elas aparecerão na aba "{p.label || 'fase'}" do formulário.
+                                        </p>
+                                        {fieldOptions.length === 0 && (
+                                            <p className="text-[11px] text-muted-foreground">Crie colunas na aba "Campos" primeiro.</p>
+                                        )}
+                                        <div className="space-y-1.5">
+                                            {fieldOptions.map((f) => {
+                                                const phaseKey = p.key || slugify(p.label);
+                                                const assignedHere = f.phase === phaseKey;
+                                                const assignedElsewhere = f.phase && f.phase !== phaseKey;
+                                                return (
+                                                    <div key={f.key} className="flex items-center gap-2 flex-wrap rounded-md border px-2 py-1.5">
+                                                        <label className="flex items-center gap-2 text-xs cursor-pointer flex-1 min-w-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={assignedHere}
+                                                                onChange={(e) => assignFieldToPhase(f.key, e.target.checked ? phaseKey : null)}
+                                                            />
+                                                            <span className="truncate">{f.label}</span>
+                                                            {assignedElsewhere && <Badge variant="secondary" className="text-[10px]">em outra fase</Badge>}
+                                                        </label>
+                                                        {assignedHere && (
+                                                            <div className="flex items-center gap-3 shrink-0">
+                                                                <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                                                                    <Switch checked={f.required === true} onCheckedChange={(c) => setFieldRequired(f.key, c)} />
+                                                                    Obrigatória
+                                                                </label>
+                                                                <label className="flex items-center gap-1.5 text-[11px] cursor-pointer whitespace-nowrap">
+                                                                    <Switch checked={f.required_to_advance === true} onCheckedChange={(c) => setFieldAdvance(f.key, c)} />
+                                                                    Requisito p/ avançar
+                                                                </label>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </Card>
                             ))}

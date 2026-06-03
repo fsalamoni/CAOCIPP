@@ -50,16 +50,31 @@ export interface FieldDef {
     validation?: FieldValidation;
     table?: { show?: boolean; order?: number; width?: number };
     form?: { show?: boolean; section?: string; order?: number };
+    // Fase (aba) à qual esta coluna pertence no formulário com abas-por-fase.
+    phase?: string;
+    // Quando true, esta coluna precisa estar preenchida para o registro SAIR da
+    // sua fase (requisito implícito de avanço, avaliado no servidor).
+    required_to_advance?: boolean;
 }
 
 export interface PhaseDef {
     key: string;
     label: string;
+    description?: string;
     color?: string;
     order?: number;
     is_initial?: boolean;
     is_final?: boolean;
     wip_limit?: number;
+}
+
+// Regra de correspondência usada na importação de planilhas: associa uma coluna
+// da plataforma (field_key) a uma coluna da planilha — por nome de cabeçalho
+// ("name") ou pela letra da coluna ("letter": A, B, C...).
+export interface ImportMapping {
+    field_key: string;
+    source: 'name' | 'letter';
+    match: string;
 }
 
 export type RequirementType = 'field_required' | 'field_condition' | 'min_value' | 'approval';
@@ -104,6 +119,12 @@ export interface EntityTypeDef {
     form_layout?: { sections?: { title: string; field_keys: string[] }[] };
     table_layout?: { columns?: { field_key: string; width?: number; order?: number }[]; default_sort?: { field_key: string; dir: 'asc' | 'desc' } };
     kpi_config?: { cards?: any[]; charts?: any[] };
+    // Modo do formulário de criar/editar: 'tabs' (uma aba por fase), 'sections'
+    // (seções por form_layout) ou 'single' (lista única). Quando ausente, o
+    // cliente decide automaticamente (abas se houver colunas atribuídas a fases).
+    form_mode?: 'tabs' | 'sections' | 'single';
+    // Regras de importação de planilha salvas com o tipo (reutilizáveis).
+    import_mappings?: ImportMapping[];
 }
 
 const SLUG_RE = /^[a-z][a-z0-9_]{0,39}$/;
@@ -203,6 +224,9 @@ export function sanitizeEntityTypeDefinition(input: any): EntityTypeDef {
                 ...(f?.form?.section ? { section: String(f.form.section) } : {}),
                 order: toNumberOrNull(f?.form?.order) ?? idx,
             },
+            // Atribuição de fase + requisito de avanço (validados após as fases).
+            ...(f?.phase ? { phase: String(f.phase).trim() } : {}),
+            ...(f?.required_to_advance === true ? { required_to_advance: true } : {}),
         };
         return out;
     });
@@ -228,6 +252,7 @@ export function sanitizeEntityTypeDefinition(input: any): EntityTypeDef {
         return {
             key,
             label,
+            ...(p?.description ? { description: String(p.description).trim().slice(0, 2000) } : {}),
             ...(p?.color ? { color: String(p.color) } : {}),
             order: toNumberOrNull(p?.order) ?? idx,
             is_initial: p?.is_initial === true,
@@ -242,6 +267,15 @@ export function sanitizeEntityTypeDefinition(input: any): EntityTypeDef {
 
     const fieldKeySet = new Set(fields.map((f) => f.key));
     const phaseKeySet = new Set(phases.map((p) => p.key));
+
+    // Limpa referências de fase inválidas nas colunas (fase pode ter sido
+    // renomeada/removida). Mantém o vínculo apenas quando a fase existe.
+    for (const f of fields) {
+        if (f.phase && !phaseKeySet.has(f.phase)) {
+            delete f.phase;
+            if (f.required_to_advance) delete f.required_to_advance;
+        }
+    }
 
     const rawTransitions = Array.isArray(input.transitions) ? input.transitions : [];
     const transitions: TransitionRule[] = rawTransitions.map((t: any, idx: number) => {
@@ -310,11 +344,24 @@ export function sanitizeEntityTypeDefinition(input: any): EntityTypeDef {
         fields,
         phases,
         ...(transitions.length ? { transitions } : {}),
+        ...(['tabs', 'sections', 'single'].includes(String(input.form_mode)) ? { form_mode: input.form_mode } : {}),
         ...(input.form_layout ? { form_layout: sanitizeFormLayout(input.form_layout, fieldKeySet) } : {}),
         ...(input.table_layout ? { table_layout: sanitizeTableLayout(input.table_layout, fieldKeySet) } : {}),
+        ...(input.import_mappings ? { import_mappings: sanitizeImportMappings(input.import_mappings, fieldKeySet) } : {}),
         ...(input.kpi_config ? { kpi_config: sanitizeKpiConfig(input.kpi_config) } : {}),
     };
     return out;
+}
+
+function sanitizeImportMappings(input: any, fieldKeySet: Set<string>): ImportMapping[] {
+    const arr = Array.isArray(input) ? input : [];
+    return arr
+        .map((m: any): ImportMapping => ({
+            field_key: String(m?.field_key || '').trim(),
+            source: m?.source === 'letter' ? 'letter' : 'name',
+            match: String(m?.match ?? '').trim(),
+        }))
+        .filter((m) => fieldKeySet.has(m.field_key) && m.match !== '');
 }
 
 function sanitizeOnSuccess(input: any, fieldKeySet: Set<string>): TransitionRule['on_success'] {
@@ -378,11 +425,17 @@ function isEmptyValue(v: unknown): boolean {
 export function validateRecordValues(
     fields: FieldDef[],
     values: Record<string, unknown>,
-    opts: { partial?: boolean } = {}
+    opts: { partial?: boolean; requiredPhases?: Set<string> | null } = {}
 ): { ok: boolean; errors: Record<string, string>; normalized: Record<string, unknown> } {
     const errors: Record<string, string> = {};
     const normalized: Record<string, unknown> = {};
     const input = values && typeof values === 'object' ? values : {};
+
+    // Uma coluna atribuída a uma fase só é "obrigatória" quando essa fase já foi
+    // alcançada. Sem restrição (requiredPhases ausente) ou coluna sem fase →
+    // comportamento legado (obrigatoriedade global).
+    const phaseRequired = (field: FieldDef) =>
+        !opts.requiredPhases || !field.phase || opts.requiredPhases.has(field.phase);
 
     for (const field of fields) {
         const provided = Object.prototype.hasOwnProperty.call(input, field.key);
@@ -391,7 +444,7 @@ export function validateRecordValues(
         const raw = input[field.key];
 
         if (isEmptyValue(raw)) {
-            if (field.required && !opts.partial) {
+            if (field.required && !opts.partial && phaseRequired(field)) {
                 errors[field.key] = `${field.label} é obrigatório.`;
             }
             normalized[field.key] = field.type === 'multiselect' ? [] : (field.type === 'boolean' ? false : null);
