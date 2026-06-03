@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const normalization_1 = require("../shared/normalization");
 exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', cors: true }, async (request) => {
     // Verify authentication
     if (!request.auth) {
@@ -51,7 +52,7 @@ exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1',
         id: `${userId}_${orgRef.id}`,
         user_id: userId,
         user_email: request.auth.token.email,
-        user_name: request.auth.token.name || '',
+        user_name: (0, normalization_1.formatPersonName)(request.auth.token.name || ''),
         organization_id: orgRef.id,
         role: 'creator',
         function: 'Criador',

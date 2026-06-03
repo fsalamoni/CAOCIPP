@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as XLSX from 'xlsx';
 import { calculateStatus } from '../shared/status';
+import { formatPersonName } from '../shared/normalization';
 
 interface ImportExpedientesRequest {
     organizationId: string;
@@ -188,7 +189,12 @@ export const importExpedientesFromExcel = onCall<ImportExpedientesRequest>(
                             responsible_user_name: (
                                 row['ASSESSOR RESPONSÁVEL'] || row['Assessor Responsável'] ||
                                 row['Responsável'] || row['RESPONSÁVEL'] || row['responsible_user_name'] || ''
-                            ).toString().trim() || null,
+                            ).toString().trim() ? formatPersonName(
+                                (
+                                    row['ASSESSOR RESPONSÁVEL'] || row['Assessor Responsável'] ||
+                                    row['Responsável'] || row['RESPONSÁVEL'] || row['responsible_user_name'] || ''
+                                ).toString().trim()
+                            ) : null,
                             responsible_user_id: row['responsible_user_id'] || null,
                             urgency_request: (
                                 row['PEDIDO DE URGÊNCIA'] === 'Sim' ||

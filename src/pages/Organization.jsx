@@ -42,10 +42,29 @@ export default function Organization() {
 
   // Auto-select organization
   useEffect(() => {
-    if (!selectedOrgId && organizations.length > 0) {
-      setSelectedOrgId(organizations[0].id);
+    if (organizations.length === 0) {
+      return;
     }
-  }, [organizations, selectedOrgId]);
+
+    const hasUrlOrganization = urlOrgId && organizations.some(org => org.id === urlOrgId);
+    const hasSelectedOrganization = selectedOrgId && organizations.some(org => org.id === selectedOrgId);
+
+    if (urlOrgId && urlOrgId !== selectedOrgId && hasUrlOrganization) {
+      setSelectedOrgId(urlOrgId);
+      return;
+    }
+
+    if (!hasSelectedOrganization) {
+      const fallbackOrgId = hasUrlOrganization
+        ? urlOrgId
+        : organizations[0].id;
+
+      setSelectedOrgId(fallbackOrgId);
+      if (fallbackOrgId !== urlOrgId) {
+        navigate(`/Organization?id=${fallbackOrgId}&tab=${activeTab}`, { replace: true });
+      }
+    }
+  }, [organizations, selectedOrgId, urlOrgId, activeTab, navigate]);
 
   // Fetch organization data (real-time)
   const { organization, isLoading: orgLoading } = useOrganizationRealtime(selectedOrgId);

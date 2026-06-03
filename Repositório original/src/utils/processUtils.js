@@ -1,3 +1,5 @@
+import { formatPersonName } from '@/utils/nameUtils';
+
 // processUtils.js - Centralized Logic for Consultas CAOPP (v1.13.0)
 
 /**
@@ -29,7 +31,9 @@ export function getProcessField(p, fieldKey) {
     // 1. Precise Match
     for (const alias of aliases) {
         if (p[alias] !== undefined && p[alias] !== null && String(p[alias]).trim() !== '') {
-            return p[alias];
+            const value = p[alias];
+            if (fieldKey === 'responsible_user_name') return formatPersonName(String(value));
+            return value;
         }
     }
 
@@ -42,6 +46,7 @@ export function getProcessField(p, fieldKey) {
         if (normalizedTargetAliases.includes(normalize(dbKey))) {
             const val = p[dbKey];
             if (val !== undefined && val !== null && String(val).trim() !== '') {
+                if (fieldKey === 'responsible_user_name') return formatPersonName(String(val));
                 return val;
             }
         }

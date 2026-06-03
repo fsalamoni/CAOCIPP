@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ProcessDetailSheet from "./ProcessDetailSheet";
-import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, Settings2, FileSearch, Columns3, Filter, FilterX, Clock } from "lucide-react";
+import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, Settings2, Columns3, Filter, FilterX, Clock } from "lucide-react";
 import { format, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseLocalDate } from "@/lib/dateUtils";

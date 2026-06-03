@@ -232,8 +232,20 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         archived_date: formData.archived_date || null,
         network_folder: formData.network_folder || '',
         status: formData.status,
-        ...rollbackForStatus,
       };
+
+      // Only apply rollback for fields that the user left empty.
+      // This prevents overwriting explicit user edits (e.g. assigning a responsible
+      // to a "Pendente" process should keep that responsible, not null it out).
+      const originalStatus = process?.status || 'Pendente';
+      if (formData.status !== originalStatus) {
+        for (const [key, value] of Object.entries(rollbackForStatus)) {
+          if (!updateData[key]) {
+            updateData[key] = value;
+          }
+        }
+      }
+
 
       await updateProcess({
         id: process.id,
@@ -265,11 +277,11 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     }
 
     const member = members.find(m => m.user_id === userId);
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       responsible_user_id: userId,
       responsible_user_name: member?.user_name || member?.displayName || ''
-    });
+    }));
   };
 
   const handleStatusChange = (status) => {

@@ -10,7 +10,7 @@ Node.js não foi encontrado no seu sistema PATH. Para executar a plataforma Cons
 
 ### Opção 1: Download Direto (Recomendado)
 
-1. **Baixe Node.js LTS** (versão estável):
+1. **Baixe Node.js LTS** (versão estável, 22+):
    - Acesse: https://nodejs.org/
    - Clique em "LTS" (Long Term Support)
    - Baixe a versão para Windows (x64)
@@ -33,7 +33,7 @@ Node.js não foi encontrado no seu sistema PATH. Para executar a plataforma Cons
    
    Deve mostrar algo como:
    ```
-   v20.11.0
+   v22.15.0
    10.2.4
    ```
 

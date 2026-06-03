@@ -26,7 +26,6 @@ import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
-import { calculateExpedienteDerivedStatus } from '@/utils/expedienteUtils';
 import ProcessLogDialog from './ProcessLogDialog';
 
 const DEFAULT_SYSTEMS = ['SIM', 'SGP', 'SPU', 'E-mail'];
@@ -140,17 +139,34 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     }
   }, [expediente, members]);
 
-  // Dynamic status suggestion based on dates
-  useEffect(() => {
-    const suggestedStatus = calculateExpedienteDerivedStatus(formData);
-    if (suggestedStatus !== formData.status) {
-      setFormData(prev => ({ ...prev, status: suggestedStatus }));
+  const getRollbackByStatus = (status, emptyValue = '') => {
+    if (status === 'Pendente') {
+      return {
+        analysis_start_date: emptyValue,
+        review_submission_date: emptyValue,
+        review_return_date: emptyValue,
+        archived_date: emptyValue,
+        responsible_user_id: emptyValue,
+        responsible_user_name: emptyValue,
+      };
     }
-  }, [
-    formData.archived_date,
-    formData.review_submission_date,
-    formData.analysis_start_date
-  ]);
+
+    if (status === 'Em elaboração') {
+      return {
+        review_submission_date: emptyValue,
+        review_return_date: emptyValue,
+        archived_date: emptyValue,
+      };
+    }
+
+    if (status === 'Em revisão') {
+      return {
+        archived_date: emptyValue,
+      };
+    }
+
+    return {};
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -162,6 +178,8 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
 
     try {
       setIsUpdating(true);
+
+      const rollbackForStatus = getRollbackByStatus(formData.status, null);
 
       const updateData = {
         expediente_number: formData.expediente_number,
@@ -179,8 +197,21 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         review_return_date: formData.review_return_date || null,
         archived_date: formData.archived_date || null,
         network_folder: formData.network_folder || '',
-        status: formData.status
+        status: formData.status,
       };
+
+      // Only apply rollback for fields that the user left empty.
+      // This prevents overwriting explicit user edits (e.g. assigning a responsible
+      // to a "Pendente" expediente should keep that responsible, not null it out).
+      const originalStatus = expediente?.status || 'Pendente';
+      if (formData.status !== originalStatus) {
+        for (const [key, value] of Object.entries(rollbackForStatus)) {
+          if (!updateData[key]) {
+            updateData[key] = value;
+          }
+        }
+      }
+
 
       await updateExpediente({
         id: expediente.id,
@@ -201,12 +232,30 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
 
   const handleResponsibleChange = (userId) => {
     if (userId === 'historical__advisor__placeholder') return;
+
+    if (userId === '__none__') {
+      setFormData(prev => ({
+        ...prev,
+        responsible_user_id: '',
+        responsible_user_name: '',
+      }));
+      return;
+    }
+
     const member = members.find(m => m.user_id === userId);
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       responsible_user_id: userId,
       responsible_user_name: member?.user_name || member?.displayName || ''
-    });
+    }));
+  };
+
+  const handleStatusChange = (status) => {
+    setFormData(prev => ({
+      ...prev,
+      status,
+      ...getRollbackByStatus(status),
+    }));
   };
 
   const handleDelete = async () => {
@@ -374,6 +423,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="__none__">Sem assessor responsável</SelectItem>
                         {members.map(member => (
                           <SelectItem key={member.user_id} value={member.user_id}>
                             {member.user_name}
@@ -416,7 +466,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                   <Label htmlFor="status">Status do Expediente</Label>
                   <Select
                     value={formData.status || ''}
-                    onValueChange={(value) => setFormData({ ...formData, status: value })}
+                    onValueChange={handleStatusChange}
                   >
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Selecione o status" />

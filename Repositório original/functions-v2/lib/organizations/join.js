@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.joinOrganization = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const normalization_1 = require("../shared/normalization");
 exports.joinOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', cors: true }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
@@ -16,7 +17,7 @@ exports.joinOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', c
     const db = admin.firestore();
     const userId = request.auth.uid;
     const userEmail = request.auth.token.email || '';
-    const userName = request.auth.token.name || '';
+    const userName = (0, normalization_1.formatPersonName)(request.auth.token.name || '');
     try {
         const result = await db.runTransaction(async (transaction) => {
             // 1. Find organization by invite code

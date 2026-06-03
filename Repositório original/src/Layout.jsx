@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useNotifications } from '@/hooks/useFirestore';
+import { formatPersonName } from '@/utils/nameUtils';
 import {
   LayoutDashboard,
   User,
@@ -15,8 +16,7 @@ import {
   X,
   Search,
   Sparkles,
-  Settings,
-  Archive
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +62,8 @@ export default function Layout({ children, currentPageName }) {
   }
 
   // Display Name logic (Profile > Auth > Email)
-  const displayName = userProfile?.platform_name || user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+  const rawDisplayName = userProfile?.platform_name || user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+  const displayName = formatPersonName(rawDisplayName);
   const displayEmail = userProfile?.email || user?.email;
   const initial = displayName?.[0]?.toUpperCase() || 'U';
 

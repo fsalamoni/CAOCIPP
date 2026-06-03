@@ -4,6 +4,7 @@ exports.updateExpediente = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
+const normalization_1 = require("../shared/normalization");
 exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -36,6 +37,9 @@ exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     delete changes.created_at;
     delete changes.created_by;
     delete changes.activity_log;
+    if (typeof changes.responsible_user_name === 'string') {
+        changes.responsible_user_name = (0, normalization_1.formatPersonName)(changes.responsible_user_name);
+    }
     changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
     changes.updated_by = userId;
     // Auto-fill distribution_date when responsible changes

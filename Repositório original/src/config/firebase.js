@@ -3,11 +3,22 @@
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
-// Firebase configuration from environment variables
-const firebaseConfig = {
+// Official project fallback configuration.
+// This avoids production outage if build-time env vars are not available.
+const fallbackFirebaseConfig = {
+    apiKey: 'AIzaSyAyfzs8Z5hLSteHEbNWLGNbFpVoKqdPk-Q',
+    authDomain: 'protagonista-rpg.firebaseapp.com',
+    projectId: 'protagonista-rpg',
+    storageBucket: 'protagonista-rpg.firebasestorage.app',
+    messagingSenderId: '745680303218',
+    appId: '1:745680303218:web:7f5df5b7e0b682f0d3feeb',
+    measurementId: 'G-CY18T83H6D',
+};
+
+const envFirebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -17,23 +28,51 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Validate configuration
-const requiredEnvVars = [
-    'VITE_FIREBASE_API_KEY',
-    'VITE_FIREBASE_AUTH_DOMAIN',
-    'VITE_FIREBASE_PROJECT_ID',
-    'VITE_FIREBASE_STORAGE_BUCKET',
-    'VITE_FIREBASE_MESSAGING_SENDER_ID',
-    'VITE_FIREBASE_APP_ID',
+const requiredConfigFields = [
+    'apiKey',
+    'authDomain',
+    'projectId',
+    'storageBucket',
+    'messagingSenderId',
+    'appId',
 ];
 
-const missingVars = requiredEnvVars.filter(
-    varName => !import.meta.env[varName]
+const placeholderConfigPatterns = [
+    /^your_/,
+    /^sua_/,
+    /^seu_/,
+    /your-project-id/,
+    /your_project_id/,
+    /sua_api_key/,
+    /seu_project_id/,
+];
+
+const isPlaceholderValue = (value) => {
+    if (typeof value !== 'string') {
+        return false;
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+    return placeholderConfigPatterns.some(pattern => pattern.test(normalizedValue));
+};
+
+const invalidEnvConfigFields = requiredConfigFields.filter(
+    fieldName => !envFirebaseConfig[fieldName] || isPlaceholderValue(envFirebaseConfig[fieldName])
 );
 
-if (missingVars.length > 0 && import.meta.env.PROD) {
-    console.error('Missing required Firebase environment variables:', missingVars);
-    throw new Error('Firebase configuration is incomplete. Check your .env file.');
+const shouldUseFallbackConfig = invalidEnvConfigFields.length > 0;
+
+// Firebase configuration from environment variables.
+// If the deployed environment has incomplete/example values, use the official
+// project configuration instead of initializing a broken app with no database.
+const firebaseConfig = shouldUseFallbackConfig
+    ? fallbackFirebaseConfig
+    : envFirebaseConfig;
+
+if (shouldUseFallbackConfig && import.meta.env.PROD) {
+    console.warn('Invalid or missing VITE Firebase env vars. Using fallback project config.', {
+        invalidEnvConfigFields,
+    });
 }
 
 // Initialize Firebase
@@ -41,7 +80,10 @@ export const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    ignoreUndefinedProperties: true,
+});
 export const functions = getFunctions(app, 'southamerica-east1'); // São Paulo region
 export const googleProvider = new GoogleAuthProvider();
 

@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { formatPersonName } from '../shared/normalization';
 
 interface CreateOrgRequest {
     name: string;
@@ -64,7 +65,7 @@ export const createOrganization = onCall<CreateOrgRequest>(
             id: `${userId}_${orgRef.id}`,
             user_id: userId,
             user_email: request.auth.token.email,
-            user_name: request.auth.token.name || '',
+            user_name: formatPersonName(request.auth.token.name || ''),
             organization_id: orgRef.id,
             role: 'creator',
             function: 'Criador',

@@ -107,7 +107,7 @@ export default function Profile() {
     try {
       setIsCreatingOrg(true);
 
-      const orgId = await createOrganization(
+      const { organizationId } = await createOrganization(
         { name: newOrgName, description: newOrgDesc, startMinimal: customEntitiesOn },
         user.uid
       );
@@ -118,7 +118,11 @@ export default function Profile() {
       setNewOrgDesc('');
 
       // Refresh organizations list (the hook will auto-refresh)
-      navigate(`/Organization?id=${orgId}`);
+      if (organizationId) {
+        navigate(`/Organization?id=${organizationId}`);
+      } else {
+        navigate('/Organization');
+      }
     } catch (error) {
       logger.error('Error creating organization:', error);
       toast.error('Erro ao criar organização: ' + error.message);

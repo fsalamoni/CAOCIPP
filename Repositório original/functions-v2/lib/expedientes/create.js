@@ -4,6 +4,7 @@ exports.createExpediente = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
+const normalization_1 = require("../shared/normalization");
 exports.createExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -48,7 +49,7 @@ exports.createExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
         urgency_request: data.urgencyRequest || false,
         distribution_date: data.distributionDate || null,
         responsible_user_id: data.responsibleUserId || null,
-        responsible_user_name: data.responsibleUserName || null,
+        responsible_user_name: data.responsibleUserName ? (0, normalization_1.formatPersonName)(data.responsibleUserName) : null,
         analysis_start_date: data.analysisStartDate || null,
         observations: data.observations || '',
         review_submission_date: data.reviewSubmissionDate || null,

@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
+import { formatPersonName } from '@/utils/nameUtils';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ export default function Profile() {
       setIsSavingProfile(true);
 
       await updateUserProfile({
-        platform_name: platformName,
+        platform_name: formatPersonName(platformName),
         function: userFunction,
         notification_email: notificationEmail,
       });
@@ -103,7 +104,7 @@ export default function Profile() {
     try {
       setIsCreatingOrg(true);
 
-      const orgId = await createOrganization(
+      const { organizationId } = await createOrganization(
         { name: newOrgName, description: newOrgDesc },
         user.uid
       );
@@ -114,7 +115,11 @@ export default function Profile() {
       setNewOrgDesc('');
 
       // Refresh organizations list (the hook will auto-refresh)
-      navigate(`/Organization?id=${orgId}`);
+      if (organizationId) {
+        navigate(`/Organization?id=${organizationId}`);
+      } else {
+        navigate('/Organization');
+      }
     } catch (error) {
       logger.error('Error creating organization:', error);
       toast.error('Erro ao criar organização: ' + error.message);
@@ -219,12 +224,12 @@ export default function Profile() {
 
               <div>
                 <Label htmlFor="full_name">Nome Completo</Label>
-                <Input
-                  id="full_name"
-                  value={userProfile?.full_name || ''}
-                  disabled
-                  className="bg-slate-100 dark:bg-slate-800"
-                />
+                  <Input
+                    id="full_name"
+                    value={formatPersonName(userProfile?.full_name || '')}
+                    disabled
+                    className="bg-slate-100 dark:bg-slate-800"
+                  />
               </div>
             </div>
 

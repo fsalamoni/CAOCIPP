@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime } from '@/hooks/useFirestore';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ArrowLeft, Loader2, Menu } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -38,16 +37,36 @@ export default function Organization() {
 
   // Auto-select organization
   useEffect(() => {
-    if (!selectedOrgId && organizations.length > 0) {
-      setSelectedOrgId(organizations[0].id);
+    if (organizations.length === 0) {
+      return;
     }
-  }, [organizations, selectedOrgId]);
+
+    const hasUrlOrganization = urlOrgId && organizations.some(org => org.id === urlOrgId);
+    const hasSelectedOrganization = selectedOrgId && organizations.some(org => org.id === selectedOrgId);
+
+    if (urlOrgId && urlOrgId !== selectedOrgId && hasUrlOrganization) {
+      setSelectedOrgId(urlOrgId);
+      return;
+    }
+
+    if (!hasSelectedOrganization) {
+      const fallbackOrgId = hasUrlOrganization
+        ? urlOrgId
+        : organizations[0].id;
+
+      setSelectedOrgId(fallbackOrgId);
+      if (fallbackOrgId !== urlOrgId) {
+        navigate(`/Organization?id=${fallbackOrgId}&tab=${activeTab}`, { replace: true });
+      }
+    }
+  }, [organizations, selectedOrgId, urlOrgId, activeTab, navigate]);
 
   // Fetch organization data (real-time)
   const { organization, isLoading: orgLoading } = useOrganizationRealtime(selectedOrgId);
 
   // Fetch members
   const { members, isLoading: membersLoading, error: membersError } = useOrganizationMembers(selectedOrgId);
+  const { nameMap: userNameMap } = useOrganizationUserNameMap(selectedOrgId);
 
   // Fetch processes
   const { processes, isLoading: processesLoading, error: processesError } = useProcesses(selectedOrgId);
@@ -164,11 +183,13 @@ export default function Organization() {
               organization={organization}
               members={activeMembers}
               processes={processes}
+              expedientes={expedientes}
               userRole={userRole}
               userId={user?.uid}
               membersLoading={membersLoading}
               membersError={membersError}
               processesLoading={processesLoading}
+              userNameMap={userNameMap}
             />
           )}
 
@@ -223,6 +244,7 @@ export default function Organization() {
           {activeTab === 'summary' && (
             <IntelligentSummary
               processes={processes}
+              expedientes={expedientes}
               members={activeMembers}
               organization={organization}
             />
