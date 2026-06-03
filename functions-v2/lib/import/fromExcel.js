@@ -6,6 +6,7 @@ const https_1 = require("firebase-functions/v2/https");
 const XLSX = require("xlsx");
 const status_1 = require("../shared/status");
 const normalization_1 = require("../shared/normalization");
+const history_1 = require("../shared/history");
 exports.importProcessesFromExcel = (0, https_1.onCall)({
     region: 'southamerica-east1',
     memory: '1GiB',
@@ -271,7 +272,10 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                         batch.set(processRef, processData);
                         stats.created++;
                     }
-                    batchCount++;
+                    // Dual-write aditivo: espelha a entrada no histórico (subcoleção),
+                    // no mesmo batch (atômico) e com id determinístico (idempotente).
+                    batch.set(processRef.collection('history').doc((0, history_1.historyEntryId)(importLogEntry)), Object.assign(Object.assign({}, importLogEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
+                    batchCount += 2;
                     if (batchCount >= batchSize) {
                         await batch.commit();
                         batch = db.batch();

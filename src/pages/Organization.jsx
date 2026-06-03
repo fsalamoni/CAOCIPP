@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { isTabVisible } from '@/lib/organizationModules';
+import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +20,7 @@ import IntelligentSummary from '../components/organization/IntelligentSummary';
 import KanbanBoard from '../components/organization/KanbanBoard';
 import ExpedienteKanbanBoard from '../components/organization/ExpedienteKanbanBoard';
 import AdminManagement from '../components/organization/admin/AdminManagement';
+import CustomEntityView from '../components/organization/custom/CustomEntityView';
 
 export default function Organization() {
   const navigate = useNavigate();
@@ -49,11 +54,55 @@ export default function Organization() {
   const { members, isLoading: membersLoading, error: membersError } = useOrganizationMembers(selectedOrgId);
   const { nameMap: userNameMap } = useOrganizationUserNameMap(selectedOrgId);
 
+  // Carregamento por aba (flag): quando ligado, assina apenas os dados que a
+  // aba ativa realmente usa. Flag DESLIGADO = comportamento atual (assina tudo).
+  const perTabLoading = useFlag(FEATURE_FLAGS.PER_TAB_LOADING.key);
+  const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+
+  // Tipos de entidade personalizados (apenas quando a flag está ligada).
+  const { entityTypes: customTypes } = useEntityTypes(customEntitiesOn ? selectedOrgId : null);
+
+  // Parse de aba customizada: "cpanel:<id>", "clist:<id>", "csummary:<id>".
+  const customTab = React.useMemo(() => {
+    if (!customEntitiesOn) return null;
+    const m = /^(cpanel|clist|csummary):(.+)$/.exec(activeTab || '');
+    if (!m) return null;
+    const modeMap = { cpanel: 'panel', clist: 'list', csummary: 'summary' };
+    return { mode: modeMap[m[1]], typeId: m[2] };
+  }, [activeTab, customEntitiesOn]);
+
+  const TABS_NEEDING_PROCESSES = ['info', 'kanban', 'processes', 'summary'];
+  const TABS_NEEDING_EXPEDIENTES = ['info', 'kanban-expedientes', 'expedientes', 'summary'];
+  const wantProcesses = !perTabLoading || TABS_NEEDING_PROCESSES.includes(activeTab);
+  const wantExpedientes = !perTabLoading || TABS_NEEDING_EXPEDIENTES.includes(activeTab);
+  const processesOrgId = wantProcesses ? selectedOrgId : null;
+  const expedientesOrgId = wantExpedientes ? selectedOrgId : null;
+
+  // Paginação no banco (flag): quando ligado, as ABAS DE LISTA (processos /
+  // expedientes) carregam apenas os N mais recentes, com um botão para carregar
+  // o restante sob demanda. Kanban/Resumo/Info continuam carregando tudo para
+  // não esconder dados. Flag DESLIGADO = comportamento atual (sem limite).
+  const dbPagination = useFlag(FEATURE_FLAGS.DB_PAGINATION.key);
+  const DB_PAGE_LIMIT = 500;
+  const [loadAllProcesses, setLoadAllProcesses] = useState(false);
+  const [loadAllExpedientes, setLoadAllExpedientes] = useState(false);
+
+  // Ao trocar de órgão, volta ao carregamento limitado.
+  useEffect(() => {
+    setLoadAllProcesses(false);
+    setLoadAllExpedientes(false);
+  }, [selectedOrgId]);
+
+  const processesLimit = (dbPagination && !loadAllProcesses && activeTab === 'processes')
+    ? DB_PAGE_LIMIT : undefined;
+  const expedientesLimit = (dbPagination && !loadAllExpedientes && activeTab === 'expedientes')
+    ? DB_PAGE_LIMIT : undefined;
+
   // Fetch processes
-  const { processes, isLoading: processesLoading, error: processesError } = useProcesses(selectedOrgId);
+  const { processes, isLoading: processesLoading, error: processesError, hasMore: processesHasMore } = useProcesses(processesOrgId, {}, { limitTo: processesLimit });
 
   // Fetch expedientes
-  const { expedientes, isLoading: expedientesLoading, error: expedientesError } = useExpedientes(selectedOrgId);
+  const { expedientes, isLoading: expedientesLoading, error: expedientesError, hasMore: expedientesHasMore } = useExpedientes(expedientesOrgId, { limitTo: expedientesLimit });
 
   // Filter active members for general views and process management
   const activeMembers = React.useMemo(() => {
@@ -63,6 +112,18 @@ export default function Organization() {
   // Find user's membership to determine role
   const userMembership = members.find(m => m.user_id === user?.uid);
   const userRole = userMembership?.role || 'member';
+
+  // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
+  // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible
+  // devolve true para todas as abas built-in (nada muda).
+  useEffect(() => {
+    if (!customEntitiesOn || !organization) return;
+    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes });
+    // 'admin' depende do papel; mantém o comportamento atual (só creator vê).
+    if (!visible && activeTab !== 'admin') {
+      navigate(`/Organization?id=${selectedOrgId}&tab=info`, { replace: true });
+    }
+  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes]);
 
   // Loading state
   if (isLoadingAuth || orgsLoading || orgLoading) {
@@ -186,16 +247,30 @@ export default function Organization() {
           )}
 
           {activeTab === 'processes' && (
-            <ProcessControl
-              organization={organization}
-              members={activeMembers}
-              processes={processes}
-              userRole={userRole}
-              userId={user?.uid}
-              processesLoading={processesLoading}
-              processesError={processesError}
-              initialFilter={searchParams.get('filter')}
-            />
+            <>
+              {dbPagination && !loadAllProcesses && processesHasMore && (
+                <Alert className="mb-3">
+                  <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <span>
+                      Exibindo os {DB_PAGE_LIMIT} processos mais recentes. Para buscar em todos os registros, carregue a lista completa.
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => setLoadAllProcesses(true)}>
+                      Carregar todos
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              <ProcessControl
+                organization={organization}
+                members={activeMembers}
+                processes={processes}
+                userRole={userRole}
+                userId={user?.uid}
+                processesLoading={processesLoading}
+                processesError={processesError}
+                initialFilter={searchParams.get('filter')}
+              />
+            </>
           )}
 
           {activeTab === 'kanban-expedientes' && (
@@ -210,16 +285,30 @@ export default function Organization() {
           )}
 
           {activeTab === 'expedientes' && (
-            <ExpedienteControl
-              organization={organization}
-              members={activeMembers}
-              expedientes={expedientes}
-              userRole={userRole}
-              userId={user?.uid}
-              expedientesLoading={expedientesLoading}
-              expedientesError={expedientesError}
-              initialFilter={searchParams.get('filter')}
-            />
+            <>
+              {dbPagination && !loadAllExpedientes && expedientesHasMore && (
+                <Alert className="mb-3">
+                  <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <span>
+                      Exibindo os {DB_PAGE_LIMIT} expedientes mais recentes. Para buscar em todos os registros, carregue a lista completa.
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => setLoadAllExpedientes(true)}>
+                      Carregar todos
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              <ExpedienteControl
+                organization={organization}
+                members={activeMembers}
+                expedientes={expedientes}
+                userRole={userRole}
+                userId={user?.uid}
+                expedientesLoading={expedientesLoading}
+                expedientesError={expedientesError}
+                initialFilter={searchParams.get('filter')}
+              />
+            </>
           )}
 
           {activeTab === 'summary' && (
@@ -235,6 +324,16 @@ export default function Organization() {
             <AdminManagement
               organization={organization}
               members={members}
+              userRole={userRole}
+            />
+          )}
+
+          {customTab && (
+            <CustomEntityView
+              mode={customTab.mode}
+              entityTypeId={customTab.typeId}
+              organizationId={selectedOrgId}
+              members={activeMembers}
               userRole={userRole}
             />
           )}

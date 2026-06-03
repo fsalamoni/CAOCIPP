@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { formatPersonName } from '../shared/normalization';
+import { historyEntryId } from '../shared/history';
 
 type TargetCollection = 'processes' | 'expedientes';
 type TargetField = 'responsible_user_name' | 'consultant' | 'location' | 'origin' | 'object';
@@ -94,7 +95,13 @@ export const bulkReplaceFieldValues = onCall<BulkReplaceFieldValuesRequest>(
                 updated_by: requesterId,
                 activity_log: admin.firestore.FieldValue.arrayUnion(logEntry),
             });
-            operationsInBatch++;
+            // Dual-write aditivo: espelha a entrada no histórico (subcoleção),
+            // no mesmo batch (atômico) e com id determinístico (idempotente).
+            currentBatch.set(
+                ref.collection('history').doc(historyEntryId(logEntry)),
+                { ...logEntry, created_at: admin.firestore.FieldValue.serverTimestamp() }
+            );
+            operationsInBatch += 2;
         };
 
         for (const collectionName of uniqueCollections) {

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations } from '@/hooks/useFirestore';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { createOrganization, joinOrganization, updateProfile as updateUserProfile } from '@/services/functionsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,6 +44,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const { user, userProfile, signOut, isLoadingAuth } = useAuth();
   const { organizations, isLoading: orgsLoading } = useOrganizations();
+  const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
 
   // Profile edit state
   const [platformName, setPlatformName] = useState(userProfile?.platform_name || '');
@@ -105,7 +108,7 @@ export default function Profile() {
       setIsCreatingOrg(true);
 
       const orgId = await createOrganization(
-        { name: newOrgName, description: newOrgDesc },
+        { name: newOrgName, description: newOrgDesc, startMinimal: customEntitiesOn },
         user.uid
       );
 

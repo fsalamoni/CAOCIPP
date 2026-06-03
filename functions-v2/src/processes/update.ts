@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
+import { historyEntryId } from '../shared/history';
 
 interface UpdateProcessRequest {
     id: string;
@@ -150,6 +151,19 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
 
         await processRef.update(changes);
+
+        // Fase 3 (escrita dupla, ADITIVA): espelha a entrada de log na subcoleção
+        // processes/{id}/history. Best-effort: NUNCA falha a atualização principal.
+        // A leitura continua vindo do array activity_log (flag controla a troca futura).
+        // ID determinístico => idempotente (não duplica; mantém paridade com o array).
+        try {
+            await processRef.collection('history').doc(historyEntryId(logEntry)).set({
+                ...logEntry,
+                created_at: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } catch (histErr) {
+            console.error('[history dual-write] process update', id, histErr);
+        }
 
         // 4. Global Audit Log (keep for backward compat)
         await db.collection('auditLogs').add({

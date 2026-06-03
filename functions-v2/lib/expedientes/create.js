@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 const normalization_1 = require("../shared/normalization");
+const history_1 = require("../shared/history");
 exports.createExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -69,6 +70,23 @@ exports.createExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
             }],
     };
     await expedienteRef.set(expedienteData);
+    // Fase 3 (escrita dupla, ADITIVA): registra a entrada inicial na subcoleção
+    // expedientes/{id}/history. Best-effort: NUNCA falha a criação principal.
+    // ID determinístico => idempotente (não duplica; mantém paridade com o array).
+    try {
+        const createEntry = {
+            date: logDate,
+            time: logTime,
+            user_id: userId,
+            user_name: userName,
+            action: 'Expediente criado manualmente',
+            timestamp: now.toISOString(),
+        };
+        await expedienteRef.collection('history').doc((0, history_1.historyEntryId)(createEntry)).set(Object.assign(Object.assign({}, createEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
+    }
+    catch (histErr) {
+        console.error('[history dual-write] expediente create', expedienteRef.id, histErr);
+    }
     // 4. Update stats
     await db.collection('organizations').doc(organizationId).update({
         'stats.expedientes_count': admin.firestore.FieldValue.increment(1),

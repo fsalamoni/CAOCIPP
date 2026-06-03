@@ -1,6 +1,24 @@
 {
     "indexes": [
         {
+            "collectionGroup": "customRecords",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "entity_type_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "updated_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
             "collectionGroup": "processes",
             "queryScope": "COLLECTION",
             "fields": [
@@ -155,12 +173,72 @@
                     "order": "ASCENDING"
                 },
                 {
+                    "fieldPath": "responsible_user_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "updated_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "expedientes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
                     "fieldPath": "expediente_number",
                     "order": "ASCENDING"
                 },
                 {
                     "fieldPath": "entry_date",
                     "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "auditLogs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "auditLogs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "user_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "auditLogs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "action",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
                 }
             ]
         }

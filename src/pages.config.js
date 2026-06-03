@@ -53,6 +53,7 @@ import Landing from './pages/Landing';
 import Organization from './pages/Organization';
 import Profile from './pages/Profile';
 import Terms from './pages/Terms';
+import Admin from './pages/Admin';
 import __Layout from './Layout.jsx';
 
 
@@ -63,6 +64,7 @@ export const PAGES = {
     "Organization": Organization,
     "Profile": Profile,
     "Terms": Terms,
+    "Admin": Admin,
 }
 
 export const pagesConfig = {

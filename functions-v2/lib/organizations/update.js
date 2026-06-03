@@ -38,6 +38,8 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.summarySettings = data.summarySettings;
     if (data.expedienteSettings !== undefined)
         updates.expedienteSettings = data.expedienteSettings;
+    if (data.moduleConfig !== undefined)
+        updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     if (Object.keys(updates).length === 0) {
         return { success: true, message: 'No changes detected' };
@@ -56,4 +58,16 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
     });
     return { success: true, message: 'Organization updated successfully' };
 });
+// Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.
+function sanitizeModuleConfig(input) {
+    const allowed = ['processes', 'expedientes', 'summary'];
+    const out = {};
+    for (const key of allowed) {
+        const entry = input === null || input === void 0 ? void 0 : input[key];
+        if (entry && typeof entry === 'object') {
+            out[key] = Object.assign({ enabled: entry.enabled === true }, (typeof entry.order === 'number' ? { order: entry.order } : {}));
+        }
+    }
+    return out;
+}
 //# sourceMappingURL=update.js.map

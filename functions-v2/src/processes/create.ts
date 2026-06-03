@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
+import { historyEntryId } from '../shared/history';
 
 interface CreateProcessRequest {
     organizationId: string;
@@ -105,6 +106,26 @@ export const createProcess = onCall<CreateProcessRequest>(
         };
 
         await processRef.set(processData);
+
+        // Fase 3 (escrita dupla, ADITIVA): registra a entrada inicial na subcoleção
+        // processes/{id}/history. Best-effort: NUNCA falha a criação principal.
+        // ID determinístico => idempotente (não duplica; mantém paridade com o array).
+        try {
+            const createEntry = {
+                date: logDate,
+                time: logTime,
+                user_id: userId,
+                user_name: userName,
+                action: 'Processo criado manualmente',
+                timestamp: now.toISOString(),
+            };
+            await processRef.collection('history').doc(historyEntryId(createEntry)).set({
+                ...createEntry,
+                created_at: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } catch (histErr) {
+            console.error('[history dual-write] process create', processRef.id, histErr);
+        }
 
         // 4. Update stats
         await db.collection('organizations').doc(organizationId).update({

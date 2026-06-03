@@ -1,6 +1,8 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid } from 'lucide-react';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 
 // Sub-components (to be created)
 import OrganizationDetails from './OrganizationDetails';
@@ -10,8 +12,11 @@ import ExpedienteConfiguration from './ExpedienteConfiguration';
 import AISettings from './AISettings';
 import DangerZone from './DangerZone';
 import BulkReplaceTool from './BulkReplaceTool';
+import ModulesManager from './ModulesManager';
 
 export default function AdminManagement({ organization, members, userRole }) {
+    const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+
     if (userRole !== 'creator') {
         return (
             <div className="p-8 text-center text-slate-500">
@@ -43,6 +48,12 @@ export default function AdminManagement({ organization, members, userRole }) {
                         <Database className="w-4 h-4" />
                         Classificação (Matérias)
                     </TabsTrigger>
+                    {customEntitiesOn && (
+                        <TabsTrigger value="modules" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <LayoutGrid className="w-4 h-4" />
+                            Páginas e Módulos
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="expedientes" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <FileText className="w-4 h-4" />
                         Expedientes
@@ -72,6 +83,12 @@ export default function AdminManagement({ organization, members, userRole }) {
                 <TabsContent value="matters">
                     <MatterConfiguration organization={organization} />
                 </TabsContent>
+
+                {customEntitiesOn && (
+                    <TabsContent value="modules">
+                        <ModulesManager organization={organization} />
+                    </TabsContent>
+                )}
 
                 <TabsContent value="expedientes">
                     <ExpedienteConfiguration organization={organization} />

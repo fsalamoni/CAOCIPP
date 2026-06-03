@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useProcesses, useExpedientes, useMyProcesses, useMyExpedientes } from '@/hooks/useFirestore';
+import { useOrganizations, useProcesses, useExpedientes } from '@/hooks/useFirestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -106,8 +106,17 @@ function UserOrganDashboard({ organization, user }) {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const { processes, isLoading } = useProcesses(organization.id);
   const { expedientes } = useExpedientes(organization.id);
-  const { processes: myProcesses } = useMyProcesses(organization.id, user?.uid);
-  const { expedientes: myExpedientes } = useMyExpedientes(organization.id, user?.uid);
+  // "Meus" derivados da lista completa já carregada em tempo real (mesmo filtro
+  // responsible_user_id e mesma ordenação updated_at desc dos hooks useMy*).
+  // Evita 2 listeners redundantes por órgão, sem alterar o resultado exibido.
+  const myProcesses = useMemo(
+    () => processes.filter(p => p.responsible_user_id === user?.uid),
+    [processes, user?.uid]
+  );
+  const myExpedientes = useMemo(
+    () => expedientes.filter(e => e.responsible_user_id === user?.uid),
+    [expedientes, user?.uid]
+  );
 
   // Normalize function name
   const userFunc = (organization.userFunction || '').toLowerCase();

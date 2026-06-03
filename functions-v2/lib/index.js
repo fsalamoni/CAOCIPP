@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -42,4 +42,44 @@ var delete_2 = require("./expedientes/delete");
 Object.defineProperty(exports, "deleteExpediente", { enumerable: true, get: function () { return delete_2.deleteExpediente; } });
 var fromExcelExpedientes_1 = require("./import/fromExcelExpedientes");
 Object.defineProperty(exports, "importExpedientesFromExcel", { enumerable: true, get: function () { return fromExcelExpedientes_1.importExpedientesFromExcel; } });
+// ========== PLATAFORMA: Administração & Custos (super-admin) ==========
+var overview_1 = require("./platform/overview");
+Object.defineProperty(exports, "getPlatformOverview", { enumerable: true, get: function () { return overview_1.getPlatformOverview; } });
+var featureFlags_1 = require("./platform/featureFlags");
+Object.defineProperty(exports, "getFeatureFlags", { enumerable: true, get: function () { return featureFlags_1.getFeatureFlags; } });
+Object.defineProperty(exports, "setFeatureFlag", { enumerable: true, get: function () { return featureFlags_1.setFeatureFlag; } });
+var adminClaims_1 = require("./platform/adminClaims");
+Object.defineProperty(exports, "grantPlatformAdmin", { enumerable: true, get: function () { return adminClaims_1.grantPlatformAdmin; } });
+Object.defineProperty(exports, "revokePlatformAdmin", { enumerable: true, get: function () { return adminClaims_1.revokePlatformAdmin; } });
+Object.defineProperty(exports, "listPlatformAdmins", { enumerable: true, get: function () { return adminClaims_1.listPlatformAdmins; } });
+var costs_1 = require("./platform/costs");
+Object.defineProperty(exports, "getCostReport", { enumerable: true, get: function () { return costs_1.getCostReport; } });
+// Onda 2: Órgãos, Usuários, Movimentações, Footprint
+var orgs_1 = require("./platform/orgs");
+Object.defineProperty(exports, "getOrgsReport", { enumerable: true, get: function () { return orgs_1.getOrgsReport; } });
+var users_1 = require("./platform/users");
+Object.defineProperty(exports, "listPlatformUsers", { enumerable: true, get: function () { return users_1.listPlatformUsers; } });
+var activity_1 = require("./platform/activity");
+Object.defineProperty(exports, "getActivityFeed", { enumerable: true, get: function () { return activity_1.getActivityFeed; } });
+var footprint_1 = require("./platform/footprint");
+Object.defineProperty(exports, "getStorageFootprint", { enumerable: true, get: function () { return footprint_1.getStorageFootprint; } });
+// Onda 3: Cotas, Saúde do sistema, Ferramentas de dados
+var quotas_1 = require("./platform/quotas");
+Object.defineProperty(exports, "getPlatformQuotas", { enumerable: true, get: function () { return quotas_1.getPlatformQuotas; } });
+Object.defineProperty(exports, "setPlatformQuota", { enumerable: true, get: function () { return quotas_1.setPlatformQuota; } });
+var health_1 = require("./platform/health");
+Object.defineProperty(exports, "getSystemHealth", { enumerable: true, get: function () { return health_1.getSystemHealth; } });
+var dataTools_1 = require("./platform/dataTools");
+Object.defineProperty(exports, "runIntegrityAudit", { enumerable: true, get: function () { return dataTools_1.runIntegrityAudit; } });
+Object.defineProperty(exports, "recalcOrgStats", { enumerable: true, get: function () { return dataTools_1.recalcOrgStats; } });
+var historyBackfill_1 = require("./platform/historyBackfill");
+Object.defineProperty(exports, "backfillHistory", { enumerable: true, get: function () { return historyBackfill_1.backfillHistory; } });
+// ========== Páginas e processos personalizados (flag: custom_entities) ==========
+var entityTypes_1 = require("./customEntities/entityTypes");
+Object.defineProperty(exports, "upsertEntityType", { enumerable: true, get: function () { return entityTypes_1.upsertEntityType; } });
+Object.defineProperty(exports, "deleteEntityType", { enumerable: true, get: function () { return entityTypes_1.deleteEntityType; } });
+var records_1 = require("./customEntities/records");
+Object.defineProperty(exports, "createRecord", { enumerable: true, get: function () { return records_1.createRecord; } });
+Object.defineProperty(exports, "updateRecord", { enumerable: true, get: function () { return records_1.updateRecord; } });
+Object.defineProperty(exports, "deleteRecord", { enumerable: true, get: function () { return records_1.deleteRecord; } });
 //# sourceMappingURL=index.js.map

@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as XLSX from 'xlsx';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
+import { historyEntryId } from '../shared/history';
 
 interface ImportExcelRequest {
     organizationId: string;
@@ -339,7 +340,14 @@ export const importProcessesFromExcel = onCall<ImportExcelRequest>(
                             stats.created++;
                         }
 
-                        batchCount++;
+                        // Dual-write aditivo: espelha a entrada no histórico (subcoleção),
+                        // no mesmo batch (atômico) e com id determinístico (idempotente).
+                        batch.set(
+                            processRef.collection('history').doc(historyEntryId(importLogEntry)),
+                            { ...importLogEntry, created_at: admin.firestore.FieldValue.serverTimestamp() }
+                        );
+
+                        batchCount += 2;
 
                         if (batchCount >= batchSize) {
                             await batch.commit();

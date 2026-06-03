@@ -25,6 +25,11 @@ service cloud.firestore {
       return membership.role in allowedRoles;
     }
     
+    // Super-admin de plataforma (custom claim emitido por Cloud Function)
+    function isPlatformAdmin() {
+      return isAuthenticated() && request.auth.token.platformAdmin == true;
+    }
+    
     // ========== USERS ==========
     
     match /users/{userId} {
@@ -92,6 +97,14 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && 
                       isMemberOf(resource.data.organization_id) &&
                       hasRole(resource.data.organization_id, ['creator', 'admin']);
+
+      // Subcoleção de histórico (Fase 3). Leitura para membros do órgão do
+      // processo pai; escrita exclusiva de Cloud Functions (Admin SDK).
+      match /history/{entryId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/processes/$(processId)).data.organization_id);
+        allow write: if false;
+      }
     }
     
     // ========== EXPEDIENTES ADMINISTRATIVOS ==========
@@ -117,6 +130,36 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && 
                       isMemberOf(resource.data.organization_id) &&
                       hasRole(resource.data.organization_id, ['creator', 'admin']);
+
+      // Subcoleção de histórico (Fase 3). Leitura para membros do órgão do
+      // expediente pai; escrita exclusiva de Cloud Functions (Admin SDK).
+      match /history/{entryId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/expedientes/$(expedienteId)).data.organization_id);
+        allow write: if false;
+      }
+    }
+
+    // ========== PÁGINAS/PROCESSOS PERSONALIZADOS (flag: custom_entities) ==========
+    // Definições dos tipos de entidade. Leitura para membros do órgão; toda
+    // escrita passa por Cloud Functions (validação/sanitização no servidor).
+    match /entityTypes/{typeId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      allow write: if false;
+    }
+
+    // Registros das páginas personalizadas. Leitura para membros do órgão;
+    // criação/edição/exclusão exclusivamente via Cloud Functions.
+    match /customRecords/{recordId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      allow write: if false;
+
+      // Histórico espelhado (igual a processes/expedientes).
+      match /history/{entryId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/customRecords/$(recordId)).data.organization_id);
+        allow write: if false;
+      }
     }
     
     // ========== AUDIT LOGS ==========
@@ -143,6 +186,38 @@ service cloud.firestore {
       
       // Não pode criar/deletar - apenas Cloud Functions
       allow create, delete: if false;
+    }
+
+    // ========== PLATAFORMA: CONFIG / FEATURE FLAGS ==========
+
+    match /platformConfig/{docId} {
+      // Qualquer usuário autenticado pode LER as flags (controlam o comportamento
+      // do app para todos). São apenas valores booleanos, não sensíveis.
+      allow read: if isAuthenticated();
+
+      // Escrita exclusiva de Cloud Functions (setFeatureFlag valida super-admin).
+      allow write: if false;
+    }
+
+    // ========== PLATAFORMA: ALLOWLIST DE SUPER-ADMINS ==========
+
+    match /platformAdmins/{uid} {
+      // O próprio usuário pode ler seu registro (para o app saber se é admin),
+      // e super-admins podem ler todos.
+      allow read: if isAuthenticated() && (isOwner(uid) || isPlatformAdmin());
+
+      // Escrita exclusiva de Cloud Functions (grant/revoke validam super-admin).
+      allow write: if false;
+    }
+
+    // ========== PLATAFORMA: ESTATÍSTICAS AGREGADAS ==========
+
+    match /platformStats/{docId} {
+      // Apenas super-admin lê estatísticas globais.
+      allow read: if isPlatformAdmin();
+
+      // Escrita exclusiva de Cloud Functions (cron/agregadores).
+      allow write: if false;
     }
   }
 }

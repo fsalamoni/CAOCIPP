@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useNotifications } from '@/hooks/useFirestore';
+import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { getOrganizationTabs } from '@/lib/organizationModules';
+import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { formatPersonName } from '@/utils/nameUtils';
 import {
   LayoutDashboard,
@@ -14,9 +19,7 @@ import {
   Bell,
   Menu,
   X,
-  Search,
-  Sparkles,
-  Settings
+  ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +50,17 @@ export default function Layout({ children, currentPageName }) {
 
   /* Notifications Hook */
   const { notifications } = useNotifications();
+
+  /* Super-admin de plataforma (controla a página Administração & Custos) */
+  const { isPlatformAdmin } = usePlatformAdmin();
+
+  /* Páginas/processos personalizados (liga/desliga de módulos por órgão) */
+  const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+
+  /* Tipos de entidade personalizados do órgão ativo (só quando a flag liga). */
+  const { entityTypes: activeOrgCustomTypes } = useEntityTypes(
+    customEntitiesOn ? activeOrgId : null
+  );
 
   const handleLogout = async () => {
     await signOut();
@@ -169,64 +183,22 @@ export default function Layout({ children, currentPageName }) {
                         {/* Sub-navigation for active organization */}
                         {isOrgActive && (
                           <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
-                            <SubNavItem
-                              to="Organization"
-                              params={`?id=${org.id}&tab=info`}
-                              icon={Building2}
-                              label="Informações Gerais"
-                              active={activeTab === 'info'}
-                              onClick={() => setSidebarOpen(false)}
-                            />
-                            <SubNavItem
-                              to="Organization"
-                              params={`?id=${org.id}&tab=kanban`}
-                              icon={LayoutDashboard}
-                              label="Painel de Consultas"
-                              active={activeTab === 'kanban'}
-                              onClick={() => setSidebarOpen(false)}
-                            />
-                            <SubNavItem
-                              to="Organization"
-                              params={`?id=${org.id}&tab=processes`}
-                              icon={Search}
-                              label="Consultas"
-                              active={activeTab === 'processes'}
-                              onClick={() => setSidebarOpen(false)}
-                            />
-                            <SubNavItem
-                              to="Organization"
-                              params={`?id=${org.id}&tab=kanban-expedientes`}
-                              icon={LayoutDashboard}
-                              label="Painel de Expedientes"
-                              active={activeTab === 'kanban-expedientes'}
-                              onClick={() => setSidebarOpen(false)}
-                            />
-                            <SubNavItem
-                              to="Organization"
-                              params={`?id=${org.id}&tab=expedientes`}
-                              icon={FileText}
-                              label="Expedientes"
-                              active={activeTab === 'expedientes'}
-                              onClick={() => setSidebarOpen(false)}
-                            />
-                            <SubNavItem
-                              to="Organization"
-                              params={`?id=${org.id}&tab=summary`}
-                              icon={Sparkles}
-                              label="Resumos Inteligentes"
-                              active={activeTab === 'summary'}
-                              onClick={() => setSidebarOpen(false)}
-                            />
-                            {org.userRole === 'creator' && (
-                              <SubNavItem
-                                to="Organization"
-                                params={`?id=${org.id}&tab=admin`}
-                                icon={Settings}
-                                label="Painel Administrativo"
-                                active={activeTab === 'admin'}
-                                onClick={() => setSidebarOpen(false)}
-                              />
-                            )}
+                            {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [] })
+                              .filter((tab) => !tab.creatorOnly || org.userRole === 'creator')
+                              .map((tab) => {
+                                const TabIcon = tab.icon;
+                                return (
+                                  <SubNavItem
+                                    key={tab.key}
+                                    to="Organization"
+                                    params={`?id=${org.id}&tab=${tab.key}`}
+                                    icon={TabIcon}
+                                    label={tab.label}
+                                    active={activeTab === tab.key}
+                                    onClick={() => setSidebarOpen(false)}
+                                  />
+                                );
+                              })}
                           </div>
                         )}
                       </div>
@@ -237,6 +209,15 @@ export default function Layout({ children, currentPageName }) {
             )}
 
             <div className="mt-6 space-y-1">
+              {isPlatformAdmin && (
+                <NavItem
+                  to="Admin"
+                  icon={ShieldCheck}
+                  label="Administração & Custos"
+                  active={currentPageName === 'Admin'}
+                  onClick={() => setSidebarOpen(false)}
+                />
+              )}
               <NavItem
                 to="Help"
                 icon={HelpCircle}

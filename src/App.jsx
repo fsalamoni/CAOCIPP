@@ -6,6 +6,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider as FirebaseAuthProvider, useAuth } from '@/lib/FirebaseAuthContext';
+import { FeatureFlagsProvider } from '@/lib/FeatureFlagsContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { runBackfill } from '@/utils/backfillMatter';
 
@@ -63,13 +64,15 @@ function App() {
   return (
     <ErrorBoundary>
       <FirebaseAuthProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <Router>
-            <NavigationTracker />
-            <AuthenticatedApp />
-          </Router>
-          <Toaster />
-        </QueryClientProvider>
+        <FeatureFlagsProvider>
+          <QueryClientProvider client={queryClientInstance}>
+            <Router>
+              <NavigationTracker />
+              <AuthenticatedApp />
+            </Router>
+            <Toaster />
+          </QueryClientProvider>
+        </FeatureFlagsProvider>
       </FirebaseAuthProvider>
     </ErrorBoundary>
   )

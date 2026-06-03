@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 const normalization_1 = require("../shared/normalization");
+const history_1 = require("../shared/history");
 exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -73,6 +74,23 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
             }],
     };
     await processRef.set(processData);
+    // Fase 3 (escrita dupla, ADITIVA): registra a entrada inicial na subcoleção
+    // processes/{id}/history. Best-effort: NUNCA falha a criação principal.
+    // ID determinístico => idempotente (não duplica; mantém paridade com o array).
+    try {
+        const createEntry = {
+            date: logDate,
+            time: logTime,
+            user_id: userId,
+            user_name: userName,
+            action: 'Processo criado manualmente',
+            timestamp: now.toISOString(),
+        };
+        await processRef.collection('history').doc((0, history_1.historyEntryId)(createEntry)).set(Object.assign(Object.assign({}, createEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
+    }
+    catch (histErr) {
+        console.error('[history dual-write] process create', processRef.id, histErr);
+    }
     // 4. Update stats
     await db.collection('organizations').doc(organizationId).update({
         'stats.processes_count': admin.firestore.FieldValue.increment(1),

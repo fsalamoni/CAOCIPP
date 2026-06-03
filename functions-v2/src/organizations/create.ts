@@ -5,6 +5,10 @@ import { formatPersonName } from '../shared/normalization';
 interface CreateOrgRequest {
     name: string;
     description?: string;
+    // Quando true (flag CUSTOM_ENTITIES ligada no cliente), o órgão nasce apenas
+    // com "Informações Gerais" e "Painel Administrativo"; os módulos built-in
+    // (Consultas/Expedientes/Resumos) começam DESLIGADOS e o admin liga depois.
+    startMinimal?: boolean;
 }
 
 export const createOrganization = onCall<CreateOrgRequest>(
@@ -15,7 +19,7 @@ export const createOrganization = onCall<CreateOrgRequest>(
             throw new HttpsError('unauthenticated', 'User must be authenticated');
         }
 
-        const { name, description = '' } = request.data;
+        const { name, description = '', startMinimal = false } = request.data;
 
         if (!name) {
             throw new HttpsError('invalid-argument', 'Organization name is required');
@@ -43,7 +47,7 @@ export const createOrganization = onCall<CreateOrgRequest>(
 
         // Create organization
         const orgRef = db.collection('organizations').doc();
-        const organization = {
+        const organization: Record<string, any> = {
             id: orgRef.id,
             name,
             description,
@@ -56,6 +60,16 @@ export const createOrganization = onCall<CreateOrgRequest>(
                 active_processes: 0
             }
         };
+
+        // Modo mínimo: built-ins desligados (só Info + Admin aparecem). Sem o flag,
+        // nenhum moduleConfig é gravado e o órgão se comporta exatamente como hoje.
+        if (startMinimal) {
+            organization.moduleConfig = {
+                processes: { enabled: false },
+                expedientes: { enabled: false },
+                summary: { enabled: false }
+            };
+        }
 
         await orgRef.set(organization);
 

@@ -4,6 +4,7 @@ exports.updateExpediente = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
+const history_1 = require("../shared/history");
 const normalization_1 = require("../shared/normalization");
 exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
@@ -108,6 +109,15 @@ exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     };
     changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
     await expedienteRef.update(changes);
+    // Fase 3 (escrita dupla, ADITIVA): espelha a entrada de log na subcoleção
+    // expedientes/{id}/history. Best-effort: NUNCA falha a atualização principal.
+    // ID determinístico => idempotente (não duplica; mantém paridade com o array).
+    try {
+        await expedienteRef.collection('history').doc((0, history_1.historyEntryId)(logEntry)).set(Object.assign(Object.assign({}, logEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
+    }
+    catch (histErr) {
+        console.error('[history dual-write] expediente update', id, histErr);
+    }
     // 5. Global Audit Log
     await db.collection('auditLogs').add({
         organization_id: organizationId,

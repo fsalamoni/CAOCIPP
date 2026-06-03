@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -10,25 +10,74 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { ClipboardList, Search } from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 
 /**
  * ProcessLogDialog — Displays the activity_log of a process.
  * Visible only to the admin (org creator).
  *
  * Each entry has: date, time, user_name, action
+ *
+ * Fonte dos dados:
+ *   - Padrão: array embutido `process.activity_log` (comportamento histórico).
+ *   - Com a flag `history_subcollection` LIGADA e havendo entradas na
+ *     subcoleção `history`, faz UNIÃO (array + subcoleção) deduplicando por
+ *     chave estável. Nunca esconde entradas do array — mesmo que o backfill
+ *     ainda não tenha rodado — então não há regressão ao ligar a flag.
  */
-export default function ProcessLogDialog({ open, onClose, process }) {
+export default function ProcessLogDialog({ open, onClose, process, collectionName = 'processes' }) {
     const [search, setSearch] = useState('');
+    const historyFlag = useFlag(FEATURE_FLAGS.HISTORY_SUBCOLLECTION.key);
+    const [subEntries, setSubEntries] = useState(null);
+
+    const docId = process?.id;
+
+    useEffect(() => {
+        // Só assina a subcoleção quando a flag está ligada, o diálogo está aberto
+        // e temos o id do documento. Caso contrário, mantém o array como fonte.
+        if (!historyFlag || !open || !docId) {
+            setSubEntries(null);
+            return;
+        }
+        const ref = collection(db, collectionName, docId, 'history');
+        const unsub = onSnapshot(
+            ref,
+            (snap) => {
+                setSubEntries(snap.docs.map((d) => d.data()));
+            },
+            () => {
+                // Em erro (ex.: permissão), faz fallback para o array.
+                setSubEntries(null);
+            }
+        );
+        return () => unsub();
+    }, [historyFlag, open, docId, collectionName]);
 
     const log = useMemo(() => {
-        const raw = process?.activity_log || [];
+        // Fonte base: array embutido (sempre disponível, fonte de verdade atual).
+        const arrayEntries = Array.isArray(process?.activity_log) ? process.activity_log : [];
+        let raw = arrayEntries;
+        // Com a flag ligada e havendo entradas na subcoleção, faz UNIÃO segura
+        // (array + subcoleção) deduplicando por chave estável. Nunca esconde
+        // entradas antigas do array, mesmo que o backfill ainda não tenha rodado.
+        if (historyFlag && Array.isArray(subEntries) && subEntries.length > 0) {
+            const keyOf = (e) =>
+                `${e.timestamp || ''}|${e.date || ''}|${e.time || ''}|${e.user_id || ''}|${e.user_name || ''}|${e.action || ''}`;
+            const byKey = new Map();
+            for (const e of arrayEntries) byKey.set(keyOf(e), e);
+            for (const e of subEntries) byKey.set(keyOf(e), e);
+            raw = [...byKey.values()];
+        }
         // Sort by timestamp descending (most recent first)
         return [...raw].sort((a, b) => {
             const ta = a.timestamp || `${a.date}T${a.time}`;
             const tb = b.timestamp || `${b.date}T${b.time}`;
             return tb.localeCompare(ta);
         });
-    }, [process]);
+    }, [process, subEntries, historyFlag]);
 
     const filteredLog = useMemo(() => {
         if (!search.trim()) return log;

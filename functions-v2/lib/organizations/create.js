@@ -9,7 +9,7 @@ exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1',
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
-    const { name, description = '' } = request.data;
+    const { name, description = '', startMinimal = false } = request.data;
     if (!name) {
         throw new https_1.HttpsError('invalid-argument', 'Organization name is required');
     }
@@ -45,6 +45,15 @@ exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1',
             active_processes: 0
         }
     };
+    // Modo mínimo: built-ins desligados (só Info + Admin aparecem). Sem o flag,
+    // nenhum moduleConfig é gravado e o órgão se comporta exatamente como hoje.
+    if (startMinimal) {
+        organization.moduleConfig = {
+            processes: { enabled: false },
+            expedientes: { enabled: false },
+            summary: { enabled: false }
+        };
+    }
     await orgRef.set(organization);
     // Add creator as member
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${orgRef.id}`);

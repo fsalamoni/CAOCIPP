@@ -4,6 +4,7 @@ exports.bulkReplaceFieldValues = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const normalization_1 = require("../shared/normalization");
+const history_1 = require("../shared/history");
 const VALID_COLLECTIONS = ['processes', 'expedientes'];
 const VALID_FIELDS = ['responsible_user_name', 'consultant', 'location', 'origin', 'object'];
 function normalizeSearch(value) {
@@ -73,7 +74,10 @@ exports.bulkReplaceFieldValues = (0, https_1.onCall)({ region: 'southamerica-eas
             updated_by: requesterId,
             activity_log: admin.firestore.FieldValue.arrayUnion(logEntry),
         });
-        operationsInBatch++;
+        // Dual-write aditivo: espelha a entrada no histórico (subcoleção),
+        // no mesmo batch (atômico) e com id determinístico (idempotente).
+        currentBatch.set(ref.collection('history').doc((0, history_1.historyEntryId)(logEntry)), Object.assign(Object.assign({}, logEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
+        operationsInBatch += 2;
     };
     for (const collectionName of uniqueCollections) {
         const snapshot = await db.collection(collectionName)

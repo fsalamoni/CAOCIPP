@@ -16,6 +16,7 @@ interface UpdateOrganizationRequest {
             systems: string[];
             origins: string[];
         };
+        moduleConfig?: Record<string, { enabled: boolean; order?: number }>;
     };
 }
 
@@ -57,6 +58,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.matterSettings !== undefined) updates.matterSettings = data.matterSettings;
         if (data.summarySettings !== undefined) updates.summarySettings = data.summarySettings;
         if (data.expedienteSettings !== undefined) updates.expedienteSettings = data.expedienteSettings;
+        if (data.moduleConfig !== undefined) updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
 
         updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
 
@@ -81,3 +83,21 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         return { success: true, message: 'Organization updated successfully' };
     }
 );
+
+// Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.
+function sanitizeModuleConfig(
+    input: Record<string, { enabled: boolean; order?: number }>
+): Record<string, { enabled: boolean; order?: number }> {
+    const allowed = ['processes', 'expedientes', 'summary'];
+    const out: Record<string, { enabled: boolean; order?: number }> = {};
+    for (const key of allowed) {
+        const entry = input?.[key];
+        if (entry && typeof entry === 'object') {
+            out[key] = {
+                enabled: entry.enabled === true,
+                ...(typeof entry.order === 'number' ? { order: entry.order } : {}),
+            };
+        }
+    }
+    return out;
+}

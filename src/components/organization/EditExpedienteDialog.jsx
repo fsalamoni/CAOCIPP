@@ -579,6 +579,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         open={logOpen}
         onClose={() => setLogOpen(false)}
         process={expediente}
+        collectionName="expedientes"
       />
     </>
   );

@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
+import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 
 interface UpdateExpedienteRequest {
@@ -133,6 +134,18 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
         changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
 
         await expedienteRef.update(changes);
+
+        // Fase 3 (escrita dupla, ADITIVA): espelha a entrada de log na subcoleção
+        // expedientes/{id}/history. Best-effort: NUNCA falha a atualização principal.
+        // ID determinístico => idempotente (não duplica; mantém paridade com o array).
+        try {
+            await expedienteRef.collection('history').doc(historyEntryId(logEntry)).set({
+                ...logEntry,
+                created_at: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } catch (histErr) {
+            console.error('[history dual-write] expediente update', id, histErr);
+        }
 
         // 5. Global Audit Log
         await db.collection('auditLogs').add({

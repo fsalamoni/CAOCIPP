@@ -5,6 +5,7 @@ import {
     query,
     where,
     orderBy,
+    limit,
     getDocs,
     doc,
     getDoc,
@@ -99,14 +100,22 @@ export function useOrganizations() {
  * @param {string} organizationId - Organization ID
  * @param {object} filters - Optional filters (status, responsible_user_id, urgency_request)
  */
-export function useProcesses(organizationId, filters = {}) {
+export function useProcesses(organizationId, filters = {}, options = {}) {
     const [processes, setProcesses] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
+
+    // limitTo: quando definido (> 0), aplica limit() na consulta (flag db_pagination).
+    // Sem limitTo => comportamento atual (coleção inteira).
+    const limitTo = (typeof options.limitTo === 'number' && options.limitTo > 0)
+        ? options.limitTo
+        : null;
 
     useEffect(() => {
         if (!organizationId) {
             setProcesses([]);
+            setHasMore(false);
             setIsLoading(false);
             return;
         }
@@ -116,21 +125,20 @@ export function useProcesses(organizationId, filters = {}) {
 
         const processesRef = collection(db, 'processes');
         let q;
+        const constraints = [];
 
         // Apply filters - Note: In Firestore, we need to be careful with composite queries and onSnapshot
         if (filters.status) {
-            q = query(processesRef, where('organization_id', '==', organizationId), where('status', '==', filters.status), orderBy('entry_date', 'desc'));
+            constraints.push(where('organization_id', '==', organizationId), where('status', '==', filters.status), orderBy('entry_date', 'desc'));
         } else if (filters.responsible_user_id) {
-            q = query(processesRef, where('organization_id', '==', organizationId), where('responsible_user_id', '==', filters.responsible_user_id), orderBy('updated_at', 'desc'));
+            constraints.push(where('organization_id', '==', organizationId), where('responsible_user_id', '==', filters.responsible_user_id), orderBy('updated_at', 'desc'));
         } else if (filters.urgency_request !== undefined) {
-            q = query(processesRef, where('organization_id', '==', organizationId), where('urgency_request', '==', filters.urgency_request), orderBy('status', 'asc'));
+            constraints.push(where('organization_id', '==', organizationId), where('urgency_request', '==', filters.urgency_request), orderBy('status', 'asc'));
         } else {
-            q = query(
-                processesRef,
-                where('organization_id', '==', organizationId),
-                orderBy('updated_at', 'desc')
-            );
+            constraints.push(where('organization_id', '==', organizationId), orderBy('updated_at', 'desc'));
         }
+        if (limitTo) constraints.push(limit(limitTo));
+        q = query(processesRef, ...constraints);
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const processesData = snapshot.docs.map(doc => ({
@@ -138,6 +146,7 @@ export function useProcesses(organizationId, filters = {}) {
                 ...doc.data()
             }));
             setProcesses(processesData);
+            setHasMore(limitTo ? snapshot.size >= limitTo : false);
             setIsLoading(false);
         }, (err) => {
             logger.error('Error listening to processes:', err);
@@ -146,9 +155,9 @@ export function useProcesses(organizationId, filters = {}) {
         });
 
         return () => unsubscribe();
-    }, [organizationId, JSON.stringify(filters)]);
+    }, [organizationId, JSON.stringify(filters), limitTo]);
 
-    return { processes, isLoading, error };
+    return { processes, isLoading, error, hasMore };
 }
 
 /**
@@ -349,14 +358,20 @@ export function useUserPreferences() {
  * Hook to fetch expedientes for a specific organization (real-time)
  * @param {string} organizationId - Organization ID
  */
-export function useExpedientes(organizationId) {
+export function useExpedientes(organizationId, options = {}) {
     const [expedientes, setExpedientes] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
+
+    const limitTo = (typeof options.limitTo === 'number' && options.limitTo > 0)
+        ? options.limitTo
+        : null;
 
     useEffect(() => {
         if (!organizationId) {
             setExpedientes([]);
+            setHasMore(false);
             setIsLoading(false);
             return;
         }
@@ -365,11 +380,12 @@ export function useExpedientes(organizationId) {
         setError(null);
 
         const expedientesRef = collection(db, 'expedientes');
-        const q = query(
-            expedientesRef,
+        const constraints = [
             where('organization_id', '==', organizationId),
             orderBy('updated_at', 'desc')
-        );
+        ];
+        if (limitTo) constraints.push(limit(limitTo));
+        const q = query(expedientesRef, ...constraints);
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const expedientesData = snapshot.docs.map(doc => ({
@@ -377,6 +393,7 @@ export function useExpedientes(organizationId) {
                 ...doc.data()
             }));
             setExpedientes(expedientesData);
+            setHasMore(limitTo ? snapshot.size >= limitTo : false);
             setIsLoading(false);
         }, (err) => {
             logger.error('Error listening to expedientes:', err);
@@ -385,9 +402,9 @@ export function useExpedientes(organizationId) {
         });
 
         return () => unsubscribe();
-    }, [organizationId]);
+    }, [organizationId, limitTo]);
 
-    return { expedientes, isLoading, error };
+    return { expedientes, isLoading, error, hasMore };
 }
 
 /**
