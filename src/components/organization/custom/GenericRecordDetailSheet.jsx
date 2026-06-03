@@ -14,7 +14,7 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Pencil, Trash2, Loader2, History, ArrowRight } from 'lucide-react';
+import { Pencil, Trash2, History, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFieldValue } from '@/lib/fieldTypes';
 import { updateRecord, deleteRecord } from '@/services/customEntitiesService';
@@ -30,7 +30,6 @@ export default function GenericRecordDetailSheet({
 }) {
     const [movingTo, setMovingTo] = useState('');
     const [comment, setComment] = useState('');
-    const [busy, setBusy] = useState(false);
 
     const membersById = useMemo(
         () => Object.fromEntries(members.map((m) => [m.user_id || m.id, m])),
@@ -48,37 +47,39 @@ export default function GenericRecordDetailSheet({
     const fields = (entityType?.fields || []).slice().sort((a, b) => (a.form?.order ?? 0) - (b.form?.order ?? 0));
     const activityLog = Array.isArray(record.activity_log) ? [...record.activity_log].reverse() : [];
 
-    const handleMove = async () => {
+    const handleMove = () => {
         if (!movingTo) return;
-        setBusy(true);
-        try {
-            await updateRecord({
-                organizationId, recordId: record.id, phase: movingTo,
-                comment: comment.trim() || undefined,
-            });
-            toast.success('Fase atualizada.');
-            setMovingTo('');
-            setComment('');
-            onChanged?.();
-        } catch (e) {
-            toast.error(e?.message || 'Não foi possível mudar a fase.');
-        } finally {
-            setBusy(false);
-        }
+        const targetPhase = movingTo;
+        const targetComment = comment.trim() || undefined;
+        // UI otimista: limpa os campos imediatamente e grava em segundo plano.
+        setMovingTo('');
+        setComment('');
+        const action = updateRecord({
+            organizationId, recordId: record.id, phase: targetPhase,
+            comment: targetComment,
+        });
+        toast.promise(action, {
+            loading: 'Atualizando fase...',
+            success: () => {
+                onChanged?.();
+                return 'Fase atualizada.';
+            },
+            error: (e) => e?.message || 'Não foi possível mudar a fase.',
+        });
     };
 
-    const handleDelete = async () => {
-        setBusy(true);
-        try {
-            await deleteRecord(organizationId, record.id);
-            toast.success('Registro excluído.');
-            onOpenChange(false);
-            onChanged?.();
-        } catch (e) {
-            toast.error(e?.message || 'Não foi possível excluir.');
-        } finally {
-            setBusy(false);
-        }
+    const handleDelete = () => {
+        // UI otimista: fecha imediatamente e exclui em segundo plano.
+        onOpenChange(false);
+        const action = deleteRecord(organizationId, record.id);
+        toast.promise(action, {
+            loading: 'Excluindo...',
+            success: () => {
+                onChanged?.();
+                return 'Registro excluído.';
+            },
+            error: (e) => e?.message || 'Não foi possível excluir.',
+        });
     };
 
     return (
@@ -137,8 +138,7 @@ export default function GenericRecordDetailSheet({
                                             onChange={(e) => setComment(e.target.value)}
                                             rows={2}
                                         />
-                                        <Button size="sm" onClick={handleMove} disabled={busy} className="w-full">
-                                            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        <Button size="sm" onClick={handleMove} disabled={!movingTo} className="w-full">
                                             Confirmar mudança
                                         </Button>
                                     </>
@@ -181,7 +181,7 @@ export default function GenericRecordDetailSheet({
                         {canDelete && (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="outline" className="text-red-600 hover:text-red-700" disabled={busy}>
+                                    <Button variant="outline" className="text-red-600 hover:text-red-700">
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </AlertDialogTrigger>

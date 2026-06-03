@@ -4,7 +4,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import GenericFieldInput from './GenericFieldInput';
 import { validateAllValues, emptyValueForType } from '@/lib/fieldTypes';
@@ -41,7 +40,6 @@ export default function GenericRecordForm({
 
     const [values, setValues] = useState(buildInitial);
     const [errors, setErrors] = useState({});
-    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -60,29 +58,33 @@ export default function GenericRecordForm({
         if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = () => {
         const { ok, errors: errs } = validateAllValues(entityType.fields, values);
         if (!ok) {
             setErrors(errs);
             toast.error('Verifique os campos destacados.');
             return;
         }
-        setSaving(true);
-        try {
-            if (isEdit) {
-                await updateRecord({ organizationId, recordId: record.id, values });
-                toast.success(`${entityType.label_singular} atualizado.`);
-            } else {
-                await createRecord(organizationId, entityType.id, values);
-                toast.success(`${entityType.label_singular} criado.`);
-            }
-            onSaved?.();
-            onOpenChange(false);
-        } catch (e) {
-            toast.error(e?.message || 'Erro ao salvar.');
-        } finally {
-            setSaving(false);
-        }
+        // UI otimista: fecha imediatamente e grava em segundo plano.
+        const editing = isEdit;
+        const recordId = record?.id;
+        const payloadValues = values;
+        onOpenChange(false);
+        const action = editing
+            ? updateRecord({ organizationId, recordId, values: payloadValues })
+            : createRecord(organizationId, entityType.id, payloadValues);
+        toast.promise(action, {
+            loading: editing
+                ? `Salvando ${entityType.label_singular}...`
+                : `Criando ${entityType.label_singular}...`,
+            success: () => {
+                onSaved?.();
+                return editing
+                    ? `${entityType.label_singular} atualizado.`
+                    : `${entityType.label_singular} criado.`;
+            },
+            error: (e) => e?.message || 'Erro ao salvar.',
+        });
     };
 
     const renderField = (f) => (
@@ -140,11 +142,10 @@ export default function GenericRecordForm({
                 </ScrollArea>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancelar
                     </Button>
-                    <Button onClick={handleSubmit} disabled={saving}>
-                        {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Button onClick={handleSubmit}>
                         {isEdit ? 'Salvar' : 'Criar'}
                     </Button>
                 </DialogFooter>
