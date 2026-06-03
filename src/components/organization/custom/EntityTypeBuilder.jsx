@@ -514,6 +514,14 @@ const OPERATORS = [
 ];
 
 function RequirementEditor({ req, fieldOptions, members, onChange, onRemove }) {
+    const selectedUsers = req.users || [];
+    const toggleUser = (userId) => {
+        const nextUsers = selectedUsers.includes(userId)
+            ? selectedUsers.filter((id) => id !== userId)
+            : [...selectedUsers, userId];
+        onChange({ users: nextUsers });
+    };
+
     return (
         <div className="flex items-center gap-2 flex-wrap text-xs">
             <Select value={req.type} onValueChange={(v) => onChange({ type: v })}>
@@ -555,18 +563,33 @@ function RequirementEditor({ req, fieldOptions, members, onChange, onRemove }) {
                     <SelectTrigger className="h-8 w-48"><SelectValue /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="roles">Por papel (Admin/Criador)</SelectItem>
-                        <SelectItem value="users">Por pessoa específica</SelectItem>
+                        <SelectItem value="users">Por pessoa(s) autorizada(s)</SelectItem>
                     </SelectContent>
                 </Select>
             )}
 
             {req.type === 'approval' && req.mode === 'users' && (
-                <Select value={(req.users || [])[0] || ''} onValueChange={(v) => onChange({ users: [v] })}>
-                    <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Pessoa" /></SelectTrigger>
-                    <SelectContent>
-                        {members.map((m) => <SelectItem key={m.user_id || m.id} value={m.user_id || m.id}>{m.user_name || m.user_id}</SelectItem>)}
-                    </SelectContent>
-                </Select>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5">
+                    <span className="text-[11px] text-muted-foreground mr-1">Pessoas autorizadas</span>
+                    {members.length === 0 && <span className="text-[11px] text-muted-foreground">Sem membros disponíveis.</span>}
+                    {members.map((m) => {
+                        const userId = m.user_id || m.id;
+                        const checked = selectedUsers.includes(userId);
+                        return (
+                            <label
+                                key={userId}
+                                className={`flex items-center gap-1.5 rounded-full border px-2 py-1 cursor-pointer ${checked ? 'border-primary bg-primary/10 text-primary' : 'border-border'}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleUser(userId)}
+                                />
+                                <span>{m.user_name || m.user_email || userId}</span>
+                            </label>
+                        );
+                    })}
+                </div>
             )}
 
             <Button variant="ghost" size="icon" onClick={onRemove} className="text-red-500 h-7 w-7"><Trash2 className="h-3.5 w-3.5" /></Button>
