@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Loader2, LayoutGrid } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, LayoutGrid, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { useOrganizationMembers } from '@/hooks/useFirestore';
-import { deleteEntityType } from '@/services/customEntitiesService';
+import { deleteEntityType, upsertEntityType } from '@/services/customEntitiesService';
 import EntityTypeBuilder from '@/components/organization/custom/EntityTypeBuilder';
 
 /**
@@ -24,9 +25,40 @@ export default function EntityTypesManager({ organization }) {
     const [builderOpen, setBuilderOpen] = useState(false);
     const [editing, setEditing] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
+    const [busyId, setBusyId] = useState(null);
 
     const openCreate = () => { setEditing(null); setBuilderOpen(true); };
     const openEdit = (et) => { setEditing(et); setBuilderOpen(true); };
+
+    const toggleEnabled = async (et) => {
+        setBusyId(et.id);
+        try {
+            await upsertEntityType(organizationId, { ...et, enabled: et.enabled === false });
+            toast.success(et.enabled === false ? 'Página ativada.' : 'Página desativada.');
+        } catch (e) {
+            toast.error(e?.message || 'Não foi possível atualizar.');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const move = async (idx, dir) => {
+        const j = idx + dir;
+        if (j < 0 || j >= entityTypes.length) return;
+        const a = entityTypes[idx];
+        const b = entityTypes[j];
+        setBusyId(a.id);
+        try {
+            await Promise.all([
+                upsertEntityType(organizationId, { ...a, order: j }),
+                upsertEntityType(organizationId, { ...b, order: idx }),
+            ]);
+        } catch (e) {
+            toast.error(e?.message || 'Não foi possível reordenar.');
+        } finally {
+            setBusyId(null);
+        }
+    };
 
     const handleDelete = async (et) => {
         setDeletingId(et.id);
@@ -69,19 +101,29 @@ export default function EntityTypesManager({ organization }) {
                 </Card>
             ) : (
                 <div className="space-y-2">
-                    {entityTypes.map((et) => (
+                    {entityTypes.map((et, idx) => (
                         <Card key={et.id}>
                             <CardContent className="flex items-center justify-between gap-4 py-3">
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-medium truncate">{et.label_plural}</span>
-                                        {et.enabled === false && <Badge variant="secondary">Desativada</Badge>}
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <div className="flex flex-col">
+                                        <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0 || busyId} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                                        <button type="button" onClick={() => move(idx, 1)} disabled={idx === entityTypes.length - 1 || busyId} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        {(et.fields || []).length} campo(s) · {(et.phases || []).length} fase(s)
-                                    </p>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium truncate">{et.label_plural}</span>
+                                            {et.enabled === false && <Badge variant="secondary">Desativada</Badge>}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            {(et.fields || []).length} campo(s) · {(et.phases || []).length} fase(s)
+                                        </p>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
+                                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1 cursor-pointer">
+                                        <Switch checked={et.enabled !== false} onCheckedChange={() => toggleEnabled(et)} disabled={busyId === et.id} />
+                                        Ativa
+                                    </label>
                                     <Button variant="ghost" size="icon" onClick={() => openEdit(et)}>
                                         <Pencil className="h-4 w-4" />
                                     </Button>

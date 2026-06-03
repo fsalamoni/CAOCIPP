@@ -45,6 +45,8 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     const [labelSingular, setLabelSingular] = useState(entityType?.label_singular || '');
     const [labelPlural, setLabelPlural] = useState(entityType?.label_plural || '');
     const [icon, setIcon] = useState(entityType?.icon || 'Folder');
+    const [color, setColor] = useState(entityType?.color || '#3b82f6');
+    const [enabled, setEnabled] = useState(entityType?.enabled !== false);
     const [fields, setFields] = useState(
         entityType?.fields?.length ? entityType.fields.map((f) => ({ ...f, options: f.options || [] })) : [newField()]
     );
@@ -53,6 +55,9 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     );
     const [transitions, setTransitions] = useState(entityType?.transitions || []);
     const [saving, setSaving] = useState(false);
+    const [advancedFields, setAdvancedFields] = useState({});
+    const toggleAdvanced = (idx) => setAdvancedFields((prev) => ({ ...prev, [idx]: !prev[idx] }));
+    const updateValidation = (idx, patch) => updateField(idx, { validation: { ...(fields[idx].validation || {}), ...patch } });
 
     // ---- Campos ----
     const updateField = (idx, patch) => setFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
@@ -88,6 +93,13 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     const addPhase = () => setPhases((prev) => [...prev, newPhase(prev.length)]);
     const removePhase = (idx) => setPhases((prev) => prev.filter((_, i) => i !== idx));
     const setInitial = (idx) => setPhases((prev) => prev.map((p, i) => ({ ...p, is_initial: i === idx })));
+    const movePhase = (idx, dir) => setPhases((prev) => {
+        const arr = prev.slice();
+        const j = idx + dir;
+        if (j < 0 || j >= arr.length) return prev;
+        [arr[idx], arr[j]] = [arr[j], arr[idx]];
+        return arr;
+    });
 
     // ---- Regras ----
     const addTransition = () => setTransitions((prev) => [...prev, {
@@ -103,6 +115,18 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     });
     const removeRequirement = (ti, ri) => updateTransition(ti, {
         requirements: transitions[ti].requirements.filter((_, i) => i !== ri),
+    });
+    const updateOnSuccess = (ti, patch) => updateTransition(ti, {
+        on_success: { ...(transitions[ti].on_success || {}), ...patch },
+    });
+    const addSetField = (ti) => updateOnSuccess(ti, {
+        set_fields: [...(transitions[ti].on_success?.set_fields || []), { field: fields[0]?.key || '', value: '' }],
+    });
+    const updateSetField = (ti, si, patch) => updateOnSuccess(ti, {
+        set_fields: (transitions[ti].on_success?.set_fields || []).map((s, i) => (i === si ? { ...s, ...patch } : s)),
+    });
+    const removeSetField = (ti, si) => updateOnSuccess(ti, {
+        set_fields: (transitions[ti].on_success?.set_fields || []).filter((_, i) => i !== si),
     });
 
     const handleSave = async () => {
@@ -130,6 +154,8 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
             label_singular: labelSingular.trim(),
             label_plural: labelPlural.trim(),
             icon,
+            color,
+            enabled,
             fields: cleanFields,
             phases: cleanPhases,
             transitions: transitions.filter((t) => t.to),
@@ -149,7 +175,7 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
     };
 
     const phaseOptions = phases.filter((p) => p.label.trim());
-    const fieldOptions = fields.filter((f) => f.label.trim());
+    const fieldOptions = fields.filter((f) => f.label.trim()).map((f) => ({ ...f, key: f.key || slugify(f.label) }));
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -190,6 +216,28 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                 <Input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="Ex.: Folder, FileText, Briefcase" />
                                 <p className="text-xs text-muted-foreground">Use nomes da biblioteca Lucide. Em caso de dúvida, deixe "Folder".</p>
                             </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label>Cor da página</Label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="color"
+                                            value={color}
+                                            onChange={(e) => setColor(e.target.value)}
+                                            className="h-9 w-12 rounded border cursor-pointer"
+                                            title="Cor"
+                                        />
+                                        <Input value={color} onChange={(e) => setColor(e.target.value)} className="font-mono" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Situação</Label>
+                                    <label className="flex items-center gap-2 h-9 cursor-pointer">
+                                        <Switch checked={enabled} onCheckedChange={setEnabled} />
+                                        <span className="text-sm">{enabled ? 'Página ativa (visível no menu)' : 'Página desativada (oculta)'}</span>
+                                    </label>
+                                </div>
+                            </div>
                         </TabsContent>
 
                         {/* CAMPOS */}
@@ -228,6 +276,13 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                             <Label className="text-xs">Opções</Label>
                                             {(f.options || []).map((o, oi) => (
                                                 <div key={oi} className="flex gap-2 items-center">
+                                                    <input
+                                                        type="color"
+                                                        value={o.color || '#94a3b8'}
+                                                        onChange={(e) => updateOption(idx, oi, { color: e.target.value })}
+                                                        className="h-8 w-8 rounded border cursor-pointer shrink-0"
+                                                        title="Cor da opção"
+                                                    />
                                                     <Input className="h-8" value={o.label} onChange={(e) => updateOption(idx, oi, { label: e.target.value, value: o.value || slugify(e.target.value) })} placeholder="Rótulo" />
                                                     <Button variant="ghost" size="icon" onClick={() => removeOption(idx, oi)} className="text-red-500 shrink-0"><Trash2 className="h-3.5 w-3.5" /></Button>
                                                 </div>
@@ -236,16 +291,72 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                         </div>
                                     )}
 
+                                    <div className="pl-8 space-y-1">
+                                        <Label className="text-xs">Texto de ajuda (opcional)</Label>
+                                        <Input className="h-8" value={f.help || ''} onChange={(e) => updateField(idx, { help: e.target.value })} placeholder="Aparece abaixo do campo, orientando o preenchimento" />
+                                    </div>
+
                                     <div className="pl-8 flex flex-wrap items-center gap-4">
                                         <label className="flex items-center gap-2 text-xs cursor-pointer">
                                             <Switch checked={f.required === true} onCheckedChange={(c) => updateField(idx, { required: c })} />
                                             Obrigatório
                                         </label>
                                         <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                            <Switch checked={f.form?.show !== false} onCheckedChange={(c) => updateField(idx, { form: { ...f.form, show: c } })} />
+                                            Mostrar no formulário
+                                        </label>
+                                        <label className="flex items-center gap-2 text-xs cursor-pointer">
                                             <Switch checked={f.table?.show !== false} onCheckedChange={(c) => updateField(idx, { table: { ...f.table, show: c } })} />
                                             Mostrar na tabela
                                         </label>
+                                        <button type="button" onClick={() => toggleAdvanced(idx)} className="text-xs text-primary hover:underline ml-auto flex items-center gap-1">
+                                            <Settings2 className="h-3.5 w-3.5" /> {advancedFields[idx] ? 'Ocultar avançado' : 'Avançado'}
+                                        </button>
                                     </div>
+
+                                    {advancedFields[idx] && (
+                                        <div className="pl-8 space-y-3 border-t pt-3">
+                                            {(f.type === 'text' || f.type === 'textarea' || f.type === 'link') && (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Tamanho mínimo</Label>
+                                                        <Input className="h-8" type="number" value={f.validation?.minLength ?? ''} onChange={(e) => updateValidation(idx, { minLength: e.target.value })} placeholder="—" />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Tamanho máximo</Label>
+                                                        <Input className="h-8" type="number" value={f.validation?.maxLength ?? ''} onChange={(e) => updateValidation(idx, { maxLength: e.target.value })} placeholder="—" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {(f.type === 'number' || f.type === 'currency') && (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Valor mínimo</Label>
+                                                        <Input className="h-8" type="number" value={f.validation?.min ?? ''} onChange={(e) => updateValidation(idx, { min: e.target.value })} placeholder="—" />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Valor máximo</Label>
+                                                        <Input className="h-8" type="number" value={f.validation?.max ?? ''} onChange={(e) => updateValidation(idx, { max: e.target.value })} placeholder="—" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Valor padrão (opcional)</Label>
+                                                {f.type === 'boolean' ? (
+                                                    <Select value={String(f.default ?? '')} onValueChange={(v) => updateField(idx, { default: v === '' ? undefined : v === 'true' })}>
+                                                        <SelectTrigger className="h-8"><SelectValue placeholder="Sem padrão" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="">Sem padrão</SelectItem>
+                                                            <SelectItem value="true">Sim</SelectItem>
+                                                            <SelectItem value="false">Não</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <Input className="h-8" value={f.default ?? ''} onChange={(e) => updateField(idx, { default: e.target.value === '' ? undefined : e.target.value })} placeholder="Preenchido automaticamente em novos registros" />
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </Card>
                             ))}
                             <Button variant="outline" onClick={addField}><Plus className="mr-1.5 h-4 w-4" />Adicionar campo</Button>
@@ -255,8 +366,12 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                         <TabsContent value="phases" className="space-y-3 mt-0">
                             <p className="text-xs text-muted-foreground">As fases viram as colunas do painel (kanban). A fase inicial recebe novos registros.</p>
                             {phases.map((p, idx) => (
-                                <Card key={idx} className="p-3">
+                                <Card key={idx} className="p-3 space-y-2">
                                     <div className="flex items-center gap-2">
+                                        <div className="flex flex-col">
+                                            <button type="button" onClick={() => movePhase(idx, -1)} className="text-muted-foreground hover:text-foreground"><ChevronUp className="h-4 w-4" /></button>
+                                            <button type="button" onClick={() => movePhase(idx, 1)} className="text-muted-foreground hover:text-foreground"><ChevronDown className="h-4 w-4" /></button>
+                                        </div>
                                         <input
                                             type="color"
                                             value={p.color || '#64748b'}
@@ -270,6 +385,23 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                             Inicial
                                         </label>
                                         <Button variant="ghost" size="icon" onClick={() => removePhase(idx)} className="text-red-500 shrink-0"><Trash2 className="h-4 w-4" /></Button>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-4 pl-8">
+                                        <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                            <Switch checked={p.is_final === true} onCheckedChange={(c) => updatePhase(idx, { is_final: c })} />
+                                            Fase final (conclui o registro)
+                                        </label>
+                                        <label className="flex items-center gap-2 text-xs whitespace-nowrap">
+                                            Limite de itens (WIP)
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                className="h-8 w-20"
+                                                value={p.wip_limit ?? ''}
+                                                onChange={(e) => updatePhase(idx, { wip_limit: e.target.value === '' ? undefined : Number(e.target.value) })}
+                                                placeholder="—"
+                                            />
+                                        </label>
                                     </div>
                                 </Card>
                             ))}
@@ -314,6 +446,37 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                                             />
                                         ))}
                                         <Button variant="outline" size="sm" onClick={() => addRequirement(ti)}><Plus className="mr-1 h-3.5 w-3.5" />Requisito</Button>
+                                    </div>
+
+                                    <div className="pl-2 ml-1 space-y-2 border-l-2 border-emerald-200 dark:border-emerald-900">
+                                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Ao concluir a mudança</p>
+                                        <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                            <Switch
+                                                checked={t.on_success?.require_comment === true}
+                                                onCheckedChange={(c) => updateOnSuccess(ti, { require_comment: c })}
+                                            />
+                                            Exigir comentário ao mover
+                                        </label>
+                                        {(t.on_success?.set_fields || []).map((s, si) => (
+                                            <div key={si} className="flex items-center gap-2 flex-wrap text-xs">
+                                                <span className="text-muted-foreground">Preencher</span>
+                                                <Select value={s.field || ''} onValueChange={(v) => updateSetField(ti, si, { field: v })}>
+                                                    <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Campo" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {fieldOptions.map((f) => <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                                <span className="text-muted-foreground">com</span>
+                                                <Input
+                                                    className="h-8 w-36"
+                                                    value={s.value ?? ''}
+                                                    onChange={(e) => updateSetField(ti, si, { value: e.target.value })}
+                                                    placeholder='valor ou "now" p/ data'
+                                                />
+                                                <Button variant="ghost" size="icon" onClick={() => removeSetField(ti, si)} className="text-red-500 h-7 w-7"><Trash2 className="h-3.5 w-3.5" /></Button>
+                                            </div>
+                                        ))}
+                                        <Button variant="outline" size="sm" onClick={() => addSetField(ti)}><Plus className="mr-1 h-3.5 w-3.5" />Auto-preencher campo</Button>
                                     </div>
                                 </Card>
                             ))}
