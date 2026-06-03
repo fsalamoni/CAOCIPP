@@ -92,9 +92,9 @@ function sanitizeEntityTypeDefinition(input) {
             if (isPlainString(v.pattern) && v.pattern)
                 validation.pattern = v.pattern;
         }
-        const out = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ key,
+        const out = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ key,
             label,
-            type, required: (f === null || f === void 0 ? void 0 : f.required) === true }, ((f === null || f === void 0 ? void 0 : f.help) ? { help: String(f.help) } : {})), (options ? { options } : {})), ((f === null || f === void 0 ? void 0 : f.default) !== undefined ? { default: f.default } : {})), (Object.keys(validation).length ? { validation } : {})), { table: Object.assign({ show: ((_a = f === null || f === void 0 ? void 0 : f.table) === null || _a === void 0 ? void 0 : _a.show) !== false, order: (_c = toNumberOrNull((_b = f === null || f === void 0 ? void 0 : f.table) === null || _b === void 0 ? void 0 : _b.order)) !== null && _c !== void 0 ? _c : idx }, (toNumberOrNull((_d = f === null || f === void 0 ? void 0 : f.table) === null || _d === void 0 ? void 0 : _d.width) !== null ? { width: toNumberOrNull((_e = f === null || f === void 0 ? void 0 : f.table) === null || _e === void 0 ? void 0 : _e.width) } : {})), form: Object.assign(Object.assign({ show: ((_f = f === null || f === void 0 ? void 0 : f.form) === null || _f === void 0 ? void 0 : _f.show) !== false }, (((_g = f === null || f === void 0 ? void 0 : f.form) === null || _g === void 0 ? void 0 : _g.section) ? { section: String(f.form.section) } : {})), { order: (_j = toNumberOrNull((_h = f === null || f === void 0 ? void 0 : f.form) === null || _h === void 0 ? void 0 : _h.order)) !== null && _j !== void 0 ? _j : idx }) });
+            type, required: (f === null || f === void 0 ? void 0 : f.required) === true }, ((f === null || f === void 0 ? void 0 : f.help) ? { help: String(f.help) } : {})), (options ? { options } : {})), ((f === null || f === void 0 ? void 0 : f.default) !== undefined ? { default: f.default } : {})), (Object.keys(validation).length ? { validation } : {})), { table: Object.assign({ show: ((_a = f === null || f === void 0 ? void 0 : f.table) === null || _a === void 0 ? void 0 : _a.show) !== false, order: (_c = toNumberOrNull((_b = f === null || f === void 0 ? void 0 : f.table) === null || _b === void 0 ? void 0 : _b.order)) !== null && _c !== void 0 ? _c : idx }, (toNumberOrNull((_d = f === null || f === void 0 ? void 0 : f.table) === null || _d === void 0 ? void 0 : _d.width) !== null ? { width: toNumberOrNull((_e = f === null || f === void 0 ? void 0 : f.table) === null || _e === void 0 ? void 0 : _e.width) } : {})), form: Object.assign(Object.assign({ show: ((_f = f === null || f === void 0 ? void 0 : f.form) === null || _f === void 0 ? void 0 : _f.show) !== false }, (((_g = f === null || f === void 0 ? void 0 : f.form) === null || _g === void 0 ? void 0 : _g.section) ? { section: String(f.form.section) } : {})), { order: (_j = toNumberOrNull((_h = f === null || f === void 0 ? void 0 : f.form) === null || _h === void 0 ? void 0 : _h.order)) !== null && _j !== void 0 ? _j : idx }) }), ((f === null || f === void 0 ? void 0 : f.phase) ? { phase: String(f.phase).trim() } : {})), ((f === null || f === void 0 ? void 0 : f.required_to_advance) === true ? { required_to_advance: true } : {}));
         return out;
     });
     const rawPhases = Array.isArray(input.phases) ? input.phases : [];
@@ -116,8 +116,8 @@ function sanitizeEntityTypeDefinition(input) {
         if (!label) {
             throw new Error(`A fase "${key}" precisa de um rótulo.`);
         }
-        return Object.assign(Object.assign(Object.assign({ key,
-            label }, ((p === null || p === void 0 ? void 0 : p.color) ? { color: String(p.color) } : {})), { order: (_a = toNumberOrNull(p === null || p === void 0 ? void 0 : p.order)) !== null && _a !== void 0 ? _a : idx, is_initial: (p === null || p === void 0 ? void 0 : p.is_initial) === true, is_final: (p === null || p === void 0 ? void 0 : p.is_final) === true }), (toNumberOrNull(p === null || p === void 0 ? void 0 : p.wip_limit) !== null ? { wip_limit: toNumberOrNull(p === null || p === void 0 ? void 0 : p.wip_limit) } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign({ key,
+            label }, ((p === null || p === void 0 ? void 0 : p.description) ? { description: String(p.description).trim().slice(0, 2000) } : {})), ((p === null || p === void 0 ? void 0 : p.color) ? { color: String(p.color) } : {})), { order: (_a = toNumberOrNull(p === null || p === void 0 ? void 0 : p.order)) !== null && _a !== void 0 ? _a : idx, is_initial: (p === null || p === void 0 ? void 0 : p.is_initial) === true, is_final: (p === null || p === void 0 ? void 0 : p.is_final) === true }), (toNumberOrNull(p === null || p === void 0 ? void 0 : p.wip_limit) !== null ? { wip_limit: toNumberOrNull(p === null || p === void 0 ? void 0 : p.wip_limit) } : {}));
     });
     // Garante exatamente uma fase inicial (a primeira se nenhuma marcada).
     if (!phases.some((p) => p.is_initial)) {
@@ -125,6 +125,15 @@ function sanitizeEntityTypeDefinition(input) {
     }
     const fieldKeySet = new Set(fields.map((f) => f.key));
     const phaseKeySet = new Set(phases.map((p) => p.key));
+    // Limpa referências de fase inválidas nas colunas (fase pode ter sido
+    // renomeada/removida). Mantém o vínculo apenas quando a fase existe.
+    for (const f of fields) {
+        if (f.phase && !phaseKeySet.has(f.phase)) {
+            delete f.phase;
+            if (f.required_to_advance)
+                delete f.required_to_advance;
+        }
+    }
     const rawTransitions = Array.isArray(input.transitions) ? input.transitions : [];
     const transitions = rawTransitions.map((t, idx) => {
         const from = String((t === null || t === void 0 ? void 0 : t.from) || '*').trim() || '*';
@@ -176,10 +185,44 @@ function sanitizeEntityTypeDefinition(input) {
         return Object.assign(Object.assign({ id: String((t === null || t === void 0 ? void 0 : t.id) || `t_${idx}`), from,
             to }, (reqs.length ? { requirements: reqs } : {})), ((t === null || t === void 0 ? void 0 : t.on_success) ? { on_success: sanitizeOnSuccess(t.on_success, fieldKeySet) } : {}));
     });
-    const out = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ label_singular,
+    const out = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ label_singular,
         label_plural }, (input.key && SLUG_RE.test(String(input.key)) ? { key: String(input.key) } : {})), (input.icon ? { icon: String(input.icon) } : {})), (input.color ? { color: String(input.color) } : {})), (toNumberOrNull(input.order) !== null ? { order: toNumberOrNull(input.order) } : {})), { enabled: input.enabled !== false, fields,
-        phases }), (transitions.length ? { transitions } : {})), (input.form_layout ? { form_layout: sanitizeFormLayout(input.form_layout, fieldKeySet) } : {})), (input.table_layout ? { table_layout: sanitizeTableLayout(input.table_layout, fieldKeySet) } : {})), (input.kpi_config ? { kpi_config: sanitizeKpiConfig(input.kpi_config) } : {}));
+        phases }), (transitions.length ? { transitions } : {})), (['tabs', 'sections', 'single'].includes(String(input.form_mode)) ? { form_mode: input.form_mode } : {})), (input.form_layout ? { form_layout: sanitizeFormLayout(input.form_layout, fieldKeySet) } : {})), (input.table_layout ? { table_layout: sanitizeTableLayout(input.table_layout, fieldKeySet) } : {})), (input.import_mappings ? { import_mappings: sanitizeImportMappings(input.import_mappings, fieldKeySet) } : {})), { 
+        // Sempre presente (mesmo vazio) para permitir limpar a lista com merge.
+        record_types: sanitizeRecordTypes(input.record_types) }), (input.kpi_config ? { kpi_config: sanitizeKpiConfig(input.kpi_config) } : {}));
     return out;
+}
+function sanitizeRecordTypes(input) {
+    const arr = Array.isArray(input) ? input : [];
+    const seen = new Set();
+    const out = [];
+    arr.forEach((t, idx) => {
+        const label = String((t === null || t === void 0 ? void 0 : t.label) || '').trim();
+        if (!label)
+            return;
+        let key = String((t === null || t === void 0 ? void 0 : t.key) || '').trim();
+        if (!SLUG_RE.test(key))
+            key = `t_${idx}`;
+        if (seen.has(key))
+            key = `${key}_${idx}`;
+        seen.add(key);
+        out.push(Object.assign({ key,
+            label }, ((t === null || t === void 0 ? void 0 : t.color) ? { color: String(t.color) } : {})));
+    });
+    return out;
+}
+function sanitizeImportMappings(input, fieldKeySet) {
+    const arr = Array.isArray(input) ? input : [];
+    return arr
+        .map((m) => {
+        var _a;
+        return ({
+            field_key: String((m === null || m === void 0 ? void 0 : m.field_key) || '').trim(),
+            source: (m === null || m === void 0 ? void 0 : m.source) === 'letter' ? 'letter' : 'name',
+            match: String((_a = m === null || m === void 0 ? void 0 : m.match) !== null && _a !== void 0 ? _a : '').trim(),
+        });
+    })
+        .filter((m) => fieldKeySet.has(m.field_key) && m.match !== '');
 }
 function sanitizeOnSuccess(input, fieldKeySet) {
     const out = {};
@@ -240,13 +283,17 @@ function validateRecordValues(fields, values, opts = {}) {
     const errors = {};
     const normalized = {};
     const input = values && typeof values === 'object' ? values : {};
+    // Uma coluna atribuída a uma fase só é "obrigatória" quando essa fase já foi
+    // alcançada. Sem restrição (requiredPhases ausente) ou coluna sem fase →
+    // comportamento legado (obrigatoriedade global).
+    const phaseRequired = (field) => !opts.requiredPhases || !field.phase || opts.requiredPhases.has(field.phase);
     for (const field of fields) {
         const provided = Object.prototype.hasOwnProperty.call(input, field.key);
         if (opts.partial && !provided)
             continue;
         const raw = input[field.key];
         if (isEmptyValue(raw)) {
-            if (field.required && !opts.partial) {
+            if (field.required && !opts.partial && phaseRequired(field)) {
                 errors[field.key] = `${field.label} é obrigatório.`;
             }
             normalized[field.key] = field.type === 'multiselect' ? [] : (field.type === 'boolean' ? false : null);
