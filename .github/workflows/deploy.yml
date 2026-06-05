@@ -1,0 +1,115 @@
+name: Deploy to Firebase
+
+# Deploy automático para o Firebase a cada push no `main` (após um merge) e
+# também sob demanda (workflow_dispatch).
+#
+# Secrets necessários (Settings → Secrets and variables → Actions):
+#   Autenticação (um dos dois):
+#     - FIREBASE_SERVICE_ACCOUNT  → JSON de uma conta de serviço com permissão de
+#                                   deploy (Firebase Admin + Cloud Functions Admin
+#                                   + Service Account User). Recomendado.
+#     - FIREBASE_TOKEN            → token gerado por `firebase login:ci`.
+#   Configuração do frontend (sem elas o app publicado não conecta ao Firebase):
+#     - VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
+#       VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID,
+#       VITE_FIREBASE_APP_ID
+#     - (opcionais) VITE_CONSULTAS_CAO_APP_ID, VITE_CONSULTAS_CAO_FUNCTIONS_VERSION,
+#       VITE_CONSULTAS_CAO_APP_BASE_URL
+#
+# Enquanto os secrets de deploy não existirem, o job termina VERDE sem publicar
+# nada (passo "Check deploy secrets"), evitando publicar um app quebrado.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check deploy secrets
+        id: pre
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+        run: |
+          if { [ -n "$SA" ] || [ -n "$TOKEN" ]; } && [ -n "$API_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Secrets de deploy presentes — prosseguindo."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Deploy pulado::Configure FIREBASE_SERVICE_ACCOUNT (ou FIREBASE_TOKEN) e as variáveis VITE_FIREBASE_* nos secrets do repositório para habilitar o deploy automático."
+          fi
+
+      - name: Setup Node.js
+        if: steps.pre.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions-v2/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.pre.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Install functions dependencies
+        if: steps.pre.outputs.ready == 'true'
+        run: npm --prefix functions-v2 ci
+
+      - name: Build functions
+        if: steps.pre.outputs.ready == 'true'
+        run: npm --prefix functions-v2 run build:local
+
+      - name: Build frontend
+        if: steps.pre.outputs.ready == 'true'
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_CONSULTAS_CAO_APP_ID: ${{ secrets.VITE_CONSULTAS_CAO_APP_ID }}
+          VITE_CONSULTAS_CAO_FUNCTIONS_VERSION: ${{ secrets.VITE_CONSULTAS_CAO_FUNCTIONS_VERSION }}
+          VITE_CONSULTAS_CAO_APP_BASE_URL: ${{ secrets.VITE_CONSULTAS_CAO_APP_BASE_URL }}
+
+      - name: Authenticate (service account)
+        if: steps.pre.outputs.ready == 'true'
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$SA" ]; then
+            printf '%s' "$SA" > "${RUNNER_TEMP}/firebase-sa.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=${RUNNER_TEMP}/firebase-sa.json" >> "$GITHUB_ENV"
+            echo "Autenticando via conta de serviço."
+          else
+            echo "Sem conta de serviço; usando FIREBASE_TOKEN."
+          fi
+
+      - name: Deploy to Firebase (hosting + functions + firestore)
+        if: steps.pre.outputs.ready == 'true'
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -e
+          ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive"
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
+            ARGS="$ARGS --token $FIREBASE_TOKEN"
+          fi
+          npx firebase $ARGS
