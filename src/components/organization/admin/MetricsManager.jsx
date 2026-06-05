@@ -6,7 +6,6 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import EmptyState from '@/components/ui/EmptyState';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
@@ -68,7 +67,7 @@ function describeMetric(schema, m) {
  */
 export default function MetricsManager({ organization }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
-    const { entityTypes, isLoading: typesLoading } = useEntityTypes(organization?.id);
+    const { entityTypes, isLoading: typesLoading } = useEntityTypes(customEntitiesOn ? organization?.id : null);
 
     const pages = useMemo(
         () => getActiveDataPages(organization, { customEntitiesOn, entityTypes }),
@@ -154,17 +153,10 @@ export default function MetricsManager({ organization }) {
         }
     };
 
-    if (!customEntitiesOn) {
-        return (
-            <Alert>
-                <AlertDescription>
-                    O gerenciamento de métricas faz parte de <strong>Páginas e processos personalizados</strong>.
-                    Ative esse recurso para configurar as métricas por página.
-                </AlertDescription>
-            </Alert>
-        );
-    }
-
+    // Sem a flag de páginas personalizadas, o gerenciador ainda funciona para as
+    // páginas ordinárias (Consultas e Expedientes): o admin pode criar, editar,
+    // reordenar e redimensionar as métricas exibidas em Informações Gerais.
+    // Páginas personalizadas só aparecem na lista quando a flag está ligada.
     if (typesLoading && pages.length === 0) {
         return (
             <div className="flex items-center justify-center py-10 text-muted-foreground">

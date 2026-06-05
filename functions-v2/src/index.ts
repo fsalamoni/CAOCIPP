@@ -9,6 +9,7 @@ export { joinOrganization } from './organizations/join';
 export { removeMember } from './organizations/removeMember';
 export { updateMember } from './organizations/updateMember';
 export { clearOrganizationData } from './organizations/clearData';
+export { deleteOrganization } from './organizations/delete';
 export { updateOrganization } from './organizations/update';
 export { bulkReplaceFieldValues } from './organizations/bulkReplaceFieldValues';
 

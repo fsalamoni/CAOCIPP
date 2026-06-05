@@ -55,12 +55,10 @@ export default function AdminManagement({ organization, members, userRole }) {
                             Páginas e Módulos
                         </TabsTrigger>
                     )}
-                    {customEntitiesOn && (
-                        <TabsTrigger value="metrics" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
-                            <Gauge className="w-4 h-4" />
-                            Métricas
-                        </TabsTrigger>
-                    )}
+                    <TabsTrigger value="metrics" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <Gauge className="w-4 h-4" />
+                        Métricas
+                    </TabsTrigger>
                     <TabsTrigger value="expedientes" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <FileText className="w-4 h-4" />
                         Expedientes
@@ -97,11 +95,9 @@ export default function AdminManagement({ organization, members, userRole }) {
                     </TabsContent>
                 )}
 
-                {customEntitiesOn && (
-                    <TabsContent value="metrics">
-                        <MetricsManager organization={organization} />
-                    </TabsContent>
-                )}
+                <TabsContent value="metrics">
+                    <MetricsManager organization={organization} />
+                </TabsContent>
 
                 <TabsContent value="expedientes">
                     <ExpedienteConfiguration organization={organization} />
