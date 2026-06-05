@@ -57,6 +57,11 @@ export const runIntegrityAudit = (limit = 200) =>
 export const recalcOrgStats = (organizationId) =>
     call('recalcOrgStats', { organizationId });
 
+// Exclusão permanente de um órgão e todo o seu banco de dados (super-admin).
+// A mesma Cloud Function valida criador OU super-admin e exige o nome exato.
+export const deleteOrganization = (organizationId, confirmName) =>
+    call('deleteOrganization', { organizationId, confirmName }, { timeout: 540000 });
+
 // --- Fase 3: backfill do histórico (array activity_log -> subcoleção history) ---
 // verifyOnly=true não escreve nada (apenas audita paridade). Sem verifyOnly,
 // copia as entradas (idempotente). Paginação por lote via startAfter/lastDocId.

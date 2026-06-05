@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { clearOrganizationData, backfillProcessLogs } from '@/services/functionsService';
+import { clearOrganizationData, backfillProcessLogs, deleteOrganization } from '@/services/functionsService';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +12,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
-import { AlertTriangle, ShieldAlert, Loader2, ClipboardList } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Loader2, ClipboardList, Trash2 } from 'lucide-react';
 import { logger } from '@/utils/logger';
 
 export default function DangerZone({ organization }) {
@@ -50,6 +51,17 @@ export default function DangerZone({ organization }) {
                         </p>
                     </div>
                     <ClearDataDialog organization={organization} />
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border border-red-200 rounded-lg bg-white gap-4 mt-4">
+                    <div className="space-y-1">
+                        <p className="font-semibold text-slate-900">Excluir Organização</p>
+                        <p className="text-sm text-slate-600">
+                            Apagar permanentemente esta organização e <strong>todo o seu banco de dados</strong> (processos,
+                            expedientes, páginas personalizadas, históricos e membros). Esta ação não pode ser desfeita.
+                        </p>
+                    </div>
+                    <DeleteOrganizationDialog organization={organization} />
                 </div>
             </div>
         </div>
@@ -176,6 +188,99 @@ function ClearDataDialog({ organization }) {
                             </>
                         ) : (
                             'Sim, Apagar Tudo'
+                        )}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function DeleteOrganizationDialog({ organization }) {
+    const navigate = useNavigate();
+    const [open, setOpen] = useState(false);
+    const [confirmName, setConfirmName] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        if (confirmName !== organization.name) {
+            toast.error('O nome da organização não coincide.');
+            return;
+        }
+
+        try {
+            setIsDeleting(true);
+            const result = await deleteOrganization({
+                organizationId: organization.id,
+                confirmName,
+            });
+            toast.success(result.message || 'Organização excluída com sucesso');
+            setOpen(false);
+            setConfirmName('');
+            // A organização não existe mais: volta para o painel inicial.
+            navigate('/Dashboard', { replace: true });
+        } catch (error) {
+            logger.error('Error deleting organization:', error);
+            toast.error('Erro ao excluir organização: ' + error.message);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="destructive" className="bg-red-700 hover:bg-red-800 gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    Excluir Organização
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle className="text-red-700 flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5" />
+                        Atenção: Exclusão Permanente
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                        Esta ação excluirá permanentemente a organização <strong>{organization.name}</strong> e
+                        <strong> todo o seu banco de dados</strong>: processos, expedientes, páginas personalizadas,
+                        históricos, métricas e vínculos de membros. Não há como desfazer.
+                    </p>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
+                        <strong>Importante:</strong> Certifique-se de ter um backup dos seus dados antes de prosseguir.
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="confirm-delete-name" className="text-xs font-semibold uppercase text-slate-500">
+                            Digite o nome da organização para confirmar:
+                        </Label>
+                        <Input
+                            id="confirm-delete-name"
+                            value={confirmName}
+                            onChange={(e) => setConfirmName(e.target.value)}
+                            placeholder={organization.name}
+                            className="border-red-200 focus-visible:ring-red-500"
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-3">
+                    <Button variant="ghost" onClick={() => setOpen(false)} disabled={isDeleting}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        onClick={handleDelete}
+                        disabled={isDeleting || confirmName !== organization.name}
+                        className="bg-red-700 hover:bg-red-800"
+                    >
+                        {isDeleting ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Excluindo...
+                            </>
+                        ) : (
+                            'Sim, Excluir Organização'
                         )}
                     </Button>
                 </div>

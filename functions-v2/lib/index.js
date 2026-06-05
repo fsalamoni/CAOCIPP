@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -16,6 +16,8 @@ var updateMember_1 = require("./organizations/updateMember");
 Object.defineProperty(exports, "updateMember", { enumerable: true, get: function () { return updateMember_1.updateMember; } });
 var clearData_1 = require("./organizations/clearData");
 Object.defineProperty(exports, "clearOrganizationData", { enumerable: true, get: function () { return clearData_1.clearOrganizationData; } });
+var delete_1 = require("./organizations/delete");
+Object.defineProperty(exports, "deleteOrganization", { enumerable: true, get: function () { return delete_1.deleteOrganization; } });
 var update_1 = require("./organizations/update");
 Object.defineProperty(exports, "updateOrganization", { enumerable: true, get: function () { return update_1.updateOrganization; } });
 var bulkReplaceFieldValues_1 = require("./organizations/bulkReplaceFieldValues");
@@ -24,8 +26,8 @@ var create_2 = require("./processes/create");
 Object.defineProperty(exports, "createProcess", { enumerable: true, get: function () { return create_2.createProcess; } });
 var update_2 = require("./processes/update");
 Object.defineProperty(exports, "updateProcess", { enumerable: true, get: function () { return update_2.updateProcess; } });
-var delete_1 = require("./processes/delete");
-Object.defineProperty(exports, "deleteProcess", { enumerable: true, get: function () { return delete_1.deleteProcess; } });
+var delete_2 = require("./processes/delete");
+Object.defineProperty(exports, "deleteProcess", { enumerable: true, get: function () { return delete_2.deleteProcess; } });
 var calculateStatus_1 = require("./processes/calculateStatus");
 Object.defineProperty(exports, "calculateProcessStatus", { enumerable: true, get: function () { return calculateStatus_1.calculateProcessStatus; } });
 var backfillLogs_1 = require("./processes/backfillLogs");
@@ -38,8 +40,8 @@ var create_3 = require("./expedientes/create");
 Object.defineProperty(exports, "createExpediente", { enumerable: true, get: function () { return create_3.createExpediente; } });
 var update_3 = require("./expedientes/update");
 Object.defineProperty(exports, "updateExpediente", { enumerable: true, get: function () { return update_3.updateExpediente; } });
-var delete_2 = require("./expedientes/delete");
-Object.defineProperty(exports, "deleteExpediente", { enumerable: true, get: function () { return delete_2.deleteExpediente; } });
+var delete_3 = require("./expedientes/delete");
+Object.defineProperty(exports, "deleteExpediente", { enumerable: true, get: function () { return delete_3.deleteExpediente; } });
 var fromExcelExpedientes_1 = require("./import/fromExcelExpedientes");
 Object.defineProperty(exports, "importExpedientesFromExcel", { enumerable: true, get: function () { return fromExcelExpedientes_1.importExpedientesFromExcel; } });
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========

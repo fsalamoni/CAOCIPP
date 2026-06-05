@@ -59,6 +59,17 @@ export const clearOrganizationData = async (organizationId) => {
     }
 };
 
+export const deleteOrganization = async ({ organizationId, confirmName }) => {
+    try {
+        const deleteOrgFn = httpsCallable(functions, 'deleteOrganization', { timeout: 540000 });
+        const result = await deleteOrgFn({ organizationId, confirmName });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling deleteOrganization:', error);
+        throw error;
+    }
+};
+
 export const updateOrganization = async (data) => {
     try {
         // data: { organizationId, data: { name?, description?, matterSettings?, summarySettings? } }
