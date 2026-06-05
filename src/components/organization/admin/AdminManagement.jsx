@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 
@@ -13,6 +13,7 @@ import AISettings from './AISettings';
 import DangerZone from './DangerZone';
 import BulkReplaceTool from './BulkReplaceTool';
 import ModulesManager from './ModulesManager';
+import MetricsManager from './MetricsManager';
 
 export default function AdminManagement({ organization, members, userRole }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
@@ -54,6 +55,12 @@ export default function AdminManagement({ organization, members, userRole }) {
                             Páginas e Módulos
                         </TabsTrigger>
                     )}
+                    {customEntitiesOn && (
+                        <TabsTrigger value="metrics" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <Gauge className="w-4 h-4" />
+                            Métricas
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="expedientes" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <FileText className="w-4 h-4" />
                         Expedientes
@@ -87,6 +94,12 @@ export default function AdminManagement({ organization, members, userRole }) {
                 {customEntitiesOn && (
                     <TabsContent value="modules">
                         <ModulesManager organization={organization} />
+                    </TabsContent>
+                )}
+
+                {customEntitiesOn && (
+                    <TabsContent value="metrics">
+                        <MetricsManager organization={organization} />
                     </TabsContent>
                 )}
 
