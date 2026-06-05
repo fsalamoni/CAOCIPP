@@ -8,16 +8,15 @@ import {
   Shield,
   Trash2,
   Edit2,
-  Loader2,
-  Clock,
-  FileText,
-  Target,
-  AlertTriangle
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, isValid } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { parseLocalDate } from '@/lib/dateUtils';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { parseYear } from '@/lib/dashboardMetrics';
+import DashboardMetrics from '@/components/organization/DashboardMetrics';
 import {
   Table,
   TableBody,
@@ -36,7 +35,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { logger } from '@/utils/logger';
 import { formatPersonName } from '@/utils/nameUtils';
-import { getExpedienteField, calculateExpedienteDerivedStatus } from '@/utils/expedienteUtils';
+import { getExpedienteField } from '@/utils/expedienteUtils';
 
 
 
@@ -44,91 +43,18 @@ export default function GeneralInfo({ organization, members, processes = [], exp
   const [isRemoving, setIsRemoving] = useState(false);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  // Anos descobertos nas páginas personalizadas (reportados pelo DashboardMetrics).
+  const [customYears, setCustomYears] = useState([]);
+  const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
 
-  // Available years for filter
+  // Available years for filter (dados ordinários + páginas custom + ano atual)
   const years = React.useMemo(() => {
     const yearsSet = new Set([currentYear]);
-    processes.forEach(p => {
-      const date = parseLocalDate(p.entry_date);
-      const year = isValid(date) ? date.getFullYear() : null;
-      if (year && !isNaN(year)) yearsSet.add(year);
-    });
-    expedientes.forEach(e => {
-      const date = parseLocalDate(getExpedienteField(e, 'entry_date'));
-      const year = isValid(date) ? date.getFullYear() : null;
-      if (year && !isNaN(year)) yearsSet.add(year);
-    });
+    processes.forEach(p => { const y = parseYear(p.entry_date); if (y) yearsSet.add(y); });
+    expedientes.forEach(e => { const y = parseYear(getExpedienteField(e, 'entry_date')); if (y) yearsSet.add(y); });
+    (customYears || []).forEach(y => { if (y) yearsSet.add(y); });
     return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [processes, expedientes, currentYear]);
-
-  // Filter processes by selected year
-  const filteredProcesses = React.useMemo(() => {
-    return processes.filter(p => {
-      const date = parseLocalDate(p.entry_date);
-      if (!isValid(date)) return false;
-      return date.getFullYear() === selectedYear;
-    });
-  }, [processes, selectedYear]);
-
-  // Calculate Organization Metrics
-  const metrics = React.useMemo(() => {
-    if (!filteredProcesses || filteredProcesses.length === 0) return null;
-
-    const total = filteredProcesses.length;
-    const finished = filteredProcesses.filter(p => p.status === 'Na pasta').length;
-    const urgentPending = filteredProcesses.filter(p => p.urgency_request && p.status === 'Pendente').length;
-    const completionRate = total > 0 ? ((finished / total) * 100).toFixed(0) : 0;
-
-    // Workload by member (derived from all responsibles in that year)
-    const workload = {};
-
-    // First, map member IDs to names for clean display
-    const memberIdToName = {};
-    members.forEach(m => {
-      memberIdToName[m.user_id] = formatPersonName(m.user_name || '');
-    });
-    Object.entries(userNameMap || {}).forEach(([id, name]) => {
-      if (name) memberIdToName[id] = formatPersonName(String(name));
-    });
-
-    filteredProcesses.forEach(p => {
-      let respName = p.responsible_user_name;
-      const respId = p.responsible_user_id;
-
-      // If we have an ID, try to get the current member name
-      if (respId && memberIdToName[respId]) {
-        respName = memberIdToName[respId];
-      }
-
-      const key = formatPersonName(respName || '') || (respId ? `Usuário ID: ${respId}` : 'Sem Responsável');
-      workload[key] = (workload[key] || 0) + 1;
-    });
-
-    return { total, finished, urgentPending, completionRate, workload };
-  }, [filteredProcesses, members, userNameMap]);
-
-  // Filter expedientes by selected year
-  const filteredExpedientes = React.useMemo(() => {
-    return expedientes.filter(e => {
-      const date = parseLocalDate(getExpedienteField(e, 'entry_date'));
-      if (!isValid(date)) return false;
-      return date.getFullYear() === selectedYear;
-    });
-  }, [expedientes, selectedYear]);
-
-  // Calculate Expedientes Metrics
-  const expedienteMetrics = React.useMemo(() => {
-    if (!filteredExpedientes || filteredExpedientes.length === 0) return null;
-
-    const total = filteredExpedientes.length;
-    const finished = filteredExpedientes.filter(e => calculateExpedienteDerivedStatus(e) === 'Na pasta').length;
-    const urgentPending = filteredExpedientes.filter(e =>
-      getExpedienteField(e, 'urgency_request') === true && calculateExpedienteDerivedStatus(e) === 'Pendente'
-    ).length;
-    const completionRate = total > 0 ? ((finished / total) * 100).toFixed(0) : 0;
-
-    return { total, finished, urgentPending, completionRate };
-  }, [filteredExpedientes]);
+  }, [processes, expedientes, customYears, currentYear]);
 
   const copyInviteCode = () => {
     navigator.clipboard.writeText(organization.invite_code);
@@ -183,113 +109,17 @@ export default function GeneralInfo({ organization, members, processes = [], exp
         </div>
       </div>
 
-      {/* Metrics Section - Processos */}
-      <div className="mb-2">
-           <h3 className="text-sm font-bold text-slate-700 bg-slate-100 py-1.5 px-3 rounded-md w-max inline-flex">Consultas (Processos)</h3>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-              <FileText className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total do Órgão</p>
-              <h3 className="text-2xl font-black text-slate-900">{metrics?.total || 0}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
-              <Target className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Concluídos</p>
-              <h3 className="text-2xl font-black text-slate-900">{metrics?.finished || 0}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-600">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Urgentes Pendentes</p>
-              <h3 className="text-2xl font-black text-slate-900">{metrics?.urgentPending || 0}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa de Conclusão</p>
-              <h3 className="text-2xl font-black text-slate-900">{metrics?.completionRate || 0}%</h3>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Metrics Section - Expedientes */}
-      <div className="mb-2">
-           <h3 className="text-sm font-bold text-slate-700 bg-slate-100 py-1.5 px-3 rounded-md w-max inline-flex">Expedientes Administrativos</h3>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-              <FileText className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total (Expedientes)</p>
-              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.total || 0}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
-              <Target className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Concluídos</p>
-              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.finished || 0}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-600">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Urgentes Pendentes</p>
-              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.urgentPending || 0}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 bg-white">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa de Conclusão</p>
-              <h3 className="text-2xl font-black text-slate-900">{expedienteMetrics?.completionRate || 0}%</h3>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Métricas dinâmicas por página habilitada (ordinárias + personalizadas).
+          Páginas desligadas não exibem métricas; páginas criadas pelo admin
+          aparecem automaticamente. As definições do admin são respeitadas. */}
+      <DashboardMetrics
+        organization={organization}
+        processes={processes}
+        expedientes={expedientes}
+        selectedYear={selectedYear}
+        customEntitiesOn={customEntitiesOn}
+        onCustomYears={setCustomYears}
+      />
 
       <div className="grid grid-cols-1 gap-6">
         <div className="lg:col-span-1 space-y-6">

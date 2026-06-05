@@ -1,8 +1,8 @@
-# Consultas CAO (Version 1.14.2)
+# Consultas CAO (Version 1.15.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
-**Last Updated:** 31/03/2026
+**Last Updated:** 05/06/2026
 
 ## 🚀 Tecnologias
 
@@ -158,6 +158,12 @@ Consultas-CAO/
 - Verifique colunas: Número, Consulente, Local, Data Entrada, Objeto
 
 ## 📝 Atualizações Recentes
+
+### 05/06/2026 - Métricas Configuráveis por Página (v1.15.0)
+- **Painel de Métricas (no-code)**: Nova aba **Métricas** no Painel Administrativo permite ao admin criar, editar, reordenar, redimensionar e excluir indicadores (KPIs) para **cada página habilitada** — Consultas, Expedientes ou páginas personalizadas — usando as **colunas e fases** de cada uma.
+- **Informações Gerais dinâmico**: As métricas exibidas em *Informações Gerais* passam a respeitar as páginas habilitadas. Ao **desligar Consultas ou Expedientes**, suas métricas também somem; **páginas criadas pelo admin** exibem suas métricas automaticamente, conforme as definições do admin.
+- **Motor de cálculo flexível**: Contagem, soma, média, mínimo, máximo e percentual, com filtros por coluna/fase (E lógico), além de ícone, cor e tamanho (redimensionável) por card.
+- **Persistência por organização**: Tudo é salvo em `organization.dashboardConfig`, saneado no servidor pela Cloud Function `updateOrganization`. Com a flag *Páginas e processos personalizados* **desligada**, o comportamento permanece **idêntico ao atual** (zero quebra).
 
 ### 11/03/2026 - Módulo de Expedientes Administrativos (v1.14.0)
 - **Novo Controle de Expedientes**: Criação de fluxos independentes de Consultas, com tela de visualização, formulários e banco de dados próprios.
