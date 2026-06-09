@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateOrganization = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const permissions_1 = require("../shared/permissions");
 exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
@@ -10,7 +11,9 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
     const { organizationId, data } = request.data;
     const requesterId = request.auth.uid;
     const db = admin.firestore();
-    // 1. Verify access (Must be CREATOR)
+    // 1. Verify access.
+    // O CRIADOR pode tudo. Membros podem alterar apenas os campos cujas
+    // permissões especiais lhes foram delegadas (ver shared/permissions.ts).
     // Memberships are stored in 'userOrganizations' collection as {userId}_{orgId}
     const membershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
@@ -18,12 +21,31 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         throw new https_1.HttpsError('permission-denied', 'User is not a member of this organization');
     }
     const membership = membershipSnap.data();
-    if ((membership === null || membership === void 0 ? void 0 : membership.role) !== 'creator') {
-        throw new https_1.HttpsError('permission-denied', 'Only the organization Creator can update settings');
-    }
+    const isCreator = (membership === null || membership === void 0 ? void 0 : membership.role) === 'creator';
     // 2. Validate Data
     if (!organizationId) {
         throw new https_1.HttpsError('invalid-argument', 'Organization ID is required');
+    }
+    // Mapa: campo de dados -> permissão necessária para alterá-lo.
+    // `summarySettings` permanece exclusivo do criador (não é delegável).
+    const FIELD_PERMISSION = {
+        name: 'edit_details',
+        description: 'edit_details',
+        matterSettings: 'manage_matters',
+        expedienteSettings: 'configure_expedientes',
+        moduleConfig: 'manage_modules',
+        dashboardConfig: 'manage_metrics',
+        summarySettings: null,
+    };
+    if (!isCreator) {
+        for (const field of Object.keys(data || {})) {
+            if (data[field] === undefined)
+                continue;
+            const required = FIELD_PERMISSION[field];
+            if (!required || !(0, permissions_1.hasOrgPermission)(membership, required)) {
+                throw new https_1.HttpsError('permission-denied', 'You do not have permission to update these settings');
+            }
+        }
     }
     // 3. Update Organization
     // Only allow specific fields to be updated

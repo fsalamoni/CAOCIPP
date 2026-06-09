@@ -38,12 +38,25 @@ export const removeMember = async (organizationId, userIdToRemove) => {
 
 export const updateMember = async (data) => {
     try {
-        // data: { organizationId, userIdToUpdate, newRole?, newFunction? }
+        // data: { organizationId, userIdToUpdate, newRole?, newFunction?, permissions? }
         const updateMemberFn = httpsCallable(functions, 'updateMember');
         const result = await updateMemberFn(data);
         return result.data;
     } catch (error) {
         logger.error('Error calling updateMember:', error);
+        throw error;
+    }
+};
+
+// Define as permissões especiais de um membro (apenas o criador pode chamar).
+// permissions: mapa { [permissionKey]: boolean }.
+export const setMemberPermissions = async ({ organizationId, userIdToUpdate, permissions }) => {
+    try {
+        const updateMemberFn = httpsCallable(functions, 'updateMember');
+        const result = await updateMemberFn({ organizationId, userIdToUpdate, permissions });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling setMemberPermissions:', error);
         throw error;
     }
 };

@@ -3,12 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateMember = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const permissions_1 = require("../shared/permissions");
 exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
-    const { organizationId, userIdToUpdate, newRole, newFunction } = request.data;
+    const { organizationId, userIdToUpdate, newRole, newFunction, permissions } = request.data;
     const db = admin.firestore();
     const requesterId = request.auth.uid;
     // 1. Check requester permissions
@@ -20,6 +21,11 @@ exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     const requesterRole = (_a = requesterMembershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
     if (requesterRole !== 'creator' && requesterRole !== 'admin') { // Admins can update members? Usually yes.
         throw new https_1.HttpsError('permission-denied', 'Insufficient permissions');
+    }
+    // Apenas o CRIADOR pode conceder/revogar permissões especiais, pois
+    // elas equivalem a poderes do próprio criador.
+    if (permissions !== undefined && requesterRole !== 'creator') {
+        throw new https_1.HttpsError('permission-denied', 'Only the organization Creator can assign special permissions');
     }
     // 2. Check target
     const targetRef = db.collection('userOrganizations').doc(`${userIdToUpdate}_${organizationId}`);
@@ -37,6 +43,8 @@ exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
         updates.role = newRole;
     if (newFunction !== undefined)
         updates.function = newFunction;
+    if (permissions !== undefined)
+        updates.permissions = (0, permissions_1.sanitizePermissions)(permissions);
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     await targetRef.update(updates);
     // 4. Audit

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MatterCategorySelect from './MatterCategorySelect';
 import { useAuth } from '@/lib/FirebaseAuthContext';
+import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { updateProcess, deleteProcess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,7 @@ import { RS_CITIES } from '@/utils/cities';
 
 export default function EditProcessDialog({ open, setOpen, process, members, onSuccess, organizationId, userRole, organization }) {
   const { user } = useAuth();
+  const canDeleteRecords = useOrgPermission('delete_records');
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',
@@ -316,7 +318,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   };
 
   // Permission check for delete button
-  const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator';
+  const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator' || canDeleteRecords;
 
   const renderValidationSignal = (field) => {
     if (formData[field] && String(formData[field]).trim() !== '') {

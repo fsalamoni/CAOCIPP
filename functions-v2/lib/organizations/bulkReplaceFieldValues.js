@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const normalization_1 = require("../shared/normalization");
 const history_1 = require("../shared/history");
+const permissions_1 = require("../shared/permissions");
 const VALID_COLLECTIONS = ['processes', 'expedientes'];
 const VALID_FIELDS = ['responsible_user_name', 'consultant', 'location', 'origin', 'object'];
 function normalizeSearch(value) {
@@ -19,7 +20,6 @@ function normalizeReplacement(field, value) {
     return trimmed;
 }
 exports.bulkReplaceFieldValues = (0, https_1.onCall)({ region: 'southamerica-east1', timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -43,7 +43,8 @@ exports.bulkReplaceFieldValues = (0, https_1.onCall)({ region: 'southamerica-eas
     }
     const membershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'creator') {
+    // O criador pode padronizar; membros precisam da permissão `bulk_standardize`.
+    if (!membershipSnap.exists || !(0, permissions_1.hasOrgPermission)(membershipSnap.data(), 'bulk_standardize')) {
         throw new https_1.HttpsError('permission-denied', 'Apenas o criador da organização pode executar substituição em bloco');
     }
     const totals = { processes: 0, expedientes: 0 };

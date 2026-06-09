@@ -7,6 +7,7 @@ import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { getOrganizationTabs } from '@/lib/organizationModules';
+import { hasAnyAdminPermission } from '@/constants/orgPermissions';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { formatPersonName } from '@/utils/nameUtils';
 import {
@@ -184,7 +185,7 @@ export default function Layout({ children, currentPageName }) {
                         {isOrgActive && (
                           <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
                             {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [] })
-                              .filter((tab) => !tab.creatorOnly || org.userRole === 'creator')
+                              .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
                               .map((tab) => {
                                 const TabIcon = tab.icon;
                                 return (

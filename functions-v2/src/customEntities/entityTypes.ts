@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { sanitizeEntityTypeDefinition } from './schema';
+import { hasOrgPermission, MembershipLike } from '../shared/permissions';
 
 const REGION = 'southamerica-east1';
 
@@ -15,8 +16,11 @@ async function assertManager(db: FirebaseFirestore.Firestore, userId: string, or
     if (!snap.exists) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização.');
     }
-    const role = snap.data()?.role;
-    if (role !== 'creator' && role !== 'admin') {
+    const membership = snap.data() as MembershipLike;
+    const role = membership?.role;
+    // Criador/Administradores sempre podem; membros precisam da permissão
+    // delegada `manage_modules`.
+    if (role !== 'creator' && role !== 'admin' && !hasOrgPermission(membership, 'manage_modules')) {
         throw new HttpsError('permission-denied', 'Apenas o Criador ou Administradores podem gerenciar páginas personalizadas.');
     }
     return role;

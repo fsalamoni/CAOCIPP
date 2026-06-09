@@ -3,8 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteExpediente = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const permissions_1 = require("../shared/permissions");
 exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -20,8 +20,8 @@ exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     if (!membershipSnap.exists) {
         throw new https_1.HttpsError('permission-denied', 'Not a member');
     }
-    const role = (_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
-    if (role !== 'creator') {
+    // O criador pode excluir; membros precisam da permissão `delete_records`.
+    if (!(0, permissions_1.hasOrgPermission)(membershipSnap.data(), 'delete_records')) {
         throw new https_1.HttpsError('permission-denied', 'Only the organization creator can delete expedientes');
     }
     // 2. Delete

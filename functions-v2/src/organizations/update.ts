@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { hasOrgPermission, MembershipLike, OrgPermissionKey } from '../shared/permissions';
 
 interface UpdateOrganizationRequest {
     organizationId: string;
@@ -33,7 +34,9 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         const requesterId = request.auth.uid;
         const db = admin.firestore();
 
-        // 1. Verify access (Must be CREATOR)
+        // 1. Verify access.
+        // O CRIADOR pode tudo. Membros podem alterar apenas os campos cujas
+        // permissões especiais lhes foram delegadas (ver shared/permissions.ts).
         // Memberships are stored in 'userOrganizations' collection as {userId}_{orgId}
         const membershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
@@ -42,14 +45,34 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             throw new HttpsError('permission-denied', 'User is not a member of this organization');
         }
 
-        const membership = membershipSnap.data();
-        if (membership?.role !== 'creator') {
-            throw new HttpsError('permission-denied', 'Only the organization Creator can update settings');
-        }
+        const membership = membershipSnap.data() as MembershipLike;
+        const isCreator = membership?.role === 'creator';
 
         // 2. Validate Data
         if (!organizationId) {
             throw new HttpsError('invalid-argument', 'Organization ID is required');
+        }
+
+        // Mapa: campo de dados -> permissão necessária para alterá-lo.
+        // `summarySettings` permanece exclusivo do criador (não é delegável).
+        const FIELD_PERMISSION: Record<string, OrgPermissionKey | null> = {
+            name: 'edit_details',
+            description: 'edit_details',
+            matterSettings: 'manage_matters',
+            expedienteSettings: 'configure_expedientes',
+            moduleConfig: 'manage_modules',
+            dashboardConfig: 'manage_metrics',
+            summarySettings: null,
+        };
+
+        if (!isCreator) {
+            for (const field of Object.keys(data || {})) {
+                if (data[field as keyof typeof data] === undefined) continue;
+                const required = FIELD_PERMISSION[field];
+                if (!required || !hasOrgPermission(membership, required)) {
+                    throw new HttpsError('permission-denied', 'You do not have permission to update these settings');
+                }
+            }
         }
 
         // 3. Update Organization

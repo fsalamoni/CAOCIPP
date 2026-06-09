@@ -4,16 +4,19 @@ exports.deleteEntityType = exports.upsertEntityType = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const schema_1 = require("./schema");
+const permissions_1 = require("../shared/permissions");
 const REGION = 'southamerica-east1';
 async function assertManager(db, userId, organizationId) {
-    var _a;
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const snap = await membershipRef.get();
     if (!snap.exists) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização.');
     }
-    const role = (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.role;
-    if (role !== 'creator' && role !== 'admin') {
+    const membership = snap.data();
+    const role = membership === null || membership === void 0 ? void 0 : membership.role;
+    // Criador/Administradores sempre podem; membros precisam da permissão
+    // delegada `manage_modules`.
+    if (role !== 'creator' && role !== 'admin' && !(0, permissions_1.hasOrgPermission)(membership, 'manage_modules')) {
         throw new https_1.HttpsError('permission-denied', 'Apenas o Criador ou Administradores podem gerenciar páginas personalizadas.');
     }
     return role;
