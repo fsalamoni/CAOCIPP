@@ -1,11 +1,14 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { sanitizePermissions } from '../shared/permissions';
 
 interface UpdateMemberRequest {
     organizationId: string;
     userIdToUpdate: string;
-    newRole: 'admin' | 'member';
+    newRole?: 'admin' | 'member';
     newFunction?: string;
+    // Mapa de permissões especiais delegadas. Apenas o CRIADOR pode definir.
+    permissions?: Record<string, unknown>;
 }
 
 export const updateMember = onCall<UpdateMemberRequest>(
@@ -15,7 +18,7 @@ export const updateMember = onCall<UpdateMemberRequest>(
             throw new HttpsError('unauthenticated', 'User must be authenticated');
         }
 
-        const { organizationId, userIdToUpdate, newRole, newFunction } = request.data;
+        const { organizationId, userIdToUpdate, newRole, newFunction, permissions } = request.data;
 
         const db = admin.firestore();
         const requesterId = request.auth.uid;
@@ -31,6 +34,12 @@ export const updateMember = onCall<UpdateMemberRequest>(
         const requesterRole = requesterMembershipSnap.data()?.role;
         if (requesterRole !== 'creator' && requesterRole !== 'admin') { // Admins can update members? Usually yes.
             throw new HttpsError('permission-denied', 'Insufficient permissions');
+        }
+
+        // Apenas o CRIADOR pode conceder/revogar permissões especiais, pois
+        // elas equivalem a poderes do próprio criador.
+        if (permissions !== undefined && requesterRole !== 'creator') {
+            throw new HttpsError('permission-denied', 'Only the organization Creator can assign special permissions');
         }
 
         // 2. Check target
@@ -50,6 +59,7 @@ export const updateMember = onCall<UpdateMemberRequest>(
         const updates: any = {};
         if (newRole) updates.role = newRole;
         if (newFunction !== undefined) updates.function = newFunction;
+        if (permissions !== undefined) updates.permissions = sanitizePermissions(permissions);
         updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
 
         await targetRef.update(updates);

@@ -68,6 +68,7 @@ export function useOrganizations() {
                             ...orgSnapshot.data(),
                             userRole: membership.role,
                             userFunction: membership.function,
+                            userPermissions: membership.permissions || {},
                             userName: formatPersonName(membership.user_name || ''),
                             userActive: membership.active // Should be true or undefined
                         };

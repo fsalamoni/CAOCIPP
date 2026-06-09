@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/FirebaseAuthContext';
+import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { updateExpediente, deleteExpediente } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +34,7 @@ const DEFAULT_ORIGINS = ['SUBINST', 'SUBADM', 'Gabinete PGJ', 'SUBGES', 'Outros'
 
 export default function EditExpedienteDialog({ open, setOpen, expediente, members, onSuccess, organizationId, userRole, organization }) {
   const { user } = useAuth();
+  const canDeleteRecords = useOrgPermission('delete_records');
   const [formData, setFormData] = useState({
     expediente_number: '',
     system: '',
@@ -278,7 +280,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     }
   };
 
-  const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator';
+  const canDelete = userRole === 'admin' || userRole === 'owner' || userRole === 'creator' || canDeleteRecords;
 
   const renderValidationSignal = (field) => {
     if (formData[field] && String(formData[field]).trim() !== '') {

@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { hasOrgPermission, MembershipLike } from '../shared/permissions';
 
 interface DeleteProcessRequest {
     id: string;
@@ -28,8 +29,8 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
         if (!membershipSnap.exists) {
             throw new HttpsError('permission-denied', 'Not a member');
         }
-        const role = membershipSnap.data()?.role;
-        if (role !== 'creator') {
+        // O criador pode excluir; membros precisam da permissão `delete_records`.
+        if (!hasOrgPermission(membershipSnap.data() as MembershipLike, 'delete_records')) {
             throw new HttpsError('permission-denied', 'Only the organization creator can delete processes');
         }
 

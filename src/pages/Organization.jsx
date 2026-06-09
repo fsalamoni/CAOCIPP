@@ -6,6 +6,8 @@ import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { isTabVisible } from '@/lib/organizationModules';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
+import { hasAnyAdminPermission } from '@/constants/orgPermissions';
+import { OrganizationPermissionsProvider } from '@/lib/OrganizationPermissionsContext';
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -192,6 +194,7 @@ export default function Organization() {
 
   return (
     <TooltipProvider delayDuration={400}>
+      <OrganizationPermissionsProvider membership={userMembership}>
       <div className="min-h-full flex flex-col min-w-0">
         {/* Header */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 rounded-xl mb-6 shadow-sm">
@@ -339,11 +342,12 @@ export default function Organization() {
             />
           )}
 
-          {activeTab === 'admin' && userRole === 'creator' && (
+          {activeTab === 'admin' && (userRole === 'creator' || hasAnyAdminPermission(userMembership)) && (
             <AdminManagement
               organization={organization}
               members={members}
               userRole={userRole}
+              userMembership={userMembership}
             />
           )}
 
@@ -358,6 +362,7 @@ export default function Organization() {
           )}
         </div>
       </div>
+      </OrganizationPermissionsProvider>
     </TooltipProvider>
   );
 }
