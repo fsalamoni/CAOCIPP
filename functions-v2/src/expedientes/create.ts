@@ -18,6 +18,7 @@ interface CreateExpedienteRequest {
     analysisStartDate?: string;
     observations?: string;
     reviewSubmissionDate?: string;
+    reviewedDate?: string;
     reviewReturnDate?: string;
     archivedDate?: string;
     networkFolder?: string;
@@ -53,6 +54,7 @@ export const createExpediente = onCall<CreateExpedienteRequest>(
             distribution_date: data.distributionDate,
             analysis_start_date: data.analysisStartDate,
             review_submission_date: data.reviewSubmissionDate,
+            reviewed_date: data.reviewedDate,
             review_return_date: data.reviewReturnDate,
             archived_date: data.archivedDate
         });
@@ -81,6 +83,7 @@ export const createExpediente = onCall<CreateExpedienteRequest>(
             analysis_start_date: data.analysisStartDate || null,
             observations: data.observations || '',
             review_submission_date: data.reviewSubmissionDate || null,
+            reviewed_date: data.reviewedDate || null,
             review_return_date: data.reviewReturnDate || null,
             archived_date: data.archivedDate || null,
             network_folder: data.networkFolder || '',

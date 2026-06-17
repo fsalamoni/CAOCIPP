@@ -18,6 +18,7 @@ export const EXPEDIENTE_FIELD_ALIASES = {
     analysis_start_date: ['analysis_start_date', 'inicio_analise', 'INÍCIO DA ANÁLISE', 'Início da Análise'],
     observations: ['observations', 'observacoes', 'obs', 'OBSERVAÇÕES', 'Observações'],
     review_submission_date: ['review_submission_date', 'remessa_revisao', 'REMESSA P/ REVISÃO', 'Remessa p/ Revisão'],
+    reviewed_date: ['reviewed_date', 'data_revisao_concluida', 'revisao_concluida', 'REVISÃO CONCLUÍDA', 'Revisão Concluída', 'REVISADAS', 'Revisadas'],
     review_return_date: ['review_return_date', 'devolucao_revisao', 'DEVOLUÇÃO APÓS REVISÃO', 'Devolução após Revisão'],
     archived_date: ['archived_date', 'arquivamento', 'ARQUIVAMENTO', 'Arquivamento'],
     network_folder: ['network_folder', 'pasta_rede', 'PASTA NA REDE', 'Pasta na Rede'],
@@ -68,12 +69,15 @@ export function calculateExpedienteDerivedStatus(exp) {
     // 1. "Na pasta" (Verde): Arquivamento preenchido.
     if (getExpedienteField(exp, 'archived_date')) return "Na pasta";
 
-    // 2. "Em revisão" (Azul/Roxo): Remessa p/ Revisão preenchida.
+    // 2. "Revisadas" (Roxo): Revisão concluída pelo responsável.
+    if (getExpedienteField(exp, 'reviewed_date')) return "Revisadas";
+
+    // 3. "Em revisão" (Azul): Remessa p/ Revisão preenchida.
     if (getExpedienteField(exp, 'review_submission_date')) return "Em revisão";
 
-    // 3. "Em elaboração" (Amarelo/Âmbar): Início da Análise preenchido.
+    // 4. "Em elaboração" (Amarelo/Âmbar): Início da Análise preenchido.
     if (getExpedienteField(exp, 'analysis_start_date')) return "Em elaboração";
 
-    // 4. Fallback: Pendente ou Status original se manual.
+    // 5. Fallback: Pendente ou Status original se manual.
     return getExpedienteField(exp, 'status') || "Pendente";
 }

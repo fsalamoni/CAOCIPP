@@ -43,6 +43,20 @@ export const statusConfig = {
             groupHover: "group-hover:!bg-[#A5C9D4]"
         }
     },
+    'Revisadas': {
+        color: '#a855f7',
+        label: 'Revisadas',
+        startColor: 'bg-[#E5D9F5]',
+        text: 'text-purple-800',
+        border: 'border-purple-200',
+        row: {
+            bg: "bg-[#E5D9F5]",
+            accent: "border-l-[#8E7CC3]",
+            border: "border-b-[#D3C2EC]",
+            hover: "hover:bg-[#DCCDF0]",
+            groupHover: "group-hover:!bg-[#DCCDF0]"
+        }
+    },
     'Na pasta': {
         color: '#22c55e',
         label: 'Na pasta',

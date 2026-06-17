@@ -103,6 +103,7 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
             analysis_start_date: 'Início da Análise',
             observations: 'Observações',
             review_submission_date: 'Remessa para Revisão',
+            reviewed_date: 'Revisão Concluída',
             review_return_date: 'Devolução após Revisão',
             archived_date: 'Data de Arquivamento',
             network_folder: 'Pasta na Rede',

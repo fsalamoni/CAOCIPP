@@ -48,6 +48,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     analysis_start_date: '',
     observations: '',
     review_submission_date: '',
+    reviewed_date: '',
     review_return_date: '',
     archived_date: '',
     network_folder: '',
@@ -133,6 +134,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         analysis_start_date: formatDateForInput(getValue(['analysis_start_date', 'inicio_analise'])),
         observations: getValue(['observations', 'observacoes', 'obs']),
         review_submission_date: formatDateForInput(getValue(['review_submission_date', 'remessa_revisao'])),
+        reviewed_date: formatDateForInput(getValue(['reviewed_date', 'data_revisao_concluida', 'revisao_concluida'])),
         review_return_date: formatDateForInput(getValue(['review_return_date', 'devolucao_revisao'])),
         archived_date: formatDateForInput(getValue(['archived_date', 'arquivamento'])),
         network_folder: getValue(['network_folder', 'pasta_rede']),
@@ -146,6 +148,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
       return {
         analysis_start_date: emptyValue,
         review_submission_date: emptyValue,
+        reviewed_date: emptyValue,
         review_return_date: emptyValue,
         archived_date: emptyValue,
         responsible_user_id: emptyValue,
@@ -156,12 +159,20 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     if (status === 'Em elaboração') {
       return {
         review_submission_date: emptyValue,
+        reviewed_date: emptyValue,
         review_return_date: emptyValue,
         archived_date: emptyValue,
       };
     }
 
     if (status === 'Em revisão') {
+      return {
+        reviewed_date: emptyValue,
+        archived_date: emptyValue,
+      };
+    }
+
+    if (status === 'Revisadas') {
       return {
         archived_date: emptyValue,
       };
@@ -196,6 +207,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         analysis_start_date: formData.analysis_start_date || null,
         observations: formData.observations || '',
         review_submission_date: formData.review_submission_date || null,
+        reviewed_date: formData.reviewed_date || null,
         review_return_date: formData.review_return_date || null,
         archived_date: formData.archived_date || null,
         network_folder: formData.network_folder || '',
@@ -477,6 +489,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                       <SelectItem value="Pendente">Pendente</SelectItem>
                       <SelectItem value="Em elaboração">Em elaboração</SelectItem>
                       <SelectItem value="Em revisão">Em revisão</SelectItem>
+                      <SelectItem value="Revisadas">Revisadas</SelectItem>
                       <SelectItem value="Na pasta">Na pasta</SelectItem>
                     </SelectContent>
                   </Select>
@@ -492,6 +505,16 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                       type="date"
                       value={formData.review_submission_date || ''}
                       onChange={(e) => setFormData({ ...formData, review_submission_date: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="reviewed_date">Revisão Concluída</Label>
+                    <Input
+                      id="reviewed_date"
+                      type="date"
+                      value={formData.reviewed_date || ''}
+                      onChange={(e) => setFormData({ ...formData, reviewed_date: e.target.value })}
                       className="mt-1"
                     />
                   </div>

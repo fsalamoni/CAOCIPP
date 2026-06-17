@@ -6,6 +6,7 @@ const COLORS = {
   "Pendente": "#64748b", // Using slate for white-on-white fallback visibility in charts
   "Em elaboração": "#fbbf24",
   "Em revisão": "#8b5cf6",
+  "Revisadas": "#a855f7",
   "Na pasta": "#22c55e"
 };
 

@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Inbox, Pencil, Eye, FolderCheck, Plus, SlidersHorizontal, FilterX, ArrowUpDown, X } from 'lucide-react';
+import { Loader2, Inbox, Pencil, Eye, CheckCheck, FolderCheck, Plus, SlidersHorizontal, FilterX, ArrowUpDown, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateExpedienteDerivedStatus, getExpedienteField } from '@/utils/expedienteUtils';
 import { updateExpediente } from '@/services/functionsService';
@@ -68,6 +68,17 @@ const KANBAN_COLUMNS = [
         dotColor: 'bg-sky-400',
     },
     {
+        id: 'Revisadas',
+        label: 'Revisadas',
+        icon: CheckCheck,
+        emptyText: 'Nenhum expediente revisado',
+        headerBg: 'bg-violet-50',
+        headerBorder: 'border-violet-200',
+        headerText: 'text-violet-700',
+        columnBg: 'bg-violet-50/30',
+        dotColor: 'bg-violet-400',
+    },
+    {
         id: 'Na pasta',
         label: 'Arquivados',
         icon: FolderCheck,
@@ -82,13 +93,14 @@ const KANBAN_COLUMNS = [
 
 // Valid transitions: forward only for advancing to the next stage.
 // Backward transitions are computed dynamically and may move to any previous stage.
-const VALID_FORWARD = { 0: [1], 1: [2], 2: [3], 3: [] };
+const VALID_FORWARD = { 0: [1], 1: [2], 2: [3], 3: [4], 4: [] };
 
 const DATE_SORT_KEYS = new Set([
     'entry_date',
     'distribution_date',
     'analysis_start_date',
     'review_submission_date',
+    'reviewed_date',
     'review_return_date',
     'archived_date',
 ]);
@@ -367,7 +379,7 @@ export default function ExpedienteKanbanBoard({
 
     // Distribute into columns
     const columns = useMemo(() => {
-        const grouped = { 'Pendente': [], 'Em elaboração': [], 'Em revisão': [], 'Na pasta': [] };
+        const grouped = { 'Pendente': [], 'Em elaboração': [], 'Em revisão': [], 'Revisadas': [], 'Na pasta': [] };
         filteredExpedientes.forEach(p => {
             const status = calculateExpedienteDerivedStatus(p);
             (grouped[status] || grouped['Pendente']).push(p);
@@ -540,6 +552,7 @@ export default function ExpedienteKanbanBoard({
             Pendente: {
                 analysis_start_date: null,
                 review_submission_date: null,
+                reviewed_date: null,
                 review_return_date: null,
                 archived_date: null,
                 responsible_user_id: null,
@@ -547,10 +560,15 @@ export default function ExpedienteKanbanBoard({
             },
             'Em elaboração': {
                 review_submission_date: null,
+                reviewed_date: null,
                 review_return_date: null,
                 archived_date: null,
             },
             'Em revisão': {
+                reviewed_date: null,
+                archived_date: null,
+            },
+            'Revisadas': {
                 archived_date: null,
             },
         };
@@ -590,7 +608,15 @@ export default function ExpedienteKanbanBoard({
             return;
         }
 
-        if (fromStatus === 'Em revisão' && toStatus === 'Na pasta') {
+        if (fromStatus === 'Em revisão' && toStatus === 'Revisadas') {
+            setPendingExpediente(expediente);
+            setPendingTarget(toStatus);
+            setDialogMode('review_complete');
+            setDialogOpen(true);
+            return;
+        }
+
+        if (fromStatus === 'Revisadas' && toStatus === 'Na pasta') {
             setPendingExpediente(expediente);
             setPendingTarget(toStatus);
             setDialogMode('archive');
@@ -622,6 +648,11 @@ export default function ExpedienteKanbanBoard({
                 network_folder: data.network_folder,
                 status: 'Em revisão',
             };
+        } else if (dialogMode === 'review_complete') {
+            changes = {
+                reviewed_date: data.reviewed_date || today,
+                status: 'Revisadas',
+            };
         } else if (dialogMode === 'archive') {
             changes = {
                 archived_date: today,
@@ -639,6 +670,7 @@ export default function ExpedienteKanbanBoard({
             const actions = {
                 assign: `Expediente ${expedienteNumber} em análise!`,
                 review: `Expediente ${expedienteNumber} enviado para revisão!`,
+                review_complete: `Expediente ${expedienteNumber} marcado como revisado!`,
                 archive: `Expediente ${expedienteNumber} arquivado!`,
             };
             toast.success(actions[dialogMode]);
@@ -853,7 +885,7 @@ export default function ExpedienteKanbanBoard({
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
             >
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                     {KANBAN_COLUMNS.map((col) => (
                         <KanbanColumn
                             key={col.id}

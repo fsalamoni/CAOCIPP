@@ -19,6 +19,7 @@ import {
     Lock,
     Clock,
     CheckCircle2,
+    CheckCheck,
     Circle,
     ArrowRight
 } from "lucide-react";
@@ -72,6 +73,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
         { label: 'Distribuição', key: 'distribution_date', icon: ArrowRight },
         { label: 'Início da Análise', key: 'analysis_start_date', icon: FileText },
         { label: 'Remessa p/ Revisão', key: 'review_submission_date', icon: Clock },
+        { label: 'Revisão Concluída', key: 'reviewed_date', icon: CheckCheck },
         { label: 'Devolução após Revisão', key: 'review_return_date', icon: CheckCircle2 },
         { label: 'Arquivamento', key: 'archived_date', icon: FolderOpen },
     ];

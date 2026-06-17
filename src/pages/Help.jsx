@@ -102,8 +102,9 @@ export default function Help() {
           <div className="space-y-3">
             <StatusFlow step="1" status="Pendente" description="Estado padrão para novos processos (Fundo Branco)." />
             <StatusFlow step="2" status="Em elaboração" description="Análise iniciada (Fundo Amarelo/Âmbar)." />
-            <StatusFlow step="3" status="Em revisão" description="Remessa para revisão técnica (Fundo Azul/Roxo)." />
-            <StatusFlow step="4" status="Na pasta" description="Processo finalizado e arquivado (Fundo Verde)." />
+            <StatusFlow step="3" status="Em revisão" description="Remessa para revisão técnica (Fundo Azul)." />
+            <StatusFlow step="4" status="Revisadas" description="Revisão concluída pelo responsável (Fundo Roxo)." />
+            <StatusFlow step="5" status="Na pasta" description="Processo finalizado e arquivado (Fundo Verde)." />
           </div>
           <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
             <p className="text-sm text-indigo-900">

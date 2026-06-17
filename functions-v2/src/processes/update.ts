@@ -117,6 +117,7 @@ export const updateProcess = onCall<UpdateProcessRequest>(
             analysis_start_date: 'Início da Análise',
             observations: 'Observações',
             review_submission_date: 'Remessa para Revisão',
+            reviewed_date: 'Revisão Concluída',
             review_return_date: 'Retorno da Revisão',
             archived_date: 'Data de Arquivamento',
             access_restriction: 'Restrição de Acesso',

@@ -6,13 +6,16 @@ function calculateStatus(process) {
     // 1. "Na pasta" (Verde): Se o campo de Arquivamento estiver preenchido.
     if ((0, fields_1.getSmartField)(process, 'archived_date'))
         return "Na pasta";
-    // 2. "Em revisão" (Azul/Roxo): Se o campo Remessa p/ Revisão estiver preenchido.
+    // 2. "Revisadas" (Roxo): Se a Revisão concluída pelo responsável estiver preenchida.
+    if ((0, fields_1.getSmartField)(process, 'reviewed_date'))
+        return "Revisadas";
+    // 3. "Em revisão" (Azul): Se o campo Remessa p/ Revisão estiver preenchido.
     if ((0, fields_1.getSmartField)(process, 'review_submission_date'))
         return "Em revisão";
-    // 3. "Em elaboração" (Âmbar/Amarelo): Se o campo Início da Análise estiver preenchido.
+    // 4. "Em elaboração" (Âmbar/Amarelo): Se o campo Início da Análise estiver preenchido.
     if ((0, fields_1.getSmartField)(process, 'analysis_start_date'))
         return "Em elaboração";
-    // 4. "Pendente" (Branco): Fallback final.
+    // 5. "Pendente" (Branco): Fallback final.
     return (0, fields_1.getSmartField)(process, 'status') || "Pendente";
 }
 //# sourceMappingURL=status.js.map

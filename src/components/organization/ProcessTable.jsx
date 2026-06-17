@@ -52,6 +52,7 @@ export default function ProcessTable({
     distribution: { start: '', end: '' },
     analysis: { start: '', end: '' },
     review_submission: { start: '', end: '' },
+    reviewed: { start: '', end: '' },
     review_return: { start: '', end: '' },
     archived: { start: '', end: '' }
   });
@@ -100,6 +101,7 @@ export default function ProcessTable({
       distribution: { start: '', end: '' },
       analysis: { start: '', end: '' },
       review_submission: { start: '', end: '' },
+      reviewed: { start: '', end: '' },
       review_return: { start: '', end: '' },
       archived: { start: '', end: '' }
     });
@@ -226,6 +228,11 @@ export default function ProcessTable({
       key: 'review_submission_date', label: 'Para Revisão', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
       render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'review_submission_date'))}</span>
+    },
+    {
+      key: 'reviewed_date', label: 'Revisão Concluída', defaultVisible: false,
+      width: 'w-[110px]', sortable: true,
+      render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'reviewed_date'))}</span>
     },
     {
       key: 'review_return_date', label: 'Devolução após Revisão', defaultVisible: false,
@@ -419,7 +426,7 @@ export default function ProcessTable({
     Object.keys(dateFilters).forEach(key => {
       const { start, end } = dateFilters[key];
       if (start || end) {
-        const fieldName = { entry: 'entry_date', distribution: 'distribution_date', analysis: 'analysis_start_date', review_submission: 'review_submission_date', review_return: 'review_return_date', archived: 'archived_date' }[key];
+        const fieldName = { entry: 'entry_date', distribution: 'distribution_date', analysis: 'analysis_start_date', review_submission: 'review_submission_date', reviewed: 'reviewed_date', review_return: 'review_return_date', archived: 'archived_date' }[key];
         result = result.filter(p => {
           const val = getProcessField(p, fieldName);
           if (!val) return false;
@@ -450,7 +457,7 @@ export default function ProcessTable({
       });
     }
 
-    const DATE_COLUMNS = new Set(['entry_date', 'distribution_date', 'analysis_start_date', 'review_submission_date', 'review_return_date', 'archived_date']);
+    const DATE_COLUMNS = new Set(['entry_date', 'distribution_date', 'analysis_start_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
     const parseDateToTimestamp = (value) => {
       if (!value) return null;
       if (value.seconds !== undefined) return value.seconds * 1000;
@@ -520,7 +527,7 @@ export default function ProcessTable({
     return config.row || DEFAULT_STATUS_CONFIG.row;
   };
 
-  const statuses = ["Pendente", "Em elaboração", "Em revisão", "Na pasta"];
+  const statuses = ["Pendente", "Em elaboração", "Em revisão", "Revisadas", "Na pasta"];
 
   return (
     <div className="space-y-4">
@@ -632,6 +639,7 @@ export default function ProcessTable({
                         { label: 'Distribuição', key: 'distribution' },
                         { label: 'Início da Análise', key: 'analysis' },
                         { label: 'Remessa p/ Revisão', key: 'review_submission' },
+                        { label: 'Revisão Concluída', key: 'reviewed' },
                         { label: 'Retorno da Revisão', key: 'review_return' },
                         { label: 'Arquivamento', key: 'archived' }
                       ].map(({ label, key }) => (

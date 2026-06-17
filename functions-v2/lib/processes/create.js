@@ -29,6 +29,7 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         distribution_date: data.distributionDate,
         analysis_start_date: data.analysisStartDate,
         review_submission_date: data.reviewSubmissionDate,
+        reviewed_date: data.reviewedDate,
         review_return_date: data.reviewReturnDate,
         archived_date: data.archivedDate
     });
@@ -56,6 +57,7 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         analysis_start_date: data.analysisStartDate || null,
         observations: data.observations || '',
         review_submission_date: data.reviewSubmissionDate || null,
+        reviewed_date: data.reviewedDate || null,
         review_return_date: data.reviewReturnDate || null,
         access_restriction: data.accessRestriction || false,
         archived_date: data.archivedDate || null,

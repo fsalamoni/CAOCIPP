@@ -28,6 +28,7 @@ export const PROCESS_STATUSES = {
     EM_ELABORACAO: 'Em elaboração',
     EM_REVISAO: 'Em revisão',
     PARA_REVISAO: 'Para revisão',
+    REVISADAS: 'Revisadas',
     NA_PASTA: 'Na pasta'
 };
 

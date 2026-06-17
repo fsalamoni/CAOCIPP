@@ -9,6 +9,7 @@ import {
   RefreshCcw,
   PenTool,
   CheckCircle,
+  CheckCheck,
   AlertCircle
 } from 'lucide-react';
 
@@ -16,6 +17,7 @@ const ICONS = {
   'Pendente': Clock,
   'Em elaboração': FileText,
   'Em revisão': Eye,
+  'Revisadas': CheckCheck,
   'Na pasta': CheckCircle
 };
 

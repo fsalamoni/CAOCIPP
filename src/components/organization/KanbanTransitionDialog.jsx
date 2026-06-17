@@ -19,21 +19,22 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Loader2, UserCheck, FileText, FolderOpen } from 'lucide-react';
+import { Loader2, UserCheck, FileText, FolderOpen, CheckCheck } from 'lucide-react';
 import { getProcessField } from '@/utils/processUtils';
 
 /**
  * KanbanTransitionDialog — Modals for Kanban column transitions.
  *
  * Modes:
- *  - "assign"   : Pendente → Análise (Secretary/Decisor chooses an assessor)
- *  - "review"   : Análise → Revisão (observations + network folder required)
- *  - "archive"  : Revisão → Concluído (simple confirmation)
+ *  - "assign"          : Pendente → Análise (Secretary/Decisor chooses an assessor)
+ *  - "review"          : Análise → Revisão (observations + network folder required)
+ *  - "review_complete" : Revisão → Revisadas (confirm review completion date)
+ *  - "archive"         : Revisadas → Concluído (simple confirmation)
  */
 export default function KanbanTransitionDialog({
     open,
     onClose,
-    mode, // "assign" | "review" | "archive"
+    mode, // "assign" | "review" | "review_complete" | "archive"
     process,
     assessors = [],
     defaultAssessor = '',
@@ -47,6 +48,9 @@ export default function KanbanTransitionDialog({
         getProcessField(process, 'network_folder') || ''
     );
     const [reviewReturnDate, setReviewReturnDate] = useState(() =>
+        new Date().toISOString().split('T')[0]
+    );
+    const [reviewedDate, setReviewedDate] = useState(() =>
         new Date().toISOString().split('T')[0]
     );
     const [saving, setSaving] = useState(false);
@@ -72,6 +76,10 @@ export default function KanbanTransitionDialog({
                     observations: observations.trim(),
                     network_folder: networkFolder.trim(),
                 });
+            } else if (mode === 'review_complete') {
+                await onConfirm({
+                    reviewed_date: reviewedDate
+                });
             } else if (mode === 'archive') {
                 await onConfirm({
                     review_return_date: reviewReturnDate
@@ -90,6 +98,7 @@ export default function KanbanTransitionDialog({
         setObservations(getProcessField(process, 'observations') || '');
         setNetworkFolder(getProcessField(process, 'network_folder') || '');
         setReviewReturnDate(new Date().toISOString().split('T')[0]);
+        setReviewedDate(new Date().toISOString().split('T')[0]);
         setSaving(false);
         onClose();
     };
@@ -97,6 +106,7 @@ export default function KanbanTransitionDialog({
     const isValid = () => {
         if (mode === 'assign') return !!selectedAssessor;
         if (mode === 'review') return observations.trim().length > 0 && networkFolder.trim().length > 0;
+        if (mode === 'review_complete') return !!reviewedDate;
         if (mode === 'archive') return !!reviewReturnDate;
         return true;
     };
@@ -104,12 +114,14 @@ export default function KanbanTransitionDialog({
     const titles = {
         assign: 'Atribuir Responsável',
         review: 'Enviar para Revisão',
+        review_complete: 'Concluir Revisão',
         archive: 'Arquivar Processo',
     };
 
     const descriptions = {
         assign: `Escolha o assessor responsável pelo processo ${processNumber}.`,
         review: `Preencha os campos obrigatórios para enviar ${processNumber} para revisão.`,
+        review_complete: `Confirme a data em que o processo ${processNumber} foi revisado pelo responsável.`,
         archive: `Deseja realmente arquivar o processo ${processNumber}? Esta ação marca o processo como "Na pasta".`,
     };
 
@@ -120,6 +132,7 @@ export default function KanbanTransitionDialog({
                     <DialogTitle className="flex items-center gap-2">
                         {mode === 'assign' && <UserCheck className="w-5 h-5 text-indigo-600" />}
                         {mode === 'review' && <FileText className="w-5 h-5 text-blue-600" />}
+                        {mode === 'review_complete' && <CheckCheck className="w-5 h-5 text-violet-600" />}
                         {mode === 'archive' && <FolderOpen className="w-5 h-5 text-green-600" />}
                         {titles[mode]}
                     </DialogTitle>
@@ -190,6 +203,27 @@ export default function KanbanTransitionDialog({
                         </>
                     )}
 
+                    {/* MODE: Review Complete (Confirm reviewed date) */}
+                    {mode === 'review_complete' && (
+                        <div className="space-y-4">
+                            <div className="p-4 bg-violet-50 rounded-lg border border-violet-200">
+                                <p className="text-sm text-violet-800">
+                                    O processo será marcado como <strong>"Revisadas"</strong>.
+                                    Confirme a data em que a revisão foi concluída pelo responsável.
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="reviewed-date">Revisão Concluída</Label>
+                                <Input
+                                    id="reviewed-date"
+                                    type="date"
+                                    value={reviewedDate}
+                                    onChange={(e) => setReviewedDate(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     {/* MODE: Archive (Confirmation) */}
                     {mode === 'archive' && (
                         <div className="space-y-4">
@@ -222,7 +256,9 @@ export default function KanbanTransitionDialog({
                         className={
                             mode === 'archive'
                                 ? 'bg-green-600 hover:bg-green-700'
-                                : 'bg-indigo-600 hover:bg-indigo-700'
+                                : mode === 'review_complete'
+                                    ? 'bg-violet-600 hover:bg-violet-700'
+                                    : 'bg-indigo-600 hover:bg-indigo-700'
                         }
                     >
                         {saving ? (

@@ -63,6 +63,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     analysis_start_date: '',
     observations: '',
     review_submission_date: '',
+    reviewed_date: '',
     review_return_date: '',
     access_restriction: false,
     archived_date: '',
@@ -166,6 +167,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         analysis_start_date: formatDateForInput(getValue(['analysis_start_date', 'inicio_analise', 'data_inicio', 'INÍCIO DA ANÁLISE\n(DATA)', 'INÍCIO DA ANÁLISE\\n(DATA)'])),
         observations: getValue(['observations', 'observacoes', 'notas', 'pontos_importantes', 'obs', 'OBSERVAÇÕES E PONTOS IMPORTANTES DA RESPOSTA']),
         review_submission_date: formatDateForInput(getValue(['review_submission_date', 'remessa_revisao', 'data_revisao', 'remessa', 'REMESSA AO DR. PARA REVISÃO (DATA)'])),
+        reviewed_date: formatDateForInput(getValue(['reviewed_date', 'data_revisao_concluida', 'revisado', 'revisao_concluida', 'REVISÃO CONCLUÍDA (DATA)'])),
         review_return_date: formatDateForInput(getValue(['review_return_date', 'devolucao_revisao', 'retorno_revisao', 'retorno', 'DEVOLUÇÃO APÓS REVISÃO\n(DATA)', 'DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)'])),
         access_restriction: getBoolValue(['access_restriction', 'restricao', 'restrito', 'sigilo', 'RESTRIÇÃO DE ACESSO'], false),
         archived_date: formatDateForInput(getValue(['archived_date', 'data_arquivamento', 'arquivamento', 'data_arquivo', 'NA PASTA\nARQUIVADO\n(DATA)', 'NA PASTA\\nARQUIVADO\\n(DATA)'])),
@@ -180,6 +182,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
       return {
         analysis_start_date: emptyValue,
         review_submission_date: emptyValue,
+        reviewed_date: emptyValue,
         review_return_date: emptyValue,
         archived_date: emptyValue,
         responsible_user_id: emptyValue,
@@ -190,12 +193,20 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     if (status === 'Em elaboração') {
       return {
         review_submission_date: emptyValue,
+        reviewed_date: emptyValue,
         review_return_date: emptyValue,
         archived_date: emptyValue,
       };
     }
 
     if (status === 'Em revisão') {
+      return {
+        reviewed_date: emptyValue,
+        archived_date: emptyValue,
+      };
+    }
+
+    if (status === 'Revisadas') {
       return {
         archived_date: emptyValue,
       };
@@ -229,6 +240,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         analysis_start_date: formData.analysis_start_date || null,
         observations: formData.observations || '',
         review_submission_date: formData.review_submission_date || null,
+        reviewed_date: formData.reviewed_date || null,
         review_return_date: formData.review_return_date || null,
         access_restriction: formData.access_restriction,
         archived_date: formData.archived_date || null,
@@ -577,6 +589,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                       <SelectItem value="Pendente">Pendente</SelectItem>
                       <SelectItem value="Em elaboração">Em elaboração</SelectItem>
                       <SelectItem value="Em revisão">Em revisão</SelectItem>
+                      <SelectItem value="Revisadas">Revisadas</SelectItem>
                       <SelectItem value="Na pasta">Na pasta</SelectItem>
                     </SelectContent>
                   </Select>
@@ -592,6 +605,16 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                       type="date"
                       value={formData.review_submission_date || ''}
                       onChange={(e) => setFormData({ ...formData, review_submission_date: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="reviewed_date">Revisão Concluída</Label>
+                    <Input
+                      id="reviewed_date"
+                      type="date"
+                      value={formData.reviewed_date || ''}
+                      onChange={(e) => setFormData({ ...formData, reviewed_date: e.target.value })}
                       className="mt-1"
                     />
                   </div>
