@@ -7,7 +7,7 @@ name: Deploy to Firebase
 #   Autenticação (um dos dois):
 #     - FIREBASE_SERVICE_ACCOUNT  → JSON de uma conta de serviço com permissão de
 #                                   deploy (Firebase Admin + Cloud Functions Admin
-#                                   + Service Account User). Recomendado.
+#                                   + Service Account User + Billing Viewer). Recomendado.
 #     - FIREBASE_TOKEN            → token gerado por `firebase login:ci`.
 #   Configuração do frontend (sem elas o app publicado não conecta ao Firebase):
 #     - VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
@@ -16,8 +16,15 @@ name: Deploy to Firebase
 #     - (opcionais) VITE_CONSULTAS_CAO_APP_ID, VITE_CONSULTAS_CAO_FUNCTIONS_VERSION,
 #       VITE_CONSULTAS_CAO_APP_BASE_URL
 #
+# IMPORTANTE: as Cloud Functions são de 2ª geração e EXIGEM, no projeto
+# `protagonista-rpg`, o plano Blaze e a Cloud Billing API habilitada. Por isso o
+# deploy é feito em duas etapas: primeiro Hosting + Firestore (sempre publica o
+# frontend) e depois as Functions (que falham com mensagem clara caso o billing
+# não esteja habilitado), evitando que um bloqueio de billing impeça a
+# publicação da interface.
+#
 # Enquanto os secrets de deploy não existirem, o job termina VERDE sem publicar
-# nada (passo "Check deploy secrets"), evitando publicar um app quebrado.
+# nada (passo "Check deploy secrets").
 
 on:
   push:
@@ -26,6 +33,11 @@ on:
 
 permissions:
   contents: read
+
+# Opta o runtime das próprias actions (checkout/setup-node) para Node 24,
+# removendo o aviso de depreciação do Node 20. Não afeta o Node dos builds.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 concurrency:
   group: firebase-deploy
@@ -102,14 +114,32 @@ jobs:
             echo "Sem conta de serviço; usando FIREBASE_TOKEN."
           fi
 
-      - name: Deploy to Firebase (hosting + functions + firestore)
+      # Etapa 1: publica o frontend (e regras/índices). Não depende de billing,
+      # então a interface vai ao ar mesmo que as Functions estejam bloqueadas.
+      - name: Deploy Hosting & Firestore
         if: steps.pre.outputs.ready == 'true'
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
           set -e
-          ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive"
+          ARGS="deploy --only hosting,firestore --project protagonista-rpg --non-interactive"
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
             ARGS="$ARGS --token $FIREBASE_TOKEN"
           fi
           npx firebase $ARGS
+
+      # Etapa 2: publica as Cloud Functions (2ª geração → exige Blaze + Cloud
+      # Billing API). Falha com mensagem clara caso o billing não esteja pronto.
+      - name: Deploy Functions
+        if: steps.pre.outputs.ready == 'true'
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          ARGS="deploy --only functions --project protagonista-rpg --non-interactive"
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
+            ARGS="$ARGS --token $FIREBASE_TOKEN"
+          fi
+          if ! npx firebase $ARGS; then
+            echo "::error title=Falha no deploy das Cloud Functions::As Functions de 2a geracao exigem, no projeto 'protagonista-rpg', o plano Blaze e a Cloud Billing API habilitada. Habilite a API em https://console.cloud.google.com/apis/library/cloudbilling.googleapis.com?project=protagonista-rpg e conceda a conta de servico o papel roles/billing.viewer; depois rode este workflow novamente (Actions -> Deploy to Firebase -> Run workflow). O Hosting ja foi publicado na etapa anterior."
+            exit 1
+          fi
