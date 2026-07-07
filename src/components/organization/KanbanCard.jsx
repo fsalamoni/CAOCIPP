@@ -6,6 +6,9 @@ import { Lock, AlertCircle, User, FolderOpen, Calendar, Eye } from 'lucide-react
 import { getProcessField } from '@/utils/processUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { toast } from 'sonner';
 import {
     Tooltip,
     TooltipContent,
@@ -20,6 +23,8 @@ import {
  *  - onViewDetails: callback(process) to open the detail sheet
  */
 export default function KanbanCard({ process, columnId, overlay = false, onViewDetails }) {
+    const canCopyProcessNumber = useFlag(FEATURE_FLAGS.COPY_PROCESS_NUMBER.key);
+
     const {
         attributes,
         listeners,
@@ -70,6 +75,17 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
         if (onViewDetails) onViewDetails(process);
     };
 
+    const handleCopyProcessNumber = (e) => {
+        if (!canCopyProcessNumber || !processNumber) return;
+        e.stopPropagation();
+        e.preventDefault();
+        navigator.clipboard.writeText(processNumber).then(() => {
+            toast.success('Número do processo copiado!');
+        }).catch(() => {
+            toast.error('Erro ao copiar número do processo');
+        });
+    };
+
     const cardContent = (
         <div
             className={`
@@ -81,9 +97,20 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
         >
             {/* Header: Process Number + Badges */}
             <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-bold text-slate-900 truncate flex-1">
-                    {processNumber || 'Sem número'}
-                </span>
+                {canCopyProcessNumber && processNumber ? (
+                    <span
+                        className="text-sm font-bold text-slate-900 truncate flex-1 cursor-pointer hover:text-indigo-600 transition-colors"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={handleCopyProcessNumber}
+                        title="Clique para copiar"
+                    >
+                        {processNumber}
+                    </span>
+                ) : (
+                    <span className="text-sm font-bold text-slate-900 truncate flex-1">
+                        {processNumber || 'Sem número'}
+                    </span>
+                )}
                 <div className="flex items-center gap-1 shrink-0">
                     {isUrgent && (
                         <Tooltip>

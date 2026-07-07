@@ -105,6 +105,17 @@ export const FEATURE_FLAGS = {
         risk: 'high',
         default: false,
     },
+
+    // --- Fase 7: Usabilidade ---
+    COPY_PROCESS_NUMBER: {
+        key: 'copy_process_number',
+        label: 'Copiar número do processo ao clicar',
+        description:
+            'Permite que o usuário clique no número do processo nos cartões do Kanban para copiar o texto para a área de transferência.',
+        category: 'Usabilidade',
+        risk: 'low',
+        default: false,
+    },
 };
 
 // Lista plana das flags para iteração em UI.
