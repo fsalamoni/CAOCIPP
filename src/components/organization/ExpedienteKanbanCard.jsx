@@ -6,6 +6,9 @@ import { AlertCircle, User, FolderOpen, Calendar, Eye, Building2, Monitor } from
 import { getExpedienteField } from '@/utils/expedienteUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { toast } from 'sonner';
 import {
     Tooltip,
     TooltipContent,
@@ -16,6 +19,8 @@ import {
  * ExpedienteKanbanCard — Visual card for an expediente in the Kanban board.
  */
 export default function ExpedienteKanbanCard({ expediente, columnId, overlay = false, onViewDetails }) {
+    const canCopyProcessNumber = useFlag(FEATURE_FLAGS.COPY_PROCESS_NUMBER.key);
+
     const {
         attributes,
         listeners,
@@ -63,6 +68,17 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
         if (onViewDetails) onViewDetails(expediente);
     };
 
+    const handleCopyProcessNumber = (e) => {
+        if (!canCopyProcessNumber || !expedienteNumber) return;
+        e.stopPropagation();
+        e.preventDefault();
+        navigator.clipboard.writeText(expedienteNumber).then(() => {
+            toast.success('Número do expediente copiado!');
+        }).catch(() => {
+            toast.error('Erro ao copiar número do expediente');
+        });
+    };
+
     const cardContent = (
         <div
             className={`
@@ -74,9 +90,20 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
         >
             {/* Header: Expediente Number + Urgency */}
             <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-bold text-slate-900 truncate flex-1">
-                    {expedienteNumber || 'Sem número'}
-                </span>
+                {canCopyProcessNumber && expedienteNumber ? (
+                    <span
+                        className="text-sm font-bold text-slate-900 truncate flex-1 cursor-pointer hover:text-indigo-600 transition-colors"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={handleCopyProcessNumber}
+                        title="Clique para copiar"
+                    >
+                        {expedienteNumber}
+                    </span>
+                ) : (
+                    <span className="text-sm font-bold text-slate-900 truncate flex-1">
+                        {expedienteNumber || 'Sem número'}
+                    </span>
+                )}
                 <div className="flex items-center gap-1 shrink-0">
                     {isUrgent && (
                         <Tooltip>
