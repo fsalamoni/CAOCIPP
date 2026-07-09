@@ -10,6 +10,7 @@ import { getOrganizationTabs } from '@/lib/organizationModules';
 import { hasAnyAdminPermission } from '@/constants/orgPermissions';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { formatPersonName } from '@/utils/nameUtils';
+import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
   User,
@@ -20,7 +21,9 @@ import {
   Bell,
   Menu,
   X,
-  ShieldCheck
+  ShieldCheck,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,10 +34,17 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 import { useLocation } from 'react-router-dom';
 
 const publicPages = ['Landing', 'Help', 'Terms'];
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'caocipp_sidebar_collapsed';
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
@@ -45,6 +55,22 @@ export default function Layout({ children, currentPageName }) {
   const { user, userProfile, signOut, isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isPublicPage = publicPages.includes(currentPageName);
+
+  /* Novo design (V2): sidebar colapsável, ficando apenas com os ícones. */
+  const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+  );
+  const isCollapsed = isV2 && collapsed;
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
+      } catch { /* localStorage indisponível (modo privado etc.) — não é crítico */ }
+      return next;
+    });
+  };
 
   // Fetch user organizations
   const { organizations } = useOrganizations(user?.uid);
@@ -124,140 +150,192 @@ export default function Layout({ children, currentPageName }) {
       </div>
 
       {/* Sidebar */}
-      <aside className={`
-        fixed top-0 left-0 h-full w-64 bg-white border-r border-slate-200 
-        transform transition-transform duration-200 ease-in-out z-40
-        lg:translate-x-0
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="h-16 flex items-center px-6 border-b border-slate-200">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              Consultas CAO
-            </h1>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-1">
-              <NavItem
-                to="Dashboard"
-                icon={LayoutDashboard}
-                label="Início"
-                active={currentPageName === 'Dashboard'}
-                onClick={() => setSidebarOpen(false)}
-              />
-              <NavItem
-                to="Profile"
-                icon={User}
-                label="Meu Perfil"
-                active={currentPageName === 'Profile'}
-                onClick={() => setSidebarOpen(false)}
-              />
+      <TooltipProvider delayDuration={200}>
+        <aside className={cn(
+          'fixed top-0 left-0 h-full bg-white border-r border-slate-200 w-64',
+          'transform transition-[width,transform] duration-200 ease-in-out z-40',
+          'lg:translate-x-0',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          isCollapsed && 'lg:w-[76px]'
+        )}>
+          <div className="flex flex-col h-full">
+            {/* Logo */}
+            <div className={cn('h-16 flex items-center border-b border-slate-200', isCollapsed ? 'justify-center px-0' : 'px-6')}>
+              {isCollapsed ? (
+                <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
+                  CC
+                </div>
+              ) : (
+                <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+                  Consultas CAO
+                </h1>
+              )}
             </div>
 
-            {/* Organizations Section */}
-            {organizations.length > 0 && (
-              <>
-                <div className="mt-6 mb-2 px-3">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Órgãos
-                  </h3>
-                </div>
-                <div className="space-y-1">
-                  {organizations.map(org => {
-                    const isOrgActive = currentPageName === 'Organization' && activeOrgId === org.id;
+            {/* Navigation */}
+            <nav className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+              <div className="space-y-1">
+                <NavItem
+                  to="Dashboard"
+                  icon={LayoutDashboard}
+                  label="Início"
+                  active={currentPageName === 'Dashboard'}
+                  onClick={() => setSidebarOpen(false)}
+                  collapsed={isCollapsed}
+                />
+                <NavItem
+                  to="Profile"
+                  icon={User}
+                  label="Meu Perfil"
+                  active={currentPageName === 'Profile'}
+                  onClick={() => setSidebarOpen(false)}
+                  collapsed={isCollapsed}
+                />
+              </div>
 
-                    return (
-                      <div key={org.id}>
-                        <NavItem
-                          to="Organization"
-                          params={`?id=${org.id}`}
-                          icon={Building2}
-                          label={org.name}
-                          active={isOrgActive}
-                          onClick={() => setSidebarOpen(false)}
-                          badge={org.userRole === 'creator' ? 'Criador' : null}
-                        />
+              {/* Organizations Section */}
+              {organizations.length > 0 && (
+                <>
+                  {!isCollapsed && (
+                    <div className="mt-6 mb-2 px-3">
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Órgãos
+                      </h3>
+                    </div>
+                  )}
+                  {isCollapsed && <div className="mt-6" />}
+                  <div className="space-y-1">
+                    {organizations.map(org => {
+                      const isOrgActive = currentPageName === 'Organization' && activeOrgId === org.id;
 
-                        {/* Sub-navigation for active organization */}
-                        {isOrgActive && (
-                          <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
-                            {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [] })
-                              .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
-                              .map((tab) => {
-                                const TabIcon = tab.icon;
-                                return (
-                                  <SubNavItem
-                                    key={tab.key}
-                                    to="Organization"
-                                    params={`?id=${org.id}&tab=${tab.key}`}
-                                    icon={TabIcon}
-                                    label={tab.label}
-                                    active={activeTab === tab.key}
-                                    onClick={() => setSidebarOpen(false)}
-                                  />
-                                );
-                              })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
+                      return (
+                        <div key={org.id}>
+                          <NavItem
+                            to="Organization"
+                            params={`?id=${org.id}`}
+                            icon={Building2}
+                            label={org.name}
+                            active={isOrgActive}
+                            onClick={() => setSidebarOpen(false)}
+                            badge={org.userRole === 'creator' ? 'Criador' : null}
+                            collapsed={isCollapsed}
+                          />
+
+                          {/* Sub-navigation for active organization (oculta quando colapsada, como no protótipo) */}
+                          {isOrgActive && !isCollapsed && (
+                            <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
+                              {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [] })
+                                .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
+                                .map((tab) => {
+                                  const TabIcon = tab.icon;
+                                  return (
+                                    <SubNavItem
+                                      key={tab.key}
+                                      to="Organization"
+                                      params={`?id=${org.id}&tab=${tab.key}`}
+                                      icon={TabIcon}
+                                      label={tab.label}
+                                      active={activeTab === tab.key}
+                                      onClick={() => setSidebarOpen(false)}
+                                    />
+                                  );
+                                })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <div className="mt-6 space-y-1">
+                {isPlatformAdmin && (
+                  <NavItem
+                    to="Admin"
+                    icon={ShieldCheck}
+                    label="Administração & Custos"
+                    active={currentPageName === 'Admin'}
+                    onClick={() => setSidebarOpen(false)}
+                    collapsed={isCollapsed}
+                  />
+                )}
+                <NavItem
+                  to="Help"
+                  icon={HelpCircle}
+                  label="Ajuda"
+                  active={currentPageName === 'Help'}
+                  onClick={() => setSidebarOpen(false)}
+                  collapsed={isCollapsed}
+                />
+                <NavItem
+                  to="Terms"
+                  icon={FileText}
+                  label="Termos de Uso"
+                  active={currentPageName === 'Terms'}
+                  onClick={() => setSidebarOpen(false)}
+                  collapsed={isCollapsed}
+                />
+              </div>
+            </nav>
+
+            {/* Collapse toggle (somente no novo design V2) */}
+            {isV2 && (
+              <div className={cn('hidden lg:flex border-t border-slate-200 py-2', isCollapsed ? 'justify-center' : 'justify-end px-2')}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={toggleCollapsed}
+                      className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-muted"
+                    >
+                      {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{isCollapsed ? 'Expandir menu' : 'Recolher menu'}</TooltipContent>
+                </Tooltip>
+              </div>
             )}
 
-            <div className="mt-6 space-y-1">
-              {isPlatformAdmin && (
-                <NavItem
-                  to="Admin"
-                  icon={ShieldCheck}
-                  label="Administração & Custos"
-                  active={currentPageName === 'Admin'}
-                  onClick={() => setSidebarOpen(false)}
-                />
+            {/* User Section */}
+            <div className={cn('p-4 border-t border-slate-200', isCollapsed && 'flex justify-center p-3')}>
+              {isCollapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleLogout}
+                      className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold shadow-sm hover:opacity-90 transition-opacity"
+                      title="Sair"
+                    >
+                      {initial}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{displayName} · Sair</TooltipContent>
+                </Tooltip>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold shadow-sm shrink-0">
+                      {initial}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate">{displayName}</p>
+                      <p className="text-xs text-slate-500 truncate" title={displayEmail}>{displayEmail}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50">
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                </div>
               )}
-              <NavItem
-                to="Help"
-                icon={HelpCircle}
-                label="Ajuda"
-                active={currentPageName === 'Help'}
-                onClick={() => setSidebarOpen(false)}
-              />
-              <NavItem
-                to="Terms"
-                icon={FileText}
-                label="Termos de Uso"
-                active={currentPageName === 'Terms'}
-                onClick={() => setSidebarOpen(false)}
-              />
-            </div>
-          </nav>
-
-          {/* User Section */}
-          <div className="p-4 border-t border-slate-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold shadow-sm">
-                  {initial}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{displayName}</p>
-                  <p className="text-xs text-slate-500 truncate" title={displayEmail}>{displayEmail}</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50">
-                <LogOut className="w-4 h-4" />
-              </Button>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      </TooltipProvider>
 
       {/* Main Content */}
-      <div className="lg:ml-64 min-h-screen">
+      <div className={cn('min-h-screen transition-[margin] duration-200 ease-in-out', isCollapsed ? 'lg:ml-[76px]' : 'lg:ml-64')}>
         {/* Top Bar - Desktop */}
         <div className="hidden lg:flex h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200 items-center justify-between px-6 sticky top-0 z-30">
           <h2 className="text-lg font-semibold text-slate-800">
@@ -311,27 +389,40 @@ export default function Layout({ children, currentPageName }) {
   );
 }
 
-function NavItem({ to, params = '', icon: Icon, label, active, badge, onClick }) {
-  return (
+function NavItem({ to, params = '', icon: Icon, label, active, badge, onClick, collapsed = false }) {
+  const link = (
     <Link
       to={createPageUrl(to) + params}
       onClick={onClick}
-      className={`
-        flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
-        ${active
+      className={cn(
+        'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all',
+        collapsed && 'justify-center px-0',
+        active
           ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md'
           : 'text-slate-700 hover:bg-slate-100'
-        }
-      `}
+      )}
     >
       <Icon className="w-5 h-5 shrink-0" />
-      <span className="text-sm font-medium flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
-      {badge && !active && (
-        <Badge variant="secondary" className="text-[10px] px-1 h-4">
-          {badge}
-        </Badge>
+      {!collapsed && (
+        <>
+          <span className="text-sm font-medium flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
+          {badge && !active && (
+            <Badge variant="secondary" className="text-[10px] px-1 h-4">
+              {badge}
+            </Badge>
+          )}
+        </>
       )}
     </Link>
+  );
+
+  if (!collapsed) return link;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{link}</TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

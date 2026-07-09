@@ -1,6 +1,6 @@
 # 🎨 Consultas CAO - Design System V2 (Minimalista)
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Last Updated:** 2026-07-09
 **Status:** Opt-in (feature flag `frontend_v2`, default OFF)
 **Purpose:** Padrão visual oficial para novas telas e evolução da plataforma
@@ -165,6 +165,57 @@ implementação porque quebravam texto branco em botões/links ativos
 **elemento** (`a`, `button`, `h1`). Se precisar mesmo de um seletor de
 elemento, confirme por grep que nenhuma tela combina aquele elemento com
 uma utilitária de cor/fonte que você não quer sobrescrever.
+
+---
+
+## Componentes estruturais V2 (além do CSS)
+
+A partir da v1.1.0, algumas telas de alto impacto ganharam uma **segunda
+variante de estrutura/layout** (não só cor), também 100% condicionada a
+`useFlag(FEATURE_FLAGS.FRONTEND_V2.key)` — o caminho V1 permanece
+byte-a-byte o mesmo no código, só não é executado quando a flag está ligada.
+
+### Sidebar colapsável (`src/Layout.jsx`)
+
+No V2, a barra lateral pode ser recolhida para uma trilha de **76px** só
+com ícones (botão de recolher/expandir no rodapé do menu, com tooltip em
+cada ícone mostrando o rótulo). A preferência fica salva em
+`localStorage` (`caocipp_sidebar_collapsed`) e é por navegador, não por
+conta. Sub-navegação do órgão fica oculta quando colapsada (mesmo
+comportamento do protótipo). No mobile, a barra sempre abre expandida
+(o botão de colapsar só aparece em telas `lg:` ou maiores).
+
+### Linhas de tabela limpas (`ProcessTable.jsx`, `ExpedienteTable.jsx`)
+
+No V1, a linha inteira é pintada com a cor do status (estilo planilha
+Excel). No V2, a linha volta a ser branca/neutra e o status é indicado só
+por uma **borda de acento à esquerda** (4px, mesma paleta das colunas do
+Kanban) — mais fácil de escanear uma lista longa. Essa variante vive em
+`statusConfig[status].rowV2` (`src/config/processStatus.js`), ao lado da
+`row` (V1) já existente. Ao adicionar um novo status, adicione as duas
+variantes.
+
+### Gráficos: `MinimalBarList` (`src/components/ui/MinimalBarList.jsx`)
+
+Para distribuições (por localidade, origem, status), o V2 troca o
+`BarChart`/`PieChart` do recharts (eixos, tooltip, legenda) por uma lista
+horizontal simples: rótulo + barra fina + valor — o mesmo padrão do
+protótipo, mais rápido de ler que um gráfico com eixos. Use este
+componente para qualquer nova distribuição adicionada em painéis/resumos:
+
+```jsx
+import MinimalBarList from '@/components/ui/MinimalBarList';
+
+<MinimalBarList data={rows} valueKey="count" colorKey="barColor" />
+// rows: [{ name, count, barColor?: 'bg-emerald-500' }, ...]
+// colorKey é opcional — sem ele, todas as barras usam bg-primary (navy).
+```
+
+Ícones de KPI com fundo em gradiente (`bg-gradient-to-br ${cor}`) também
+precisam de uma cor sólida equivalente no V2 — o tema V2 zera
+`background-image` de qualquer gradiente, então um ícone gradiente sem
+fallback sólido fica com fundo transparente/invisível. Veja o mapa
+`V2_ICON_COLOR` em `IntelligentSummary.jsx` como referência.
 
 ---
 
