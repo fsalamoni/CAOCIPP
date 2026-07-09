@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
-import { isTabVisible } from '@/lib/organizationModules';
+import { isTabVisible, getOrganizationTabs } from '@/lib/organizationModules';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { hasAnyAdminPermission } from '@/constants/orgPermissions';
 import { OrganizationPermissionsProvider } from '@/lib/OrganizationPermissionsContext';
@@ -18,6 +18,7 @@ import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
 import ExpedienteControl from '../components/organization/ExpedienteControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
+import OrgTabBar from '../components/organization/OrgTabBar';
 
 import KanbanBoard from '../components/organization/KanbanBoard';
 import ExpedienteKanbanBoard from '../components/organization/ExpedienteKanbanBoard';
@@ -79,6 +80,7 @@ export default function Organization() {
   // aba ativa realmente usa. Flag DESLIGADO = comportamento atual (assina tudo).
   const perTabLoading = useFlag(FEATURE_FLAGS.PER_TAB_LOADING.key);
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+  const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
 
   // Tipos de entidade personalizados (apenas quando a flag está ligada).
   const { entityTypes: customTypes } = useEntityTypes(customEntitiesOn ? selectedOrgId : null);
@@ -133,6 +135,14 @@ export default function Organization() {
   // Find user's membership to determine role
   const userMembership = members.find(m => m.user_id === user?.uid);
   const userRole = userMembership?.role || 'member';
+
+  // Abas internas do órgão para a barra de navegação em página (Novo design
+  // V2) — mesma fonte e mesmo filtro de permissão usados no sub-menu da sidebar.
+  const orgTabs = React.useMemo(() => {
+    if (!isV2 || !organization) return [];
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes })
+      .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
+  }, [isV2, organization, customEntitiesOn, customTypes, userRole, userMembership]);
 
   // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
   // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible
@@ -239,6 +249,8 @@ export default function Organization() {
             </select>
           )}
         </header>
+
+        {isV2 && <OrgTabBar tabs={orgTabs} activeTab={activeTab} orgId={selectedOrgId} />}
 
         {/* Main Content Area */}
         <div className="flex-1 min-h-0">

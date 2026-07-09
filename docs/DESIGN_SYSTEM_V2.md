@@ -217,6 +217,30 @@ precisam de uma cor sólida equivalente no V2 — o tema V2 zera
 fallback sólido fica com fundo transparente/invisível. Veja o mapa
 `V2_ICON_COLOR` em `IntelligentSummary.jsx` como referência.
 
+### Navegação entre abas em página: `OrgTabBar` (`src/components/organization/OrgTabBar.jsx`)
+
+Como a sidebar colapsada esconde o sub-menu do órgão, a página de Órgão
+ganhou, no V2, uma barra de abas dentro do próprio conteúdo (logo abaixo
+do card de cabeçalho), para que a navegação entre Informações Gerais,
+Painel de Consultas, Consultas, Expedientes, Resumos e Administração
+continue possível com a sidebar em modo ícone.
+
+O layout usa CSS Grid (`grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))`)
+em vez de uma lista simples ou de rolagem horizontal: os itens se
+distribuem igualmente pela largura disponível e quebram para uma nova
+linha sozinhos quando não cabem mais — se adapta ao número de abas
+(varia de 3 a 8+ conforme os módulos habilitados e páginas
+personalizadas do órgão) e a qualquer largura de tela, sem esconder
+nenhuma opção atrás de scroll. Use o mesmo padrão para qualquer nova
+barra de navegação cuja quantidade de itens seja variável:
+
+```jsx
+import OrgTabBar from '@/components/organization/OrgTabBar';
+
+<OrgTabBar tabs={tabs} activeTab={activeTab} orgId={orgId} />
+// tabs: [{ key, label, icon }, ...] — mesma forma de getOrganizationTabs()
+```
+
 ---
 
 ## Como construir novas telas compatíveis com o V2
