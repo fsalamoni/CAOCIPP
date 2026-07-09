@@ -4,6 +4,13 @@
 **Last Updated:** 2026-02-12  
 **Purpose:** UI/UX design patterns and component guidelines
 
+> 📣 **V2 disponível (opt-in):** existe um novo padrão visual minimalista
+> (IBM Plex, paleta navy, flat) aplicável via feature flag `frontend_v2`
+> em Administração da Plataforma → Funcionalidades. Este documento
+> continua descrevendo o visual **atual (V1)**, que é o padrão enquanto a
+> flag estiver desligada. Para o novo padrão e as diretrizes de construção
+> de novas telas, ver [`DESIGN_SYSTEM_V2.md`](./DESIGN_SYSTEM_V2.md).
+
 ---
 
 ## Design Principles

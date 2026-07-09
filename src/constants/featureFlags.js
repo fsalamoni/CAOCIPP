@@ -116,6 +116,17 @@ export const FEATURE_FLAGS = {
         risk: 'low',
         default: false,
     },
+
+    // --- Fase 8: Redesign visual (V2) ---
+    FRONTEND_V2: {
+        key: 'frontend_v2',
+        label: 'Novo design (V2) — visual minimalista',
+        description:
+            'Aplica o novo padrão visual minimalista (tipografia IBM Plex, paleta neutra e navy, cantos e sombras mais suaves) em toda a plataforma: painel, órgãos, kanban, tabelas, modais e administração. É uma troca puramente visual (CSS/tema) — nenhuma função, rota ou dado muda. Pode ser desligada a qualquer momento, retornando 100% ao visual atual.',
+        category: 'Aparência',
+        risk: 'low',
+        default: false,
+    },
 };
 
 // Lista plana das flags para iteração em UI.
