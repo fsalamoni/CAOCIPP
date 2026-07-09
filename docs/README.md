@@ -15,7 +15,8 @@ Complete technical documentation for developers, maintainers, and AI agents.
 | 🏗️ | [**ARCHITECTURE_REFERENCE.md**](./ARCHITECTURE_REFERENCE.md) | Complete system structure, data models, component hierarchy | Understanding system design, adding features |
 | 🔒 | [**SECURITY_REFERENCE.md**](./SECURITY_REFERENCE.md) | Security rules, authentication, authorization, threat model | Implementing auth/authz, security audit |
 | ⚙️ | [**FEATURES_REFERENCE.md**](./FEATURES_REFERENCE.md) | All implemented features with code examples | Understanding functionality, extending features |
-| 🎨 | [**DESIGN_SYSTEM_REFERENCE.md**](./DESIGN_SYSTEM_REFERENCE.md) | UI patterns, components, colors, typography | Building UI, maintaining consistency |
+| 🎨 | [**DESIGN_SYSTEM_REFERENCE.md**](./DESIGN_SYSTEM_REFERENCE.md) | UI patterns, components, colors, typography (V1 — current default) | Building UI, maintaining consistency |
+| 🖤 | [**DESIGN_SYSTEM_V2.md**](./DESIGN_SYSTEM_V2.md) | New minimalist design standard (opt-in via `frontend_v2` flag), tokens, how to build new screens | Building any new screen/modal, rolling out the visual redesign |
 | 📖 | [**GLOSSARY.md**](./GLOSSARY.md) | 150+ terms across 8 categories | Onboarding, understanding terminology |
 | 👨‍💻 | [**DEVELOPMENT_GUIDE.md**](./DEVELOPMENT_GUIDE.md) | Setup, workflow, common tasks, debugging | Setting up environment, daily development |
 
@@ -72,9 +73,10 @@ Step-by-step configuration guides.
 
 ### For UI/UX Work
 
-1. **DESIGN_SYSTEM_REFERENCE.md** (complete design system)
-2. **FEATURES_REFERENCE.md** → UI/UX Features
-3. **ARCHITECTURE_REFERENCE.md** → Component Architecture
+1. **DESIGN_SYSTEM_REFERENCE.md** (complete design system, V1 — current default)
+2. **DESIGN_SYSTEM_V2.md** (new minimalist standard, opt-in, how to build new screens)
+3. **FEATURES_REFERENCE.md** → UI/UX Features
+4. **ARCHITECTURE_REFERENCE.md** → Component Architecture
 
 ---
 
@@ -86,9 +88,10 @@ Step-by-step configuration guides.
 | SECURITY_REFERENCE.md | 850+ | 7,500+ | 9 sections |
 | FEATURES_REFERENCE.md | 750+ | 6,500+ | 8 sections |
 | DESIGN_SYSTEM_REFERENCE.md | 400+ | 3,000+ | 10 sections |
+| DESIGN_SYSTEM_V2.md | 250+ | 2,000+ | 9 sections |
 | GLOSSARY.md | 600+ | 5,000+ | 150+ terms |
 | DEVELOPMENT_GUIDE.md | 550+ | 4,500+ | 11 sections |
-| **TOTAL** | **4,100+** | **35,000+** | **58 sections** |
+| **TOTAL** | **4,350+** | **37,000+** | **67 sections** |
 
 ---
 
@@ -162,6 +165,6 @@ Report via:
 
 ---
 
-**Last Updated:** 2026-02-18  
-**Total Documentation:** 6 reference docs + 4 guides + this index = 11 documents
-**Final Version:** 1.6.0 - Archive Date Input ✅
+**Last Updated:** 2026-07-09  
+**Total Documentation:** 7 reference docs + 4 guides + this index = 12 documents
+**Final Version:** 1.7.0 - Design System V2 (Minimalist Redesign) ✅

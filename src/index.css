@@ -1,3 +1,6 @@
+/* Tema V2 (opt-in via feature flag `frontend_v2`) — ver docs/DESIGN_SYSTEM_V2.md */
+@import "./styles/theme-v2.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
