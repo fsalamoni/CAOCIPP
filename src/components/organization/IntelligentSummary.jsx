@@ -14,8 +14,21 @@ import { isValid } from 'date-fns';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import TemporalMetrics from './TemporalMetrics';
 import { calculateBusinessDays, parseLocalDate } from '@/lib/dateUtils';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { cn } from '@/lib/utils';
+import MinimalBarList from '@/components/ui/MinimalBarList';
+
+// V2 (design minimalista): ícone de KPI em cor sólida em vez do gradiente do V1.
+const V2_ICON_COLOR = {
+  'from-indigo-500 to-violet-500': 'bg-primary',
+  'from-emerald-500 to-teal-500': 'bg-emerald-600',
+  'from-blue-500 to-cyan-500': 'bg-sky-600',
+  'from-red-500 to-rose-500': 'bg-red-600',
+};
 
 export default function IntelligentSummary({ processes = [], members, expedientes = [] }) {
+  const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' or 0-11
@@ -259,29 +272,33 @@ export default function IntelligentSummary({ processes = [], members, expediente
           </CardHeader>
           <CardContent className="pt-6">
             {locationData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={locationData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                  <XAxis type="number" hide />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={150}
-                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                  />
-                  <Bar
-                    dataKey="processos"
-                    fill="#6366f1"
-                    radius={[0, 6, 6, 0]}
-                    barSize={20}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              isV2 ? (
+                <MinimalBarList data={locationData} valueKey="processos" />
+              ) : (
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={locationData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={150}
+                      tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar
+                      dataKey="processos"
+                      fill="#6366f1"
+                      radius={[0, 6, 6, 0]}
+                      barSize={20}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )
             ) : (
               <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
                 <FileText className="w-10 h-10 opacity-20" />
@@ -382,29 +399,33 @@ export default function IntelligentSummary({ processes = [], members, expediente
           </CardHeader>
           <CardContent className="pt-6">
             {originData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={originData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                  <XAxis type="number" hide />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={150}
-                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                  />
-                  <Bar
-                    dataKey="expedientes"
-                    fill="#6366f1"
-                    radius={[0, 6, 6, 0]}
-                    barSize={20}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              isV2 ? (
+                <MinimalBarList data={originData} valueKey="expedientes" />
+              ) : (
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={originData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={150}
+                      tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar
+                      dataKey="expedientes"
+                      fill="#6366f1"
+                      radius={[0, 6, 6, 0]}
+                      barSize={20}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )
             ) : (
               <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
                 <FileText className="w-10 h-10 opacity-20" />
@@ -460,6 +481,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
 }
 
 function MetricCard({ title, value, icon: Icon, color }) {
+  const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   return (
     <Card className="shadow-sm border-slate-200">
       <CardContent className="p-6">
@@ -468,7 +490,10 @@ function MetricCard({ title, value, icon: Icon, color }) {
             <p className="text-sm font-medium text-slate-600">{title}</p>
             <h3 className="text-2xl font-bold text-slate-900 mt-2">{value}</h3>
           </div>
-          <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center`}>
+          <div className={cn(
+            'w-12 h-12 rounded-xl flex items-center justify-center',
+            isV2 ? (V2_ICON_COLOR[color] || 'bg-primary') : `bg-gradient-to-br ${color}`
+          )}>
             <Icon className="w-6 h-6 text-white" />
           </div>
         </div>
@@ -476,3 +501,4 @@ function MetricCard({ title, value, icon: Icon, color }) {
     </Card>
   );
 }
+

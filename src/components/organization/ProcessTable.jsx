@@ -14,6 +14,8 @@ import { format, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { useUserPreferences } from "@/hooks/useFirestore";
+import { useFlag } from "@/lib/FeatureFlagsContext";
+import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getProcessField, calculateDerivedStatus } from "@/utils/processUtils";
 import EmptyState from '../ui/EmptyState';
@@ -37,6 +39,7 @@ export default function ProcessTable({
   // Mirrors the logic found in EditProcessDialog
 
   const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
+  const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const [search, setSearch] = useState(() => localStorage.getItem('processSearchTerm') || "");
 
   useEffect(() => {
@@ -513,17 +516,26 @@ export default function ProcessTable({
 
     // Override: Urgent + Pending gets the red color
     if (isUrgent && (status === 'Pendente' || !status)) {
-      return {
-        bg: "bg-[#FF7979]",
-        accent: "border-l-[#CC0000]",
-        border: "border-b-[#E06666]",
-        hover: "hover:bg-[#FF6060]",
-        groupHover: "group-hover:!bg-[#FF6060]"
-      };
+      return isV2
+        ? {
+          bg: "bg-white dark:bg-slate-900",
+          accent: "border-l-red-500",
+          border: "border-b-border",
+          hover: "hover:bg-muted/60",
+          groupHover: "group-hover:!bg-muted/60"
+        }
+        : {
+          bg: "bg-[#FF7979]",
+          accent: "border-l-[#CC0000]",
+          border: "border-b-[#E06666]",
+          hover: "hover:bg-[#FF6060]",
+          groupHover: "group-hover:!bg-[#FF6060]"
+        };
     }
 
     // Default to configuration from statusConfig
     const config = statusConfig[status] || DEFAULT_STATUS_CONFIG;
+    if (isV2) return config.rowV2 || DEFAULT_STATUS_CONFIG.rowV2;
     return config.row || DEFAULT_STATUS_CONFIG.row;
   };
 

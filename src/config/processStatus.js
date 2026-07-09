@@ -13,6 +13,16 @@ export const statusConfig = {
             border: "border-b-slate-100",
             hover: "hover:bg-slate-50",
             groupHover: "group-hover:!bg-slate-50"
+        },
+        // V2 (design minimalista): linha branca/neutra + fina borda de acento à
+        // esquerda, em vez do preenchimento colorido inteiro da linha (V1).
+        // Mesma paleta usada nas colunas do Kanban, para consistência entre as duas visões.
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-slate-300",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
         }
     },
     'Em elaboração': {
@@ -27,6 +37,13 @@ export const statusConfig = {
             border: "border-b-[#E1E17F]",
             hover: "hover:bg-[#F0F08B]",
             groupHover: "group-hover:!bg-[#F0F08B]"
+        },
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-amber-400",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
         }
     },
     'Em revisão': {
@@ -41,6 +58,13 @@ export const statusConfig = {
             border: "border-b-[#9BBDC6]",
             hover: "hover:bg-[#A5C9D4]",
             groupHover: "group-hover:!bg-[#A5C9D4]"
+        },
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-sky-400",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
         }
     },
     'Revisadas': {
@@ -55,6 +79,13 @@ export const statusConfig = {
             border: "border-b-[#D3C2EC]",
             hover: "hover:bg-[#DCCDF0]",
             groupHover: "group-hover:!bg-[#DCCDF0]"
+        },
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-violet-400",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
         }
     },
     'Na pasta': {
@@ -69,6 +100,13 @@ export const statusConfig = {
             border: "border-b-[#C2D0A5]",
             hover: "hover:bg-[#C9D6AF]",
             groupHover: "group-hover:!bg-[#C9D6AF]"
+        },
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-emerald-400",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
         }
     },
 };

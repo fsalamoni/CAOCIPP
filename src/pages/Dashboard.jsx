@@ -18,6 +18,9 @@ import {
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import { isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import MinimalBarList from '@/components/ui/MinimalBarList';
 import {
   PieChart,
   Pie,
@@ -27,6 +30,16 @@ import {
 } from 'recharts';
 
 const DEFAULT_COLOR = DEFAULT_STATUS_CONFIG.color;
+
+// V2 (design minimalista): cor sólida (Tailwind) por status para a MinimalBarList,
+// mesma paleta usada nas colunas do Kanban.
+const STATUS_BAR_COLOR_V2 = {
+  'Pendente': 'bg-slate-400',
+  'Em elaboração': 'bg-amber-400',
+  'Em revisão': 'bg-sky-400',
+  'Revisadas': 'bg-violet-400',
+  'Na pasta': 'bg-emerald-500',
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -102,6 +115,7 @@ export default function Dashboard() {
 
 function UserOrganDashboard({ organization, user }) {
   const navigate = useNavigate();
+  const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const { processes, isLoading } = useProcesses(organization.id);
@@ -201,7 +215,8 @@ function UserOrganDashboard({ organization, user }) {
     return Object.entries(counts).map(([status, count]) => ({
       name: status,
       value: count,
-      color: statusConfig[status]?.color || DEFAULT_COLOR
+      color: statusConfig[status]?.color || DEFAULT_COLOR,
+      barColor: STATUS_BAR_COLOR_V2[status] || 'bg-slate-400'
     }));
   }, [filteredProcesses]);
 
@@ -329,32 +344,44 @@ function UserOrganDashboard({ organization, user }) {
         {/* Gráfico resumido lateral */}
         <Card className="shadow-sm border-slate-200 flex flex-col justify-center p-4 lg:col-span-4">
           {statusData.length > 0 ? (
-            <div className="h-[120px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={35}
-                    outerRadius={45}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider">
-                Distribuição de Status
-              </p>
-              <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider mt-1">
-                Minhas consultas: {myProcessesInYear} · Meus expedientes: {myExpedientesInYear}
-              </p>
-            </div>
+            isV2 ? (
+              <div className="w-full">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  Distribuição por Status
+                </p>
+                <MinimalBarList data={statusData} valueKey="value" colorKey="barColor" />
+                <p className="text-[10px] text-center text-muted-foreground font-medium uppercase tracking-wider mt-3">
+                  Minhas consultas: {myProcessesInYear} · Meus expedientes: {myExpedientesInYear}
+                </p>
+              </div>
+            ) : (
+              <div className="h-[120px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={statusData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={35}
+                      outerRadius={45}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {statusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider">
+                  Distribuição de Status
+                </p>
+                <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider mt-1">
+                  Minhas consultas: {myProcessesInYear} · Meus expedientes: {myExpedientesInYear}
+                </p>
+              </div>
+            )
           ) : (
             <div className="text-center text-xs text-slate-400 py-4">Sem dados para {selectedYear}</div>
           )}
