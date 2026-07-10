@@ -15,6 +15,7 @@ import {
     HeartPulse,
     Wrench,
     Mail,
+    Settings,
 } from 'lucide-react';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -31,6 +32,7 @@ import QuotasPanel from '@/components/admin/QuotasPanel';
 import HealthPanel from '@/components/admin/HealthPanel';
 import DataToolsPanel from '@/components/admin/DataToolsPanel';
 import EmailProviderPanel from '@/components/admin/EmailProviderPanel';
+import SetupGuidePanel from '@/components/admin/SetupGuidePanel';
 
 export default function Admin() {
     const { isPlatformAdmin, isLoading } = usePlatformAdmin();
@@ -77,6 +79,9 @@ export default function Admin() {
                     <TabsTrigger value="overview" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <LayoutDashboard className="w-4 h-4" /> Visão Geral
                     </TabsTrigger>
+                    <TabsTrigger value="setup" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <Settings className="w-4 h-4" /> Configuração
+                    </TabsTrigger>
                     <TabsTrigger value="costs" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <DollarSign className="w-4 h-4" /> Custos
                     </TabsTrigger>
@@ -122,6 +127,9 @@ export default function Admin() {
 
                 <TabsContent value="overview">
                     <PlatformOverview />
+                </TabsContent>
+                <TabsContent value="setup">
+                    <SetupGuidePanel />
                 </TabsContent>
                 <TabsContent value="costs">
                     <CostsPanel />

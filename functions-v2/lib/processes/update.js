@@ -48,6 +48,14 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     delete changes.created_at;
     delete changes.created_by;
     delete changes.activity_log; // Prevent manual log manipulation
+    // Só a Cloud Function runAnonymization pode marcar um registro como
+    // anonimizado — do contrário, qualquer membro poderia setar
+    // `anonymized: true` manualmente para isentar o próprio registro da
+    // política de retenção/anonimização do órgão (previewAnonymization
+    // usa exatamente este campo para decidir o que já está isento).
+    delete changes.anonymized;
+    delete changes.anonymized_at;
+    delete changes.anonymized_by;
     if (typeof changes.responsible_user_name === 'string') {
         changes.responsible_user_name = (0, normalization_1.formatPersonName)(changes.responsible_user_name);
     }

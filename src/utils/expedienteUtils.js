@@ -62,6 +62,14 @@ export function getExpedienteField(exp, fieldKey) {
 }
 
 /**
+ * Normaliza urgency_request (mesma razão de isProcessUrgent em processUtils.js).
+ */
+export function isExpedienteUrgent(exp) {
+    const val = getExpedienteField(exp, 'urgency_request');
+    return val === true || String(val).toLowerCase().trim() === 'sim';
+}
+
+/**
  * ABSOLUTE 1-4 STATUS HIERARCHY
  * Same logic as processes — status derived from date fields.
  */

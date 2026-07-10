@@ -1,5 +1,6 @@
 // Firestore Hooks - Custom React hooks for data fetching with Firebase
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import {
     collection,
     query,
@@ -44,10 +45,17 @@ export function useOrganizations() {
             orderBy('joined_at', 'desc')
         );
 
+        // Guarda contra respostas fora de ordem: se a listener disparar de novo
+        // antes do Promise.all da rodada anterior terminar, a rodada antiga não
+        // pode sobrescrever o resultado da mais nova quando resolver por último.
+        let requestId = 0;
+
         // Real-time listener for memberships
         const unsubscribe = onSnapshot(q, async (snapshot) => {
+            const currentRequest = ++requestId;
             try {
                 if (snapshot.empty) {
+                    if (currentRequest !== requestId) return;
                     setOrganizations([]);
                     setIsLoading(false);
                     return;
@@ -77,9 +85,11 @@ export function useOrganizations() {
                 });
 
                 const orgs = (await Promise.all(orgPromises)).filter(Boolean);
+                if (currentRequest !== requestId) return;
                 setOrganizations(orgs);
                 setIsLoading(false);
             } catch (err) {
+                if (currentRequest !== requestId) return;
                 logger.error('Error processing memberships update:', err);
                 setError(err.message);
                 setIsLoading(false);
@@ -121,6 +131,10 @@ export function useProcesses(organizationId, filters = {}, options = {}) {
             return;
         }
 
+        // Limpa os dados do órgão anterior imediatamente: sem isto, ao trocar
+        // de órgão, os processos antigos ficam visíveis até a nova consulta
+        // resolver — um vazamento momentâneo de dados de outro órgão.
+        setProcesses([]);
         setIsLoading(true);
         setError(null);
 
@@ -177,6 +191,12 @@ export function useOrganizationMembers(organizationId) {
             return;
         }
 
+        // Limpa a lista do órgão anterior e ignora uma resposta que chegue
+        // fora de ordem (troca rápida de órgão A→B→A) — sem isto, os membros
+        // de outro órgão ficam visíveis até esta busca pontual resolver.
+        let cancelled = false;
+        setMembers([]);
+
         const fetchMembers = async () => {
             try {
                 setIsLoading(true);
@@ -190,6 +210,7 @@ export function useOrganizationMembers(organizationId) {
                 );
 
                 const snapshot = await getDocs(q);
+                if (cancelled) return;
                 const membersData = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data(),
@@ -199,6 +220,7 @@ export function useOrganizationMembers(organizationId) {
                 setMembers(membersData);
                 setIsLoading(false);
             } catch (err) {
+                if (cancelled) return;
                 logger.error('Error fetching members:', err);
                 setError(err.message);
                 setIsLoading(false);
@@ -206,6 +228,7 @@ export function useOrganizationMembers(organizationId) {
         };
 
         fetchMembers();
+        return () => { cancelled = true; };
     }, [organizationId]);
 
     return { members, isLoading, error };
@@ -226,6 +249,11 @@ export function useOrganizationRealtime(organizationId) {
             setIsLoading(false);
             return;
         }
+
+        // Limpa o órgão anterior imediatamente para não exibir dados de outro
+        // órgão enquanto a nova consulta ainda não resolveu.
+        setOrganization(null);
+        setIsLoading(true);
 
         const orgRef = doc(db, 'organizations', organizationId);
 
@@ -315,6 +343,12 @@ export function useUserPreferences() {
     const { user, isLoadingAuth } = useAuth();
     const [preferences, setPreferences] = useState({});
     const [isLoading, setIsLoading] = useState(true);
+    // Espelha `preferences` sem entrar nas deps de updatePreferences: se
+    // `preferences` fosse dependência, a identidade da função mudaria a cada
+    // atualização otimista, disparando de novo os efeitos de auto-save que a
+    // têm como dependência (ProcessTable/ExpedienteTable/KanbanBoard).
+    const preferencesRef = useRef(preferences);
+    preferencesRef.current = preferences;
 
     useEffect(() => {
         // CRITICAL: Don't resolve until auth is done loading.
@@ -332,24 +366,38 @@ export function useUserPreferences() {
             return;
         }
 
+        // Ignora uma resposta que chegue fora de ordem (ex.: troca rápida de
+        // conta), que sobrescreveria as preferências do usuário atual com as
+        // de outro.
+        let cancelled = false;
+
         const fetchPreferences = async () => {
             setIsLoading(true);
             const prefs = await getUserPreferences(user.uid);
+            if (cancelled) return;
             setPreferences(prefs);
             setIsLoading(false);
         };
 
         fetchPreferences();
+        return () => { cancelled = true; };
     }, [user, isLoadingAuth]);
 
     const updatePreferences = useCallback(async (newPrefs) => {
         if (!user) return;
 
+        const previous = preferencesRef.current;
         // Optimistic update
         setPreferences(prev => ({ ...prev, ...newPrefs }));
 
-        // Persistence
-        await saveUserPreferences(user.uid, newPrefs);
+        try {
+            await saveUserPreferences(user.uid, newPrefs);
+        } catch (error) {
+            // Reverte: sem isto, a tela ficava mostrando uma preferência que
+            // na verdade não foi salva, sem nenhum aviso ao usuário.
+            setPreferences(previous);
+            toast.error('Não foi possível salvar a preferência. Tente novamente.');
+        }
     }, [user?.uid]);
 
     return { preferences, updatePreferences, isLoading };
@@ -377,6 +425,10 @@ export function useExpedientes(organizationId, options = {}) {
             return;
         }
 
+        // Limpa os dados do órgão anterior imediatamente (mesma razão de
+        // useProcesses): evita mostrar expedientes de outro órgão até a nova
+        // consulta resolver.
+        setExpedientes([]);
         setIsLoading(true);
         setError(null);
 
@@ -423,6 +475,7 @@ export function useMyProcesses(organizationId, userId) {
             return;
         }
 
+        setProcesses([]);
         setIsLoading(true);
         setError(null);
 
@@ -468,6 +521,7 @@ export function useMyExpedientes(organizationId, userId) {
             return;
         }
 
+        setExpedientes([]);
         setIsLoading(true);
         setError(null);
 
@@ -513,6 +567,7 @@ export function useOrganizationUserNameMap(organizationId) {
             return;
         }
 
+        setNameMap({});
         setIsLoading(true);
         setError(null);
 

@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, User, FolderOpen, Calendar, Eye, Building2, Monitor } from 'lucide-react';
-import { getExpedienteField, calculateExpedienteDerivedStatus } from '@/utils/expedienteUtils';
+import { getExpedienteField, calculateExpedienteDerivedStatus, isExpedienteUrgent } from '@/utils/expedienteUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -44,7 +44,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
     };
 
     const field = (key) => getExpedienteField(expediente, key);
-    const isUrgent = field('urgency_request') === true;
+    const isUrgent = isExpedienteUrgent(expediente);
     const responsibleName = field('responsible_user_name');
     const expedienteNumber = field('expediente_number');
     const system = field('system');

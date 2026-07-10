@@ -47,6 +47,7 @@ export { getPlatformQuotas, setPlatformQuota } from './platform/quotas';
 export { getSystemHealth } from './platform/health';
 export { runIntegrityAudit, recalcOrgStats } from './platform/dataTools';
 export { backfillHistory } from './platform/historyBackfill';
+export { getSetupStatus } from './platform/setupStatus';
 
 // ========== Páginas e processos personalizados (flag: custom_entities) ==========
 export { upsertEntityType, deleteEntityType } from './customEntities/entityTypes';

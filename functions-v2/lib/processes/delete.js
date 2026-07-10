@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 exports.deleteProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -24,14 +25,27 @@ exports.deleteProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     if (!(0, permissions_1.hasOrgPermission)(membershipSnap.data(), 'delete_records')) {
         throw new https_1.HttpsError('permission-denied', 'Only the organization creator can delete processes');
     }
-    // 2. Delete
-    await db.collection('processes').doc(id).delete();
-    // 3. Update stats
+    // 2. Verify the target record actually belongs to this organization —
+    // sem isto, um usuário com delete_records no órgão A podia apagar
+    // qualquer processo de outro órgão (B) só informando o organizationId
+    // de A (que passa na checagem de permissão) junto do ID do documento
+    // de B.
+    const processRef = db.collection('processes').doc(id);
+    const processSnap = await processRef.get();
+    if (!processSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Process not found');
+    }
+    if (((_a = processSnap.data()) === null || _a === void 0 ? void 0 : _a.organization_id) !== organizationId) {
+        throw new https_1.HttpsError('permission-denied', 'Process belongs to another organization');
+    }
+    // 3. Delete
+    await processRef.delete();
+    // 4. Update stats
     await db.collection('organizations').doc(organizationId).update({
         'stats.processes_count': admin.firestore.FieldValue.increment(-1),
         'stats.active_processes': admin.firestore.FieldValue.increment(-1)
     });
-    // 4. Audit
+    // 5. Audit
     await db.collection('auditLogs').add({
         organization_id: organizationId,
         user_id: userId,

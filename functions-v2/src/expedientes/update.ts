@@ -53,6 +53,11 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
         delete changes.created_at;
         delete changes.created_by;
         delete changes.activity_log;
+        // Só a Cloud Function runAnonymization pode marcar um registro como
+        // anonimizado (ver mesma proteção em processes/update.ts).
+        delete changes.anonymized;
+        delete changes.anonymized_at;
+        delete changes.anonymized_by;
 
         if (typeof changes.responsible_user_name === 'string') {
             changes.responsible_user_name = formatPersonName(changes.responsible_user_name);

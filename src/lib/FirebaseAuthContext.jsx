@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import {
     onAuthStateChanged,
     signInWithPopup,
@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }) => {
      * Sign in with Google
      * @param {boolean} useRedirect - Use redirect flow instead of popup (better for mobile)
      */
-    const signInWithGoogle = async (useRedirect = false) => {
+    const signInWithGoogle = useCallback(async (useRedirect = false) => {
         try {
             setAuthError(null);
 
@@ -144,12 +144,12 @@ export const AuthProvider = ({ children }) => {
 
             throw error;
         }
-    };
+    }, []);
 
     /**
      * Sign out current user
      */
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         try {
             await firebaseSignOut(auth);
             logger.info('Sign-out successful');
@@ -160,13 +160,13 @@ export const AuthProvider = ({ children }) => {
             logger.error('Sign-out error:', error);
             throw error;
         }
-    };
+    }, []);
 
     /**
      * Update user profile in Firestore
      * @param {object} updates - Profile fields to update
      */
-    const updateUserProfile = async (updates) => {
+    const updateUserProfile = useCallback(async (updates) => {
         if (!user) {
             throw new Error('No user logged in');
         }
@@ -191,9 +191,14 @@ export const AuthProvider = ({ children }) => {
             logger.error('Profile update error:', error);
             throw error;
         }
-    };
+    }, [user]);
 
-    const value = {
+    const clearAuthError = useCallback(() => setAuthError(null), []);
+
+    // Memoizado: sem isto, `value` era um objeto literal novo a cada render
+    // do Provider, e todo consumidor de useAuth() (usado em quase toda a
+    // árvore) re-renderizava mesmo quando o campo que ele lê não mudou.
+    const value = useMemo(() => ({
         // Auth state
         user,
         userProfile,
@@ -207,8 +212,8 @@ export const AuthProvider = ({ children }) => {
         updateUserProfile,
 
         // Helpers
-        clearAuthError: () => setAuthError(null),
-    };
+        clearAuthError,
+    }), [user, userProfile, isAuthenticated, isLoadingAuth, authError, signInWithGoogle, signOut, updateUserProfile, clearAuthError]);
 
     return (
         <AuthContext.Provider value={value}>

@@ -34,16 +34,30 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
             throw new HttpsError('permission-denied', 'Only the organization creator can delete processes');
         }
 
-        // 2. Delete
-        await db.collection('processes').doc(id).delete();
+        // 2. Verify the target record actually belongs to this organization —
+        // sem isto, um usuário com delete_records no órgão A podia apagar
+        // qualquer processo de outro órgão (B) só informando o organizationId
+        // de A (que passa na checagem de permissão) junto do ID do documento
+        // de B.
+        const processRef = db.collection('processes').doc(id);
+        const processSnap = await processRef.get();
+        if (!processSnap.exists) {
+            throw new HttpsError('not-found', 'Process not found');
+        }
+        if (processSnap.data()?.organization_id !== organizationId) {
+            throw new HttpsError('permission-denied', 'Process belongs to another organization');
+        }
 
-        // 3. Update stats
+        // 3. Delete
+        await processRef.delete();
+
+        // 4. Update stats
         await db.collection('organizations').doc(organizationId).update({
             'stats.processes_count': admin.firestore.FieldValue.increment(-1),
             'stats.active_processes': admin.firestore.FieldValue.increment(-1)
         });
 
-        // 4. Audit
+        // 5. Audit
         await db.collection('auditLogs').add({
             organization_id: organizationId,
             user_id: userId,

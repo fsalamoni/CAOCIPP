@@ -57,6 +57,18 @@ export function getProcessField(p, fieldKey) {
 }
 
 /**
+ * Normaliza urgency_request: aceita tanto boolean true quanto strings legadas
+ * de import ('Sim'/'sim'). Centralizado aqui para não divergir entre
+ * ProcessTable/KanbanCard/ProcessDetailSheet — um `=== true` estrito nesses
+ * componentes deixava de marcar como urgente qualquer processo importado com
+ * o valor em texto.
+ */
+export function isProcessUrgent(p) {
+    const val = getProcessField(p, 'urgency_request');
+    return val === true || String(val).toLowerCase().trim() === 'sim';
+}
+
+/**
  * ABSOLUTE 1-4 STATUS HIERARCHY (v1.13.0)
  * This logic must be followed strictly by BOTH frontend and backend.
  */
