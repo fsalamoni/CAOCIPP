@@ -1,9 +1,15 @@
 // ============================================================================
-// stageTime — quanto tempo um processo/expediente está na etapa atual,
-// comparado à média histórica do próprio órgão para aquela etapa.
+// stageTime — quanto tempo um processo/expediente está na etapa ATUAL
+// (contado em dias úteis, a partir da data de entrada na etapa até hoje).
 // Usado pelo indicador visual (flag `stage_time_indicator`) no Kanban e na
 // tabela. Genérico o bastante para processos e expedientes: recebe a função
 // de leitura de campo e de status derivado como parâmetros.
+//
+// A severidade (cor do selo) usa limiares fixos em dias úteis, independente
+// do histórico do órgão: até 5 dias = ok (verde), até 10 dias = atenção
+// (amarelo/mostarda), mais de 10 dias = risco (vermelho). A média histórica
+// do órgão (computeStageAverages) continua disponível apenas como contexto
+// informativo no tooltip do selo.
 // ============================================================================
 
 import { calculateBusinessDays, parseLocalDate } from '@/lib/dateUtils';
@@ -81,15 +87,17 @@ export function computeStageAverages(records, getField) {
     return averages;
 }
 
+// Limiares fixos (dias úteis) para a severidade visual do selo.
+export const STAGE_TIME_THRESHOLDS = { OK_MAX: 5, WARN_MAX: 10 };
+
 /**
- * Classifica a severidade visual: 'ok' (dentro da média), 'warn' (até 50%
- * acima da média) ou 'risk' (mais de 50% acima). 'neutral' quando não há
- * dados suficientes para comparar (sem quebrar a UI).
+ * Classifica a severidade visual por limiares fixos em dias úteis:
+ * 'ok' (até 5 dias úteis, verde), 'warn' (até 10 dias úteis,
+ * amarelo/mostarda) ou 'risk' (mais de 10 dias úteis, vermelho).
  */
-export function getStageTimeSeverity(daysInStage, avgForStage) {
+export function getStageTimeSeverity(daysInStage) {
     if (daysInStage == null) return null;
-    if (avgForStage == null || avgForStage <= 0) return 'neutral';
-    if (daysInStage <= avgForStage) return 'ok';
-    if (daysInStage <= avgForStage * 1.5) return 'warn';
+    if (daysInStage <= STAGE_TIME_THRESHOLDS.OK_MAX) return 'ok';
+    if (daysInStage <= STAGE_TIME_THRESHOLDS.WARN_MAX) return 'warn';
     return 'risk';
 }

@@ -191,7 +191,7 @@ export const FEATURE_FLAGS = {
         key: 'stage_time_indicator',
         label: 'Indicador de tempo na etapa atual',
         description:
-            'Mostra, no cartão do Kanban e na tabela, há quantos dias o processo/expediente está parado na etapa atual, com selo de cor comparando com a média histórica do próprio órgão.',
+            'Mostra, no cartão do Kanban e na tabela, há quantos dias úteis o processo/expediente está parado na etapa atual, com selo de cor por limiar fixo: até 5 dias úteis (verde), até 10 dias úteis (amarelo/mostarda), mais de 10 dias úteis (vermelho).',
         category: 'Prazos',
         risk: 'low',
         default: false,

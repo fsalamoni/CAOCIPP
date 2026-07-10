@@ -91,7 +91,7 @@ export default function BulkReplaceTool({ organization }) {
                             id="bulk-field"
                             value={field}
                             onChange={(e) => setField(e.target.value)}
-                            className="w-full h-10 px-3 rounded-md border border-slate-200 bg-white text-sm"
+                            className="w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm dark:text-white"
                         >
                             {FIELD_OPTIONS.map(option => (
                                 <option key={option.value} value={option.value}>
@@ -139,7 +139,7 @@ export default function BulkReplaceTool({ organization }) {
                     </div>
 
                     {normalizedPreview && (
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                             Valor que será aplicado: <strong>{normalizedPreview}</strong>
                         </p>
                     )}

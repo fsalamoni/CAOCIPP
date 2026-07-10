@@ -94,7 +94,7 @@ export default function Layout({ children, currentPageName }) {
   }
 
   if (!isAuthenticated || !user) {
-    return <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">{children}</div>;
+    return <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">{children}</div>;
   }
 
   // Display Name logic (Profile > Auth > Email)
@@ -104,11 +104,11 @@ export default function Layout({ children, currentPageName }) {
   const initial = displayName?.[0]?.toUpperCase() || 'U';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       <CommandPalette />
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-50">
-        <h1 className="text-xl font-bold text-slate-800">Processos</h1>
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 z-50">
+        <h1 className="text-xl font-bold text-slate-800 dark:text-white">Processos</h1>
         <div className="flex items-center gap-2">
           <ThemeToggleButton />
           <NotificationBell variant="mobile" />
@@ -126,7 +126,7 @@ export default function Layout({ children, currentPageName }) {
       {/* Sidebar */}
       <TooltipProvider delayDuration={200}>
         <aside className={cn(
-          'fixed top-0 left-0 h-full bg-white border-r border-slate-200 w-64',
+          'fixed top-0 left-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 w-64',
           'transform transition-[width,transform] duration-200 ease-in-out z-40',
           'lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
@@ -134,7 +134,7 @@ export default function Layout({ children, currentPageName }) {
         )}>
           <div className="flex flex-col h-full">
             {/* Logo */}
-            <div className={cn('h-16 flex items-center border-b border-slate-200', isCollapsed ? 'justify-center px-0' : 'px-6')}>
+            <div className={cn('h-16 flex items-center border-b border-slate-200 dark:border-slate-700', isCollapsed ? 'justify-center px-0' : 'px-6')}>
               {isCollapsed ? (
                 <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
                   CC
@@ -172,7 +172,7 @@ export default function Layout({ children, currentPageName }) {
                 <>
                   {!isCollapsed && (
                     <div className="mt-6 mb-2 px-3">
-                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                         Órgãos
                       </h3>
                     </div>
@@ -197,7 +197,7 @@ export default function Layout({ children, currentPageName }) {
 
                           {/* Sub-navigation for active organization (oculta quando colapsada, como no protótipo) */}
                           {isOrgActive && !isCollapsed && (
-                            <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
+                            <div className="mt-1 ml-4 pl-4 border-l border-slate-200 dark:border-slate-700 space-y-1">
                               {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [], deadlineCalendarOn })
                                 .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
                                 .map((tab) => {
@@ -255,14 +255,14 @@ export default function Layout({ children, currentPageName }) {
 
             {/* Collapse toggle (somente no novo design V2) */}
             {isV2 && (
-              <div className={cn('hidden lg:flex border-t border-slate-200 py-2', isCollapsed ? 'justify-center' : 'justify-end px-2')}>
+              <div className={cn('hidden lg:flex border-t border-slate-200 dark:border-slate-700 py-2', isCollapsed ? 'justify-center' : 'justify-end px-2')}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={toggleCollapsed}
-                      className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-muted"
+                      className="h-8 w-8 text-slate-400 dark:text-slate-500 hover:text-primary hover:bg-muted"
                       aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
                     >
                       {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -274,7 +274,7 @@ export default function Layout({ children, currentPageName }) {
             )}
 
             {/* User Section */}
-            <div className={cn('p-4 border-t border-slate-200', isCollapsed && 'flex justify-center p-3')}>
+            <div className={cn('p-4 border-t border-slate-200 dark:border-slate-700', isCollapsed && 'flex justify-center p-3')}>
               {isCollapsed ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -295,11 +295,11 @@ export default function Layout({ children, currentPageName }) {
                       {initial}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700 truncate">{displayName}</p>
-                      <p className="text-xs text-slate-500 truncate" title={displayEmail}>{displayEmail}</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{displayName}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate" title={displayEmail}>{displayEmail}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50" aria-label="Sair da conta">
+                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/40" aria-label="Sair da conta">
                     <LogOut className="w-4 h-4" />
                   </Button>
                 </div>
@@ -312,8 +312,8 @@ export default function Layout({ children, currentPageName }) {
       {/* Main Content */}
       <div className={cn('min-h-screen transition-[margin] duration-200 ease-in-out', isCollapsed ? 'lg:ml-[76px]' : 'lg:ml-64')}>
         {/* Top Bar - Desktop */}
-        <div className="hidden lg:flex h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200 items-center justify-between px-6 sticky top-0 z-30">
-          <h2 className="text-lg font-semibold text-slate-800">
+        <div className="hidden lg:flex h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 items-center justify-between px-6 sticky top-0 z-30">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
             {currentPageName === 'Dashboard' ? 'Painel de Consultas' :
               currentPageName === 'Profile' ? 'Meu Perfil' :
                 currentPageName === 'Organization' ? 'Órgão' :
@@ -352,7 +352,7 @@ function NavItem({ to, params = '', icon: Icon, label, active, badge, onClick, c
         collapsed && 'justify-center px-0',
         active
           ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md'
-          : 'text-slate-700 hover:bg-slate-100'
+          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
       )}
     >
       <Icon className="w-5 h-5 shrink-0" />
@@ -387,8 +387,8 @@ function SubNavItem({ to, params = '', icon: Icon, label, active, onClick }) {
       className={`
         flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-all text-xs
         ${active
-          ? 'bg-slate-100 text-primary font-semibold'
-          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+          ? 'bg-slate-100 dark:bg-slate-800 text-primary font-semibold'
+          : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
         }
       `}
     >
