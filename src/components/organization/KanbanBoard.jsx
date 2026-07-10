@@ -26,7 +26,7 @@ import { isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
-import { computeStageAverages } from '@/lib/stageTime';
+import { computeStageAverages, resolveStageTimeConfig } from '@/lib/stageTime';
 import KanbanCard from './KanbanCard';
 import KanbanTransitionDialog from './KanbanTransitionDialog';
 import ProcessDetailSheet from './ProcessDetailSheet';
@@ -156,11 +156,16 @@ export default function KanbanBoard({
 
     // Indicador de tempo na etapa atual (flag `stage_time_indicator`): média
     // histórica calculada sobre TODOS os processos do órgão (não só o ano
-    // filtrado), para uma referência mais estável.
+    // filtrado), para uma referência mais estável. Limiares/cores/tipo de dia
+    // são configuráveis pelo admin em Painel Administrativo → Indicador de Tempo.
     const stageTimeIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
+    const stageTimeConfig = useMemo(
+        () => resolveStageTimeConfig(organization?.stageTimeConfig),
+        [organization?.stageTimeConfig]
+    );
     const stageAverages = useMemo(
-        () => (stageTimeIndicatorOn ? computeStageAverages(processes, getProcessField) : null),
-        [stageTimeIndicatorOn, processes]
+        () => (stageTimeIndicatorOn ? computeStageAverages(processes, getProcessField, stageTimeConfig.dayType) : null),
+        [stageTimeIndicatorOn, processes, stageTimeConfig.dayType]
     );
 
     const [activeId, setActiveId] = useState(null);
@@ -881,6 +886,7 @@ export default function KanbanBoard({
                             processes={columns[col.id] || []}
                             onViewDetails={handleViewDetails}
                             stageAverages={stageAverages}
+                            stageTimeConfig={stageTimeConfig}
                         />
                     ))}
                 </div>
@@ -945,7 +951,7 @@ export default function KanbanBoard({
 }
 
 // === Droppable Column ===
-function KanbanColumn({ column, processes, onViewDetails, stageAverages }) {
+function KanbanColumn({ column, processes, onViewDetails, stageAverages, stageTimeConfig }) {
     const { setNodeRef, isOver } = useDroppable({
         id: column.id,
         data: { columnId: column.id },
@@ -985,7 +991,7 @@ function KanbanColumn({ column, processes, onViewDetails, stageAverages }) {
                 <SortableContext items={processes.map(p => p.id)} strategy={verticalListSortingStrategy}>
                     {processes.length > 0 ? (
                         processes.map(p => (
-                            <KanbanCard key={p.id} process={p} columnId={column.id} onViewDetails={onViewDetails} stageAverages={stageAverages} />
+                            <KanbanCard key={p.id} process={p} columnId={column.id} onViewDetails={onViewDetails} stageAverages={stageAverages} stageTimeConfig={stageTimeConfig} />
                         ))
                     ) : (
                         <EmptyState

@@ -8,7 +8,7 @@ import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
-import { getDaysInCurrentStage, getStageTimeSeverity } from '@/lib/stageTime';
+import { getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from '@/lib/stageTime';
 import StageTimeBadge from '@/components/ui/StageTimeBadge';
 import { toast } from 'sonner';
 import {
@@ -20,7 +20,7 @@ import {
 /**
  * ExpedienteKanbanCard — Visual card for an expediente in the Kanban board.
  */
-export default function ExpedienteKanbanCard({ expediente, columnId, overlay = false, onViewDetails, stageAverages = null }) {
+export default function ExpedienteKanbanCard({ expediente, columnId, overlay = false, onViewDetails, stageAverages = null, stageTimeConfig = null }) {
     const canCopyProcessNumber = useFlag(FEATURE_FLAGS.COPY_PROCESS_NUMBER.key);
     const stageTimeIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
 
@@ -56,9 +56,12 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
     // Mesma correção de KanbanCard.jsx: getDaysInCurrentStage chama
     // getField(record, key) com dois argumentos — o closure local `field`
     // só aceita `key`, então precisa da função de verdade aqui.
-    const daysInStage = stageTimeIndicatorOn ? getDaysInCurrentStage(expediente, currentStatus, getExpedienteField) : null;
+    const resolvedStageTimeConfig = resolveStageTimeConfig(stageTimeConfig);
+    const daysInStage = stageTimeIndicatorOn
+        ? getDaysInCurrentStage(expediente, currentStatus, getExpedienteField, resolvedStageTimeConfig.dayType)
+        : null;
     const stageAvg = stageAverages ? stageAverages[currentStatus] : null;
-    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage) : null;
+    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage, resolvedStageTimeConfig) : null;
 
     // Entry date
     const entryDateRaw = field('entry_date');
@@ -163,7 +166,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
                             <span className="text-[10px] truncate">Entrada: {entryDate}</span>
                         </div>
                     )}
-                    <StageTimeBadge days={daysInStage} severity={stageSeverity} avg={stageAvg} className="ml-auto shrink-0" />
+                    <StageTimeBadge days={daysInStage} severity={stageSeverity} avg={stageAvg} colors={resolvedStageTimeConfig.colors} dayType={resolvedStageTimeConfig.dayType} className="ml-auto shrink-0" />
                 </div>
             )}
 

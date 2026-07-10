@@ -1,18 +1,19 @@
 // ============================================================================
 // stageTime — quanto tempo um processo/expediente está na etapa ATUAL
-// (contado em dias úteis, a partir da data de entrada na etapa até hoje).
-// Usado pelo indicador visual (flag `stage_time_indicator`) no Kanban e na
-// tabela. Genérico o bastante para processos e expedientes: recebe a função
-// de leitura de campo e de status derivado como parâmetros.
+// (a partir da data de entrada na etapa até hoje, em dias úteis OU dias
+// corridos — configurável por órgão). Usado pelo indicador visual (flag
+// `stage_time_indicator`) no Kanban e na tabela. Genérico o bastante para
+// processos e expedientes: recebe a função de leitura de campo e de status
+// derivado como parâmetros.
 //
-// A severidade (cor do selo) usa limiares fixos em dias úteis, independente
-// do histórico do órgão: até 5 dias = ok (verde), até 10 dias = atenção
-// (amarelo/mostarda), mais de 10 dias = risco (vermelho). A média histórica
-// do órgão (computeStageAverages) continua disponível apenas como contexto
-// informativo no tooltip do selo.
+// A severidade (cor do selo) usa limiares configuráveis por órgão
+// (organization.stageTimeConfig, editável em Painel Administrativo →
+// Indicador de Tempo): até okMaxDays = ok, até warnMaxDays = atenção, acima
+// disso = risco. A média histórica do órgão (computeStageAverages) continua
+// disponível apenas como contexto informativo no tooltip do selo.
 // ============================================================================
 
-import { calculateBusinessDays, parseLocalDate } from '@/lib/dateUtils';
+import { calculateBusinessDays, calculateCalendarDays, parseLocalDate } from '@/lib/dateUtils';
 import { isValid } from 'date-fns';
 
 // Campo de data em que o registro ENTROU em cada etapa (pré-arquivamento).
@@ -31,11 +32,95 @@ export const STAGE_EXIT_FIELD = {
     'Revisadas': 'archived_date',
 };
 
+// Paleta de cores permitidas para os selos ok/atenção/risco. Presets fixos
+// (não cores livres) para garantir que as classes Tailwind existam no bundle
+// e para manter o contraste correto em ambos os temas.
+export const STAGE_TIME_COLOR_PRESETS = {
+    emerald: {
+        label: 'Verde',
+        swatch: 'bg-emerald-500',
+        classes: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900',
+    },
+    lime: {
+        label: 'Verde-limão',
+        swatch: 'bg-lime-500',
+        classes: 'bg-lime-50 text-lime-700 border-lime-200 dark:bg-lime-950/40 dark:text-lime-400 dark:border-lime-900',
+    },
+    amber: {
+        label: 'Âmbar / Mostarda',
+        swatch: 'bg-amber-500',
+        classes: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900',
+    },
+    orange: {
+        label: 'Laranja',
+        swatch: 'bg-orange-500',
+        classes: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-900',
+    },
+    rose: {
+        label: 'Vermelho',
+        swatch: 'bg-rose-500',
+        classes: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900',
+    },
+    sky: {
+        label: 'Azul',
+        swatch: 'bg-sky-500',
+        classes: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-900',
+    },
+    violet: {
+        label: 'Roxo',
+        swatch: 'bg-violet-500',
+        classes: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-900',
+    },
+    fuchsia: {
+        label: 'Rosa/Magenta',
+        swatch: 'bg-fuchsia-500',
+        classes: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-400 dark:border-fuchsia-900',
+    },
+    slate: {
+        label: 'Cinza',
+        swatch: 'bg-slate-500',
+        classes: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
+    },
+};
+
+export const STAGE_TIME_DAY_TYPES = [
+    { value: 'business', label: 'Dias úteis' },
+    { value: 'calendar', label: 'Dias corridos' },
+];
+
+// Configuração padrão (usada até o admin personalizar em Painel
+// Administrativo → Indicador de Tempo, ou se o órgão nunca salvou nada).
+export const DEFAULT_STAGE_TIME_CONFIG = {
+    dayType: 'business',
+    okMaxDays: 5,
+    warnMaxDays: 10,
+    colors: { ok: 'emerald', warn: 'amber', risk: 'rose' },
+};
+
 /**
- * Dias úteis desde que o registro entrou na etapa atual. Retorna null se a
- * etapa é terminal (Na pasta) ou se a data de entrada não está preenchida.
+ * Combina a configuração salva do órgão com os padrões, garantindo que
+ * campos ausentes (órgão que nunca personalizou, ou personalizou antes de
+ * um novo campo existir) sempre tenham um valor utilizável.
  */
-export function getDaysInCurrentStage(record, status, getField) {
+export function resolveStageTimeConfig(stageTimeConfig) {
+    return {
+        dayType: stageTimeConfig?.dayType === 'calendar' ? 'calendar' : 'business',
+        okMaxDays: Number.isFinite(stageTimeConfig?.okMaxDays) ? stageTimeConfig.okMaxDays : DEFAULT_STAGE_TIME_CONFIG.okMaxDays,
+        warnMaxDays: Number.isFinite(stageTimeConfig?.warnMaxDays) ? stageTimeConfig.warnMaxDays : DEFAULT_STAGE_TIME_CONFIG.warnMaxDays,
+        colors: {
+            ok: stageTimeConfig?.colors?.ok || DEFAULT_STAGE_TIME_CONFIG.colors.ok,
+            warn: stageTimeConfig?.colors?.warn || DEFAULT_STAGE_TIME_CONFIG.colors.warn,
+            risk: stageTimeConfig?.colors?.risk || DEFAULT_STAGE_TIME_CONFIG.colors.risk,
+        },
+    };
+}
+
+/**
+ * Dias (úteis ou corridos, conforme dayType) desde que o registro entrou na
+ * etapa atual. Retorna null se a etapa é terminal (Na pasta) ou se a data de
+ * entrada não está preenchida.
+ */
+export function getDaysInCurrentStage(record, status, getField, dayType = 'business') {
     const entryField = STAGE_ENTRY_FIELD[status];
     if (!entryField) return null;
 
@@ -45,15 +130,18 @@ export function getDaysInCurrentStage(record, status, getField) {
     const entryDate = parseLocalDate(rawDate);
     if (!isValid(entryDate)) return null;
 
-    return calculateBusinessDays(rawDate, new Date());
+    return dayType === 'calendar'
+        ? calculateCalendarDays(rawDate, new Date())
+        : calculateBusinessDays(rawDate, new Date());
 }
 
 /**
- * Média histórica (dias úteis) de permanência em cada etapa, calculada a
- * partir de todos os registros que já passaram por ela (têm data de entrada
- * E de saída preenchidas) — não apenas os que estão nela agora.
+ * Média histórica (dias úteis ou corridos, conforme dayType) de permanência
+ * em cada etapa, calculada a partir de todos os registros que já passaram
+ * por ela (têm data de entrada E de saída preenchidas) — não apenas os que
+ * estão nela agora.
  */
-export function computeStageAverages(records, getField) {
+export function computeStageAverages(records, getField, dayType = 'business') {
     const sums = {};
     const counts = {};
 
@@ -72,7 +160,9 @@ export function computeStageAverages(records, getField) {
             const exitDate = parseLocalDate(exitRaw);
             if (!isValid(entryDate) || !isValid(exitDate)) return;
 
-            const days = calculateBusinessDays(entryRaw, exitRaw);
+            const days = dayType === 'calendar'
+                ? calculateCalendarDays(entryRaw, exitRaw)
+                : calculateBusinessDays(entryRaw, exitRaw);
             if (days == null || days < 0) return;
 
             sums[stage] += days;
@@ -87,17 +177,15 @@ export function computeStageAverages(records, getField) {
     return averages;
 }
 
-// Limiares fixos (dias úteis) para a severidade visual do selo.
-export const STAGE_TIME_THRESHOLDS = { OK_MAX: 5, WARN_MAX: 10 };
-
 /**
- * Classifica a severidade visual por limiares fixos em dias úteis:
- * 'ok' (até 5 dias úteis, verde), 'warn' (até 10 dias úteis,
- * amarelo/mostarda) ou 'risk' (mais de 10 dias úteis, vermelho).
+ * Classifica a severidade visual por limiares configuráveis (dias úteis ou
+ * corridos, conforme config.dayType): 'ok' (até okMaxDays), 'warn' (até
+ * warnMaxDays) ou 'risk' (acima de warnMaxDays).
  */
-export function getStageTimeSeverity(daysInStage) {
+export function getStageTimeSeverity(daysInStage, stageTimeConfig = DEFAULT_STAGE_TIME_CONFIG) {
     if (daysInStage == null) return null;
-    if (daysInStage <= STAGE_TIME_THRESHOLDS.OK_MAX) return 'ok';
-    if (daysInStage <= STAGE_TIME_THRESHOLDS.WARN_MAX) return 'warn';
+    const config = resolveStageTimeConfig(stageTimeConfig);
+    if (daysInStage <= config.okMaxDays) return 'ok';
+    if (daysInStage <= config.warnMaxDays) return 'warn';
     return 'risk';
 }

@@ -30,6 +30,14 @@ interface UpdateOrganizationRequest {
         retentionConfig?: { enabled?: boolean; anonymizeAfterDays?: number };
         // Webhooks de integração externa (flag `outbound_webhooks`).
         webhookConfig?: { enabled?: boolean; url?: string; events?: string[] };
+        // Indicador de tempo na etapa atual (flag `stage_time_indicator`):
+        // limiares de dias e cores do selo, personalizáveis por órgão.
+        stageTimeConfig?: {
+            dayType?: string;
+            okMaxDays?: number;
+            warnMaxDays?: number;
+            colors?: { ok?: string; warn?: string; risk?: string };
+        };
     };
 }
 
@@ -78,6 +86,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             reportsConfig: null,
             retentionConfig: null,
             webhookConfig: null,
+            stageTimeConfig: null,
         };
 
         if (!isCreator) {
@@ -105,6 +114,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.reportsConfig !== undefined) updates.reportsConfig = sanitizeReportsConfig(data.reportsConfig);
         if (data.retentionConfig !== undefined) updates.retentionConfig = sanitizeRetentionConfig(data.retentionConfig);
         if (data.webhookConfig !== undefined) updates.webhookConfig = sanitizeWebhookConfig(data.webhookConfig);
+        if (data.stageTimeConfig !== undefined) updates.stageTimeConfig = sanitizeStageTimeConfig(data.stageTimeConfig);
 
         updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
 
@@ -179,6 +189,42 @@ function sanitizeRetentionConfig(
     return {
         enabled: input?.enabled === true,
         anonymizeAfterDays: Number.isFinite(days) ? Math.min(3650, Math.max(1, Math.round(days))) : 365,
+    };
+}
+
+// Indicador de tempo na etapa atual (flag `stage_time_indicator`): tipo de
+// contagem de dias, limiares e cor de cada faixa de severidade — cada órgão
+// define do jeito que melhor entender. Cores restritas a um preset fixo
+// (mesma lista de STAGE_TIME_COLOR_PRESETS no frontend) para garantir que as
+// classes Tailwind existam no bundle.
+const STAGE_TIME_VALID_COLORS = new Set([
+    'emerald', 'lime', 'amber', 'orange', 'rose', 'sky', 'violet', 'fuchsia', 'slate',
+]);
+
+function sanitizeStageTimeConfig(
+    input: { dayType?: string; okMaxDays?: number; warnMaxDays?: number; colors?: { ok?: string; warn?: string; risk?: string } }
+): { dayType: 'business' | 'calendar'; okMaxDays: number; warnMaxDays: number; colors: { ok: string; warn: string; risk: string } } {
+    const dayType = input?.dayType === 'calendar' ? 'calendar' : 'business';
+
+    const okMaxDaysRaw = Number(input?.okMaxDays);
+    const okMaxDays = Number.isFinite(okMaxDaysRaw) ? Math.min(365, Math.max(1, Math.round(okMaxDaysRaw))) : 5;
+
+    const warnMaxDaysRaw = Number(input?.warnMaxDays);
+    let warnMaxDays = Number.isFinite(warnMaxDaysRaw) ? Math.min(365, Math.max(1, Math.round(warnMaxDaysRaw))) : 10;
+    if (warnMaxDays <= okMaxDays) warnMaxDays = okMaxDays + 1;
+
+    const colorOf = (value: unknown, fallback: string): string =>
+        typeof value === 'string' && STAGE_TIME_VALID_COLORS.has(value) ? value : fallback;
+
+    return {
+        dayType,
+        okMaxDays,
+        warnMaxDays,
+        colors: {
+            ok: colorOf(input?.colors?.ok, 'emerald'),
+            warn: colorOf(input?.colors?.warn, 'amber'),
+            risk: colorOf(input?.colors?.risk, 'rose'),
+        },
     };
 }
 

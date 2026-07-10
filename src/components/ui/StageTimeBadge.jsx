@@ -1,25 +1,25 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { STAGE_TIME_COLOR_PRESETS, DEFAULT_STAGE_TIME_CONFIG } from '@/lib/stageTime';
 
-const SEVERITY_STYLES = {
-    ok: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900',
-    warn: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900',
-    risk: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900',
-    neutral: 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700',
-};
+const NEUTRAL_STYLE = 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700';
 
 /**
- * StageTimeBadge — selo "N dias" na etapa atual, colorido conforme a
- * comparação com a média histórica do órgão (flag `stage_time_indicator`).
+ * StageTimeBadge — selo "N dias" na etapa atual, com cor definida pelo
+ * admin do órgão (Painel Administrativo → Indicador de Tempo, flag
+ * `stage_time_indicator`) para cada nível de severidade (ok/atenção/risco).
  */
-export default function StageTimeBadge({ days, severity, avg, className }) {
+export default function StageTimeBadge({ days, severity, avg, colors, dayType = 'business', className }) {
     if (days == null) return null;
-    const style = SEVERITY_STYLES[severity] || SEVERITY_STYLES.neutral;
 
+    const colorKey = (colors && colors[severity]) || DEFAULT_STAGE_TIME_CONFIG.colors[severity];
+    const style = STAGE_TIME_COLOR_PRESETS[colorKey]?.classes || NEUTRAL_STYLE;
+
+    const unit = dayType === 'calendar' ? 'dia(s) corrido(s)' : 'dia(s) útil(is)';
     const tooltipText = avg != null
-        ? `${days} dia(s) útil(is) na etapa atual — média do órgão: ${avg.toFixed(1)} dia(s)`
-        : `${days} dia(s) útil(is) na etapa atual`;
+        ? `${days} ${unit} na etapa atual — média do órgão: ${avg.toFixed(1)} dia(s)`
+        : `${days} ${unit} na etapa atual`;
 
     return (
         <Tooltip>

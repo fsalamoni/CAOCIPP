@@ -70,3 +70,25 @@ export function calculateBusinessDays(startDate, endDate) {
 
     return count;
 }
+
+/**
+ * Calculates the number of calendar days between two dates (inclusive of
+ * both endpoints, matching calculateBusinessDays' counting convention —
+ * the same day counts as 1).
+ *
+ * @param {Date|string} startDate
+ * @param {Date|string} endDate
+ * @returns {number}
+ */
+export function calculateCalendarDays(startDate, endDate) {
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+    if (start > end) return 0;
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+}

@@ -26,7 +26,7 @@ import { isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
-import { computeStageAverages } from '@/lib/stageTime';
+import { computeStageAverages, resolveStageTimeConfig } from '@/lib/stageTime';
 import ExpedienteKanbanCard from './ExpedienteKanbanCard';
 import ExpedienteKanbanTransitionDialog from './ExpedienteKanbanTransitionDialog';
 import ExpedienteDetailSheet from './ExpedienteDetailSheet';
@@ -156,9 +156,13 @@ export default function ExpedienteKanbanBoard({
     const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
 
     const stageTimeIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
+    const stageTimeConfig = useMemo(
+        () => resolveStageTimeConfig(organization?.stageTimeConfig),
+        [organization?.stageTimeConfig]
+    );
     const stageAverages = useMemo(
-        () => (stageTimeIndicatorOn ? computeStageAverages(expedientes, getExpedienteField) : null),
-        [stageTimeIndicatorOn, expedientes]
+        () => (stageTimeIndicatorOn ? computeStageAverages(expedientes, getExpedienteField, stageTimeConfig.dayType) : null),
+        [stageTimeIndicatorOn, expedientes, stageTimeConfig.dayType]
     );
 
     const [activeId, setActiveId] = useState(null);
@@ -913,6 +917,7 @@ export default function ExpedienteKanbanBoard({
                             expedientes={columns[col.id] || []}
                             onViewDetails={handleViewDetails}
                             stageAverages={stageAverages}
+                            stageTimeConfig={stageTimeConfig}
                         />
                     ))}
                 </div>
@@ -986,7 +991,7 @@ export default function ExpedienteKanbanBoard({
 }
 
 // === Droppable Column ===
-function KanbanColumn({ column, expedientes, onViewDetails, stageAverages }) {
+function KanbanColumn({ column, expedientes, onViewDetails, stageAverages, stageTimeConfig }) {
     const { setNodeRef, isOver } = useDroppable({
         id: column.id,
         data: { columnId: column.id },
@@ -1024,7 +1029,7 @@ function KanbanColumn({ column, expedientes, onViewDetails, stageAverages }) {
                 <SortableContext items={expedientes.map(p => p.id)} strategy={verticalListSortingStrategy}>
                     {expedientes.length > 0 ? (
                         expedientes.map(p => (
-                            <ExpedienteKanbanCard key={p.id} expediente={p} columnId={column.id} onViewDetails={onViewDetails} stageAverages={stageAverages} />
+                            <ExpedienteKanbanCard key={p.id} expediente={p} columnId={column.id} onViewDetails={onViewDetails} stageAverages={stageAverages} stageTimeConfig={stageTimeConfig} />
                         ))
                     ) : (
                         <EmptyState

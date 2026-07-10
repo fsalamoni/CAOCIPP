@@ -19,7 +19,7 @@ import { useFlag } from "@/lib/FeatureFlagsContext";
 import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getExpedienteField, calculateExpedienteDerivedStatus, isExpedienteUrgent } from "@/utils/expedienteUtils";
-import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
+import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from "@/lib/stageTime";
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
@@ -90,10 +90,15 @@ export default function ExpedienteTable({
   const [newViewName, setNewViewName] = useState('');
   const savedViews = preferences?.savedExpedienteViews || [];
 
-  // Indicador de tempo na etapa atual (flag `stage_time_indicator`).
+  // Indicador de tempo na etapa atual (flag `stage_time_indicator`). Limiares/
+  // cores/tipo de dia são configuráveis pelo admin em Painel Administrativo → Indicador de Tempo.
+  const stageTimeConfig = useMemo(
+    () => resolveStageTimeConfig(organization?.stageTimeConfig),
+    [organization?.stageTimeConfig]
+  );
   const stageAverages = useMemo(
-    () => (isStageIndicatorOn ? computeStageAverages(expedientes, getExpedienteField) : null),
-    [isStageIndicatorOn, expedientes]
+    () => (isStageIndicatorOn ? computeStageAverages(expedientes, getExpedienteField, stageTimeConfig.dayType) : null),
+    [isStageIndicatorOn, expedientes, stageTimeConfig.dayType]
   );
 
   const dynamicResponsibleNames = useMemo(() => {
@@ -204,10 +209,10 @@ export default function ExpedienteTable({
       width: 'w-[110px]', sortable: false,
       render: (exp) => {
         const status = calculateExpedienteDerivedStatus(exp);
-        const days = getDaysInCurrentStage(exp, status, getExpedienteField);
+        const days = getDaysInCurrentStage(exp, status, getExpedienteField, stageTimeConfig.dayType);
         const avg = stageAverages ? stageAverages[status] : null;
-        const severity = getStageTimeSeverity(days);
-        return <StageTimeBadge days={days} severity={severity} avg={avg} />;
+        const severity = getStageTimeSeverity(days, stageTimeConfig);
+        return <StageTimeBadge days={days} severity={severity} avg={avg} colors={stageTimeConfig.colors} dayType={stageTimeConfig.dayType} />;
       }
     }] : []),
     {
@@ -302,7 +307,7 @@ export default function ExpedienteTable({
       width: 'w-[160px]', sortable: true,
       render: (exp) => <StatusBadge status={calculateExpedienteDerivedStatus(exp)} className="" />
     },
-  ], [orgName, isStageIndicatorOn, stageAverages]);
+  ], [orgName, isStageIndicatorOn, stageAverages, stageTimeConfig]);
 
   const DEFAULT_VISIBLE = useMemo(() => {
     const map = {};
@@ -666,7 +671,7 @@ export default function ExpedienteTable({
     if (col.key === 'status') return calculateExpedienteDerivedStatus(exp);
     if (col.key === 'stage_time') {
       const status = calculateExpedienteDerivedStatus(exp);
-      const days = getDaysInCurrentStage(exp, status, getExpedienteField);
+      const days = getDaysInCurrentStage(exp, status, getExpedienteField, stageTimeConfig.dayType);
       return days == null ? '' : `${days}d`;
     }
     if (DATE_EXPORT_KEYS.has(col.key)) return formatDate(getExpedienteField(exp, col.key));
