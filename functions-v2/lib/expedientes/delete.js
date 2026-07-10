@@ -38,8 +38,9 @@ exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     if (((_a = expedienteSnap.data()) === null || _a === void 0 ? void 0 : _a.organization_id) !== organizationId) {
         throw new https_1.HttpsError('permission-denied', 'Expediente belongs to another organization');
     }
-    // 3. Delete
-    await expedienteRef.delete();
+    // 3. Delete (recursivo: remove também as subcoleções history/comments,
+    // mesma razão da correção equivalente em processes/delete.ts).
+    await db.recursiveDelete(expedienteRef);
     // 4. Update stats
     await db.collection('organizations').doc(organizationId).update({
         'stats.expedientes_count': admin.firestore.FieldValue.increment(-1),

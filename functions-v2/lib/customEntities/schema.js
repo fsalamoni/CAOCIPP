@@ -293,7 +293,13 @@ function validateRecordValues(fields, values, opts = {}) {
             continue;
         const raw = input[field.key];
         if (isEmptyValue(raw)) {
-            if (field.required && !opts.partial && phaseRequired(field)) {
+            // Nota: em modo parcial, campos NÃO enviados já foram pulados pelo
+            // `continue` acima — chegar aqui em modo parcial significa que o
+            // campo FOI enviado (e vazio). Por isso não checamos `opts.partial`
+            // de novo: um campo obrigatório que o cliente tentou explicitamente
+            // limpar via updateRecord deve continuar sendo rejeitado, não só na
+            // criação.
+            if (field.required && phaseRequired(field)) {
                 errors[field.key] = `${field.label} é obrigatório.`;
             }
             normalized[field.key] = field.type === 'multiselect' ? [] : (field.type === 'boolean' ? false : null);

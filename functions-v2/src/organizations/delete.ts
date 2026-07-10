@@ -21,6 +21,10 @@ const ORG_SCOPED_COLLECTIONS = [
     // Notificações (menções, escalonamento) também têm organization_id e
     // ficavam órfãs indefinidamente após a exclusão do órgão.
     'notifications',
+    // Heartbeats de presença ao vivo (flag `live_presence`) também têm
+    // organization_id; sem isto, ficavam para sempre no Firestore mesmo após
+    // o órgão (e os registros que estavam sendo vistos) deixar de existir.
+    'presence',
 ];
 
 /**

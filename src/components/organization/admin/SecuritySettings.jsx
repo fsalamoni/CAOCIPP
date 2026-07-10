@@ -78,6 +78,13 @@ function AccessAuditLogSection({ organization }) {
 
 function DataRetentionSection({ organization }) {
     const [config, setConfig] = useState(organization.retentionConfig || { enabled: false, anonymizeAfterDays: 365 });
+    // Sem isto, trocar de órgão sem recarregar a página mantinha a config do
+    // órgão anterior no formulário — clicar em "Salvar" gravaria a política
+    // de retenção de um órgão em outro (updateOrganization usa organization.id
+    // atual, mas `config` continuava sendo o valor antigo em memória).
+    useEffect(() => {
+        setConfig(organization.retentionConfig || { enabled: false, anonymizeAfterDays: 365 });
+    }, [organization.id]);
     const [saving, setSaving] = useState(false);
     const [preview, setPreview] = useState(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
@@ -219,6 +226,11 @@ function DataRetentionSection({ organization }) {
 
 function WebhooksSection({ organization }) {
     const [config, setConfig] = useState(organization.webhookConfig || { enabled: false, url: '', events: ['urgent_created', 'archived'] });
+    // Mesma razão da correção equivalente em DataRetentionSection: sem isto,
+    // trocar de órgão podia salvar o webhook de um órgão em outro.
+    useEffect(() => {
+        setConfig(organization.webhookConfig || { enabled: false, url: '', events: ['urgent_created', 'archived'] });
+    }, [organization.id]);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
 

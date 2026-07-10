@@ -324,7 +324,9 @@ exports.deleteRecord = (0, https_1.onCall)({ region: REGION }, async (request) =
         throw new https_1.HttpsError('permission-denied', 'Registro não pertence a esta organização.');
     }
     const entityTypeId = current.entity_type_id;
-    await ref.delete();
+    // Recursivo: remove também a subcoleção history (mesma razão da
+    // correção equivalente em processes/expedientes delete.ts).
+    await db.recursiveDelete(ref);
     try {
         await db.collection('organizations').doc(organizationId).update({
             [`stats.custom_records.${entityTypeId}`]: admin.firestore.FieldValue.increment(-1),

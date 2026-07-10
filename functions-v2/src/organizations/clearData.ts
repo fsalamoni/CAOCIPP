@@ -40,12 +40,17 @@ export const clearOrganizationData = onCall<ClearDataRequest>(
 
         console.log(`[ClearData] Starting wipe for organization ${organizationId} by user ${userId}`);
 
-        // 3. Delete processes in batches
+        // 3. Delete processes in batches — recursivo (db.recursiveDelete) para
+        // também remover as subcoleções history/comments de cada processo;
+        // um `batch.delete()` simples as deixava órfãs (e, pela regra de
+        // leitura delas depender de um get() no processo pai, permanentemente
+        // inacessíveis) para sempre.
         const processesQuery = db.collection('processes')
             .where('organization_id', '==', organizationId);
 
         let deletedCount = 0;
         let hasMore = true;
+        const bulkWriter = db.bulkWriter();
 
         // We use a loop to handle potential large data sets exceeding single batch limits
         while (hasMore) {
@@ -56,13 +61,10 @@ export const clearOrganizationData = onCall<ClearDataRequest>(
                 break;
             }
 
-            const batch = db.batch();
-            snapshot.docs.forEach((doc) => {
-                batch.delete(doc.ref);
-                deletedCount++;
-            });
-
-            await batch.commit();
+            await Promise.all(
+                snapshot.docs.map((doc) => db.recursiveDelete(doc.ref, bulkWriter))
+            );
+            deletedCount += snapshot.size;
             console.log(`[ClearData] Deleted ${deletedCount} processes so far...`);
 
             // Safety break to prevent infinite loops if something goes wrong with the query
@@ -70,6 +72,7 @@ export const clearOrganizationData = onCall<ClearDataRequest>(
                 hasMore = false;
             }
         }
+        await bulkWriter.close();
 
         // 4. Reset organization stats
         await db.collection('organizations').doc(organizationId).update({

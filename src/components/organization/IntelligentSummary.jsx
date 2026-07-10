@@ -30,6 +30,14 @@ const V2_ICON_COLOR = {
   'from-red-500 to-rose-500': 'bg-red-600',
 };
 
+// Aceita boolean true ou strings legadas de import ('Sim'/'sim') — mesma
+// tolerância usada em isProcessUrgent/isExpedienteUrgent. Usada aqui em vez
+// delas porque summarizePeriod recebe tanto processos quanto expedientes
+// (não dá para saber de antemão qual resolvedor de alias usar).
+function isUrgentValue(value) {
+  return value === true || String(value ?? '').toLowerCase().trim() === 'sim';
+}
+
 export default function IntelligentSummary({ processes = [], members, expedientes = [] }) {
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const isPeriodComparisonOn = useFlag(FEATURE_FLAGS.PERIOD_COMPARISON.key);
@@ -83,7 +91,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
     const total = filteredProcesses.length;
     // 'Na pasta' is the finished status in config
     const finished = filteredProcesses.filter(p => p.status === 'Na pasta').length;
-    const urgent = filteredProcesses.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
+    const urgent = filteredProcesses.filter(p => isUrgentValue(p.urgency_request) && p.status !== 'Na pasta').length;
     const rate = total > 0 ? ((finished / total) * 100).toFixed(1) : 0;
 
     // 1. Tempo total médio (Entrada -> Devolução após Revisão)
@@ -169,7 +177,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
     const total = filteredExpedientes.length;
     // 'Na pasta' is the finished status in config
     const finished = filteredExpedientes.filter(p => p.status === 'Na pasta').length;
-    const urgent = filteredExpedientes.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
+    const urgent = filteredExpedientes.filter(p => isUrgentValue(p.urgency_request) && p.status !== 'Na pasta').length;
     const rate = total > 0 ? ((finished / total) * 100).toFixed(1) : 0;
 
     // 1. Tempo total médio Expediente (Entrada -> Devolução após Revisão)
@@ -261,7 +269,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
   const summarizePeriod = (records) => {
     const total = records.length;
     const finished = records.filter(p => p.status === 'Na pasta').length;
-    const urgent = records.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
+    const urgent = records.filter(p => isUrgentValue(p.urgency_request) && p.status !== 'Na pasta').length;
     const completionRate = total > 0 ? (finished / total) * 100 : 0;
     const timeData = records.filter(p => p.entry_date && p.review_return_date);
     const avgTotalTime = timeData.length > 0

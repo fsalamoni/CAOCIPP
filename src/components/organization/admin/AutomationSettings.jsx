@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,15 @@ export default function AutomationSettings({ organization }) {
     const [escalation, setEscalation] = useState(organization.escalationConfig || { enabled: false, maxDaysStalled: 5 });
     const [reports, setReports] = useState(organization.reportsConfig || { dailySummaryEnabled: false, weeklyReportEnabled: false });
     const [savingSection, setSavingSection] = useState(null);
+
+    // Sem isto, trocar de órgão sem recarregar a página mantinha a config do
+    // órgão anterior nos formulários — "Salvar" gravaria metas/escalonamento/
+    // relatórios de um órgão em outro.
+    useEffect(() => {
+        setGoals(organization.goalsConfig || { enabled: false, targetPercent: 80, withinDays: 10 });
+        setEscalation(organization.escalationConfig || { enabled: false, maxDaysStalled: 5 });
+        setReports(organization.reportsConfig || { dailySummaryEnabled: false, weeklyReportEnabled: false });
+    }, [organization.id]);
 
     const saveSection = async (field, value, label) => {
         setSavingSection(field);

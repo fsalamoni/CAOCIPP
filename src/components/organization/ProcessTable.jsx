@@ -125,6 +125,10 @@ export default function ProcessTable({
       if (currentUserMember?.user_name) {
         setResponsibleFilter(currentUserMember.user_name);
       }
+    } else if (initialFilter === 'review') {
+      // Vindo do card "Para Revisão" do decisor: filtra por status, não por
+      // responsável (o decisor normalmente não é o responsible_user_id).
+      setStatusFilter('Em revisão');
     }
   }, [initialFilter, userId, members]);
 

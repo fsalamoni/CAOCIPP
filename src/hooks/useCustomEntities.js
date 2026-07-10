@@ -22,6 +22,11 @@ export function useEntityTypes(organizationId) {
             setIsLoading(false);
             return;
         }
+        // Limpa os tipos de entidade do órgão anterior imediatamente: sem
+        // isto, ao trocar de órgão, as abas/rótulos personalizados do órgão
+        // anterior ficavam visíveis (na barra lateral e no seletor de abas)
+        // até a nova consulta resolver.
+        setEntityTypes([]);
         setIsLoading(true);
         setError(null);
 
@@ -65,6 +70,9 @@ export function useRecords(organizationId, entityTypeId, options = {}) {
             setIsLoading(false);
             return;
         }
+        // Mesma razão de useEntityTypes: limpa os registros do órgão/tipo
+        // anterior antes de buscar os novos.
+        setRecords([]);
         setIsLoading(true);
         setError(null);
 

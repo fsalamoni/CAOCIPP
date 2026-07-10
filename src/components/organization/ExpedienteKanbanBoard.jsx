@@ -228,15 +228,21 @@ export default function ExpedienteKanbanBoard({
         return Array.from(origins).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     }, [expedientes]);
 
+    // Namespeado por organização (mesma razão de KanbanBoard.jsx): sem o
+    // sufixo do organization_id, um filtro/ordenação salvo no Kanban do
+    // órgão A reaparecia (errado) ao abrir o Kanban do órgão B.
+    const filtersKey = `kanban_expediente_filters_${organization?.id || 'default'}`;
+    const sortRulesKey = `kanban_expediente_sortRules_${organization?.id || 'default'}`;
+
     const appliedPrefsRef = useRef(null);
     useEffect(() => {
         if (isLoadingPrefs) return;
 
         const prefsSlice = {
-            filters: preferences?.kanban_expediente_filters || null,
-            sortRules: preferences?.kanban_expediente_sortRules || null,
+            filters: preferences?.[filtersKey] || null,
+            sortRules: preferences?.[sortRulesKey] || null,
         };
-        const prefsKey = JSON.stringify(prefsSlice);
+        const prefsKey = `${organization?.id}:${JSON.stringify(prefsSlice)}`;
         if (appliedPrefsRef.current === prefsKey) {
             if (!isPrefsInitialized) setIsPrefsInitialized(true);
             return;
@@ -262,7 +268,7 @@ export default function ExpedienteKanbanBoard({
         if (!isPrefsInitialized) {
             setIsPrefsInitialized(true);
         }
-    }, [preferences, isLoadingPrefs, isPrefsInitialized]);
+    }, [preferences, isLoadingPrefs, isPrefsInitialized, filtersKey, sortRulesKey, organization?.id]);
 
     const effectiveSortRules = useMemo(() => {
         const sanitized = sanitizeSortRules(sortRules);
@@ -279,13 +285,13 @@ export default function ExpedienteKanbanBoard({
 
         saveTimerRef.current = setTimeout(() => {
             updatePreferences({
-                kanban_expediente_filters: viewFilters,
-                kanban_expediente_sortRules: effectiveSortRules,
+                [filtersKey]: viewFilters,
+                [sortRulesKey]: effectiveSortRules,
             });
         }, 500);
 
         return () => clearTimeout(saveTimerRef.current);
-    }, [viewFilters, effectiveSortRules, isPrefsInitialized, updatePreferences]);
+    }, [viewFilters, effectiveSortRules, isPrefsInitialized, updatePreferences, filtersKey, sortRulesKey]);
 
     const getComparableValue = useCallback((expediente, key) => {
         if (key === 'urgency_request') {
@@ -506,54 +512,12 @@ export default function ExpedienteKanbanBoard({
         setEditOpen(true);
     }, []);
 
-    // === Drag Handlers ===
-    const handleDragStart = useCallback((event) => {
-        setActiveId(event.active.id);
-    }, []);
-
-    const handleDragEnd = useCallback((event) => {
-        const { active, over } = event;
-        setActiveId(null);
-
-        if (!over) return;
-
-        const expediente = filteredExpedientes.find(p => p.id === active.id);
-        if (!expediente) return;
-
-        const currentStatus = calculateExpedienteDerivedStatus(expediente);
-        const targetColumnId = over.data?.current?.columnId || over.id;
-
-        if (currentStatus === targetColumnId) return;
-
-        const currentIdx = getColumnIndex(currentStatus);
-        const targetIdx = getColumnIndex(targetColumnId);
-
-        if (currentIdx < 0 || targetIdx < 0) {
-            toast.error('Não foi possível identificar a coluna de origem ou destino.', { duration: 3000 });
-            return;
-        }
-
-        const isForward = VALID_FORWARD[currentIdx]?.includes(targetIdx);
-        const isBackward = targetIdx < currentIdx;
-
-        if (!isForward && !isBackward) {
-            toast.error('Para avançar o fluxo, mova apenas para a próxima coluna.', { duration: 3000 });
-            return;
-        }
-
-        if (isBackward) {
-            handleBackwardMove(expediente, currentStatus, targetColumnId);
-        } else {
-            handleForwardTransition(expediente, currentStatus, targetColumnId);
-        }
-    }, [filteredExpedientes, isAssessor, userId, userMember]);
-
-    const handleDragCancel = useCallback(() => {
-        setActiveId(null);
-    }, []);
-
     // === Backward Move ===
-    const handleBackwardMove = async (expediente, fromStatus, toStatus) => {
+    // useCallback com `organization` nas deps: antes era uma função plana
+    // recriada a cada render, e handleDragEnd (que a chama) não a tinha em
+    // suas próprias deps — numa troca rápida de órgão, handleDragEnd podia
+    // ficar presa numa versão antiga que gravava no organization.id errado.
+    const handleBackwardMove = useCallback(async (expediente, fromStatus, toStatus) => {
         const expedienteNumber = getExpedienteField(expediente, 'expediente_number');
         const colLabel = KANBAN_COLUMNS.find(c => c.id === toStatus)?.label || toStatus;
 
@@ -597,10 +561,10 @@ export default function ExpedienteKanbanBoard({
         } catch (err) {
             toast.error('Erro ao mover expediente: ' + err.message);
         }
-    };
+    }, [organization]);
 
     // === Forward Transition ===
-    const handleForwardTransition = async (expediente, fromStatus, toStatus) => {
+    const handleForwardTransition = useCallback(async (expediente, fromStatus, toStatus) => {
         if (fromStatus === 'Pendente' && toStatus === 'Em elaboração') {
             setPendingExpediente(expediente);
             setPendingTarget(toStatus);
@@ -632,7 +596,53 @@ export default function ExpedienteKanbanBoard({
             setDialogOpen(true);
             return;
         }
-    };
+    }, []);
+
+    // === Drag Handlers ===
+    const handleDragStart = useCallback((event) => {
+        setActiveId(event.active.id);
+    }, []);
+
+    const handleDragEnd = useCallback((event) => {
+        const { active, over } = event;
+        setActiveId(null);
+
+        if (!over) return;
+
+        const expediente = filteredExpedientes.find(p => p.id === active.id);
+        if (!expediente) return;
+
+        const currentStatus = calculateExpedienteDerivedStatus(expediente);
+        const targetColumnId = over.data?.current?.columnId || over.id;
+
+        if (currentStatus === targetColumnId) return;
+
+        const currentIdx = getColumnIndex(currentStatus);
+        const targetIdx = getColumnIndex(targetColumnId);
+
+        if (currentIdx < 0 || targetIdx < 0) {
+            toast.error('Não foi possível identificar a coluna de origem ou destino.', { duration: 3000 });
+            return;
+        }
+
+        const isForward = VALID_FORWARD[currentIdx]?.includes(targetIdx);
+        const isBackward = targetIdx < currentIdx;
+
+        if (!isForward && !isBackward) {
+            toast.error('Para avançar o fluxo, mova apenas para a próxima coluna.', { duration: 3000 });
+            return;
+        }
+
+        if (isBackward) {
+            handleBackwardMove(expediente, currentStatus, targetColumnId);
+        } else {
+            handleForwardTransition(expediente, currentStatus, targetColumnId);
+        }
+    }, [filteredExpedientes, isAssessor, userId, userMember, handleBackwardMove, handleForwardTransition]);
+
+    const handleDragCancel = useCallback(() => {
+        setActiveId(null);
+    }, []);
 
     // === Dialog Confirm ===
     const handleDialogConfirm = async (data) => {
@@ -854,6 +864,7 @@ export default function ExpedienteKanbanBoard({
                                             disabled={sortRules.length <= 1}
                                             onClick={() => removeSortRule(index)}
                                             className="h-9 w-9 text-slate-500"
+                                            aria-label="Remover regra de ordenação"
                                         >
                                             <X className="h-4 w-4" />
                                         </Button>
