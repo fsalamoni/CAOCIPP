@@ -11,7 +11,7 @@
 // ============================================================================
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { addComment } from '@/services/functionsService';
@@ -52,9 +52,12 @@ export default function EntityComments({ organizationId, entityType, entityId, m
             return undefined;
         }
         setIsLoading(true);
-        const q = query(collection(db, collectionName, entityId, 'comments'), orderBy('created_at', 'asc'));
+        // Ordena desc + limita e reverte no cliente: garante que, no caso raro de
+        // um registro acumular centenas de comentários, mostramos os mais
+        // RECENTES (não os mais antigos, que é o que um limit() em 'asc' traria).
+        const q = query(collection(db, collectionName, entityId, 'comments'), orderBy('created_at', 'desc'), limit(300));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setComments(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+            setComments(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })).reverse());
             setIsLoading(false);
         }, () => setIsLoading(false));
         return () => unsubscribe();

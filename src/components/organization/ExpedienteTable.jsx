@@ -20,7 +20,6 @@ import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getExpedienteField, calculateExpedienteDerivedStatus } from "@/utils/expedienteUtils";
 import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
-import { exportRowsToExcel, exportRowsToPdf } from "@/lib/tableExport";
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
@@ -664,7 +663,7 @@ export default function ExpedienteTable({
     return getExpedienteField(exp, col.key) ?? '';
   };
 
-  const handleExport = (kind) => {
+  const handleExport = async (kind) => {
     const rows = selectedIds.size > 0 ? selectedExpedienteObjects : filteredAndSortedExpedientes;
     if (rows.length === 0) {
       toast.info('Nenhum expediente para exportar.');
@@ -672,6 +671,9 @@ export default function ExpedienteTable({
     }
     const columns = activeColumns.map(col => ({ label: col.label, value: (e) => getExportValue(col, e) }));
     const filenameBase = `expedientes-${new Date().toISOString().slice(0, 10)}`;
+    // Import sob demanda: xlsx/jsPDF são pesadas (~centenas de KB) e só devem
+    // ser baixadas por quem realmente exporta, não incluídas no bundle principal.
+    const { exportRowsToExcel, exportRowsToPdf } = await import('@/lib/tableExport');
     if (kind === 'excel') {
       exportRowsToExcel({ rows, columns, filenameBase });
     } else {

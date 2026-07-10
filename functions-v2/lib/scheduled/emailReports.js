@@ -28,7 +28,7 @@ async function countUrgentPending(orgId, collection) {
 }
 // Resumo diário de urgentes pendentes (flag `scheduled_email_reports`,
 // organization.reportsConfig.dailySummaryEnabled).
-exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every day 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1', secrets: [email_1.EMAIL_API_KEY] }, async () => {
+exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every day 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
     var _a, _b;
     const db = admin.firestore();
     const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
@@ -70,7 +70,7 @@ exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every 
 });
 // Relatório semanal do órgão (flag `scheduled_email_reports`,
 // organization.reportsConfig.weeklyReportEnabled). Toda segunda-feira.
-exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every monday 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1', secrets: [email_1.EMAIL_API_KEY] }, async () => {
+exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every monday 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
     var _a, _b;
     const db = admin.firestore();
     const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();

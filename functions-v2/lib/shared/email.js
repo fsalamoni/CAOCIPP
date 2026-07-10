@@ -1,22 +1,28 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EMAIL_API_KEY = void 0;
 exports.sendEmail = sendEmail;
 exports.resolveUserEmail = resolveUserEmail;
 const admin = require("firebase-admin");
-const params_1 = require("firebase-functions/params");
-// Chave de API do provedor de e-mail transacional (Resend). Configurada fora
-// do app via `firebase functions:secrets:set EMAIL_API_KEY` — NUNCA guardada
-// no Firestore nem no código. Sem este secret, `sendEmail` é um no-op
-// silencioso (loga e retorna), preservando o "zero-quebra": a flag
-// `scheduled_email_reports` pode estar ligada sem que nada seja enviado até
-// que um super-admin configure o provedor.
-exports.EMAIL_API_KEY = (0, params_1.defineSecret)('EMAIL_API_KEY');
+// Chave de API do provedor de e-mail transacional (Resend). Lida de uma
+// variável de ambiente simples (process.env.EMAIL_API_KEY) — DELIBERADAMENTE
+// NÃO usa o Secret Manager do GCP (`defineSecret`/`firebase functions:secrets:set`):
+// isso exigiria habilitar a API do Secret Manager no projeto, e o deploy de
+// QUALQUER função que declare esse secret falha inteiro (não só a função)
+// enquanto a API/segredo não existir — já aconteceu aqui e derrubou o deploy
+// completo (hosting+functions+firestore), não só o dos e-mails.
+//
+// Configuração (opcional, sem isso o envio fica graciosamente inativo):
+// crie `functions-v2/.env` (git-ignorado) com `EMAIL_API_KEY=...`, ou defina
+// a variável de ambiente da função pelo Console do Google Cloud
+// (Cloud Functions → função → Editar → Variáveis de ambiente).
+function getEmailApiKey() {
+    return process.env.EMAIL_API_KEY;
+}
 // Envia via API REST da Resend (https://resend.com/docs/api-reference/emails/send-email).
 // Provedor único, deliberadamente simples: se o projeto adotar outro serviço
 // no futuro, esta é a única função a trocar.
 async function sendEmail({ to, subject, html }) {
-    const apiKey = exports.EMAIL_API_KEY.value();
+    const apiKey = getEmailApiKey();
     if (!apiKey) {
         console.log('[email] EMAIL_API_KEY não configurado — envio ignorado.', { to, subject });
         return false;

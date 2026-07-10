@@ -7,9 +7,9 @@ const EMAIL_PROVIDER_DOC = 'emailProvider';
 
 // Configuração NÃO sensível do provedor de e-mail (relatórios agendados,
 // flag `scheduled_email_reports`). A chave de API real NUNCA é guardada
-// aqui — vive apenas no secret EMAIL_API_KEY do Cloud Functions (Secret
-// Manager), configurado fora do app (firebase functions:secrets:set).
-// Sem o secret configurado, o envio fica inativo mesmo com tudo aqui preenchido.
+// aqui — vive na variável de ambiente EMAIL_API_KEY da Cloud Function
+// (ver functions-v2/src/shared/email.ts), configurada fora do app.
+// Sem essa variável configurada, o envio fica inativo mesmo com tudo aqui preenchido.
 interface EmailProviderConfig {
     fromEmail: string;
     fromName: string;

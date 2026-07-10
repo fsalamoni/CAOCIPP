@@ -61,8 +61,13 @@ const TOTAL_COUNTERS: {
  * real (count()) de membros, processos e expedientes. Reporta divergências
  * (drift) sem alterar nada. Apenas super-admin.
  */
+// Tamanho do lote de órgãos processados em paralelo: rápido o bastante para
+// não estourar o timeout com centenas de órgãos, sem disparar todos os
+// count() de uma vez (500 órgãos x 3 contadores = 1500 requisições simultâneas).
+const AUDIT_BATCH_SIZE = 20;
+
 export const runIntegrityAudit = onCall<{ limit?: number }>(
-    { region: REGION },
+    { region: REGION, timeoutSeconds: 300 },
     async (request): Promise<IntegrityResponse> => {
         await assertPlatformAdmin(request);
         const db = admin.firestore();
@@ -74,36 +79,40 @@ export const runIntegrityAudit = onCall<{ limit?: number }>(
         const driftRows: DriftRow[] = [];
         let okCount = 0;
 
-        for (const docSnap of snap.docs) {
-            const data = docSnap.data() || {};
-            const stats = data.stats || {};
-            const orgId = docSnap.id;
-            const name = String(data.name || 'Sem nome');
+        for (let i = 0; i < snap.docs.length; i += AUDIT_BATCH_SIZE) {
+            const batch = snap.docs.slice(i, i + AUDIT_BATCH_SIZE);
+            const batchResults = await Promise.all(batch.map(async (docSnap) => {
+                const data = docSnap.data() || {};
+                const stats = data.stats || {};
+                const orgId = docSnap.id;
+                const name = String(data.name || 'Sem nome');
 
-            let orgHasDrift = false;
-            for (const counter of TOTAL_COUNTERS) {
-                const actual = await countWhere(
-                    db
-                        .collection(counter.collection)
-                        .where('organization_id', '==', orgId)
-                );
-                const stored =
-                    typeof stats[counter.statKey] === 'number'
-                        ? stats[counter.statKey]
-                        : 0;
-                if (stored !== actual) {
-                    orgHasDrift = true;
-                    driftRows.push({
-                        organization_id: orgId,
-                        name,
-                        field: counter.field,
-                        stored,
-                        actual,
-                        diff: actual - stored,
-                    });
-                }
-            }
-            if (!orgHasDrift) okCount += 1;
+                const actualCounts = await Promise.all(TOTAL_COUNTERS.map((counter) => countWhere(
+                    db.collection(counter.collection).where('organization_id', '==', orgId)
+                )));
+
+                const rows: DriftRow[] = [];
+                TOTAL_COUNTERS.forEach((counter, idx) => {
+                    const actual = actualCounts[idx];
+                    const stored = typeof stats[counter.statKey] === 'number' ? stats[counter.statKey] : 0;
+                    if (stored !== actual) {
+                        rows.push({
+                            organization_id: orgId,
+                            name,
+                            field: counter.field,
+                            stored,
+                            actual,
+                            diff: actual - stored,
+                        });
+                    }
+                });
+                return rows;
+            }));
+
+            batchResults.forEach((rows) => {
+                driftRows.push(...rows);
+                if (rows.length === 0) okCount += 1;
+            });
         }
 
         return {

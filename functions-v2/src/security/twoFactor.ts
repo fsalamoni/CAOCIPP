@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { sendEmail, resolveUserEmail, EMAIL_API_KEY } from '../shared/email';
+import { sendEmail, resolveUserEmail } from '../shared/email';
 
 // Autenticação em duas etapas por e-mail (flag `two_factor_auth`).
 // ----------------------------------------------------------------------------
@@ -25,7 +25,7 @@ function hashCode(uid: string, code: string): string {
 }
 
 export const sendLoginOtp = onCall<void>(
-    { region: 'southamerica-east1', secrets: [EMAIL_API_KEY] },
+    { region: 'southamerica-east1' },
     async (request) => {
         if (!request.auth) {
             throw new HttpsError('unauthenticated', 'Authenticated user required');

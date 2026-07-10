@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { isSafeWebhookUrl } from '../shared/webhooks';
 
 type MembershipLike = { role?: string; permissions?: Record<string, unknown> };
 
@@ -32,6 +33,9 @@ export const testOrgWebhook = onCall<{ organizationId: string }>(
         const url = orgSnap.data()?.webhookConfig?.url;
         if (!url) {
             throw new HttpsError('failed-precondition', 'Configure e salve uma URL de webhook antes de testar.');
+        }
+        if (!(await isSafeWebhookUrl(url))) {
+            throw new HttpsError('invalid-argument', 'URL bloqueada: aponta para um endereço privado/interno.');
         }
 
         // Disparo direto (não passa por fireOrgWebhook): o teste deve funcionar

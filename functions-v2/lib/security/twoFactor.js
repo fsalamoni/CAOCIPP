@@ -23,7 +23,7 @@ const MAX_ATTEMPTS = 5;
 function hashCode(uid, code) {
     return crypto.createHash('sha256').update(`${uid}:${code}`).digest('hex');
 }
-exports.sendLoginOtp = (0, https_1.onCall)({ region: 'southamerica-east1', secrets: [email_1.EMAIL_API_KEY] }, async (request) => {
+exports.sendLoginOtp = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }

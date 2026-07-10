@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.testOrgWebhook = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const webhooks_1 = require("../shared/webhooks");
 function isOrgAdmin(membership) {
     if (!membership)
         return false;
@@ -30,6 +31,9 @@ exports.testOrgWebhook = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
     const url = (_b = (_a = orgSnap.data()) === null || _a === void 0 ? void 0 : _a.webhookConfig) === null || _b === void 0 ? void 0 : _b.url;
     if (!url) {
         throw new https_1.HttpsError('failed-precondition', 'Configure e salve uma URL de webhook antes de testar.');
+    }
+    if (!(await (0, webhooks_1.isSafeWebhookUrl)(url))) {
+        throw new https_1.HttpsError('invalid-argument', 'URL bloqueada: aponta para um endereço privado/interno.');
     }
     // Disparo direto (não passa por fireOrgWebhook): o teste deve funcionar
     // mesmo com o webhook ainda desligado, para validar a URL antes de ativar.
