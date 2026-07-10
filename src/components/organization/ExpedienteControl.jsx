@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, Upload, Plus } from 'lucide-react';
@@ -35,6 +35,16 @@ export default function ExpedienteControl({
     setSelectedExpediente(expediente);
     setEditOpen(true);
   };
+
+  // Fecha o diálogo de edição ao trocar de órgão (mesma razão da correção
+  // equivalente em ProcessControl.jsx).
+  const orgIdRef = useRef(organization?.id);
+  useEffect(() => {
+    if (orgIdRef.current === organization?.id) return;
+    orgIdRef.current = organization?.id;
+    setEditOpen(false);
+    setSelectedExpediente(null);
+  }, [organization?.id]);
 
   const handleArchive = async (expediente) => {
     if (!window.confirm(`Deseja realmente arquivar o expediente ${expediente.expediente_number}?`)) return;

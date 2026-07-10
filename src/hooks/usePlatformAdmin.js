@@ -10,9 +10,18 @@
 // O cliente usa qualquer um dos dois para decidir a EXIBIÇÃO da página/menu.
 // A AUTORIZAÇÃO REAL (escritas/leituras sensíveis) é sempre revalidada no
 // servidor pelas Cloud Functions (assertPlatformAdmin).
+//
+// Os dois sinais são mantidos em estados independentes (claimActive/
+// allowlistActive) e combinados por OR — antes, o claim "vencia" e nunca
+// era reavaliado após o carregamento inicial, então revogar o acesso de um
+// super-admin (revokePlatformAdmin, que já força um refresh do token do
+// lado do servidor) não atualizava a tela até o usuário recarregar a página
+// ou o token expirar sozinho. onIdTokenChanged reage tanto ao refresh
+// automático periódico do SDK quanto a um refresh forçado.
 // ============================================================================
 
 import { useEffect, useState } from 'react';
+import { onIdTokenChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
@@ -22,46 +31,46 @@ export const PLATFORM_ADMINS_COLLECTION = 'platformAdmins';
 
 export function usePlatformAdmin() {
     const { user, isAuthenticated } = useAuth();
-    const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [source, setSource] = useState(null); // 'claim' | 'allowlist' | null
+    const [claimActive, setClaimActive] = useState(false);
+    const [allowlistActive, setAllowlistActive] = useState(false);
+    const [isClaimLoading, setIsClaimLoading] = useState(true);
+    const [isAllowlistLoading, setIsAllowlistLoading] = useState(true);
 
-    // 1) Custom claim no token
+    // 1) Custom claim no token — reavalia sempre que o token for renovado
+    // (refresh automático do SDK, ou refresh forçado por revokeRefreshTokens).
     useEffect(() => {
-        let cancelled = false;
+        if (!isAuthenticated || !user) {
+            setClaimActive(false);
+            setIsClaimLoading(false);
+            return undefined;
+        }
 
-        async function checkClaim() {
-            if (!isAuthenticated || !user) {
-                if (!cancelled) {
-                    setIsPlatformAdmin(false);
-                    setSource(null);
-                    setIsLoading(false);
-                }
+        setIsClaimLoading(true);
+        const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+            if (!firebaseUser) {
+                setClaimActive(false);
+                setIsClaimLoading(false);
                 return;
             }
             try {
-                const tokenResult = await auth.currentUser?.getIdTokenResult();
-                const claim = tokenResult?.claims?.platformAdmin === true;
-                if (!cancelled && claim) {
-                    setIsPlatformAdmin(true);
-                    setSource('claim');
-                }
+                const tokenResult = await firebaseUser.getIdTokenResult();
+                setClaimActive(tokenResult?.claims?.platformAdmin === true);
             } catch (error) {
                 logger.warn('Falha ao ler claims de admin:', error?.code);
+                setClaimActive(false);
             } finally {
-                if (!cancelled) setIsLoading(false);
+                setIsClaimLoading(false);
             }
-        }
+        });
 
-        checkClaim();
-        return () => {
-            cancelled = true;
-        };
+        return () => unsubscribe();
     }, [isAuthenticated, user]);
 
     // 2) Allowlist em Firestore (fallback / fonte para o claim)
     useEffect(() => {
         if (!isAuthenticated || !user?.uid) {
+            setAllowlistActive(false);
+            setIsAllowlistLoading(false);
             return undefined;
         }
 
@@ -69,29 +78,22 @@ export function usePlatformAdmin() {
         const unsubscribe = onSnapshot(
             ref,
             (snap) => {
-                const active = snap.exists() && snap.data()?.active === true;
-                if (active) {
-                    setIsPlatformAdmin(true);
-                    setSource((prev) => prev || 'allowlist');
-                } else {
-                    // Só rebaixa se o claim também não estiver presente.
-                    setSource((prev) => {
-                        if (prev === 'claim') return prev;
-                        setIsPlatformAdmin(false);
-                        return null;
-                    });
-                }
-                setIsLoading(false);
+                setAllowlistActive(snap.exists() && snap.data()?.active === true);
+                setIsAllowlistLoading(false);
             },
             (error) => {
                 // Sem permissão de leitura => não é admin (seguro).
                 logger.warn('Allowlist de admin indisponível:', error?.code);
-                setIsLoading(false);
+                setAllowlistActive(false);
+                setIsAllowlistLoading(false);
             }
         );
 
         return () => unsubscribe();
     }, [isAuthenticated, user?.uid]);
 
-    return { isPlatformAdmin, isLoading, source };
+    const isPlatformAdmin = claimActive || allowlistActive;
+    const source = claimActive ? 'claim' : (allowlistActive ? 'allowlist' : null);
+
+    return { isPlatformAdmin, isLoading: isClaimLoading || isAllowlistLoading, source };
 }

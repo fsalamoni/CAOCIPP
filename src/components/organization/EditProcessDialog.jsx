@@ -202,7 +202,14 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         status: getValue(['status', 'situacao', 'estado'], 'Pendente') || 'Pendente',
       });
     }
-  }, [process, members]);
+    // `members` é lido aqui só para resolver responsible_user_id a partir de
+    // um nome legado (quando não há id salvo) — não deve disparar de novo
+    // sempre que o roster do órgão mudar (qualquer entrada/saída/edição de
+    // membro em QUALQUER lugar do app atualiza esse array), senão o
+    // formulário era resetado no meio da digitação do usuário, descartando
+    // o que ainda não tinha sido salvo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [process]);
 
   const getRollbackByStatus = (status, emptyValue = '') => {
     if (status === 'Pendente') {

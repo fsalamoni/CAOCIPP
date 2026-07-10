@@ -84,6 +84,7 @@ export default function DataToolsPanel() {
             historyEntriesTotal: 0,
             mismatches: [],
         };
+        let hitSafetyGuard = false;
         try {
             for (const collection of ['processes', 'expedientes']) {
                 let startAfter = null;
@@ -111,12 +112,20 @@ export default function DataToolsPanel() {
                     startAfter = res.lastDocId;
                     done = res.done || res.processed === 0;
                 }
+                // Saiu pelo limite de segurança (200mil documentos/coleção), não
+                // porque o servidor sinalizou done — sem isto, a mensagem final
+                // dizia "concluído" mesmo quando na verdade parou pela metade.
+                if (!done) hitSafetyGuard = true;
             }
             setBackfillResult(totals);
+            const verb = verifyOnly ? 'Verificação' : 'Migração';
+            const status = hitSafetyGuard
+                ? `${verb} parou no limite de segurança desta execução (rode novamente para continuar de onde parou)`
+                : `${verb} concluída`;
             setMessage(
                 verifyOnly
-                    ? `Verificação concluída: ${totals.processed} documentos. Divergências: ${totals.mismatches.length}.`
-                    : `Migração concluída: ${totals.processed} documentos, ${totals.entriesWritten} entradas espelhadas.`
+                    ? `${status}: ${totals.processed} documentos. Divergências: ${totals.mismatches.length}.`
+                    : `${status}: ${totals.processed} documentos, ${totals.entriesWritten} entradas espelhadas.`
             );
         } catch (err) {
             logger.error('Falha no backfill de histórico:', err);

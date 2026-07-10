@@ -81,7 +81,14 @@ function toDateMs(v) {
 }
 
 function isTruthy(v) {
-    return v === true || v === 'true' || v === 1 || v === '1' || v === 'sim';
+    if (v === true || v === 1) return true;
+    // Case-insensitive/trim: dados legados de import gravam booleanos como
+    // texto ("Sim"/"SIM"), não só em minúsculas — mesma tolerância já usada
+    // em isProcessUrgent/isExpedienteUrgent/isUrgencyMarked. Sem isto, uma
+    // métrica personalizada com filtro "é Sim/verdadeiro" num campo desses
+    // sub-contava registros legados.
+    const s = String(v).toLowerCase().trim();
+    return s === 'true' || s === '1' || s === 'sim';
 }
 
 /**

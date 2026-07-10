@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, Upload } from 'lucide-react';
@@ -34,6 +34,19 @@ export default function ProcessControl({
     setSelectedProcess(process);
     setEditOpen(true);
   };
+
+  // Fecha o diálogo de edição ao trocar de órgão: sem isto, editar um
+  // processo do órgão A, trocar para o órgão B pelo seletor sem fechar o
+  // diálogo, e clicar Salvar enviava o id do processo de A junto do
+  // organizationId de B — o backend rejeita corretamente (registro pertence
+  // a outro órgão), mas o usuário via um erro confuso e perdia a edição.
+  const orgIdRef = useRef(organization?.id);
+  useEffect(() => {
+    if (orgIdRef.current === organization?.id) return;
+    orgIdRef.current = organization?.id;
+    setEditOpen(false);
+    setSelectedProcess(null);
+  }, [organization?.id]);
 
   const handleArchive = async (process) => {
     if (!window.confirm(`Deseja realmente arquivar o processo ${process.process_number}?`)) return;

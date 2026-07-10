@@ -50,17 +50,29 @@ export default function TwoFactorGate({ children }) {
         setSending(true);
         sendLoginOtp()
             .then((result) => {
+                // Falha aberta SÓ no caminho normal (sem e-mail cadastrado ou
+                // provedor não configurado) — nunca tranca o usuário por um
+                // problema alheio a ele.
                 if (!result?.sent) {
-                    // Falha aberta: provedor de e-mail indisponível — não bloqueia o acesso.
                     toast.warning('Verificação por e-mail temporariamente indisponível. Acesso liberado.');
                     sessionStorage.setItem(sessionKey(user.uid), 'true');
                     setStatus('verified');
                 }
             })
-            .catch(() => {
-                toast.warning('Verificação por e-mail temporariamente indisponível. Acesso liberado.');
-                sessionStorage.setItem(sessionKey(user.uid), 'true');
-                setStatus('verified');
+            .catch((error) => {
+                // Um erro LANÇADO aqui é diferente de "provedor indisponível":
+                // normalmente é o cooldown de reenvio (ex.: usuário abriu uma
+                // segunda aba a menos de 30s da primeira, que já disparou um
+                // código) ou uma falha transitória de rede/função. Liberar o
+                // acesso nesses casos tornaria o 2FA inútil (bastaria abrir
+                // duas abas para nunca precisar digitar um código). Mantém em
+                // "pending": o código de uma tentativa anterior recente ainda
+                // é válido e pode ser digitado, ou o usuário tenta reenviar.
+                if (error?.code === 'functions/resource-exhausted') {
+                    toast.info('Um código já foi enviado há pouco. Verifique seu e-mail ou aguarde alguns segundos para reenviar.');
+                } else {
+                    toast.error('Não foi possível enviar o código de verificação. Tente novamente.');
+                }
             })
             .finally(() => setSending(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps

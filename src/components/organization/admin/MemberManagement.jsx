@@ -119,6 +119,7 @@ export default function MemberManagement({ organization, members }) {
                                                     onClick={() => handleRemoveMember(member.user_id, member.id)}
                                                     disabled={isRemoving}
                                                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    aria-label={`Remover ${formatPersonName(member.user_name || 'membro')}`}
                                                 >
                                                     {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                                 </Button>

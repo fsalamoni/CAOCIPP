@@ -66,13 +66,19 @@ export default function Profile() {
   const [inviteCode, setInviteCode] = useState('');
   const [isJoiningOrg, setIsJoiningOrg] = useState(false);
 
-  // Update local state when userProfile changes
+  // Popula o formulário só na primeira vez que o perfil chega para este uid —
+  // não a cada atualização de userProfile (ex.: logo após o próprio
+  // handleSaveProfile). Sem isto, qualquer edição no formulário feita entre o
+  // clique em "Salvar" e a confirmação (ou uma futura mudança que atualize
+  // userProfile por outro caminho) seria descartada silenciosamente.
+  const profileInitializedForUidRef = React.useRef(null);
   React.useEffect(() => {
-    if (userProfile) {
+    if (userProfile && profileInitializedForUidRef.current !== userProfile.uid) {
       setPlatformName(userProfile.platform_name || '');
       setUserFunction(userProfile.function || '');
       setNotificationEmail(userProfile.notification_email || '');
       setTwoFactorEnabled(userProfile.two_factor_enabled || false);
+      profileInitializedForUidRef.current = userProfile.uid;
     }
   }, [userProfile]);
 
