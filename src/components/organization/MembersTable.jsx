@@ -102,7 +102,7 @@ export default function MembersTable({
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => onRemoveMember(member)}
-                            className="text-rose-600"
+                            className="text-rose-600 dark:text-rose-400"
                           >
                             <UserMinus className="w-4 h-4 mr-2" />
                             Remover
@@ -142,7 +142,7 @@ export default function MembersTable({
             <Button variant="outline" onClick={() => setEditingMember(null)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveFunction} className="bg-slate-900 hover:bg-slate-800">
+            <Button onClick={handleSaveFunction} className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600">
               Salvar
             </Button>
           </DialogFooter>

@@ -100,11 +100,11 @@ export default function EntityComments({ organizationId, entityType, entityId, m
         <div className="space-y-4">
             <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-8 text-slate-400">
+                    <div className="flex items-center justify-center py-8 text-slate-400 dark:text-slate-400">
                         <Loader2 className="w-5 h-5 animate-spin" />
                     </div>
                 ) : comments.length === 0 ? (
-                    <div className="text-center py-8 text-sm text-slate-400 flex flex-col items-center gap-2">
+                    <div className="text-center py-8 text-sm text-slate-400 dark:text-slate-400 flex flex-col items-center gap-2">
                         <MessageSquare className="w-6 h-6 opacity-30" />
                         Nenhum comentário ainda.
                     </div>
@@ -115,7 +115,7 @@ export default function EntityComments({ organizationId, entityType, entityId, m
                                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                                     {formatPersonName(c.author_name || 'Usuário')}
                                 </span>
-                                <span className="text-[11px] text-slate-400 shrink-0">{formatWhen(c.created_at)}</span>
+                                <span className="text-[11px] text-slate-400 dark:text-slate-400 shrink-0">{formatWhen(c.created_at)}</span>
                             </div>
                             <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-words">
                                 {c.text}

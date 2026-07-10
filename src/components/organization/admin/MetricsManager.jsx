@@ -179,7 +179,7 @@ export default function MetricsManager({ organization }) {
         <div className="space-y-6">
             <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Métricas das páginas</h3>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     Defina os indicadores que aparecem na página <strong>Informações Gerais</strong>, para cada
                     página habilitada. Crie, edite, reordene e redimensione livremente — usando as colunas e fases
                     de cada página. Tudo é salvo na organização.
@@ -211,18 +211,18 @@ export default function MetricsManager({ organization }) {
             {/* Pré-visualização (layout/tamanho/cor) */}
             {metrics.length > 0 && (
                 <div>
-                    <Label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Pré-visualização</Label>
+                    <Label className="mb-2 block text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500">Pré-visualização</Label>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                         {metrics.map((m) => {
                             const c = colorClasses(m.color);
                             return (
-                                <Card key={`pv-${m.id}`} className={`shadow-sm border-slate-200 bg-white dark:bg-slate-900 ${sizeSpanClass(m.size)}`}>
+                                <Card key={`pv-${m.id}`} className={`shadow-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 ${sizeSpanClass(m.size)}`}>
                                     <CardContent className="p-4 flex items-center gap-4">
                                         <div className={`w-12 h-12 ${c.bg} rounded-xl flex items-center justify-center ${c.text} shrink-0`}>
                                             <MetricIcon name={m.icon} className="w-6 h-6" />
                                         </div>
                                         <div className="min-w-0">
-                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate">{m.label}</p>
+                                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{m.label}</p>
                                             <h3 className="text-2xl font-black text-slate-300 dark:text-slate-600">—</h3>
                                         </div>
                                     </CardContent>
@@ -235,7 +235,7 @@ export default function MetricsManager({ organization }) {
 
             {/* Lista de métricas (editar/ordenar/redimensionar/excluir) */}
             <div className="space-y-2">
-                <Label className="mb-1 block text-xs uppercase tracking-wider text-slate-400">Métricas ({metrics.length})</Label>
+                <Label className="mb-1 block text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500">Métricas ({metrics.length})</Label>
                 {metrics.length === 0 ? (
                     <Card className="border-dashed">
                         <CardContent className="py-8 text-center text-sm text-muted-foreground">

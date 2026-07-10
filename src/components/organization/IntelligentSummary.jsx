@@ -298,9 +298,9 @@ export default function IntelligentSummary({ processes = [], members, expediente
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Período de Análise</h2>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Resumo Inteligente</p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Resumo Inteligente</p>
             {isPeriodComparisonOn && (
-              <p className="text-[11px] font-medium text-slate-400 mt-0.5">Comparando com {previousPeriodLabel}</p>
+              <p className="text-[11px] font-medium text-slate-400 dark:text-slate-400 mt-0.5">Comparando com {previousPeriodLabel}</p>
             )}
           </div>
         </div>
@@ -314,7 +314,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
             >
               {years.map(y => <option key={y} value={y}>Ano {y}</option>)}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
           </div>
 
           <div className="relative flex-1 sm:flex-none">
@@ -328,13 +328,13 @@ export default function IntelligentSummary({ processes = [], members, expediente
                 <option key={m} value={idx}>{m}</option>
               ))}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400 pointer-events-none" />
           </div>
         </div>
       </div>
 
       <div className="flex items-center gap-2 mb-2 mt-8">
-        <h2 className="text-xl font-bold text-slate-800">Métricas: Consultas (Processos)</h2>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Métricas: Consultas (Processos)</h2>
       </div>
 
       {/* KPI Cards */}
@@ -380,9 +380,9 @@ export default function IntelligentSummary({ processes = [], members, expediente
       {/* Grid de Gráficos e Métricas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Volume por Localidade */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-50">
-            <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800">
+        <Card className="shadow-sm border-slate-200 dark:border-slate-700">
+          <CardHeader className="border-b border-slate-50 dark:border-slate-800">
+            <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800 dark:text-white">
               <MapPin className="w-5 h-5 text-indigo-500" />
               Distribuição por Localidade
             </CardTitle>
@@ -417,7 +417,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
                 </ResponsiveContainer>
               )
             ) : (
-              <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400 dark:text-slate-400 gap-2">
                 <FileText className="w-10 h-10 opacity-20" />
                 <p className="font-medium text-sm">Sem dados para este período</p>
               </div>
@@ -434,16 +434,16 @@ export default function IntelligentSummary({ processes = [], members, expediente
       </div>
 
       {/* Resumo por Status */}
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="text-lg">Resumo por Status</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {noStatusCount > 0 && (
-              <div className="text-center p-4 bg-slate-50 rounded-lg border border-slate-100">
-                <div className="text-2xl font-bold text-slate-900">{noStatusCount}</div>
-                <div className="text-xs text-slate-600 mt-1">Sem Status</div>
+              <div className="text-center p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">{noStatusCount}</div>
+                <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">Sem Status</div>
               </div>
             )}
             {Object.entries(statusCounts).map(([status, count]) => {
@@ -455,10 +455,10 @@ export default function IntelligentSummary({ processes = [], members, expediente
                   key={status}
                   className={`text-center p-4 rounded-lg border border-transparent ${config.startColor}`}
                 >
-                  <div className={`text-2xl font-bold ${config.text?.replace('text-', 'text-opacity-90 text-') || 'text-slate-900'}`}>
+                  <div className={`text-2xl font-bold ${config.text?.replace('text-', 'text-opacity-90 text-') || 'text-slate-900 dark:text-white'}`}>
                     {count}
                   </div>
-                  <div className={`text-xs mt-1 ${config.text || 'text-slate-600'}`}>
+                  <div className={`text-xs mt-1 ${config.text || 'text-slate-600 dark:text-slate-300'}`}>
                     {status}
                   </div>
                 </div>
@@ -473,7 +473,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
       ============================================== */}
       
       <div className="flex items-center gap-2 mb-2 mt-12 pt-8 border-t border-slate-200 dark:border-slate-800">
-        <h2 className="text-xl font-bold text-slate-800">Métricas: Expedientes Administrativos</h2>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Métricas: Expedientes Administrativos</h2>
       </div>
 
       {/* KPI Cards */}
@@ -519,9 +519,9 @@ export default function IntelligentSummary({ processes = [], members, expediente
       {/* Grid de Gráficos e Métricas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Volume por Origem */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-50">
-            <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800">
+        <Card className="shadow-sm border-slate-200 dark:border-slate-700">
+          <CardHeader className="border-b border-slate-50 dark:border-slate-800">
+            <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800 dark:text-white">
               <MapPin className="w-5 h-5 text-indigo-500" />
               Distribuição por Origem
             </CardTitle>
@@ -556,7 +556,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
                 </ResponsiveContainer>
               )
             ) : (
-              <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400 dark:text-slate-400 gap-2">
                 <FileText className="w-10 h-10 opacity-20" />
                 <p className="font-medium text-sm">Sem dados para este período</p>
               </div>
@@ -573,16 +573,16 @@ export default function IntelligentSummary({ processes = [], members, expediente
       </div>
 
       {/* Resumo por Status */}
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="text-lg">Resumo por Status</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {expNoStatusCount > 0 && (
-              <div className="text-center p-4 bg-slate-50 rounded-lg border border-slate-100">
-                <div className="text-2xl font-bold text-slate-900">{expNoStatusCount}</div>
-                <div className="text-xs text-slate-600 mt-1">Sem Status</div>
+              <div className="text-center p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">{expNoStatusCount}</div>
+                <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">Sem Status</div>
               </div>
             )}
             {Object.entries(expStatusCounts).map(([status, count]) => {
@@ -592,10 +592,10 @@ export default function IntelligentSummary({ processes = [], members, expediente
                   key={status}
                   className={`text-center p-4 rounded-lg border border-transparent ${config.startColor}`}
                 >
-                  <div className={`text-2xl font-bold ${config.text?.replace('text-', 'text-opacity-90 text-') || 'text-slate-900'}`}>
+                  <div className={`text-2xl font-bold ${config.text?.replace('text-', 'text-opacity-90 text-') || 'text-slate-900 dark:text-white'}`}>
                     {count}
                   </div>
-                  <div className={`text-xs mt-1 ${config.text || 'text-slate-600'}`}>
+                  <div className={`text-xs mt-1 ${config.text || 'text-slate-600 dark:text-slate-300'}`}>
                     {status}
                   </div>
                 </div>
@@ -612,13 +612,13 @@ export default function IntelligentSummary({ processes = [], members, expediente
 function MetricCard({ title, value, icon: Icon, color, comparison }) {
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   return (
-    <Card className="shadow-sm border-slate-200">
+    <Card className="shadow-sm border-slate-200 dark:border-slate-700">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-600">{title}</p>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{title}</p>
             <div className="flex items-center gap-2 mt-2">
-              <h3 className="text-2xl font-bold text-slate-900">{value}</h3>
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{value}</h3>
               {comparison && <ComparisonBadge {...comparison} />}
             </div>
           </div>
@@ -654,10 +654,10 @@ function ComparisonBadge({ current, previous, lowerIsBetter = false }) {
 
   const isGood = direction === 'flat' ? null : (lowerIsBetter ? direction === 'down' : direction === 'up');
   const colorClass = isGood === null
-    ? 'text-slate-500 bg-slate-100'
+    ? 'text-slate-500 bg-slate-100 dark:text-slate-200 dark:bg-slate-700'
     : isGood
-      ? 'text-emerald-700 bg-emerald-50'
-      : 'text-rose-700 bg-rose-50';
+      ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-200 dark:bg-emerald-900'
+      : 'text-rose-700 bg-rose-50 dark:text-rose-200 dark:bg-rose-900';
   const Arrow = direction === 'up' ? ArrowUp : direction === 'down' ? ArrowDown : Minus;
 
   return (

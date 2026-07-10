@@ -16,17 +16,17 @@ import { MetricIcon } from './metricIcons';
 export default function MetricCard({ metric, value, subtitle }) {
     const c = colorClasses(metric?.color);
     return (
-        <Card className={`shadow-sm border-slate-200 bg-white dark:bg-slate-900 ${sizeSpanClass(metric?.size)}`}>
+        <Card className={`shadow-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 ${sizeSpanClass(metric?.size)}`}>
             <CardContent className="p-4 flex items-center gap-4">
                 <div className={`w-12 h-12 ${c.bg} rounded-xl flex items-center justify-center ${c.text} shrink-0`}>
                     <MetricIcon name={metric?.icon} className="w-6 h-6" />
                 </div>
                 <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate" title={metric?.label}>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate" title={metric?.label}>
                         {metric?.label}
                     </p>
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">{value}</h3>
-                    {subtitle && <p className="text-xs font-medium text-slate-400 truncate">{subtitle}</p>}
+                    {subtitle && <p className="text-xs font-medium text-slate-400 dark:text-slate-500 truncate">{subtitle}</p>}
                 </div>
             </CardContent>
         </Card>

@@ -213,7 +213,7 @@ export default function ProcessTable({
       key: 'consultant', label: 'Consulente', defaultVisible: true,
       width: 'w-[140px]', sortable: true,
       render: (process) => (
-        <div className="text-slate-700 whitespace-normal break-words line-clamp-2 leading-tight text-[13px]" title={String(getProcessField(process, 'consultant'))}>
+        <div className="text-slate-700 dark:text-slate-200 whitespace-normal break-words line-clamp-2 leading-tight text-[13px]" title={String(getProcessField(process, 'consultant'))}>
           {getProcessField(process, 'consultant')}
         </div>
       )
@@ -224,11 +224,11 @@ export default function ProcessTable({
       render: (process) => {
         const cat = getProcessField(process, 'matter_category');
         const sub = getProcessField(process, 'matter_subcategory');
-        if (!cat) return <span className="text-slate-400">-</span>;
+        if (!cat) return <span className="text-slate-400 dark:text-slate-500">-</span>;
         return (
-          <div className="text-[13px] leading-tight text-slate-700">
+          <div className="text-[13px] leading-tight text-slate-700 dark:text-slate-200">
             <div className="font-medium line-clamp-1" title={cat}>{cat}</div>
-            {sub && <div className="text-slate-500 line-clamp-1" title={sub}>{sub}</div>}
+            {sub && <div className="text-slate-500 dark:text-slate-400 line-clamp-1" title={sub}>{sub}</div>}
           </div>
         );
       }
@@ -237,7 +237,7 @@ export default function ProcessTable({
       key: 'matter_object', label: 'Objeto da Consulta', defaultVisible: true,
       width: 'w-[300px]', sortable: true,
       render: (process) => (
-        <div className="line-clamp-2 text-sm leading-relaxed text-slate-700" title={String(getProcessField(process, 'matter_object'))}>
+        <div className="line-clamp-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200" title={String(getProcessField(process, 'matter_object'))}>
           {getProcessField(process, 'matter_object') || '-'}
         </div>
       )
@@ -246,7 +246,7 @@ export default function ProcessTable({
       key: 'location', label: 'Local dos Fatos', defaultVisible: false,
       width: 'w-[160px]', sortable: true,
       render: (process) => (
-        <span className="text-slate-600 truncate block" title={String(getProcessField(process, 'location'))}>
+        <span className="text-slate-600 dark:text-slate-300 truncate block" title={String(getProcessField(process, 'location'))}>
           {getProcessField(process, 'location') || '-'}
         </span>
       )
@@ -265,7 +265,7 @@ export default function ProcessTable({
       key: 'responsible_user_name', label: 'Assessor Responsável', defaultVisible: true,
       width: 'w-[180px]', sortable: true,
       render: (process) => (
-        <span className="text-slate-700 truncate block" title={String(getProcessField(process, 'responsible_user_name'))}>
+        <span className="text-slate-700 dark:text-slate-200 truncate block" title={String(getProcessField(process, 'responsible_user_name'))}>
           {getProcessField(process, 'responsible_user_name') || '-'}
         </span>
       )
@@ -279,7 +279,7 @@ export default function ProcessTable({
       key: 'observations', label: 'Observações', defaultVisible: false,
       width: 'w-[280px]', sortable: false,
       render: (process) => (
-        <div className="line-clamp-2 text-sm text-slate-500" title={String(getProcessField(process, 'observations'))}>
+        <div className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400" title={String(getProcessField(process, 'observations'))}>
           {getProcessField(process, 'observations') || '-'}
         </div>
       )
@@ -305,8 +305,8 @@ export default function ProcessTable({
       render: (process) => {
         const val = getProcessField(process, 'access_restriction');
         return (val === true || String(val).toLowerCase().trim() === 'sim')
-          ? <span className="text-xs text-amber-600 font-medium">Restrito</span>
-          : <span className="text-slate-300">-</span>;
+          ? <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Restrito</span>
+          : <span className="text-slate-300 dark:text-slate-600">-</span>;
       }
     },
     {
@@ -759,10 +759,10 @@ export default function ProcessTable({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
             <Input
               placeholder="Buscar por número, consulente ou cidade..."
               value={search}
@@ -798,7 +798,7 @@ export default function ProcessTable({
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
                   <Filter className="w-4 h-4" />
                   Filtros
                   {activeFiltersCount > 0 && (
@@ -808,10 +808,10 @@ export default function ProcessTable({
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-[400px] p-4 shadow-xl border-slate-200">
+              <PopoverContent align="end" className="w-[400px] p-4 shadow-xl border-slate-200 dark:border-slate-700">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b pb-2 border-slate-100">
-                    <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                  <div className="flex items-center justify-between border-b pb-2 border-slate-100 dark:border-slate-700">
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                       <Settings2 className="w-4 h-4" />
                       Filtros Avançados
                     </h4>
@@ -822,7 +822,7 @@ export default function ProcessTable({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Urgência</label>
+                      <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Urgência</label>
                       <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
                         <SelectTrigger className="h-9">
                           <SelectValue placeholder="Qualquer" />
@@ -836,20 +836,20 @@ export default function ProcessTable({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Longa Data</label>
+                      <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Longa Data</label>
                       <Button
                         variant={isAniversarianteFilter ? "default" : "outline"}
                         size="sm"
                         onClick={() => setIsAniversarianteFilter(!isAniversarianteFilter)}
                         className={`w-full h-9 justify-start gap-2 ${isAniversarianteFilter ? 'bg-indigo-600' : ''}`}
                       >
-                        <Clock className={`w-3.5 h-3.5 ${isAniversarianteFilter ? 'text-white' : 'text-slate-400'}`} />
+                        <Clock className={`w-3.5 h-3.5 ${isAniversarianteFilter ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`} />
                         <span className="text-[11px]">365+ dias</span>
                       </Button>
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Local / Cidade</label>
+                      <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Local / Cidade</label>
                       <Input
                         placeholder="Filtrar cidade..."
                         value={locationFilter === "all" ? "" : locationFilter}
@@ -860,7 +860,7 @@ export default function ProcessTable({
                   </div>
 
                   <div className="pt-2">
-                    <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3 block">Filtros de Datas</label>
+                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 block">Filtros de Datas</label>
                     <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin">
                       {[
                         { label: 'Entrada no CAO', key: 'entry' },
@@ -871,11 +871,11 @@ export default function ProcessTable({
                         { label: 'Retorno da Revisão', key: 'review_return' },
                         { label: 'Arquivamento', key: 'archived' }
                       ].map(({ label, key }) => (
-                        <div key={key} className="p-2 border rounded-md bg-slate-50/50 space-y-1.5">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{label}</p>
+                        <div key={key} className="p-2 border rounded-md bg-slate-50/50 dark:bg-slate-800/50 space-y-1.5">
+                          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight">{label}</p>
                           <div className="flex items-center gap-2">
                             <Input type="date" value={dateFilters[key].start} onChange={(e) => setDateFilters({ ...dateFilters, [key]: { ...dateFilters[key], start: e.target.value } })} className="h-8 text-xs px-2" />
-                            <ArrowUpDown className="w-3 h-3 text-slate-300 shrink-0 rotate-90" />
+                            <ArrowUpDown className="w-3 h-3 text-slate-300 dark:text-slate-600 shrink-0 rotate-90" />
                             <Input type="date" value={dateFilters[key].end} onChange={(e) => setDateFilters({ ...dateFilters, [key]: { ...dateFilters[key], end: e.target.value } })} className="h-8 text-xs px-2" />
                           </div>
                         </div>
@@ -886,11 +886,11 @@ export default function ProcessTable({
               </PopoverContent>
             </Popover>
 
-            <div className="w-px h-6 bg-slate-200 mx-1" />
+            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-10 gap-1.5 text-slate-500 hover:text-slate-900 border-none shadow-none">
+                <Button variant="ghost" size="sm" className="h-10 gap-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-none shadow-none">
                   <Columns3 className="w-4 h-4" />
                   <span className="hidden sm:inline">Colunas</span>
                   <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">{activeColumns.length}</Badge>
@@ -899,14 +899,14 @@ export default function ProcessTable({
               <PopoverContent className="w-80 p-4 shadow-xl border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl mt-2">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-slate-700">Colunas Visíveis</h4>
-                    <Button variant="ghost" size="sm" onClick={resetColumns} className="h-7 text-xs text-slate-500 hover:text-slate-700">Restaurar</Button>
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Colunas Visíveis</h4>
+                    <Button variant="ghost" size="sm" onClick={resetColumns} className="h-7 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Restaurar</Button>
                   </div>
                   <div className="space-y-1 max-h-[300px] overflow-y-auto">
                     {COLUMN_DEFINITIONS.map(col => (
-                      <label key={col.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-slate-50 cursor-pointer transition-colors">
+                      <label key={col.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
                         <Checkbox checked={visibleColumns[col.key] !== false} onCheckedChange={() => toggleColumn(col.key)} className="h-4 w-4" />
-                        <span className="text-sm text-slate-600">{col.label}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-300">{col.label}</span>
                       </label>
                     ))}
                   </div>
@@ -923,7 +923,7 @@ export default function ProcessTable({
             {isSavedViewsOn && (
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                  <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
                     <Bookmark className="w-4 h-4" />
                     <span className="hidden sm:inline">Visões</span>
                     {savedViews.length > 0 && (
@@ -934,21 +934,21 @@ export default function ProcessTable({
                 <PopoverContent align="end" className="w-72 p-3">
                   <div className="space-y-1 mb-3 max-h-48 overflow-y-auto">
                     {savedViews.length === 0 ? (
-                      <p className="text-xs text-slate-400 px-1 py-2">Nenhuma visão salva ainda. Configure os filtros e salve abaixo.</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 px-1 py-2">Nenhuma visão salva ainda. Configure os filtros e salve abaixo.</p>
                     ) : (
                       savedViews.map(view => (
                         <div key={view.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
                           <button type="button" className="text-sm text-slate-700 dark:text-slate-200 flex-1 text-left truncate" onClick={() => applySavedView(view)}>
                             {view.name}
                           </button>
-                          <button type="button" className="text-slate-300 hover:text-rose-500 shrink-0" onClick={() => removeSavedView(view.id)} title="Excluir visão">
+                          <button type="button" className="text-slate-300 dark:text-slate-600 hover:text-rose-500 shrink-0" onClick={() => removeSavedView(view.id)} title="Excluir visão">
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))
                     )}
                   </div>
-                  <div className="flex gap-2 border-t border-slate-100 pt-3">
+                  <div className="flex gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
                     <Input
                       placeholder="Nome da visão atual..."
                       value={newViewName}
@@ -965,7 +965,7 @@ export default function ProcessTable({
             {isExportOn && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                  <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
                     <Download className="w-4 h-4" />
                     <span className="hidden sm:inline">Exportar</span>
                   </Button>
@@ -978,26 +978,26 @@ export default function ProcessTable({
             )}
 
             {isDensityOn && (
-              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden h-10">
+              <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden h-10">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
                       onClick={() => setDensity('comfortable')}
-                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'comfortable' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'comfortable' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`}
                     >
                       <Rows3 className="w-4 h-4" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top">Densidade confortável</TooltipContent>
                 </Tooltip>
-                <div className="w-px h-5 bg-slate-200" />
+                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
                       onClick={() => setDensity('compact')}
-                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'compact' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'compact' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`}
                     >
                       <Rows4 className="w-4 h-4" />
                     </button>
@@ -1022,18 +1022,18 @@ export default function ProcessTable({
             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-rose-600 hover:text-rose-700 border-rose-200 hover:bg-rose-50" onClick={handleBulkArchive}>
               <Archive className="w-3.5 h-3.5" /> Arquivar selecionados
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 text-slate-500" onClick={clearSelection}>Limpar seleção</Button>
+            <Button variant="ghost" size="sm" className="h-8 text-slate-500 dark:text-slate-400" onClick={clearSelection}>Limpar seleção</Button>
           </div>
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <Table style={{ minWidth: `${tableMinWidth}px` }}>
             <TableHeader>
-              <TableRow className="bg-slate-50 shadow-sm">
+              <TableRow className="bg-slate-50 dark:bg-slate-800 shadow-sm">
                 {isBulkActionsOn && (
-                  <TableHead className="w-[40px] bg-slate-50 sticky top-0 z-30">
+                  <TableHead className="w-[40px] bg-slate-50 dark:bg-slate-800 sticky top-0 z-30">
                     <Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAllOnPage} aria-label="Selecionar todos nesta página" />
                   </TableHead>
                 )}
@@ -1042,7 +1042,7 @@ export default function ProcessTable({
                   return (
                     <TableHead
                       key={col.key}
-                      className={`font-semibold ${col.width} bg-slate-50 sticky top-0 z-30 ${isStickyLeft ? 'left-0 z-40 border-r' : ''} ${col.align === 'center' ? 'text-center' : ''}`}
+                      className={`font-semibold ${col.width} bg-slate-50 dark:bg-slate-800 sticky top-0 z-30 ${isStickyLeft ? 'left-0 z-40 border-r' : ''} ${col.align === 'center' ? 'text-center' : ''}`}
                     >
                       {col.sortable ? (
                         <Button variant="ghost" size="sm" onClick={() => handleSort(col.key)} className="-ml-2 h-8 font-semibold">
@@ -1052,7 +1052,7 @@ export default function ProcessTable({
                     </TableHead>
                   )
                 })}
-                <TableHead className="font-semibold text-center sticky top-0 right-0 z-40 bg-slate-50 border-l w-[80px]">Ações</TableHead>
+                <TableHead className="font-semibold text-center sticky top-0 right-0 z-40 bg-slate-50 dark:bg-slate-800 border-l w-[80px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1060,14 +1060,14 @@ export default function ProcessTable({
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`skeleton-${i}`}>
                     {isBulkActionsOn && (
-                      <TableCell><div className="h-4 w-4 bg-slate-100/60 rounded animate-pulse"></div></TableCell>
+                      <TableCell><div className="h-4 w-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse"></div></TableCell>
                     )}
                     {activeColumns.map(col => (
                       <TableCell key={col.key}>
-                        <div className="h-4 bg-slate-100/60 rounded animate-pulse w-full"></div>
+                        <div className="h-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse w-full"></div>
                       </TableCell>
                     ))}
-                    <TableCell><div className="h-4 bg-slate-100/60 rounded animate-pulse w-8 mx-auto"></div></TableCell>
+                    <TableCell><div className="h-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse w-8 mx-auto"></div></TableCell>
                   </TableRow>
                 ))
               ) : paginatedProcesses.length === 0 ? (
@@ -1140,7 +1140,7 @@ export default function ProcessTable({
                             <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-black/5"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-48 border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(process); }}><Pencil className="w-4 h-4 mr-2 text-slate-500" />Editar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(process); }}><Pencil className="w-4 h-4 mr-2 text-slate-500 dark:text-slate-400" />Editar</DropdownMenuItem>
                             {!process.archived_date && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1177,9 +1177,9 @@ export default function ProcessTable({
       {filteredAndSortedProcesses.length > 0 && (
         <div className="sticky bottom-0 mt-4 flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)] z-20">
           <div className="flex items-center gap-4">
-            <p className="text-sm text-slate-500">Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredAndSortedProcesses.length)} de {filteredAndSortedProcesses.length} processos</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredAndSortedProcesses.length)} de {filteredAndSortedProcesses.length} processos</p>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-400">Exibir:</label>
+              <label className="text-xs text-slate-400 dark:text-slate-500">Exibir:</label>
               <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(parseInt(v))}>
                 <SelectTrigger className="w-16 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>

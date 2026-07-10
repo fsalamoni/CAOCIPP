@@ -89,20 +89,20 @@ export default function GeneralInfo({ organization, members, processes = [], exp
   return (
     <div className="space-y-6">
       {/* Header with Year Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">Saúde e Métricas</h2>
-          <p className="text-sm text-slate-500">Visão geral do desempenho do órgão por período.</p>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white">Saúde e Métricas</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Visão geral do desempenho do órgão por período.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Label htmlFor="year-filter" className="text-sm font-bold text-slate-600 whitespace-nowrap">
+          <Label htmlFor="year-filter" className="text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
             Filtrar por Ano:
           </Label>
           <select
             id="year-filter"
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="h-10 pl-3 pr-8 rounded-lg border-slate-200 bg-slate-50 shadow-sm text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+            className="h-10 pl-3 pr-8 rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
           >
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -124,44 +124,44 @@ export default function GeneralInfo({ organization, members, processes = [], exp
       <div className="grid grid-cols-1 gap-6">
         <div className="lg:col-span-1 space-y-6">
           {/* Organization Info */}
-          <Card className="shadow-sm border-slate-200">
+          <Card className="shadow-sm border-slate-200 dark:border-slate-700">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-bold text-slate-800">Identificação</CardTitle>
+              <CardTitle className="text-lg font-bold text-slate-800 dark:text-white">Identificação</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Nome Oficial</p>
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">Nome Oficial</p>
                 <p className="text-lg font-bold text-slate-900 dark:text-white">{organization.name}</p>
               </div>
 
               {organization.description && (
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Descrição / Competência</p>
+                  <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">Descrição / Competência</p>
                   <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{organization.description}</p>
                 </div>
               )}
 
               <div className="pt-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Código de Acesso para Convite</p>
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2">Código de Acesso para Convite</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-lg font-mono text-lg font-bold text-indigo-600 border border-slate-200">
+                  <code className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-lg font-mono text-lg font-bold text-indigo-600 dark:text-indigo-300 border border-slate-200 dark:border-slate-700">
                     {organization.invite_code}
                   </code>
-                  <Button onClick={copyInviteCode} variant="outline" size="icon" className="h-12 w-12 border-slate-200 hover:bg-slate-100">
+                  <Button onClick={copyInviteCode} variant="outline" size="icon" className="h-12 w-12 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Copy className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 text-xs font-medium text-slate-500 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-6 text-xs font-medium text-slate-500 dark:text-slate-400 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   Criada em {formatCreatedDate(organization.created_at)}
                 </div>
                 {userRole === 'creator' && (
                   <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-indigo-600" />
-                    <span className="text-indigo-600">Você é o administrador titular</span>
+                    <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-indigo-600 dark:text-indigo-400">Você é o administrador titular</span>
                   </div>
                 )}
               </div>
@@ -171,7 +171,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
       </div>
 
       {/* Members Table */}
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="text-lg">Membros ({members.length})</CardTitle>
         </CardHeader>
@@ -197,7 +197,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
                   {members.map(member => (
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">{formatPersonName(member.user_name || '')}</TableCell>
-                      <TableCell className="text-slate-600">{member.user_email}</TableCell>
+                      <TableCell className="text-slate-600 dark:text-slate-300">{member.user_email}</TableCell>
                       <TableCell>
                         {userRole === 'creator' && member.role !== 'creator' ? (
                           <EditFunctionDialog
@@ -205,7 +205,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
                             organizationId={organization.id}
                           />
                         ) : (
-                          <span className="text-slate-600">{member.function || '-'}</span>
+                          <span className="text-slate-600 dark:text-slate-300">{member.function || '-'}</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -216,7 +216,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
                           {member.role === 'creator' ? 'Criador' : 'Membro'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-slate-600">
+                      <TableCell className="text-slate-600 dark:text-slate-300">
                         {formatCreatedDate(member.joined_at)}
                       </TableCell>
                       {userRole === 'creator' && (
@@ -227,7 +227,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
                               size="sm"
                               onClick={() => handleRemoveMember(member.user_id, member.id)}
                               disabled={isRemoving}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/40"
                             >
                               {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </Button>
@@ -277,7 +277,7 @@ function EditFunctionDialog({ member, organizationId }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 gap-2 text-slate-600 hover:text-slate-900">
+        <Button variant="ghost" size="sm" className="h-8 gap-2 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
           {member.function || 'Definir função'}
           <Edit2 className="w-3 h-3" />
         </Button>

@@ -226,7 +226,7 @@ export default function ExpedienteTable({
       key: 'origin', label: 'Origem', defaultVisible: true,
       width: 'w-[140px]', sortable: true,
       render: (exp) => (
-        <span className="text-slate-700 truncate block text-[13px]" title={String(getExpedienteField(exp, 'origin'))}>
+        <span className="text-slate-700 dark:text-slate-200 truncate block text-[13px]" title={String(getExpedienteField(exp, 'origin'))}>
           {getExpedienteField(exp, 'origin') || '-'}
         </span>
       )
@@ -240,7 +240,7 @@ export default function ExpedienteTable({
       key: 'object', label: 'Objeto', defaultVisible: true,
       width: 'w-[300px]', sortable: true,
       render: (exp) => (
-        <div className="line-clamp-2 text-sm leading-relaxed text-slate-700" title={String(getExpedienteField(exp, 'object'))}>
+        <div className="line-clamp-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200" title={String(getExpedienteField(exp, 'object'))}>
           {getExpedienteField(exp, 'object') || '-'}
         </div>
       )
@@ -254,7 +254,7 @@ export default function ExpedienteTable({
       key: 'responsible_user_name', label: 'Assessor Responsável', defaultVisible: true,
       width: 'w-[180px]', sortable: true,
       render: (exp) => (
-        <span className="text-slate-700 truncate block" title={String(getExpedienteField(exp, 'responsible_user_name'))}>
+        <span className="text-slate-700 dark:text-slate-200 truncate block" title={String(getExpedienteField(exp, 'responsible_user_name'))}>
           {getExpedienteField(exp, 'responsible_user_name') || '-'}
         </span>
       )
@@ -268,7 +268,7 @@ export default function ExpedienteTable({
       key: 'observations', label: 'Observações', defaultVisible: true,
       width: 'w-[280px]', sortable: false,
       render: (exp) => (
-        <div className="line-clamp-2 text-sm text-slate-500" title={String(getExpedienteField(exp, 'observations'))}>
+        <div className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400" title={String(getExpedienteField(exp, 'observations'))}>
           {getExpedienteField(exp, 'observations') || '-'}
         </div>
       )
@@ -708,10 +708,10 @@ export default function ExpedienteTable({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
             <Input
               placeholder="Buscar por número, sistema, origem..."
               value={search}
@@ -747,7 +747,7 @@ export default function ExpedienteTable({
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
                   <Filter className="w-4 h-4" />
                   Filtros
                   {activeFiltersCount > 0 && (
@@ -757,10 +757,10 @@ export default function ExpedienteTable({
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-[400px] p-4 shadow-xl border-slate-200">
+              <PopoverContent align="end" className="w-[400px] p-4 shadow-xl border-slate-200 dark:border-slate-700">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b pb-2 border-slate-100">
-                    <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                  <div className="flex items-center justify-between border-b pb-2 border-slate-100 dark:border-slate-700">
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                       <Settings2 className="w-4 h-4" />
                       Filtros Avançados
                     </h4>
@@ -771,7 +771,7 @@ export default function ExpedienteTable({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Sistema</label>
+                      <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sistema</label>
                       <Select value={systemFilter} onValueChange={setSystemFilter}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Qualquer" /></SelectTrigger>
                         <SelectContent>
@@ -784,7 +784,7 @@ export default function ExpedienteTable({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Origem</label>
+                      <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Origem</label>
                       <Select value={originFilter} onValueChange={setOriginFilter}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Qualquer" /></SelectTrigger>
                         <SelectContent>
@@ -797,7 +797,7 @@ export default function ExpedienteTable({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Urgência</label>
+                      <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Urgência</label>
                       <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Qualquer" /></SelectTrigger>
                         <SelectContent>
@@ -809,21 +809,21 @@ export default function ExpedienteTable({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Longa Data</label>
+                      <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Longa Data</label>
                       <Button
                         variant={isAniversarianteFilter ? "default" : "outline"}
                         size="sm"
                         onClick={() => setIsAniversarianteFilter(!isAniversarianteFilter)}
                         className={`w-full h-9 justify-start gap-2 ${isAniversarianteFilter ? 'bg-indigo-600' : ''}`}
                       >
-                        <Clock className={`w-3.5 h-3.5 ${isAniversarianteFilter ? 'text-white' : 'text-slate-400'}`} />
+                        <Clock className={`w-3.5 h-3.5 ${isAniversarianteFilter ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`} />
                         <span className="text-[11px]">365+ dias</span>
                       </Button>
                     </div>
                   </div>
 
                   <div className="pt-2">
-                    <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3 block">Filtros de Datas</label>
+                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 block">Filtros de Datas</label>
                     <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin">
                       {[
                         { label: `Entrada no ${orgName}`, key: 'entry' },
@@ -834,11 +834,11 @@ export default function ExpedienteTable({
                         { label: 'Devolução após Revisão', key: 'review_return' },
                         { label: 'Arquivamento', key: 'archived' }
                       ].map(({ label, key }) => (
-                        <div key={key} className="p-2 border rounded-md bg-slate-50/50 space-y-1.5">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{label}</p>
+                        <div key={key} className="p-2 border rounded-md bg-slate-50/50 dark:bg-slate-800/50 space-y-1.5">
+                          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight">{label}</p>
                           <div className="flex items-center gap-2">
                             <Input type="date" value={dateFilters[key].start} onChange={(e) => setDateFilters({ ...dateFilters, [key]: { ...dateFilters[key], start: e.target.value } })} className="h-8 text-xs px-2" />
-                            <ArrowUpDown className="w-3 h-3 text-slate-300 shrink-0 rotate-90" />
+                            <ArrowUpDown className="w-3 h-3 text-slate-300 dark:text-slate-600 shrink-0 rotate-90" />
                             <Input type="date" value={dateFilters[key].end} onChange={(e) => setDateFilters({ ...dateFilters, [key]: { ...dateFilters[key], end: e.target.value } })} className="h-8 text-xs px-2" />
                           </div>
                         </div>
@@ -849,11 +849,11 @@ export default function ExpedienteTable({
               </PopoverContent>
             </Popover>
 
-            <div className="w-px h-6 bg-slate-200 mx-1" />
+            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-10 gap-1.5 text-slate-500 hover:text-slate-900 border-none shadow-none">
+                <Button variant="ghost" size="sm" className="h-10 gap-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-none shadow-none">
                   <Columns3 className="w-4 h-4" />
                   <span className="hidden sm:inline">Colunas</span>
                   <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">{activeColumns.length}</Badge>
@@ -862,14 +862,14 @@ export default function ExpedienteTable({
               <PopoverContent className="w-80 p-4 shadow-xl border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl mt-2">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-slate-700">Colunas Visíveis</h4>
-                    <Button variant="ghost" size="sm" onClick={resetColumns} className="h-7 text-xs text-slate-500 hover:text-slate-700">Restaurar</Button>
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Colunas Visíveis</h4>
+                    <Button variant="ghost" size="sm" onClick={resetColumns} className="h-7 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Restaurar</Button>
                   </div>
                   <div className="space-y-1 max-h-[300px] overflow-y-auto">
                     {COLUMN_DEFINITIONS.map(col => (
-                      <label key={col.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-slate-50 cursor-pointer transition-colors">
+                      <label key={col.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
                         <Checkbox checked={visibleColumns[col.key] !== false} onCheckedChange={() => toggleColumn(col.key)} className="h-4 w-4" />
-                        <span className="text-sm text-slate-600">{col.label}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-300">{col.label}</span>
                       </label>
                     ))}
                   </div>
@@ -886,7 +886,7 @@ export default function ExpedienteTable({
             {isSavedViewsOn && (
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                  <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
                     <Bookmark className="w-4 h-4" />
                     <span className="hidden sm:inline">Visões</span>
                     {savedViews.length > 0 && (
@@ -897,21 +897,21 @@ export default function ExpedienteTable({
                 <PopoverContent align="end" className="w-72 p-3">
                   <div className="space-y-1 mb-3 max-h-48 overflow-y-auto">
                     {savedViews.length === 0 ? (
-                      <p className="text-xs text-slate-400 px-1 py-2">Nenhuma visão salva ainda. Configure os filtros e salve abaixo.</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 px-1 py-2">Nenhuma visão salva ainda. Configure os filtros e salve abaixo.</p>
                     ) : (
                       savedViews.map(view => (
                         <div key={view.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
                           <button type="button" className="text-sm text-slate-700 dark:text-slate-200 flex-1 text-left truncate" onClick={() => applySavedView(view)}>
                             {view.name}
                           </button>
-                          <button type="button" className="text-slate-300 hover:text-rose-500 shrink-0" onClick={() => removeSavedView(view.id)} title="Excluir visão">
+                          <button type="button" className="text-slate-300 dark:text-slate-600 hover:text-rose-500 shrink-0" onClick={() => removeSavedView(view.id)} title="Excluir visão">
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))
                     )}
                   </div>
-                  <div className="flex gap-2 border-t border-slate-100 pt-3">
+                  <div className="flex gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
                     <Input
                       placeholder="Nome da visão atual..."
                       value={newViewName}
@@ -928,7 +928,7 @@ export default function ExpedienteTable({
             {isExportOn && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                  <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
                     <Download className="w-4 h-4" />
                     <span className="hidden sm:inline">Exportar</span>
                   </Button>
@@ -941,26 +941,26 @@ export default function ExpedienteTable({
             )}
 
             {isDensityOn && (
-              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden h-10">
+              <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden h-10">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
                       onClick={() => setDensity('comfortable')}
-                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'comfortable' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'comfortable' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`}
                     >
                       <Rows3 className="w-4 h-4" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top">Densidade confortável</TooltipContent>
                 </Tooltip>
-                <div className="w-px h-5 bg-slate-200" />
+                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
                       onClick={() => setDensity('compact')}
-                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'compact' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'compact' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`}
                     >
                       <Rows4 className="w-4 h-4" />
                     </button>
@@ -985,18 +985,18 @@ export default function ExpedienteTable({
             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-rose-600 hover:text-rose-700 border-rose-200 hover:bg-rose-50" onClick={handleBulkArchive}>
               <Archive className="w-3.5 h-3.5" /> Arquivar selecionados
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 text-slate-500" onClick={clearSelection}>Limpar seleção</Button>
+            <Button variant="ghost" size="sm" className="h-8 text-slate-500 dark:text-slate-400" onClick={clearSelection}>Limpar seleção</Button>
           </div>
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <Table style={{ minWidth: `${tableMinWidth}px` }}>
             <TableHeader>
-              <TableRow className="bg-slate-50 shadow-sm">
+              <TableRow className="bg-slate-50 dark:bg-slate-800 shadow-sm">
                 {isBulkActionsOn && (
-                  <TableHead className="w-[40px] bg-slate-50 sticky top-0 z-30">
+                  <TableHead className="w-[40px] bg-slate-50 dark:bg-slate-800 sticky top-0 z-30">
                     <Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAllOnPage} aria-label="Selecionar todos nesta página" />
                   </TableHead>
                 )}
@@ -1005,7 +1005,7 @@ export default function ExpedienteTable({
                   return (
                     <TableHead
                       key={col.key}
-                      className={`font-semibold ${col.width} bg-slate-50 sticky top-0 z-30 ${isStickyLeft ? 'left-0 z-40 border-r' : ''} ${col.align === 'center' ? 'text-center' : ''}`}
+                      className={`font-semibold ${col.width} bg-slate-50 dark:bg-slate-800 sticky top-0 z-30 ${isStickyLeft ? 'left-0 z-40 border-r' : ''} ${col.align === 'center' ? 'text-center' : ''}`}
                     >
                       {col.sortable ? (
                         <Button variant="ghost" size="sm" onClick={() => handleSort(col.key)} className="-ml-2 h-8 font-semibold">
@@ -1015,7 +1015,7 @@ export default function ExpedienteTable({
                     </TableHead>
                   )
                 })}
-                <TableHead className="font-semibold text-center sticky top-0 right-0 z-40 bg-slate-50 border-l w-[80px]">Ações</TableHead>
+                <TableHead className="font-semibold text-center sticky top-0 right-0 z-40 bg-slate-50 dark:bg-slate-800 border-l w-[80px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1023,14 +1023,14 @@ export default function ExpedienteTable({
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`skeleton-${i}`}>
                     {isBulkActionsOn && (
-                      <TableCell><div className="h-4 w-4 bg-slate-100/60 rounded animate-pulse"></div></TableCell>
+                      <TableCell><div className="h-4 w-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse"></div></TableCell>
                     )}
                     {activeColumns.map(col => (
                       <TableCell key={col.key}>
-                        <div className="h-4 bg-slate-100/60 rounded animate-pulse w-full"></div>
+                        <div className="h-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse w-full"></div>
                       </TableCell>
                     ))}
-                    <TableCell><div className="h-4 bg-slate-100/60 rounded animate-pulse w-8 mx-auto"></div></TableCell>
+                    <TableCell><div className="h-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse w-8 mx-auto"></div></TableCell>
                   </TableRow>
                 ))
               ) : paginatedExpedientes.length === 0 ? (
@@ -1102,7 +1102,7 @@ export default function ExpedienteTable({
                             <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-black/5"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-48 border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(exp); }}><Pencil className="w-4 h-4 mr-2 text-slate-500" />Editar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(exp); }}><Pencil className="w-4 h-4 mr-2 text-slate-500 dark:text-slate-400" />Editar</DropdownMenuItem>
                             {!exp.archived_date && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1139,9 +1139,9 @@ export default function ExpedienteTable({
       {filteredAndSortedExpedientes.length > 0 && (
         <div className="sticky bottom-0 mt-4 flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)] z-20">
           <div className="flex items-center gap-4">
-            <p className="text-sm text-slate-500">Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredAndSortedExpedientes.length)} de {filteredAndSortedExpedientes.length} expedientes</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredAndSortedExpedientes.length)} de {filteredAndSortedExpedientes.length} expedientes</p>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-400">Exibir:</label>
+              <label className="text-xs text-slate-400 dark:text-slate-500">Exibir:</label>
               <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(parseInt(v))}>
                 <SelectTrigger className="w-16 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>

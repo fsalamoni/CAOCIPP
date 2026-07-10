@@ -91,7 +91,7 @@ function FilterRow({ schema, filter, onChange, onRemove }) {
                                 const arr = Array.isArray(filter.value) ? filter.value : [];
                                 const checked = arr.includes(o.value);
                                 return (
-                                    <label key={o.value} className={`text-xs px-2 py-1 rounded cursor-pointer border ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                                    <label key={o.value} className={`text-xs px-2 py-1 rounded cursor-pointer border ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-900 dark:border-indigo-600 dark:text-indigo-100' : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300'}`}>
                                         <input
                                             type="checkbox"
                                             className="sr-only"
@@ -180,7 +180,7 @@ export default function MetricEditorDialog({ open, onOpenChange, schema, metric,
                             <MetricIcon name={draft.icon} className="w-6 h-6" />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate">{draft.label || 'Sem título'}</p>
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{draft.label || 'Sem título'}</p>
                             <h3 className="text-2xl font-black text-slate-900 dark:text-white">123</h3>
                         </div>
                     </div>
@@ -215,7 +215,7 @@ export default function MetricEditorDialog({ open, onOpenChange, schema, metric,
                     </div>
 
                     {draft.agg === 'percent' && (
-                        <p className="text-xs text-slate-500 -mt-2">O percentual é calculado sobre o total de registros da página (após o filtro de ano).</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">O percentual é calculado sobre o total de registros da página (após o filtro de ano).</p>
                     )}
 
                     {/* Filtros */}
@@ -227,7 +227,7 @@ export default function MetricEditorDialog({ open, onOpenChange, schema, metric,
                             </Button>
                         </div>
                         {(!draft.filters || draft.filters.length === 0) ? (
-                            <p className="text-xs text-slate-400">Sem filtros: a métrica considera todos os registros da página.</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">Sem filtros: a métrica considera todos os registros da página.</p>
                         ) : (
                             <div className="space-y-2">
                                 {draft.filters.map((f, idx) => (
@@ -252,7 +252,7 @@ export default function MetricEditorDialog({ open, onOpenChange, schema, metric,
                                     key={name}
                                     type="button"
                                     onClick={() => set({ icon: name })}
-                                    className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${draft.icon === name ? 'border-indigo-500 bg-indigo-50 text-indigo-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                    className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${draft.icon === name ? 'border-indigo-500 bg-indigo-50 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-200' : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800'}`}
                                     title={name}
                                 >
                                     <MetricIcon name={name} className="w-4 h-4" />

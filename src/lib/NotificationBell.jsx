@@ -102,13 +102,13 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
                     <div className="p-2 font-semibold">Notificações</div>
                     <DropdownMenuSeparator />
                     {notifications.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
+                        <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">Nenhuma notificação</div>
                     ) : variant === 'mobile' ? (
                         notifications.slice(0, 5).map((notif) => (
-                            <DropdownMenuItem key={notif.id} className="flex-col items-start p-3 cursor-pointer hover:bg-slate-50">
-                                <div className="font-medium text-sm text-slate-900">{notif.title}</div>
-                                <div className="text-xs text-slate-500 mt-1">{notif.message}</div>
-                                <div className="text-[10px] text-slate-400 mt-2 w-full text-right">
+                            <DropdownMenuItem key={notif.id} className="flex-col items-start p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                                <div className="font-medium text-sm text-slate-900 dark:text-white">{notif.title}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{notif.message}</div>
+                                <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 w-full text-right">
                                     {new Date(notif.created_at?.seconds * 1000).toLocaleString()}
                                 </div>
                             </DropdownMenuItem>
@@ -117,7 +117,7 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
                         notifications.slice(0, 5).map((notif) => (
                             <DropdownMenuItem key={notif.id} className="flex-col items-start p-3">
                                 <div className="font-medium text-sm">{notif.title}</div>
-                                <div className="text-xs text-slate-500">{notif.message}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{notif.message}</div>
                             </DropdownMenuItem>
                         ))
                     )}
@@ -154,11 +154,11 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
                 </div>
                 <DropdownMenuSeparator />
                 {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
+                    <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">Nenhuma notificação</div>
                 ) : (
                     Array.from(grouped.entries()).map(([type, items]) => (
                         <div key={type}>
-                            <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                            <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                                 {TYPE_LABELS[type] || 'Outras'}
                             </div>
                             {items.slice(0, 8).map((notif) => (
@@ -168,9 +168,9 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
                                     onSelect={(e) => { e.preventDefault(); handleClickNotification(notif); }}
                                 >
                                     <div className="font-medium text-sm">{notif.title}</div>
-                                    <div className="text-xs text-slate-500">{notif.message}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">{notif.message}</div>
                                     {notif.created_at?.seconds && (
-                                        <div className="text-[10px] text-slate-400 mt-1 w-full text-right">
+                                        <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 w-full text-right">
                                             {new Date(notif.created_at.seconds * 1000).toLocaleString('pt-BR')}
                                         </div>
                                     )}
@@ -181,7 +181,7 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
                 )}
                 <DropdownMenuSeparator />
                 <div className="flex items-center justify-between px-3 py-2">
-                    <span className="text-xs text-slate-500">Notificar quando eu for mencionado</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Notificar quando eu for mencionado</span>
                     <Switch
                         checked={notifyOnMention}
                         onCheckedChange={(checked) => updatePreferences({
