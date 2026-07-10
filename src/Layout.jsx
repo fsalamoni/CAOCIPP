@@ -312,7 +312,7 @@ export default function Layout({ children, currentPageName }) {
       {/* Main Content */}
       <div className={cn('min-h-screen transition-[margin] duration-200 ease-in-out', isCollapsed ? 'lg:ml-[76px]' : 'lg:ml-64')}>
         {/* Top Bar - Desktop */}
-        <div className="hidden lg:flex h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 items-center justify-between px-6 sticky top-0 z-30">
+        <div className="hidden lg:flex h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 items-center justify-between px-6 sticky top-0 z-30">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
             {currentPageName === 'Dashboard' ? 'Painel de Consultas' :
               currentPageName === 'Profile' ? 'Meu Perfil' :
