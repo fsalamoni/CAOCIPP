@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.sendWeeklyOrgReport = exports.sendDailyUrgentSummary = exports.autoEscalateStalledUrgent = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
-exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = void 0;
+exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -90,11 +90,20 @@ Object.defineProperty(exports, "importRecords", { enumerable: true, get: functio
 var comments_1 = require("./collaboration/comments");
 Object.defineProperty(exports, "addComment", { enumerable: true, get: function () { return comments_1.addComment; } });
 // ========== Automação em segundo plano (Fase 4) ==========
-var autoEscalation_1 = require("./scheduled/autoEscalation");
-Object.defineProperty(exports, "autoEscalateStalledUrgent", { enumerable: true, get: function () { return autoEscalation_1.autoEscalateStalledUrgent; } });
-var emailReports_1 = require("./scheduled/emailReports");
-Object.defineProperty(exports, "sendDailyUrgentSummary", { enumerable: true, get: function () { return emailReports_1.sendDailyUrgentSummary; } });
-Object.defineProperty(exports, "sendWeeklyOrgReport", { enumerable: true, get: function () { return emailReports_1.sendWeeklyOrgReport; } });
+// As 3 funções agendadas abaixo (onSchedule) exigem a API
+// cloudscheduler.googleapis.com, que NÃO está habilitada neste projeto GCP —
+// e a conta de serviço do deploy automático não tem permissão para
+// habilitá-la sozinha (erro "Permissions denied enabling
+// cloudscheduler.googleapis.com" no deploy). Isso faz o `firebase deploy`
+// abortar TODO o restante (hosting + demais functions + firestore), não só
+// estas 3. Comentadas temporariamente para o resto do deploy ter sucesso.
+//
+// Para reativar: um dono do projeto GCP habilita a API em
+// https://console.cloud.google.com/apis/library/cloudscheduler.googleapis.com
+// (ou roda `gcloud services enable cloudscheduler.googleapis.com --project=<id>`),
+// depois é só descomentar as 3 linhas abaixo e fazer o deploy de novo.
+// export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
+// export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
 var emailProvider_1 = require("./platform/emailProvider");
 Object.defineProperty(exports, "getEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.getEmailProviderConfig; } });
 Object.defineProperty(exports, "setEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.setEmailProviderConfig; } });

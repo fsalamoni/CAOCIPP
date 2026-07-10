@@ -56,8 +56,20 @@ export { createRecord, updateRecord, deleteRecord, importRecords } from './custo
 export { addComment } from './collaboration/comments';
 
 // ========== Automação em segundo plano (Fase 4) ==========
-export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
-export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
+// As 3 funções agendadas abaixo (onSchedule) exigem a API
+// cloudscheduler.googleapis.com, que NÃO está habilitada neste projeto GCP —
+// e a conta de serviço do deploy automático não tem permissão para
+// habilitá-la sozinha (erro "Permissions denied enabling
+// cloudscheduler.googleapis.com" no deploy). Isso faz o `firebase deploy`
+// abortar TODO o restante (hosting + demais functions + firestore), não só
+// estas 3. Comentadas temporariamente para o resto do deploy ter sucesso.
+//
+// Para reativar: um dono do projeto GCP habilita a API em
+// https://console.cloud.google.com/apis/library/cloudscheduler.googleapis.com
+// (ou roda `gcloud services enable cloudscheduler.googleapis.com --project=<id>`),
+// depois é só descomentar as 3 linhas abaixo e fazer o deploy de novo.
+// export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
+// export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
 export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
 
 // ========== Segurança, conformidade e integrações (Fase 5) ==========
