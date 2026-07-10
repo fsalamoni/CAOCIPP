@@ -19,7 +19,7 @@ import { useFlag } from "@/lib/FeatureFlagsContext";
 import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getProcessField, calculateDerivedStatus, isProcessUrgent } from "@/utils/processUtils";
-import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
+import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from "@/lib/stageTime";
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
@@ -97,10 +97,15 @@ export default function ProcessTable({
   const savedViews = preferences?.savedProcessViews || [];
 
   // Indicador de tempo na etapa atual (flag `stage_time_indicator`): média
-  // histórica calculada sobre TODOS os processos do órgão.
+  // histórica calculada sobre TODOS os processos do órgão. Limiares/cores/tipo
+  // de dia são configuráveis pelo admin em Painel Administrativo → Indicador de Tempo.
+  const stageTimeConfig = useMemo(
+    () => resolveStageTimeConfig(organization?.stageTimeConfig),
+    [organization?.stageTimeConfig]
+  );
   const stageAverages = useMemo(
-    () => (isStageIndicatorOn ? computeStageAverages(processes, getProcessField) : null),
-    [isStageIndicatorOn, processes]
+    () => (isStageIndicatorOn ? computeStageAverages(processes, getProcessField, stageTimeConfig.dayType) : null),
+    [isStageIndicatorOn, processes, stageTimeConfig.dayType]
   );
 
   // 1. Extract dynamic list of responsible names from process data
@@ -198,10 +203,10 @@ export default function ProcessTable({
       width: 'w-[110px]', sortable: false,
       render: (process) => {
         const status = calculateDerivedStatus(process);
-        const days = getDaysInCurrentStage(process, status, getProcessField);
+        const days = getDaysInCurrentStage(process, status, getProcessField, stageTimeConfig.dayType);
         const avg = stageAverages ? stageAverages[status] : null;
-        const severity = getStageTimeSeverity(days);
-        return <StageTimeBadge days={days} severity={severity} avg={avg} />;
+        const severity = getStageTimeSeverity(days, stageTimeConfig);
+        return <StageTimeBadge days={days} severity={severity} avg={avg} colors={stageTimeConfig.colors} dayType={stageTimeConfig.dayType} />;
       }
     }] : []),
     {
@@ -323,7 +328,7 @@ export default function ProcessTable({
       width: 'w-[160px]', sortable: true,
       render: (process) => <StatusBadge status={calculateDerivedStatus(process)} className="" />
     },
-  ], [isStageIndicatorOn, stageAverages]);
+  ], [isStageIndicatorOn, stageAverages, stageTimeConfig]);
 
   const DEFAULT_VISIBLE = useMemo(() => {
     const map = {};
@@ -708,7 +713,7 @@ export default function ProcessTable({
     if (col.key === 'status') return calculateDerivedStatus(process);
     if (col.key === 'stage_time') {
       const status = calculateDerivedStatus(process);
-      const days = getDaysInCurrentStage(process, status, getProcessField);
+      const days = getDaysInCurrentStage(process, status, getProcessField, stageTimeConfig.dayType);
       return days == null ? '' : `${days}d`;
     }
     if (col.key === 'matter_category') {

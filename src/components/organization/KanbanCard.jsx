@@ -8,7 +8,7 @@ import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
-import { getDaysInCurrentStage, getStageTimeSeverity } from '@/lib/stageTime';
+import { getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from '@/lib/stageTime';
 import StageTimeBadge from '@/components/ui/StageTimeBadge';
 import { toast } from 'sonner';
 import {
@@ -24,7 +24,7 @@ import {
  *  - overlay: true when rendering inside DragOverlay
  *  - onViewDetails: callback(process) to open the detail sheet
  */
-export default function KanbanCard({ process, columnId, overlay = false, onViewDetails, stageAverages = null }) {
+export default function KanbanCard({ process, columnId, overlay = false, onViewDetails, stageAverages = null, stageTimeConfig = null }) {
     const canCopyProcessNumber = useFlag(FEATURE_FLAGS.COPY_PROCESS_NUMBER.key);
     const stageTimeIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
 
@@ -66,9 +66,12 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
     // como se fosse `key`, e getProcessField(process, record) quebrava ao
     // tentar chamar `.toLowerCase()` num objeto. Passa a função de verdade,
     // que já aceita (registro, chave).
-    const daysInStage = stageTimeIndicatorOn ? getDaysInCurrentStage(process, currentStatus, getProcessField) : null;
+    const resolvedStageTimeConfig = resolveStageTimeConfig(stageTimeConfig);
+    const daysInStage = stageTimeIndicatorOn
+        ? getDaysInCurrentStage(process, currentStatus, getProcessField, resolvedStageTimeConfig.dayType)
+        : null;
     const stageAvg = stageAverages ? stageAverages[currentStatus] : null;
-    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage) : null;
+    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage, resolvedStageTimeConfig) : null;
 
     // Entry date
     const entryDateRaw = field('entry_date');
@@ -174,7 +177,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
                             <span className="text-[10px] truncate">Entrada: {entryDate}</span>
                         </div>
                     )}
-                    <StageTimeBadge days={daysInStage} severity={stageSeverity} avg={stageAvg} className="ml-auto shrink-0" />
+                    <StageTimeBadge days={daysInStage} severity={stageSeverity} avg={stageAvg} colors={resolvedStageTimeConfig.colors} dayType={resolvedStageTimeConfig.dayType} className="ml-auto shrink-0" />
                 </div>
             )}
 

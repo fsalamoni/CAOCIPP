@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge, ShieldCheck, Zap, Lock } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { hasOrgPermission, hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -18,6 +18,7 @@ import MetricsManager from './MetricsManager';
 import PermissionsManager from './PermissionsManager';
 import AutomationSettings from './AutomationSettings';
 import SecuritySettings from './SecuritySettings';
+import StageTimeSettings from './StageTimeSettings';
 
 export default function AdminManagement({ organization, members, userRole, userMembership }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
@@ -29,6 +30,7 @@ export default function AdminManagement({ organization, members, userRole, userM
     const isRetentionOn = useFlag(FEATURE_FLAGS.DATA_RETENTION_POLICY.key);
     const isWebhooksOn = useFlag(FEATURE_FLAGS.OUTBOUND_WEBHOOKS.key);
     const showSecurityTab = isAccessAuditLogOn || isRetentionOn || isWebhooksOn;
+    const isStageTimeOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
 
     const isCreator = userRole === 'creator';
 
@@ -137,6 +139,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                             Segurança
                         </TabsTrigger>
                     )}
+                    {isCreator && isStageTimeOn && (
+                        <TabsTrigger value="stagetime" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <Timer className="w-4 h-4" />
+                            Indicador de Tempo
+                        </TabsTrigger>
+                    )}
                     {isCreator && (
                         <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                             <Bot className="w-4 h-4" />
@@ -208,6 +216,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                 {isCreator && showSecurityTab && (
                     <TabsContent value="security">
                         <SecuritySettings organization={organization} />
+                    </TabsContent>
+                )}
+
+                {isCreator && isStageTimeOn && (
+                    <TabsContent value="stagetime">
+                        <StageTimeSettings organization={organization} />
                     </TabsContent>
                 )}
 

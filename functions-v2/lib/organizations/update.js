@@ -41,6 +41,7 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         reportsConfig: null,
         retentionConfig: null,
         webhookConfig: null,
+        stageTimeConfig: null,
     };
     if (!isCreator) {
         for (const field of Object.keys(data || {})) {
@@ -79,6 +80,8 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.retentionConfig = sanitizeRetentionConfig(data.retentionConfig);
     if (data.webhookConfig !== undefined)
         updates.webhookConfig = sanitizeWebhookConfig(data.webhookConfig);
+    if (data.stageTimeConfig !== undefined)
+        updates.stageTimeConfig = sanitizeStageTimeConfig(data.stageTimeConfig);
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     if (Object.keys(updates).length === 0) {
         return { success: true, message: 'No changes detected' };
@@ -135,6 +138,35 @@ function sanitizeRetentionConfig(input) {
     return {
         enabled: (input === null || input === void 0 ? void 0 : input.enabled) === true,
         anonymizeAfterDays: Number.isFinite(days) ? Math.min(3650, Math.max(1, Math.round(days))) : 365,
+    };
+}
+// Indicador de tempo na etapa atual (flag `stage_time_indicator`): tipo de
+// contagem de dias, limiares e cor de cada faixa de severidade — cada órgão
+// define do jeito que melhor entender. Cores restritas a um preset fixo
+// (mesma lista de STAGE_TIME_COLOR_PRESETS no frontend) para garantir que as
+// classes Tailwind existam no bundle.
+const STAGE_TIME_VALID_COLORS = new Set([
+    'emerald', 'lime', 'amber', 'orange', 'rose', 'sky', 'violet', 'fuchsia', 'slate',
+]);
+function sanitizeStageTimeConfig(input) {
+    var _a, _b, _c;
+    const dayType = (input === null || input === void 0 ? void 0 : input.dayType) === 'calendar' ? 'calendar' : 'business';
+    const okMaxDaysRaw = Number(input === null || input === void 0 ? void 0 : input.okMaxDays);
+    const okMaxDays = Number.isFinite(okMaxDaysRaw) ? Math.min(365, Math.max(1, Math.round(okMaxDaysRaw))) : 5;
+    const warnMaxDaysRaw = Number(input === null || input === void 0 ? void 0 : input.warnMaxDays);
+    let warnMaxDays = Number.isFinite(warnMaxDaysRaw) ? Math.min(365, Math.max(1, Math.round(warnMaxDaysRaw))) : 10;
+    if (warnMaxDays <= okMaxDays)
+        warnMaxDays = okMaxDays + 1;
+    const colorOf = (value, fallback) => typeof value === 'string' && STAGE_TIME_VALID_COLORS.has(value) ? value : fallback;
+    return {
+        dayType,
+        okMaxDays,
+        warnMaxDays,
+        colors: {
+            ok: colorOf((_a = input === null || input === void 0 ? void 0 : input.colors) === null || _a === void 0 ? void 0 : _a.ok, 'emerald'),
+            warn: colorOf((_b = input === null || input === void 0 ? void 0 : input.colors) === null || _b === void 0 ? void 0 : _b.warn, 'amber'),
+            risk: colorOf((_c = input === null || input === void 0 ? void 0 : input.colors) === null || _c === void 0 ? void 0 : _c.risk, 'rose'),
+        },
     };
 }
 const WEBHOOK_VALID_EVENTS = new Set(['urgent_created', 'archived']);
