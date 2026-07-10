@@ -11,8 +11,8 @@ export default function EmptyState({
 }) {
     return (
         <div className={cn("flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500", className)}>
-            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-full border border-slate-100 dark:border-slate-800 mb-4 shadow-sm">
-                <Icon className="w-12 h-12 text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
+            <div className="bg-slate-50 dark:bg-slate-700 p-6 rounded-full border border-slate-100 dark:border-slate-600 mb-4 shadow-sm">
+                <Icon className="w-12 h-12 text-slate-300 dark:text-slate-400" strokeWidth={1.5} />
             </div>
             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">
                 {title}

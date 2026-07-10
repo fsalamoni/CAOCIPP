@@ -72,7 +72,7 @@ export default function MembersTable({
                 <TableCell>{member.function || '-'}</TableCell>
                 <TableCell>
                   {member.role === 'creator' ? (
-                    <Badge className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900">
+                    <Badge className="bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-100 border-amber-200 dark:border-amber-500">
                       <Crown className="w-3 h-3 mr-1" />
                       Criador
                     </Badge>
@@ -102,7 +102,7 @@ export default function MembersTable({
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => onRemoveMember(member)}
-                            className="text-rose-600"
+                            className="text-rose-600 dark:text-rose-400"
                           >
                             <UserMinus className="w-4 h-4 mr-2" />
                             Remover
@@ -142,7 +142,7 @@ export default function MembersTable({
             <Button variant="outline" onClick={() => setEditingMember(null)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveFunction} className="bg-slate-900 hover:bg-slate-800">
+            <Button onClick={handleSaveFunction} className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600">
               Salvar
             </Button>
           </DialogFooter>

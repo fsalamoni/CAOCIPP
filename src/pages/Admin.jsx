@@ -41,7 +41,7 @@ export default function Admin() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-24 text-slate-500">
+            <div className="flex items-center justify-center py-24 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Verificando acesso...
             </div>
@@ -51,11 +51,11 @@ export default function Admin() {
     if (!isPlatformAdmin) {
         return (
             <div className="max-w-md mx-auto mt-16 text-center space-y-3">
-                <Lock className="w-10 h-10 mx-auto text-slate-400" />
+                <Lock className="w-10 h-10 mx-auto text-slate-400 dark:text-slate-500" />
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                     Acesso restrito
                 </h2>
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                     Esta área é exclusiva do super-administrador da plataforma.
                 </p>
             </div>
@@ -68,7 +68,7 @@ export default function Admin() {
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     Administração & Custos
                 </h1>
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                     Visão completa da plataforma: uso, armazenamento, custos e controle
                     das funcionalidades por meio de chaves (feature flags).
                 </p>
@@ -76,49 +76,49 @@ export default function Admin() {
 
             <Tabs defaultValue="overview" className="space-y-6">
                 <TabsList className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 w-full justify-start h-auto flex-wrap">
-                    <TabsTrigger value="overview" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                    <TabsTrigger value="overview" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                         <LayoutDashboard className="w-4 h-4" /> Visão Geral
                     </TabsTrigger>
-                    <TabsTrigger value="setup" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                    <TabsTrigger value="setup" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                         <Settings className="w-4 h-4" /> Configuração
                     </TabsTrigger>
-                    <TabsTrigger value="costs" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                    <TabsTrigger value="costs" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                         <DollarSign className="w-4 h-4" /> Custos
                     </TabsTrigger>
-                    <TabsTrigger value="flags" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                    <TabsTrigger value="flags" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                         <Flag className="w-4 h-4" /> Funcionalidades
                     </TabsTrigger>
-                    <TabsTrigger value="admins" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                    <TabsTrigger value="admins" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                         <ShieldCheck className="w-4 h-4" /> Administradores
                     </TabsTrigger>
-                    <TabsTrigger value="email" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                    <TabsTrigger value="email" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                         <Mail className="w-4 h-4" /> E-mail
                     </TabsTrigger>
                     {wave2 && (
                         <>
-                            <TabsTrigger value="orgs" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <TabsTrigger value="orgs" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                                 <Building2 className="w-4 h-4" /> Órgãos
                             </TabsTrigger>
-                            <TabsTrigger value="users" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <TabsTrigger value="users" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                                 <Users className="w-4 h-4" /> Usuários
                             </TabsTrigger>
-                            <TabsTrigger value="activity" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <TabsTrigger value="activity" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                                 <Activity className="w-4 h-4" /> Movimentações
                             </TabsTrigger>
-                            <TabsTrigger value="footprint" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <TabsTrigger value="footprint" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                                 <HardDrive className="w-4 h-4" /> Footprint
                             </TabsTrigger>
                         </>
                     )}
                     {wave3 && (
                         <>
-                            <TabsTrigger value="quotas" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <TabsTrigger value="quotas" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                                 <SlidersHorizontal className="w-4 h-4" /> Cotas
                             </TabsTrigger>
-                            <TabsTrigger value="health" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <TabsTrigger value="health" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                                 <HeartPulse className="w-4 h-4" /> Saúde
                             </TabsTrigger>
-                            <TabsTrigger value="datatools" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <TabsTrigger value="datatools" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                                 <Wrench className="w-4 h-4" /> Ferramentas
                             </TabsTrigger>
                         </>

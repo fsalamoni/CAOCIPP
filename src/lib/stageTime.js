@@ -35,51 +35,55 @@ export const STAGE_EXIT_FIELD = {
 // Paleta de cores permitidas para os selos ok/atenção/risco. Presets fixos
 // (não cores livres) para garantir que as classes Tailwind existam no bundle
 // e para manter o contraste correto em ambos os temas.
+// No escuro, usa fundo SÓLIDO (não translúcido sobre um fundo já muito
+// escuro) com texto bem claro — as versões translúcidas (ex.: bg-X-950/40)
+// colapsam visualmente e ficam quase indistinguíveis umas das outras. Cada
+// cor abaixo é propositalmente bem diferenciável das demais no escuro.
 export const STAGE_TIME_COLOR_PRESETS = {
     emerald: {
         label: 'Verde',
         swatch: 'bg-emerald-500',
-        classes: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900',
+        classes: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900 dark:text-emerald-200 dark:border-emerald-600',
     },
     lime: {
         label: 'Verde-limão',
         swatch: 'bg-lime-500',
-        classes: 'bg-lime-50 text-lime-700 border-lime-200 dark:bg-lime-950/40 dark:text-lime-400 dark:border-lime-900',
+        classes: 'bg-lime-50 text-lime-700 border-lime-200 dark:bg-lime-900 dark:text-lime-200 dark:border-lime-600',
     },
     amber: {
         label: 'Âmbar / Mostarda',
         swatch: 'bg-amber-500',
-        classes: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900',
+        classes: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-800 dark:text-amber-100 dark:border-amber-500',
     },
     orange: {
         label: 'Laranja',
         swatch: 'bg-orange-500',
-        classes: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-900',
+        classes: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-600',
     },
     rose: {
         label: 'Vermelho',
         swatch: 'bg-rose-500',
-        classes: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900',
+        classes: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900 dark:text-rose-200 dark:border-rose-600',
     },
     sky: {
         label: 'Azul',
         swatch: 'bg-sky-500',
-        classes: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-900',
+        classes: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900 dark:text-sky-200 dark:border-sky-600',
     },
     violet: {
         label: 'Roxo',
         swatch: 'bg-violet-500',
-        classes: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-900',
+        classes: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900 dark:text-violet-200 dark:border-violet-600',
     },
     fuchsia: {
         label: 'Rosa/Magenta',
         swatch: 'bg-fuchsia-500',
-        classes: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-400 dark:border-fuchsia-900',
+        classes: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-900 dark:text-fuchsia-200 dark:border-fuchsia-600',
     },
     slate: {
         label: 'Cinza',
         swatch: 'bg-slate-500',
-        classes: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
+        classes: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-500',
     },
 };
 

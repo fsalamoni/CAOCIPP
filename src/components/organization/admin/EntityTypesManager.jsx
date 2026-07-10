@@ -82,7 +82,7 @@ export default function EntityTypesManager({ organization }) {
             <div className="flex items-center justify-between gap-4">
                 <div>
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Páginas personalizadas</h3>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
                         Crie suas próprias páginas com campos, painel de fases e regras — sem programar.
                     </p>
                 </div>

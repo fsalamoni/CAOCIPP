@@ -137,7 +137,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                 <CardContent className="pt-4">
                     <div className="grid grid-cols-7 mb-1">
                         {WEEKDAY_LABELS.map((w, idx) => (
-                            <div key={idx} className="text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400 py-1">
+                            <div key={idx} className="text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-400 py-1">
                                 {w}
                             </div>
                         ))}
@@ -214,7 +214,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                                     <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                                         {evt.number || '(sem número)'}
                                     </span>
-                                    <span className="text-xs text-slate-400 shrink-0">
+                                    <span className="text-xs text-slate-400 dark:text-slate-400 shrink-0">
                                         {evt.kind === 'processo' ? 'Consulta' : 'Expediente'}
                                     </span>
                                 </div>

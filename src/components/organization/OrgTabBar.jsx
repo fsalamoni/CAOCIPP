@@ -35,7 +35,7 @@ export default function OrgTabBar({ tabs, activeTab, orgId }) {
               'border-b-2 -mb-px transition-colors',
               active
                 ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-slate-300'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-slate-300 dark:hover:border-slate-600'
             )}
           >
             {Icon && <Icon className="w-4 h-4 shrink-0" />}

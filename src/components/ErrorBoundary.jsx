@@ -41,40 +41,40 @@ class ErrorBoundary extends React.Component {
     render() {
         if (this.state.hasError) {
             return (
-                <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+                <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-900 p-4">
                     <Card className="max-w-md w-full shadow-lg">
                         <CardContent className="p-8 text-center space-y-4">
                             <div className="flex justify-center">
-                                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-                                    <AlertCircle className="w-8 h-8 text-red-600" />
+                                <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                                    <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-300" />
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <h2 className="text-2xl font-bold text-slate-900">
+                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                                     Ops! Algo deu errado
                                 </h2>
-                                <p className="text-slate-600">
+                                <p className="text-slate-600 dark:text-slate-300">
                                     A aplicação encontrou um erro inesperado e não conseguiu continuar.
                                 </p>
                             </div>
 
                             {import.meta.env.DEV && this.state.error && (
-                                <details className="text-left bg-slate-100 rounded-lg p-4 text-sm">
-                                    <summary className="cursor-pointer font-medium text-slate-700 mb-2">
+                                <details className="text-left bg-slate-100 dark:bg-slate-800 rounded-lg p-4 text-sm">
+                                    <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200 mb-2">
                                         Detalhes do erro (apenas em desenvolvimento)
                                     </summary>
                                     <div className="space-y-2 text-xs font-mono">
                                         <div>
                                             <strong>Erro:</strong>
-                                            <pre className="mt-1 text-red-600 whitespace-pre-wrap">
+                                            <pre className="mt-1 text-red-600 dark:text-red-400 whitespace-pre-wrap">
                                                 {this.state.error.toString()}
                                             </pre>
                                         </div>
                                         {this.state.errorInfo && (
                                             <div>
                                                 <strong>Stack trace:</strong>
-                                                <pre className="mt-1 text-slate-600 whitespace-pre-wrap max-h-48 overflow-auto">
+                                                <pre className="mt-1 text-slate-600 dark:text-slate-400 whitespace-pre-wrap max-h-48 overflow-auto">
                                                     {this.state.errorInfo.componentStack}
                                                 </pre>
                                             </div>
@@ -100,7 +100,7 @@ class ErrorBoundary extends React.Component {
                                 </Button>
                             </div>
 
-                            <p className="text-xs text-slate-500 pt-2">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 pt-2">
                                 Se o problema persistir, entre em contato com o suporte.
                             </p>
                         </CardContent>

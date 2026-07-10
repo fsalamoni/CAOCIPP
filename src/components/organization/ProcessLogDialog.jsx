@@ -106,7 +106,7 @@ export default function ProcessLogDialog({ open, onClose, process, collectionNam
 
                 {/* Search */}
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-400" />
                     <Input
                         placeholder="Buscar no log..."
                         value={search}
@@ -147,7 +147,7 @@ export default function ProcessLogDialog({ open, onClose, process, collectionNam
                             </tbody>
                         </table>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-600">
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-400">
                             <ClipboardList className="w-8 h-8 mb-2 opacity-40" />
                             <p className="text-sm">
                                 {log.length === 0
@@ -159,7 +159,7 @@ export default function ProcessLogDialog({ open, onClose, process, collectionNam
                 </ScrollArea>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between pt-2 text-xs text-slate-400 dark:text-slate-500">
+                <div className="flex items-center justify-between pt-2 text-xs text-slate-400 dark:text-slate-400">
                     <span>{filteredLog.length} de {log.length} registros</span>
                     <Badge variant="outline" className="text-[10px]">
                         Log permanente

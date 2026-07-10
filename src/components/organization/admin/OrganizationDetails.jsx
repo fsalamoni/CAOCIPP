@@ -63,7 +63,7 @@ export default function OrganizationDetails({ organization }) {
                         />
                     </div>
 
-                    <div className="flex justify-end pt-4 border-t border-slate-100">
+                    <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
                         <Button type="submit" disabled={loading} className="gap-2">
                             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             Salvar Alterações

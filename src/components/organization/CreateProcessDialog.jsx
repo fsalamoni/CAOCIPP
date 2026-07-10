@@ -275,7 +275,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
             <div>
               <Label htmlFor="urgency_request" className="cursor-pointer">Pedido de Urgência</Label>
-              <p className="text-xs text-slate-500">Marcar este processo como urgente</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Marcar este processo como urgente</p>
             </div>
             <Switch
               id="urgency_request"

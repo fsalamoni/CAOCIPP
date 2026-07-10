@@ -42,55 +42,55 @@ const KANBAN_COLUMNS = [
         label: 'Pendentes',
         icon: Inbox,
         emptyText: 'Nenhum expediente pendente',
-        headerBg: 'bg-slate-50 dark:bg-slate-800/60',
-        headerBorder: 'border-slate-200 dark:border-slate-700',
-        headerText: 'text-slate-600 dark:text-slate-300',
-        columnBg: 'bg-slate-50/50 dark:bg-slate-900/30',
-        dotColor: 'bg-slate-400 dark:bg-slate-500',
+        headerBg: 'bg-slate-50 dark:bg-slate-800',
+        headerBorder: 'border-slate-200 dark:border-slate-600',
+        headerText: 'text-slate-600 dark:text-slate-100',
+        columnBg: 'bg-slate-50/50 dark:bg-slate-900',
+        dotColor: 'bg-slate-400 dark:bg-slate-400',
     },
     {
         id: 'Em elaboração',
         label: 'Em Análise',
         icon: Pencil,
         emptyText: 'Nenhum expediente em análise',
-        headerBg: 'bg-amber-50 dark:bg-amber-950/40',
-        headerBorder: 'border-amber-200 dark:border-amber-900',
-        headerText: 'text-amber-700 dark:text-amber-400',
-        columnBg: 'bg-amber-50/30 dark:bg-amber-950/20',
-        dotColor: 'bg-amber-400 dark:bg-amber-500',
+        headerBg: 'bg-amber-50 dark:bg-amber-900',
+        headerBorder: 'border-amber-200 dark:border-amber-600',
+        headerText: 'text-amber-700 dark:text-amber-100',
+        columnBg: 'bg-amber-50/30 dark:bg-amber-950/30',
+        dotColor: 'bg-amber-400 dark:bg-amber-400',
     },
     {
         id: 'Em revisão',
         label: 'Em Revisão',
         icon: Eye,
         emptyText: 'Nenhum expediente em revisão',
-        headerBg: 'bg-sky-50 dark:bg-sky-950/40',
-        headerBorder: 'border-sky-200 dark:border-sky-900',
-        headerText: 'text-sky-700 dark:text-sky-400',
-        columnBg: 'bg-sky-50/30 dark:bg-sky-950/20',
-        dotColor: 'bg-sky-400 dark:bg-sky-500',
+        headerBg: 'bg-sky-50 dark:bg-sky-900',
+        headerBorder: 'border-sky-200 dark:border-sky-600',
+        headerText: 'text-sky-700 dark:text-sky-100',
+        columnBg: 'bg-sky-50/30 dark:bg-sky-950/30',
+        dotColor: 'bg-sky-400 dark:bg-sky-400',
     },
     {
         id: 'Revisadas',
         label: 'Revisadas',
         icon: CheckCheck,
         emptyText: 'Nenhum expediente revisado',
-        headerBg: 'bg-violet-50 dark:bg-violet-950/40',
-        headerBorder: 'border-violet-200 dark:border-violet-900',
-        headerText: 'text-violet-700 dark:text-violet-400',
-        columnBg: 'bg-violet-50/30 dark:bg-violet-950/20',
-        dotColor: 'bg-violet-400 dark:bg-violet-500',
+        headerBg: 'bg-violet-50 dark:bg-violet-900',
+        headerBorder: 'border-violet-200 dark:border-violet-600',
+        headerText: 'text-violet-700 dark:text-violet-100',
+        columnBg: 'bg-violet-50/30 dark:bg-violet-950/30',
+        dotColor: 'bg-violet-400 dark:bg-violet-400',
     },
     {
         id: 'Na pasta',
         label: 'Arquivados',
         icon: FolderCheck,
         emptyText: 'Nenhum expediente arquivado',
-        headerBg: 'bg-green-50 dark:bg-green-950/40',
-        headerBorder: 'border-green-200 dark:border-green-900',
-        headerText: 'text-green-700 dark:text-green-400',
-        columnBg: 'bg-green-50/30 dark:bg-green-950/20',
-        dotColor: 'bg-green-400 dark:bg-green-500',
+        headerBg: 'bg-green-50 dark:bg-green-900',
+        headerBorder: 'border-green-200 dark:border-green-600',
+        headerText: 'text-green-700 dark:text-green-100',
+        columnBg: 'bg-green-50/30 dark:bg-green-950/30',
+        dotColor: 'bg-green-400 dark:bg-green-400',
     },
 ];
 
@@ -1005,7 +1005,7 @@ function KanbanColumn({ column, expedientes, onViewDetails, stageAverages, stage
             className={`
         rounded-xl border flex flex-col
         ${column.headerBorder}
-        ${isOver ? 'ring-2 ring-indigo-300 dark:ring-indigo-700 bg-indigo-50/30 dark:bg-indigo-950/30' : ''}
+        ${isOver ? 'ring-2 ring-indigo-300 dark:ring-indigo-400 bg-indigo-50/30 dark:bg-indigo-500/10' : ''}
       `}
             style={{ minHeight: '500px' }}
         >
@@ -1018,7 +1018,7 @@ function KanbanColumn({ column, expedientes, onViewDetails, stageAverages, stage
                     <ColIcon className={`w-4 h-4 ${column.headerText}`} />
                     <span className={`text-sm font-bold ${column.headerText}`}>{column.label}</span>
                 </div>
-                <Badge variant="secondary" className="bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-0">
+                <Badge variant="secondary" className="bg-white/60 dark:bg-black/25 text-slate-600 dark:text-white border-0">
                     {expedientes.length}
                 </Badge>
             </div>

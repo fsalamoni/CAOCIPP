@@ -56,7 +56,7 @@ export default function QuotasPanel() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-500">
+            <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Carregando cotas...
             </div>
@@ -67,9 +67,9 @@ export default function QuotasPanel() {
 
     return (
         <div className="space-y-4">
-            <Alert className="border-sky-300 bg-sky-50 dark:bg-sky-950/30">
+            <Alert className="border-sky-300 dark:border-sky-600 bg-sky-50 dark:bg-sky-900">
                 <Info className="w-4 h-4 text-sky-600" />
-                <AlertDescription className="text-sky-800 dark:text-sky-200">
+                <AlertDescription className="text-sky-800 dark:text-sky-100">
                     As cotas são apenas <strong>configuração</strong>. Alterá-las não muda
                     o funcionamento atual do sistema — cada limite só passa a valer quando
                     a funcionalidade correspondente for ativada. É seguro ajustar.
@@ -104,8 +104,8 @@ export default function QuotasPanel() {
                                     <p className="font-medium text-slate-900 dark:text-white">
                                         {def.label}
                                     </p>
-                                    <p className="text-sm text-slate-500">{def.description}</p>
-                                    <p className="text-xs text-slate-400 mt-1">
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">{def.description}</p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                                         Permitido: {def.min}–{def.max} {def.unit}
                                     </p>
                                 </div>
@@ -142,7 +142,7 @@ export default function QuotasPanel() {
                         );
                     })}
                     {data?.updatedAt && (
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
                             Última alteração:{' '}
                             {new Date(data.updatedAt).toLocaleString('pt-BR')}
                             {data.updatedBy ? ` • por ${data.updatedBy}` : ''}

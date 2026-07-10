@@ -64,7 +64,7 @@ export default function PlatformOverview() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-500">
+            <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Carregando visão geral...
             </div>
@@ -90,7 +90,7 @@ export default function PlatformOverview() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     Gerado em {new Date(data?.generatedAt).toLocaleString('pt-BR')}
                 </p>
                 <Button onClick={load} variant="outline" size="sm">
@@ -106,7 +106,7 @@ export default function PlatformOverview() {
                             <div className="text-2xl font-bold text-slate-900 dark:text-white">
                                 {formatNumber(totals[key])}
                             </div>
-                            <div className="text-xs text-slate-500">{label}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
                         </CardContent>
                     </Card>
                 ))}
@@ -122,7 +122,7 @@ export default function PlatformOverview() {
                     <div className="text-3xl font-bold text-slate-900 dark:text-white">
                         {formatBytes(storage.totalBytes)}
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                         Estimativa baseada no número de documentos e tamanho médio por coleção.
                         Valores reais de armazenamento podem variar conforme o conteúdo.
                     </p>
@@ -136,12 +136,12 @@ export default function PlatformOverview() {
                                 return (
                                     <div key={name}>
                                         <div className="flex justify-between text-xs mb-1">
-                                            <span className="text-slate-600">{name}</span>
-                                            <span className="text-slate-500">
+                                            <span className="text-slate-600 dark:text-slate-300">{name}</span>
+                                            <span className="text-slate-500 dark:text-slate-400">
                                                 {formatBytes(bytes)}
                                             </span>
                                         </div>
-                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                             <div
                                                 className="h-full bg-indigo-500 rounded-full"
                                                 style={{ width: `${pct}%` }}

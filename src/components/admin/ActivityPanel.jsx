@@ -75,7 +75,7 @@ export default function ActivityPanel() {
                     </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 text-slate-400 text-sm">
+                    <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-sm">
                         <Filter className="w-4 h-4" /> Filtros:
                     </div>
                     <Input
@@ -97,7 +97,7 @@ export default function ActivityPanel() {
             </CardHeader>
             <CardContent>
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-16 text-slate-500">
+                    <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                         <Loader2 className="w-6 h-6 animate-spin mr-2" />
                         Carregando movimentações...
                     </div>
@@ -123,7 +123,7 @@ export default function ActivityPanel() {
                                                 {it.user_name || it.user_id || 'Sistema'}
                                             </span>
                                             {it.details && Object.keys(it.details).length > 0 && (
-                                                <span className="text-slate-500">
+                                                <span className="text-slate-500 dark:text-slate-400">
                                                     {' '}
                                                     — {Object.entries(it.details)
                                                         .slice(0, 3)
@@ -132,19 +132,19 @@ export default function ActivityPanel() {
                                                 </span>
                                             )}
                                             {it.organization_id && (
-                                                <span className="text-slate-400 text-xs block">
+                                                <span className="text-slate-400 dark:text-slate-500 text-xs block">
                                                     órgão: {it.organization_id}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                    <span className="text-xs text-slate-400 whitespace-nowrap">
+                                    <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
                                         {formatDateTime(it.timestamp)}
                                     </span>
                                 </div>
                             ))}
                             {items.length === 0 && (
-                                <p className="text-center text-slate-400 py-8">
+                                <p className="text-center text-slate-400 dark:text-slate-500 py-8">
                                     Nenhuma movimentação encontrada.
                                 </p>
                             )}

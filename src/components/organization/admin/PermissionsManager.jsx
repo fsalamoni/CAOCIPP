@@ -43,7 +43,7 @@ export default function PermissionsManager({ organization, members }) {
                     </div>
                     <div>
                         <h3 className="text-lg font-medium">Atribuições Especiais</h3>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             Conceda a membros da organização alguns ou todos os seus poderes de criador.
                             As permissões podem ser revogadas a qualquer momento.
                         </p>
@@ -58,7 +58,7 @@ export default function PermissionsManager({ organization, members }) {
                 </Alert>
 
                 {eligibleMembers.length === 0 ? (
-                    <p className="text-sm text-slate-500 py-6 text-center">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
                         Nenhum membro elegível. Convide membros para a organização para poder delegar permissões.
                     </p>
                 ) : (
@@ -82,10 +82,10 @@ export default function PermissionsManager({ organization, members }) {
                                             <TableCell className="font-medium">
                                                 {formatPersonName(member.user_name || '')}
                                             </TableCell>
-                                            <TableCell className="text-slate-600">{member.user_email}</TableCell>
+                                            <TableCell className="text-slate-600 dark:text-slate-300">{member.user_email}</TableCell>
                                             <TableCell>
                                                 {grantedCount === 0 ? (
-                                                    <span className="text-slate-400 text-sm">Nenhuma</span>
+                                                    <span className="text-slate-400 dark:text-slate-500 text-sm">Nenhuma</span>
                                                 ) : (
                                                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
                                                         {grantedCount} de {ORG_PERMISSION_KEYS.length}
@@ -184,7 +184,7 @@ function PermissionsDialog({ member, organizationId }) {
                             <div key={perm.key} className="flex items-start justify-between gap-4 py-3">
                                 <div className="min-w-0">
                                     <p className="text-sm font-medium text-slate-900 dark:text-white">{perm.label}</p>
-                                    <p className="text-xs text-slate-500">{perm.description}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{perm.description}</p>
                                 </div>
                                 <Switch
                                     checked={draft[perm.key] === true}

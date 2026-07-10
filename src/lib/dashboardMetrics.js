@@ -26,16 +26,16 @@ import { PHASE_FIELD_KEY } from '@/lib/metricsEngine';
 // ----------------------------------------------------------------------------
 
 export const METRIC_COLORS = [
-    { token: 'indigo', label: 'Índigo', bg: 'bg-indigo-50', text: 'text-indigo-600', dot: 'bg-indigo-500' },
-    { token: 'emerald', label: 'Verde', bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500' },
-    { token: 'blue', label: 'Azul', bg: 'bg-blue-50', text: 'text-blue-600', dot: 'bg-blue-500' },
-    { token: 'red', label: 'Vermelho', bg: 'bg-red-50', text: 'text-red-600', dot: 'bg-red-500' },
-    { token: 'amber', label: 'Âmbar', bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-500' },
-    { token: 'violet', label: 'Violeta', bg: 'bg-violet-50', text: 'text-violet-600', dot: 'bg-violet-500' },
-    { token: 'pink', label: 'Rosa', bg: 'bg-pink-50', text: 'text-pink-600', dot: 'bg-pink-500' },
-    { token: 'teal', label: 'Teal', bg: 'bg-teal-50', text: 'text-teal-600', dot: 'bg-teal-500' },
-    { token: 'orange', label: 'Laranja', bg: 'bg-orange-50', text: 'text-orange-600', dot: 'bg-orange-500' },
-    { token: 'slate', label: 'Cinza', bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-500' },
+    { token: 'indigo', label: 'Índigo', bg: 'bg-indigo-50 dark:bg-indigo-900', text: 'text-indigo-600 dark:text-indigo-200', dot: 'bg-indigo-500' },
+    { token: 'emerald', label: 'Verde', bg: 'bg-emerald-50 dark:bg-emerald-900', text: 'text-emerald-600 dark:text-emerald-200', dot: 'bg-emerald-500' },
+    { token: 'blue', label: 'Azul', bg: 'bg-blue-50 dark:bg-blue-900', text: 'text-blue-600 dark:text-blue-200', dot: 'bg-blue-500' },
+    { token: 'red', label: 'Vermelho', bg: 'bg-red-50 dark:bg-red-900', text: 'text-red-600 dark:text-red-200', dot: 'bg-red-500' },
+    { token: 'amber', label: 'Âmbar', bg: 'bg-amber-50 dark:bg-amber-800', text: 'text-amber-600 dark:text-amber-100', dot: 'bg-amber-500' },
+    { token: 'violet', label: 'Violeta', bg: 'bg-violet-50 dark:bg-violet-900', text: 'text-violet-600 dark:text-violet-200', dot: 'bg-violet-500' },
+    { token: 'pink', label: 'Rosa', bg: 'bg-pink-50 dark:bg-pink-900', text: 'text-pink-600 dark:text-pink-200', dot: 'bg-pink-500' },
+    { token: 'teal', label: 'Teal', bg: 'bg-teal-50 dark:bg-teal-900', text: 'text-teal-600 dark:text-teal-200', dot: 'bg-teal-500' },
+    { token: 'orange', label: 'Laranja', bg: 'bg-orange-50 dark:bg-orange-900', text: 'text-orange-600 dark:text-orange-200', dot: 'bg-orange-500' },
+    { token: 'slate', label: 'Cinza', bg: 'bg-slate-100 dark:bg-slate-700', text: 'text-slate-600 dark:text-slate-200', dot: 'bg-slate-500' },
 ];
 
 export const METRIC_COLOR_MAP = METRIC_COLORS.reduce((acc, c) => { acc[c.token] = c; return acc; }, {});

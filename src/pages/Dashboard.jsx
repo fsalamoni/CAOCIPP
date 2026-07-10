@@ -118,10 +118,10 @@ export default function Dashboard() {
   // Loading State
   if (isLoadingAuth || orgsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-4" />
-          <p className="text-slate-600 font-medium">Carregando dashboard...</p>
+          <p className="text-slate-600 dark:text-slate-300 font-medium">Carregando dashboard...</p>
         </div>
       </div>
     );
@@ -130,13 +130,13 @@ export default function Dashboard() {
   // Empty State (No Organizations)
   if (organizations.length === 0) {
     return (
-      <div className="min-h-screen p-8 flex items-center justify-center bg-slate-50 text-center">
-        <Card className="max-w-md w-full p-8 shadow-lg border-slate-200">
-          <div className="mx-auto w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
-            <Building2 className="w-10 h-10 text-indigo-400" />
+      <div className="min-h-screen p-8 flex items-center justify-center bg-slate-50 dark:bg-slate-900 text-center">
+        <Card className="max-w-md w-full p-8 shadow-lg border-slate-200 dark:border-slate-700">
+          <div className="mx-auto w-20 h-20 bg-indigo-50 dark:bg-indigo-900 rounded-full flex items-center justify-center mb-6">
+            <Building2 className="w-10 h-10 text-indigo-400 dark:text-indigo-300" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Bem-vindo(a)!</h2>
-          <p className="text-slate-600 mb-8 leading-relaxed">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Bem-vindo(a)!</h2>
+          <p className="text-slate-600 dark:text-slate-300 mb-8 leading-relaxed">
             Você ainda não está vinculado(a) a nenhum órgão. Comece criando um novo ou solicite um convite.
           </p>
           <Button
@@ -160,7 +160,7 @@ export default function Dashboard() {
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
               Meu Início
             </h1>
-            <p className="text-slate-500 font-medium text-lg">
+            <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">
               Resumo das suas atividades e responsabilidades em cada órgão.
             </p>
           </div>
@@ -208,7 +208,7 @@ export default function Dashboard() {
                   >
                     <label className="flex items-center gap-2.5 min-w-0 cursor-pointer">
                       <Checkbox checked={!isHidden} onCheckedChange={() => toggleWidgetHidden(key)} />
-                      <span className={`text-sm font-medium truncate ${isHidden ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
+                      <span className={`text-sm font-medium truncate ${isHidden ? 'text-slate-400 dark:text-slate-600 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
                         {def.label}
                       </span>
                     </label>
@@ -417,8 +417,8 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
 
   if (isLoading) {
     return (
-      <Card className="p-8 border-dashed bg-slate-50/50 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+      <Card className="p-8 border-dashed bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-300 dark:text-slate-600" />
       </Card>
     );
   }
@@ -434,8 +434,8 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
             <h2 className="text-xl font-bold text-slate-900 dark:text-white capitalize">
               {organization.name}
             </h2>
-            <p className="text-sm text-slate-500 font-medium">
-              Sua função: <span className="text-indigo-600">{organization.userFunction || 'Membro'}</span>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+              Sua função: <span className="text-indigo-600 dark:text-indigo-400">{organization.userFunction || 'Membro'}</span>
             </p>
           </div>
         </div>
@@ -443,13 +443,13 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="h-10 pl-3 pr-8 rounded-lg border-slate-200 bg-white shadow-sm text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none"
+            className="h-10 pl-3 pr-8 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none"
           >
             {years.map(y => <option key={y} value={y}>Ano: {y}</option>)}
           </select>
           <Button
             variant="ghost"
-            className="text-indigo-600 font-semibold hover:bg-indigo-50 px-4 h-10"
+            className="text-indigo-600 dark:text-indigo-400 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-950 px-4 h-10"
             onClick={() => navigate(`/Organization?id=${organization.id}`)}
           >
             Acessar Órgão <ArrowRight className="w-4 h-4 ml-2" />
@@ -466,8 +466,8 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                 title="Total de Processos"
                 value={kpis.total}
                 icon={FileText}
-                color="text-slate-600"
-                bgIcon="bg-slate-100"
+                color="text-slate-600 dark:text-slate-300"
+                bgIcon="bg-slate-100 dark:bg-slate-700"
                 subtext={`Registrados em ${selectedYear}`}
                 onClick={() => navigate(`/Organization?id=${organization.id}`)}
               />
@@ -478,8 +478,8 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                 title="Urgentes Pendentes"
                 value={kpis.urgent}
                 icon={AlertCircle}
-                color="text-red-600"
-                bgIcon="bg-red-100"
+                color="text-red-600 dark:text-red-300"
+                bgIcon="bg-red-100 dark:bg-red-900"
                 subtext="Requerem atenção"
                 onClick={() => navigate(`/Organization?id=${organization.id}&filter=urgent`)}
                 pulse={kpis.urgent > 0}
@@ -491,8 +491,8 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                 title={kpis.mineLabel}
                 value={kpis.mineCount}
                 icon={isDecisor ? Clock : Users}
-                color="text-blue-600"
-                bgIcon="bg-blue-100"
+                color="text-blue-600 dark:text-blue-300"
+                bgIcon="bg-blue-100 dark:bg-blue-900"
                 subtext={kpis.mineSubtext}
                 onClick={() => navigate(`/Organization?id=${organization.id}&filter=${isDecisor ? 'review' : 'mine'}`)}
               />
@@ -503,8 +503,8 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                 title="Total de Expedientes"
                 value={filteredExpedientes.length}
                 icon={FileText}
-                color="text-violet-600"
-                bgIcon="bg-violet-100"
+                color="text-violet-600 dark:text-violet-300"
+                bgIcon="bg-violet-100 dark:bg-violet-900"
                 subtext={`Meus: ${myExpedientesInYear}`}
                 onClick={() => navigate(`/Organization?id=${organization.id}&tab=expedientes`)}
               />
@@ -514,7 +514,7 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
         })()}
 
         {/* Gráfico resumido lateral */}
-        <Card className="shadow-sm border-slate-200 flex flex-col justify-center p-4 lg:col-span-4">
+        <Card className="shadow-sm border-slate-200 dark:border-slate-700 flex flex-col justify-center p-4 lg:col-span-4">
           {statusData.length > 0 ? (
             isV2 ? (
               <div className="w-full">
@@ -546,31 +546,31 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
-                <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider">
+                <p className="text-[10px] text-center text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wider">
                   Distribuição de Status
                 </p>
-                <p className="text-[10px] text-center text-slate-400 font-medium uppercase tracking-wider mt-1">
+                <p className="text-[10px] text-center text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wider mt-1">
                   Minhas consultas: {myProcessesInYear} · Meus expedientes: {myExpedientesInYear}
                 </p>
               </div>
             )
           ) : (
-            <div className="text-center text-xs text-slate-400 py-4">Sem dados para {selectedYear}</div>
+            <div className="text-center text-xs text-slate-400 dark:text-slate-500 py-4">Sem dados para {selectedYear}</div>
           )}
         </Card>
       </div>
 
       {goalProgress && (
-        <Card className="shadow-sm border-slate-200">
+        <Card className="shadow-sm border-slate-200 dark:border-slate-700">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-indigo-600" />
+                <Target className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
                   Minha meta de conclusão
                 </span>
               </div>
-              <span className={`text-sm font-bold ${goalProgress.achievedPercent >= goalProgress.targetPercent ? 'text-emerald-600' : 'text-amber-600'}`}>
+              <span className={`text-sm font-bold ${goalProgress.achievedPercent >= goalProgress.targetPercent ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                 {goalProgress.achievedPercent}% / {goalProgress.targetPercent}%
               </span>
             </div>
@@ -580,7 +580,7 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                 style={{ width: `${Math.min(100, goalProgress.achievedPercent)}%` }}
               />
             </div>
-            <p className="text-xs text-slate-400 mt-2">
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
               {goalProgress.total} Consulta(s)/Expediente(s) sob sua responsabilidade, meta de {goalProgress.targetPercent}% concluídos (ou em dia) em até {goalProgress.withinDays} dia(s) útil(eis).
             </p>
           </CardContent>
@@ -589,59 +589,59 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
 
       {/* Activity Feed and Status Legend */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 shadow-sm border-slate-200 overflow-hidden">
-          <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-600 flex items-center gap-2">
+        <Card className="lg:col-span-2 shadow-sm border-slate-200 dark:border-slate-700 overflow-hidden">
+          <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 py-4 px-6 border-b border-slate-100 dark:border-slate-800">
+            <CardTitle className="text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
               <Clock className="w-4 h-4" />
               ATRIBUÍDO A VOCÊ (MOVIMENTAÇÕES RECENTES)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {activity.length > 0 ? (
                 activity.map(p => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors cursor-pointer"
+                    className="flex items-center justify-between p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
                     onClick={() => navigate(`/Organization?id=${organization.id}`)}
                   >
                     <div className="flex-1 min-w-0 mr-4">
-                      <p className="text-sm font-bold text-slate-900 truncate">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                         {p.process_number || 'Sem número'}
                       </p>
-                      <p className="text-xs text-slate-500 truncate mt-0.5">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
                         {p.consulente || p.matter_object || 'Detalhes não informados'}
                       </p>
                     </div>
                     <Badge
                       variant="secondary"
-                      className={`${statusConfig[p.status]?.startColor || 'bg-slate-100'} ${statusConfig[p.status]?.text || 'text-slate-600'} text-[10px] px-2 py-0.5 border-0`}
+                      className={`${statusConfig[p.status]?.startColor || 'bg-slate-100 dark:bg-slate-700'} ${statusConfig[p.status]?.text || 'text-slate-600 dark:text-slate-200'} text-[10px] px-2 py-0.5 border-0`}
                     >
                       {p.status}
                     </Badge>
                   </div>
                 ))
               ) : (
-                <div className="p-10 text-center text-slate-400 text-sm">Nenhuma atividade recente identificada.</div>
+                <div className="p-10 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhuma atividade recente identificada.</div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="py-4 px-6 border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-600 uppercase">Resumo Financeiro/Ano</CardTitle>
+        <Card className="shadow-sm border-slate-200 dark:border-slate-700">
+          <CardHeader className="py-4 px-6 border-b border-slate-100 dark:border-slate-800">
+            <CardTitle className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase">Resumo Financeiro/Ano</CardTitle>
           </CardHeader>
           <CardContent className="p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Média de conclusões</span>
-                <span className="text-sm font-bold text-emerald-600">--%</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Média de conclusões</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">--%</span>
               </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                 <div className="bg-emerald-500 h-full w-[0%]" />
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed italic">
+              <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed italic">
                 * Módulo de performance analítica em fase de desenvolvimento.
               </p>
             </div>
@@ -655,13 +655,13 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
 function KpiCard({ title, value, icon: Icon, color, bgIcon, subtext, onClick, pulse }) {
   return (
     <Card
-      className={`shadow-sm border-slate-200 transition-all duration-200 ${onClick ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-indigo-200' : 'hover:shadow-md'}`}
+      className={`shadow-sm border-slate-200 dark:border-slate-700 transition-all duration-200 ${onClick ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02] hover:border-indigo-200 dark:hover:border-indigo-700' : 'hover:shadow-md'}`}
       onClick={onClick}
     >
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
             <h3 className={`text-2xl font-bold ${color}`}>{value}</h3>
           </div>
           <div className={`w-12 h-12 rounded-full ${bgIcon} flex items-center justify-center ${pulse ? 'animate-pulse' : ''}`}>
@@ -670,8 +670,8 @@ function KpiCard({ title, value, icon: Icon, color, bgIcon, subtext, onClick, pu
         </div>
         {subtext && (
           <div className="flex items-center justify-between mt-2">
-            <p className="text-xs text-slate-400">{subtext}</p>
-            {onClick && <ArrowRight className="w-3.5 h-3.5 text-slate-300" />}
+            <p className="text-xs text-slate-400 dark:text-slate-500">{subtext}</p>
+            {onClick && <ArrowRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600" />}
           </div>
         )}
       </CardContent>

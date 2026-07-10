@@ -58,7 +58,7 @@ export default function HealthPanel() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-500">
+            <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Verificando saúde do sistema...
             </div>
@@ -101,7 +101,7 @@ export default function HealthPanel() {
                                 <p className="font-medium text-slate-900 dark:text-white">
                                     {c.name}
                                 </p>
-                                <p className="text-sm text-slate-500">{c.detail}</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{c.detail}</p>
                             </div>
                         </div>
                     ))}
@@ -114,7 +114,7 @@ export default function HealthPanel() {
                         <p className="text-2xl font-bold text-slate-900 dark:text-white">
                             {formatNumber(metrics.auditLogsLast24h)}
                         </p>
-                        <p className="text-xs text-slate-500">Eventos (24h)</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Eventos (24h)</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -122,7 +122,7 @@ export default function HealthPanel() {
                         <p className="text-2xl font-bold text-slate-900 dark:text-white">
                             {formatNumber(metrics.auditLogsTotal)}
                         </p>
-                        <p className="text-xs text-slate-500">Eventos (total)</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Eventos (total)</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -130,7 +130,7 @@ export default function HealthPanel() {
                         <p className="text-2xl font-bold text-slate-900 dark:text-white">
                             {formatNumber(metrics.recentErrorCount)}
                         </p>
-                        <p className="text-xs text-slate-500">Erros recentes</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Erros recentes</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -140,7 +140,7 @@ export default function HealthPanel() {
                                 ? new Date(metrics.lastActivityAt).toLocaleString('pt-BR')
                                 : '—'}
                         </p>
-                        <p className="text-xs text-slate-500">Última atividade</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Última atividade</p>
                     </CardContent>
                 </Card>
             </div>
@@ -164,7 +164,7 @@ export default function HealthPanel() {
                                     <TableRow key={i}>
                                         <TableCell className="font-medium">{e.action}</TableCell>
                                         <TableCell>{e.user_name || '—'}</TableCell>
-                                        <TableCell className="text-slate-500">
+                                        <TableCell className="text-slate-500 dark:text-slate-400">
                                             {e.timestamp
                                                 ? new Date(e.timestamp).toLocaleString('pt-BR')
                                                 : '—'}
@@ -177,7 +177,7 @@ export default function HealthPanel() {
                 </Card>
             )}
 
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 dark:text-slate-500">
                 Diagnóstico somente leitura baseado nos registros de auditoria. Gerado em{' '}
                 {data?.generatedAt
                     ? new Date(data.generatedAt).toLocaleString('pt-BR')

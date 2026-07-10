@@ -4,7 +4,7 @@ import { History, Clock, FileEdit, CheckCircle2 } from 'lucide-react';
 
 export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
     return (
-        <Card className="shadow-sm border-slate-200 bg-white dark:bg-slate-900 overflow-hidden">
+        <Card className="shadow-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
             <CardHeader className="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 py-4">
                 <CardTitle className="text-lg flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
                     <History className="w-5 h-5 text-indigo-500" />
@@ -18,7 +18,7 @@ export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
                         label="Tempo total médio entre entrada e devolução"
                         value={totalAvg}
                         unit="dias"
-                        color="text-indigo-600 bg-indigo-50"
+                        color="text-indigo-600 bg-indigo-50 dark:text-indigo-200 dark:bg-indigo-900"
                         sublabel="Entre a data de Entrada no CAO e a Devolução após Revisão"
                     />
                     <MetricItem
@@ -26,7 +26,7 @@ export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
                         label="Tempo médio para análise de consultas"
                         value={analysisAvg}
                         unit="dias"
-                        color="text-emerald-600 bg-emerald-50"
+                        color="text-emerald-600 bg-emerald-50 dark:text-emerald-200 dark:bg-emerald-900"
                         sublabel="Entre a data de Distribuição e a Remessa para Revisão"
                     />
                     <MetricItem
@@ -34,7 +34,7 @@ export default function TemporalMetrics({ totalAvg, analysisAvg, reviewAvg }) {
                         label="Tempo médio para revisão de minutas"
                         value={reviewAvg}
                         unit="dias"
-                        color="text-amber-600 bg-amber-50"
+                        color="text-amber-600 bg-amber-50 dark:text-amber-100 dark:bg-amber-800"
                         sublabel="Entre a data de Remessa para Revisão e a Devolução após Revisão"
                     />
                 </div>
@@ -56,11 +56,11 @@ function MetricItem({ icon: Icon, label, value, unit, color, sublabel }) {
                     </p>
                     <div className="flex items-baseline gap-1 shrink-0">
                         <span className="text-xl font-black text-slate-900 dark:text-white">{value}</span>
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{unit}</span>
+                        <span className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">{unit}</span>
                     </div>
                 </div>
                 {sublabel && (
-                    <p className="text-xs font-medium text-slate-400 truncate">
+                    <p className="text-xs font-medium text-slate-400 dark:text-slate-400 truncate">
                         {sublabel}
                     </p>
                 )}

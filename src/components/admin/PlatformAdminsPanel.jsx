@@ -113,11 +113,11 @@ export default function PlatformAdminsPanel() {
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="flex items-center justify-center py-8 text-slate-500">
+                        <div className="flex items-center justify-center py-8 text-slate-500 dark:text-slate-400">
                             <Loader2 className="w-5 h-5 animate-spin mr-2" /> Carregando...
                         </div>
                     ) : admins.length === 0 ? (
-                        <p className="text-sm text-slate-500 py-4">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 py-4">
                             Nenhum super-admin registrado na allowlist ainda. O acesso
                             atual pode vir do e-mail de bootstrap configurado no servidor.
                         </p>
@@ -126,11 +126,11 @@ export default function PlatformAdminsPanel() {
                             {admins.map((a) => (
                                 <div
                                     key={a.uid}
-                                    className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
+                                    className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0"
                                 >
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm font-medium text-slate-900 truncate">
+                                            <span className="text-sm font-medium text-slate-900 dark:text-white truncate">
                                                 {a.email || a.uid}
                                             </span>
                                             {a.active ? (

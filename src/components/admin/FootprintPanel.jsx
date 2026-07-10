@@ -55,7 +55,7 @@ export default function FootprintPanel() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-500">
+            <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Carregando footprint...
             </div>
@@ -78,9 +78,9 @@ export default function FootprintPanel() {
     return (
         <div className="space-y-4">
             {alerts.length > 0 && (
-                <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                <Alert className="border-amber-300 dark:border-amber-500 bg-amber-50 dark:bg-amber-800">
                     <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <AlertDescription className="text-amber-800 dark:text-amber-200">
+                    <AlertDescription className="text-amber-800 dark:text-amber-100">
                         <ul className="list-disc pl-4 space-y-1">
                             {alerts.map((a, i) => (
                                 <li key={i}>{a}</li>
@@ -95,7 +95,7 @@ export default function FootprintPanel() {
                     <CardTitle className="flex items-center gap-2 text-base">
                         <HardDrive className="w-5 h-5 text-cyan-600" />
                         Armazenamento por coleção
-                        <span className="text-sm font-normal text-slate-400">
+                        <span className="text-sm font-normal text-slate-400 dark:text-slate-500">
                             (total ~{formatBytes(data?.totalEstimatedBytes)})
                         </span>
                     </CardTitle>
@@ -117,12 +117,12 @@ export default function FootprintPanel() {
                                 <TableRow key={c.collection}>
                                     <TableCell className="font-medium">{c.collection}</TableCell>
                                     <TableCell className="text-right">{formatNumber(c.count)}</TableCell>
-                                    <TableCell className="text-right text-slate-500">{formatBytes(c.estimatedBytes)}</TableCell>
+                                    <TableCell className="text-right text-slate-500 dark:text-slate-400">{formatBytes(c.estimatedBytes)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
-                    <p className="text-xs text-slate-400 mt-3">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
                         * Estimativa por tamanho médio de documento (não é o valor exato do
                         faturamento).
                     </p>
@@ -158,7 +158,7 @@ export default function FootprintPanel() {
                             ))}
                         </TableBody>
                     </Table>
-                    <p className="text-xs text-slate-400 mt-3">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
                         Limite de documento do Firestore: {formatBytes(data?.docLimitBytes)}.
                         Históricos grandes podem ser migrados para subcoleção (flag
                         “Histórico em subcoleção”).
