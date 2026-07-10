@@ -39,6 +39,8 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         goalsConfig: null,
         escalationConfig: null,
         reportsConfig: null,
+        retentionConfig: null,
+        webhookConfig: null,
     };
     if (!isCreator) {
         for (const field of Object.keys(data || {})) {
@@ -73,6 +75,10 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.escalationConfig = sanitizeEscalationConfig(data.escalationConfig);
     if (data.reportsConfig !== undefined)
         updates.reportsConfig = sanitizeReportsConfig(data.reportsConfig);
+    if (data.retentionConfig !== undefined)
+        updates.retentionConfig = sanitizeRetentionConfig(data.retentionConfig);
+    if (data.webhookConfig !== undefined)
+        updates.webhookConfig = sanitizeWebhookConfig(data.webhookConfig);
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     if (Object.keys(updates).length === 0) {
         return { success: true, message: 'No changes detected' };
@@ -119,6 +125,29 @@ function sanitizeReportsConfig(input) {
     return {
         dailySummaryEnabled: (input === null || input === void 0 ? void 0 : input.dailySummaryEnabled) === true,
         weeklyReportEnabled: (input === null || input === void 0 ? void 0 : input.weeklyReportEnabled) === true,
+    };
+}
+// Política de retenção e anonimização (flag `data_retention_policy`, alto
+// risco): apenas liga/desliga e define o prazo — a anonimização em si
+// acontece via Cloud Functions dedicadas (preview/run), nunca aqui.
+function sanitizeRetentionConfig(input) {
+    const days = Number(input === null || input === void 0 ? void 0 : input.anonymizeAfterDays);
+    return {
+        enabled: (input === null || input === void 0 ? void 0 : input.enabled) === true,
+        anonymizeAfterDays: Number.isFinite(days) ? Math.min(3650, Math.max(1, Math.round(days))) : 365,
+    };
+}
+const WEBHOOK_VALID_EVENTS = new Set(['urgent_created', 'archived']);
+// Webhooks de integração externa (flag `outbound_webhooks`).
+function sanitizeWebhookConfig(input) {
+    const url = String((input === null || input === void 0 ? void 0 : input.url) || '').trim().slice(0, 500);
+    const validUrl = /^https:\/\/.+/.test(url) ? url : '';
+    const events = (Array.isArray(input === null || input === void 0 ? void 0 : input.events) ? input.events : [])
+        .filter((e) => WEBHOOK_VALID_EVENTS.has(e));
+    return {
+        enabled: (input === null || input === void 0 ? void 0 : input.enabled) === true && Boolean(validUrl),
+        url: validUrl,
+        events: events.length > 0 ? events : Array.from(WEBHOOK_VALID_EVENTS),
     };
 }
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.

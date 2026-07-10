@@ -314,3 +314,84 @@ export const addComment = async (data) => {
         throw error;
     }
 };
+
+// Log de acesso e auditoria (flag `access_audit_log`).
+export const logAccess = async (data) => {
+    try {
+        const logAccessFn = httpsCallable(functions, 'logAccess');
+        const result = await logAccessFn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling logAccess:', error);
+        throw error;
+    }
+};
+
+export const getOrgAccessLog = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'getOrgAccessLog');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling getOrgAccessLog:', error);
+        throw error;
+    }
+};
+
+// Política de retenção e anonimização (flag `data_retention_policy`).
+export const previewAnonymization = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'previewAnonymization');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling previewAnonymization:', error);
+        throw error;
+    }
+};
+
+export const runAnonymization = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'runAnonymization');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling runAnonymization:', error);
+        throw error;
+    }
+};
+
+// Webhooks de integração externa (flag `outbound_webhooks`).
+export const testOrgWebhook = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'testOrgWebhook');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling testOrgWebhook:', error);
+        throw error;
+    }
+};
+
+// Autenticação em duas etapas por e-mail (flag `two_factor_auth`).
+export const sendLoginOtp = async () => {
+    try {
+        const fn = httpsCallable(functions, 'sendLoginOtp');
+        const result = await fn();
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling sendLoginOtp:', error);
+        throw error;
+    }
+};
+
+export const verifyLoginOtp = async (code) => {
+    try {
+        const fn = httpsCallable(functions, 'verifyLoginOtp');
+        const result = await fn({ code });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling verifyLoginOtp:', error);
+        throw error;
+    }
+};

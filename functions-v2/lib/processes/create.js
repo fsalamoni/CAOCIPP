@@ -6,6 +6,7 @@ const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 const normalization_1 = require("../shared/normalization");
 const history_1 = require("../shared/history");
+const webhooks_1 = require("../shared/webhooks");
 exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -98,6 +99,15 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         'stats.processes_count': admin.firestore.FieldValue.increment(1),
         'stats.active_processes': admin.firestore.FieldValue.increment(1)
     });
+    // Webhooks de integração externa (flag `outbound_webhooks`).
+    if (data.urgencyRequest) {
+        await (0, webhooks_1.fireOrgWebhook)(organizationId, 'urgent_created', {
+            entity_type: 'process',
+            entity_id: processRef.id,
+            process_number: processNumber,
+            consultant,
+        });
+    }
     // 5. Audit Log
     await db.collection('auditLogs').add({
         organization_id: organizationId,

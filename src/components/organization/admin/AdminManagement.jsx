@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge, ShieldCheck, Zap } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge, ShieldCheck, Zap, Lock } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { hasOrgPermission, hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -17,6 +17,7 @@ import ModulesManager from './ModulesManager';
 import MetricsManager from './MetricsManager';
 import PermissionsManager from './PermissionsManager';
 import AutomationSettings from './AutomationSettings';
+import SecuritySettings from './SecuritySettings';
 
 export default function AdminManagement({ organization, members, userRole, userMembership }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
@@ -24,6 +25,10 @@ export default function AdminManagement({ organization, members, userRole, userM
     const isEscalationOn = useFlag(FEATURE_FLAGS.AUTO_ESCALATION.key);
     const isReportsOn = useFlag(FEATURE_FLAGS.SCHEDULED_EMAIL_REPORTS.key);
     const showAutomationTab = isGoalsOn || isEscalationOn || isReportsOn;
+    const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
+    const isRetentionOn = useFlag(FEATURE_FLAGS.DATA_RETENTION_POLICY.key);
+    const isWebhooksOn = useFlag(FEATURE_FLAGS.OUTBOUND_WEBHOOKS.key);
+    const showSecurityTab = isAccessAuditLogOn || isRetentionOn || isWebhooksOn;
 
     const isCreator = userRole === 'creator';
 
@@ -126,6 +131,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                             Automação
                         </TabsTrigger>
                     )}
+                    {isCreator && showSecurityTab && (
+                        <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <Lock className="w-4 h-4" />
+                            Segurança
+                        </TabsTrigger>
+                    )}
                     {isCreator && (
                         <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                             <Bot className="w-4 h-4" />
@@ -191,6 +202,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                 {isCreator && showAutomationTab && (
                     <TabsContent value="automation">
                         <AutomationSettings organization={organization} />
+                    </TabsContent>
+                )}
+
+                {isCreator && showSecurityTab && (
+                    <TabsContent value="security">
+                        <SecuritySettings organization={organization} />
                     </TabsContent>
                 )}
 

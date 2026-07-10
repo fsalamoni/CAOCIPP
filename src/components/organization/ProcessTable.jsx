@@ -21,6 +21,7 @@ import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getProcessField, calculateDerivedStatus } from "@/utils/processUtils";
 import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
 import { exportRowsToExcel, exportRowsToPdf } from "@/lib/tableExport";
+import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
 import {
@@ -38,7 +39,8 @@ export default function ProcessTable({
   onEdit,
   onArchive,
   onBulkArchive,
-  initialFilter
+  initialFilter,
+  organization
 }) {
   // Defensive helper to ensure 100% data visibility across different field name variations
   // Mirrors the logic found in EditProcessDialog
@@ -50,6 +52,7 @@ export default function ProcessTable({
   const isExportOn = useFlag(FEATURE_FLAGS.EXPORT_PDF_EXCEL.key);
   const isBulkActionsOn = useFlag(FEATURE_FLAGS.BULK_ACTIONS.key);
   const isSavedViewsOn = useFlag(FEATURE_FLAGS.SAVED_VIEWS.key);
+  const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
   const [search, setSearch] = useState(() => localStorage.getItem('processSearchTerm') || "");
 
   useEffect(() => {
@@ -717,6 +720,15 @@ export default function ProcessTable({
       exportRowsToPdf({ rows, columns, filenameBase, title: 'Consultas' });
     }
     toast.success(`Exportação de ${rows.length} processo(s) iniciada.`);
+
+    if (isAccessAuditLogOn && organization?.id) {
+      logAccess({
+        organizationId: organization.id,
+        entityType: 'process',
+        action: 'export_table',
+        details: { format: kind, rowCount: rows.length },
+      }).catch(() => { /* best-effort — não deve impedir a exportação já concluída */ });
+    }
   };
 
   return (

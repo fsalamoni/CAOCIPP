@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
+import { fireOrgWebhook } from '../shared/webhooks';
 
 interface UpdateProcessRequest {
     id: string;
@@ -175,6 +176,15 @@ export const updateProcess = onCall<UpdateProcessRequest>(
             details: { process_id: id, changes: Object.keys(changes) },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
+
+        // Webhooks de integração externa (flag `outbound_webhooks`).
+        if (changes.archived_date && !processData.archived_date) {
+            await fireOrgWebhook(organizationId, 'archived', {
+                entity_type: 'process',
+                entity_id: id,
+                process_number: processData.process_number,
+            });
+        }
 
         return { success: true };
     }

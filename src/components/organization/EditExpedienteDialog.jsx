@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
-import { updateExpediente, deleteExpediente } from '@/services/functionsService';
+import { updateExpediente, deleteExpediente, logAccess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,6 +42,20 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
   const isCommentsOn = useFlag(FEATURE_FLAGS.PROCESS_COMMENTS.key);
   const isPresenceOn = useFlag(FEATURE_FLAGS.LIVE_PRESENCE.key);
   const showCollabTab = isCommentsOn || isPresenceOn;
+  const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
+
+  // Log de acesso e auditoria (flag `access_audit_log`): registra a abertura
+  // de um registro com restrição de acesso. Uma vez por abertura do diálogo.
+  useEffect(() => {
+    if (open && isAccessAuditLogOn && expediente?.access_restriction && expediente?.id) {
+      logAccess({
+        organizationId,
+        entityType: 'expediente',
+        entityId: expediente.id,
+        action: 'view_restricted',
+      }).catch(() => { /* best-effort */ });
+    }
+  }, [open, expediente?.id]);
   const [formData, setFormData] = useState({
     expediente_number: '',
     system: '',

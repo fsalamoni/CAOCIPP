@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.sendWeeklyOrgReport = exports.sendDailyUrgentSummary = exports.autoEscalateStalledUrgent = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.sendWeeklyOrgReport = exports.sendDailyUrgentSummary = exports.autoEscalateStalledUrgent = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -97,4 +98,16 @@ Object.defineProperty(exports, "sendWeeklyOrgReport", { enumerable: true, get: f
 var emailProvider_1 = require("./platform/emailProvider");
 Object.defineProperty(exports, "getEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.getEmailProviderConfig; } });
 Object.defineProperty(exports, "setEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.setEmailProviderConfig; } });
+// ========== Segurança, conformidade e integrações (Fase 5) ==========
+var accessLog_1 = require("./security/accessLog");
+Object.defineProperty(exports, "logAccess", { enumerable: true, get: function () { return accessLog_1.logAccess; } });
+Object.defineProperty(exports, "getOrgAccessLog", { enumerable: true, get: function () { return accessLog_1.getOrgAccessLog; } });
+var anonymization_1 = require("./security/anonymization");
+Object.defineProperty(exports, "previewAnonymization", { enumerable: true, get: function () { return anonymization_1.previewAnonymization; } });
+Object.defineProperty(exports, "runAnonymization", { enumerable: true, get: function () { return anonymization_1.runAnonymization; } });
+var twoFactor_1 = require("./security/twoFactor");
+Object.defineProperty(exports, "sendLoginOtp", { enumerable: true, get: function () { return twoFactor_1.sendLoginOtp; } });
+Object.defineProperty(exports, "verifyLoginOtp", { enumerable: true, get: function () { return twoFactor_1.verifyLoginOtp; } });
+var webhookTest_1 = require("./security/webhookTest");
+Object.defineProperty(exports, "testOrgWebhook", { enumerable: true, get: function () { return webhookTest_1.testOrgWebhook; } });
 //# sourceMappingURL=index.js.map

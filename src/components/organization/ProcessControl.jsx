@@ -240,6 +240,7 @@ export default function ProcessControl({
             onArchive={handleArchive}
             onBulkArchive={handleBulkArchiveProcess}
             initialFilter={initialFilter}
+            organization={organization}
           />
         )}
 

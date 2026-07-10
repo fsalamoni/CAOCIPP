@@ -21,6 +21,7 @@ import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getExpedienteField, calculateExpedienteDerivedStatus } from "@/utils/expedienteUtils";
 import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
 import { exportRowsToExcel, exportRowsToPdf } from "@/lib/tableExport";
+import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
 import {
@@ -49,6 +50,7 @@ export default function ExpedienteTable({
   const isExportOn = useFlag(FEATURE_FLAGS.EXPORT_PDF_EXCEL.key);
   const isBulkActionsOn = useFlag(FEATURE_FLAGS.BULK_ACTIONS.key);
   const isSavedViewsOn = useFlag(FEATURE_FLAGS.SAVED_VIEWS.key);
+  const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
   const [search, setSearch] = useState(() => localStorage.getItem('expedienteSearchTerm') || "");
 
   useEffect(() => {
@@ -676,6 +678,15 @@ export default function ExpedienteTable({
       exportRowsToPdf({ rows, columns, filenameBase, title: 'Expedientes' });
     }
     toast.success(`Exportação de ${rows.length} expediente(s) iniciada.`);
+
+    if (isAccessAuditLogOn && organization?.id) {
+      logAccess({
+        organizationId: organization.id,
+        entityType: 'expediente',
+        action: 'export_table',
+        details: { format: kind, rowCount: rows.length },
+      }).catch(() => { /* best-effort — não deve impedir a exportação já concluída */ });
+    }
   };
 
   return (

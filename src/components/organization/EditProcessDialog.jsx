@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import MatterCategorySelect from './MatterCategorySelect';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
-import { updateProcess, deleteProcess } from '@/services/functionsService';
+import { updateProcess, deleteProcess, logAccess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +55,20 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   const isCommentsOn = useFlag(FEATURE_FLAGS.PROCESS_COMMENTS.key);
   const isPresenceOn = useFlag(FEATURE_FLAGS.LIVE_PRESENCE.key);
   const showCollabTab = isCommentsOn || isPresenceOn;
+  const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
+
+  // Log de acesso e auditoria (flag `access_audit_log`): registra a abertura
+  // de um registro com restrição de acesso. Uma vez por abertura do diálogo.
+  useEffect(() => {
+    if (open && isAccessAuditLogOn && process?.access_restriction && process?.id) {
+      logAccess({
+        organizationId,
+        entityType: 'process',
+        entityId: process.id,
+        action: 'view_restricted',
+      }).catch(() => { /* best-effort */ });
+    }
+  }, [open, process?.id]);
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',

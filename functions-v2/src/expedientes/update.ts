@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
+import { fireOrgWebhook } from '../shared/webhooks';
 
 interface UpdateExpedienteRequest {
     id: string;
@@ -157,6 +158,15 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
             details: { expediente_id: id, changes: Object.keys(changes) },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
+
+        // Webhooks de integração externa (flag `outbound_webhooks`).
+        if (changes.archived_date && !expedienteData.archived_date) {
+            await fireOrgWebhook(organizationId, 'archived', {
+                entity_type: 'expediente',
+                entity_id: id,
+                expediente_number: expedienteData.expediente_number,
+            });
+        }
 
         return { success: true };
     }

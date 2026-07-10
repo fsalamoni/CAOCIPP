@@ -59,3 +59,9 @@ export { addComment } from './collaboration/comments';
 export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
 export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
 export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
+
+// ========== Segurança, conformidade e integrações (Fase 5) ==========
+export { logAccess, getOrgAccessLog } from './security/accessLog';
+export { previewAnonymization, runAnonymization } from './security/anonymization';
+export { sendLoginOtp, verifyLoginOtp } from './security/twoFactor';
+export { testOrgWebhook } from './security/webhookTest';

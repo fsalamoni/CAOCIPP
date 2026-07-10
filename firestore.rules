@@ -198,6 +198,14 @@ service cloud.firestore {
       allow write: if false;
     }
     
+    // ========== CÓDIGOS DE VERIFICAÇÃO (flag `two_factor_auth`) ==========
+    // otpCodes/{uid}: código de 2FA por e-mail, com hash (nunca texto puro) e
+    // expiração curta. Acesso EXCLUSIVO das Cloud Functions sendLoginOtp/
+    // verifyLoginOtp (Admin SDK) — nenhuma leitura ou escrita do cliente.
+    match /otpCodes/{uid} {
+      allow read, write: if false;
+    }
+
     // ========== PRESENÇA EM TEMPO REAL (flag `live_presence`) ==========
     // Heartbeats efêmeros (id determinístico `${entityType}_${entityId}_${uid}`).
     // Escrita direta do cliente (sem Cloud Function): cada usuário só grava/apaga

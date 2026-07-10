@@ -8,7 +8,7 @@ exports.updateProfile = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
-    const { full_name, platform_name, function: userFunction, notification_email } = request.data;
+    const { full_name, platform_name, function: userFunction, notification_email, two_factor_enabled } = request.data;
     const userId = request.auth.uid;
     const db = admin.firestore();
     const updates = {};
@@ -20,6 +20,8 @@ exports.updateProfile = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         updates.function = userFunction;
     if (notification_email !== undefined)
         updates.notification_email = notification_email;
+    if (two_factor_enabled !== undefined)
+        updates.two_factor_enabled = two_factor_enabled === true;
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     // Update 'users' collection
     await db.collection('users').doc(userId).update(updates);

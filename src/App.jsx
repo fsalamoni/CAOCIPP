@@ -9,6 +9,7 @@ import { AuthProvider as FirebaseAuthProvider, useAuth } from '@/lib/FirebaseAut
 import { FeatureFlagsProvider } from '@/lib/FeatureFlagsContext';
 import ThemeV2Effect from '@/lib/ThemeV2';
 import { ThemeSwitcherProvider } from '@/lib/ThemeSwitcher';
+import TwoFactorGate from '@/lib/TwoFactorGate';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { runBackfill } from '@/utils/backfillMatter';
 
@@ -72,7 +73,9 @@ function App() {
             <QueryClientProvider client={queryClientInstance}>
               <Router>
                 <NavigationTracker />
-                <AuthenticatedApp />
+                <TwoFactorGate>
+                  <AuthenticatedApp />
+                </TwoFactorGate>
               </Router>
               <Toaster />
             </QueryClientProvider>
