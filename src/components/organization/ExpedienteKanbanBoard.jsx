@@ -24,6 +24,9 @@ import { calculateExpedienteDerivedStatus, getExpedienteField } from '@/utils/ex
 import { updateExpediente } from '@/services/functionsService';
 import { isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { computeStageAverages } from '@/lib/stageTime';
 import ExpedienteKanbanCard from './ExpedienteKanbanCard';
 import ExpedienteKanbanTransitionDialog from './ExpedienteKanbanTransitionDialog';
 import ExpedienteDetailSheet from './ExpedienteDetailSheet';
@@ -151,6 +154,12 @@ export default function ExpedienteKanbanBoard({
     expedientesLoading,
 }) {
     const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
+
+    const stageTimeIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
+    const stageAverages = useMemo(
+        () => (stageTimeIndicatorOn ? computeStageAverages(expedientes, getExpedienteField) : null),
+        [stageTimeIndicatorOn, expedientes]
+    );
 
     const [activeId, setActiveId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -892,6 +901,7 @@ export default function ExpedienteKanbanBoard({
                             column={col}
                             expedientes={columns[col.id] || []}
                             onViewDetails={handleViewDetails}
+                            stageAverages={stageAverages}
                         />
                     ))}
                 </div>
@@ -965,7 +975,7 @@ export default function ExpedienteKanbanBoard({
 }
 
 // === Droppable Column ===
-function KanbanColumn({ column, expedientes, onViewDetails }) {
+function KanbanColumn({ column, expedientes, onViewDetails, stageAverages }) {
     const { setNodeRef, isOver } = useDroppable({
         id: column.id,
         data: { columnId: column.id },
@@ -1003,7 +1013,7 @@ function KanbanColumn({ column, expedientes, onViewDetails }) {
                 <SortableContext items={expedientes.map(p => p.id)} strategy={verticalListSortingStrategy}>
                     {expedientes.length > 0 ? (
                         expedientes.map(p => (
-                            <ExpedienteKanbanCard key={p.id} expediente={p} columnId={column.id} onViewDetails={onViewDetails} />
+                            <ExpedienteKanbanCard key={p.id} expediente={p} columnId={column.id} onViewDetails={onViewDetails} stageAverages={stageAverages} />
                         ))
                     ) : (
                         <EmptyState

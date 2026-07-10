@@ -127,6 +127,220 @@ export const FEATURE_FLAGS = {
         risk: 'low',
         default: false,
     },
+
+    // --- Fase 9: Diagnóstico de plataforma — Aparência e personalização ---
+    THEME_SWITCHER: {
+        key: 'theme_switcher',
+        label: 'Alternância de tema claro/escuro',
+        description:
+            'Adiciona um controle na interface para o usuário escolher entre tema claro, escuro ou o padrão do sistema operacional. Hoje o modo escuro não tem nenhum controle visível.',
+        category: 'Aparência',
+        risk: 'low',
+        default: false,
+    },
+    TABLE_DENSITY: {
+        key: 'table_density',
+        label: 'Densidade de tabela ajustável',
+        description:
+            'Permite alternar entre densidade confortável e compacta nas tabelas de Consultas e Expedientes, além do seletor de colunas já existente. Preferência salva por usuário.',
+        category: 'Aparência',
+        risk: 'low',
+        default: false,
+    },
+
+    // --- Fase 9: Produtividade ---
+    COMMAND_PALETTE: {
+        key: 'command_palette',
+        label: 'Paleta de comandos (Ctrl/Cmd + K)',
+        description:
+            'Abre uma busca rápida para pular direto a qualquer órgão, aba ou página, ou disparar ações comuns, tudo por teclado. Inclui um painel de atalhos (tecla "?").',
+        category: 'Produtividade',
+        risk: 'low',
+        default: false,
+    },
+    SAVED_VIEWS: {
+        key: 'saved_views',
+        label: 'Filtros salvos (visões nomeadas)',
+        description:
+            'Permite salvar uma combinação de filtros da tabela de Consultas/Expedientes com um nome, para reaplicar com um clique depois.',
+        category: 'Produtividade',
+        risk: 'low',
+        default: false,
+    },
+    GLOBAL_SEARCH: {
+        key: 'global_search',
+        label: 'Busca global entre órgãos',
+        description:
+            'Uma busca única, acessível de qualquer tela, que procura por número de processo/expediente ou consulente em todos os órgãos do usuário — não só no órgão aberto no momento.',
+        category: 'Produtividade',
+        risk: 'medium',
+        default: false,
+    },
+    BULK_ACTIONS: {
+        key: 'bulk_actions',
+        label: 'Ações em massa na tabela',
+        description:
+            'Permite selecionar várias linhas na tabela de Consultas/Expedientes para arquivar ou exportar de uma vez.',
+        category: 'Produtividade',
+        risk: 'medium',
+        default: false,
+    },
+
+    // --- Fase 9: Prazos e priorização ---
+    STAGE_TIME_INDICATOR: {
+        key: 'stage_time_indicator',
+        label: 'Indicador de tempo na etapa atual',
+        description:
+            'Mostra, no cartão do Kanban e na tabela, há quantos dias o processo/expediente está parado na etapa atual, com selo de cor comparando com a média histórica do próprio órgão.',
+        category: 'Prazos',
+        risk: 'low',
+        default: false,
+    },
+    DEADLINE_CALENDAR: {
+        key: 'deadline_calendar',
+        label: 'Vista de calendário de vencimentos',
+        description:
+            'Adiciona uma aba de calendário mensal com as datas relevantes (distribuição, revisão, arquivamento) de Consultas e Expedientes do órgão.',
+        category: 'Prazos',
+        risk: 'low',
+        default: false,
+    },
+    ASSESSOR_GOALS: {
+        key: 'assessor_goals',
+        label: 'Metas configuráveis por assessor/órgão',
+        description:
+            'Permite ao administrador do órgão definir uma meta de conclusão (ex.: % em até N dias úteis), exibida como barra de progresso no painel de cada assessor.',
+        category: 'Prazos',
+        risk: 'low',
+        default: false,
+    },
+    AUTO_ESCALATION: {
+        key: 'auto_escalation',
+        label: 'Escalonamento automático de urgentes parados',
+        description:
+            'Uma rotina diária (Cloud Function agendada) verifica processos/expedientes urgentes sem movimentação há mais que o limite configurado pelo órgão e notifica o criador/administrador delegado, além do responsável.',
+        category: 'Prazos',
+        risk: 'medium',
+        default: false,
+    },
+
+    // --- Fase 9: Relatórios e exportação ---
+    EXPORT_PDF_EXCEL: {
+        key: 'export_pdf_excel',
+        label: 'Exportação para PDF e Excel',
+        description:
+            'Adiciona botões de exportação na tabela (respeitando os filtros ativos) e na ficha de um processo/expediente, em PDF ou Excel.',
+        category: 'Relatórios',
+        risk: 'low',
+        default: false,
+    },
+    PERIOD_COMPARISON: {
+        key: 'period_comparison',
+        label: 'Comparação entre períodos',
+        description:
+            'Em Resumos Inteligentes, mostra os números do período selecionado lado a lado com o período anterior equivalente.',
+        category: 'Relatórios',
+        risk: 'low',
+        default: false,
+    },
+    CUSTOM_DASHBOARD: {
+        key: 'custom_dashboard',
+        label: 'Painel inicial personalizável',
+        description:
+            'Permite reordenar ou ocultar os cartões de indicadores do Painel de Consultas (Início), com a preferência salva por usuário.',
+        category: 'Relatórios',
+        risk: 'low',
+        default: false,
+    },
+
+    // --- Fase 9: Colaboração ---
+    PROCESS_COMMENTS: {
+        key: 'process_comments',
+        label: 'Comentários internos com menções',
+        description:
+            'Adiciona um espaço de comentários por processo/expediente, com @menção a colegas do órgão e notificação automática de quem foi mencionado.',
+        category: 'Colaboração',
+        risk: 'medium',
+        default: false,
+    },
+    LIVE_PRESENCE: {
+        key: 'live_presence',
+        label: 'Presença em tempo real',
+        description:
+            'Mostra, na ficha de um processo/expediente, quais outros membros do órgão estão vendo aquele registro no momento.',
+        category: 'Colaboração',
+        risk: 'low',
+        default: false,
+    },
+    NOTIFICATION_CENTER_V2: {
+        key: 'notification_center_v2',
+        label: 'Central de notificações avançada',
+        description:
+            'Evolui o sino de notificações: agrupamento por tipo, marcar todas como lidas de uma vez, e preferências de quais eventos notificar.',
+        category: 'Colaboração',
+        risk: 'low',
+        default: false,
+    },
+
+    // --- Fase 9: Automação por e-mail ---
+    SCHEDULED_EMAIL_REPORTS: {
+        key: 'scheduled_email_reports',
+        label: 'Resumo diário e relatório semanal por e-mail',
+        description:
+            'Envia, por e-mail, um resumo diário de urgentes pendentes e/ou um relatório semanal do órgão. Exige configurar um provedor de e-mail em Administração da Plataforma; sem isso, fica inativa mesmo ligada.',
+        category: 'Colaboração',
+        risk: 'medium',
+        default: false,
+    },
+
+    // --- Fase 9: Segurança e conformidade ---
+    ACCESS_AUDIT_LOG: {
+        key: 'access_audit_log',
+        label: 'Log de acesso e auditoria exportável',
+        description:
+            'Registra exportações e aberturas de processos com restrição de acesso, com uma tela no órgão para consultar e exportar esse histórico (conformidade com a LGPD).',
+        category: 'Segurança',
+        risk: 'low',
+        default: false,
+    },
+    DATA_RETENTION_POLICY: {
+        key: 'data_retention_policy',
+        label: 'Política de retenção e anonimização',
+        description:
+            'Permite configurar, por órgão, um prazo após o arquivamento para anonimizar dados pessoais do consulente. A anonimização em si só roda depois de uma pré-visualização e confirmação explícita — nunca automaticamente sem revisão. Ação irreversível: use com cautela.',
+        category: 'Segurança',
+        risk: 'high',
+        default: false,
+    },
+    TWO_FACTOR_AUTH: {
+        key: 'two_factor_auth',
+        label: 'Autenticação em duas etapas (código por e-mail)',
+        description:
+            'Camada adicional opcional além do login Google: um código de verificação por e-mail a cada novo login. Exige o mesmo provedor de e-mail do item de relatórios agendados.',
+        category: 'Segurança',
+        risk: 'medium',
+        default: false,
+    },
+    OUTBOUND_WEBHOOKS: {
+        key: 'outbound_webhooks',
+        label: 'Webhooks de integração externa',
+        description:
+            'Permite configurar, por órgão, uma URL para receber notificações automáticas (ex.: novo processo urgente, processo arquivado) via HTTP POST — para integrar com Slack, Teams ou sistemas próprios.',
+        category: 'Segurança',
+        risk: 'medium',
+        default: false,
+    },
+
+    // --- Fase 9: Onboarding ---
+    ONBOARDING_TOUR: {
+        key: 'onboarding_tour',
+        label: 'Tour guiado de primeiro acesso',
+        description:
+            'Mostra um tour curto e dispensável na primeira visita de um membro novo a um órgão, apontando a navegação principal.',
+        category: 'Onboarding',
+        risk: 'low',
+        default: false,
+    },
 };
 
 // Lista plana das flags para iteração em UI.

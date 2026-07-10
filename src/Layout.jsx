@@ -40,6 +40,8 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { ThemeToggleButton } from '@/lib/ThemeSwitcher';
+import CommandPalette from '@/lib/CommandPalette';
 
 import { useLocation } from 'react-router-dom';
 
@@ -110,10 +112,12 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <CommandPalette />
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-50">
         <h1 className="text-xl font-bold text-slate-800">Processos</h1>
         <div className="flex items-center gap-2">
+          <ThemeToggleButton />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
@@ -344,6 +348,8 @@ export default function Layout({ children, currentPageName }) {
                 currentPageName === 'Organization' ? 'Órgão' :
                   currentPageName}
           </h2>
+          <div className="flex items-center gap-1">
+          <ThemeToggleButton />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
@@ -370,6 +376,7 @@ export default function Layout({ children, currentPageName }) {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
         {/* Page Content */}

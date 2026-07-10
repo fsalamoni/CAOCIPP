@@ -35,9 +35,18 @@ service cloud.firestore {
     match /users/{userId} {
       // Todos usuários autenticados podem ler perfis (para exibir nomes, fotos)
       allow read: if isAuthenticated();
-      
+
       // Apenas o próprio usuário pode escrever seu perfil
       allow write: if isAuthenticated() && isOwner(userId);
+    }
+
+    // ========== PREFERÊNCIAS DE USUÁRIO ==========
+    // Corrige lacuna anterior: esta coleção nunca teve regra própria, então
+    // toda leitura/escrita caía no default-deny do Firestore. Na prática,
+    // preferências (ordenação, colunas, densidade, visões salvas etc.) só
+    // persistiam via localStorage — nunca sincronizavam entre dispositivos.
+    match /userPreferences/{userId} {
+      allow read, write: if isAuthenticated() && isOwner(userId);
     }
     
     // ========== ORGANIZATIONS ==========

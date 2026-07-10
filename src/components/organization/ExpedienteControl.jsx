@@ -47,6 +47,13 @@ export default function ExpedienteControl({
     }
   };
 
+  // Arquivamento em lote (ações em massa): sem confirm/toast por item — a
+  // confirmação e o resumo final são responsabilidade de quem chama (a
+  // tabela), que já pergunta uma única vez antes de disparar N chamadas.
+  const handleBulkArchiveExpediente = async (expediente) => {
+    await archiveExpediente({ id: expediente.id, organizationId: organization.id });
+  };
+
   const handleMutation = () => {
     // Refresh handled by real-time hooks
   };
@@ -226,6 +233,7 @@ export default function ExpedienteControl({
             isLoading={expedientesLoading}
             onEdit={handleEdit}
             onArchive={handleArchive}
+            onBulkArchive={handleBulkArchiveExpediente}
             initialFilter={initialFilter}
             organization={organization}
           />
