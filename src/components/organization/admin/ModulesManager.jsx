@@ -54,7 +54,7 @@ export default function ModulesManager({ organization }) {
         <div className="space-y-6">
             <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Páginas e Módulos</h3>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     Escolha quais páginas aparecem para este órgão. Desligar uma página apenas a oculta da navegação —
                     nenhum dado é apagado, e você pode religar a qualquer momento.
                 </p>
@@ -91,7 +91,7 @@ export default function ModulesManager({ organization }) {
                                 </div>
                             </CardHeader>
                             <CardContent className="pt-0">
-                                <p className="text-xs text-slate-400">
+                                <p className="text-xs text-slate-400 dark:text-slate-500">
                                     {enabled[mod.key] ? 'Visível na navegação do órgão.' : 'Oculto (os dados permanecem salvos).'}
                                 </p>
                             </CardContent>

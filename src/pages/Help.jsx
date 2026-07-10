@@ -13,12 +13,12 @@ export default function Help() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Central de Ajuda</h1>
-        <p className="text-slate-600">Aprenda a usar todas as funcionalidades da plataforma</p>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Central de Ajuda</h1>
+        <p className="text-slate-600 dark:text-slate-300">Aprenda a usar todas as funcionalidades da plataforma</p>
       </div>
 
       {/* Getting Started */}
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <HelpCircle className="w-5 h-5" />
@@ -94,7 +94,7 @@ export default function Help() {
       </div>
 
       {/* Status Flow */}
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle>Fluxo de Status dos Processos</CardTitle>
         </CardHeader>
@@ -106,8 +106,8 @@ export default function Help() {
             <StatusFlow step="4" status="Revisadas" description="Revisão concluída pelo responsável (Fundo Roxo)." />
             <StatusFlow step="5" status="Na pasta" description="Processo finalizado e arquivado (Fundo Verde)." />
           </div>
-          <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-            <p className="text-sm text-indigo-900">
+          <div className="mt-6 p-4 bg-indigo-50 dark:bg-indigo-950 rounded-lg border border-indigo-200 dark:border-indigo-800">
+            <p className="text-sm text-indigo-900 dark:text-indigo-200">
               💡 <strong>Dica:</strong> O status é calculado automaticamente baseado nas datas que você preenche.
               Você não precisa alterar o status manualmente!
             </p>
@@ -116,15 +116,15 @@ export default function Help() {
       </Card>
 
       {/* Contact */}
-      <Card className="shadow-sm border-slate-200 bg-gradient-to-br from-indigo-50 to-violet-50">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950 dark:to-violet-950">
         <CardContent className="p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center">
               <Mail className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900">Precisa de mais ajuda?</h3>
-              <p className="text-sm text-slate-600 mt-1">
+              <h3 className="font-semibold text-slate-900 dark:text-white">Precisa de mais ajuda?</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                 Entre em contato com o suporte para assistência personalizada
               </p>
             </div>
@@ -142,8 +142,8 @@ function HelpItem({ number, title, description }) {
         {number}
       </div>
       <div>
-        <h3 className="font-semibold text-slate-900">{title}</h3>
-        <p className="text-sm text-slate-600 mt-1">{description}</p>
+        <h3 className="font-semibold text-slate-900 dark:text-white">{title}</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{description}</p>
       </div>
     </div>
   );
@@ -151,7 +151,7 @@ function HelpItem({ number, title, description }) {
 
 function FeatureCard({ icon: Icon, title, items }) {
   return (
-    <Card className="shadow-sm border-slate-200">
+    <Card className="shadow-sm border-slate-200 dark:border-slate-700">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Icon className="w-5 h-5" />
@@ -161,7 +161,7 @@ function FeatureCard({ icon: Icon, title, items }) {
       <CardContent>
         <ul className="space-y-2">
           {items.map((item, index) => (
-            <li key={index} className="flex items-start gap-2 text-sm text-slate-600">
+            <li key={index} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
               <span className="text-indigo-600 mt-0.5">•</span>
               {item}
             </li>
@@ -174,13 +174,13 @@ function FeatureCard({ icon: Icon, title, items }) {
 
 function StatusFlow({ step, status, description }) {
   return (
-    <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
-      <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-semibold shrink-0">
+    <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-semibold shrink-0">
         {step}
       </div>
       <div className="flex-1">
-        <div className="font-semibold text-slate-900">{status}</div>
-        <div className="text-sm text-slate-600">{description}</div>
+        <div className="font-semibold text-slate-900 dark:text-white">{status}</div>
+        <div className="text-sm text-slate-600 dark:text-slate-300">{description}</div>
       </div>
     </div>
   );

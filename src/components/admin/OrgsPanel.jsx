@@ -72,7 +72,7 @@ export default function OrgsPanel() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-500">
+            <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Carregando órgãos...
             </div>
@@ -97,7 +97,7 @@ export default function OrgsPanel() {
                     <Building2 className="w-5 h-5 text-indigo-600" />
                     Órgãos ({formatNumber(data?.total)})
                     {data?.hasMore && (
-                        <span className="text-xs font-normal text-slate-400">
+                        <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
                             mostrando os {orgs.length} maiores
                         </span>
                     )}
@@ -128,8 +128,8 @@ export default function OrgsPanel() {
                                 <TableCell className="text-right">{formatNumber(o.processes_count)}</TableCell>
                                 <TableCell className="text-right">{formatNumber(o.active_processes)}</TableCell>
                                 <TableCell className="text-right">{formatNumber(o.expedientes_count)}</TableCell>
-                                <TableCell className="text-right text-slate-500">{formatBytes(o.storageEstimateBytes)}</TableCell>
-                                <TableCell className="text-slate-500">{formatDate(o.created_at)}</TableCell>
+                                <TableCell className="text-right text-slate-500 dark:text-slate-400">{formatBytes(o.storageEstimateBytes)}</TableCell>
+                                <TableCell className="text-slate-500 dark:text-slate-400">{formatDate(o.created_at)}</TableCell>
                                 <TableCell className="text-right">
                                     <DeleteOrgButton org={o} onDeleted={load} />
                                 </TableCell>
@@ -137,14 +137,14 @@ export default function OrgsPanel() {
                         ))}
                         {orgs.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center text-slate-400 py-8">
+                                <TableCell colSpan={8} className="text-center text-slate-400 dark:text-slate-500 py-8">
                                     Nenhum órgão encontrado.
                                 </TableCell>
                             </TableRow>
                         )}
                     </TableBody>
                 </Table>
-                <p className="text-xs text-slate-400 mt-3">
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
                     * Armazenamento estimado a partir de tamanhos médios por documento.
                 </p>
             </CardContent>
@@ -199,13 +199,13 @@ function DeleteOrgButton({ org, onDeleted }) {
                     </DialogTitle>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
-                    <p className="text-sm text-slate-600 leading-relaxed">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                         Esta ação excluirá permanentemente a organização <strong>{org.name}</strong> e
                         <strong> todo o seu banco de dados</strong> (processos, expedientes, páginas personalizadas,
                         históricos e vínculos de membros). Não há como desfazer.
                     </p>
                     <div className="space-y-2">
-                        <Label htmlFor={`confirm-org-${org.id}`} className="text-xs font-semibold uppercase text-slate-500">
+                        <Label htmlFor={`confirm-org-${org.id}`} className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                             Digite o nome da organização para confirmar:
                         </Label>
                         <Input

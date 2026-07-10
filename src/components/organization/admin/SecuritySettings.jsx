@@ -48,24 +48,24 @@ function AccessAuditLogSection({ organization }) {
                 <ScrollText className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-lg font-medium">Log de Acesso e Auditoria</h3>
             </div>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                 Últimas 100 aberturas de registros com restrição de acesso e exportações de tabela neste órgão.
             </p>
             {isLoading ? (
-                <div className="flex items-center justify-center py-8 text-slate-400">
+                <div className="flex items-center justify-center py-8 text-slate-400 dark:text-slate-500">
                     <Loader2 className="w-5 h-5 animate-spin" />
                 </div>
             ) : items.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-8">Nenhum evento registrado ainda.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-8">Nenhum evento registrado ainda.</p>
             ) : (
                 <div className="max-h-80 overflow-y-auto space-y-1.5">
                     {items.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 text-sm">
                             <div className="min-w-0">
                                 <span className="font-semibold text-slate-700 dark:text-slate-200">{item.user_name}</span>
-                                <span className="text-slate-500"> — {ACTION_LABELS[item.action] || item.action}</span>
+                                <span className="text-slate-500 dark:text-slate-400"> — {ACTION_LABELS[item.action] || item.action}</span>
                             </div>
-                            <span className="text-xs text-slate-400 shrink-0">
+                            <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
                                 {item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : ''}
                             </span>
                         </div>
@@ -166,7 +166,7 @@ function DataRetentionSection({ organization }) {
                         className="mt-1 max-w-xs"
                     />
                 </div>
-                <div className="flex justify-end pt-2 border-t border-slate-100">
+                <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
                     <Button onClick={handleSave} disabled={saving} className="gap-2">
                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Salvar
@@ -182,7 +182,7 @@ function DataRetentionSection({ organization }) {
 
                 {preview && preview.totalEligible > 0 && (
                     <div className="mt-4 space-y-3">
-                        <p className="text-sm text-slate-600">
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
                             <strong>{preview.totalEligible}</strong> Consulta(s) elegível(is)
                             {preview.totalEligible > preview.items.length ? ` (mostrando os primeiros ${preview.items.length})` : ''}:
                         </p>
@@ -190,7 +190,7 @@ function DataRetentionSection({ organization }) {
                             {preview.items.map((item) => (
                                 <div key={item.id} className="flex justify-between text-xs px-3 py-1.5 rounded border border-slate-100 dark:border-slate-800">
                                     <span className="font-medium">{item.process_number || '(sem número)'}</span>
-                                    <span className="text-slate-500">{item.consultant}</span>
+                                    <span className="text-slate-500 dark:text-slate-400">{item.consultant}</span>
                                 </div>
                             ))}
                         </div>
@@ -271,7 +271,7 @@ function WebhooksSection({ organization }) {
                 <Webhook className="w-5 h-5 text-violet-600" />
                 <h3 className="text-lg font-medium">Webhooks de Integração Externa</h3>
             </div>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                 Envia um HTTP POST em JSON para a URL abaixo a cada evento selecionado — use para integrar com Slack, Teams ou um sistema próprio.
             </p>
             <div className="space-y-4">
@@ -300,7 +300,7 @@ function WebhooksSection({ organization }) {
                         <Switch checked={(config.events || []).includes('archived')} onCheckedChange={() => toggleEvent('archived')} />
                     </div>
                 </div>
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <Button variant="outline" onClick={handleTest} disabled={testing || !config.url} className="gap-2">
                         {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                         Testar
@@ -326,7 +326,7 @@ export default function SecuritySettings({ organization }) {
 
     if (!isAccessAuditLogOn && !isRetentionOn && !isWebhooksOn) {
         return (
-            <div className="p-8 text-center text-slate-400 text-sm">
+            <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">
                 Nenhuma funcionalidade de segurança adicional está habilitada na plataforma no momento.
             </div>
         );

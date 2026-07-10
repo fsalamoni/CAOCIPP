@@ -43,7 +43,7 @@ export default function EmailProviderPanel() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-400">
+            <div className="flex items-center justify-center py-16 text-slate-400 dark:text-slate-500">
                 <Loader2 className="w-6 h-6 animate-spin" />
             </div>
         );
@@ -94,7 +94,7 @@ export default function EmailProviderPanel() {
                             />
                         </div>
                     </div>
-                    <div className="flex justify-end pt-2 border-t border-slate-100">
+                    <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
                         <Button onClick={handleSave} disabled={saving} className="gap-2">
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             Salvar

@@ -45,7 +45,7 @@ export default function AutomationSettings({ organization }) {
 
     if (!isGoalsOn && !isEscalationOn && !isReportsOn) {
         return (
-            <div className="p-8 text-center text-slate-400 text-sm">
+            <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">
                 Nenhuma funcionalidade de automação está habilitada na plataforma no momento.
             </div>
         );
@@ -59,7 +59,7 @@ export default function AutomationSettings({ organization }) {
                         <Target className="w-5 h-5 text-indigo-600" />
                         <h3 className="text-lg font-medium">Metas de Conclusão por Assessor</h3>
                     </div>
-                    <p className="text-sm text-slate-500 mb-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                         Cada assessor vê, em Meu Início, o percentual de suas Consultas/Expedientes concluídos (ou ainda dentro do prazo) em até N dias úteis, frente à meta definida aqui.
                     </p>
                     <div className="space-y-4">
@@ -93,7 +93,7 @@ export default function AutomationSettings({ organization }) {
                                 />
                             </div>
                         </div>
-                        <div className="flex justify-end pt-2 border-t border-slate-100">
+                        <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
                             <Button onClick={() => saveSection('goalsConfig', goals, 'Metas de conclusão')} disabled={savingSection === 'goalsConfig'} className="gap-2">
                                 {savingSection === 'goalsConfig' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                 Salvar
@@ -109,7 +109,7 @@ export default function AutomationSettings({ organization }) {
                         <AlertTriangle className="w-5 h-5 text-amber-600" />
                         <h3 className="text-lg font-medium">Escalonamento de Urgentes Parados</h3>
                     </div>
-                    <p className="text-sm text-slate-500 mb-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                         Uma rotina diária notifica o criador, os administradores delegados e o responsável quando uma Consulta/Expediente urgente fica parado na mesma etapa por mais do que o limite abaixo.
                     </p>
                     <div className="space-y-4">
@@ -129,7 +129,7 @@ export default function AutomationSettings({ organization }) {
                                 className="mt-1 max-w-xs"
                             />
                         </div>
-                        <div className="flex justify-end pt-2 border-t border-slate-100">
+                        <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
                             <Button onClick={() => saveSection('escalationConfig', escalation, 'Escalonamento')} disabled={savingSection === 'escalationConfig'} className="gap-2">
                                 {savingSection === 'escalationConfig' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                 Salvar
@@ -145,7 +145,7 @@ export default function AutomationSettings({ organization }) {
                         <Mail className="w-5 h-5 text-sky-600" />
                         <h3 className="text-lg font-medium">Relatórios Agendados por E-mail</h3>
                     </div>
-                    <p className="text-sm text-slate-500 mb-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                         Enviados para o criador e os administradores. Depende de um provedor de e-mail configurado em Administração da Plataforma — sem isso, fica inativo mesmo ligado aqui.
                     </p>
                     <div className="space-y-3">
@@ -157,7 +157,7 @@ export default function AutomationSettings({ organization }) {
                             <Label>Relatório semanal do órgão</Label>
                             <Switch checked={reports.weeklyReportEnabled} onCheckedChange={(checked) => setReports((r) => ({ ...r, weeklyReportEnabled: checked }))} />
                         </div>
-                        <div className="flex justify-end pt-2 border-t border-slate-100">
+                        <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
                             <Button onClick={() => saveSection('reportsConfig', reports, 'Relatórios agendados')} disabled={savingSection === 'reportsConfig'} className="gap-2">
                                 {savingSection === 'reportsConfig' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                 Salvar

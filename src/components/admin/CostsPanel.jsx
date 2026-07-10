@@ -75,7 +75,7 @@ export default function CostsPanel() {
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-16 text-slate-500">
+                <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                     <Loader2 className="w-6 h-6 animate-spin mr-2" />
                     Carregando custos...
                 </div>
@@ -87,7 +87,7 @@ export default function CostsPanel() {
                             Custos reais ainda não conectados.
                         </p>
                         <p className="text-sm">{report?.message}</p>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             Passos: (1) ativar o export de faturamento do Google Cloud
                             para o BigQuery; (2) informar o dataset/tabela às funções
                             (variáveis BILLING_BQ_PROJECT, BILLING_BQ_DATASET,
@@ -113,7 +113,7 @@ export default function CostsPanel() {
                             <div className="text-3xl font-bold text-slate-900 dark:text-white">
                                 {formatCurrency(report?.totalCost, report?.currency)}
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                 Últimos {report?.periodDays} dias — fonte: Cloud Billing (BigQuery)
                             </p>
                         </CardContent>
@@ -125,19 +125,19 @@ export default function CostsPanel() {
                         </CardHeader>
                         <CardContent className="space-y-2">
                             {(report?.byService || []).length === 0 ? (
-                                <p className="text-sm text-slate-500">
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
                                     Nenhum custo registrado no período.
                                 </p>
                             ) : (
                                 report.byService.map((s) => (
                                     <div
                                         key={s.service}
-                                        className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0"
+                                        className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800 last:border-0"
                                     >
-                                        <span className="text-sm text-slate-700">
+                                        <span className="text-sm text-slate-700 dark:text-slate-200">
                                             {s.service}
                                         </span>
-                                        <span className="text-sm font-medium text-slate-900">
+                                        <span className="text-sm font-medium text-slate-900 dark:text-white">
                                             {formatCurrency(s.cost, s.currency)}
                                         </span>
                                     </div>

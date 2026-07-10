@@ -6,11 +6,11 @@ export default function Terms() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Termos de Uso</h1>
-        <p className="text-slate-600">Última atualização: Janeiro de 2025</p>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Termos de Uso</h1>
+        <p className="text-slate-600 dark:text-slate-300">Última atualização: Janeiro de 2025</p>
       </div>
 
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
@@ -26,7 +26,7 @@ export default function Terms() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle>2. Uso da Plataforma</CardTitle>
         </CardHeader>
@@ -41,7 +41,7 @@ export default function Terms() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle>3. Privacidade e Proteção de Dados</CardTitle>
         </CardHeader>
@@ -60,7 +60,7 @@ export default function Terms() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle>4. Organizações e Membros</CardTitle>
         </CardHeader>
@@ -73,7 +73,7 @@ export default function Terms() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle>5. Limitação de Responsabilidade</CardTitle>
         </CardHeader>
@@ -86,7 +86,7 @@ export default function Terms() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle>6. Modificações dos Termos</CardTitle>
         </CardHeader>
@@ -99,9 +99,9 @@ export default function Terms() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm border-slate-200 bg-gradient-to-br from-indigo-50 to-violet-50">
+      <Card className="shadow-sm border-slate-200 dark:border-slate-700 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950 dark:to-violet-950">
         <CardContent className="p-6">
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-slate-700 dark:text-slate-200">
             Se você tiver dúvidas sobre estes termos, entre em contato através do suporte da plataforma.
           </p>
         </CardContent>

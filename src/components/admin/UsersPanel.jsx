@@ -66,7 +66,7 @@ export default function UsersPanel() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-500">
+            <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Carregando usuários...
             </div>
@@ -91,7 +91,7 @@ export default function UsersPanel() {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                     <div className="relative">
-                        <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-slate-400" />
+                        <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-slate-400 dark:text-slate-500" />
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -122,7 +122,7 @@ export default function UsersPanel() {
                                 <TableCell className="font-medium">
                                     {u.fullName || u.displayName || '—'}
                                 </TableCell>
-                                <TableCell className="text-slate-500">{u.email || '—'}</TableCell>
+                                <TableCell className="text-slate-500 dark:text-slate-400">{u.email || '—'}</TableCell>
                                 <TableCell className="text-right">{formatNumber(u.orgCount)}</TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
@@ -133,7 +133,7 @@ export default function UsersPanel() {
                                         ))}
                                     </div>
                                 </TableCell>
-                                <TableCell className="text-slate-500">{formatDateTime(u.lastLogin)}</TableCell>
+                                <TableCell className="text-slate-500 dark:text-slate-400">{formatDateTime(u.lastLogin)}</TableCell>
                                 <TableCell>
                                     {u.disabled ? (
                                         <Badge variant="destructive">Desativado</Badge>
@@ -147,7 +147,7 @@ export default function UsersPanel() {
                         ))}
                         {filtered.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center text-slate-400 py-8">
+                                <TableCell colSpan={6} className="text-center text-slate-400 dark:text-slate-500 py-8">
                                     Nenhum usuário encontrado.
                                 </TableCell>
                             </TableRow>
@@ -155,7 +155,7 @@ export default function UsersPanel() {
                     </TableBody>
                 </Table>
                 {data?.hasMore && (
-                    <p className="text-xs text-slate-400 mt-3">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
                         Existem mais usuários além desta página (limite de 1000 por carga).
                     </p>
                 )}

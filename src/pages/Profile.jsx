@@ -231,7 +231,7 @@ export default function Profile() {
                   disabled
                   className="bg-slate-100 dark:bg-slate-800"
                 />
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Email gerenciado pelo Google
                 </p>
               </div>
@@ -283,7 +283,7 @@ export default function Profile() {
                 onChange={(e) => setNotificationEmail(e.target.value)}
                 placeholder="email@example.com"
               />
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Deixe em branco para usar o email principal
               </p>
             </div>
@@ -292,7 +292,7 @@ export default function Profile() {
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
                 <div>
                   <Label>Autenticação em duas etapas (código por e-mail)</Label>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     A cada novo acesso, um código de verificação será enviado para o seu e-mail. Depende de um provedor de e-mail configurado pela plataforma — sem isso, o acesso não fica bloqueado.
                   </p>
                 </div>
@@ -345,7 +345,7 @@ export default function Profile() {
                           {org.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
                         <span>Role: <strong>{org.userRole}</strong></span>
                         <span>Membros: {org.stats?.members_count || 0}</span>
                         <span>Processos: {org.stats?.processes_count || 0}</span>

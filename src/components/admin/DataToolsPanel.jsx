@@ -221,7 +221,7 @@ export default function DataToolsPanel() {
                 </CardHeader>
                 <CardContent>
                     {!audit ? (
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             Compara os contadores armazenados em cada órgão com a contagem
                             real. Clique em “Executar auditoria”.
                         </p>
@@ -234,7 +234,7 @@ export default function DataToolsPanel() {
                                 <span className="text-emerald-600">
                                     Sem divergência: <strong>{formatNumber(audit.okCount)}</strong>
                                 </span>
-                                <span className={driftRows.length ? 'text-amber-600' : 'text-slate-500'}>
+                                <span className={driftRows.length ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}>
                                     Divergências: <strong>{formatNumber(driftRows.length)}</strong>
                                 </span>
                             </div>
@@ -374,7 +374,7 @@ export default function DataToolsPanel() {
                     </div>
 
                     {backfillProgress && (
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             {backfillProgress}
                         </div>

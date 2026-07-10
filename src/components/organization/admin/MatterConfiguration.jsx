@@ -187,12 +187,12 @@ export default function MatterConfiguration({ organization }) {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <div>
                         <h3 className="text-lg font-medium">Configuração de Matérias</h3>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             Defina as categorias e subcategorias. As alterações são salvas automaticamente.
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" onClick={handleRestoreDefaults} disabled={loading} size="sm" className="text-slate-600">
+                        <Button variant="outline" onClick={handleRestoreDefaults} disabled={loading} size="sm" className="text-slate-600 dark:text-slate-300">
                             <RotateCcw className="w-4 h-4 mr-2" />
                             Restaurar Padrão
                         </Button>
@@ -213,11 +213,11 @@ export default function MatterConfiguration({ organization }) {
                     {categories.map((cat, index) => (
                         <AccordionItem key={cat} value={cat} className="border rounded-lg px-4 bg-slate-50 dark:bg-slate-800/50">
                             <div className="flex items-center justify-between py-2">
-                                <AccordionTrigger className="hover:no-underline py-2 flex-1 font-semibold text-slate-700">
+                                <AccordionTrigger className="hover:no-underline py-2 flex-1 font-semibold text-slate-700 dark:text-slate-200">
                                     {cat}
                                 </AccordionTrigger>
                                 <div className="flex items-center gap-2 ml-4">
-                                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+                                    <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">
                                         {(subcategories[cat] || []).length} específicas
                                     </span>
                                     <EditDialog
@@ -232,7 +232,7 @@ export default function MatterConfiguration({ organization }) {
                             </div>
 
                             <AccordionContent className="pt-2 pb-4">
-                                <div className="pl-4 border-l-2 border-slate-200 ml-2 space-y-3">
+                                <div className="pl-4 border-l-2 border-slate-200 dark:border-slate-700 ml-2 space-y-3">
                                     <div className="flex gap-2">
                                         <AddItemInput
                                             placeholder={`Nova matéria específica para ${cat}...`}
@@ -244,12 +244,12 @@ export default function MatterConfiguration({ organization }) {
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {(subcategories[cat] || []).map(sub => (
-                                            <div key={sub} className="flex items-center justify-between p-2 bg-white rounded border border-slate-100 text-sm group">
+                                            <div key={sub} className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-700 text-sm group">
                                                 <span>{sub}</span>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-6 w-6 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-red-500"
+                                                    className="h-6 w-6 text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 hover:text-red-500"
                                                     onClick={() => removeSubcategory(cat, sub)}
                                                 >
                                                     <Trash2 className="w-3 h-3" />
@@ -257,7 +257,7 @@ export default function MatterConfiguration({ organization }) {
                                             </div>
                                         ))}
                                         {(subcategories[cat] || []).length === 0 && (
-                                            <p className="text-xs text-slate-400 italic p-2">Nenhuma matéria específica cadastrada.</p>
+                                            <p className="text-xs text-slate-400 dark:text-slate-500 italic p-2">Nenhuma matéria específica cadastrada.</p>
                                         )}
                                     </div>
                                 </div>
@@ -318,7 +318,7 @@ function EditDialog({ title, initialValue, onSave }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-indigo-600" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400" onClick={(e) => e.stopPropagation()}>
                     <Edit2 className="w-4 h-4" />
                 </Button>
             </DialogTrigger>

@@ -121,7 +121,7 @@ export default function ExpedienteConfiguration({ organization }) {
                     {/* Systems Section */}
                     <div className="space-y-4">
                         <Label className="text-base font-semibold">Sistemas</Label>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             Opções que aparecem no campo "Sistema" ao criar ou editar um expediente.
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -130,7 +130,7 @@ export default function ExpedienteConfiguration({ organization }) {
                                     <span>{sys}</span>
                                     <button
                                         onClick={() => removeSystem(sys)}
-                                        className="ml-1 text-slate-400 hover:text-red-500 transition-colors"
+                                        className="ml-1 text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors"
                                         title={`Remover ${sys}`}
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -157,7 +157,7 @@ export default function ExpedienteConfiguration({ organization }) {
                     {/* Origins Section */}
                     <div className="space-y-4">
                         <Label className="text-base font-semibold">Origens</Label>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             Opções que aparecem no campo "Origem" ao criar ou editar um expediente.
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -166,7 +166,7 @@ export default function ExpedienteConfiguration({ organization }) {
                                     <span>{orig}</span>
                                     <button
                                         onClick={() => removeOrigin(orig)}
-                                        className="ml-1 text-slate-400 hover:text-red-500 transition-colors"
+                                        className="ml-1 text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors"
                                         title={`Remover ${orig}`}
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />

@@ -80,7 +80,7 @@ export default function SetupGuidePanel() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-16 text-slate-500">
+            <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 Verificando configuração...
             </div>
@@ -104,7 +104,7 @@ export default function SetupGuidePanel() {
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-base">
-                        <Settings className="w-5 h-5 text-slate-600" />
+                        <Settings className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                         Configuração necessária
                     </CardTitle>
                     <Button variant="outline" size="sm" onClick={load} className="gap-2">
@@ -112,7 +112,7 @@ export default function SetupGuidePanel() {
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
                         Algumas funcionalidades dependem de configurações feitas fora do app
                         (no GitHub, no Google Cloud ou no provedor de e-mail). Elas não ficam
                         no Firestore por segurança — são chaves e senhas. Abaixo, o que falta
@@ -166,7 +166,7 @@ export default function SetupGuidePanel() {
                         </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                        <p className="text-sm text-slate-500 mb-2">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                             Usado por: código de verificação em duas etapas, resumo diário de
                             urgentes e relatório semanal por e-mail.
                         </p>
@@ -238,7 +238,7 @@ export default function SetupGuidePanel() {
                         </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                        <p className="text-sm text-slate-500 mb-2">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                             Afeta as funcionalidades <strong>Escalonamento automático</strong> e{' '}
                             <strong>Relatórios agendados por e-mail</strong>: a tela de
                             configuração de ambas já está disponível, mas o disparo automático
@@ -275,7 +275,7 @@ export default function SetupGuidePanel() {
                         </div>
                     </AccordionTrigger>
                     <AccordionContent>
-                        <p className="text-sm text-slate-500 mb-2">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                             Sem isso a aba <strong>Custos</strong> segue funcionando normalmente,
                             só que com uma estimativa em vez do valor exato cobrado pelo Google
                             Cloud.
@@ -302,12 +302,12 @@ export default function SetupGuidePanel() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
-                        <KeyRound className="w-4 h-4 text-slate-500" />
+                        <KeyRound className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                         Resumo dos secrets do GitHub Actions
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                    <p className="text-slate-500">
+                    <p className="text-slate-500 dark:text-slate-400">
                         Configurados em Settings → Secrets and variables → Actions, no
                         repositório do projeto. Sem os obrigatórios, o deploy roda "verde" mas
                         não publica nada, para nunca publicar um app quebrado.
@@ -315,14 +315,14 @@ export default function SetupGuidePanel() {
                     <div className="grid sm:grid-cols-2 gap-3 pt-2">
                         <div>
                             <p className="font-medium text-slate-700 dark:text-slate-200">Obrigatórios</p>
-                            <ul className="list-disc pl-5 text-slate-500 space-y-0.5">
+                            <ul className="list-disc pl-5 text-slate-500 dark:text-slate-400 space-y-0.5">
                                 <li><Code>FIREBASE_SERVICE_ACCOUNT</Code> ou <Code>FIREBASE_TOKEN</Code></li>
                                 <li><Code>VITE_FIREBASE_API_KEY</Code> e demais <Code>VITE_FIREBASE_*</Code></li>
                             </ul>
                         </div>
                         <div>
                             <p className="font-medium text-slate-700 dark:text-slate-200">Opcionais</p>
-                            <ul className="list-disc pl-5 text-slate-500 space-y-0.5">
+                            <ul className="list-disc pl-5 text-slate-500 dark:text-slate-400 space-y-0.5">
                                 <li><Code>EMAIL_API_KEY</Code></li>
                                 <li><Code>PLATFORM_ADMIN_EMAILS</Code></li>
                                 <li><Code>BILLING_BQ_PROJECT</Code> / <Code>_DATASET</Code> / <Code>_TABLE</Code></li>

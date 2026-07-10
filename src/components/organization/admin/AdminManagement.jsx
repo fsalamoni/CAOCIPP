@@ -49,7 +49,7 @@ export default function AdminManagement({ organization, members, userRole, userM
     // permissão delegada.
     if (!isCreator && !hasAnyAdminPermission(userMembership)) {
         return (
-            <div className="p-8 text-center text-slate-500">
+            <div className="p-8 text-center text-slate-500 dark:text-slate-400">
                 Acesso restrito ao Criador da organização.
             </div>
         );
@@ -70,7 +70,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         <div className="space-y-6">
             <div className="flex flex-col gap-2">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Painel Administrativo</h2>
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                     {isCreator
                         ? 'Gerencie todos os aspectos da organização: detalhes, membros, classificação de processos e configurações de IA.'
                         : 'Você possui atribuições especiais nesta organização. Apenas as áreas autorizadas são exibidas.'}
@@ -80,79 +80,79 @@ export default function AdminManagement({ organization, members, userRole, userM
             <Tabs defaultValue={defaultTab} className="space-y-6">
                 <TabsList className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 w-full justify-start h-auto flex-wrap">
                     {can.details && (
-                        <TabsTrigger value="details" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="details" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Settings className="w-4 h-4" />
                             Detalhes
                         </TabsTrigger>
                     )}
                     {isCreator && (
-                        <TabsTrigger value="members" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="members" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Users className="w-4 h-4" />
                             Membros
                         </TabsTrigger>
                     )}
                     {isCreator && (
-                        <TabsTrigger value="permissions" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="permissions" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <ShieldCheck className="w-4 h-4" />
                             Atribuições
                         </TabsTrigger>
                     )}
                     {can.matters && (
-                        <TabsTrigger value="matters" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="matters" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Database className="w-4 h-4" />
                             Classificação (Matérias)
                         </TabsTrigger>
                     )}
                     {customEntitiesOn && can.modules && (
-                        <TabsTrigger value="modules" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="modules" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <LayoutGrid className="w-4 h-4" />
                             Páginas e Módulos
                         </TabsTrigger>
                     )}
                     {can.metrics && (
-                        <TabsTrigger value="metrics" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="metrics" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Gauge className="w-4 h-4" />
                             Métricas
                         </TabsTrigger>
                     )}
                     {can.expedientes && (
-                        <TabsTrigger value="expedientes" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="expedientes" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <FileText className="w-4 h-4" />
                             Expedientes
                         </TabsTrigger>
                     )}
                     {can.padronizacao && (
-                        <TabsTrigger value="padronizacao" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="padronizacao" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Database className="w-4 h-4" />
                             Padronização em Bloco
                         </TabsTrigger>
                     )}
                     {isCreator && showAutomationTab && (
-                        <TabsTrigger value="automation" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="automation" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Zap className="w-4 h-4" />
                             Automação
                         </TabsTrigger>
                     )}
                     {isCreator && showSecurityTab && (
-                        <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Lock className="w-4 h-4" />
                             Segurança
                         </TabsTrigger>
                     )}
                     {isCreator && isStageTimeOn && (
-                        <TabsTrigger value="stagetime" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="stagetime" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Timer className="w-4 h-4" />
                             Indicador de Tempo
                         </TabsTrigger>
                     )}
                     {isCreator && (
-                        <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Bot className="w-4 h-4" />
                             Inteligência Artificial
                         </TabsTrigger>
                     )}
                     {isCreator && (
-                        <TabsTrigger value="danger" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 text-red-600">
+                        <TabsTrigger value="danger" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 dark:data-[state=active]:bg-red-900 dark:data-[state=active]:text-red-200 text-red-600 dark:text-red-400">
                             <AlertTriangle className="w-4 h-4" />
                             Zona de Perigo
                         </TabsTrigger>
