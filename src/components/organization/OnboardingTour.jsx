@@ -47,8 +47,12 @@ export default function OnboardingTour({ organization, orgTabs = [] }) {
     const alreadySeen = seenOrgIds.includes(organization?.id);
     const shouldShow = enabled && !prefsLoading && !dismissed && !alreadySeen && slides.length > 0 && Boolean(organization?.id);
 
+    // Reseta a cada troca de órgão — sem isto, dispensar o tour num órgão
+    // suprimiria silenciosamente o tour de QUALQUER outro órgão visitado
+    // depois, na mesma sessão (o componente não desmonta ao trocar de órgão).
     useEffect(() => {
         setStep(0);
+        setDismissed(false);
     }, [organization?.id]);
 
     const markSeen = () => {

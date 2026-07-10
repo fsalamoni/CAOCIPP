@@ -111,7 +111,7 @@ export default function Layout({ children, currentPageName }) {
         <h1 className="text-xl font-bold text-slate-800">Processos</h1>
         <div className="flex items-center gap-2">
           <ThemeToggleButton />
-          <NotificationBell />
+          <NotificationBell variant="mobile" />
           <Button
             variant="ghost"
             size="icon"

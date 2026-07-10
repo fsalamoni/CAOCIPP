@@ -215,9 +215,16 @@ service cloud.firestore {
     match /presence/{presenceId} {
       allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
 
-      allow create, update: if isAuthenticated() &&
-                              isOwner(request.resource.data.user_id) &&
-                              isMemberOf(request.resource.data.organization_id);
+      allow create: if isAuthenticated() &&
+                      isOwner(request.resource.data.user_id) &&
+                      isMemberOf(request.resource.data.organization_id);
+
+      // update também exige ser dono do doc JÁ EXISTENTE (não só da nova
+      // versão) — evita que alguém reescreva o heartbeat de outro usuário.
+      allow update: if isAuthenticated() &&
+                      isOwner(resource.data.user_id) &&
+                      isOwner(request.resource.data.user_id) &&
+                      isMemberOf(request.resource.data.organization_id);
 
       allow delete: if isAuthenticated() && isOwner(resource.data.user_id);
     }

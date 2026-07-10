@@ -11,6 +11,8 @@
 
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { getProcessField } from '@/utils/processUtils';
+import { getExpedienteField } from '@/utils/expedienteUtils';
 
 const PER_ORG_LIMIT = 500;
 const MAX_RESULTS = 20;
@@ -44,14 +46,20 @@ export async function searchAcrossOrganizations(organizations, searchText) {
 
             processesSnap.forEach((docSnap) => {
                 const data = docSnap.data();
-                if (matches(data.process_number, needle) || matches(data.consulente, needle) || matches(data.matter_object, needle)) {
+                // Usa os mesmos resolvedores de alias da tabela (getProcessField):
+                // o campo canônico é `consultant` — `consulente` só existe em
+                // dados legados de import, e buscar só por ele não encontrava
+                // praticamente nenhum registro atual.
+                const consultant = getProcessField(data, 'consultant');
+                const matterObject = data.matter_object;
+                if (matches(data.process_number, needle) || matches(consultant, needle) || matches(matterObject, needle)) {
                     found.push({
                         kind: 'processo',
                         id: docSnap.id,
                         orgId: org.id,
                         orgName: org.name,
                         number: data.process_number,
-                        subtitle: data.consulente || data.matter_object || '',
+                        subtitle: consultant || matterObject || '',
                         status: data.status,
                     });
                 }
@@ -59,14 +67,18 @@ export async function searchAcrossOrganizations(organizations, searchText) {
 
             expedientesSnap.forEach((docSnap) => {
                 const data = docSnap.data();
-                if (matches(data.expediente_number, needle) || matches(data.origin, needle) || matches(data.matter_object, needle)) {
+                // Campo canônico do objeto/assunto do expediente é `object`
+                // (não `matter_object`, que não existe nesta coleção).
+                const origin = getExpedienteField(data, 'origin');
+                const object = getExpedienteField(data, 'object');
+                if (matches(data.expediente_number, needle) || matches(origin, needle) || matches(object, needle)) {
                     found.push({
                         kind: 'expediente',
                         id: docSnap.id,
                         orgId: org.id,
                         orgName: org.name,
                         number: data.expediente_number,
-                        subtitle: data.origin || data.matter_object || '',
+                        subtitle: origin || object || '',
                         status: data.status,
                     });
                 }

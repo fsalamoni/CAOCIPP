@@ -75,61 +75,68 @@ exports.autoEscalateStalledUrgent = (0, scheduler_1.onSchedule)({ schedule: 'eve
         const maxDays = Number(escalationConfig.maxDaysStalled);
         const threshold = Number.isFinite(maxDays) && maxDays > 0 ? maxDays : 5;
         const orgId = orgDoc.id;
-        const membershipsSnap = await db.collection('userOrganizations')
-            .where('organization_id', '==', orgId)
-            .get();
-        const adminIds = new Set(membershipsSnap.docs
-            .map((d) => d.data())
-            .filter((m) => m.role === 'creator' || m.role === 'admin')
-            .map((m) => m.user_id)
-            .filter(Boolean));
-        for (const { collection, entityType, numberField, label } of ENTITY_DEFS) {
-            const itemsSnap = await db.collection(collection)
+        // Isola falhas por órgão: um erro num órgão não deve impedir o
+        // processamento dos demais.
+        try {
+            const membershipsSnap = await db.collection('userOrganizations')
                 .where('organization_id', '==', orgId)
-                .where('urgency_request', '==', true)
-                .limit(500)
                 .get();
-            for (const itemDoc of itemsSnap.docs) {
-                const item = itemDoc.data();
-                if (item.status === 'Na pasta')
-                    continue;
-                const entryField = STAGE_ENTRY_FIELD[item.status];
-                if (!entryField || !item[entryField])
-                    continue;
-                const daysStalled = calculateBusinessDays(item[entryField], new Date());
-                if (daysStalled < threshold)
-                    continue;
-                const recipients = new Set(adminIds);
-                if (item.responsible_user_id)
-                    recipients.add(item.responsible_user_id);
-                if (recipients.size === 0)
-                    continue;
-                const recipientList = Array.from(recipients);
-                const prefSnaps = await Promise.all(recipientList.map((id) => db.collection('userPreferences').doc(id).get()));
-                const batch = db.batch();
-                let anyQueued = false;
-                recipientList.forEach((userId, idx) => {
-                    var _a;
-                    const prefs = (_a = prefSnaps[idx].data()) === null || _a === void 0 ? void 0 : _a.notificationPreferences;
-                    if ((prefs === null || prefs === void 0 ? void 0 : prefs.escalation) === false)
-                        return;
-                    anyQueued = true;
-                    const notifRef = db.collection('notifications').doc();
-                    batch.set(notifRef, {
-                        user_id: userId,
-                        type: 'escalation',
-                        title: 'Urgente parado há muito tempo',
-                        message: `${label} ${item[numberField] || ''} está há ${daysStalled} dia(s) útil(eis) na etapa "${item.status}".`.trim(),
-                        organization_id: orgId,
-                        entity_type: entityType,
-                        entity_id: itemDoc.id,
-                        read: false,
-                        created_at: admin.firestore.FieldValue.serverTimestamp(),
+            const adminIds = new Set(membershipsSnap.docs
+                .map((d) => d.data())
+                .filter((m) => m.role === 'creator' || m.role === 'admin')
+                .map((m) => m.user_id)
+                .filter(Boolean));
+            for (const { collection, entityType, numberField, label } of ENTITY_DEFS) {
+                const itemsSnap = await db.collection(collection)
+                    .where('organization_id', '==', orgId)
+                    .where('urgency_request', '==', true)
+                    .limit(500)
+                    .get();
+                for (const itemDoc of itemsSnap.docs) {
+                    const item = itemDoc.data();
+                    if (item.status === 'Na pasta')
+                        continue;
+                    const entryField = STAGE_ENTRY_FIELD[item.status];
+                    if (!entryField || !item[entryField])
+                        continue;
+                    const daysStalled = calculateBusinessDays(item[entryField], new Date());
+                    if (daysStalled < threshold)
+                        continue;
+                    const recipients = new Set(adminIds);
+                    if (item.responsible_user_id)
+                        recipients.add(item.responsible_user_id);
+                    if (recipients.size === 0)
+                        continue;
+                    const recipientList = Array.from(recipients);
+                    const prefSnaps = await Promise.all(recipientList.map((id) => db.collection('userPreferences').doc(id).get()));
+                    const batch = db.batch();
+                    let anyQueued = false;
+                    recipientList.forEach((userId, idx) => {
+                        var _a;
+                        const prefs = (_a = prefSnaps[idx].data()) === null || _a === void 0 ? void 0 : _a.notificationPreferences;
+                        if ((prefs === null || prefs === void 0 ? void 0 : prefs.escalation) === false)
+                            return;
+                        anyQueued = true;
+                        const notifRef = db.collection('notifications').doc();
+                        batch.set(notifRef, {
+                            user_id: userId,
+                            type: 'escalation',
+                            title: 'Urgente parado há muito tempo',
+                            message: `${label} ${item[numberField] || ''} está há ${daysStalled} dia(s) útil(eis) na etapa "${item.status}".`.trim(),
+                            organization_id: orgId,
+                            entity_type: entityType,
+                            entity_id: itemDoc.id,
+                            read: false,
+                            created_at: admin.firestore.FieldValue.serverTimestamp(),
+                        });
                     });
-                });
-                if (anyQueued)
-                    await batch.commit();
+                    if (anyQueued)
+                        await batch.commit();
+                }
             }
+        }
+        catch (error) {
+            console.error('[autoEscalateStalledUrgent] falha no órgão', orgId, error);
         }
     }
 });

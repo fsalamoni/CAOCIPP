@@ -142,12 +142,15 @@ const WEBHOOK_VALID_EVENTS = new Set(['urgent_created', 'archived']);
 function sanitizeWebhookConfig(input) {
     const url = String((input === null || input === void 0 ? void 0 : input.url) || '').trim().slice(0, 500);
     const validUrl = /^https:\/\/.+/.test(url) ? url : '';
+    // Sem fallback para "todos" quando vazio: um array vazio é uma escolha
+    // válida e explícita do admin (desmarcou todos os eventos), não deve ser
+    // silenciosamente substituído.
     const events = (Array.isArray(input === null || input === void 0 ? void 0 : input.events) ? input.events : [])
         .filter((e) => WEBHOOK_VALID_EVENTS.has(e));
     return {
         enabled: (input === null || input === void 0 ? void 0 : input.enabled) === true && Boolean(validUrl),
         url: validUrl,
-        events: events.length > 0 ? events : Array.from(WEBHOOK_VALID_EVENTS),
+        events,
     };
 }
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.

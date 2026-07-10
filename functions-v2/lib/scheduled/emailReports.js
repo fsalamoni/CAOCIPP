@@ -40,24 +40,31 @@ exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every 
         const org = orgDoc.data();
         if (!((_b = org.reportsConfig) === null || _b === void 0 ? void 0 : _b.dailySummaryEnabled))
             continue;
-        const orgId = orgDoc.id;
-        const [urgentProcesses, urgentExpedientes] = await Promise.all([
-            countUrgentPending(orgId, 'processes'),
-            countUrgentPending(orgId, 'expedientes'),
-        ]);
-        if (urgentProcesses === 0 && urgentExpedientes === 0)
-            continue;
-        const recipients = await getOrgAdminIds(orgId);
-        const html = `
-                <h2>Resumo diário — ${org.name || 'Órgão'}</h2>
-                <p><strong>${urgentProcesses}</strong> Consulta(s) urgente(s) pendente(s).</p>
-                <p><strong>${urgentExpedientes}</strong> Expediente(s) urgente(s) pendente(s).</p>
-            `;
-        for (const userId of recipients) {
-            const email = await (0, email_1.resolveUserEmail)(userId);
-            if (!email)
+        // Isola falhas por órgão: um erro num órgão não deve impedir o
+        // envio do resumo para os demais.
+        try {
+            const orgId = orgDoc.id;
+            const [urgentProcesses, urgentExpedientes] = await Promise.all([
+                countUrgentPending(orgId, 'processes'),
+                countUrgentPending(orgId, 'expedientes'),
+            ]);
+            if (urgentProcesses === 0 && urgentExpedientes === 0)
                 continue;
-            await (0, email_1.sendEmail)({ to: email, subject: `[Consultas CAO] Resumo diário — ${org.name || 'Órgão'}`, html });
+            const recipients = await getOrgAdminIds(orgId);
+            const html = `
+                    <h2>Resumo diário — ${org.name || 'Órgão'}</h2>
+                    <p><strong>${urgentProcesses}</strong> Consulta(s) urgente(s) pendente(s).</p>
+                    <p><strong>${urgentExpedientes}</strong> Expediente(s) urgente(s) pendente(s).</p>
+                `;
+            for (const userId of recipients) {
+                const email = await (0, email_1.resolveUserEmail)(userId);
+                if (!email)
+                    continue;
+                await (0, email_1.sendEmail)({ to: email, subject: `[Consultas CAO] Resumo diário — ${org.name || 'Órgão'}`, html });
+            }
+        }
+        catch (error) {
+            console.error('[sendDailyUrgentSummary] falha no órgão', orgDoc.id, error);
         }
     }
 });
@@ -77,35 +84,42 @@ exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every mon
         const org = orgDoc.data();
         if (!((_b = org.reportsConfig) === null || _b === void 0 ? void 0 : _b.weeklyReportEnabled))
             continue;
-        const orgId = orgDoc.id;
-        const [newProcesses, newExpedientes, urgentProcesses, urgentExpedientes] = await Promise.all([
-            db.collection('processes')
-                .where('organization_id', '==', orgId)
-                .where('created_at', '>=', sevenDaysAgo)
-                .limit(1000)
-                .get(),
-            db.collection('expedientes')
-                .where('organization_id', '==', orgId)
-                .where('created_at', '>=', sevenDaysAgo)
-                .limit(1000)
-                .get(),
-            countUrgentPending(orgId, 'processes'),
-            countUrgentPending(orgId, 'expedientes'),
-        ]);
-        const finishedProcesses = newProcesses.docs.filter((d) => d.data().status === 'Na pasta').length;
-        const finishedExpedientes = newExpedientes.docs.filter((d) => d.data().status === 'Na pasta').length;
-        const recipients = await getOrgAdminIds(orgId);
-        const html = `
-                <h2>Relatório semanal — ${org.name || 'Órgão'}</h2>
-                <p><strong>${newProcesses.size}</strong> Consulta(s) nova(s) nos últimos 7 dias (${finishedProcesses} já concluída(s)).</p>
-                <p><strong>${newExpedientes.size}</strong> Expediente(s) novo(s) nos últimos 7 dias (${finishedExpedientes} já concluído(s)).</p>
-                <p><strong>${urgentProcesses}</strong> Consulta(s) e <strong>${urgentExpedientes}</strong> Expediente(s) urgente(s) ainda pendente(s).</p>
-            `;
-        for (const userId of recipients) {
-            const email = await (0, email_1.resolveUserEmail)(userId);
-            if (!email)
-                continue;
-            await (0, email_1.sendEmail)({ to: email, subject: `[Consultas CAO] Relatório semanal — ${org.name || 'Órgão'}`, html });
+        // Isola falhas por órgão: um erro num órgão não deve impedir o
+        // envio do relatório para os demais.
+        try {
+            const orgId = orgDoc.id;
+            const [newProcesses, newExpedientes, urgentProcesses, urgentExpedientes] = await Promise.all([
+                db.collection('processes')
+                    .where('organization_id', '==', orgId)
+                    .where('created_at', '>=', sevenDaysAgo)
+                    .limit(1000)
+                    .get(),
+                db.collection('expedientes')
+                    .where('organization_id', '==', orgId)
+                    .where('created_at', '>=', sevenDaysAgo)
+                    .limit(1000)
+                    .get(),
+                countUrgentPending(orgId, 'processes'),
+                countUrgentPending(orgId, 'expedientes'),
+            ]);
+            const finishedProcesses = newProcesses.docs.filter((d) => d.data().status === 'Na pasta').length;
+            const finishedExpedientes = newExpedientes.docs.filter((d) => d.data().status === 'Na pasta').length;
+            const recipients = await getOrgAdminIds(orgId);
+            const html = `
+                    <h2>Relatório semanal — ${org.name || 'Órgão'}</h2>
+                    <p><strong>${newProcesses.size}</strong> Consulta(s) nova(s) nos últimos 7 dias (${finishedProcesses} já concluída(s)).</p>
+                    <p><strong>${newExpedientes.size}</strong> Expediente(s) novo(s) nos últimos 7 dias (${finishedExpedientes} já concluído(s)).</p>
+                    <p><strong>${urgentProcesses}</strong> Consulta(s) e <strong>${urgentExpedientes}</strong> Expediente(s) urgente(s) ainda pendente(s).</p>
+                `;
+            for (const userId of recipients) {
+                const email = await (0, email_1.resolveUserEmail)(userId);
+                if (!email)
+                    continue;
+                await (0, email_1.sendEmail)({ to: email, subject: `[Consultas CAO] Relatório semanal — ${org.name || 'Órgão'}`, html });
+            }
+        }
+        catch (error) {
+            console.error('[sendWeeklyOrgReport] falha no órgão', orgDoc.id, error);
         }
     }
 });

@@ -46,8 +46,12 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
 
   // Log de acesso e auditoria (flag `access_audit_log`): registra a abertura
   // de um registro com restrição de acesso. Uma vez por abertura do diálogo.
+  // Mesma normalização usada para Consultas: aceita booleano OU string "Sim"/"Não".
+  const isExpedienteRestricted = expediente?.access_restriction === true
+    || String(expediente?.access_restriction).toLowerCase().trim() === 'sim';
+
   useEffect(() => {
-    if (open && isAccessAuditLogOn && expediente?.access_restriction && expediente?.id) {
+    if (open && isAccessAuditLogOn && isExpedienteRestricted && expediente?.id) {
       logAccess({
         organizationId,
         entityType: 'expediente',

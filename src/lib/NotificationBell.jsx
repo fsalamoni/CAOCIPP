@@ -44,7 +44,7 @@ function groupByType(notifications) {
     return groups;
 }
 
-export default function NotificationBell({ className }) {
+export default function NotificationBell({ className, variant = 'desktop' }) {
     const isV2 = useFlag(FEATURE_FLAGS.NOTIFICATION_CENTER_V2.key);
     const { notifications } = useNotifications();
     const { preferences, updatePreferences } = useUserPreferences();
@@ -96,6 +96,16 @@ export default function NotificationBell({ className }) {
                     <DropdownMenuSeparator />
                     {notifications.length === 0 ? (
                         <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
+                    ) : variant === 'mobile' ? (
+                        notifications.slice(0, 5).map((notif) => (
+                            <DropdownMenuItem key={notif.id} className="flex-col items-start p-3 cursor-pointer hover:bg-slate-50">
+                                <div className="font-medium text-sm text-slate-900">{notif.title}</div>
+                                <div className="text-xs text-slate-500 mt-1">{notif.message}</div>
+                                <div className="text-[10px] text-slate-400 mt-2 w-full text-right">
+                                    {new Date(notif.created_at?.seconds * 1000).toLocaleString()}
+                                </div>
+                            </DropdownMenuItem>
+                        ))
                     ) : (
                         notifications.slice(0, 5).map((notif) => (
                             <DropdownMenuItem key={notif.id} className="flex-col items-start p-3">

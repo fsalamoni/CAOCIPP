@@ -11,6 +11,17 @@ import autoTable from 'jspdf-autotable';
 
 const BRAND_NAVY = [51, 73, 92]; // #33495C
 
+// Neutraliza "CSV/formula injection": um valor de texto começando com
+// =, +, -, @ (ou tab/CR) pode ser interpretado como fórmula por planilhas
+// eletrônicas ao abrir o arquivo exportado. Prefixar com aspa simples é a
+// mitigação padrão (OWASP) — a aspa não aparece visualmente na célula, mas
+// impede a reinterpretação como fórmula.
+const FORMULA_INJECTION_PREFIX = /^[=+\-@\t\r]/;
+function sanitizeCellValue(value) {
+    if (typeof value !== 'string') return value;
+    return FORMULA_INJECTION_PREFIX.test(value) ? `'${value}` : value;
+}
+
 function safeFilenamePart(text) {
     return String(text || '')
         .normalize('NFD')
@@ -31,7 +42,7 @@ export function exportRowsToExcel({ rows, columns, filenameBase }) {
     const data = rows.map((row) => {
         const obj = {};
         columns.forEach((col) => {
-            obj[col.label] = col.value(row) ?? '';
+            obj[col.label] = sanitizeCellValue(col.value(row) ?? '');
         });
         return obj;
     });

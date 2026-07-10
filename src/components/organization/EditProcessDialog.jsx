@@ -59,8 +59,14 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
 
   // Log de acesso e auditoria (flag `access_audit_log`): registra a abertura
   // de um registro com restrição de acesso. Uma vez por abertura do diálogo.
+  // Mesma normalização usada em KanbanCard.jsx: o campo pode vir como
+  // booleano OU como string "Sim"/"Não" (dados importados de Excel) — uma
+  // checagem "truthy" simples trataria "Não" (string não-vazia) como restrito.
+  const isProcessRestricted = process?.access_restriction === true
+    || String(process?.access_restriction).toLowerCase().trim() === 'sim';
+
   useEffect(() => {
-    if (open && isAccessAuditLogOn && process?.access_restriction && process?.id) {
+    if (open && isAccessAuditLogOn && isProcessRestricted && process?.id) {
       logAccess({
         organizationId,
         entityType: 'process',

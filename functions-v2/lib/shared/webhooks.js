@@ -15,7 +15,9 @@ async function fireOrgWebhook(organizationId, eventType, payload) {
         const webhookConfig = (_a = orgSnap.data()) === null || _a === void 0 ? void 0 : _a.webhookConfig;
         if (!(webhookConfig === null || webhookConfig === void 0 ? void 0 : webhookConfig.enabled) || !(webhookConfig === null || webhookConfig === void 0 ? void 0 : webhookConfig.url))
             return;
-        if (Array.isArray(webhookConfig.events) && webhookConfig.events.length > 0 && !webhookConfig.events.includes(eventType)) {
+        // `events` vazio é uma escolha explícita do admin (nenhum evento
+        // selecionado) — deve silenciar tudo, não disparar para tudo.
+        if (Array.isArray(webhookConfig.events) && !webhookConfig.events.includes(eventType)) {
             return;
         }
         await fetch(webhookConfig.url, {
