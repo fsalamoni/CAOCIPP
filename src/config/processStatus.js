@@ -4,9 +4,9 @@ export const statusConfig = {
     'Pendente': {
         color: '#ffffff',
         label: 'Pendente',
-        startColor: 'bg-white',
-        text: 'text-slate-600',
-        border: 'border-slate-200',
+        startColor: 'bg-white dark:bg-slate-700',
+        text: 'text-slate-600 dark:text-slate-100',
+        border: 'border-slate-200 dark:border-slate-500',
         row: {
             bg: "bg-white",
             accent: "border-l-slate-200",
@@ -28,9 +28,9 @@ export const statusConfig = {
     'Em elaboração': {
         color: '#fbbf24',
         label: 'Em elaboração',
-        startColor: 'bg-[#FFFF99]',
-        text: 'text-amber-800',
-        border: 'border-amber-200',
+        startColor: 'bg-[#FFFF99] dark:bg-amber-800',
+        text: 'text-amber-800 dark:text-amber-100',
+        border: 'border-amber-200 dark:border-amber-500',
         row: {
             bg: "bg-[#FFFF99]",
             accent: "border-l-[#F1C232]",
@@ -49,9 +49,9 @@ export const statusConfig = {
     'Em revisão': {
         color: '#8b5cf6',
         label: 'Em revisão',
-        startColor: 'bg-[#B6DDE8]',
-        text: 'text-indigo-800',
-        border: 'border-indigo-200',
+        startColor: 'bg-[#B6DDE8] dark:bg-sky-800',
+        text: 'text-indigo-800 dark:text-sky-100',
+        border: 'border-indigo-200 dark:border-sky-500',
         row: {
             bg: "bg-[#B6DDE8]",
             accent: "border-l-[#6FA8DC]",
@@ -70,9 +70,9 @@ export const statusConfig = {
     'Revisadas': {
         color: '#a855f7',
         label: 'Revisadas',
-        startColor: 'bg-[#E5D9F5]',
-        text: 'text-purple-800',
-        border: 'border-purple-200',
+        startColor: 'bg-[#E5D9F5] dark:bg-violet-800',
+        text: 'text-purple-800 dark:text-violet-100',
+        border: 'border-purple-200 dark:border-violet-500',
         row: {
             bg: "bg-[#E5D9F5]",
             accent: "border-l-[#8E7CC3]",
@@ -91,9 +91,9 @@ export const statusConfig = {
     'Na pasta': {
         color: '#22c55e',
         label: 'Na pasta',
-        startColor: 'bg-[#D7E4BC]',
-        text: 'text-green-800',
-        border: 'border-green-200',
+        startColor: 'bg-[#D7E4BC] dark:bg-green-800',
+        text: 'text-green-800 dark:text-green-100',
+        border: 'border-green-200 dark:border-green-500',
         row: {
             bg: "bg-[#D7E4BC]",
             accent: "border-l-[#93C47D]",

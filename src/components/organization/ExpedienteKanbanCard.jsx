@@ -97,10 +97,10 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
     const cardContent = (
         <div
             className={`
-        bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2
-        shadow-sm
-        ${isDragging && !overlay ? 'border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40' : ''}
-        ${overlay ? 'shadow-xl border-indigo-400 dark:border-indigo-500 bg-white dark:bg-slate-900' : ''}
+        bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 p-3 space-y-2
+        shadow-sm dark:shadow-black/30
+        ${isDragging && !overlay ? 'border-indigo-400 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900' : ''}
+        ${overlay ? 'shadow-xl border-indigo-400 dark:border-indigo-400 bg-white dark:bg-slate-800' : ''}
       `}
         >
             {/* Header: Expediente Number + Urgency */}
@@ -137,13 +137,13 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
             {/* System and Origin */}
             <div className="flex items-center gap-1.5 flex-wrap">
                 {system && (
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 font-medium">
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-500 font-medium">
                         <Monitor className="w-2.5 h-2.5 mr-1" />
                         {system}
                     </Badge>
                 )}
                 {origin && (
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 font-medium">
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-500 font-medium">
                         <Building2 className="w-2.5 h-2.5 mr-1" />
                         {origin}
                     </Badge>
@@ -152,7 +152,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
 
             {/* Object */}
             {object && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 line-clamp-2 leading-relaxed">
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 line-clamp-2 leading-relaxed">
                     {object}
                 </p>
             )}
@@ -161,7 +161,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
             {(entryDate || daysInStage != null) && (
                 <div className="flex items-center justify-between gap-2">
                     {entryDate && (
-                        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 min-w-0">
+                        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-400 min-w-0">
                             <Calendar className="w-3 h-3 shrink-0" />
                             <span className="text-[10px] truncate">Entrada: {entryDate}</span>
                         </div>
@@ -171,23 +171,23 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
             )}
 
             {/* Footer: Responsible + Eye Icon */}
-            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-600">
                 {responsibleName ? (
                     <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-100 flex items-center justify-center">
                             <span className="text-[8px] font-bold">{getInitials(responsibleName)}</span>
                         </div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[100px]">{responsibleName}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-300 truncate max-w-[100px]">{responsibleName}</span>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1 text-slate-300 dark:text-slate-600">
+                    <div className="flex items-center gap-1 text-slate-300 dark:text-slate-500">
                         <User className="w-3.5 h-3.5" />
                         <span className="text-[10px]">Sem responsável</span>
                     </div>
                 )}
                 <div className="flex items-center gap-1.5">
                     {field('network_folder') && (
-                        <FolderOpen className="w-3.5 h-3.5 text-blue-400 dark:text-blue-500" title="Pasta na rede vinculada" />
+                        <FolderOpen className="w-3.5 h-3.5 text-blue-400 dark:text-blue-400" title="Pasta na rede vinculada" />
                     )}
                     {/* Eye icon — opens detail sheet, does NOT trigger drag */}
                     {!overlay && onViewDetails && (
@@ -197,7 +197,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
                                     type="button"
                                     onPointerDown={(e) => e.stopPropagation()}
                                     onClick={handleEyeClick}
-                                    className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                    className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors"
                                 >
                                     <Eye className="w-3.5 h-3.5" />
                                 </button>
