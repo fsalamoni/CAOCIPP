@@ -169,7 +169,6 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     // Mesma razão da correção equivalente em EditProcessDialog.jsx: `members`
     // só é lido para resolver responsible_user_id a partir de um nome legado,
     // e não deve resetar o formulário sempre que o roster do órgão mudar.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expediente]);
 
   const getRollbackByStatus = (status, emptyValue = '') => {
@@ -436,7 +435,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
                   <Label>Pedido de Urgência</Label>
                   <Switch
                     checked={formData.urgency_request || false}
@@ -601,7 +600,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                       members={members}
                     />
                   ) : isCommentsOn && (
-                    <p className="text-sm text-slate-400 text-center py-6">
+                    <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">
                       Salve o expediente antes de adicionar comentários.
                     </p>
                   )}
@@ -609,7 +608,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
               )}
             </Tabs>
 
-            <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">
+            <div className="flex justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
               <div className="flex">
                 {canDelete && (
                   <Button

@@ -106,7 +106,7 @@ export default function ProcessLogDialog({ open, onClose, process, collectionNam
 
                 {/* Search */}
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <Input
                         placeholder="Buscar no log..."
                         value={search}
@@ -119,27 +119,27 @@ export default function ProcessLogDialog({ open, onClose, process, collectionNam
                 <ScrollArea className="flex-1 border rounded-lg">
                     {filteredLog.length > 0 ? (
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50 sticky top-0 z-10">
+                            <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
                                 <tr>
-                                    <th className="text-left px-3 py-2 font-semibold text-slate-600 w-[100px]">Data</th>
-                                    <th className="text-left px-3 py-2 font-semibold text-slate-600 w-[70px]">Hora</th>
-                                    <th className="text-left px-3 py-2 font-semibold text-slate-600 w-[150px]">Usuário</th>
-                                    <th className="text-left px-3 py-2 font-semibold text-slate-600">Ação</th>
+                                    <th className="text-left px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-[100px]">Data</th>
+                                    <th className="text-left px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-[70px]">Hora</th>
+                                    <th className="text-left px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-[150px]">Usuário</th>
+                                    <th className="text-left px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">Ação</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredLog.map((entry, i) => (
-                                    <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/50">
-                                        <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                                    <tr key={i} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                             {entry.date || '—'}
                                         </td>
-                                        <td className="px-3 py-2 text-slate-500 whitespace-nowrap font-mono text-xs">
+                                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono text-xs">
                                             {entry.time || '—'}
                                         </td>
-                                        <td className="px-3 py-2 text-slate-700 truncate max-w-[150px]" title={entry.user_name}>
+                                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title={entry.user_name}>
                                             {entry.user_name || 'Desconhecido'}
                                         </td>
-                                        <td className="px-3 py-2 text-slate-600">
+                                        <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                                             {entry.action || '—'}
                                         </td>
                                     </tr>
@@ -147,7 +147,7 @@ export default function ProcessLogDialog({ open, onClose, process, collectionNam
                             </tbody>
                         </table>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-600">
                             <ClipboardList className="w-8 h-8 mb-2 opacity-40" />
                             <p className="text-sm">
                                 {log.length === 0
@@ -159,7 +159,7 @@ export default function ProcessLogDialog({ open, onClose, process, collectionNam
                 </ScrollArea>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
+                <div className="flex items-center justify-between pt-2 text-xs text-slate-400 dark:text-slate-500">
                     <span>{filteredLog.length} de {log.length} registros</span>
                     <Badge variant="outline" className="text-[10px]">
                         Log permanente

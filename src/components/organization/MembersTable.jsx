@@ -42,10 +42,10 @@ export default function MembersTable({
 
   return (
     <>
-      <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-900">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 dark:bg-slate-800">
               <TableHead className="font-semibold">Membro</TableHead>
               <TableHead className="font-semibold">Função</TableHead>
               <TableHead className="font-semibold">Papel</TableHead>
@@ -55,24 +55,24 @@ export default function MembersTable({
           </TableHeader>
           <TableBody>
             {members.map((member) => (
-              <TableRow key={member.id} className="hover:bg-slate-50/50 transition-colors">
+              <TableRow key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
-                      <AvatarFallback className="bg-slate-200 text-slate-600 text-sm">
+                      <AvatarFallback className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm">
                         {getInitials(member.user_name)}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium text-slate-900">{member.user_name}</p>
-                      <p className="text-sm text-slate-500">{member.user_email}</p>
+                      <p className="font-medium text-slate-900 dark:text-white">{member.user_name}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">{member.user_email}</p>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>{member.function || '-'}</TableCell>
                 <TableCell>
                   {member.role === 'creator' ? (
-                    <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+                    <Badge className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900">
                       <Crown className="w-3 h-3 mr-1" />
                       Criador
                     </Badge>
@@ -125,7 +125,7 @@ export default function MembersTable({
             <DialogTitle>Editar Função</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Editando função de: <strong>{editingMember?.user_name}</strong>
             </p>
             <div className="space-y-2">

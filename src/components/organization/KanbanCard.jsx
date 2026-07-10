@@ -60,7 +60,13 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
 
     // Indicador de tempo na etapa atual (flag `stage_time_indicator`).
     const currentStatus = calculateDerivedStatus(process);
-    const daysInStage = stageTimeIndicatorOn ? getDaysInCurrentStage(process, currentStatus, field) : null;
+    // getDaysInCurrentStage chama getField(record, key) com DOIS argumentos —
+    // passar o closure local `field` (que só aceita `key`, com `process` já
+    // fechado por escopo) fazia esse segundo argumento (`record`) ser lido
+    // como se fosse `key`, e getProcessField(process, record) quebrava ao
+    // tentar chamar `.toLowerCase()` num objeto. Passa a função de verdade,
+    // que já aceita (registro, chave).
+    const daysInStage = stageTimeIndicatorOn ? getDaysInCurrentStage(process, currentStatus, getProcessField) : null;
     const stageAvg = stageAverages ? stageAverages[currentStatus] : null;
     const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage, stageAvg) : null;
 
@@ -98,17 +104,17 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
     const cardContent = (
         <div
             className={`
-        bg-white rounded-lg border border-slate-200 p-3 space-y-2
+        bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2
         shadow-sm
-        ${isDragging && !overlay ? 'border-indigo-400 bg-indigo-50/50' : ''}
-        ${overlay ? 'shadow-xl border-indigo-400 bg-white' : ''}
+        ${isDragging && !overlay ? 'border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40' : ''}
+        ${overlay ? 'shadow-xl border-indigo-400 dark:border-indigo-500 bg-white dark:bg-slate-900' : ''}
       `}
         >
             {/* Header: Process Number + Badges */}
             <div className="flex items-start justify-between gap-2">
                 {canCopyProcessNumber && processNumber ? (
                     <span
-                        className="text-sm font-bold text-slate-900 truncate flex-1 cursor-pointer hover:text-indigo-600 transition-colors"
+                        className="text-sm font-bold text-slate-900 dark:text-white truncate flex-1 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={handleCopyProcessNumber}
                         title="Clique para copiar"
@@ -116,7 +122,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
                         {processNumber}
                     </span>
                 ) : (
-                    <span className="text-sm font-bold text-slate-900 truncate flex-1">
+                    <span className="text-sm font-bold text-slate-900 dark:text-white truncate flex-1">
                         {processNumber || 'Sem número'}
                     </span>
                 )}
@@ -135,7 +141,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
                     {isRestricted && (
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50 cursor-help">
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-amber-300 dark:border-amber-800 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 cursor-help">
                                     <Lock className="w-2.5 h-2.5" />
                                 </Badge>
                             </TooltipTrigger>
@@ -147,14 +153,14 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
 
             {/* Consultant */}
             {consultant && (
-                <p className="text-xs text-slate-600 font-medium truncate">
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">
                     {consultant}
                 </p>
             )}
 
             {/* Matter Object */}
             {matterObject && (
-                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 line-clamp-2 leading-relaxed">
                     {matterObject}
                 </p>
             )}
@@ -163,7 +169,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
             {(entryDate || daysInStage != null) && (
                 <div className="flex items-center justify-between gap-2">
                     {entryDate && (
-                        <div className="flex items-center gap-1 text-slate-400 min-w-0">
+                        <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 min-w-0">
                             <Calendar className="w-3 h-3 shrink-0" />
                             <span className="text-[10px] truncate">Entrada: {entryDate}</span>
                         </div>
@@ -173,23 +179,23 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
             )}
 
             {/* Footer: Responsible + Eye Icon */}
-            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
                 {responsibleName ? (
                     <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
                             <span className="text-[8px] font-bold">{getInitials(responsibleName)}</span>
                         </div>
-                        <span className="text-[10px] text-slate-500 truncate max-w-[100px]">{responsibleName}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[100px]">{responsibleName}</span>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1 text-slate-300">
+                    <div className="flex items-center gap-1 text-slate-300 dark:text-slate-600">
                         <User className="w-3.5 h-3.5" />
                         <span className="text-[10px]">Sem responsável</span>
                     </div>
                 )}
                 <div className="flex items-center gap-1.5">
                     {field('network_folder') && (
-                        <FolderOpen className="w-3.5 h-3.5 text-blue-400" title="Pasta na rede vinculada" />
+                        <FolderOpen className="w-3.5 h-3.5 text-blue-400 dark:text-blue-500" title="Pasta na rede vinculada" />
                     )}
                     {/* Eye icon — opens detail sheet, does NOT trigger drag */}
                     {!overlay && onViewDetails && (
@@ -199,7 +205,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
                                     type="button"
                                     onPointerDown={(e) => e.stopPropagation()}
                                     onClick={handleEyeClick}
-                                    className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                                    className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                                 >
                                     <Eye className="w-3.5 h-3.5" />
                                 </button>

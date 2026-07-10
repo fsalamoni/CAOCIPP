@@ -136,7 +136,7 @@ export default function ExpedienteKanbanTransitionDialog({
                         {mode === 'archive' && <FolderOpen className="w-5 h-5 text-green-600" />}
                         {titles[mode]}
                     </DialogTitle>
-                    <DialogDescription className="text-sm text-slate-500">
+                    <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
                         {descriptions[mode]}
                     </DialogDescription>
                 </DialogHeader>
@@ -155,7 +155,7 @@ export default function ExpedienteKanbanTransitionDialog({
                                         <SelectItem key={member.user_id} value={member.user_id}>
                                             <div className="flex items-center gap-2">
                                                 <Avatar className="h-6 w-6">
-                                                    <AvatarFallback className="text-[10px] bg-indigo-100 text-indigo-600">
+                                                    <AvatarFallback className="text-[10px] bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
                                                         {getInitials(member.user_name)}
                                                     </AvatarFallback>
                                                 </Avatar>
@@ -206,8 +206,8 @@ export default function ExpedienteKanbanTransitionDialog({
                     {/* MODE: Review Complete (Confirm reviewed date) */}
                     {mode === 'review_complete' && (
                         <div className="space-y-4">
-                            <div className="p-4 bg-violet-50 rounded-lg border border-violet-200">
-                                <p className="text-sm text-violet-800">
+                            <div className="p-4 bg-violet-50 dark:bg-violet-950/30 rounded-lg border border-violet-200 dark:border-violet-900">
+                                <p className="text-sm text-violet-800 dark:text-violet-300">
                                     O expediente será marcado como <strong>"Revisadas"</strong>.
                                     Confirme a data em que a revisão foi concluída pelo responsável.
                                 </p>
@@ -227,8 +227,8 @@ export default function ExpedienteKanbanTransitionDialog({
                     {/* MODE: Archive (Confirmation) */}
                     {mode === 'archive' && (
                         <div className="space-y-4">
-                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                                <p className="text-sm text-green-800">
+                            <div className="p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900">
+                                <p className="text-sm text-green-800 dark:text-green-300">
                                     O expediente será marcado como <strong>"Na pasta"</strong>.
                                     Por favor, confirme a data de devolução.
                                 </p>
