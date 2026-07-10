@@ -18,7 +18,7 @@ import { useUserPreferences } from "@/hooks/useFirestore";
 import { useFlag } from "@/lib/FeatureFlagsContext";
 import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
-import { getProcessField, calculateDerivedStatus } from "@/utils/processUtils";
+import { getProcessField, calculateDerivedStatus, isProcessUrgent } from "@/utils/processUtils";
 import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
@@ -57,6 +57,17 @@ export default function ProcessTable({
   useEffect(() => {
     localStorage.setItem('processSearchTerm', search);
   }, [search]);
+
+  // Sem isto, o termo de busca de um órgão ficava visível na caixa de busca
+  // depois de trocar para outro órgão (a chave no localStorage não é
+  // por-órgão). Ignora a primeira execução (montagem) para não descartar o
+  // termo restaurado do localStorage antes mesmo de exibi-lo.
+  const orgIdRef = useRef(organization?.id);
+  useEffect(() => {
+    if (orgIdRef.current === organization?.id) return;
+    orgIdRef.current = organization?.id;
+    setSearch("");
+  }, [organization?.id]);
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [responsibleFilter, setResponsibleFilter] = useState("all");
@@ -408,11 +419,15 @@ export default function ProcessTable({
     if (isInitialized) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        updatePreferences({ sortConfig, currentPage, itemsPerPage, density });
+        // currentPage é deliberadamente omitido: nunca é restaurado no efeito
+        // acima, então persisti-lo só gerava uma escrita a mais no Firestore
+        // a cada troca de página sem nenhum efeito prático (mesmo comportamento
+        // já usado em ExpedienteTable.jsx).
+        updatePreferences({ sortConfig, itemsPerPage, density });
       }, 500);
     }
     return () => clearTimeout(saveTimerRef.current);
-  }, [sortConfig, currentPage, itemsPerPage, density, isInitialized, updatePreferences]);
+  }, [sortConfig, itemsPerPage, density, isInitialized, updatePreferences]);
 
   useEffect(() => {
     if (isInitialized) setCurrentPage(1);
@@ -483,7 +498,7 @@ export default function ProcessTable({
           if (!val) return false;
           const processDate = parseLocalDate(val);
           if (!isValid(processDate)) return false;
-          if (start && !end) return processDate >= startOfDay(new Date(start)) && processDate <= endOfDay(new Date(start));
+          if (start && !end) return processDate >= startOfDay(new Date(start));
           if (!start && end) return processDate <= endOfDay(new Date(end));
           if (start && end) return processDate >= startOfDay(new Date(start)) && processDate <= endOfDay(new Date(end));
           return true;
@@ -560,7 +575,7 @@ export default function ProcessTable({
   const getStatusRowColor = (process) => {
     // Definitive v1.13.0: Derived status for coloring ensures ZERO LAG with dates
     const status = calculateDerivedStatus(process);
-    const isUrgent = getProcessField(process, 'urgency_request') === true;
+    const isUrgent = isProcessUrgent(process);
 
     // Override: Urgent + Pending gets the red color
     if (isUrgent && (status === 'Pendente' || !status)) {
@@ -1079,6 +1094,14 @@ export default function ProcessTable({
                       key={process.id}
                       className={`${colors.bg} ${colors.hover} ${colors.border} transition-all duration-150 group cursor-pointer border-b-[1.5px]`}
                       onClick={() => setSelectedProcess(process)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedProcess(process);
+                        }
+                      }}
                     >
                       {isBulkActionsOn && (
                         <TableCell className={cellPadding} onClick={(e) => e.stopPropagation()}>

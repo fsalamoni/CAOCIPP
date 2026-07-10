@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
 import { Lock, AlertCircle, User, FolderOpen, Calendar, Eye } from 'lucide-react';
-import { getProcessField, calculateDerivedStatus } from '@/utils/processUtils';
+import { getProcessField, calculateDerivedStatus, isProcessUrgent } from '@/utils/processUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -48,7 +48,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
     };
 
     const field = (key) => getProcessField(process, key);
-    const isUrgent = field('urgency_request') === true;
+    const isUrgent = isProcessUrgent(process);
     const isRestricted = (() => {
         const val = field('access_restriction');
         return val === true || String(val).toLowerCase().trim() === 'sim';

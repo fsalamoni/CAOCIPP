@@ -26,7 +26,7 @@ import {
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseLocalDate } from "@/lib/dateUtils";
-import { calculateDerivedStatus } from "@/utils/processUtils";
+import { calculateDerivedStatus, isProcessUrgent } from "@/utils/processUtils";
 
 /**
  * ProcessDetailSheet — Side panel for viewing all details of a process.
@@ -57,7 +57,7 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
 
     const field = (key) => getProcessField(process, key);
 
-    const isUrgent = field('urgency_request') === true;
+    const isUrgent = isProcessUrgent(process);
 
     // Absolute v1.13.0 Resolution: Derived status avoids stale labels in the UI
     const derivedStatus = calculateDerivedStatus(process);

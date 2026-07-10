@@ -421,6 +421,10 @@ export async function saveUserPreferences(userId, preferences) {
         logger.debug('User preferences saved:', userId);
     } catch (error) {
         logger.error('Error saving user preferences:', error);
+        // Propaga o erro: quem chama (useUserPreferences.updatePreferences)
+        // precisa saber que a gravação falhou para reverter a atualização
+        // otimista e avisar o usuário — antes, a falha ficava invisível.
+        throw error;
     }
 }
 

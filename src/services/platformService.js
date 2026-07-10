@@ -32,6 +32,9 @@ export const getEmailProviderConfig = () => call('getEmailProviderConfig');
 export const setEmailProviderConfig = (fromEmail, fromName) =>
     call('setEmailProviderConfig', { fromEmail, fromName });
 
+// Checklist de configuração de infraestrutura (secrets/APIs fora do Firestore)
+export const getSetupStatus = () => call('getSetupStatus');
+
 // Super-admins
 export const grantPlatformAdmin = (email) => call('grantPlatformAdmin', { email });
 export const revokePlatformAdmin = (uid) => call('revokePlatformAdmin', { uid });

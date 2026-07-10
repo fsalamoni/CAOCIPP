@@ -14,6 +14,9 @@ const ORG_SCOPED_COLLECTIONS = [
     'customRecords',
     'entityTypes',
     'userOrganizations',
+    // Notificações (menções, escalonamento) também têm organization_id e
+    // ficavam órfãs indefinidamente após a exclusão do órgão.
+    'notifications',
 ];
 /**
  * Verifica se o solicitante é super-admin da plataforma (claim, allowlist ou

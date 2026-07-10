@@ -54,33 +54,42 @@ service cloud.firestore {
     match /organizations/{orgId} {
       // Apenas membros da organização podem ler
       allow read: if isAuthenticated() && isMemberOf(orgId);
-      
-      // Qualquer usuário autenticado pode criar uma organização
-      allow create: if isAuthenticated();
-      
-      // Apenas creator ou admin podem atualizar/deletar
-      allow update, delete: if isAuthenticated() && 
-                              isMemberOf(orgId) && 
-                              hasRole(orgId, ['creator', 'admin']);
+
+      // Escrita exclusiva de Cloud Functions (createOrganization/updateOrganization/
+      // deleteOrganization). Motivo: o cliente já não escreve mais aqui
+      // diretamente (todo o fluxo de criação/edição/exclusão foi migrado para
+      // Cloud Functions há tempos — as funções antigas em firestoreService.js
+      // que faziam isso são código morto, sem nenhum ponto de chamada). Um
+      // "allow update" direto permitiria a qualquer admin/creator sobrescrever
+      // campos reservados ao criador (retentionConfig, webhookConfig etc. —
+      // validados só dentro de updateOrganization) e um "allow delete" direto
+      // apagaria o órgão sem a confirmação de nome e sem limpar as coleções
+      // dependentes (só feito dentro de deleteOrganization).
+      allow create, update, delete: if false;
     }
-    
+
     // ========== USER ORGANIZATIONS (Memberships) ==========
-    
+
     match /userOrganizations/{membershipId} {
-      // Qualquer usuário autenticado pode ler memberships (para ver membros)
-      allow read: if isAuthenticated();
-      
-      // Usuário pode criar seu próprio membership (join via invite code)
-      allow create: if isAuthenticated();
-      
-      // Pode atualizar/deletar se for:
-      // 1. Admin/creator da organização, OU
-      // 2. O próprio usuário (sair da organização)
-      allow update, delete: if isAuthenticated() && (
-        (isMemberOf(resource.data.organization_id) && 
-         hasRole(resource.data.organization_id, ['creator', 'admin'])) ||
-        isOwner(resource.data.user_id)
+      // Leitura restrita ao próprio vínculo ou a vínculos de um órgão do qual
+      // o solicitante já é membro — antes qualquer usuário autenticado podia
+      // listar a coleção inteira e colher organization_id/user_email/role de
+      // TODOS os órgãos da plataforma (vazamento de dados entre órgãos).
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.user_id) || isMemberOf(resource.data.organization_id)
       );
+
+      // Escrita exclusiva de Cloud Functions (createOrganization/joinOrganization/
+      // updateMember/removeMember). Antes, "allow create: if isAuthenticated()"
+      // sem nenhuma validação de campos permitia a QUALQUER usuário autenticado
+      // criar seu próprio vínculo com role:'creator' em qualquer organization_id
+      // que conhecesse — acesso total a um órgão alheio sem convite nenhum. E o
+      // "allow update" pelo próprio dono deixava o usuário reescrever seu
+      // próprio role/permissions livremente. As funções client-side
+      // equivalentes em firestoreService.js (createMembership,
+      // updateMembershipRole, joinOrganizationByInvite) são código morto, sem
+      // nenhum ponto de chamada no app.
+      allow create, update, delete: if false;
     }
     
     // ========== PROCESSES ==========
@@ -96,11 +105,15 @@ service cloud.firestore {
       // Pode atualizar se for:
       // 1. Admin/creator da organização, OU
       // 2. Responsável pelo processo
-      allow update: if isAuthenticated() && 
+      // Em ambos os casos, organization_id não pode mudar na própria escrita —
+      // sem isto, quem tem permissão de editar poderia "mover" o processo para
+      // outro órgão (inclusive um controlado por ele) trocando só esse campo.
+      allow update: if isAuthenticated() &&
                       isMemberOf(resource.data.organization_id) && (
                         hasRole(resource.data.organization_id, ['creator', 'admin']) ||
                         isOwner(resource.data.responsible_user_id)
-                      );
+                      ) &&
+                      request.resource.data.organization_id == resource.data.organization_id;
       
       // Apenas admin/creator podem deletar
       allow delete: if isAuthenticated() && 
@@ -138,11 +151,14 @@ service cloud.firestore {
       // Pode atualizar se for:
       // 1. Admin/creator da organização, OU
       // 2. Responsável pelo expediente
-      allow update: if isAuthenticated() && 
+      // organization_id não pode mudar na própria escrita (mesma razão da
+      // regra equivalente em processes/{id}).
+      allow update: if isAuthenticated() &&
                       isMemberOf(resource.data.organization_id) && (
                         hasRole(resource.data.organization_id, ['creator', 'admin']) ||
                         isOwner(resource.data.responsible_user_id)
-                      );
+                      ) &&
+                      request.resource.data.organization_id == resource.data.organization_id;
       
       // Apenas admin/creator podem deletar
       allow delete: if isAuthenticated() && 

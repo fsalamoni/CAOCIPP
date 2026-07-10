@@ -15,6 +15,15 @@ name: Deploy to Firebase
 #       VITE_FIREBASE_APP_ID
 #     - (opcionais) VITE_CONSULTAS_CAO_APP_ID, VITE_CONSULTAS_CAO_FUNCTIONS_VERSION,
 #       VITE_CONSULTAS_CAO_APP_BASE_URL
+#   Configuração das Cloud Functions (opcionais — sem eles as respectivas
+#   funcionalidades ficam graciosamente inativas, nada quebra):
+#     - EMAIL_API_KEY        → chave da API do Resend (e-mail transacional: 2FA,
+#                               resumo diário e relatório semanal por e-mail).
+#     - PLATFORM_ADMIN_EMAILS → e-mails (separados por vírgula) com acesso de
+#                               super-admin garantido, mesmo sem registro no Firestore.
+#     - BILLING_BQ_PROJECT, BILLING_BQ_DATASET, BILLING_BQ_TABLE → export do
+#                               Cloud Billing para o BigQuery (custos reais na aba Admin).
+#   Passo a passo completo de cada um: app → Administração & Custos → aba Configuração.
 #
 # Enquanto os secrets de deploy não existirem, o job termina VERDE sem publicar
 # nada (passo "Check deploy secrets"), evitando publicar um app quebrado.
@@ -101,6 +110,29 @@ jobs:
           else
             echo "Sem conta de serviço; usando FIREBASE_TOKEN."
           fi
+
+      - name: Write functions runtime config (.env)
+        if: steps.pre.outputs.ready == 'true'
+        env:
+          EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+          PLATFORM_ADMIN_EMAILS: ${{ secrets.PLATFORM_ADMIN_EMAILS }}
+          BILLING_BQ_PROJECT: ${{ secrets.BILLING_BQ_PROJECT }}
+          BILLING_BQ_DATASET: ${{ secrets.BILLING_BQ_DATASET }}
+          BILLING_BQ_TABLE: ${{ secrets.BILLING_BQ_TABLE }}
+        run: |
+          # functions-v2/.env é git-ignorado — nunca commitado. Cada secret
+          # opcional configurado no GitHub vira uma variável de ambiente da
+          # Cloud Function neste deploy; os que não existirem simplesmente
+          # não entram no arquivo (a função correspondente já lida bem com a
+          # ausência). Ver instruções completas em Admin → Configuração.
+          ENV_FILE="functions-v2/.env"
+          : > "$ENV_FILE"
+          [ -n "$EMAIL_API_KEY" ] && printf 'EMAIL_API_KEY=%s\n' "$EMAIL_API_KEY" >> "$ENV_FILE"
+          [ -n "$PLATFORM_ADMIN_EMAILS" ] && printf 'PLATFORM_ADMIN_EMAILS=%s\n' "$PLATFORM_ADMIN_EMAILS" >> "$ENV_FILE"
+          [ -n "$BILLING_BQ_PROJECT" ] && printf 'BILLING_BQ_PROJECT=%s\n' "$BILLING_BQ_PROJECT" >> "$ENV_FILE"
+          [ -n "$BILLING_BQ_DATASET" ] && printf 'BILLING_BQ_DATASET=%s\n' "$BILLING_BQ_DATASET" >> "$ENV_FILE"
+          [ -n "$BILLING_BQ_TABLE" ] && printf 'BILLING_BQ_TABLE=%s\n' "$BILLING_BQ_TABLE" >> "$ENV_FILE"
+          echo "$(wc -l < "$ENV_FILE") variável(is) de ambiente escrita(s) em $ENV_FILE."
 
       - name: Deploy to Firebase (hosting + functions + firestore)
         if: steps.pre.outputs.ready == 'true'

@@ -34,16 +34,30 @@ export const deleteExpediente = onCall<DeleteExpedienteRequest>(
             throw new HttpsError('permission-denied', 'Only the organization creator can delete expedientes');
         }
 
-        // 2. Delete
-        await db.collection('expedientes').doc(id).delete();
+        // 2. Verify the target record actually belongs to this organization —
+        // sem isto, um usuário com delete_records no órgão A podia apagar
+        // qualquer expediente de outro órgão (B) só informando o
+        // organizationId de A (que passa na checagem de permissão) junto do
+        // ID do documento de B.
+        const expedienteRef = db.collection('expedientes').doc(id);
+        const expedienteSnap = await expedienteRef.get();
+        if (!expedienteSnap.exists) {
+            throw new HttpsError('not-found', 'Expediente not found');
+        }
+        if (expedienteSnap.data()?.organization_id !== organizationId) {
+            throw new HttpsError('permission-denied', 'Expediente belongs to another organization');
+        }
 
-        // 3. Update stats
+        // 3. Delete
+        await expedienteRef.delete();
+
+        // 4. Update stats
         await db.collection('organizations').doc(organizationId).update({
             'stats.expedientes_count': admin.firestore.FieldValue.increment(-1),
             'stats.active_expedientes': admin.firestore.FieldValue.increment(-1)
         });
 
-        // 4. Audit
+        // 5. Audit
         await db.collection('auditLogs').add({
             organization_id: organizationId,
             user_id: userId,

@@ -25,7 +25,7 @@ import {
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseLocalDate } from "@/lib/dateUtils";
-import { calculateExpedienteDerivedStatus } from "@/utils/expedienteUtils";
+import { calculateExpedienteDerivedStatus, isExpedienteUrgent } from "@/utils/expedienteUtils";
 
 /**
  * ExpedienteDetailSheet — Side panel for viewing all details of an Expediente.
@@ -46,7 +46,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
 
     const field = (key) => getExpedienteField(expediente, key);
 
-    const isUrgent = field('urgency_request') === true;
+    const isUrgent = isExpedienteUrgent(expediente);
     const derivedStatus = calculateExpedienteDerivedStatus(expediente);
 
     // Timeline steps — each step has a label, date field key, and icon

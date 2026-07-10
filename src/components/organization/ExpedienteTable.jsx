@@ -18,7 +18,7 @@ import { useUserPreferences } from "@/hooks/useFirestore";
 import { useFlag } from "@/lib/FeatureFlagsContext";
 import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
-import { getExpedienteField, calculateExpedienteDerivedStatus } from "@/utils/expedienteUtils";
+import { getExpedienteField, calculateExpedienteDerivedStatus, isExpedienteUrgent } from "@/utils/expedienteUtils";
 import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
@@ -55,6 +55,16 @@ export default function ExpedienteTable({
   useEffect(() => {
     localStorage.setItem('expedienteSearchTerm', search);
   }, [search]);
+
+  // Mesma razão da limpeza equivalente em ProcessTable.jsx: a chave no
+  // localStorage não é por-órgão, então o termo de busca do órgão anterior
+  // ficava visível depois de trocar de órgão.
+  const orgIdRef = useRef(organization?.id);
+  useEffect(() => {
+    if (orgIdRef.current === organization?.id) return;
+    orgIdRef.current = organization?.id;
+    setSearch("");
+  }, [organization?.id]);
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [responsibleFilter, setResponsibleFilter] = useState("all");
@@ -461,7 +471,7 @@ export default function ExpedienteTable({
           if (!val) return false;
           const date = parseLocalDate(val);
           if (!isValid(date)) return false;
-          if (start && !end) return date >= startOfDay(new Date(start)) && date <= endOfDay(new Date(start));
+          if (start && !end) return date >= startOfDay(new Date(start));
           if (!start && end) return date <= endOfDay(new Date(end));
           if (start && end) return date >= startOfDay(new Date(start)) && date <= endOfDay(new Date(end));
           return true;
@@ -529,7 +539,7 @@ export default function ExpedienteTable({
 
   const getStatusRowColor = (exp) => {
     const status = calculateExpedienteDerivedStatus(exp);
-    const isUrgent = getExpedienteField(exp, 'urgency_request') === true;
+    const isUrgent = isExpedienteUrgent(exp);
 
     if (isUrgent && (status === 'Pendente' || !status)) {
       return isV2
@@ -1050,6 +1060,14 @@ export default function ExpedienteTable({
                       key={exp.id}
                       className={`${colors.bg} ${colors.hover} ${colors.border} transition-all duration-150 group cursor-pointer border-b-[1.5px]`}
                       onClick={() => setSelectedExpediente(exp)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedExpediente(exp);
+                        }
+                      }}
                     >
                       {isBulkActionsOn && (
                         <TableCell className={cellPadding} onClick={(e) => e.stopPropagation()}>
