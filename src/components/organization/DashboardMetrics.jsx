@@ -100,7 +100,7 @@ function MetricsGrid({ title, metrics, records, ctx, badge }) {
                     {title}
                 </h3>
                 {badge && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900 px-2 py-0.5 rounded">
                         {badge}
                     </span>
                 )}

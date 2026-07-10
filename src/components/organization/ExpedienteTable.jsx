@@ -974,8 +974,8 @@ export default function ExpedienteTable({
       </div>
 
       {isBulkActionsOn && selectedIds.size > 0 && (
-        <div className="flex items-center justify-between gap-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900 rounded-lg px-4 py-2.5">
-          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{selectedIds.size} selecionado(s)</span>
+        <div className="flex items-center justify-between gap-3 bg-indigo-50 dark:bg-indigo-900 border border-indigo-200 dark:border-indigo-600 rounded-lg px-4 py-2.5">
+          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-100">{selectedIds.size} selecionado(s)</span>
           <div className="flex items-center gap-2">
             {isExportOn && (
               <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleExport('excel')}>

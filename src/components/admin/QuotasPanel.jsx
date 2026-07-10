@@ -67,9 +67,9 @@ export default function QuotasPanel() {
 
     return (
         <div className="space-y-4">
-            <Alert className="border-sky-300 bg-sky-50 dark:bg-sky-950/30">
+            <Alert className="border-sky-300 dark:border-sky-600 bg-sky-50 dark:bg-sky-900">
                 <Info className="w-4 h-4 text-sky-600" />
-                <AlertDescription className="text-sky-800 dark:text-sky-200">
+                <AlertDescription className="text-sky-800 dark:text-sky-100">
                     As cotas são apenas <strong>configuração</strong>. Alterá-las não muda
                     o funcionamento atual do sistema — cada limite só passa a valer quando
                     a funcionalidade correspondente for ativada. É seguro ajustar.

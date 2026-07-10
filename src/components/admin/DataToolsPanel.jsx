@@ -181,9 +181,9 @@ export default function DataToolsPanel() {
 
     return (
         <div className="space-y-4">
-            <Alert className="border-sky-300 bg-sky-50 dark:bg-sky-950/30">
+            <Alert className="border-sky-300 dark:border-sky-600 bg-sky-50 dark:bg-sky-900">
                 <Info className="w-4 h-4 text-sky-600" />
-                <AlertDescription className="text-sky-800 dark:text-sky-200">
+                <AlertDescription className="text-sky-800 dark:text-sky-100">
                     A auditoria é <strong>somente leitura</strong>. A correção apenas
                     realinha os contadores de total (membros, processos, expedientes) com a
                     contagem real — nunca apaga ou altera dados. É uma operação segura e
@@ -310,9 +310,9 @@ export default function DataToolsPanel() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <Alert className="border-indigo-300 bg-indigo-50 dark:bg-indigo-950/30">
+                    <Alert className="border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900">
                         <Info className="w-4 h-4 text-indigo-600" />
-                        <AlertDescription className="text-indigo-800 dark:text-indigo-200">
+                        <AlertDescription className="text-indigo-800 dark:text-indigo-100">
                             Copia o histórico de cada processo/expediente do campo{' '}
                             <code>activity_log</code> para a subcoleção <code>history</code>.
                             É <strong>aditivo e idempotente</strong>: não altera nem apaga os

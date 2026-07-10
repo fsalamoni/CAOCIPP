@@ -78,9 +78,9 @@ export default function FootprintPanel() {
     return (
         <div className="space-y-4">
             {alerts.length > 0 && (
-                <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                <Alert className="border-amber-300 dark:border-amber-500 bg-amber-50 dark:bg-amber-800">
                     <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <AlertDescription className="text-amber-800 dark:text-amber-200">
+                    <AlertDescription className="text-amber-800 dark:text-amber-100">
                         <ul className="list-disc pl-4 space-y-1">
                             {alerts.map((a, i) => (
                                 <li key={i}>{a}</li>

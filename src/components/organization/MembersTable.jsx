@@ -72,7 +72,7 @@ export default function MembersTable({
                 <TableCell>{member.function || '-'}</TableCell>
                 <TableCell>
                   {member.role === 'creator' ? (
-                    <Badge className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900">
+                    <Badge className="bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-100 border-amber-200 dark:border-amber-500">
                       <Crown className="w-3 h-3 mr-1" />
                       Criador
                     </Badge>

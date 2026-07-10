@@ -32,17 +32,17 @@ export default function ImportProgressModal({ open, onClose, progress, isComplet
               </div>
 
               <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
-                  <div className="text-lg font-bold text-green-700 dark:text-green-400">{progress.created}</div>
-                  <div className="text-xs text-green-600 dark:text-green-500">Criados</div>
+                <div className="p-3 bg-green-50 dark:bg-green-900 rounded-lg">
+                  <div className="text-lg font-bold text-green-700 dark:text-green-200">{progress.created}</div>
+                  <div className="text-xs text-green-600 dark:text-green-300">Criados</div>
                 </div>
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-                  <div className="text-lg font-bold text-blue-700 dark:text-blue-400">{progress.updated}</div>
-                  <div className="text-xs text-blue-600 dark:text-blue-500">Atualizados</div>
+                <div className="p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                  <div className="text-lg font-bold text-blue-700 dark:text-blue-200">{progress.updated}</div>
+                  <div className="text-xs text-blue-600 dark:text-blue-300">Atualizados</div>
                 </div>
-                <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-lg">
-                  <div className="text-lg font-bold text-red-700 dark:text-red-400">{progress.errors}</div>
-                  <div className="text-xs text-red-600 dark:text-red-500">Erros</div>
+                <div className="p-3 bg-red-50 dark:bg-red-900 rounded-lg">
+                  <div className="text-lg font-bold text-red-700 dark:text-red-200">{progress.errors}</div>
+                  <div className="text-xs text-red-600 dark:text-red-300">Erros</div>
                 </div>
               </div>
 
@@ -58,8 +58,8 @@ export default function ImportProgressModal({ open, onClose, progress, isComplet
 
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="bg-green-100 dark:bg-green-950/40 rounded-full p-2 mt-1">
-                    <CheckCircle2 className="w-4 h-4 text-green-700 dark:text-green-400" />
+                  <div className="bg-green-100 dark:bg-green-800 rounded-full p-2 mt-1">
+                    <CheckCircle2 className="w-4 h-4 text-green-700 dark:text-green-100" />
                   </div>
                   <div>
                     <div className="font-medium text-slate-900 dark:text-white">{stats?.created || 0} processos criados</div>
@@ -68,8 +68,8 @@ export default function ImportProgressModal({ open, onClose, progress, isComplet
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="bg-blue-100 dark:bg-blue-950/40 rounded-full p-2 mt-1">
-                    <CheckCircle2 className="w-4 h-4 text-blue-700 dark:text-blue-400" />
+                  <div className="bg-blue-100 dark:bg-blue-800 rounded-full p-2 mt-1">
+                    <CheckCircle2 className="w-4 h-4 text-blue-700 dark:text-blue-100" />
                   </div>
                   <div>
                     <div className="font-medium text-slate-900 dark:text-white">{stats?.updated || 0} processos atualizados</div>
@@ -79,8 +79,8 @@ export default function ImportProgressModal({ open, onClose, progress, isComplet
 
                 {stats?.totalErrors > 0 && (
                   <div className="flex items-start gap-3">
-                    <div className="bg-red-100 dark:bg-red-950/40 rounded-full p-2 mt-1">
-                      <AlertCircle className="w-4 h-4 text-red-700 dark:text-red-400" />
+                    <div className="bg-red-100 dark:bg-red-800 rounded-full p-2 mt-1">
+                      <AlertCircle className="w-4 h-4 text-red-700 dark:text-red-100" />
                     </div>
                     <div>
                       <div className="font-medium text-slate-900 dark:text-white">{stats.totalErrors} erros</div>

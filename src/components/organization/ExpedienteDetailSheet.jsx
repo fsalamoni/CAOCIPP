@@ -134,7 +134,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                                         {/* Timeline connector */}
                                         <div className="flex flex-col items-center">
                                             <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${isCompleted
-                                                ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+                                                ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-100'
                                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600'
                                                 }`}>
                                                 {isCompleted
@@ -173,7 +173,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                     {/* Pasta na Rede */}
                     {field('network_folder') && (
                         <Section title="Pasta na Rede">
-                            <p className="text-xs text-blue-600 dark:text-blue-400 font-mono bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-100 dark:border-blue-900 break-all">
+                            <p className="text-xs text-blue-600 dark:text-blue-200 font-mono bg-blue-50 dark:bg-blue-900 rounded-lg p-3 border border-blue-100 dark:border-blue-600 break-all">
                                 {field('network_folder')}
                             </p>
                         </Section>

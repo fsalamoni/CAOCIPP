@@ -20,7 +20,7 @@ export default function DangerZone({ organization }) {
         <div className="space-y-6">
 
             {/* Log Backfill */}
-            <div className="bg-indigo-50/30 dark:bg-indigo-950/20 p-6 rounded-lg border border-indigo-200 dark:border-indigo-900">
+            <div className="bg-indigo-50/30 dark:bg-indigo-900 p-6 rounded-lg border border-indigo-200 dark:border-indigo-600">
                 <h3 className="text-lg font-medium text-indigo-700 dark:text-indigo-400 flex items-center gap-2 mb-4">
                     <ClipboardList className="w-5 h-5" />
                     Logs de Atividade
@@ -37,7 +37,7 @@ export default function DangerZone({ organization }) {
             </div>
 
             {/* Danger Zone */}
-            <div className="bg-red-50/30 dark:bg-red-950/20 p-6 rounded-lg border border-red-200 dark:border-red-900">
+            <div className="bg-red-50/30 dark:bg-red-900 p-6 rounded-lg border border-red-200 dark:border-red-600">
                 <h3 className="text-lg font-medium text-red-700 dark:text-red-400 flex items-center gap-2 mb-4">
                     <ShieldAlert className="w-5 h-5" />
                     Zona de Perigo
@@ -155,7 +155,7 @@ function ClearDataDialog({ organization }) {
                         Esta ação apagará permanentemente **todos os processos** da organização <strong>{organization.name}</strong>.
                         Isso inclui históricos e dados de workflow.
                     </p>
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg text-amber-800 dark:text-amber-200 text-xs">
+                    <div className="p-3 bg-amber-50 dark:bg-amber-800 border border-amber-200 dark:border-amber-500 rounded-lg text-amber-800 dark:text-amber-100 text-xs">
                         <strong>Importante:</strong> Certifique-se de ter um backup dos seus dados Excel/JSON antes de prosseguir.
                     </div>
                     <div className="space-y-2">
@@ -248,7 +248,7 @@ function DeleteOrganizationDialog({ organization }) {
                         <strong> todo o seu banco de dados</strong>: processos, expedientes, páginas personalizadas,
                         históricos, métricas e vínculos de membros. Não há como desfazer.
                     </p>
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg text-amber-800 dark:text-amber-200 text-xs">
+                    <div className="p-3 bg-amber-50 dark:bg-amber-800 border border-amber-200 dark:border-amber-500 rounded-lg text-amber-800 dark:text-amber-100 text-xs">
                         <strong>Importante:</strong> Certifique-se de ter um backup dos seus dados antes de prosseguir.
                     </div>
                     <div className="space-y-2">
