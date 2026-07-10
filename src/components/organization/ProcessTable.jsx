@@ -20,7 +20,6 @@ import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getProcessField, calculateDerivedStatus } from "@/utils/processUtils";
 import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
-import { exportRowsToExcel, exportRowsToPdf } from "@/lib/tableExport";
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
@@ -706,7 +705,7 @@ export default function ProcessTable({
     return getProcessField(process, col.key) ?? '';
   };
 
-  const handleExport = (kind) => {
+  const handleExport = async (kind) => {
     const rows = selectedIds.size > 0 ? selectedProcessObjects : filteredAndSortedProcesses;
     if (rows.length === 0) {
       toast.info('Nenhum processo para exportar.');
@@ -714,6 +713,9 @@ export default function ProcessTable({
     }
     const columns = activeColumns.map(col => ({ label: col.label, value: (p) => getExportValue(col, p) }));
     const filenameBase = `consultas-${new Date().toISOString().slice(0, 10)}`;
+    // Import sob demanda: xlsx/jsPDF são pesadas (~centenas de KB) e só devem
+    // ser baixadas por quem realmente exporta, não incluídas no bundle principal.
+    const { exportRowsToExcel, exportRowsToPdf } = await import('@/lib/tableExport');
     if (kind === 'excel') {
       exportRowsToExcel({ rows, columns, filenameBase });
     } else {

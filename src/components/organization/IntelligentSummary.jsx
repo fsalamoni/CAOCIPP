@@ -69,62 +69,86 @@ export default function IntelligentSummary({ processes = [], members, expediente
     });
   }, [processes, selectedYear, selectedMonth]);
 
-  // Calcular métricas
-  const totalProcesses = filteredProcesses.length;
-  // 'Na pasta' is the finished status in config
-  const finishedProcesses = filteredProcesses.filter(p => p.status === 'Na pasta').length;
-  const urgentProcesses = filteredProcesses.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
-  const completionRate = totalProcesses > 0 ? ((finishedProcesses / totalProcesses) * 100).toFixed(1) : 0;
+  // Calcular métricas — tudo memoizado sobre `filteredProcesses` (que já é
+  // memoizado): sem isto, cada linha abaixo (incluindo calculateBusinessDays,
+  // que percorre dia a dia) recalculava do zero a cada re-render do
+  // componente, mesmo sem os dados terem mudado (ex.: um toggle de UI não
+  // relacionado, ou o novo cálculo de comparação de períodos duplicando o
+  // trabalho por cima).
+  const {
+    totalProcesses, finishedProcesses, urgentProcesses, completionRate,
+    avgTotalTime, avgAnalysisTime, avgReviewStageTime,
+    locationData, statusCounts, noStatusCount,
+  } = useMemo(() => {
+    const total = filteredProcesses.length;
+    // 'Na pasta' is the finished status in config
+    const finished = filteredProcesses.filter(p => p.status === 'Na pasta').length;
+    const urgent = filteredProcesses.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
+    const rate = total > 0 ? ((finished / total) * 100).toFixed(1) : 0;
 
-  // 1. Tempo total médio (Entrada -> Devolução após Revisão)
-  const totalTimeData = filteredProcesses.filter(p => p.entry_date && p.review_return_date);
-  const avgTotalTime = totalTimeData.length > 0
-    ? Math.ceil(totalTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / totalTimeData.length)
-    : 0;
+    // 1. Tempo total médio (Entrada -> Devolução após Revisão)
+    const totalTimeData = filteredProcesses.filter(p => p.entry_date && p.review_return_date);
+    const totalTime = totalTimeData.length > 0
+      ? Math.ceil(totalTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / totalTimeData.length)
+      : 0;
 
-  // 2. Tempo médio para análise de consultas (Distribuição -> Remessa p/ Revisão)
-  const analysisTimeData = filteredProcesses.filter(p => p.distribution_date && p.review_submission_date);
-  const avgAnalysisTime = analysisTimeData.length > 0
-    ? Math.ceil(analysisTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / analysisTimeData.length)
-    : 0;
+    // 2. Tempo médio para análise de consultas (Distribuição -> Remessa p/ Revisão)
+    const analysisTimeData = filteredProcesses.filter(p => p.distribution_date && p.review_submission_date);
+    const analysisTime = analysisTimeData.length > 0
+      ? Math.ceil(analysisTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / analysisTimeData.length)
+      : 0;
 
-  // 3. Tempo médio para revisão de minutas (Remessa p/ Revisão -> Devolução após Revisão)
-  const reviewTimeData = filteredProcesses.filter(p => p.review_submission_date && p.review_return_date);
-  const avgReviewStageTime = reviewTimeData.length > 0
-    ? Math.ceil(reviewTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / reviewTimeData.length)
-    : 0;
+    // 3. Tempo médio para revisão de minutas (Remessa p/ Revisão -> Devolução após Revisão)
+    const reviewTimeData = filteredProcesses.filter(p => p.review_submission_date && p.review_return_date);
+    const reviewTime = reviewTimeData.length > 0
+      ? Math.ceil(reviewTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / reviewTimeData.length)
+      : 0;
 
-  // Processos por localidade (top 10)
-  const processesPerLocation = {};
-  filteredProcesses.forEach(p => {
-    const location = p.location || 'Não informado';
-    processesPerLocation[location] = (processesPerLocation[location] || 0) + 1;
-  });
-  const locationData = Object.entries(processesPerLocation)
-    .map(([name, count]) => ({ name, processos: count }))
-    .sort((a, b) => b.processos - a.processos)
-    .slice(0, 10);
+    // Processos por localidade (top 10)
+    const processesPerLocation = {};
+    filteredProcesses.forEach(p => {
+      const location = p.location || 'Não informado';
+      processesPerLocation[location] = (processesPerLocation[location] || 0) + 1;
+    });
+    const location = Object.entries(processesPerLocation)
+      .map(([name, count]) => ({ name, processos: count }))
+      .sort((a, b) => b.processos - a.processos)
+      .slice(0, 10);
 
-  // Processos por status (Dynamic based on Config)
-  // Initialize counts for all configured statuses to 0
-  const statusCounts = {};
-  Object.keys(statusConfig).forEach(status => {
-    statusCounts[status] = 0;
-  });
-  // Also track 'Sem Status' or others
-  let noStatusCount = 0;
+    // Processos por status (Dynamic based on Config)
+    // Initialize counts for all configured statuses to 0
+    const counts = {};
+    Object.keys(statusConfig).forEach(status => {
+      counts[status] = 0;
+    });
+    // Also track 'Sem Status' or others
+    let noStatus = 0;
 
-  filteredProcesses.forEach(p => {
-    if (!p.status) {
-      noStatusCount++;
-    } else if (statusCounts.hasOwnProperty(p.status)) {
-      statusCounts[p.status]++;
-    } else {
-      // If status is not in config, add it dynamically or group it? 
-      // Grouping under 'Outros' or adding dynamic key
-      statusCounts[p.status] = (statusCounts[p.status] || 0) + 1;
-    }
-  });
+    filteredProcesses.forEach(p => {
+      if (!p.status) {
+        noStatus++;
+      } else if (counts.hasOwnProperty(p.status)) {
+        counts[p.status]++;
+      } else {
+        // If status is not in config, add it dynamically or group it?
+        // Grouping under 'Outros' or adding dynamic key
+        counts[p.status] = (counts[p.status] || 0) + 1;
+      }
+    });
+
+    return {
+      totalProcesses: total,
+      finishedProcesses: finished,
+      urgentProcesses: urgent,
+      completionRate: rate,
+      avgTotalTime: totalTime,
+      avgAnalysisTime: analysisTime,
+      avgReviewStageTime: reviewTime,
+      locationData: location,
+      statusCounts: counts,
+      noStatusCount: noStatus,
+    };
+  }, [filteredProcesses]);
 
   // ========== EXPEDIENTES METRICS ==========
   const filteredExpedientes = useMemo(() => {
@@ -137,57 +161,76 @@ export default function IntelligentSummary({ processes = [], members, expediente
     });
   }, [expedientes, selectedYear, selectedMonth]);
 
-  const totalExpedientes = filteredExpedientes.length;
-  // 'Na pasta' is the finished status in config
-  const finishedExpedientes = filteredExpedientes.filter(p => p.status === 'Na pasta').length;
-  const urgentExpedientes = filteredExpedientes.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
-  const expCompletionRate = totalExpedientes > 0 ? ((finishedExpedientes / totalExpedientes) * 100).toFixed(1) : 0;
+  const {
+    totalExpedientes, finishedExpedientes, urgentExpedientes, expCompletionRate,
+    expAvgTotalTime, expAvgAnalysisTime, expAvgReviewStageTime,
+    originData, expStatusCounts, expNoStatusCount,
+  } = useMemo(() => {
+    const total = filteredExpedientes.length;
+    // 'Na pasta' is the finished status in config
+    const finished = filteredExpedientes.filter(p => p.status === 'Na pasta').length;
+    const urgent = filteredExpedientes.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
+    const rate = total > 0 ? ((finished / total) * 100).toFixed(1) : 0;
 
-  // 1. Tempo total médio Expediente (Entrada -> Devolução após Revisão)
-  const expTotalTimeData = filteredExpedientes.filter(p => p.entry_date && p.review_return_date);
-  const expAvgTotalTime = expTotalTimeData.length > 0
-    ? Math.ceil(expTotalTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / expTotalTimeData.length)
-    : 0;
+    // 1. Tempo total médio Expediente (Entrada -> Devolução após Revisão)
+    const totalTimeData = filteredExpedientes.filter(p => p.entry_date && p.review_return_date);
+    const totalTime = totalTimeData.length > 0
+      ? Math.ceil(totalTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / totalTimeData.length)
+      : 0;
 
-  // 2. Tempo médio análise Expediente (Distribuição -> Remessa p/ Revisão)
-  const expAnalysisTimeData = filteredExpedientes.filter(p => p.distribution_date && p.review_submission_date);
-  const expAvgAnalysisTime = expAnalysisTimeData.length > 0
-    ? Math.ceil(expAnalysisTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / expAnalysisTimeData.length)
-    : 0;
+    // 2. Tempo médio análise Expediente (Distribuição -> Remessa p/ Revisão)
+    const analysisTimeData = filteredExpedientes.filter(p => p.distribution_date && p.review_submission_date);
+    const analysisTime = analysisTimeData.length > 0
+      ? Math.ceil(analysisTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.distribution_date, p.review_submission_date), 0) / analysisTimeData.length)
+      : 0;
 
-  // 3. Tempo médio revisão Expediente (Remessa p/ Revisão -> Devolução após Revisão)
-  const expReviewTimeData = filteredExpedientes.filter(p => p.review_submission_date && p.review_return_date);
-  const expAvgReviewStageTime = expReviewTimeData.length > 0
-    ? Math.ceil(expReviewTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / expReviewTimeData.length)
-    : 0;
+    // 3. Tempo médio revisão Expediente (Remessa p/ Revisão -> Devolução após Revisão)
+    const reviewTimeData = filteredExpedientes.filter(p => p.review_submission_date && p.review_return_date);
+    const reviewTime = reviewTimeData.length > 0
+      ? Math.ceil(reviewTimeData.reduce((acc, p) => acc + calculateBusinessDays(p.review_submission_date, p.review_return_date), 0) / reviewTimeData.length)
+      : 0;
 
-  // Expedientes por Origem (top 10)
-  const expedientesPerOrigin = {};
-  filteredExpedientes.forEach(p => {
-    const origin = p.origin || 'Não informado';
-    expedientesPerOrigin[origin] = (expedientesPerOrigin[origin] || 0) + 1;
-  });
-  const originData = Object.entries(expedientesPerOrigin)
-    .map(([name, count]) => ({ name, expedientes: count }))
-    .sort((a, b) => b.expedientes - a.expedientes)
-    .slice(0, 10);
+    // Expedientes por Origem (top 10)
+    const expedientesPerOrigin = {};
+    filteredExpedientes.forEach(p => {
+      const origin = p.origin || 'Não informado';
+      expedientesPerOrigin[origin] = (expedientesPerOrigin[origin] || 0) + 1;
+    });
+    const origin = Object.entries(expedientesPerOrigin)
+      .map(([name, count]) => ({ name, expedientes: count }))
+      .sort((a, b) => b.expedientes - a.expedientes)
+      .slice(0, 10);
 
-  // Expedientes por status
-  const expStatusCounts = {};
-  Object.keys(statusConfig).forEach(status => {
-    expStatusCounts[status] = 0;
-  });
-  let expNoStatusCount = 0;
+    // Expedientes por status
+    const counts = {};
+    Object.keys(statusConfig).forEach(status => {
+      counts[status] = 0;
+    });
+    let noStatus = 0;
 
-  filteredExpedientes.forEach(p => {
-    if (!p.status) {
-      expNoStatusCount++;
-    } else if (expStatusCounts.hasOwnProperty(p.status)) {
-      expStatusCounts[p.status]++;
-    } else {
-      expStatusCounts[p.status] = (expStatusCounts[p.status] || 0) + 1;
-    }
-  });
+    filteredExpedientes.forEach(p => {
+      if (!p.status) {
+        noStatus++;
+      } else if (counts.hasOwnProperty(p.status)) {
+        counts[p.status]++;
+      } else {
+        counts[p.status] = (counts[p.status] || 0) + 1;
+      }
+    });
+
+    return {
+      totalExpedientes: total,
+      finishedExpedientes: finished,
+      urgentExpedientes: urgent,
+      expCompletionRate: rate,
+      expAvgTotalTime: totalTime,
+      expAvgAnalysisTime: analysisTime,
+      expAvgReviewStageTime: reviewTime,
+      originData: origin,
+      expStatusCounts: counts,
+      expNoStatusCount: noStatus,
+    };
+  }, [filteredExpedientes]);
 
 
   // ========== COMPARAÇÃO ENTRE PERÍODOS (flag `period_comparison`) ==========

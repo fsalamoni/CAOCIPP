@@ -59,11 +59,18 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
         e.preventDefault();
         e.stopPropagation();
         if (notifications.length === 0) return;
-        const batch = writeBatch(db);
-        notifications.forEach((n) => {
-            batch.update(doc(db, 'notifications', n.id), { read: true, read_at: new Date() });
-        });
-        await batch.commit();
+        // Firestore permite no máximo 500 operações por batch — em partes de
+        // 500 para não falhar quando alguém acumula mais não lidas que isso.
+        const CHUNK_SIZE = 500;
+        for (let i = 0; i < notifications.length; i += CHUNK_SIZE) {
+            const chunk = notifications.slice(i, i + CHUNK_SIZE);
+            const batch = writeBatch(db);
+            chunk.forEach((n) => {
+                batch.update(doc(db, 'notifications', n.id), { read: true, read_at: new Date() });
+            });
+            // eslint-disable-next-line no-await-in-loop
+            await batch.commit();
+        }
     };
 
     const handleClickNotification = async (notif) => {

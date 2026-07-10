@@ -271,6 +271,24 @@
             ]
         },
         {
+            "collectionGroup": "auditLogs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "action",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
             "collectionGroup": "expedientes",
             "queryScope": "COLLECTION",
             "fields": [

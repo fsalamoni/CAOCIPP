@@ -1,13 +1,20 @@
 import * as admin from 'firebase-admin';
-import { defineSecret } from 'firebase-functions/params';
 
-// Chave de API do provedor de e-mail transacional (Resend). Configurada fora
-// do app via `firebase functions:secrets:set EMAIL_API_KEY` — NUNCA guardada
-// no Firestore nem no código. Sem este secret, `sendEmail` é um no-op
-// silencioso (loga e retorna), preservando o "zero-quebra": a flag
-// `scheduled_email_reports` pode estar ligada sem que nada seja enviado até
-// que um super-admin configure o provedor.
-export const EMAIL_API_KEY = defineSecret('EMAIL_API_KEY');
+// Chave de API do provedor de e-mail transacional (Resend). Lida de uma
+// variável de ambiente simples (process.env.EMAIL_API_KEY) — DELIBERADAMENTE
+// NÃO usa o Secret Manager do GCP (`defineSecret`/`firebase functions:secrets:set`):
+// isso exigiria habilitar a API do Secret Manager no projeto, e o deploy de
+// QUALQUER função que declare esse secret falha inteiro (não só a função)
+// enquanto a API/segredo não existir — já aconteceu aqui e derrubou o deploy
+// completo (hosting+functions+firestore), não só o dos e-mails.
+//
+// Configuração (opcional, sem isso o envio fica graciosamente inativo):
+// crie `functions-v2/.env` (git-ignorado) com `EMAIL_API_KEY=...`, ou defina
+// a variável de ambiente da função pelo Console do Google Cloud
+// (Cloud Functions → função → Editar → Variáveis de ambiente).
+function getEmailApiKey(): string | undefined {
+    return process.env.EMAIL_API_KEY;
+}
 
 interface SendEmailInput {
     to: string;
@@ -19,7 +26,7 @@ interface SendEmailInput {
 // Provedor único, deliberadamente simples: se o projeto adotar outro serviço
 // no futuro, esta é a única função a trocar.
 export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<boolean> {
-    const apiKey = EMAIL_API_KEY.value();
+    const apiKey = getEmailApiKey();
     if (!apiKey) {
         console.log('[email] EMAIL_API_KEY não configurado — envio ignorado.', { to, subject });
         return false;

@@ -54,12 +54,12 @@ export default function EmailProviderPanel() {
             <Alert>
                 <Info className="w-4 h-4" />
                 <AlertDescription className="text-sm">
-                    Provedor: <strong>Resend</strong>. A chave de API é um secret do Cloud
-                    Functions (<code>EMAIL_API_KEY</code>), configurado via linha de
-                    comando (<code>firebase functions:secrets:set EMAIL_API_KEY</code>) —
-                    nunca é armazenada no Firestore. Enquanto o secret não existir, os
-                    relatórios agendados ficam inativos mesmo com um remetente configurado
-                    aqui e com a flag ligada.
+                    Provedor: <strong>Resend</strong>. A chave de API é a variável de ambiente{' '}
+                    <code>EMAIL_API_KEY</code> da Cloud Function, configurada fora do app
+                    (arquivo <code>functions-v2/.env</code> ou pelo Console do Google Cloud) —
+                    nunca é armazenada no Firestore. Enquanto essa variável não existir, os
+                    relatórios agendados e a autenticação em duas etapas ficam inativos mesmo
+                    com um remetente configurado aqui e com as flags ligadas.
                 </AlertDescription>
             </Alert>
 

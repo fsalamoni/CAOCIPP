@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { sendEmail, resolveUserEmail, EMAIL_API_KEY } from '../shared/email';
+import { sendEmail, resolveUserEmail } from '../shared/email';
 
 // Destinatários de relatórios de um órgão: criador + administradores
 // (mesmo critério usado no escalonamento automático).
@@ -31,7 +31,7 @@ async function countUrgentPending(orgId: string, collection: string): Promise<nu
 // Resumo diário de urgentes pendentes (flag `scheduled_email_reports`,
 // organization.reportsConfig.dailySummaryEnabled).
 export const sendDailyUrgentSummary = onSchedule(
-    { schedule: 'every day 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1', secrets: [EMAIL_API_KEY] },
+    { schedule: 'every day 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' },
     async () => {
         const db = admin.firestore();
 
@@ -78,7 +78,7 @@ export const sendDailyUrgentSummary = onSchedule(
 // Relatório semanal do órgão (flag `scheduled_email_reports`,
 // organization.reportsConfig.weeklyReportEnabled). Toda segunda-feira.
 export const sendWeeklyOrgReport = onSchedule(
-    { schedule: 'every monday 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1', secrets: [EMAIL_API_KEY] },
+    { schedule: 'every monday 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' },
     async () => {
         const db = admin.firestore();
 
