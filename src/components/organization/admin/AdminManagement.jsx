@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge, ShieldCheck } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge, ShieldCheck, Zap } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { hasOrgPermission, hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -16,9 +16,14 @@ import BulkReplaceTool from './BulkReplaceTool';
 import ModulesManager from './ModulesManager';
 import MetricsManager from './MetricsManager';
 import PermissionsManager from './PermissionsManager';
+import AutomationSettings from './AutomationSettings';
 
 export default function AdminManagement({ organization, members, userRole, userMembership }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+    const isGoalsOn = useFlag(FEATURE_FLAGS.ASSESSOR_GOALS.key);
+    const isEscalationOn = useFlag(FEATURE_FLAGS.AUTO_ESCALATION.key);
+    const isReportsOn = useFlag(FEATURE_FLAGS.SCHEDULED_EMAIL_REPORTS.key);
+    const showAutomationTab = isGoalsOn || isEscalationOn || isReportsOn;
 
     const isCreator = userRole === 'creator';
 
@@ -115,6 +120,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                             Padronização em Bloco
                         </TabsTrigger>
                     )}
+                    {isCreator && showAutomationTab && (
+                        <TabsTrigger value="automation" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                            <Zap className="w-4 h-4" />
+                            Automação
+                        </TabsTrigger>
+                    )}
                     {isCreator && (
                         <TabsTrigger value="ai" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                             <Bot className="w-4 h-4" />
@@ -174,6 +185,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                 {can.padronizacao && (
                     <TabsContent value="padronizacao">
                         <BulkReplaceTool organization={organization} />
+                    </TabsContent>
+                )}
+
+                {isCreator && showAutomationTab && (
+                    <TabsContent value="automation">
+                        <AutomationSettings organization={organization} />
                     </TabsContent>
                 )}
 

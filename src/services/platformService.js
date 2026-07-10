@@ -27,6 +27,11 @@ export const getFeatureFlags = () => call('getFeatureFlags');
 export const setFeatureFlag = (flagKey, enabled) =>
     call('setFeatureFlag', { flagKey, enabled });
 
+// Provedor de e-mail (relatórios agendados, flag `scheduled_email_reports`)
+export const getEmailProviderConfig = () => call('getEmailProviderConfig');
+export const setEmailProviderConfig = (fromEmail, fromName) =>
+    call('setEmailProviderConfig', { fromEmail, fromName });
+
 // Super-admins
 export const grantPlatformAdmin = (email) => call('grantPlatformAdmin', { email });
 export const revokePlatformAdmin = (uid) => call('revokePlatformAdmin', { uid });

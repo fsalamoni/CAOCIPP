@@ -25,10 +25,11 @@ import {
   Settings2,
   ArrowUp,
   ArrowDown,
+  Target,
 } from 'lucide-react';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import { isValid } from 'date-fns';
-import { parseLocalDate } from '@/lib/dateUtils';
+import { parseLocalDate, calculateBusinessDays } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import MinimalBarList from '@/components/ui/MinimalBarList';
@@ -259,6 +260,35 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
     () => expedientes.filter(e => e.responsible_user_id === user?.uid),
     [expedientes, user?.uid]
   );
+
+  // Meta de conclusão do assessor (flag `assessor_goals`): % das Consultas e
+  // Expedientes sob sua responsabilidade concluídos (ou, se ainda abertos,
+  // dentro do prazo até agora) em até N dias úteis, frente à meta do órgão.
+  const isGoalsOn = useFlag(FEATURE_FLAGS.ASSESSOR_GOALS.key);
+  const goalsConfig = organization.goalsConfig;
+  const goalProgress = useMemo(() => {
+    if (!isGoalsOn || !goalsConfig?.enabled) return null;
+    const items = [...myProcesses, ...myExpedientes];
+    if (items.length === 0) return null;
+    const withinDays = Number(goalsConfig.withinDays) || 10;
+    const today = new Date();
+    let meeting = 0;
+    items.forEach((item) => {
+      if (!item.entry_date) return;
+      if (item.status === 'Na pasta') {
+        const endDate = item.archived_date || item.review_return_date;
+        if (endDate && calculateBusinessDays(item.entry_date, endDate) <= withinDays) meeting += 1;
+      } else if (calculateBusinessDays(item.entry_date, today) <= withinDays) {
+        meeting += 1;
+      }
+    });
+    return {
+      achievedPercent: Math.round((meeting / items.length) * 100),
+      targetPercent: Number(goalsConfig.targetPercent) || 80,
+      withinDays,
+      total: items.length,
+    };
+  }, [isGoalsOn, goalsConfig, myProcesses, myExpedientes]);
 
   // Normalize function name
   const userFunc = (organization.userFunction || '').toLowerCase();
@@ -526,6 +556,33 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
           )}
         </Card>
       </div>
+
+      {goalProgress && (
+        <Card className="shadow-sm border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  Minha meta de conclusão
+                </span>
+              </div>
+              <span className={`text-sm font-bold ${goalProgress.achievedPercent >= goalProgress.targetPercent ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {goalProgress.achievedPercent}% / {goalProgress.targetPercent}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${goalProgress.achievedPercent >= goalProgress.targetPercent ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                style={{ width: `${Math.min(100, goalProgress.achievedPercent)}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              {goalProgress.total} Consulta(s)/Expediente(s) sob sua responsabilidade, meta de {goalProgress.targetPercent}% concluídos (ou em dia) em até {goalProgress.withinDays} dia(s) útil(eis).
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Activity Feed and Status Legend */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

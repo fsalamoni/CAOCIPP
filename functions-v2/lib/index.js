@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.sendWeeklyOrgReport = exports.sendDailyUrgentSummary = exports.autoEscalateStalledUrgent = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -88,4 +88,13 @@ Object.defineProperty(exports, "importRecords", { enumerable: true, get: functio
 // ========== Colaboração (flag: process_comments) ==========
 var comments_1 = require("./collaboration/comments");
 Object.defineProperty(exports, "addComment", { enumerable: true, get: function () { return comments_1.addComment; } });
+// ========== Automação em segundo plano (Fase 4) ==========
+var autoEscalation_1 = require("./scheduled/autoEscalation");
+Object.defineProperty(exports, "autoEscalateStalledUrgent", { enumerable: true, get: function () { return autoEscalation_1.autoEscalateStalledUrgent; } });
+var emailReports_1 = require("./scheduled/emailReports");
+Object.defineProperty(exports, "sendDailyUrgentSummary", { enumerable: true, get: function () { return emailReports_1.sendDailyUrgentSummary; } });
+Object.defineProperty(exports, "sendWeeklyOrgReport", { enumerable: true, get: function () { return emailReports_1.sendWeeklyOrgReport; } });
+var emailProvider_1 = require("./platform/emailProvider");
+Object.defineProperty(exports, "getEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.getEmailProviderConfig; } });
+Object.defineProperty(exports, "setEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.setEmailProviderConfig; } });
 //# sourceMappingURL=index.js.map

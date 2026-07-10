@@ -54,3 +54,8 @@ export { createRecord, updateRecord, deleteRecord, importRecords } from './custo
 
 // ========== Colaboração (flag: process_comments) ==========
 export { addComment } from './collaboration/comments';
+
+// ========== Automação em segundo plano (Fase 4) ==========
+export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
+export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
+export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';

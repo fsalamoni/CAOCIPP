@@ -36,6 +36,9 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         moduleConfig: 'manage_modules',
         dashboardConfig: 'manage_metrics',
         summarySettings: null,
+        goalsConfig: null,
+        escalationConfig: null,
+        reportsConfig: null,
     };
     if (!isCreator) {
         for (const field of Object.keys(data || {})) {
@@ -64,6 +67,12 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
     if (data.dashboardConfig !== undefined)
         updates.dashboardConfig = sanitizeDashboardConfig(data.dashboardConfig);
+    if (data.goalsConfig !== undefined)
+        updates.goalsConfig = sanitizeGoalsConfig(data.goalsConfig);
+    if (data.escalationConfig !== undefined)
+        updates.escalationConfig = sanitizeEscalationConfig(data.escalationConfig);
+    if (data.reportsConfig !== undefined)
+        updates.reportsConfig = sanitizeReportsConfig(data.reportsConfig);
     updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
     if (Object.keys(updates).length === 0) {
         return { success: true, message: 'No changes detected' };
@@ -82,6 +91,36 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
     });
     return { success: true, message: 'Organization updated successfully' };
 });
+// Metas de conclusão por assessor (flag `assessor_goals`): percentual-alvo de
+// processos concluídos/dentro-do-prazo em até N dias úteis.
+function sanitizeGoalsConfig(input) {
+    const targetPercent = Number(input === null || input === void 0 ? void 0 : input.targetPercent);
+    const withinDays = Number(input === null || input === void 0 ? void 0 : input.withinDays);
+    return {
+        enabled: (input === null || input === void 0 ? void 0 : input.enabled) === true,
+        targetPercent: Number.isFinite(targetPercent) ? Math.min(100, Math.max(1, Math.round(targetPercent))) : 80,
+        withinDays: Number.isFinite(withinDays) ? Math.min(365, Math.max(1, Math.round(withinDays))) : 10,
+    };
+}
+// Escalonamento automático de urgentes parados (flag `auto_escalation`):
+// limite de dias úteis sem movimentação de um urgente antes de notificar
+// criador/admins delegados além do responsável.
+function sanitizeEscalationConfig(input) {
+    const maxDaysStalled = Number(input === null || input === void 0 ? void 0 : input.maxDaysStalled);
+    return {
+        enabled: (input === null || input === void 0 ? void 0 : input.enabled) === true,
+        maxDaysStalled: Number.isFinite(maxDaysStalled) ? Math.min(365, Math.max(1, Math.round(maxDaysStalled))) : 5,
+    };
+}
+// Relatórios agendados por e-mail (flag `scheduled_email_reports`): liga/desliga
+// por órgão o resumo diário e/ou o relatório semanal (o envio de fato também
+// depende do provedor de e-mail estar configurado na Administração da Plataforma).
+function sanitizeReportsConfig(input) {
+    return {
+        dailySummaryEnabled: (input === null || input === void 0 ? void 0 : input.dailySummaryEnabled) === true,
+        weeklyReportEnabled: (input === null || input === void 0 ? void 0 : input.weeklyReportEnabled) === true,
+    };
+}
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.
 function sanitizeModuleConfig(input) {
     const allowed = ['processes', 'expedientes', 'summary'];
