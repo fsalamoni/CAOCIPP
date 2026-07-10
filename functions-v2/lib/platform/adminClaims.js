@@ -70,6 +70,11 @@ exports.revokePlatformAdmin = (0, https_1.onCall)({ region: helpers_1.REGION }, 
         revoked_at: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
     await setAdminClaim(uid, false);
+    // Sem isto, o ID token já emitido para o usuário revogado continua
+    // válido (com platformAdmin:true) até expirar sozinho — mudar o custom
+    // claim só afeta tokens emitidos DEPOIS. revokeRefreshTokens força o
+    // SDK do cliente a buscar um token novo (sem o claim) no próximo uso.
+    await admin.auth().revokeRefreshTokens(uid);
     await (0, helpers_1.writePlatformAudit)(actor.uid, actor.name, 'REVOKE_PLATFORM_ADMIN', {
         target_uid: uid,
     });

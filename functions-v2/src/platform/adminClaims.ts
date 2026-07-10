@@ -102,6 +102,11 @@ export const revokePlatformAdmin = onCall<RevokeRequest>(
         );
 
         await setAdminClaim(uid, false);
+        // Sem isto, o ID token já emitido para o usuário revogado continua
+        // válido (com platformAdmin:true) até expirar sozinho — mudar o custom
+        // claim só afeta tokens emitidos DEPOIS. revokeRefreshTokens força o
+        // SDK do cliente a buscar um token novo (sem o claim) no próximo uso.
+        await admin.auth().revokeRefreshTokens(uid);
         await writePlatformAudit(actor.uid, actor.name, 'REVOKE_PLATFORM_ADMIN', {
             target_uid: uid,
         });

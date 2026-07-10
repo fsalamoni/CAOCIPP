@@ -166,7 +166,11 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         status: getValue(['status', 'situacao'], 'Pendente') || 'Pendente',
       });
     }
-  }, [expediente, members]);
+    // Mesma razão da correção equivalente em EditProcessDialog.jsx: `members`
+    // só é lido para resolver responsible_user_id a partir de um nome legado,
+    // e não deve resetar o formulário sempre que o roster do órgão mudar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expediente]);
 
   const getRollbackByStatus = (status, emptyValue = '') => {
     if (status === 'Pendente') {

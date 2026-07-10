@@ -30,6 +30,12 @@ jobs:
       - name: Install functions dependencies
         run: npm --prefix functions-v2 ci
 
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
       - name: Build functions
         run: npm --prefix functions-v2 run build:local
 

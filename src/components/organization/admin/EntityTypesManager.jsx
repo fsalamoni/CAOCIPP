@@ -116,8 +116,8 @@ export default function EntityTypesManager({ organization }) {
                             <CardContent className="flex items-center justify-between gap-4 py-3">
                                 <div className="flex items-center gap-2 min-w-0">
                                     <div className="flex flex-col">
-                                        <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0 || busyId} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
-                                        <button type="button" onClick={() => move(idx, 1)} disabled={idx === entityTypes.length - 1 || busyId} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                                        <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0 || busyId} className="text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Mover "${et.label_plural}" para cima`}><ChevronUp className="h-4 w-4" /></button>
+                                        <button type="button" onClick={() => move(idx, 1)} disabled={idx === entityTypes.length - 1 || busyId} className="text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label={`Mover "${et.label_plural}" para baixo`}><ChevronDown className="h-4 w-4" /></button>
                                     </div>
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2">
@@ -134,12 +134,12 @@ export default function EntityTypesManager({ organization }) {
                                         <Switch checked={et.enabled !== false} onCheckedChange={() => toggleEnabled(et)} disabled={busyId === et.id} />
                                         Ativa
                                     </label>
-                                    <Button variant="ghost" size="icon" onClick={() => openEdit(et)}>
+                                    <Button variant="ghost" size="icon" onClick={() => openEdit(et)} aria-label={`Editar "${et.label_plural}"`}>
                                         <Pencil className="h-4 w-4" />
                                     </Button>
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" disabled={deletingId === et.id}>
+                                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" disabled={deletingId === et.id} aria-label={`Excluir "${et.label_plural}"`}>
                                                 {deletingId === et.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                             </Button>
                                         </AlertDialogTrigger>

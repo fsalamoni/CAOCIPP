@@ -61,6 +61,20 @@ export const calculateProcessStatus = onCall<CalculateStatusRequest>(
         }
 
         const currentData = processSnap.data();
+
+        // Verifica associação ao órgão do próprio processo — sem isto, QUALQUER
+        // usuário autenticado (de qualquer órgão) podia chamar esta função
+        // diretamente (ela nunca é usada pelo frontend, mas continua acessível
+        // via SDK) com o processId de outro órgão e forçar a recalculação/
+        // gravação do status de um registro que não é dele, além de gravar um
+        // evento de auditoria em nome desse órgão. Mesma classe de falha já
+        // corrigida em deleteProcess/deleteExpediente.
+        const membershipRef = db.collection('userOrganizations').doc(`${request.auth.uid}_${currentData?.organization_id}`);
+        const membershipSnap = await membershipRef.get();
+        if (!membershipSnap.exists) {
+            throw new HttpsError('permission-denied', 'You are not a member of this organization');
+        }
+
         // Merge provided data (simulating what the new state would be)
         const mergedData = { ...currentData, ...processData };
 
