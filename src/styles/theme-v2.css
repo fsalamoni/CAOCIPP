@@ -8,8 +8,12 @@
  *
  * Regra de ouro deste arquivo: só CSS. Nenhuma classe/estrutura/HTML dos
  * componentes é alterada — apenas a aparência de classes já existentes é
- * reescrita dentro do escopo `html.theme-v2`. Isso garante que, com a flag
- * desligada, absolutamente nada muda (zero risco de regressão funcional).
+ * reescrita dentro do escopo `html.theme-v2:not(.dark)`. Isso garante que,
+ * com a flag desligada, absolutamente nada muda (zero risco de regressão
+ * funcional) — e que, com o modo escuro (`theme_switcher`) ativo, este
+ * arquivo se desliga por completo, deixando as variantes `dark:` do
+ * Tailwind (index.css) no comando. V2 é hoje um tema completo apenas para
+ * o modo claro; combinado com dark mode, o modo escuro tem prioridade.
  *
  * Fonte de verdade do padrão visual: documento de design entregue em
  * "Proposta de redesign frontend minimalista.zip" (protótipo .dc.html).
@@ -38,11 +42,12 @@
  * Isso cobre: Button, Card, Dialog/Sheet (modais), Badge, Switch, Tabs,
  * Table, Input, Select, Alert, Popover, DropdownMenu — ou seja, a maior
  * parte de páginas, modais e planilhas do sistema.
- * Vence a cascata mesmo se o modo escuro (.dark) estiver ativo, pois
- * `html.theme-v2` tem especificidade maior que `.dark` sozinho: o V2 é um
- * tema completo (claro), não um par claro/escuro.
+ * Só tem efeito com o modo escuro (.dark) DESLIGADO — o seletor
+ * `html.theme-v2:not(.dark)` garante isso. Com dark mode ativo, este bloco
+ * inteiro se desliga e as variáveis do bloco `.dark { ... }` de index.css
+ * assumem normalmente.
  * ------------------------------------------------------------------------ */
-html.theme-v2 {
+html.theme-v2:not(.dark) {
   --background: 60 9.1% 97.8%;         /* #FAFAF9 */
   --foreground: 240 5.9% 10%;          /* #18181B */
 
@@ -94,7 +99,7 @@ html.theme-v2 {
  * As fontes são carregadas dinamicamente por ThemeV2.jsx somente quando a
  * flag está ligada (evita custo de rede para quem nunca ativa o V2).
  * ------------------------------------------------------------------------ */
-html.theme-v2 body {
+html.theme-v2:not(.dark) body {
   font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
   background-color: hsl(var(--background));
   -webkit-font-smoothing: antialiased;
@@ -107,9 +112,9 @@ html.theme-v2 body {
    .font-mono nesses elementos (fora de layer sempre vence layer, mesmo com
    especificidade menor) — o mesmo risco documentado abaixo para a regra "a". */
 
-html.theme-v2 code,
-html.theme-v2 pre,
-html.theme-v2 .font-mono {
+html.theme-v2:not(.dark) code,
+html.theme-v2:not(.dark) pre,
+html.theme-v2:not(.dark) .font-mono {
   font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -125,37 +130,37 @@ html.theme-v2 .font-mono {
  * é maior que a da própria utilitária Tailwind (1 classe), então vence sem
  * precisar de !important.
  * ------------------------------------------------------------------------ */
-html.theme-v2 .bg-slate-50  { background-color: #FAFAF9; }
-html.theme-v2 .bg-slate-100 { background-color: #F1F0ED; }
-html.theme-v2 .bg-slate-200 { background-color: #E7E5E2; }
-html.theme-v2 .bg-slate-300 { background-color: #D8D5CF; }
-html.theme-v2 .bg-slate-400 { background-color: #A1A19B; }
-html.theme-v2 .bg-slate-500 { background-color: #6B6B66; }
-html.theme-v2 .bg-slate-600 { background-color: #52514C; }
-html.theme-v2 .bg-slate-700 { background-color: #3F3E3B; }
-html.theme-v2 .bg-slate-800 { background-color: #292927; }
-html.theme-v2 .bg-slate-900 { background-color: #18181B; }
+html.theme-v2:not(.dark) .bg-slate-50  { background-color: #FAFAF9; }
+html.theme-v2:not(.dark) .bg-slate-100 { background-color: #F1F0ED; }
+html.theme-v2:not(.dark) .bg-slate-200 { background-color: #E7E5E2; }
+html.theme-v2:not(.dark) .bg-slate-300 { background-color: #D8D5CF; }
+html.theme-v2:not(.dark) .bg-slate-400 { background-color: #A1A19B; }
+html.theme-v2:not(.dark) .bg-slate-500 { background-color: #6B6B66; }
+html.theme-v2:not(.dark) .bg-slate-600 { background-color: #52514C; }
+html.theme-v2:not(.dark) .bg-slate-700 { background-color: #3F3E3B; }
+html.theme-v2:not(.dark) .bg-slate-800 { background-color: #292927; }
+html.theme-v2:not(.dark) .bg-slate-900 { background-color: #18181B; }
 
-html.theme-v2 .hover\:bg-slate-50:hover  { background-color: #FAFAF9; }
-html.theme-v2 .hover\:bg-slate-100:hover { background-color: #F1F0ED; }
-html.theme-v2 .hover\:bg-slate-200:hover { background-color: #E7E5E2; }
+html.theme-v2:not(.dark) .hover\:bg-slate-50:hover  { background-color: #FAFAF9; }
+html.theme-v2:not(.dark) .hover\:bg-slate-100:hover { background-color: #F1F0ED; }
+html.theme-v2:not(.dark) .hover\:bg-slate-200:hover { background-color: #E7E5E2; }
 
-html.theme-v2 .text-slate-300 { color: #C3C2BC; }
-html.theme-v2 .text-slate-400 { color: #A1A19B; }
-html.theme-v2 .text-slate-500 { color: #6B6B66; }
-html.theme-v2 .text-slate-600 { color: #52514C; }
-html.theme-v2 .text-slate-700 { color: #3F3E3B; }
-html.theme-v2 .text-slate-800 { color: #292927; }
-html.theme-v2 .text-slate-900 { color: #18181B; }
+html.theme-v2:not(.dark) .text-slate-300 { color: #C3C2BC; }
+html.theme-v2:not(.dark) .text-slate-400 { color: #A1A19B; }
+html.theme-v2:not(.dark) .text-slate-500 { color: #6B6B66; }
+html.theme-v2:not(.dark) .text-slate-600 { color: #52514C; }
+html.theme-v2:not(.dark) .text-slate-700 { color: #3F3E3B; }
+html.theme-v2:not(.dark) .text-slate-800 { color: #292927; }
+html.theme-v2:not(.dark) .text-slate-900 { color: #18181B; }
 
-html.theme-v2 .hover\:text-slate-900:hover { color: #18181B; }
+html.theme-v2:not(.dark) .hover\:text-slate-900:hover { color: #18181B; }
 
-html.theme-v2 .border-slate-50  { border-color: #FAFAF9; }
-html.theme-v2 .border-slate-100 { border-color: #F1F0ED; }
-html.theme-v2 .border-slate-200 { border-color: #E7E5E2; }
-html.theme-v2 .border-slate-300 { border-color: #D8D5CF; }
-html.theme-v2 .border-slate-700 { border-color: #3F3E3B; }
-html.theme-v2 .border-slate-800 { border-color: #292927; }
+html.theme-v2:not(.dark) .border-slate-50  { border-color: #FAFAF9; }
+html.theme-v2:not(.dark) .border-slate-100 { border-color: #F1F0ED; }
+html.theme-v2:not(.dark) .border-slate-200 { border-color: #E7E5E2; }
+html.theme-v2:not(.dark) .border-slate-300 { border-color: #D8D5CF; }
+html.theme-v2:not(.dark) .border-slate-700 { border-color: #3F3E3B; }
+html.theme-v2:not(.dark) .border-slate-800 { border-color: #292927; }
 
 /* ---------------------------------------------------------------------------
  * 4. MARCA — remapeia a escala "indigo" (cor de marca/ação atual) para o
@@ -163,36 +168,36 @@ html.theme-v2 .border-slate-800 { border-color: #292927; }
  * status "Em elaboração", que já bate com o protótipo) nem em amber/violet/
  * emerald/red/green (também usados como cores de status/semânticas).
  * ------------------------------------------------------------------------ */
-html.theme-v2 .bg-indigo-50  { background-color: #EAEEF1; }
-html.theme-v2 .bg-indigo-100 { background-color: #DCE3E8; }
-html.theme-v2 .bg-indigo-200 { background-color: #C3CED6; }
-html.theme-v2 .bg-indigo-500 { background-color: #4C6579; }
-html.theme-v2 .bg-indigo-600 { background-color: #33495C; }
-html.theme-v2 .bg-indigo-700 { background-color: #283A49; }
-html.theme-v2 .bg-indigo-900 { background-color: #1F2E39; }
-html.theme-v2 .bg-indigo-950 { background-color: #16232C; }
+html.theme-v2:not(.dark) .bg-indigo-50  { background-color: #EAEEF1; }
+html.theme-v2:not(.dark) .bg-indigo-100 { background-color: #DCE3E8; }
+html.theme-v2:not(.dark) .bg-indigo-200 { background-color: #C3CED6; }
+html.theme-v2:not(.dark) .bg-indigo-500 { background-color: #4C6579; }
+html.theme-v2:not(.dark) .bg-indigo-600 { background-color: #33495C; }
+html.theme-v2:not(.dark) .bg-indigo-700 { background-color: #283A49; }
+html.theme-v2:not(.dark) .bg-indigo-900 { background-color: #1F2E39; }
+html.theme-v2:not(.dark) .bg-indigo-950 { background-color: #16232C; }
 
-html.theme-v2 .hover\:bg-indigo-50:hover  { background-color: #EAEEF1; }
-html.theme-v2 .hover\:bg-indigo-700:hover { background-color: #283A49; }
+html.theme-v2:not(.dark) .hover\:bg-indigo-50:hover  { background-color: #EAEEF1; }
+html.theme-v2:not(.dark) .hover\:bg-indigo-700:hover { background-color: #283A49; }
 
-html.theme-v2 .text-indigo-400 { color: #6E8598; }
-html.theme-v2 .text-indigo-500 { color: #4C6579; }
-html.theme-v2 .text-indigo-600 { color: #33495C; }
-html.theme-v2 .text-indigo-700 { color: #283A49; }
-html.theme-v2 .text-indigo-800 { color: #1F2E39; }
-html.theme-v2 .text-indigo-900 { color: #16232C; }
+html.theme-v2:not(.dark) .text-indigo-400 { color: #6E8598; }
+html.theme-v2:not(.dark) .text-indigo-500 { color: #4C6579; }
+html.theme-v2:not(.dark) .text-indigo-600 { color: #33495C; }
+html.theme-v2:not(.dark) .text-indigo-700 { color: #283A49; }
+html.theme-v2:not(.dark) .text-indigo-800 { color: #1F2E39; }
+html.theme-v2:not(.dark) .text-indigo-900 { color: #16232C; }
 
-html.theme-v2 .border-indigo-100 { border-color: #DCE3E8; }
-html.theme-v2 .border-indigo-200 { border-color: #C3CED6; }
-html.theme-v2 .border-indigo-300 { border-color: #9FB0BC; }
-html.theme-v2 .border-indigo-400 { border-color: #6E8598; }
-html.theme-v2 .border-indigo-500 { border-color: #4C6579; }
-html.theme-v2 .border-indigo-900 { border-color: #1F2E39; }
+html.theme-v2:not(.dark) .border-indigo-100 { border-color: #DCE3E8; }
+html.theme-v2:not(.dark) .border-indigo-200 { border-color: #C3CED6; }
+html.theme-v2:not(.dark) .border-indigo-300 { border-color: #9FB0BC; }
+html.theme-v2:not(.dark) .border-indigo-400 { border-color: #6E8598; }
+html.theme-v2:not(.dark) .border-indigo-500 { border-color: #4C6579; }
+html.theme-v2:not(.dark) .border-indigo-900 { border-color: #1F2E39; }
 
-html.theme-v2 [class*="data-[state=active]:bg-indigo-50"][data-state="active"] {
+html.theme-v2:not(.dark) [class*="data-[state=active]:bg-indigo-50"][data-state="active"] {
   background-color: #EAEEF1;
 }
-html.theme-v2 [class*="data-[state=active]:text-indigo-700"][data-state="active"] {
+html.theme-v2:not(.dark) [class*="data-[state=active]:text-indigo-700"][data-state="active"] {
   color: #283A49;
 }
 
@@ -201,28 +206,28 @@ html.theme-v2 [class*="data-[state=active]:text-indigo-700"][data-state="active"
  * gradientes em logo, avatares ou estados ativos. Removemos a imagem de
  * fundo do gradiente e aplicamos a cor sólida equivalente mais próxima.
  * ------------------------------------------------------------------------ */
-html.theme-v2 [class*="bg-gradient-to-"] {
+html.theme-v2:not(.dark) [class*="bg-gradient-to-"] {
   background-image: none;
 }
 
 /* Fundos de página / spinners (from-slate-50 to-slate-100) */
-html.theme-v2 .bg-gradient-to-br.from-slate-50 {
+html.theme-v2:not(.dark) .bg-gradient-to-br.from-slate-50 {
   background-color: #FAFAF9;
 }
 
 /* Botões/CTAs e avatar principal (from-indigo-600/500 to-violet-600/500) */
-html.theme-v2 .from-indigo-600,
-html.theme-v2 .from-indigo-500,
-html.theme-v2 .from-blue-500 {
+html.theme-v2:not(.dark) .from-indigo-600,
+html.theme-v2:not(.dark) .from-indigo-500,
+html.theme-v2:not(.dark) .from-blue-500 {
   background-color: #33495C;
 }
-html.theme-v2 .from-indigo-600.hover\:from-indigo-700:hover,
-html.theme-v2 .to-violet-600.hover\:to-violet-700:hover {
+html.theme-v2:not(.dark) .from-indigo-600.hover\:from-indigo-700:hover,
+html.theme-v2:not(.dark) .to-violet-600.hover\:to-violet-700:hover {
   background-color: #283A49;
 }
 
 /* Ícones/badges com fundo suave (from-indigo-50 to-violet-50) */
-html.theme-v2 .from-indigo-50 {
+html.theme-v2:not(.dark) .from-indigo-50 {
   background-color: #EAEEF1;
 }
 
@@ -230,7 +235,7 @@ html.theme-v2 .from-indigo-50 {
    a ser texto sólido navy, mantendo legibilidade. Precisa vencer também a
    regra de fundo genérica acima (.from-indigo-600 etc.), senão o texto
    navy fica ilegível sobre uma caixa também navy. */
-html.theme-v2 .bg-clip-text.text-transparent {
+html.theme-v2:not(.dark) .bg-clip-text.text-transparent {
   background-image: none;
   background-color: transparent;
   -webkit-background-clip: initial;
@@ -245,42 +250,42 @@ html.theme-v2 .bg-clip-text.text-transparent {
  * md/sm já usam var(--radius) via tailwind.config.js e são cobertos pelo
  * bloco 1. rounded-full (avatares, pills, switches) não é tocado.
  * ------------------------------------------------------------------------ */
-html.theme-v2 .rounded-xl  { border-radius: 10px; }
-html.theme-v2 .rounded-2xl { border-radius: 10px; }
+html.theme-v2:not(.dark) .rounded-xl  { border-radius: 10px; }
+html.theme-v2:not(.dark) .rounded-2xl { border-radius: 10px; }
 
 /* ---------------------------------------------------------------------------
  * 7. SOMBRAS — mais suaves e com tom neutro (em vez do cinza-azulado padrão
  * do Tailwind), como no protótipo (cartões quase flat, elevação sutil).
  * ------------------------------------------------------------------------ */
-html.theme-v2 .shadow-sm  { box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04); }
-html.theme-v2 .shadow,
-html.theme-v2 .shadow-md  { box-shadow: 0 2px 8px rgba(24, 24, 27, 0.06); }
-html.theme-v2 .shadow-lg  { box-shadow: 0 8px 24px rgba(24, 24, 27, 0.10); }
-html.theme-v2 .shadow-xl,
-html.theme-v2 .shadow-2xl { box-shadow: 0 12px 32px rgba(24, 24, 27, 0.12); }
+html.theme-v2:not(.dark) .shadow-sm  { box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04); }
+html.theme-v2:not(.dark) .shadow,
+html.theme-v2:not(.dark) .shadow-md  { box-shadow: 0 2px 8px rgba(24, 24, 27, 0.06); }
+html.theme-v2:not(.dark) .shadow-lg  { box-shadow: 0 8px 24px rgba(24, 24, 27, 0.10); }
+html.theme-v2:not(.dark) .shadow-xl,
+html.theme-v2:not(.dark) .shadow-2xl { box-shadow: 0 12px 32px rgba(24, 24, 27, 0.12); }
 
 /* ---------------------------------------------------------------------------
  * 8. FOCUS RINGS — inputs/botões que usam ring-indigo/ring-slate direto em
  * vez do token `ring` (esses já são cobertos pelo bloco 1 automaticamente).
  * ------------------------------------------------------------------------ */
-html.theme-v2 .focus\:ring-indigo-500:focus,
-html.theme-v2 .focus-visible\:ring-indigo-500:focus-visible {
+html.theme-v2:not(.dark) .focus\:ring-indigo-500:focus,
+html.theme-v2:not(.dark) .focus-visible\:ring-indigo-500:focus-visible {
   --tw-ring-color: #33495C;
 }
-html.theme-v2 .ring-indigo-300 { --tw-ring-color: #9FB0BC; }
-html.theme-v2 .ring-slate-400  { --tw-ring-color: #A1A19B; }
+html.theme-v2:not(.dark) .ring-indigo-300 { --tw-ring-color: #9FB0BC; }
+html.theme-v2:not(.dark) .ring-slate-400  { --tw-ring-color: #A1A19B; }
 
 /* ---------------------------------------------------------------------------
  * 9. SCROLLBAR E SELEÇÃO — detalhe fino do protótipo.
  * ------------------------------------------------------------------------ */
-html.theme-v2 ::-webkit-scrollbar { width: 8px; height: 8px; }
-html.theme-v2 ::-webkit-scrollbar-track { background: transparent; }
-html.theme-v2 ::-webkit-scrollbar-thumb {
+html.theme-v2:not(.dark) ::-webkit-scrollbar { width: 8px; height: 8px; }
+html.theme-v2:not(.dark) ::-webkit-scrollbar-track { background: transparent; }
+html.theme-v2:not(.dark) ::-webkit-scrollbar-thumb {
   background: #D8D5CF;
   border-radius: 4px;
 }
 
-html.theme-v2 ::selection {
+html.theme-v2:not(.dark) ::selection {
   background: #C3CED6;
   color: #18181B;
 }
