@@ -8,6 +8,8 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider as FirebaseAuthProvider, useAuth } from '@/lib/FirebaseAuthContext';
 import { FeatureFlagsProvider } from '@/lib/FeatureFlagsContext';
 import ThemeV2Effect from '@/lib/ThemeV2';
+import { ThemeSwitcherProvider } from '@/lib/ThemeSwitcher';
+import TwoFactorGate from '@/lib/TwoFactorGate';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { runBackfill } from '@/utils/backfillMatter';
 
@@ -67,13 +69,17 @@ function App() {
       <FirebaseAuthProvider>
         <FeatureFlagsProvider>
           <ThemeV2Effect />
-          <QueryClientProvider client={queryClientInstance}>
-            <Router>
-              <NavigationTracker />
-              <AuthenticatedApp />
-            </Router>
-            <Toaster />
-          </QueryClientProvider>
+          <ThemeSwitcherProvider>
+            <QueryClientProvider client={queryClientInstance}>
+              <Router>
+                <NavigationTracker />
+                <TwoFactorGate>
+                  <AuthenticatedApp />
+                </TwoFactorGate>
+              </Router>
+              <Toaster />
+            </QueryClientProvider>
+          </ThemeSwitcherProvider>
         </FeatureFlagsProvider>
       </FirebaseAuthProvider>
     </ErrorBoundary>

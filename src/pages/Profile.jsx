@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -50,6 +51,8 @@ export default function Profile() {
   const [platformName, setPlatformName] = useState(userProfile?.platform_name || '');
   const [userFunction, setUserFunction] = useState(userProfile?.function || '');
   const [notificationEmail, setNotificationEmail] = useState(userProfile?.notification_email || '');
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(userProfile?.two_factor_enabled || false);
+  const isTwoFactorOn = useFlag(FEATURE_FLAGS.TWO_FACTOR_AUTH.key);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Create organization dialog
@@ -69,6 +72,7 @@ export default function Profile() {
       setPlatformName(userProfile.platform_name || '');
       setUserFunction(userProfile.function || '');
       setNotificationEmail(userProfile.notification_email || '');
+      setTwoFactorEnabled(userProfile.two_factor_enabled || false);
     }
   }, [userProfile]);
 
@@ -87,6 +91,7 @@ export default function Profile() {
         platform_name: formatPersonName(platformName),
         function: userFunction,
         notification_email: notificationEmail,
+        two_factor_enabled: twoFactorEnabled,
       });
 
       toast.success('Perfil atualizado com sucesso!');
@@ -276,6 +281,18 @@ export default function Profile() {
                 Deixe em branco para usar o email principal
               </p>
             </div>
+
+            {isTwoFactorOn && (
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                <div>
+                  <Label>Autenticação em duas etapas (código por e-mail)</Label>
+                  <p className="text-xs text-slate-500 mt-1">
+                    A cada novo acesso, um código de verificação será enviado para o seu e-mail. Depende de um provedor de e-mail configurado pela plataforma — sem isso, o acesso não fica bloqueado.
+                  </p>
+                </div>
+                <Switch checked={twoFactorEnabled} onCheckedChange={setTwoFactorEnabled} />
+              </div>
+            )}
 
             <Button
               onClick={handleSaveProfile}

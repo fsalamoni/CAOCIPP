@@ -20,6 +20,16 @@ interface UpdateOrganizationRequest {
         moduleConfig?: Record<string, { enabled: boolean; order?: number }>;
         // Configuração de métricas/painel por página (Informações Gerais).
         dashboardConfig?: { pages?: Record<string, { metrics?: any[] }> };
+        // Metas de conclusão por assessor (flag `assessor_goals`).
+        goalsConfig?: { enabled?: boolean; targetPercent?: number; withinDays?: number };
+        // Escalonamento automático de urgentes parados (flag `auto_escalation`).
+        escalationConfig?: { enabled?: boolean; maxDaysStalled?: number };
+        // Relatórios agendados por e-mail (flag `scheduled_email_reports`).
+        reportsConfig?: { dailySummaryEnabled?: boolean; weeklyReportEnabled?: boolean };
+        // Política de retenção e anonimização (flag `data_retention_policy`).
+        retentionConfig?: { enabled?: boolean; anonymizeAfterDays?: number };
+        // Webhooks de integração externa (flag `outbound_webhooks`).
+        webhookConfig?: { enabled?: boolean; url?: string; events?: string[] };
     };
 }
 
@@ -63,6 +73,11 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             moduleConfig: 'manage_modules',
             dashboardConfig: 'manage_metrics',
             summarySettings: null,
+            goalsConfig: null,
+            escalationConfig: null,
+            reportsConfig: null,
+            retentionConfig: null,
+            webhookConfig: null,
         };
 
         if (!isCreator) {
@@ -85,6 +100,11 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.expedienteSettings !== undefined) updates.expedienteSettings = data.expedienteSettings;
         if (data.moduleConfig !== undefined) updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
         if (data.dashboardConfig !== undefined) updates.dashboardConfig = sanitizeDashboardConfig(data.dashboardConfig);
+        if (data.goalsConfig !== undefined) updates.goalsConfig = sanitizeGoalsConfig(data.goalsConfig);
+        if (data.escalationConfig !== undefined) updates.escalationConfig = sanitizeEscalationConfig(data.escalationConfig);
+        if (data.reportsConfig !== undefined) updates.reportsConfig = sanitizeReportsConfig(data.reportsConfig);
+        if (data.retentionConfig !== undefined) updates.retentionConfig = sanitizeRetentionConfig(data.retentionConfig);
+        if (data.webhookConfig !== undefined) updates.webhookConfig = sanitizeWebhookConfig(data.webhookConfig);
 
         updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
 
@@ -109,6 +129,78 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         return { success: true, message: 'Organization updated successfully' };
     }
 );
+
+// Metas de conclusão por assessor (flag `assessor_goals`): percentual-alvo de
+// processos concluídos/dentro-do-prazo em até N dias úteis.
+function sanitizeGoalsConfig(
+    input: { enabled?: boolean; targetPercent?: number; withinDays?: number }
+): { enabled: boolean; targetPercent: number; withinDays: number } {
+    const targetPercent = Number(input?.targetPercent);
+    const withinDays = Number(input?.withinDays);
+    return {
+        enabled: input?.enabled === true,
+        targetPercent: Number.isFinite(targetPercent) ? Math.min(100, Math.max(1, Math.round(targetPercent))) : 80,
+        withinDays: Number.isFinite(withinDays) ? Math.min(365, Math.max(1, Math.round(withinDays))) : 10,
+    };
+}
+
+// Escalonamento automático de urgentes parados (flag `auto_escalation`):
+// limite de dias úteis sem movimentação de um urgente antes de notificar
+// criador/admins delegados além do responsável.
+function sanitizeEscalationConfig(
+    input: { enabled?: boolean; maxDaysStalled?: number }
+): { enabled: boolean; maxDaysStalled: number } {
+    const maxDaysStalled = Number(input?.maxDaysStalled);
+    return {
+        enabled: input?.enabled === true,
+        maxDaysStalled: Number.isFinite(maxDaysStalled) ? Math.min(365, Math.max(1, Math.round(maxDaysStalled))) : 5,
+    };
+}
+
+// Relatórios agendados por e-mail (flag `scheduled_email_reports`): liga/desliga
+// por órgão o resumo diário e/ou o relatório semanal (o envio de fato também
+// depende do provedor de e-mail estar configurado na Administração da Plataforma).
+function sanitizeReportsConfig(
+    input: { dailySummaryEnabled?: boolean; weeklyReportEnabled?: boolean }
+): { dailySummaryEnabled: boolean; weeklyReportEnabled: boolean } {
+    return {
+        dailySummaryEnabled: input?.dailySummaryEnabled === true,
+        weeklyReportEnabled: input?.weeklyReportEnabled === true,
+    };
+}
+
+// Política de retenção e anonimização (flag `data_retention_policy`, alto
+// risco): apenas liga/desliga e define o prazo — a anonimização em si
+// acontece via Cloud Functions dedicadas (preview/run), nunca aqui.
+function sanitizeRetentionConfig(
+    input: { enabled?: boolean; anonymizeAfterDays?: number }
+): { enabled: boolean; anonymizeAfterDays: number } {
+    const days = Number(input?.anonymizeAfterDays);
+    return {
+        enabled: input?.enabled === true,
+        anonymizeAfterDays: Number.isFinite(days) ? Math.min(3650, Math.max(1, Math.round(days))) : 365,
+    };
+}
+
+const WEBHOOK_VALID_EVENTS = new Set(['urgent_created', 'archived']);
+
+// Webhooks de integração externa (flag `outbound_webhooks`).
+function sanitizeWebhookConfig(
+    input: { enabled?: boolean; url?: string; events?: string[] }
+): { enabled: boolean; url: string; events: string[] } {
+    const url = String(input?.url || '').trim().slice(0, 500);
+    const validUrl = /^https:\/\/.+/.test(url) ? url : '';
+    // Sem fallback para "todos" quando vazio: um array vazio é uma escolha
+    // válida e explícita do admin (desmarcou todos os eventos), não deve ser
+    // silenciosamente substituído.
+    const events = (Array.isArray(input?.events) ? input.events : [])
+        .filter((e) => WEBHOOK_VALID_EVENTS.has(e));
+    return {
+        enabled: input?.enabled === true && Boolean(validUrl),
+        url: validUrl,
+        events,
+    };
+}
 
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.
 function sanitizeModuleConfig(

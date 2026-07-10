@@ -8,8 +8,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "@/components/ui/StatusBadge";
+import StageTimeBadge from "@/components/ui/StageTimeBadge";
 import ExpedienteDetailSheet from "./ExpedienteDetailSheet";
-import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, Settings2, Columns3, Filter, FilterX, Clock } from "lucide-react";
+import { Search, MoreHorizontal, Pencil, Archive, ArrowUpDown, Settings2, Columns3, Filter, FilterX, Clock, Download, Bookmark, X, Rows3, Rows4 } from "lucide-react";
 import { format, startOfDay, endOfDay, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseLocalDate } from "@/lib/dateUtils";
@@ -18,7 +19,11 @@ import { useFlag } from "@/lib/FeatureFlagsContext";
 import { FEATURE_FLAGS } from "@/constants/featureFlags";
 import { statusConfig, DEFAULT_STATUS_CONFIG } from "@/config/processStatus";
 import { getExpedienteField, calculateExpedienteDerivedStatus } from "@/utils/expedienteUtils";
+import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity } from "@/lib/stageTime";
+import { exportRowsToExcel, exportRowsToPdf } from "@/lib/tableExport";
+import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
+import { toast } from 'sonner';
 import {
   Tooltip,
   TooltipContent,
@@ -33,12 +38,19 @@ export default function ExpedienteTable({
   isLoading,
   onEdit,
   onArchive,
+  onBulkArchive,
   initialFilter,
   organization
 }) {
 
   const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
+  const isDensityOn = useFlag(FEATURE_FLAGS.TABLE_DENSITY.key);
+  const isStageIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
+  const isExportOn = useFlag(FEATURE_FLAGS.EXPORT_PDF_EXCEL.key);
+  const isBulkActionsOn = useFlag(FEATURE_FLAGS.BULK_ACTIONS.key);
+  const isSavedViewsOn = useFlag(FEATURE_FLAGS.SAVED_VIEWS.key);
+  const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
   const [search, setSearch] = useState(() => localStorage.getItem('expedienteSearchTerm') || "");
 
   useEffect(() => {
@@ -61,6 +73,19 @@ export default function ExpedienteTable({
   });
   const [isAniversarianteFilter, setIsAniversarianteFilter] = useState(false);
   const [selectedExpediente, setSelectedExpediente] = useState(null);
+
+  // Ações em massa (flag `bulk_actions`): IDs selecionados na página atual.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
+  // Visões salvas (flag `saved_views`): nome em edição para a nova visão.
+  const [newViewName, setNewViewName] = useState('');
+  const savedViews = preferences?.savedExpedienteViews || [];
+
+  // Indicador de tempo na etapa atual (flag `stage_time_indicator`).
+  const stageAverages = useMemo(
+    () => (isStageIndicatorOn ? computeStageAverages(expedientes, getExpedienteField) : null),
+    [isStageIndicatorOn, expedientes]
+  );
 
   const dynamicResponsibleNames = useMemo(() => {
     const names = new Set();
@@ -165,6 +190,17 @@ export default function ExpedienteTable({
         );
       }
     },
+    ...(isStageIndicatorOn ? [{
+      key: 'stage_time', label: 'Tempo na Etapa', defaultVisible: true,
+      width: 'w-[110px]', sortable: false,
+      render: (exp) => {
+        const status = calculateExpedienteDerivedStatus(exp);
+        const days = getDaysInCurrentStage(exp, status, getExpedienteField);
+        const avg = stageAverages ? stageAverages[status] : null;
+        const severity = getStageTimeSeverity(days, avg);
+        return <StageTimeBadge days={days} severity={severity} avg={avg} />;
+      }
+    }] : []),
     {
       key: 'system', label: 'Sistema', defaultVisible: true,
       width: 'w-[110px]', sortable: true,
@@ -257,7 +293,7 @@ export default function ExpedienteTable({
       width: 'w-[160px]', sortable: true,
       render: (exp) => <StatusBadge status={calculateExpedienteDerivedStatus(exp)} className="" />
     },
-  ], [orgName]);
+  ], [orgName, isStageIndicatorOn, stageAverages]);
 
   const DEFAULT_VISIBLE = useMemo(() => {
     const map = {};
@@ -283,6 +319,7 @@ export default function ExpedienteTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(() => readLocalPref('itemsPerPage', 20));
   const [visibleColumns, setVisibleColumns] = useState(() => readLocalPref('visibleColumns', DEFAULT_VISIBLE));
+  const [density, setDensity] = useState(() => readLocalPref('density', 'comfortable'));
   const [isInitialized, setIsInitialized] = useState(false);
 
   const activeColumns = useMemo(() =>
@@ -319,6 +356,10 @@ export default function ExpedienteTable({
     writeLocalPref('itemsPerPage', itemsPerPage);
   }, [itemsPerPage]);
 
+  useEffect(() => {
+    writeLocalPref('density', density);
+  }, [density]);
+
   const appliedPrefsRef = useRef(null);
   useEffect(() => {
     if (isLoadingPrefs) return;
@@ -329,6 +370,7 @@ export default function ExpedienteTable({
       const p = preferences;
       const sConf = p['expediente_sortConfig'];
       const iPage = p['expediente_itemsPerPage'];
+      const dens = p['expediente_density'];
       if (sConf) {
         setSortConfig(sConf);
         writeLocalPref('sortConfig', sConf);
@@ -336,6 +378,10 @@ export default function ExpedienteTable({
       if (iPage != null) {
         setItemsPerPage(Number(iPage) || 20);
         writeLocalPref('itemsPerPage', Number(iPage) || 20);
+      }
+      if (dens === 'comfortable' || dens === 'compact') {
+        setDensity(dens);
+        writeLocalPref('density', dens);
       }
     }
     appliedPrefsRef.current = prefsKey;
@@ -347,14 +393,15 @@ export default function ExpedienteTable({
     if (isInitialized) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        updatePreferences({ expediente_sortConfig: sortConfig, expediente_itemsPerPage: itemsPerPage });
+        updatePreferences({ expediente_sortConfig: sortConfig, expediente_itemsPerPage: itemsPerPage, expediente_density: density });
       }, 500);
     }
     return () => clearTimeout(saveTimerRef.current);
-  }, [sortConfig, itemsPerPage, isInitialized, updatePreferences]);
+  }, [sortConfig, itemsPerPage, density, isInitialized, updatePreferences]);
 
   useEffect(() => {
     if (isInitialized) setCurrentPage(1);
+    setSelectedIds(new Set());
   }, [search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, dateFilters]);
 
   const filteredAndSortedExpedientes = useMemo(() => {
@@ -509,6 +556,138 @@ export default function ExpedienteTable({
   };
 
   const statuses = ["Pendente", "Em elaboração", "Em revisão", "Revisadas", "Na pasta"];
+
+  // ═══════════════════════════════════════════════════════════════════
+  // VISÕES SALVAS (flag `saved_views`)
+  // ═══════════════════════════════════════════════════════════════════
+  const currentFilterSnapshot = () => ({
+    search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter,
+    dateFilters, isAniversarianteFilter,
+  });
+
+  const saveCurrentView = () => {
+    const name = newViewName.trim();
+    if (!name) return;
+    const view = { id: Date.now().toString(36), name, filters: currentFilterSnapshot() };
+    updatePreferences({ savedExpedienteViews: [...savedViews, view] });
+    setNewViewName('');
+    toast.success(`Visão "${name}" salva.`);
+  };
+
+  const applySavedView = (view) => {
+    const f = view.filters || {};
+    setSearch(f.search || '');
+    setStatusFilter(f.statusFilter || 'all');
+    setResponsibleFilter(f.responsibleFilter || 'all');
+    setSystemFilter(f.systemFilter || 'all');
+    setOriginFilter(f.originFilter || 'all');
+    setUrgencyFilter(f.urgencyFilter || 'all');
+    setDateFilters(f.dateFilters || {
+      entry: { start: '', end: '' }, distribution: { start: '', end: '' }, analysis: { start: '', end: '' },
+      review_submission: { start: '', end: '' }, reviewed: { start: '', end: '' }, review_return: { start: '', end: '' }, archived: { start: '', end: '' }
+    });
+    setIsAniversarianteFilter(!!f.isAniversarianteFilter);
+    toast.success(`Visão "${view.name}" aplicada.`);
+  };
+
+  const removeSavedView = (id) => {
+    updatePreferences({ savedExpedienteViews: savedViews.filter(v => v.id !== id) });
+  };
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AÇÕES EM MASSA (flag `bulk_actions`)
+  // ═══════════════════════════════════════════════════════════════════
+  const allPageSelected = paginatedExpedientes.length > 0 && paginatedExpedientes.every(e => selectedIds.has(e.id));
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        paginatedExpedientes.forEach(e => next.delete(e.id));
+      } else {
+        paginatedExpedientes.forEach(e => next.add(e.id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const selectedExpedienteObjects = useMemo(
+    () => filteredAndSortedExpedientes.filter(e => selectedIds.has(e.id)),
+    [filteredAndSortedExpedientes, selectedIds]
+  );
+
+  const handleBulkArchive = async () => {
+    const toArchive = selectedExpedienteObjects.filter(e => !e.archived_date);
+    if (toArchive.length === 0) {
+      toast.info('Nenhum expediente selecionado pode ser arquivado.');
+      return;
+    }
+    const confirmed = window.confirm(`Arquivar ${toArchive.length} expediente(s) selecionado(s)?`);
+    if (!confirmed) return;
+
+    const results = await Promise.allSettled(toArchive.map((exp) => onBulkArchive(exp)));
+    const failed = results.filter((r) => r.status === 'rejected');
+    const succeeded = results.length - failed.length;
+
+    if (succeeded > 0) {
+      toast.success(`${succeeded} expediente(s) arquivado(s).`);
+    }
+    if (failed.length > 0) {
+      toast.error(`${failed.length} expediente(s) não puderam ser arquivados.`);
+    }
+    clearSelection();
+  };
+
+  // ═══════════════════════════════════════════════════════════════════
+  // EXPORTAÇÃO (flag `export_pdf_excel`)
+  // ═══════════════════════════════════════════════════════════════════
+  const DATE_EXPORT_KEYS = new Set(['entry_date', 'distribution_date', 'analysis_start_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
+
+  const getExportValue = (col, exp) => {
+    if (col.key === 'status') return calculateExpedienteDerivedStatus(exp);
+    if (col.key === 'stage_time') {
+      const status = calculateExpedienteDerivedStatus(exp);
+      const days = getDaysInCurrentStage(exp, status, getExpedienteField);
+      return days == null ? '' : `${days}d`;
+    }
+    if (DATE_EXPORT_KEYS.has(col.key)) return formatDate(getExpedienteField(exp, col.key));
+    return getExpedienteField(exp, col.key) ?? '';
+  };
+
+  const handleExport = (kind) => {
+    const rows = selectedIds.size > 0 ? selectedExpedienteObjects : filteredAndSortedExpedientes;
+    if (rows.length === 0) {
+      toast.info('Nenhum expediente para exportar.');
+      return;
+    }
+    const columns = activeColumns.map(col => ({ label: col.label, value: (e) => getExportValue(col, e) }));
+    const filenameBase = `expedientes-${new Date().toISOString().slice(0, 10)}`;
+    if (kind === 'excel') {
+      exportRowsToExcel({ rows, columns, filenameBase });
+    } else {
+      exportRowsToPdf({ rows, columns, filenameBase, title: 'Expedientes' });
+    }
+    toast.success(`Exportação de ${rows.length} expediente(s) iniciada.`);
+
+    if (isAccessAuditLogOn && organization?.id) {
+      logAccess({
+        organizationId: organization.id,
+        entityType: 'expediente',
+        action: 'export_table',
+        details: { format: kind, rowCount: rows.length },
+      }).catch(() => { /* best-effort — não deve impedir a exportação já concluída */ });
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -686,15 +865,124 @@ export default function ExpedienteTable({
                 <FilterX className="w-4 h-4" />
               </Button>
             )}
+
+            {isSavedViewsOn && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                    <Bookmark className="w-4 h-4" />
+                    <span className="hidden sm:inline">Visões</span>
+                    {savedViews.length > 0 && (
+                      <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">{savedViews.length}</Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-3">
+                  <div className="space-y-1 mb-3 max-h-48 overflow-y-auto">
+                    {savedViews.length === 0 ? (
+                      <p className="text-xs text-slate-400 px-1 py-2">Nenhuma visão salva ainda. Configure os filtros e salve abaixo.</p>
+                    ) : (
+                      savedViews.map(view => (
+                        <div key={view.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <button type="button" className="text-sm text-slate-700 dark:text-slate-200 flex-1 text-left truncate" onClick={() => applySavedView(view)}>
+                            {view.name}
+                          </button>
+                          <button type="button" className="text-slate-300 hover:text-rose-500 shrink-0" onClick={() => removeSavedView(view.id)} title="Excluir visão">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="flex gap-2 border-t border-slate-100 pt-3">
+                    <Input
+                      placeholder="Nome da visão atual..."
+                      value={newViewName}
+                      onChange={(e) => setNewViewName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveCurrentView(); }}
+                      className="h-8 text-xs"
+                    />
+                    <Button size="sm" className="h-8 shrink-0" onClick={saveCurrentView} disabled={!newViewName.trim()}>Salvar</Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {isExportOn && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-10 gap-2 text-slate-600">
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Exportar</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport('excel')}>Exportar Excel (.xlsx)</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('pdf')}>Exportar PDF</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {isDensityOn && (
+              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden h-10">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setDensity('comfortable')}
+                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'comfortable' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      <Rows3 className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Densidade confortável</TooltipContent>
+                </Tooltip>
+                <div className="w-px h-5 bg-slate-200" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setDensity('compact')}
+                      className={`h-full px-2.5 flex items-center transition-colors ${density === 'compact' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      <Rows4 className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Densidade compacta</TooltipContent>
+                </Tooltip>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {isBulkActionsOn && selectedIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900 rounded-lg px-4 py-2.5">
+          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{selectedIds.size} selecionado(s)</span>
+          <div className="flex items-center gap-2">
+            {isExportOn && (
+              <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleExport('excel')}>
+                <Download className="w-3.5 h-3.5" /> Exportar selecionados
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-rose-600 hover:text-rose-700 border-rose-200 hover:bg-rose-50" onClick={handleBulkArchive}>
+              <Archive className="w-3.5 h-3.5" /> Arquivar selecionados
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 text-slate-500" onClick={clearSelection}>Limpar seleção</Button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <Table style={{ minWidth: `${tableMinWidth}px` }}>
             <TableHeader>
               <TableRow className="bg-slate-50 shadow-sm">
+                {isBulkActionsOn && (
+                  <TableHead className="w-[40px] bg-slate-50 sticky top-0 z-30">
+                    <Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAllOnPage} aria-label="Selecionar todos nesta página" />
+                  </TableHead>
+                )}
                 {activeColumns.map(col => {
                   const isStickyLeft = col.sticky === 'left';
                   return (
@@ -717,6 +1005,9 @@ export default function ExpedienteTable({
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`skeleton-${i}`}>
+                    {isBulkActionsOn && (
+                      <TableCell><div className="h-4 w-4 bg-slate-100/60 rounded animate-pulse"></div></TableCell>
+                    )}
                     {activeColumns.map(col => (
                       <TableCell key={col.key}>
                         <div className="h-4 bg-slate-100/60 rounded animate-pulse w-full"></div>
@@ -727,7 +1018,7 @@ export default function ExpedienteTable({
                 ))
               ) : paginatedExpedientes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={activeColumns.length + 1} className="py-20">
+                  <TableCell colSpan={activeColumns.length + 1 + (isBulkActionsOn ? 1 : 0)} className="py-20">
                     <EmptyState
                       icon={search ? SearchX : FileX2}
                       title={search ? "Nenhum expediente encontrado" : "Nenhum expediente cadastrado"}
@@ -750,6 +1041,7 @@ export default function ExpedienteTable({
               ) : (
                 paginatedExpedientes.map((exp) => {
                   const colors = getStatusRowColor(exp);
+                  const cellPadding = density === 'compact' ? 'py-1' : 'py-3';
 
                   return (
                     <TableRow
@@ -757,6 +1049,15 @@ export default function ExpedienteTable({
                       className={`${colors.bg} ${colors.hover} ${colors.border} transition-all duration-150 group cursor-pointer border-b-[1.5px]`}
                       onClick={() => setSelectedExpediente(exp)}
                     >
+                      {isBulkActionsOn && (
+                        <TableCell className={cellPadding} onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(exp.id)}
+                            onCheckedChange={() => toggleSelectOne(exp.id)}
+                            aria-label={`Selecionar expediente ${getExpedienteField(exp, 'expediente_number') || ''}`}
+                          />
+                        </TableCell>
+                      )}
                       {activeColumns.map(col => {
                         const isStickyLeft = col.sticky === 'left';
                         const isFirstCol = col.key === 'expediente_number';
@@ -764,7 +1065,7 @@ export default function ExpedienteTable({
                         return (
                           <TableCell
                             key={col.key}
-                            className={`py-3 transition-colors ${isStickyLeft ? `sticky left-0 z-10 ${colors.bg} border-r ${colors.groupHover}` : ''} ${isFirstCol ? `border-l-[4px] ${colors.accent}` : ''} ${col.align === 'center' ? 'text-center' : ''}`}
+                            className={`${cellPadding} transition-colors ${isStickyLeft ? `sticky left-0 z-10 ${colors.bg} border-r ${colors.groupHover}` : ''} ${isFirstCol ? `border-l-[4px] ${colors.accent}` : ''} ${col.align === 'center' ? 'text-center' : ''}`}
                           >
                             {col.render(exp)}
                           </TableCell>

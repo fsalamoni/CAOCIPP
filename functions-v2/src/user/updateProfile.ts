@@ -7,6 +7,7 @@ interface UpdateProfileRequest {
     platform_name?: string;
     function?: string;
     notification_email?: string;
+    two_factor_enabled?: boolean;
 }
 
 export const updateProfile = onCall<UpdateProfileRequest>(
@@ -16,7 +17,7 @@ export const updateProfile = onCall<UpdateProfileRequest>(
             throw new HttpsError('unauthenticated', 'Authenticated user required');
         }
 
-        const { full_name, platform_name, function: userFunction, notification_email } = request.data as any;
+        const { full_name, platform_name, function: userFunction, notification_email, two_factor_enabled } = request.data as any;
         const userId = request.auth.uid;
         const db = admin.firestore();
 
@@ -25,6 +26,7 @@ export const updateProfile = onCall<UpdateProfileRequest>(
         if (platform_name !== undefined) updates.platform_name = formatPersonName(platform_name);
         if (userFunction !== undefined) updates.function = userFunction;
         if (notification_email !== undefined) updates.notification_email = notification_email;
+        if (two_factor_enabled !== undefined) updates.two_factor_enabled = two_factor_enabled === true;
 
         updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
 

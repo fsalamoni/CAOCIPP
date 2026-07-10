@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useNotifications } from '@/hooks/useFirestore';
+import { useOrganizations } from '@/hooks/useFirestore';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
@@ -18,7 +18,6 @@ import {
   HelpCircle,
   FileText,
   LogOut,
-  Bell,
   Menu,
   X,
   ShieldCheck,
@@ -28,18 +27,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { ThemeToggleButton } from '@/lib/ThemeSwitcher';
+import CommandPalette from '@/lib/CommandPalette';
+import NotificationBell from '@/lib/NotificationBell';
 
 import { useLocation } from 'react-router-dom';
 
@@ -75,14 +70,14 @@ export default function Layout({ children, currentPageName }) {
   // Fetch user organizations
   const { organizations } = useOrganizations(user?.uid);
 
-  /* Notifications Hook */
-  const { notifications } = useNotifications();
-
   /* Super-admin de plataforma (controla a página Administração & Custos) */
   const { isPlatformAdmin } = usePlatformAdmin();
 
   /* Páginas/processos personalizados (liga/desliga de módulos por órgão) */
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+
+  /* Calendário de vencimentos (aba extra no sub-menu do órgão). */
+  const deadlineCalendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
 
   /* Tipos de entidade personalizados do órgão ativo (só quando a flag liga). */
   const { entityTypes: activeOrgCustomTypes } = useEntityTypes(
@@ -110,40 +105,19 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <CommandPalette />
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-50">
         <h1 className="text-xl font-bold text-slate-800">Processos</h1>
         <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="w-5 h-5" />
-                {notifications.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500">
-                    {notifications.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <div className="p-2 font-semibold">Notificações</div>
-              <DropdownMenuSeparator />
-              {notifications.length === 0 ? (
-                <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
-              ) : (
-                notifications.slice(0, 5).map(notif => (
-                  <DropdownMenuItem key={notif.id} className="flex-col items-start p-3 cursor-pointer hover:bg-slate-50">
-                    <div className="font-medium text-sm text-slate-900">{notif.title}</div>
-                    <div className="text-xs text-slate-500 mt-1">{notif.message}</div>
-                    <div className="text-[10px] text-slate-400 mt-2 w-full text-right">
-                      {new Date(notif.created_at?.seconds * 1000).toLocaleString()}
-                    </div>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <ThemeToggleButton />
+          <NotificationBell variant="mobile" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+          >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
         </div>
@@ -224,7 +198,7 @@ export default function Layout({ children, currentPageName }) {
                           {/* Sub-navigation for active organization (oculta quando colapsada, como no protótipo) */}
                           {isOrgActive && !isCollapsed && (
                             <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
-                              {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [] })
+                              {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [], deadlineCalendarOn })
                                 .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
                                 .map((tab) => {
                                   const TabIcon = tab.icon;
@@ -289,6 +263,7 @@ export default function Layout({ children, currentPageName }) {
                       size="icon"
                       onClick={toggleCollapsed}
                       className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-muted"
+                      aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
                     >
                       {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                     </Button>
@@ -324,7 +299,7 @@ export default function Layout({ children, currentPageName }) {
                       <p className="text-xs text-slate-500 truncate" title={displayEmail}>{displayEmail}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50">
+                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50" aria-label="Sair da conta">
                     <LogOut className="w-4 h-4" />
                   </Button>
                 </div>
@@ -344,32 +319,10 @@ export default function Layout({ children, currentPageName }) {
                 currentPageName === 'Organization' ? 'Órgão' :
                   currentPageName}
           </h2>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="w-5 h-5" />
-                {notifications.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500">
-                    {notifications.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <div className="p-2 font-semibold">Notificações</div>
-              <DropdownMenuSeparator />
-              {notifications.length === 0 ? (
-                <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
-              ) : (
-                notifications.slice(0, 5).map(notif => (
-                  <DropdownMenuItem key={notif.id} className="flex-col items-start p-3">
-                    <div className="font-medium text-sm">{notif.title}</div>
-                    <div className="text-xs text-slate-500">{notif.message}</div>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+          <ThemeToggleButton />
+          <NotificationBell />
+          </div>
         </div>
 
         {/* Page Content */}

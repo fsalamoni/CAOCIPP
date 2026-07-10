@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
+import { fireOrgWebhook } from '../shared/webhooks';
 
 interface CreateExpedienteRequest {
     organizationId: string;
@@ -127,6 +128,15 @@ export const createExpediente = onCall<CreateExpedienteRequest>(
             'stats.expedientes_count': admin.firestore.FieldValue.increment(1),
             'stats.active_expedientes': admin.firestore.FieldValue.increment(1)
         });
+
+        // Webhooks de integração externa (flag `outbound_webhooks`).
+        if (data.urgencyRequest) {
+            await fireOrgWebhook(organizationId, 'urgent_created', {
+                entity_type: 'expediente',
+                entity_id: expedienteRef.id,
+                expediente_number: data.expedienteNumber,
+            });
+        }
 
         // 5. Audit Log
         await db.collection('auditLogs').add({

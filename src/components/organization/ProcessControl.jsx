@@ -46,6 +46,13 @@ export default function ProcessControl({
     }
   };
 
+  // Arquivamento em lote (ações em massa): sem confirm/toast por item — a
+  // confirmação e o resumo final são responsabilidade de quem chama (a
+  // tabela), que já pergunta uma única vez antes de disparar N chamadas.
+  const handleBulkArchiveProcess = async (process) => {
+    await archiveProcess({ id: process.id, organizationId: organization.id });
+  };
+
   const handleProcessMutation = () => {
     // Refresh handled by hooks
   };
@@ -231,7 +238,9 @@ export default function ProcessControl({
             isLoading={processesLoading}
             onEdit={handleEdit}
             onArchive={handleArchive}
+            onBulkArchive={handleBulkArchiveProcess}
             initialFilter={initialFilter}
+            organization={organization}
           />
         )}
 

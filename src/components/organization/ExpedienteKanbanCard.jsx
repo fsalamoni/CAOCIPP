@@ -3,11 +3,13 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, User, FolderOpen, Calendar, Eye, Building2, Monitor } from 'lucide-react';
-import { getExpedienteField } from '@/utils/expedienteUtils';
+import { getExpedienteField, calculateExpedienteDerivedStatus } from '@/utils/expedienteUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { getDaysInCurrentStage, getStageTimeSeverity } from '@/lib/stageTime';
+import StageTimeBadge from '@/components/ui/StageTimeBadge';
 import { toast } from 'sonner';
 import {
     Tooltip,
@@ -18,8 +20,9 @@ import {
 /**
  * ExpedienteKanbanCard — Visual card for an expediente in the Kanban board.
  */
-export default function ExpedienteKanbanCard({ expediente, columnId, overlay = false, onViewDetails }) {
+export default function ExpedienteKanbanCard({ expediente, columnId, overlay = false, onViewDetails, stageAverages = null }) {
     const canCopyProcessNumber = useFlag(FEATURE_FLAGS.COPY_PROCESS_NUMBER.key);
+    const stageTimeIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
 
     const {
         attributes,
@@ -47,6 +50,12 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
     const system = field('system');
     const origin = field('origin');
     const object = field('object');
+
+    // Indicador de tempo na etapa atual (flag `stage_time_indicator`).
+    const currentStatus = calculateExpedienteDerivedStatus(expediente);
+    const daysInStage = stageTimeIndicatorOn ? getDaysInCurrentStage(expediente, currentStatus, field) : null;
+    const stageAvg = stageAverages ? stageAverages[currentStatus] : null;
+    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage, stageAvg) : null;
 
     // Entry date
     const entryDateRaw = field('entry_date');
@@ -142,11 +151,16 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
                 </p>
             )}
 
-            {/* Entry Date */}
-            {entryDate && (
-                <div className="flex items-center gap-1 text-slate-400">
-                    <Calendar className="w-3 h-3" />
-                    <span className="text-[10px]">Entrada: {entryDate}</span>
+            {/* Entry Date + Stage time indicator */}
+            {(entryDate || daysInStage != null) && (
+                <div className="flex items-center justify-between gap-2">
+                    {entryDate && (
+                        <div className="flex items-center gap-1 text-slate-400 min-w-0">
+                            <Calendar className="w-3 h-3 shrink-0" />
+                            <span className="text-[10px] truncate">Entrada: {entryDate}</span>
+                        </div>
+                    )}
+                    <StageTimeBadge days={daysInStage} severity={stageSeverity} avg={stageAvg} className="ml-auto shrink-0" />
                 </div>
             )}
 

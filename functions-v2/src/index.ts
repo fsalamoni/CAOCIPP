@@ -51,3 +51,17 @@ export { backfillHistory } from './platform/historyBackfill';
 // ========== Páginas e processos personalizados (flag: custom_entities) ==========
 export { upsertEntityType, deleteEntityType } from './customEntities/entityTypes';
 export { createRecord, updateRecord, deleteRecord, importRecords } from './customEntities/records';
+
+// ========== Colaboração (flag: process_comments) ==========
+export { addComment } from './collaboration/comments';
+
+// ========== Automação em segundo plano (Fase 4) ==========
+export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
+export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
+export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
+
+// ========== Segurança, conformidade e integrações (Fase 5) ==========
+export { logAccess, getOrgAccessLog } from './security/accessLog';
+export { previewAnonymization, runAnonymization } from './security/anonymization';
+export { sendLoginOtp, verifyLoginOtp } from './security/twoFactor';
+export { testOrgWebhook } from './security/webhookTest';

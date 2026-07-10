@@ -1,10 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useProcesses, useExpedientes } from '@/hooks/useFirestore';
+import { useOrganizations, useProcesses, useExpedientes, useUserPreferences } from '@/hooks/useFirestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   FileText,
   Clock,
@@ -13,11 +21,15 @@ import {
   Loader2,
   PlusCircle,
   Building2,
-  ArrowRight
+  ArrowRight,
+  Settings2,
+  ArrowUp,
+  ArrowDown,
+  Target,
 } from 'lucide-react';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import { isValid } from 'date-fns';
-import { parseLocalDate } from '@/lib/dateUtils';
+import { parseLocalDate, calculateBusinessDays } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import MinimalBarList from '@/components/ui/MinimalBarList';
@@ -30,6 +42,28 @@ import {
 } from 'recharts';
 
 const DEFAULT_COLOR = DEFAULT_STATUS_CONFIG.color;
+
+// Painel inicial personalizável (flag `custom_dashboard`): cartões de
+// indicadores que podem ser reordenados/ocultados, preferência salva por
+// usuário (vale para todos os órgãos exibidos em "Meu Início").
+const DASHBOARD_WIDGET_DEFS = [
+  { key: 'total', label: 'Total de Processos' },
+  { key: 'urgent', label: 'Urgentes Pendentes' },
+  { key: 'mine', label: 'Sob minha responsabilidade / Para Revisão' },
+  { key: 'expedientes', label: 'Total de Expedientes' },
+];
+const DEFAULT_WIDGET_ORDER = DASHBOARD_WIDGET_DEFS.map((w) => w.key);
+
+function resolveDashboardWidgets(preferences) {
+  const saved = preferences?.dashboardWidgets;
+  const hidden = new Set(Array.isArray(saved?.hidden) ? saved.hidden : []);
+  let order = Array.isArray(saved?.order) && saved.order.length > 0 ? saved.order : DEFAULT_WIDGET_ORDER;
+  // Garante que chaves conhecidas (inclusive novas, adicionadas depois de o
+  // usuário já ter salvo uma ordem) sempre apareçam ao final, uma única vez.
+  order = order.filter((k) => DEFAULT_WIDGET_ORDER.includes(k));
+  DEFAULT_WIDGET_ORDER.forEach((k) => { if (!order.includes(k)) order.push(k); });
+  return { order, hidden };
+}
 
 // V2 (design minimalista): cor sólida (Tailwind) por status para a MinimalBarList,
 // mesma paleta usada nas colunas do Kanban.
@@ -45,6 +79,33 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, isLoadingAuth, isAuthenticated } = useAuth();
   const { organizations, isLoading: orgsLoading } = useOrganizations();
+  const isCustomDashboardOn = useFlag(FEATURE_FLAGS.CUSTOM_DASHBOARD.key);
+  const { preferences, updatePreferences } = useUserPreferences();
+  const [widgetSettingsOpen, setWidgetSettingsOpen] = useState(false);
+
+  const widgetConfig = useMemo(() => resolveDashboardWidgets(preferences), [preferences]);
+
+  // Flag DESLIGADA = comportamento atual (todos os 4 cartões, ordem padrão).
+  const visibleWidgets = isCustomDashboardOn
+    ? widgetConfig.order.filter((k) => !widgetConfig.hidden.has(k))
+    : DEFAULT_WIDGET_ORDER;
+
+  const toggleWidgetHidden = (key) => {
+    const isHidden = widgetConfig.hidden.has(key);
+    const nextHidden = isHidden
+      ? Array.from(widgetConfig.hidden).filter((k) => k !== key)
+      : [...Array.from(widgetConfig.hidden), key];
+    updatePreferences({ dashboardWidgets: { order: widgetConfig.order, hidden: nextHidden } });
+  };
+
+  const moveWidget = (key, direction) => {
+    const idx = widgetConfig.order.indexOf(key);
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= widgetConfig.order.length) return;
+    const newOrder = [...widgetConfig.order];
+    [newOrder[idx], newOrder[newIdx]] = [newOrder[newIdx], newOrder[idx]];
+    updatePreferences({ dashboardWidgets: { order: newOrder, hidden: Array.from(widgetConfig.hidden) } });
+  };
 
   // Redirect to landing if not authenticated
   React.useEffect(() => {
@@ -93,27 +154,95 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-10">
         {/* Header */}
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-            Meu Início
-          </h1>
-          <p className="text-slate-500 font-medium text-lg">
-            Resumo das suas atividades e responsabilidades em cada órgão.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+              Meu Início
+            </h1>
+            <p className="text-slate-500 font-medium text-lg">
+              Resumo das suas atividades e responsabilidades em cada órgão.
+            </p>
+          </div>
+          {isCustomDashboardOn && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 shrink-0"
+              onClick={() => setWidgetSettingsOpen(true)}
+            >
+              <Settings2 className="w-4 h-4" />
+              Personalizar painel
+            </Button>
+          )}
         </div>
 
         {/* Organizations List */}
         <div className="space-y-12">
           {organizations.map((org) => (
-            <UserOrganDashboard key={org.id} organization={org} user={user} />
+            <UserOrganDashboard key={org.id} organization={org} user={user} visibleWidgets={visibleWidgets} />
           ))}
         </div>
       </div>
+
+      {isCustomDashboardOn && (
+        <Dialog open={widgetSettingsOpen} onOpenChange={setWidgetSettingsOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4" /> Personalizar painel inicial
+              </DialogTitle>
+              <DialogDescription>
+                Escolha quais cartões de indicadores aparecem e em qual ordem, em todos os órgãos.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {widgetConfig.order.map((key, idx) => {
+                const def = DASHBOARD_WIDGET_DEFS.find((w) => w.key === key);
+                if (!def) return null;
+                const isHidden = widgetConfig.hidden.has(key);
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800"
+                  >
+                    <label className="flex items-center gap-2.5 min-w-0 cursor-pointer">
+                      <Checkbox checked={!isHidden} onCheckedChange={() => toggleWidgetHidden(key)} />
+                      <span className={`text-sm font-medium truncate ${isHidden ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
+                        {def.label}
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={idx === 0}
+                        onClick={() => moveWidget(key, -1)}
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={idx === widgetConfig.order.length - 1}
+                        onClick={() => moveWidget(key, 1)}
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
 
-function UserOrganDashboard({ organization, user }) {
+function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGET_ORDER }) {
   const navigate = useNavigate();
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const currentYear = new Date().getFullYear();
@@ -131,6 +260,35 @@ function UserOrganDashboard({ organization, user }) {
     () => expedientes.filter(e => e.responsible_user_id === user?.uid),
     [expedientes, user?.uid]
   );
+
+  // Meta de conclusão do assessor (flag `assessor_goals`): % das Consultas e
+  // Expedientes sob sua responsabilidade concluídos (ou, se ainda abertos,
+  // dentro do prazo até agora) em até N dias úteis, frente à meta do órgão.
+  const isGoalsOn = useFlag(FEATURE_FLAGS.ASSESSOR_GOALS.key);
+  const goalsConfig = organization.goalsConfig;
+  const goalProgress = useMemo(() => {
+    if (!isGoalsOn || !goalsConfig?.enabled) return null;
+    const items = [...myProcesses, ...myExpedientes];
+    if (items.length === 0) return null;
+    const withinDays = Number(goalsConfig.withinDays) || 10;
+    const today = new Date();
+    let meeting = 0;
+    items.forEach((item) => {
+      if (!item.entry_date) return;
+      if (item.status === 'Na pasta') {
+        const endDate = item.archived_date || item.review_return_date;
+        if (endDate && calculateBusinessDays(item.entry_date, endDate) <= withinDays) meeting += 1;
+      } else if (calculateBusinessDays(item.entry_date, today) <= withinDays) {
+        meeting += 1;
+      }
+    });
+    return {
+      achievedPercent: Math.round((meeting / items.length) * 100),
+      targetPercent: Number(goalsConfig.targetPercent) || 80,
+      withinDays,
+      total: items.length,
+    };
+  }, [isGoalsOn, goalsConfig, myProcesses, myExpedientes]);
 
   // Normalize function name
   const userFunc = (organization.userFunction || '').toLowerCase();
@@ -297,49 +455,60 @@ function UserOrganDashboard({ organization, user }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* KPI: Total */}
-        <KpiCard
-          title="Total de Processos"
-          value={kpis.total}
-          icon={FileText}
-          color="text-slate-600"
-          bgIcon="bg-slate-100"
-          subtext={`Registrados em ${selectedYear}`}
-          onClick={() => navigate(`/Organization?id=${organization.id}`)}
-        />
-
-        {/* KPI: Urgentes */}
-        <KpiCard
-          title="Urgentes Pendentes"
-          value={kpis.urgent}
-          icon={AlertCircle}
-          color="text-red-600"
-          bgIcon="bg-red-100"
-          subtext="Requerem atenção"
-          onClick={() => navigate(`/Organization?id=${organization.id}&filter=urgent`)}
-          pulse={kpis.urgent > 0}
-        />
-
-        {/* KPI: Meus */}
-        <KpiCard
-          title={kpis.mineLabel}
-          value={kpis.mineCount}
-          icon={isDecisor ? Clock : Users}
-          color="text-blue-600"
-          bgIcon="bg-blue-100"
-          subtext={kpis.mineSubtext}
-          onClick={() => navigate(`/Organization?id=${organization.id}&filter=mine`)}
-        />
-
-        <KpiCard
-          title="Total de Expedientes"
-          value={filteredExpedientes.length}
-          icon={FileText}
-          color="text-violet-600"
-          bgIcon="bg-violet-100"
-          subtext={`Meus: ${myExpedientesInYear}`}
-          onClick={() => navigate(`/Organization?id=${organization.id}&tab=expedientes`)}
-        />
+        {(() => {
+          const widgetNodes = {
+            total: (
+              <KpiCard
+                key="total"
+                title="Total de Processos"
+                value={kpis.total}
+                icon={FileText}
+                color="text-slate-600"
+                bgIcon="bg-slate-100"
+                subtext={`Registrados em ${selectedYear}`}
+                onClick={() => navigate(`/Organization?id=${organization.id}`)}
+              />
+            ),
+            urgent: (
+              <KpiCard
+                key="urgent"
+                title="Urgentes Pendentes"
+                value={kpis.urgent}
+                icon={AlertCircle}
+                color="text-red-600"
+                bgIcon="bg-red-100"
+                subtext="Requerem atenção"
+                onClick={() => navigate(`/Organization?id=${organization.id}&filter=urgent`)}
+                pulse={kpis.urgent > 0}
+              />
+            ),
+            mine: (
+              <KpiCard
+                key="mine"
+                title={kpis.mineLabel}
+                value={kpis.mineCount}
+                icon={isDecisor ? Clock : Users}
+                color="text-blue-600"
+                bgIcon="bg-blue-100"
+                subtext={kpis.mineSubtext}
+                onClick={() => navigate(`/Organization?id=${organization.id}&filter=mine`)}
+              />
+            ),
+            expedientes: (
+              <KpiCard
+                key="expedientes"
+                title="Total de Expedientes"
+                value={filteredExpedientes.length}
+                icon={FileText}
+                color="text-violet-600"
+                bgIcon="bg-violet-100"
+                subtext={`Meus: ${myExpedientesInYear}`}
+                onClick={() => navigate(`/Organization?id=${organization.id}&tab=expedientes`)}
+              />
+            ),
+          };
+          return visibleWidgets.map((key) => widgetNodes[key] || null);
+        })()}
 
         {/* Gráfico resumido lateral */}
         <Card className="shadow-sm border-slate-200 flex flex-col justify-center p-4 lg:col-span-4">
@@ -387,6 +556,33 @@ function UserOrganDashboard({ organization, user }) {
           )}
         </Card>
       </div>
+
+      {goalProgress && (
+        <Card className="shadow-sm border-slate-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  Minha meta de conclusão
+                </span>
+              </div>
+              <span className={`text-sm font-bold ${goalProgress.achievedPercent >= goalProgress.targetPercent ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {goalProgress.achievedPercent}% / {goalProgress.targetPercent}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${goalProgress.achievedPercent >= goalProgress.targetPercent ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                style={{ width: `${Math.min(100, goalProgress.achievedPercent)}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              {goalProgress.total} Consulta(s)/Expediente(s) sob sua responsabilidade, meta de {goalProgress.targetPercent}% concluídos (ou em dia) em até {goalProgress.withinDays} dia(s) útil(eis).
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Activity Feed and Status Legend */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -6,6 +6,7 @@ const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 const history_1 = require("../shared/history");
 const normalization_1 = require("../shared/normalization");
+const webhooks_1 = require("../shared/webhooks");
 exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -128,6 +129,14 @@ exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
         details: { expediente_id: id, changes: Object.keys(changes) },
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
+    // Webhooks de integração externa (flag `outbound_webhooks`).
+    if (changes.archived_date && !expedienteData.archived_date) {
+        await (0, webhooks_1.fireOrgWebhook)(organizationId, 'archived', {
+            entity_type: 'expediente',
+            entity_id: id,
+            expediente_number: expedienteData.expediente_number,
+        });
+    }
     return { success: true };
 });
 //# sourceMappingURL=update.js.map

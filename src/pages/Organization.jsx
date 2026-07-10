@@ -18,6 +18,8 @@ import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
 import ExpedienteControl from '../components/organization/ExpedienteControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
+import DeadlineCalendar from '../components/organization/DeadlineCalendar';
+import OnboardingTour from '../components/organization/OnboardingTour';
 import OrgTabBar from '../components/organization/OrgTabBar';
 
 import KanbanBoard from '../components/organization/KanbanBoard';
@@ -81,6 +83,7 @@ export default function Organization() {
   const perTabLoading = useFlag(FEATURE_FLAGS.PER_TAB_LOADING.key);
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
+  const deadlineCalendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
 
   // Tipos de entidade personalizados (apenas quando a flag está ligada).
   const { entityTypes: customTypes } = useEntityTypes(customEntitiesOn ? selectedOrgId : null);
@@ -94,8 +97,8 @@ export default function Organization() {
     return { mode: modeMap[m[1]], typeId: m[2] };
   }, [activeTab, customEntitiesOn]);
 
-  const TABS_NEEDING_PROCESSES = ['info', 'kanban', 'processes', 'summary'];
-  const TABS_NEEDING_EXPEDIENTES = ['info', 'kanban-expedientes', 'expedientes', 'summary'];
+  const TABS_NEEDING_PROCESSES = ['info', 'kanban', 'processes', 'summary', 'calendar'];
+  const TABS_NEEDING_EXPEDIENTES = ['info', 'kanban-expedientes', 'expedientes', 'summary', 'calendar'];
   const wantProcesses = !perTabLoading || TABS_NEEDING_PROCESSES.includes(activeTab);
   const wantExpedientes = !perTabLoading || TABS_NEEDING_EXPEDIENTES.includes(activeTab);
   const processesOrgId = wantProcesses ? selectedOrgId : null;
@@ -140,21 +143,29 @@ export default function Organization() {
   // V2) — mesma fonte e mesmo filtro de permissão usados no sub-menu da sidebar.
   const orgTabs = React.useMemo(() => {
     if (!isV2 || !organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes })
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [isV2, organization, customEntitiesOn, customTypes, userRole, userMembership]);
+  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, userRole, userMembership]);
+
+  // Abas para o tour de onboarding (flag `onboarding_tour`): independente do
+  // design V2, já que a navegação existe (via sidebar) em qualquer um deles.
+  const tourTabs = React.useMemo(() => {
+    if (!organization) return [];
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn })
+      .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
+  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, userRole, userMembership]);
 
   // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
   // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible
   // devolve true para todas as abas built-in (nada muda).
   useEffect(() => {
     if (!customEntitiesOn || !organization) return;
-    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes });
+    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes, deadlineCalendarOn });
     // 'admin' depende do papel; mantém o comportamento atual (só creator vê).
     if (!visible && activeTab !== 'admin') {
       navigate(`/Organization?id=${selectedOrgId}&tab=info`, { replace: true });
     }
-  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes]);
+  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes, deadlineCalendarOn]);
 
   // Loading state
   if (isLoadingAuth || orgsLoading || orgLoading) {
@@ -251,6 +262,8 @@ export default function Organization() {
         </header>
 
         {isV2 && <OrgTabBar tabs={orgTabs} activeTab={activeTab} orgId={selectedOrgId} />}
+
+        <OnboardingTour organization={organization} orgTabs={tourTabs} />
 
         {/* Main Content Area */}
         <div className="flex-1 min-h-0">
@@ -351,6 +364,14 @@ export default function Organization() {
               expedientes={expedientes}
               members={activeMembers}
               organization={organization}
+            />
+          )}
+
+          {activeTab === 'calendar' && deadlineCalendarOn && (
+            <DeadlineCalendar
+              organization={organization}
+              processes={processes}
+              expedientes={expedientes}
             />
           )}
 

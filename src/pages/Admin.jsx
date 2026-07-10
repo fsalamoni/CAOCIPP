@@ -14,6 +14,7 @@ import {
     SlidersHorizontal,
     HeartPulse,
     Wrench,
+    Mail,
 } from 'lucide-react';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -29,6 +30,7 @@ import FootprintPanel from '@/components/admin/FootprintPanel';
 import QuotasPanel from '@/components/admin/QuotasPanel';
 import HealthPanel from '@/components/admin/HealthPanel';
 import DataToolsPanel from '@/components/admin/DataToolsPanel';
+import EmailProviderPanel from '@/components/admin/EmailProviderPanel';
 
 export default function Admin() {
     const { isPlatformAdmin, isLoading } = usePlatformAdmin();
@@ -84,6 +86,9 @@ export default function Admin() {
                     <TabsTrigger value="admins" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
                         <ShieldCheck className="w-4 h-4" /> Administradores
                     </TabsTrigger>
+                    <TabsTrigger value="email" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
+                        <Mail className="w-4 h-4" /> E-mail
+                    </TabsTrigger>
                     {wave2 && (
                         <>
                             <TabsTrigger value="orgs" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700">
@@ -126,6 +131,9 @@ export default function Admin() {
                 </TabsContent>
                 <TabsContent value="admins">
                     <PlatformAdminsPanel />
+                </TabsContent>
+                <TabsContent value="email">
+                    <EmailProviderPanel />
                 </TabsContent>
                 {wave2 && (
                     <>

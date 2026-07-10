@@ -24,6 +24,9 @@ import { calculateDerivedStatus, getProcessField } from '@/utils/processUtils';
 import { updateProcess } from '@/services/functionsService';
 import { isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { computeStageAverages } from '@/lib/stageTime';
 import KanbanCard from './KanbanCard';
 import KanbanTransitionDialog from './KanbanTransitionDialog';
 import ProcessDetailSheet from './ProcessDetailSheet';
@@ -150,6 +153,15 @@ export default function KanbanBoard({
     processesLoading,
 }) {
     const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
+
+    // Indicador de tempo na etapa atual (flag `stage_time_indicator`): média
+    // histórica calculada sobre TODOS os processos do órgão (não só o ano
+    // filtrado), para uma referência mais estável.
+    const stageTimeIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
+    const stageAverages = useMemo(
+        () => (stageTimeIndicatorOn ? computeStageAverages(processes, getProcessField) : null),
+        [stageTimeIndicatorOn, processes]
+    );
 
     const [activeId, setActiveId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -858,6 +870,7 @@ export default function KanbanBoard({
                             column={col}
                             processes={columns[col.id] || []}
                             onViewDetails={handleViewDetails}
+                            stageAverages={stageAverages}
                         />
                     ))}
                 </div>
@@ -922,7 +935,7 @@ export default function KanbanBoard({
 }
 
 // === Droppable Column ===
-function KanbanColumn({ column, processes, onViewDetails }) {
+function KanbanColumn({ column, processes, onViewDetails, stageAverages }) {
     const { setNodeRef, isOver } = useDroppable({
         id: column.id,
         data: { columnId: column.id },
@@ -962,7 +975,7 @@ function KanbanColumn({ column, processes, onViewDetails }) {
                 <SortableContext items={processes.map(p => p.id)} strategy={verticalListSortingStrategy}>
                     {processes.length > 0 ? (
                         processes.map(p => (
-                            <KanbanCard key={p.id} process={p} columnId={column.id} onViewDetails={onViewDetails} />
+                            <KanbanCard key={p.id} process={p} columnId={column.id} onViewDetails={onViewDetails} stageAverages={stageAverages} />
                         ))
                     ) : (
                         <EmptyState

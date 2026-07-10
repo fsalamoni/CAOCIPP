@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
-import { updateExpediente, deleteExpediente } from '@/services/functionsService';
+import { updateExpediente, deleteExpediente, logAccess } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +28,10 @@ import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
 import ProcessLogDialog from './ProcessLogDialog';
+import EntityComments from './EntityComments';
+import { LivePresenceIndicator } from '@/lib/LivePresence';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 
 const DEFAULT_SYSTEMS = ['SIM', 'SGP', 'SPU', 'E-mail'];
 const DEFAULT_ORIGINS = ['SUBINST', 'SUBADM', 'Gabinete PGJ', 'SUBGES', 'Outros'];
@@ -35,6 +39,27 @@ const DEFAULT_ORIGINS = ['SUBINST', 'SUBADM', 'Gabinete PGJ', 'SUBGES', 'Outros'
 export default function EditExpedienteDialog({ open, setOpen, expediente, members, onSuccess, organizationId, userRole, organization }) {
   const { user } = useAuth();
   const canDeleteRecords = useOrgPermission('delete_records');
+  const isCommentsOn = useFlag(FEATURE_FLAGS.PROCESS_COMMENTS.key);
+  const isPresenceOn = useFlag(FEATURE_FLAGS.LIVE_PRESENCE.key);
+  const showCollabTab = isCommentsOn || isPresenceOn;
+  const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
+
+  // Log de acesso e auditoria (flag `access_audit_log`): registra a abertura
+  // de um registro com restrição de acesso. Uma vez por abertura do diálogo.
+  // Mesma normalização usada para Consultas: aceita booleano OU string "Sim"/"Não".
+  const isExpedienteRestricted = expediente?.access_restriction === true
+    || String(expediente?.access_restriction).toLowerCase().trim() === 'sim';
+
+  useEffect(() => {
+    if (open && isAccessAuditLogOn && isExpedienteRestricted && expediente?.id) {
+      logAccess({
+        organizationId,
+        entityType: 'expediente',
+        entityId: expediente.id,
+        action: 'view_restricted',
+      }).catch(() => { /* best-effort */ });
+    }
+  }, [open, expediente?.id]);
   const [formData, setFormData] = useState({
     expediente_number: '',
     system: '',
@@ -313,10 +338,11 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
 
           <form onSubmit={handleSubmit} className="mt-4">
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className={cn('grid w-full', showCollabTab ? 'grid-cols-4' : 'grid-cols-3')}>
                 <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
                 <TabsTrigger value="workflow">Fluxo de Trabalho</TabsTrigger>
                 <TabsTrigger value="archive">Revisão e Arquivo</TabsTrigger>
+                {showCollabTab && <TabsTrigger value="collab">Colaboração</TabsTrigger>}
               </TabsList>
 
               <TabsContent value="basic" className="space-y-4 mt-4">
@@ -552,6 +578,31 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                   />
                 </div>
               </TabsContent>
+
+              {showCollabTab && (
+                <TabsContent value="collab" className="space-y-4 mt-4">
+                  {isPresenceOn && expediente?.id && (
+                    <LivePresenceIndicator
+                      organizationId={organizationId}
+                      entityType="expediente"
+                      entityId={expediente.id}
+                      userName={user?.displayName}
+                    />
+                  )}
+                  {isCommentsOn && expediente?.id ? (
+                    <EntityComments
+                      organizationId={organizationId}
+                      entityType="expediente"
+                      entityId={expediente.id}
+                      members={members}
+                    />
+                  ) : isCommentsOn && (
+                    <p className="text-sm text-slate-400 text-center py-6">
+                      Salve o expediente antes de adicionar comentários.
+                    </p>
+                  )}
+                </TabsContent>
+              )}
             </Tabs>
 
             <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">

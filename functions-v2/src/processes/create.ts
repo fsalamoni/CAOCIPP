@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
+import { fireOrgWebhook } from '../shared/webhooks';
 
 interface CreateProcessRequest {
     organizationId: string;
@@ -135,6 +136,16 @@ export const createProcess = onCall<CreateProcessRequest>(
             'stats.processes_count': admin.firestore.FieldValue.increment(1),
             'stats.active_processes': admin.firestore.FieldValue.increment(1)
         });
+
+        // Webhooks de integração externa (flag `outbound_webhooks`).
+        if (data.urgencyRequest) {
+            await fireOrgWebhook(organizationId, 'urgent_created', {
+                entity_type: 'process',
+                entity_id: processRef.id,
+                process_number: processNumber,
+                consultant,
+            });
+        }
 
         // 5. Audit Log
         await db.collection('auditLogs').add({
