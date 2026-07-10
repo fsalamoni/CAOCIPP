@@ -20,6 +20,18 @@ export const updateMember = onCall<UpdateMemberRequest>(
 
         const { organizationId, userIdToUpdate, newRole, newFunction, permissions } = request.data;
 
+        // 'creator' é atribuído uma única vez, em createOrganization, e nunca
+        // deve ser alcançável por aqui — sem esta validação, um admin (não
+        // apenas o criador) podia chamar updateMember com newRole:'creator'
+        // numa conta própria/de um cúmplice e virar um segundo "dono" da
+        // organização: ganha todas as permissões implicitamente
+        // (shared/permissions.ts), os campos reservados ao criador em
+        // updateOrganization, e fica imune a ser removido (removeMember
+        // bloqueia remover 'creator').
+        if (newRole !== undefined && newRole !== 'admin' && newRole !== 'member') {
+            throw new HttpsError('invalid-argument', 'newRole inválido.');
+        }
+
         const db = admin.firestore();
         const requesterId = request.auth.uid;
 

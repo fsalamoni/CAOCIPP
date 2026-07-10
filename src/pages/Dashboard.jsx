@@ -28,6 +28,7 @@ import {
   Target,
 } from 'lucide-react';
 import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
+import { isProcessUrgent } from '@/utils/processUtils';
 import { isValid } from 'date-fns';
 import { parseLocalDate, calculateBusinessDays } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -218,6 +219,7 @@ export default function Dashboard() {
                         className="h-7 w-7"
                         disabled={idx === 0}
                         onClick={() => moveWidget(key, -1)}
+                        aria-label={`Mover "${def.label}" para cima`}
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
                       </Button>
@@ -227,6 +229,7 @@ export default function Dashboard() {
                         className="h-7 w-7"
                         disabled={idx === widgetConfig.order.length - 1}
                         onClick={() => moveWidget(key, 1)}
+                        aria-label={`Mover "${def.label}" para baixo`}
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
                       </Button>
@@ -344,7 +347,7 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
   const kpis = useMemo(() => {
     const total = filteredProcesses.length;
     // Urgent + Pending only (per requirement)
-    const urgent = filteredProcesses.filter(p => p.urgency_request && p.status === 'Pendente').length;
+    const urgent = filteredProcesses.filter(p => isProcessUrgent(p) && p.status === 'Pendente').length;
 
     let mineCount = 0;
     let mineLabel = "Meus Processos";
@@ -491,7 +494,7 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                 color="text-blue-600"
                 bgIcon="bg-blue-100"
                 subtext={kpis.mineSubtext}
-                onClick={() => navigate(`/Organization?id=${organization.id}&filter=mine`)}
+                onClick={() => navigate(`/Organization?id=${organization.id}&filter=${isDecisor ? 'review' : 'mine'}`)}
               />
             ),
             expedientes: (

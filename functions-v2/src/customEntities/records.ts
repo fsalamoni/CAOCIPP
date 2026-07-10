@@ -415,7 +415,9 @@ export const deleteRecord = onCall<DeleteRecordRequest>(
         }
         const entityTypeId = current.entity_type_id;
 
-        await ref.delete();
+        // Recursivo: remove também a subcoleção history (mesma razão da
+        // correção equivalente em processes/expedientes delete.ts).
+        await db.recursiveDelete(ref);
 
         try {
             await db.collection('organizations').doc(organizationId).update({

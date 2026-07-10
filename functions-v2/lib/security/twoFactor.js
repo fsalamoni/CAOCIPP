@@ -20,18 +20,30 @@ const email_1 = require("../shared/email");
 // (provedor de e-mail) que foge do controle dele.
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+const RESEND_COOLDOWN_MS = 30 * 1000;
 function hashCode(uid, code) {
     return crypto.createHash('sha256').update(`${uid}:${code}`).digest('hex');
 }
 exports.sendLoginOtp = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    var _a, _b, _c;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
     const userId = request.auth.uid;
     const db = admin.firestore();
+    // Cooldown entre envios: sem isto, qualquer usuário autenticado podia
+    // apontar notification_email para o e-mail de um terceiro (não exige
+    // confirmação de posse) e chamar esta função em loop, bombardeando a
+    // vítima com e-mails reais indefinidamente.
+    const otpRef = db.collection('otpCodes').doc(userId);
+    const existing = await otpRef.get();
+    const lastSentAt = (_c = (_b = (_a = existing.data()) === null || _a === void 0 ? void 0 : _a.created_at) === null || _b === void 0 ? void 0 : _b.toMillis) === null || _c === void 0 ? void 0 : _c.call(_b);
+    if (lastSentAt && Date.now() - lastSentAt < RESEND_COOLDOWN_MS) {
+        throw new https_1.HttpsError('resource-exhausted', 'Aguarde alguns segundos antes de solicitar um novo código.');
+    }
     const code = String(crypto.randomInt(100000, 1000000));
     const codeHash = hashCode(userId, code);
-    await db.collection('otpCodes').doc(userId).set({
+    await otpRef.set({
         codeHash,
         expires_at: admin.firestore.Timestamp.fromMillis(Date.now() + OTP_TTL_MS),
         attempts: 0,

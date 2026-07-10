@@ -17,7 +17,8 @@
 
 import { resolveBuiltinModules } from '@/lib/organizationModules';
 import { statusConfig } from '@/config/processStatus';
-import { getExpedienteField, calculateExpedienteDerivedStatus } from '@/utils/expedienteUtils';
+import { isProcessUrgent } from '@/utils/processUtils';
+import { getExpedienteField, calculateExpedienteDerivedStatus, isExpedienteUrgent } from '@/utils/expedienteUtils';
 import { PHASE_FIELD_KEY } from '@/lib/metricsEngine';
 
 // ----------------------------------------------------------------------------
@@ -242,7 +243,7 @@ export function buildPageContext(kind, schema) {
         return {
             getField: (p, key) => {
                 if (key === 'status') return p?.status;
-                if (key === 'urgency_request') return p?.urgency_request === true;
+                if (key === 'urgency_request') return isProcessUrgent(p);
                 return p?.[key];
             },
             getPhase: (p) => p?.status || 'Pendente',
@@ -254,7 +255,7 @@ export function buildPageContext(kind, schema) {
         return {
             getField: (e, key) => {
                 if (key === 'status') return calculateExpedienteDerivedStatus(e);
-                if (key === 'urgency_request') return getExpedienteField(e, 'urgency_request') === true;
+                if (key === 'urgency_request') return isExpedienteUrgent(e);
                 return getExpedienteField(e, key);
             },
             getPhase: (e) => calculateExpedienteDerivedStatus(e),

@@ -48,8 +48,11 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
             throw new HttpsError('permission-denied', 'Process belongs to another organization');
         }
 
-        // 3. Delete
-        await processRef.delete();
+        // 3. Delete (recursivo: remove também as subcoleções history/comments —
+        // um `.delete()` simples deixava essas subcoleções órfãs e, pelas
+        // regras de leitura delas dependerem de um get() no doc pai, também
+        // permanentemente inacessíveis, sem nenhuma forma de limpeza depois).
+        await db.recursiveDelete(processRef);
 
         // 4. Update stats
         await db.collection('organizations').doc(organizationId).update({

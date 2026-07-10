@@ -38,8 +38,11 @@ exports.deleteProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     if (((_a = processSnap.data()) === null || _a === void 0 ? void 0 : _a.organization_id) !== organizationId) {
         throw new https_1.HttpsError('permission-denied', 'Process belongs to another organization');
     }
-    // 3. Delete
-    await processRef.delete();
+    // 3. Delete (recursivo: remove também as subcoleções history/comments —
+    // um `.delete()` simples deixava essas subcoleções órfãs e, pelas
+    // regras de leitura delas dependerem de um get() no doc pai, também
+    // permanentemente inacessíveis, sem nenhuma forma de limpeza depois).
+    await db.recursiveDelete(processRef);
     // 4. Update stats
     await db.collection('organizations').doc(organizationId).update({
         'stats.processes_count': admin.firestore.FieldValue.increment(-1),

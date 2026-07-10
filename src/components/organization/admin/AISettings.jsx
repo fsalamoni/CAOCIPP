@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,13 @@ export default function AISettings({ organization }) {
         customPrompt: '',
     });
     const [loading, setLoading] = useState(false);
+
+    // Sem isto, trocar de órgão sem recarregar a página mantinha a config do
+    // órgão anterior no formulário — "Salvar" gravaria as configurações de
+    // resumo por IA de um órgão em outro.
+    useEffect(() => {
+        setSettings(organization.summarySettings || { autoSummarize: true, customPrompt: '' });
+    }, [organization.id]);
 
     const handleSave = async () => {
         setLoading(true);

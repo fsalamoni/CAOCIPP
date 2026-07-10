@@ -48,8 +48,9 @@ export const deleteExpediente = onCall<DeleteExpedienteRequest>(
             throw new HttpsError('permission-denied', 'Expediente belongs to another organization');
         }
 
-        // 3. Delete
-        await expedienteRef.delete();
+        // 3. Delete (recursivo: remove também as subcoleções history/comments,
+        // mesma razão da correção equivalente em processes/delete.ts).
+        await db.recursiveDelete(expedienteRef);
 
         // 4. Update stats
         await db.collection('organizations').doc(organizationId).update({
