@@ -86,6 +86,9 @@ export default function Layout({ children, currentPageName }) {
   /* Páginas/processos personalizados (liga/desliga de módulos por órgão) */
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
 
+  /* Calendário de vencimentos (aba extra no sub-menu do órgão). */
+  const deadlineCalendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
+
   /* Tipos de entidade personalizados do órgão ativo (só quando a flag liga). */
   const { entityTypes: activeOrgCustomTypes } = useEntityTypes(
     customEntitiesOn ? activeOrgId : null
@@ -228,7 +231,7 @@ export default function Layout({ children, currentPageName }) {
                           {/* Sub-navigation for active organization (oculta quando colapsada, como no protótipo) */}
                           {isOrgActive && !isCollapsed && (
                             <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
-                              {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [] })
+                              {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [], deadlineCalendarOn })
                                 .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
                                 .map((tab) => {
                                   const TabIcon = tab.icon;

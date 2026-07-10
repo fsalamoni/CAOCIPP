@@ -7,7 +7,10 @@ import {
   AlertCircle,
   FileText,
   CalendarDays,
-  ChevronDown
+  ChevronDown,
+  ArrowUp,
+  ArrowDown,
+  Minus
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { isValid } from 'date-fns';
@@ -29,6 +32,7 @@ const V2_ICON_COLOR = {
 
 export default function IntelligentSummary({ processes = [], members, expedientes = [] }) {
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
+  const isPeriodComparisonOn = useFlag(FEATURE_FLAGS.PERIOD_COMPARISON.key);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' or 0-11
@@ -186,6 +190,53 @@ export default function IntelligentSummary({ processes = [], members, expediente
   });
 
 
+  // ========== COMPARAÇÃO ENTRE PERÍODOS (flag `period_comparison`) ==========
+  // Mês selecionado -> compara com o mês anterior; "todos os meses" -> compara
+  // com o ano anterior. Mantém os cálculos do período atual intocados acima;
+  // aqui apenas espelha a mesma lógica de filtro/agregação para o período
+  // anterior equivalente.
+  const previousPeriod = useMemo(() => {
+    if (selectedMonth === 'all') {
+      return { year: selectedYear - 1, month: 'all' };
+    }
+    const month = Number(selectedMonth);
+    return month === 0 ? { year: selectedYear - 1, month: 11 } : { year: selectedYear, month: month - 1 };
+  }, [selectedYear, selectedMonth]);
+
+  const previousPeriodLabel = previousPeriod.month === 'all'
+    ? `Ano ${previousPeriod.year}`
+    : `${PT_MONTHS[previousPeriod.month]} de ${previousPeriod.year}`;
+
+  const filterByPeriod = (records, year, month) => records.filter(p => {
+    const date = parseLocalDate(p.entry_date);
+    if (!isValid(date)) return false;
+    const yearMatch = date.getFullYear() === year;
+    const monthMatch = month === 'all' || date.getMonth() === Number(month);
+    return yearMatch && monthMatch;
+  });
+
+  const summarizePeriod = (records) => {
+    const total = records.length;
+    const finished = records.filter(p => p.status === 'Na pasta').length;
+    const urgent = records.filter(p => p.urgency_request && p.status !== 'Na pasta').length;
+    const completionRate = total > 0 ? (finished / total) * 100 : 0;
+    const timeData = records.filter(p => p.entry_date && p.review_return_date);
+    const avgTotalTime = timeData.length > 0
+      ? timeData.reduce((acc, p) => acc + calculateBusinessDays(p.entry_date, p.review_return_date), 0) / timeData.length
+      : 0;
+    return { total, urgent, completionRate, avgTotalTime };
+  };
+
+  const previousProcessSummary = useMemo(() => {
+    if (!isPeriodComparisonOn) return null;
+    return summarizePeriod(filterByPeriod(processes, previousPeriod.year, previousPeriod.month));
+  }, [isPeriodComparisonOn, processes, previousPeriod]);
+
+  const previousExpedienteSummary = useMemo(() => {
+    if (!isPeriodComparisonOn) return null;
+    return summarizePeriod(filterByPeriod(expedientes, previousPeriod.year, previousPeriod.month));
+  }, [isPeriodComparisonOn, expedientes, previousPeriod]);
+
   return (
     <div className="space-y-6">
       {/* Filters Header */}
@@ -197,6 +248,9 @@ export default function IntelligentSummary({ processes = [], members, expediente
           <div>
             <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Período de Análise</h2>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Resumo Inteligente</p>
+            {isPeriodComparisonOn && (
+              <p className="text-[11px] font-medium text-slate-400 mt-0.5">Comparando com {previousPeriodLabel}</p>
+            )}
           </div>
         </div>
 
@@ -239,24 +293,36 @@ export default function IntelligentSummary({ processes = [], members, expediente
           value={totalProcesses}
           icon={FileText}
           color="from-indigo-500 to-violet-500"
+          comparison={isPeriodComparisonOn && previousProcessSummary
+            ? { current: totalProcesses, previous: previousProcessSummary.total }
+            : null}
         />
         <MetricCard
           title="Taxa de Conclusão"
           value={`${completionRate}%`}
           icon={Target}
           color="from-emerald-500 to-teal-500"
+          comparison={isPeriodComparisonOn && previousProcessSummary
+            ? { current: Number(completionRate), previous: previousProcessSummary.completionRate }
+            : null}
         />
         <MetricCard
           title="Tempo Médio Fluxo"
           value={`${avgTotalTime} dias`}
           icon={Clock}
           color="from-blue-500 to-cyan-500"
+          comparison={isPeriodComparisonOn && previousProcessSummary
+            ? { current: avgTotalTime, previous: previousProcessSummary.avgTotalTime, lowerIsBetter: true }
+            : null}
         />
         <MetricCard
           title="Processos Urgentes"
           value={urgentProcesses}
           icon={AlertCircle}
           color="from-red-500 to-rose-500"
+          comparison={isPeriodComparisonOn && previousProcessSummary
+            ? { current: urgentProcesses, previous: previousProcessSummary.urgent, lowerIsBetter: true }
+            : null}
         />
       </div>
 
@@ -366,24 +432,36 @@ export default function IntelligentSummary({ processes = [], members, expediente
           value={totalExpedientes}
           icon={FileText}
           color="from-indigo-500 to-violet-500"
+          comparison={isPeriodComparisonOn && previousExpedienteSummary
+            ? { current: totalExpedientes, previous: previousExpedienteSummary.total }
+            : null}
         />
         <MetricCard
           title="Taxa de Conclusão"
           value={`${expCompletionRate}%`}
           icon={Target}
           color="from-emerald-500 to-teal-500"
+          comparison={isPeriodComparisonOn && previousExpedienteSummary
+            ? { current: Number(expCompletionRate), previous: previousExpedienteSummary.completionRate }
+            : null}
         />
         <MetricCard
           title="Tempo Médio Fluxo"
           value={`${expAvgTotalTime} dias`}
           icon={Clock}
           color="from-blue-500 to-cyan-500"
+          comparison={isPeriodComparisonOn && previousExpedienteSummary
+            ? { current: expAvgTotalTime, previous: previousExpedienteSummary.avgTotalTime, lowerIsBetter: true }
+            : null}
         />
         <MetricCard
           title="Expedientes Urgentes"
           value={urgentExpedientes}
           icon={AlertCircle}
           color="from-red-500 to-rose-500"
+          comparison={isPeriodComparisonOn && previousExpedienteSummary
+            ? { current: urgentExpedientes, previous: previousExpedienteSummary.urgent, lowerIsBetter: true }
+            : null}
         />
       </div>
 
@@ -480,7 +558,7 @@ export default function IntelligentSummary({ processes = [], members, expediente
   );
 }
 
-function MetricCard({ title, value, icon: Icon, color }) {
+function MetricCard({ title, value, icon: Icon, color, comparison }) {
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   return (
     <Card className="shadow-sm border-slate-200">
@@ -488,7 +566,10 @@ function MetricCard({ title, value, icon: Icon, color }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-600">{title}</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-2">{value}</h3>
+            <div className="flex items-center gap-2 mt-2">
+              <h3 className="text-2xl font-bold text-slate-900">{value}</h3>
+              {comparison && <ComparisonBadge {...comparison} />}
+            </div>
           </div>
           <div className={cn(
             'w-12 h-12 rounded-xl flex items-center justify-center',
@@ -499,6 +580,43 @@ function MetricCard({ title, value, icon: Icon, color }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// Selo de comparação com o período anterior (flag `period_comparison`).
+// `lowerIsBetter` inverte a semântica de cor para métricas em que menos é
+// melhor (tempo médio, quantidade de urgentes parados).
+function ComparisonBadge({ current, previous, lowerIsBetter = false }) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
+  if (current === 0 && previous === 0) return null;
+
+  let direction;
+  let label;
+  if (previous === 0) {
+    direction = current > 0 ? 'up' : 'flat';
+    label = current > 0 ? 'novo' : '—';
+  } else {
+    const pct = ((current - previous) / previous) * 100;
+    direction = pct > 0.5 ? 'up' : pct < -0.5 ? 'down' : 'flat';
+    label = `${pct > 0 ? '+' : ''}${pct.toFixed(0)}%`;
+  }
+
+  const isGood = direction === 'flat' ? null : (lowerIsBetter ? direction === 'down' : direction === 'up');
+  const colorClass = isGood === null
+    ? 'text-slate-500 bg-slate-100'
+    : isGood
+      ? 'text-emerald-700 bg-emerald-50'
+      : 'text-rose-700 bg-rose-50';
+  const Arrow = direction === 'up' ? ArrowUp : direction === 'down' ? ArrowDown : Minus;
+
+  return (
+    <span
+      className={cn('inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md', colorClass)}
+      title="Comparação com o período anterior equivalente"
+    >
+      <Arrow className="w-3 h-3" />
+      {label}
+    </span>
   );
 }
 

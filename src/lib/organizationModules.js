@@ -25,6 +25,7 @@ import {
     FileText,
     Sparkles,
     Settings,
+    CalendarDays,
 } from 'lucide-react';
 
 // Chaves de módulo built-in (cada módulo pode gerar 1+ abas).
@@ -84,7 +85,7 @@ export function resolveBuiltinModules(organization) {
  * @returns {Array<{key:string,label:string,icon:Function,creatorOnly?:boolean,module?:string,custom?:boolean,typeId?:string}>}
  */
 export function getOrganizationTabs(organization, opts = {}) {
-    const { customEntitiesOn = false, customTypes = [] } = opts;
+    const { customEntitiesOn = false, customTypes = [], deadlineCalendarOn = false } = opts;
     const enabled = resolveBuiltinModules(organization);
 
     // Quando a flag está DESLIGADA, todos os built-ins aparecem (idêntico a hoje).
@@ -109,6 +110,12 @@ export function getOrganizationTabs(organization, opts = {}) {
 
     if (showSummary) {
         tabs.push({ key: 'summary', label: 'Resumos Inteligentes', icon: Sparkles, module: BUILTIN_MODULES.SUMMARY });
+    }
+
+    // Calendário de vencimentos (flag `deadline_calendar`): só faz sentido se
+    // houver ao menos um módulo de Consultas/Expedientes ativo no órgão.
+    if (deadlineCalendarOn && (showProcesses || showExpedientes)) {
+        tabs.push({ key: 'calendar', label: 'Calendário de Vencimentos', icon: CalendarDays, module: 'core' });
     }
 
     // Reservado para fases B+ (tipos de entidade custom geram cpanel:/clist:/csummary:).
@@ -138,6 +145,7 @@ export const BUILTIN_TAB_KEYS = [
     'kanban-expedientes',
     'expedientes',
     'summary',
+    'calendar',
     'admin',
 ];
 
