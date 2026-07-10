@@ -208,7 +208,6 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
     // membro em QUALQUER lugar do app atualiza esse array), senão o
     // formulário era resetado no meio da digitação do usuário, descartando
     // o que ainda não tinha sido salvo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [process]);
 
   const getRollbackByStatus = (status, emptyValue = '') => {
@@ -540,7 +539,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
                   <Label>Pedido de Urgência</Label>
                   <Switch
                     checked={formData.urgency_request || false}
@@ -687,7 +686,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
                   <Label>Restrição de Acesso</Label>
                   <Switch
                     checked={formData.access_restriction || false}
@@ -714,7 +713,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                       members={members}
                     />
                   ) : isCommentsOn && (
-                    <p className="text-sm text-slate-400 text-center py-6">
+                    <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">
                       Salve o processo antes de adicionar comentários.
                     </p>
                   )}
@@ -723,7 +722,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
 
             </Tabs>
 
-            <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">
+            <div className="flex justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
               <div className="flex">
                 {canDelete && (
                   <Button

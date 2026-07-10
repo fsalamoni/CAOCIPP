@@ -64,11 +64,11 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
         <Sheet open={open} onOpenChange={onClose}>
             <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
                 {/* Header */}
-                <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white">
+                <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950">
                     <div className="flex items-start justify-between gap-4">
                         <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                                <SheetTitle className="text-xl font-bold text-slate-900">
+                                <SheetTitle className="text-xl font-bold text-slate-900 dark:text-white">
                                     {field('expediente_number')}
                                 </SheetTitle>
                                 {isUrgent && (
@@ -78,11 +78,11 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                                 )}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className="text-xs bg-white text-slate-600 border-slate-200">
+                                <Badge variant="outline" className="text-xs bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
                                     <Monitor className="w-3 h-3 mr-1" />
                                     {field('system') || 'N/I'}
                                 </Badge>
-                                <Badge variant="outline" className="text-xs bg-white text-slate-600 border-slate-200">
+                                <Badge variant="outline" className="text-xs bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
                                     <Building2 className="w-3 h-3 mr-1" />
                                     {field('origin') || 'N/I'}
                                 </Badge>
@@ -109,9 +109,9 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                     {/* Dados Principais */}
                     <Section title="Dados Principais">
                         <div className="pt-2">
-                            <p className="text-xs font-medium text-slate-500 mb-1.5">Objeto</p>
-                            <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-100">
-                                {field('object') || <span className="text-slate-400 italic">Não informado</span>}
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Objeto</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+                                {field('object') || <span className="text-slate-400 dark:text-slate-500 italic">Não informado</span>}
                             </p>
                         </div>
                         {field('responsible_user_name') && (
@@ -134,8 +134,8 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                                         {/* Timeline connector */}
                                         <div className="flex flex-col items-center">
                                             <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${isCompleted
-                                                ? 'bg-indigo-100 text-indigo-600'
-                                                : 'bg-slate-100 text-slate-300'
+                                                ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600'
                                                 }`}>
                                                 {isCompleted
                                                     ? <StepIcon className="w-3.5 h-3.5" />
@@ -143,16 +143,16 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                                                 }
                                             </div>
                                             {!isLast && (
-                                                <div className={`w-0.5 h-6 ${isCompleted ? 'bg-indigo-200' : 'bg-slate-100'}`} />
+                                                <div className={`w-0.5 h-6 ${isCompleted ? 'bg-indigo-200 dark:bg-indigo-900' : 'bg-slate-100 dark:bg-slate-800'}`} />
                                             )}
                                         </div>
                                         {/* Step content */}
                                         <div className="pb-4 pt-0.5">
-                                            <p className={`text-sm font-medium ${isCompleted ? 'text-slate-700' : 'text-slate-400'}`}>
+                                            <p className={`text-sm font-medium ${isCompleted ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600'}`}>
                                                 {step.label}
                                             </p>
                                             {formattedDate && (
-                                                <p className="text-xs text-slate-500 mt-0.5">{formattedDate}</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{formattedDate}</p>
                                             )}
                                         </div>
                                     </div>
@@ -164,7 +164,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                     {/* Observações */}
                     {field('observations') && (
                         <Section title="Observações">
-                            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap bg-slate-50 rounded-lg p-3 border border-slate-100">
+                            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
                                 {field('observations')}
                             </p>
                         </Section>
@@ -173,7 +173,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                     {/* Pasta na Rede */}
                     {field('network_folder') && (
                         <Section title="Pasta na Rede">
-                            <p className="text-xs text-blue-600 font-mono bg-blue-50 rounded-lg p-3 border border-blue-100 break-all">
+                            <p className="text-xs text-blue-600 dark:text-blue-400 font-mono bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-100 dark:border-blue-900 break-all">
                                 {field('network_folder')}
                             </p>
                         </Section>
@@ -191,7 +191,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
 function Section({ title, children }) {
     return (
         <div>
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">{title}</h3>
+            <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">{title}</h3>
             {children}
         </div>
     );
@@ -200,11 +200,11 @@ function Section({ title, children }) {
 function DetailItem({ icon: Icon, label, value }) {
     return (
         <div className="flex items-start gap-2.5 py-1.5">
-            <Icon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+            <Icon className="w-4 h-4 text-slate-400 dark:text-slate-500 mt-0.5 shrink-0" />
             <div>
-                <p className="text-xs text-slate-500">{label}</p>
-                <p className="text-sm text-slate-700 font-medium">
-                    {value || <span className="text-slate-400 italic font-normal">Não informado</span>}
+                <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+                <p className="text-sm text-slate-700 dark:text-slate-200 font-medium">
+                    {value || <span className="text-slate-400 dark:text-slate-500 italic font-normal">Não informado</span>}
                 </p>
             </div>
         </div>
@@ -213,9 +213,9 @@ function DetailItem({ icon: Icon, label, value }) {
 
 function MetaItem({ label, value }) {
     return (
-        <div className="bg-slate-50 rounded-md p-2">
-            <p className="text-slate-400 font-medium">{label}</p>
-            <p className="text-slate-600 font-mono mt-0.5 truncate" title={value || ''}>
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-md p-2">
+            <p className="text-slate-400 dark:text-slate-500 font-medium">{label}</p>
+            <p className="text-slate-600 dark:text-slate-300 font-mono mt-0.5 truncate" title={value || ''}>
                 {value || '-'}
             </p>
         </div>

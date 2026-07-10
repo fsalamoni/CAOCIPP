@@ -55,7 +55,7 @@ export default function DashboardMetrics({
 
     if (!pages.length) {
         return (
-            <div className="text-sm text-slate-500 bg-white border border-slate-200 rounded-xl p-6 text-center">
+            <div className="text-sm text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-center">
                 Nenhuma página com dados está habilitada neste órgão. Ative páginas em
                 <strong> Painel Administrativo → Páginas e Módulos</strong>.
             </div>
@@ -96,11 +96,11 @@ function MetricsGrid({ title, metrics, records, ctx, badge }) {
     return (
         <div className="mb-4">
             <div className="mb-2 flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-700 bg-slate-100 py-1.5 px-3 rounded-md inline-flex">
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 py-1.5 px-3 rounded-md inline-flex">
                     {title}
                 </h3>
                 {badge && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
                         {badge}
                     </span>
                 )}
