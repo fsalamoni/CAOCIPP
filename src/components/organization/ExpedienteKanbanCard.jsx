@@ -58,7 +58,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
     // só aceita `key`, então precisa da função de verdade aqui.
     const daysInStage = stageTimeIndicatorOn ? getDaysInCurrentStage(expediente, currentStatus, getExpedienteField) : null;
     const stageAvg = stageAverages ? stageAverages[currentStatus] : null;
-    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage, stageAvg) : null;
+    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage) : null;
 
     // Entry date
     const entryDateRaw = field('entry_date');

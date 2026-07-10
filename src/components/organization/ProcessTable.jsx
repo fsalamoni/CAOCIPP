@@ -200,7 +200,7 @@ export default function ProcessTable({
         const status = calculateDerivedStatus(process);
         const days = getDaysInCurrentStage(process, status, getProcessField);
         const avg = stageAverages ? stageAverages[status] : null;
-        const severity = getStageTimeSeverity(days, avg);
+        const severity = getStageTimeSeverity(days);
         return <StageTimeBadge days={days} severity={severity} avg={avg} />;
       }
     }] : []),

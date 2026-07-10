@@ -206,7 +206,7 @@ export default function ExpedienteTable({
         const status = calculateExpedienteDerivedStatus(exp);
         const days = getDaysInCurrentStage(exp, status, getExpedienteField);
         const avg = stageAverages ? stageAverages[status] : null;
-        const severity = getStageTimeSeverity(days, avg);
+        const severity = getStageTimeSeverity(days);
         return <StageTimeBadge days={days} severity={severity} avg={avg} />;
       }
     }] : []),

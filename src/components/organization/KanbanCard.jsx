@@ -68,7 +68,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
     // que já aceita (registro, chave).
     const daysInStage = stageTimeIndicatorOn ? getDaysInCurrentStage(process, currentStatus, getProcessField) : null;
     const stageAvg = stageAverages ? stageAverages[currentStatus] : null;
-    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage, stageAvg) : null;
+    const stageSeverity = stageTimeIndicatorOn ? getStageTimeSeverity(daysInStage) : null;
 
     // Entry date
     const entryDateRaw = field('entry_date');
