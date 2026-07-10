@@ -82,7 +82,7 @@ export default function NotificationBell({ className }) {
         return (
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className={`relative ${className || ''}`}>
+                    <Button variant="ghost" size="icon" className={`relative ${className || ''}`} aria-label={`Notificações${notifications.length > 0 ? ` (${notifications.length} não lida(s))` : ''}`}>
                         <Bell className="w-5 h-5" />
                         {notifications.length > 0 && (
                             <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500">

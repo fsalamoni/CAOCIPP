@@ -111,6 +111,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => setCursor(new Date(year, month - 1, 1))}
+                            aria-label="Mês anterior"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </Button>
@@ -127,6 +128,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => setCursor(new Date(year, month + 1, 1))}
+                            aria-label="Próximo mês"
                         >
                             <ChevronRight className="w-4 h-4" />
                         </Button>
@@ -195,7 +197,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                         <CardTitle className="text-base font-bold text-slate-800 dark:text-slate-100">
                             {selectedEvents.length} evento(s) em {selectedDayKey.split('-').reverse().join('/')}
                         </CardTitle>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedDayKey(null)}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedDayKey(null)} aria-label="Fechar detalhes do dia">
                             <X className="w-4 h-4" />
                         </Button>
                     </CardHeader>

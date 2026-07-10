@@ -19,6 +19,7 @@ import ProcessControl from '../components/organization/ProcessControl';
 import ExpedienteControl from '../components/organization/ExpedienteControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
 import DeadlineCalendar from '../components/organization/DeadlineCalendar';
+import OnboardingTour from '../components/organization/OnboardingTour';
 import OrgTabBar from '../components/organization/OrgTabBar';
 
 import KanbanBoard from '../components/organization/KanbanBoard';
@@ -146,6 +147,14 @@ export default function Organization() {
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
   }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, userRole, userMembership]);
 
+  // Abas para o tour de onboarding (flag `onboarding_tour`): independente do
+  // design V2, já que a navegação existe (via sidebar) em qualquer um deles.
+  const tourTabs = React.useMemo(() => {
+    if (!organization) return [];
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn })
+      .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
+  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, userRole, userMembership]);
+
   // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
   // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible
   // devolve true para todas as abas built-in (nada muda).
@@ -253,6 +262,8 @@ export default function Organization() {
         </header>
 
         {isV2 && <OrgTabBar tabs={orgTabs} activeTab={activeTab} orgId={selectedOrgId} />}
+
+        <OnboardingTour organization={organization} orgTabs={tourTabs} />
 
         {/* Main Content Area */}
         <div className="flex-1 min-h-0">

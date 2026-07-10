@@ -48,7 +48,7 @@ export function ThemeToggleButton({ className }) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className={className} title="Alternar tema">
+                <Button variant="ghost" size="icon" className={className} title="Alternar tema" aria-label="Alternar tema">
                     <Icon className="w-5 h-5" />
                 </Button>
             </DropdownMenuTrigger>

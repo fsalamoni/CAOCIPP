@@ -112,7 +112,12 @@ export default function Layout({ children, currentPageName }) {
         <div className="flex items-center gap-2">
           <ThemeToggleButton />
           <NotificationBell />
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+          >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
         </div>
@@ -258,6 +263,7 @@ export default function Layout({ children, currentPageName }) {
                       size="icon"
                       onClick={toggleCollapsed}
                       className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-muted"
+                      aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
                     >
                       {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                     </Button>
@@ -293,7 +299,7 @@ export default function Layout({ children, currentPageName }) {
                       <p className="text-xs text-slate-500 truncate" title={displayEmail}>{displayEmail}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50">
+                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 hover:text-red-600 hover:bg-red-50" aria-label="Sair da conta">
                     <LogOut className="w-4 h-4" />
                   </Button>
                 </div>
