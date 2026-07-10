@@ -114,8 +114,17 @@ service cloud.firestore {
           isMemberOf(get(/databases/$(database)/documents/processes/$(processId)).data.organization_id);
         allow write: if false;
       }
+
+      // Comentários internos com @menção (flag `process_comments`). Leitura
+      // para membros do órgão do processo pai; escrita exclusiva da Cloud
+      // Function addComment (valida associação e notifica os mencionados).
+      match /comments/{commentId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/processes/$(processId)).data.organization_id);
+        allow write: if false;
+      }
     }
-    
+
     // ========== EXPEDIENTES ADMINISTRATIVOS ==========
     
     match /expedientes/{expedienteId} {
@@ -143,6 +152,14 @@ service cloud.firestore {
       // Subcoleção de histórico (Fase 3). Leitura para membros do órgão do
       // expediente pai; escrita exclusiva de Cloud Functions (Admin SDK).
       match /history/{entryId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/expedientes/$(expedienteId)).data.organization_id);
+        allow write: if false;
+      }
+
+      // Comentários internos com @menção (flag `process_comments`). Mesma
+      // lógica da subcoleção equivalente em processes/{id}/comments.
+      match /comments/{commentId} {
         allow read: if isAuthenticated() &&
           isMemberOf(get(/databases/$(database)/documents/expedientes/$(expedienteId)).data.organization_id);
         allow write: if false;
@@ -181,6 +198,22 @@ service cloud.firestore {
       allow write: if false;
     }
     
+    // ========== PRESENÇA EM TEMPO REAL (flag `live_presence`) ==========
+    // Heartbeats efêmeros (id determinístico `${entityType}_${entityId}_${uid}`).
+    // Escrita direta do cliente (sem Cloud Function): cada usuário só grava/apaga
+    // o PRÓPRIO heartbeat, e só dentro de um órgão do qual é membro. Leitura
+    // liberada para membros do órgão para exibir "quem está vendo" o registro.
+
+    match /presence/{presenceId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+
+      allow create, update: if isAuthenticated() &&
+                              isOwner(request.resource.data.user_id) &&
+                              isMemberOf(request.resource.data.organization_id);
+
+      allow delete: if isAuthenticated() && isOwner(resource.data.user_id);
+    }
+
     // ========== NOTIFICATIONS ==========
     
     match /notifications/{notifId} {

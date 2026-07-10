@@ -302,3 +302,15 @@ export const bulkReplaceFieldValues = async (data) => {
         throw error;
     }
 };
+
+// Comentários internos com @menção (flag `process_comments`).
+export const addComment = async (data) => {
+    try {
+        const addCommentFn = httpsCallable(functions, 'addComment');
+        const result = await addCommentFn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling addComment:', error);
+        throw error;
+    }
+};

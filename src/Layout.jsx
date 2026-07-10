@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useNotifications } from '@/hooks/useFirestore';
+import { useOrganizations } from '@/hooks/useFirestore';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
@@ -18,7 +18,6 @@ import {
   HelpCircle,
   FileText,
   LogOut,
-  Bell,
   Menu,
   X,
   ShieldCheck,
@@ -28,13 +27,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -42,6 +34,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ThemeToggleButton } from '@/lib/ThemeSwitcher';
 import CommandPalette from '@/lib/CommandPalette';
+import NotificationBell from '@/lib/NotificationBell';
 
 import { useLocation } from 'react-router-dom';
 
@@ -76,9 +69,6 @@ export default function Layout({ children, currentPageName }) {
 
   // Fetch user organizations
   const { organizations } = useOrganizations(user?.uid);
-
-  /* Notifications Hook */
-  const { notifications } = useNotifications();
 
   /* Super-admin de plataforma (controla a página Administração & Custos) */
   const { isPlatformAdmin } = usePlatformAdmin();
@@ -121,35 +111,7 @@ export default function Layout({ children, currentPageName }) {
         <h1 className="text-xl font-bold text-slate-800">Processos</h1>
         <div className="flex items-center gap-2">
           <ThemeToggleButton />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="w-5 h-5" />
-                {notifications.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500">
-                    {notifications.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <div className="p-2 font-semibold">Notificações</div>
-              <DropdownMenuSeparator />
-              {notifications.length === 0 ? (
-                <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
-              ) : (
-                notifications.slice(0, 5).map(notif => (
-                  <DropdownMenuItem key={notif.id} className="flex-col items-start p-3 cursor-pointer hover:bg-slate-50">
-                    <div className="font-medium text-sm text-slate-900">{notif.title}</div>
-                    <div className="text-xs text-slate-500 mt-1">{notif.message}</div>
-                    <div className="text-[10px] text-slate-400 mt-2 w-full text-right">
-                      {new Date(notif.created_at?.seconds * 1000).toLocaleString()}
-                    </div>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell />
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)}>
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
@@ -353,32 +315,7 @@ export default function Layout({ children, currentPageName }) {
           </h2>
           <div className="flex items-center gap-1">
           <ThemeToggleButton />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="w-5 h-5" />
-                {notifications.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500">
-                    {notifications.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <div className="p-2 font-semibold">Notificações</div>
-              <DropdownMenuSeparator />
-              {notifications.length === 0 ? (
-                <div className="p-4 text-center text-sm text-slate-500">Nenhuma notificação</div>
-              ) : (
-                notifications.slice(0, 5).map(notif => (
-                  <DropdownMenuItem key={notif.id} className="flex-col items-start p-3">
-                    <div className="font-medium text-sm">{notif.title}</div>
-                    <div className="text-xs text-slate-500">{notif.message}</div>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell />
           </div>
         </div>
 
