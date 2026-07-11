@@ -35,6 +35,7 @@ import { FEATURE_FLAGS } from '@/constants/featureFlags';
 
 const DEFAULT_SYSTEMS = ['SIM', 'SGP', 'SPU', 'E-mail'];
 const DEFAULT_ORIGINS = ['SUBINST', 'SUBADM', 'Gabinete PGJ', 'SUBGES', 'Outros'];
+const DEFAULT_THIRD_PARTIES = ['Perícia', 'Delegacia de Polícia', 'Outro Órgão Público', 'Terceiro'];
 
 export default function EditExpedienteDialog({ open, setOpen, expediente, members, onSuccess, organizationId, userRole, organization }) {
   const { user } = useAuth();
@@ -72,6 +73,8 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     responsible_user_name: '',
     analysis_start_date: '',
     observations: '',
+    third_party_referral_date: '',
+    third_party_recipient: '',
     review_submission_date: '',
     reviewed_date: '',
     review_return_date: '',
@@ -86,6 +89,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
   // Get admin-configured lists or use defaults
   const systems = organization?.expedienteSettings?.systems || DEFAULT_SYSTEMS;
   const origins = organization?.expedienteSettings?.origins || DEFAULT_ORIGINS;
+  const thirdParties = organization?.thirdPartiesSettings?.expedientes || DEFAULT_THIRD_PARTIES;
 
   // Helper to safely format dates for input type="date" (YYYY-MM-DD)
   const formatDateForInput = (value) => {
@@ -158,6 +162,8 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         responsible_user_name: respName || (members?.find(m => m.user_id === finalRespId)?.user_name || ''),
         analysis_start_date: formatDateForInput(getValue(['analysis_start_date', 'inicio_analise'])),
         observations: getValue(['observations', 'observacoes', 'obs']),
+        third_party_referral_date: formatDateForInput(getValue(['third_party_referral_date', 'remessa_terceiros', 'data_remessa_terceiros'])),
+        third_party_recipient: getValue(['third_party_recipient', 'remetido_para', 'destinatario_terceiros']),
         review_submission_date: formatDateForInput(getValue(['review_submission_date', 'remessa_revisao'])),
         reviewed_date: formatDateForInput(getValue(['reviewed_date', 'data_revisao_concluida', 'revisao_concluida'])),
         review_return_date: formatDateForInput(getValue(['review_return_date', 'devolucao_revisao'])),
@@ -175,6 +181,8 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     if (status === 'Pendente') {
       return {
         analysis_start_date: emptyValue,
+        third_party_referral_date: emptyValue,
+        third_party_recipient: emptyValue,
         review_submission_date: emptyValue,
         reviewed_date: emptyValue,
         review_return_date: emptyValue,
@@ -185,6 +193,17 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     }
 
     if (status === 'Em elaboração') {
+      return {
+        third_party_referral_date: emptyValue,
+        third_party_recipient: emptyValue,
+        review_submission_date: emptyValue,
+        reviewed_date: emptyValue,
+        review_return_date: emptyValue,
+        archived_date: emptyValue,
+      };
+    }
+
+    if (status === 'Aguarda retorno de terceiros') {
       return {
         review_submission_date: emptyValue,
         reviewed_date: emptyValue,
@@ -234,6 +253,8 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         responsible_user_name: formData.responsible_user_name || null,
         analysis_start_date: formData.analysis_start_date || null,
         observations: formData.observations || '',
+        third_party_referral_date: formData.third_party_referral_date || null,
+        third_party_recipient: formData.third_party_recipient || null,
         review_submission_date: formData.review_submission_date || null,
         reviewed_date: formData.reviewed_date || null,
         review_return_date: formData.review_return_date || null,
@@ -493,6 +514,38 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                   />
                 </div>
 
+                <div className="grid md:grid-cols-2 gap-4 p-4 bg-cyan-50/50 dark:bg-cyan-950/30 rounded-lg border border-cyan-100 dark:border-cyan-800">
+                  <div>
+                    <Label htmlFor="third_party_referral_date">Data da Remessa a Terceiros</Label>
+                    <Input
+                      id="third_party_referral_date"
+                      type="date"
+                      value={formData.third_party_referral_date || ''}
+                      onChange={(e) => setFormData({ ...formData, third_party_referral_date: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="third_party_recipient">Remetido para</Label>
+                    <Select
+                      value={formData.third_party_recipient || ''}
+                      onValueChange={(val) => setFormData({ ...formData, third_party_recipient: val })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Selecione o destinatário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {thirdParties.map(name => (
+                          <SelectItem key={name} value={name}>{name}</SelectItem>
+                        ))}
+                        {formData.third_party_recipient && !thirdParties.includes(formData.third_party_recipient) && (
+                          <SelectItem value={formData.third_party_recipient}>{formData.third_party_recipient} (Histórico)</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div>
                   <Label htmlFor="observations">Observações</Label>
                   <Textarea
@@ -517,6 +570,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                     <SelectContent>
                       <SelectItem value="Pendente">Pendente</SelectItem>
                       <SelectItem value="Em elaboração">Em elaboração</SelectItem>
+                      <SelectItem value="Aguarda retorno de terceiros">Aguarda retorno de terceiros</SelectItem>
                       <SelectItem value="Em revisão">Em revisão</SelectItem>
                       <SelectItem value="Revisadas">Revisadas</SelectItem>
                       <SelectItem value="Na pasta">Na pasta</SelectItem>

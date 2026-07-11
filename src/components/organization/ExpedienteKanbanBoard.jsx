@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Inbox, Pencil, Eye, CheckCheck, FolderCheck, Plus, SlidersHorizontal, FilterX, ArrowUpDown, X } from 'lucide-react';
+import { Loader2, Inbox, Pencil, Send, Eye, CheckCheck, FolderCheck, Plus, SlidersHorizontal, FilterX, ArrowUpDown, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateExpedienteDerivedStatus, getExpedienteField } from '@/utils/expedienteUtils';
 import { updateExpediente } from '@/services/functionsService';
@@ -60,6 +60,17 @@ const KANBAN_COLUMNS = [
         dotColor: 'bg-amber-400 dark:bg-amber-400',
     },
     {
+        id: 'Aguarda retorno de terceiros',
+        label: 'Aguarda Terceiros',
+        icon: Send,
+        emptyText: 'Nenhum expediente aguardando terceiros',
+        headerBg: 'bg-cyan-50 dark:bg-cyan-900',
+        headerBorder: 'border-cyan-200 dark:border-cyan-600',
+        headerText: 'text-cyan-700 dark:text-cyan-100',
+        columnBg: 'bg-cyan-50/30 dark:bg-cyan-950/30',
+        dotColor: 'bg-cyan-400 dark:bg-cyan-400',
+    },
+    {
         id: 'Em revisão',
         label: 'Em Revisão',
         icon: Eye,
@@ -94,9 +105,13 @@ const KANBAN_COLUMNS = [
     },
 ];
 
-// Valid transitions: forward only for advancing to the next stage.
-// Backward transitions are computed dynamically and may move to any previous stage.
-const VALID_FORWARD = { 0: [1], 1: [2], 2: [3], 3: [4], 4: [] };
+// Valid transitions: forward only for advancing to the next stage (ou pulando
+// direto a fase opcional "Aguarda retorno de terceiros", índice 2 — ela pode
+// nunca ocorrer). Backward transitions are computed dynamically and may move
+// to any previous stage.
+// Índices: 0 Pendente, 1 Em elaboração, 2 Aguarda retorno de terceiros,
+// 3 Em revisão, 4 Revisadas, 5 Na pasta.
+const VALID_FORWARD = { 0: [1], 1: [2, 3], 2: [3], 3: [4], 4: [5], 5: [] };
 
 const DATE_SORT_KEYS = new Set([
     'entry_date',
@@ -116,6 +131,8 @@ const EXPEDIENTE_SORT_OPTIONS = [
     { key: 'origin', label: 'Origem' },
     { key: 'responsible_user_name', label: 'Responsável' },
 ];
+
+const DEFAULT_THIRD_PARTIES = ['Perícia', 'Delegacia de Polícia', 'Outro Órgão Público', 'Terceiro'];
 
 const buildDefaultExpedienteFilters = () => ({
     urgency: 'all',
@@ -396,9 +413,13 @@ export default function ExpedienteKanbanBoard({
         [members]
     );
 
+    // Lista de terceiros personalizável por órgão (Painel Administrativo →
+    // Expedientes Administrativos), usada no modal "Aguarda retorno de terceiros".
+    const thirdParties = organization?.thirdPartiesSettings?.expedientes || DEFAULT_THIRD_PARTIES;
+
     // Distribute into columns
     const columns = useMemo(() => {
-        const grouped = { 'Pendente': [], 'Em elaboração': [], 'Em revisão': [], 'Revisadas': [], 'Na pasta': [] };
+        const grouped = { 'Pendente': [], 'Em elaboração': [], 'Aguarda retorno de terceiros': [], 'Em revisão': [], 'Revisadas': [], 'Na pasta': [] };
         filteredExpedientes.forEach(p => {
             const status = calculateExpedienteDerivedStatus(p);
             (grouped[status] || grouped['Pendente']).push(p);
@@ -528,6 +549,8 @@ export default function ExpedienteKanbanBoard({
         const rollbackByStatus = {
             Pendente: {
                 analysis_start_date: null,
+                third_party_referral_date: null,
+                third_party_recipient: null,
                 review_submission_date: null,
                 reviewed_date: null,
                 review_return_date: null,
@@ -536,6 +559,14 @@ export default function ExpedienteKanbanBoard({
                 responsible_user_name: null,
             },
             'Em elaboração': {
+                third_party_referral_date: null,
+                third_party_recipient: null,
+                review_submission_date: null,
+                reviewed_date: null,
+                review_return_date: null,
+                archived_date: null,
+            },
+            'Aguarda retorno de terceiros': {
                 review_submission_date: null,
                 reviewed_date: null,
                 review_return_date: null,
@@ -577,7 +608,18 @@ export default function ExpedienteKanbanBoard({
             return;
         }
 
-        if (fromStatus === 'Em elaboração' && toStatus === 'Em revisão') {
+        if (fromStatus === 'Em elaboração' && toStatus === 'Aguarda retorno de terceiros') {
+            setPendingExpediente(expediente);
+            setPendingTarget(toStatus);
+            setDialogMode('third_party');
+            setDialogOpen(true);
+            return;
+        }
+
+        if (
+            (fromStatus === 'Em elaboração' || fromStatus === 'Aguarda retorno de terceiros') &&
+            toStatus === 'Em revisão'
+        ) {
             setPendingExpediente(expediente);
             setPendingTarget(toStatus);
             setDialogMode('review');
@@ -664,6 +706,12 @@ export default function ExpedienteKanbanBoard({
                 responsible_user_name: data.responsible_user_name,
                 status: 'Em elaboração',
             };
+        } else if (dialogMode === 'third_party') {
+            changes = {
+                third_party_referral_date: data.third_party_referral_date || today,
+                third_party_recipient: data.third_party_recipient,
+                status: 'Aguarda retorno de terceiros',
+            };
         } else if (dialogMode === 'review') {
             changes = {
                 review_submission_date: today,
@@ -692,6 +740,7 @@ export default function ExpedienteKanbanBoard({
             });
             const actions = {
                 assign: `Expediente ${expedienteNumber} em análise!`,
+                third_party: `Expediente ${expedienteNumber} remetido a terceiros!`,
                 review: `Expediente ${expedienteNumber} enviado para revisão!`,
                 review_complete: `Expediente ${expedienteNumber} marcado como revisado!`,
                 archive: `Expediente ${expedienteNumber} arquivado!`,
@@ -942,6 +991,7 @@ export default function ExpedienteKanbanBoard({
                     expediente={pendingExpediente}
                     assessors={assessors}
                     defaultAssessor={isAssessor ? userId : ''}
+                    thirdParties={thirdParties}
                     onConfirm={handleDialogConfirm}
                 />
             )}

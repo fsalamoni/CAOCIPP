@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, User, FolderOpen, Calendar, Eye, Building2, Monitor } from 'lucide-react';
+import { AlertCircle, User, FolderOpen, Calendar, Eye, Building2, Monitor, Send } from 'lucide-react';
 import { getExpedienteField, calculateExpedienteDerivedStatus, isExpedienteUrgent } from '@/utils/expedienteUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
@@ -50,6 +50,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
     const system = field('system');
     const origin = field('origin');
     const object = field('object');
+    const thirdPartyRecipient = field('third_party_recipient');
 
     // Indicador de tempo na etapa atual (flag `stage_time_indicator`).
     const currentStatus = calculateExpedienteDerivedStatus(expediente);
@@ -155,6 +156,14 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
                 <p className="text-[11px] text-slate-400 dark:text-slate-400 line-clamp-2 leading-relaxed">
                     {object}
                 </p>
+            )}
+
+            {/* Third Party Recipient (fase "Aguarda retorno de terceiros") */}
+            {thirdPartyRecipient && (
+                <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-300 min-w-0">
+                    <Send className="w-3 h-3 shrink-0" />
+                    <span className="text-[10px] truncate">Remetido a: {thirdPartyRecipient}</span>
+                </div>
             )}
 
             {/* Entry Date + Stage time indicator */}

@@ -47,6 +47,7 @@ function calculateBusinessDays(startDate, endDate) {
 const STAGE_ENTRY_FIELD = {
     'Pendente': 'entry_date',
     'Em elaboração': 'distribution_date',
+    'Aguarda retorno de terceiros': 'third_party_referral_date',
     'Em revisão': 'review_submission_date',
     'Revisadas': 'reviewed_date',
 };

@@ -20,17 +20,33 @@ import { isValid } from 'date-fns';
 export const STAGE_ENTRY_FIELD = {
     'Pendente': 'entry_date',
     'Em elaboração': 'distribution_date',
+    'Aguarda retorno de terceiros': 'third_party_referral_date',
     'Em revisão': 'review_submission_date',
     'Revisadas': 'reviewed_date',
 };
 
 // Campo de data em que o registro SAIU de cada etapa (para a próxima).
+// "Em elaboração" tem DOIS campos de saída possíveis: um processo pode ir
+// para "Aguarda retorno de terceiros" OU pular direto para "Em revisão" —
+// getFieldValue (abaixo) usa o primeiro que estiver preenchido.
 export const STAGE_EXIT_FIELD = {
     'Pendente': 'distribution_date',
-    'Em elaboração': 'review_submission_date',
+    'Em elaboração': ['third_party_referral_date', 'review_submission_date'],
+    'Aguarda retorno de terceiros': 'review_submission_date',
     'Em revisão': 'reviewed_date',
     'Revisadas': 'archived_date',
 };
+
+// Lê o primeiro campo preenchido dentre um ou mais candidatos (STAGE_EXIT_FIELD
+// pode ser uma string única ou um array de possíveis campos de saída).
+function getFieldValue(record, fieldOrFields, getField) {
+    const keys = Array.isArray(fieldOrFields) ? fieldOrFields : [fieldOrFields];
+    for (const key of keys) {
+        const val = getField(record, key);
+        if (val) return val;
+    }
+    return null;
+}
 
 // Paleta de cores permitidas para os selos ok/atenção/risco. Presets fixos
 // (não cores livres) para garantir que as classes Tailwind existam no bundle
@@ -69,6 +85,11 @@ export const STAGE_TIME_COLOR_PRESETS = {
         label: 'Azul',
         swatch: 'bg-sky-500',
         classes: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900 dark:text-sky-200 dark:border-sky-600',
+    },
+    cyan: {
+        label: 'Ciano',
+        swatch: 'bg-cyan-500',
+        classes: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900 dark:text-cyan-200 dark:border-cyan-600',
     },
     violet: {
         label: 'Roxo',
@@ -156,8 +177,8 @@ export function computeStageAverages(records, getField, dayType = 'business') {
 
     records.forEach((record) => {
         Object.keys(STAGE_ENTRY_FIELD).forEach((stage) => {
-            const entryRaw = getField(record, STAGE_ENTRY_FIELD[stage]);
-            const exitRaw = getField(record, STAGE_EXIT_FIELD[stage]);
+            const entryRaw = getFieldValue(record, STAGE_ENTRY_FIELD[stage], getField);
+            const exitRaw = getFieldValue(record, STAGE_EXIT_FIELD[stage], getField);
             if (!entryRaw || !exitRaw) return;
 
             const entryDate = parseLocalDate(entryRaw);
