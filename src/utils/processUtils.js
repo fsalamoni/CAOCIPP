@@ -13,6 +13,8 @@ export const FIELD_ALIASES = {
     entry_date: ['entry_date', 'data_entrada', 'entrada', 'data', 'ENTRADA NO CAOPP\n(DATA)', 'ENTRADA NO CAOPP\\n(DATA)'],
     distribution_date: ['distribution_date', 'data_distribuicao', 'distribuicao', 'DISTRIBUIÇÃO\n(DATA)', 'DISTRIBUIÇÃO\\n(DATA)'],
     analysis_start_date: ['analysis_start_date', 'inicio_analise', 'data_inicio', 'INÍCIO DA ANÁLISE\n(DATA)', 'INÍCIO DA ANÁLISE\\n(DATA)'],
+    third_party_referral_date: ['third_party_referral_date', 'remessa_terceiros', 'data_remessa_terceiros'],
+    third_party_recipient: ['third_party_recipient', 'remetido_para', 'destinatario_terceiros'],
     review_submission_date: ['review_submission_date', 'remessa_revisao', 'data_revisao', 'remessa', 'REMESSA AO DR. PARA REVISÃO (DATA)'],
     reviewed_date: ['reviewed_date', 'data_revisao_concluida', 'revisado', 'revisao_concluida', 'REVISÃO CONCLUÍDA (DATA)', 'REVISADAS\n(DATA)'],
     review_return_date: ['review_return_date', 'devolucao_revisao', 'retorno_revisao', 'retorno', 'DEVOLUÇÃO APÓS REVISÃO\n(DATA)', 'DEVOLUÇÃO APÓS REV ISÃO\\n(DATA)'],
@@ -81,6 +83,13 @@ export function calculateDerivedStatus(p) {
 
     // 3. "Em revisão" (Azul): Remessa p/ Revisão preenchida.
     if (getProcessField(p, 'review_submission_date')) return "Em revisão";
+
+    // 3.5. "Aguarda retorno de terceiros" (Ciano): fase OPCIONAL — remessa a
+    // terceiros preenchida mas ainda sem remessa p/ revisão. Um processo pode
+    // nunca passar por aqui (vai direto de "Em elaboração" p/ "Em revisão")
+    // ou entrar e sair normalmente; a precedência de "Em revisão" acima
+    // garante que passar direto por esta fase não trava o processo aqui.
+    if (getProcessField(p, 'third_party_referral_date')) return "Aguarda retorno de terceiros";
 
     // 4. "Em elaboração" (Amarelo/Âmbar): Início da Análise preenchido.
     if (getProcessField(p, 'analysis_start_date')) return "Em elaboração";

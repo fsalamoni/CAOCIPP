@@ -46,6 +46,27 @@ export const statusConfig = {
             groupHover: "group-hover:!bg-muted/60"
         }
     },
+    'Aguarda retorno de terceiros': {
+        color: '#06b6d4',
+        label: 'Aguarda retorno de terceiros',
+        startColor: 'bg-[#CFF4FC] dark:bg-cyan-800',
+        text: 'text-cyan-800 dark:text-cyan-100',
+        border: 'border-cyan-200 dark:border-cyan-500',
+        row: {
+            bg: "bg-[#CFF4FC]",
+            accent: "border-l-[#3AB7CC]",
+            border: "border-b-[#A9E1EC]",
+            hover: "hover:bg-[#BEEBF5]",
+            groupHover: "group-hover:!bg-[#BEEBF5]"
+        },
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-cyan-400",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
+        }
+    },
     'Em revisão': {
         color: '#8b5cf6',
         label: 'Em revisão',

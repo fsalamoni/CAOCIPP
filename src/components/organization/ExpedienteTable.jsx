@@ -265,6 +265,20 @@ export default function ExpedienteTable({
       render: (exp) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getExpedienteField(exp, 'analysis_start_date'))}</span>
     },
     {
+      key: 'third_party_referral_date', label: 'Remessa a Terceiros', defaultVisible: false,
+      width: 'w-[110px]', sortable: true,
+      render: (exp) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getExpedienteField(exp, 'third_party_referral_date'))}</span>
+    },
+    {
+      key: 'third_party_recipient', label: 'Remetido para', defaultVisible: false,
+      width: 'w-[160px]', sortable: true,
+      render: (exp) => (
+        <span className="text-slate-600 dark:text-slate-300 truncate block" title={String(getExpedienteField(exp, 'third_party_recipient'))}>
+          {getExpedienteField(exp, 'third_party_recipient') || '-'}
+        </span>
+      )
+    },
+    {
       key: 'observations', label: 'Observações', defaultVisible: true,
       width: 'w-[280px]', sortable: false,
       render: (exp) => (
@@ -569,7 +583,7 @@ export default function ExpedienteTable({
     return config.row || DEFAULT_STATUS_CONFIG.row;
   };
 
-  const statuses = ["Pendente", "Em elaboração", "Em revisão", "Revisadas", "Na pasta"];
+  const statuses = ["Pendente", "Em elaboração", "Aguarda retorno de terceiros", "Em revisão", "Revisadas", "Na pasta"];
 
   // ═══════════════════════════════════════════════════════════════════
   // VISÕES SALVAS (flag `saved_views`)
@@ -665,7 +679,7 @@ export default function ExpedienteTable({
   // ═══════════════════════════════════════════════════════════════════
   // EXPORTAÇÃO (flag `export_pdf_excel`)
   // ═══════════════════════════════════════════════════════════════════
-  const DATE_EXPORT_KEYS = new Set(['entry_date', 'distribution_date', 'analysis_start_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
+  const DATE_EXPORT_KEYS = new Set(['entry_date', 'distribution_date', 'analysis_start_date', 'third_party_referral_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
 
   const getExportValue = (col, exp) => {
     if (col.key === 'status') return calculateExpedienteDerivedStatus(exp);

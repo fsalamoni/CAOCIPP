@@ -20,7 +20,8 @@ import {
     Circle,
     ArrowRight,
     Monitor,
-    Building2
+    Building2,
+    Send
 } from "lucide-react";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -54,6 +55,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
         { label: 'Entrada no Órgão', key: 'entry_date', icon: Calendar },
         { label: 'Distribuição', key: 'distribution_date', icon: ArrowRight },
         { label: 'Início da Análise', key: 'analysis_start_date', icon: FileText },
+        { label: 'Remessa a Terceiros', key: 'third_party_referral_date', icon: Send },
         { label: 'Remessa p/ Revisão', key: 'review_submission_date', icon: Clock },
         { label: 'Revisão Concluída', key: 'reviewed_date', icon: CheckCheck },
         { label: 'Devolução após Revisão', key: 'review_return_date', icon: CheckCircle2 },
@@ -153,6 +155,11 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                                             </p>
                                             {formattedDate && (
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{formattedDate}</p>
+                                            )}
+                                            {step.key === 'third_party_referral_date' && isCompleted && field('third_party_recipient') && (
+                                                <p className="text-xs text-cyan-600 dark:text-cyan-300 mt-0.5">
+                                                    Remetido para: {field('third_party_recipient')}
+                                                </p>
                                             )}
                                         </div>
                                     </div>

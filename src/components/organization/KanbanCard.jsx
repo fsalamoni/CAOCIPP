@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
-import { Lock, AlertCircle, User, FolderOpen, Calendar, Eye } from 'lucide-react';
+import { Lock, AlertCircle, User, FolderOpen, Calendar, Eye, Send } from 'lucide-react';
 import { getProcessField, calculateDerivedStatus, isProcessUrgent } from '@/utils/processUtils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
@@ -57,6 +57,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
     const processNumber = field('process_number');
     const consultant = field('consultant');
     const matterObject = field('matter_object');
+    const thirdPartyRecipient = field('third_party_recipient');
 
     // Indicador de tempo na etapa atual (flag `stage_time_indicator`).
     const currentStatus = calculateDerivedStatus(process);
@@ -166,6 +167,14 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
                 <p className="text-[11px] text-slate-400 dark:text-slate-400 line-clamp-2 leading-relaxed">
                     {matterObject}
                 </p>
+            )}
+
+            {/* Third Party Recipient (fase "Aguarda retorno de terceiros") */}
+            {thirdPartyRecipient && (
+                <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-300 min-w-0">
+                    <Send className="w-3 h-3 shrink-0" />
+                    <span className="text-[10px] truncate">Remetido a: {thirdPartyRecipient}</span>
+                </div>
             )}
 
             {/* Entry Date + Stage time indicator */}

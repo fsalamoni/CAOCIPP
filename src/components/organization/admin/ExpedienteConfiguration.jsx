@@ -5,10 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { updateOrganization } from '@/services/functionsService';
 import { toast } from 'sonner';
-import { Plus, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Send } from 'lucide-react';
 
 const DEFAULT_SYSTEMS = ['SIM', 'SGP', 'SPU', 'E-mail'];
 const DEFAULT_ORIGINS = ['SUBINST', 'SUBADM', 'Gabinete PGJ', 'SUBGES', 'Outros'];
+const DEFAULT_THIRD_PARTIES = ['Perícia', 'Delegacia de Polícia', 'Outro Órgão Público', 'Terceiro'];
 
 export default function ExpedienteConfiguration({ organization }) {
     const [systems, setSystems] = useState([]);
@@ -16,6 +17,11 @@ export default function ExpedienteConfiguration({ organization }) {
     const [newSystem, setNewSystem] = useState('');
     const [newOrigin, setNewOrigin] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Lista de terceiros (fase "Aguarda retorno de terceiros" do Kanban de Expedientes)
+    const [thirdParties, setThirdParties] = useState([]);
+    const [newThirdParty, setNewThirdParty] = useState('');
+    const thirdPartiesSavingRef = useRef(false);
 
     const isSavingRef = useRef(false);
 
@@ -30,6 +36,51 @@ export default function ExpedienteConfiguration({ organization }) {
             setOrigins(DEFAULT_ORIGINS);
         }
     }, [organization]);
+
+    useEffect(() => {
+        if (thirdPartiesSavingRef.current) return;
+        setThirdParties(organization.thirdPartiesSettings?.expedientes || DEFAULT_THIRD_PARTIES);
+    }, [organization]);
+
+    const saveThirdParties = async (newList) => {
+        thirdPartiesSavingRef.current = true;
+        try {
+            await updateOrganization({
+                organizationId: organization.id,
+                data: {
+                    thirdPartiesSettings: {
+                        ...organization.thirdPartiesSettings,
+                        expedientes: newList,
+                    },
+                },
+            });
+            toast.success('Lista de terceiros atualizada!');
+        } catch (error) {
+            toast.error('Erro ao salvar: ' + error.message);
+        } finally {
+            setTimeout(() => { thirdPartiesSavingRef.current = false; }, 2000);
+        }
+    };
+
+    const addThirdParty = async () => {
+        const trimmed = newThirdParty.trim();
+        if (!trimmed) return;
+        if (thirdParties.includes(trimmed)) {
+            toast.error('Este terceiro já existe.');
+            return;
+        }
+        const updated = [...thirdParties, trimmed];
+        setThirdParties(updated);
+        setNewThirdParty('');
+        await saveThirdParties(updated);
+    };
+
+    const removeThirdParty = async (name) => {
+        if (!window.confirm(`Remover "${name}" da lista de terceiros?`)) return;
+        const updated = thirdParties.filter(t => t !== name);
+        setThirdParties(updated);
+        await saveThirdParties(updated);
+    };
 
     const saveToFirestore = async (newSystems, newOrigins) => {
         isSavingRef.current = true;
@@ -183,6 +234,49 @@ export default function ExpedienteConfiguration({ organization }) {
                                 onKeyDown={(e) => e.key === 'Enter' && addOrigin()}
                             />
                             <Button onClick={addOrigin} size="sm" variant="outline">
+                                <Plus className="w-4 h-4 mr-1" /> Adicionar
+                            </Button>
+                        </div>
+                    </div>
+
+                    <hr className="border-slate-200 dark:border-slate-700" />
+
+                    {/* Third Parties Section */}
+                    <div className="space-y-4">
+                        <Label className="text-base font-semibold flex items-center gap-2">
+                            <Send className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                            Lista de Terceiros
+                        </Label>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Destinatários disponíveis no campo "Remetido para", usado quando um expediente entra na
+                            fase "Aguarda retorno de terceiros" do Painel de Expedientes.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {thirdParties.map(name => (
+                                <div key={name} className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full text-sm">
+                                    <span>{name}</span>
+                                    <button
+                                        onClick={() => removeThirdParty(name)}
+                                        className="ml-1 text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors"
+                                        title={`Remover ${name}`}
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                            {thirdParties.length === 0 && (
+                                <p className="text-xs text-slate-400 dark:text-slate-500 italic">Nenhum terceiro cadastrado.</p>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                            <Input
+                                value={newThirdParty}
+                                onChange={(e) => setNewThirdParty(e.target.value)}
+                                placeholder="Novo terceiro (ex: Perícia, Delegacia...)..."
+                                className="max-w-xs"
+                                onKeyDown={(e) => e.key === 'Enter' && addThirdParty()}
+                            />
+                            <Button onClick={addThirdParty} size="sm" variant="outline">
                                 <Plus className="w-4 h-4 mr-1" /> Adicionar
                             </Button>
                         </div>

@@ -108,6 +108,8 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
             responsible_user_name: 'Nome do Responsável',
             analysis_start_date: 'Início da Análise',
             observations: 'Observações',
+            third_party_referral_date: 'Data da Remessa a Terceiros',
+            third_party_recipient: 'Remetido para (Terceiro)',
             review_submission_date: 'Remessa para Revisão',
             reviewed_date: 'Revisão Concluída',
             review_return_date: 'Devolução após Revisão',

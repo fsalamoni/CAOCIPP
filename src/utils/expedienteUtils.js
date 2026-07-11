@@ -17,6 +17,8 @@ export const EXPEDIENTE_FIELD_ALIASES = {
     responsible_user_id: ['responsible_user_id'],
     analysis_start_date: ['analysis_start_date', 'inicio_analise', 'INÍCIO DA ANÁLISE', 'Início da Análise'],
     observations: ['observations', 'observacoes', 'obs', 'OBSERVAÇÕES', 'Observações'],
+    third_party_referral_date: ['third_party_referral_date', 'remessa_terceiros', 'data_remessa_terceiros'],
+    third_party_recipient: ['third_party_recipient', 'remetido_para', 'destinatario_terceiros'],
     review_submission_date: ['review_submission_date', 'remessa_revisao', 'REMESSA P/ REVISÃO', 'Remessa p/ Revisão'],
     reviewed_date: ['reviewed_date', 'data_revisao_concluida', 'revisao_concluida', 'REVISÃO CONCLUÍDA', 'Revisão Concluída', 'REVISADAS', 'Revisadas'],
     review_return_date: ['review_return_date', 'devolucao_revisao', 'DEVOLUÇÃO APÓS REVISÃO', 'Devolução após Revisão'],
@@ -82,6 +84,11 @@ export function calculateExpedienteDerivedStatus(exp) {
 
     // 3. "Em revisão" (Azul): Remessa p/ Revisão preenchida.
     if (getExpedienteField(exp, 'review_submission_date')) return "Em revisão";
+
+    // 3.5. "Aguarda retorno de terceiros" (Ciano): fase OPCIONAL — mesma
+    // lógica de processUtils.js: pode nunca ocorrer (Em elaboração vai direto
+    // p/ Em revisão) ou ocorrer normalmente, sem travar o fluxo.
+    if (getExpedienteField(exp, 'third_party_referral_date')) return "Aguarda retorno de terceiros";
 
     // 4. "Em elaboração" (Amarelo/Âmbar): Início da Análise preenchido.
     if (getExpedienteField(exp, 'analysis_start_date')) return "Em elaboração";

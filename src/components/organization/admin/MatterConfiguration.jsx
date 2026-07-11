@@ -18,7 +18,9 @@ import {
 import { updateOrganization } from '@/services/functionsService';
 import { MATTER_CATEGORIES as DEFAULT_CATEGORIES, MATTER_SUBCATEGORIES as DEFAULT_SUBCATEGORIES } from '@/components/organization/MatterCategorySelect';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Edit2, RotateCcw, Send } from 'lucide-react';
+
+const DEFAULT_THIRD_PARTIES = ['Perícia', 'Delegacia de Polícia', 'Outro Órgão Público', 'Terceiro'];
 
 export default function MatterConfiguration({ organization }) {
     // Initialize state from organization settings or defaults
@@ -26,6 +28,11 @@ export default function MatterConfiguration({ organization }) {
     const [subcategories, setSubcategories] = useState({});
     const [loading, setLoading] = useState(false);
     const [isCustom, setIsCustom] = useState(false);
+
+    // Lista de terceiros (fase "Aguarda retorno de terceiros" do Kanban de Consultas)
+    const [thirdParties, setThirdParties] = useState([]);
+    const [newThirdParty, setNewThirdParty] = useState('');
+    const thirdPartiesSavingRef = React.useRef(false);
 
     // Ref to track saving state and prevent dirty reads from overwriting optimistic UI
     const isSavingRef = React.useRef(false);
@@ -45,6 +52,51 @@ export default function MatterConfiguration({ organization }) {
             setIsCustom(false);
         }
     }, [organization]);
+
+    useEffect(() => {
+        if (thirdPartiesSavingRef.current) return;
+        setThirdParties(organization.thirdPartiesSettings?.consultas || DEFAULT_THIRD_PARTIES);
+    }, [organization]);
+
+    const saveThirdParties = async (newList) => {
+        thirdPartiesSavingRef.current = true;
+        try {
+            await updateOrganization({
+                organizationId: organization.id,
+                data: {
+                    thirdPartiesSettings: {
+                        ...organization.thirdPartiesSettings,
+                        consultas: newList,
+                    },
+                },
+            });
+            toast.success('Lista de terceiros atualizada!');
+        } catch (error) {
+            toast.error('Erro ao salvar: ' + error.message);
+        } finally {
+            setTimeout(() => { thirdPartiesSavingRef.current = false; }, 2000);
+        }
+    };
+
+    const addThirdParty = async () => {
+        const trimmed = newThirdParty.trim();
+        if (!trimmed) return;
+        if (thirdParties.includes(trimmed)) {
+            toast.error('Este terceiro já existe.');
+            return;
+        }
+        const updated = [...thirdParties, trimmed];
+        setThirdParties(updated);
+        setNewThirdParty('');
+        await saveThirdParties(updated);
+    };
+
+    const removeThirdParty = async (name) => {
+        if (!window.confirm(`Remover "${name}" da lista de terceiros?`)) return;
+        const updated = thirdParties.filter(t => t !== name);
+        setThirdParties(updated);
+        await saveThirdParties(updated);
+    };
 
     // Helper to save current state to Firestore
     const saveToFirestore = async (newCategories, newSubcategories) => {
@@ -265,6 +317,48 @@ export default function MatterConfiguration({ organization }) {
                         </AccordionItem>
                     ))}
                 </Accordion>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800">
+                <div className="mb-4">
+                    <h3 className="text-lg font-medium flex items-center gap-2">
+                        <Send className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                        Lista de Terceiros
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Destinatários disponíveis no campo "Remetido para", usado quando um processo entra na fase
+                        "Aguarda retorno de terceiros" do Painel de Consultas.
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {thirdParties.map(name => (
+                        <div key={name} className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full text-sm">
+                            <span>{name}</span>
+                            <button
+                                onClick={() => removeThirdParty(name)}
+                                className="ml-1 text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors"
+                                title={`Remover ${name}`}
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    ))}
+                    {thirdParties.length === 0 && (
+                        <p className="text-xs text-slate-400 dark:text-slate-500 italic">Nenhum terceiro cadastrado.</p>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    <Input
+                        value={newThirdParty}
+                        onChange={(e) => setNewThirdParty(e.target.value)}
+                        placeholder="Novo terceiro (ex: Perícia, Delegacia...)..."
+                        className="max-w-xs"
+                        onKeyDown={(e) => e.key === 'Enter' && addThirdParty()}
+                    />
+                    <Button onClick={addThirdParty} size="sm" variant="outline">
+                        <Plus className="w-4 h-4 mr-1" /> Adicionar
+                    </Button>
+                </div>
             </div>
         </div>
     );
