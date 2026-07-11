@@ -927,7 +927,7 @@ export default function KanbanBoard({
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
             >
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-6 gap-3">
                     {KANBAN_COLUMNS.map((col) => (
                         <KanbanColumn
                             key={col.id}
