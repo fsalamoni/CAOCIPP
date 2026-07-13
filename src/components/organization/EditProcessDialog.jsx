@@ -108,7 +108,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
 
   // Lista de terceiros personalizável por órgão (Painel Administrativo →
   // Padronização de Consultas), usada no campo "Remetido para".
-  const thirdParties = organization?.thirdPartiesSettings?.consultas || DEFAULT_THIRD_PARTIES;
+  const thirdParties = organization?.thirdPartiesSettingsConsultas || DEFAULT_THIRD_PARTIES;
 
   // Helper to safely format dates for input type="date" (YYYY-MM-DD)
   const formatDateForInput = (value) => {

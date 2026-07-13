@@ -415,7 +415,7 @@ export default function ExpedienteKanbanBoard({
 
     // Lista de terceiros personalizável por órgão (Painel Administrativo →
     // Expedientes Administrativos), usada no modal "Aguarda retorno de terceiros".
-    const thirdParties = organization?.thirdPartiesSettings?.expedientes || DEFAULT_THIRD_PARTIES;
+    const thirdParties = organization?.thirdPartiesSettingsExpedientes || DEFAULT_THIRD_PARTIES;
 
     // Distribute into columns
     const columns = useMemo(() => {
