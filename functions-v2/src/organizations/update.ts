@@ -17,6 +17,11 @@ interface UpdateOrganizationRequest {
             systems: string[];
             origins: string[];
         };
+        // Lista de terceiros (fase "Aguarda retorno de terceiros" do Kanban),
+        // independente por painel — mesma razão de matterSettings/expedienteSettings
+        // serem campos separados: permissões delegadas diferentes por painel.
+        thirdPartiesSettingsConsultas?: string[];
+        thirdPartiesSettingsExpedientes?: string[];
         moduleConfig?: Record<string, { enabled: boolean; order?: number }>;
         // Configuração de métricas/painel por página (Informações Gerais).
         dashboardConfig?: { pages?: Record<string, { metrics?: any[] }> };
@@ -78,6 +83,8 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             description: 'edit_details',
             matterSettings: 'manage_matters',
             expedienteSettings: 'configure_expedientes',
+            thirdPartiesSettingsConsultas: 'manage_matters',
+            thirdPartiesSettingsExpedientes: 'configure_expedientes',
             moduleConfig: 'manage_modules',
             dashboardConfig: 'manage_metrics',
             summarySettings: null,
@@ -107,6 +114,8 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.matterSettings !== undefined) updates.matterSettings = data.matterSettings;
         if (data.summarySettings !== undefined) updates.summarySettings = data.summarySettings;
         if (data.expedienteSettings !== undefined) updates.expedienteSettings = data.expedienteSettings;
+        if (data.thirdPartiesSettingsConsultas !== undefined) updates.thirdPartiesSettingsConsultas = sanitizeThirdParties(data.thirdPartiesSettingsConsultas);
+        if (data.thirdPartiesSettingsExpedientes !== undefined) updates.thirdPartiesSettingsExpedientes = sanitizeThirdParties(data.thirdPartiesSettingsExpedientes);
         if (data.moduleConfig !== undefined) updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
         if (data.dashboardConfig !== undefined) updates.dashboardConfig = sanitizeDashboardConfig(data.dashboardConfig);
         if (data.goalsConfig !== undefined) updates.goalsConfig = sanitizeGoalsConfig(data.goalsConfig);
@@ -246,6 +255,22 @@ function sanitizeWebhookConfig(
         url: validUrl,
         events,
     };
+}
+
+// Lista de terceiros (fase "Aguarda retorno de terceiros" do Kanban): apenas
+// strings não-vazias, aparadas, deduplicadas e limitadas em tamanho/contagem.
+function sanitizeThirdParties(input: unknown): string[] {
+    if (!Array.isArray(input)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const item of input) {
+        const name = String(item ?? '').trim().slice(0, 200);
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        out.push(name);
+        if (out.length >= 100) break;
+    }
+    return out;
 }
 
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.

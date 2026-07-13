@@ -55,7 +55,7 @@ export default function MatterConfiguration({ organization }) {
 
     useEffect(() => {
         if (thirdPartiesSavingRef.current) return;
-        setThirdParties(organization.thirdPartiesSettings?.consultas || DEFAULT_THIRD_PARTIES);
+        setThirdParties(organization.thirdPartiesSettingsConsultas || DEFAULT_THIRD_PARTIES);
     }, [organization]);
 
     const saveThirdParties = async (newList) => {
@@ -64,10 +64,7 @@ export default function MatterConfiguration({ organization }) {
             await updateOrganization({
                 organizationId: organization.id,
                 data: {
-                    thirdPartiesSettings: {
-                        ...organization.thirdPartiesSettings,
-                        consultas: newList,
-                    },
+                    thirdPartiesSettingsConsultas: newList,
                 },
             });
             toast.success('Lista de terceiros atualizada!');

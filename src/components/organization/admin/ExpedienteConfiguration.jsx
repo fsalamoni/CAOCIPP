@@ -39,7 +39,7 @@ export default function ExpedienteConfiguration({ organization }) {
 
     useEffect(() => {
         if (thirdPartiesSavingRef.current) return;
-        setThirdParties(organization.thirdPartiesSettings?.expedientes || DEFAULT_THIRD_PARTIES);
+        setThirdParties(organization.thirdPartiesSettingsExpedientes || DEFAULT_THIRD_PARTIES);
     }, [organization]);
 
     const saveThirdParties = async (newList) => {
@@ -48,10 +48,7 @@ export default function ExpedienteConfiguration({ organization }) {
             await updateOrganization({
                 organizationId: organization.id,
                 data: {
-                    thirdPartiesSettings: {
-                        ...organization.thirdPartiesSettings,
-                        expedientes: newList,
-                    },
+                    thirdPartiesSettingsExpedientes: newList,
                 },
             });
             toast.success('Lista de terceiros atualizada!');

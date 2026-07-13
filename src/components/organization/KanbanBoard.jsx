@@ -400,7 +400,7 @@ export default function KanbanBoard({
 
     // Lista de terceiros personalizável por órgão (Painel Administrativo →
     // Padronização de Consultas), usada no modal "Aguarda retorno de terceiros".
-    const thirdParties = organization?.thirdPartiesSettings?.consultas || DEFAULT_THIRD_PARTIES;
+    const thirdParties = organization?.thirdPartiesSettingsConsultas || DEFAULT_THIRD_PARTIES;
 
     // Distribute into columns
     const columns = useMemo(() => {

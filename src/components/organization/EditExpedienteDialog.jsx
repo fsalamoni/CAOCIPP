@@ -89,7 +89,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
   // Get admin-configured lists or use defaults
   const systems = organization?.expedienteSettings?.systems || DEFAULT_SYSTEMS;
   const origins = organization?.expedienteSettings?.origins || DEFAULT_ORIGINS;
-  const thirdParties = organization?.thirdPartiesSettings?.expedientes || DEFAULT_THIRD_PARTIES;
+  const thirdParties = organization?.thirdPartiesSettingsExpedientes || DEFAULT_THIRD_PARTIES;
 
   // Helper to safely format dates for input type="date" (YYYY-MM-DD)
   const formatDateForInput = (value) => {
