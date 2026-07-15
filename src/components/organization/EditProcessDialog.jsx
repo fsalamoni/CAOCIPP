@@ -110,6 +110,14 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
   // Padronização de Consultas), usada no campo "Remetido para".
   const thirdParties = organization?.thirdPartiesSettingsConsultas || DEFAULT_THIRD_PARTIES;
 
+  // Liga/desliga a fase "Aguarda retorno de terceiros" (Painel Administrativo
+  // → Classificação (matérias)). Ausente/undefined = habilitada. Mesmo
+  // desligada, os campos continuam visíveis para um processo que JÁ esteja
+  // nesta fase — nunca esconde dados reais já preenchidos.
+  const thirdPartyPhaseEnabled = organization?.thirdPartyPhaseEnabledConsultas !== false;
+  const processAlreadyInThirdPartyPhase = Boolean(process?.third_party_referral_date) || process?.status === 'Aguarda retorno de terceiros';
+  const showThirdPartyPhase = thirdPartyPhaseEnabled || processAlreadyInThirdPartyPhase;
+
   // Helper to safely format dates for input type="date" (YYYY-MM-DD)
   const formatDateForInput = (value) => {
     if (!value) return '';
@@ -623,37 +631,39 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                   />
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4 p-4 bg-cyan-50/50 dark:bg-cyan-950/30 rounded-lg border border-cyan-100 dark:border-cyan-800">
-                  <div>
-                    <Label htmlFor="third_party_referral_date">Data da Remessa a Terceiros</Label>
-                    <Input
-                      id="third_party_referral_date"
-                      type="date"
-                      value={formData.third_party_referral_date || ''}
-                      onChange={(e) => setFormData({ ...formData, third_party_referral_date: e.target.value })}
-                      className="mt-1"
-                    />
+                {showThirdPartyPhase && (
+                  <div className="grid md:grid-cols-2 gap-4 p-4 bg-cyan-50/50 dark:bg-cyan-950/30 rounded-lg border border-cyan-100 dark:border-cyan-800">
+                    <div>
+                      <Label htmlFor="third_party_referral_date">Data da Remessa a Terceiros</Label>
+                      <Input
+                        id="third_party_referral_date"
+                        type="date"
+                        value={formData.third_party_referral_date || ''}
+                        onChange={(e) => setFormData({ ...formData, third_party_referral_date: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="third_party_recipient">Remetido para</Label>
+                      <Select
+                        value={formData.third_party_recipient || ''}
+                        onValueChange={(val) => setFormData({ ...formData, third_party_recipient: val })}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Selecione o destinatário" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {thirdParties.map(name => (
+                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                          ))}
+                          {formData.third_party_recipient && !thirdParties.includes(formData.third_party_recipient) && (
+                            <SelectItem value={formData.third_party_recipient}>{formData.third_party_recipient} (Histórico)</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="third_party_recipient">Remetido para</Label>
-                    <Select
-                      value={formData.third_party_recipient || ''}
-                      onValueChange={(val) => setFormData({ ...formData, third_party_recipient: val })}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Selecione o destinatário" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {thirdParties.map(name => (
-                          <SelectItem key={name} value={name}>{name}</SelectItem>
-                        ))}
-                        {formData.third_party_recipient && !thirdParties.includes(formData.third_party_recipient) && (
-                          <SelectItem value={formData.third_party_recipient}>{formData.third_party_recipient} (Histórico)</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                )}
 
                 <div>
                   <Label htmlFor="observations">Observações e Pontos Importantes</Label>
@@ -679,7 +689,9 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                     <SelectContent>
                       <SelectItem value="Pendente">Pendente</SelectItem>
                       <SelectItem value="Em elaboração">Em elaboração</SelectItem>
-                      <SelectItem value="Aguarda retorno de terceiros">Aguarda retorno de terceiros</SelectItem>
+                      {showThirdPartyPhase && (
+                        <SelectItem value="Aguarda retorno de terceiros">Aguarda retorno de terceiros</SelectItem>
+                      )}
                       <SelectItem value="Em revisão">Em revisão</SelectItem>
                       <SelectItem value="Revisadas">Revisadas</SelectItem>
                       <SelectItem value="Na pasta">Na pasta</SelectItem>

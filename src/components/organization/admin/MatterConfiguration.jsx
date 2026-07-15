@@ -15,6 +15,8 @@ import {
     DialogTrigger,
     DialogFooter
 } from "@/components/ui/dialog";
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { updateOrganization } from '@/services/functionsService';
 import { MATTER_CATEGORIES as DEFAULT_CATEGORIES, MATTER_SUBCATEGORIES as DEFAULT_SUBCATEGORIES } from '@/components/organization/MatterCategorySelect';
 import { toast } from 'sonner';
@@ -33,6 +35,11 @@ export default function MatterConfiguration({ organization }) {
     const [thirdParties, setThirdParties] = useState([]);
     const [newThirdParty, setNewThirdParty] = useState('');
     const thirdPartiesSavingRef = React.useRef(false);
+
+    // Liga/desliga a fase inteira (apenas Consultas — Expedientes não é afetado).
+    // Ausente/undefined = habilitada (preserva o comportamento atual até o admin mexer).
+    const [phaseEnabled, setPhaseEnabled] = useState(true);
+    const phaseEnabledSavingRef = React.useRef(false);
 
     // Ref to track saving state and prevent dirty reads from overwriting optimistic UI
     const isSavingRef = React.useRef(false);
@@ -57,6 +64,28 @@ export default function MatterConfiguration({ organization }) {
         if (thirdPartiesSavingRef.current) return;
         setThirdParties(organization.thirdPartiesSettingsConsultas || DEFAULT_THIRD_PARTIES);
     }, [organization]);
+
+    useEffect(() => {
+        if (phaseEnabledSavingRef.current) return;
+        setPhaseEnabled(organization.thirdPartyPhaseEnabledConsultas !== false);
+    }, [organization]);
+
+    const togglePhaseEnabled = async (checked) => {
+        phaseEnabledSavingRef.current = true;
+        setPhaseEnabled(checked);
+        try {
+            await updateOrganization({
+                organizationId: organization.id,
+                data: { thirdPartyPhaseEnabledConsultas: checked },
+            });
+            toast.success(checked ? 'Fase "Aguarda retorno de terceiros" habilitada!' : 'Fase "Aguarda retorno de terceiros" desabilitada!');
+        } catch (error) {
+            setPhaseEnabled(!checked);
+            toast.error('Erro ao salvar: ' + error.message);
+        } finally {
+            setTimeout(() => { phaseEnabledSavingRef.current = false; }, 2000);
+        }
+    };
 
     const saveThirdParties = async (newList) => {
         thirdPartiesSavingRef.current = true;
@@ -320,13 +349,31 @@ export default function MatterConfiguration({ organization }) {
                 <div className="mb-4">
                     <h3 className="text-lg font-medium flex items-center gap-2">
                         <Send className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-                        Lista de Terceiros
+                        Aguarda Retorno de Terceiros
                     </h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Destinatários disponíveis no campo "Remetido para", usado quando um processo entra na fase
-                        "Aguarda retorno de terceiros" do Painel de Consultas.
+                        Fase opcional do Kanban de Consultas: um processo pode ser remetido a um terceiro
+                        (perícia, delegacia etc.) e aguardar retorno antes de seguir para revisão.
                     </p>
                 </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg mb-6">
+                    <div>
+                        <Label htmlFor="third-party-phase-toggle" className="font-medium">
+                            Habilitar esta fase no Painel de Consultas
+                        </Label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Desligando, a coluna some do Kanban, do modal de edição, da tabela e da linha do
+                            tempo. Processos que já estiverem nesta fase continuam visíveis normalmente.
+                        </p>
+                    </div>
+                    <Switch id="third-party-phase-toggle" checked={phaseEnabled} onCheckedChange={togglePhaseEnabled} className="shrink-0 ml-4" />
+                </div>
+
+                <div className={phaseEnabled ? '' : 'opacity-60'}>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-3">
+                    Lista de Terceiros — destinatários disponíveis no campo "Remetido para"
+                </p>
                 <div className="flex flex-wrap gap-2 mb-4">
                     {thirdParties.map(name => (
                         <div key={name} className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full text-sm">
@@ -355,6 +402,7 @@ export default function MatterConfiguration({ organization }) {
                     <Button onClick={addThirdParty} size="sm" variant="outline">
                         <Plus className="w-4 h-4 mr-1" /> Adicionar
                     </Button>
+                </div>
                 </div>
             </div>
         </div>

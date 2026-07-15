@@ -52,6 +52,22 @@ export default function ProcessTable({
   const isBulkActionsOn = useFlag(FEATURE_FLAGS.BULK_ACTIONS.key);
   const isSavedViewsOn = useFlag(FEATURE_FLAGS.SAVED_VIEWS.key);
   const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
+
+  // Liga/desliga a fase "Aguarda retorno de terceiros" (Painel Administrativo
+  // → Classificação (matérias)). Ausente/undefined = habilitada. Mesmo
+  // desligada, a coluna/status continuam disponíveis se já houver processos
+  // com dados reais nessa fase — nunca esconde dados já preenchidos.
+  const thirdPartyPhaseEnabled = organization?.thirdPartyPhaseEnabledConsultas !== false;
+  const hasThirdPartyData = useMemo(
+    () => (processes || []).some(p =>
+      Boolean(getProcessField(p, 'third_party_referral_date')) ||
+      Boolean(getProcessField(p, 'third_party_recipient')) ||
+      calculateDerivedStatus(p) === 'Aguarda retorno de terceiros'
+    ),
+    [processes]
+  );
+  const showThirdPartyPhase = thirdPartyPhaseEnabled || hasThirdPartyData;
+
   const [search, setSearch] = useState(() => localStorage.getItem('processSearchTerm') || "");
 
   useEffect(() => {
@@ -275,7 +291,7 @@ export default function ProcessTable({
       width: 'w-[110px]', sortable: true,
       render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'analysis_start_date'))}</span>
     },
-    {
+    ...(showThirdPartyPhase ? [{
       key: 'third_party_referral_date', label: 'Remessa a Terceiros', defaultVisible: false,
       width: 'w-[110px]', sortable: true,
       render: (process) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getProcessField(process, 'third_party_referral_date'))}</span>
@@ -288,7 +304,7 @@ export default function ProcessTable({
           {getProcessField(process, 'third_party_recipient') || '-'}
         </span>
       )
-    },
+    }] : []),
     {
       key: 'observations', label: 'Observações', defaultVisible: false,
       width: 'w-[280px]', sortable: false,
@@ -342,7 +358,7 @@ export default function ProcessTable({
       width: 'w-[160px]', sortable: true,
       render: (process) => <StatusBadge status={calculateDerivedStatus(process)} className="" />
     },
-  ], [isStageIndicatorOn, stageAverages, stageTimeConfig]);
+  ], [isStageIndicatorOn, stageAverages, stageTimeConfig, showThirdPartyPhase]);
 
   const DEFAULT_VISIBLE = useMemo(() => {
     const map = {};
@@ -625,7 +641,11 @@ export default function ProcessTable({
     return config.row || DEFAULT_STATUS_CONFIG.row;
   };
 
-  const statuses = ["Pendente", "Em elaboração", "Aguarda retorno de terceiros", "Em revisão", "Revisadas", "Na pasta"];
+  const statuses = [
+    "Pendente", "Em elaboração",
+    ...(showThirdPartyPhase ? ["Aguarda retorno de terceiros"] : []),
+    "Em revisão", "Revisadas", "Na pasta"
+  ];
 
   // ═══════════════════════════════════════════════════════════════════
   // VISÕES SALVAS (flag `saved_views`)
@@ -1186,6 +1206,7 @@ export default function ProcessTable({
         onClose={() => setSelectedProcess(null)}
         onEdit={onEdit}
         getProcessField={getProcessField}
+        organization={organization}
       />
 
       {filteredAndSortedProcesses.length > 0 && (

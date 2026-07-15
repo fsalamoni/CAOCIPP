@@ -22,6 +22,11 @@ interface UpdateOrganizationRequest {
         // serem campos separados: permissões delegadas diferentes por painel.
         thirdPartiesSettingsConsultas?: string[];
         thirdPartiesSettingsExpedientes?: string[];
+        // Liga/desliga a fase "Aguarda retorno de terceiros" — apenas para o
+        // painel de Consultas (Expedientes sempre a tem disponível). Ausente/
+        // undefined equivale a habilitada (comportamento atual preservado
+        // para órgãos que nunca mexeram nesta configuração).
+        thirdPartyPhaseEnabledConsultas?: boolean;
         moduleConfig?: Record<string, { enabled: boolean; order?: number }>;
         // Configuração de métricas/painel por página (Informações Gerais).
         dashboardConfig?: { pages?: Record<string, { metrics?: any[] }> };
@@ -85,6 +90,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             expedienteSettings: 'configure_expedientes',
             thirdPartiesSettingsConsultas: 'manage_matters',
             thirdPartiesSettingsExpedientes: 'configure_expedientes',
+            thirdPartyPhaseEnabledConsultas: 'manage_matters',
             moduleConfig: 'manage_modules',
             dashboardConfig: 'manage_metrics',
             summarySettings: null,
@@ -116,6 +122,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.expedienteSettings !== undefined) updates.expedienteSettings = data.expedienteSettings;
         if (data.thirdPartiesSettingsConsultas !== undefined) updates.thirdPartiesSettingsConsultas = sanitizeThirdParties(data.thirdPartiesSettingsConsultas);
         if (data.thirdPartiesSettingsExpedientes !== undefined) updates.thirdPartiesSettingsExpedientes = sanitizeThirdParties(data.thirdPartiesSettingsExpedientes);
+        if (data.thirdPartyPhaseEnabledConsultas !== undefined) updates.thirdPartyPhaseEnabledConsultas = data.thirdPartyPhaseEnabledConsultas === true;
         if (data.moduleConfig !== undefined) updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
         if (data.dashboardConfig !== undefined) updates.dashboardConfig = sanitizeDashboardConfig(data.dashboardConfig);
         if (data.goalsConfig !== undefined) updates.goalsConfig = sanitizeGoalsConfig(data.goalsConfig);

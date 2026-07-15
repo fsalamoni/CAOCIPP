@@ -35,6 +35,7 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         expedienteSettings: 'configure_expedientes',
         thirdPartiesSettingsConsultas: 'manage_matters',
         thirdPartiesSettingsExpedientes: 'configure_expedientes',
+        thirdPartyPhaseEnabledConsultas: 'manage_matters',
         moduleConfig: 'manage_modules',
         dashboardConfig: 'manage_metrics',
         summarySettings: null,
@@ -72,6 +73,8 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.thirdPartiesSettingsConsultas = sanitizeThirdParties(data.thirdPartiesSettingsConsultas);
     if (data.thirdPartiesSettingsExpedientes !== undefined)
         updates.thirdPartiesSettingsExpedientes = sanitizeThirdParties(data.thirdPartiesSettingsExpedientes);
+    if (data.thirdPartyPhaseEnabledConsultas !== undefined)
+        updates.thirdPartyPhaseEnabledConsultas = data.thirdPartyPhaseEnabledConsultas === true;
     if (data.moduleConfig !== undefined)
         updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
     if (data.dashboardConfig !== undefined)
