@@ -42,7 +42,7 @@ import { calculateDerivedStatus, isProcessUrgent } from "@/utils/processUtils";
  * - onEdit: callback to open the edit dialog
  * - getProcessField: the field alias resolver function
  */
-export default function ProcessDetailSheet({ process, open, onClose, onEdit, getProcessField }) {
+export default function ProcessDetailSheet({ process, open, onClose, onEdit, getProcessField, organization }) {
     if (!process) return null;
 
     const formatDate = (dateStr) => {
@@ -68,12 +68,19 @@ export default function ProcessDetailSheet({ process, open, onClose, onEdit, get
         return val === true || String(val).toLowerCase().trim() === 'sim';
     })();
 
+    // Liga/desliga a fase "Aguarda retorno de terceiros" (Painel Administrativo
+    // → Classificação (matérias)). Ausente/undefined = habilitada. Mesmo
+    // desligada, o passo continua visível se este processo já tiver a data
+    // preenchida — nunca esconde dados já preenchidos.
+    const thirdPartyPhaseEnabled = organization?.thirdPartyPhaseEnabledConsultas !== false;
+    const showThirdPartyPhase = thirdPartyPhaseEnabled || Boolean(field('third_party_referral_date'));
+
     // Timeline steps — each step has a label, date field key, and icon
     const timelineSteps = [
         { label: 'Entrada no CAO', key: 'entry_date', icon: Calendar },
         { label: 'Distribuição', key: 'distribution_date', icon: ArrowRight },
         { label: 'Início da Análise', key: 'analysis_start_date', icon: FileText },
-        { label: 'Remessa a Terceiros', key: 'third_party_referral_date', icon: Send },
+        ...(showThirdPartyPhase ? [{ label: 'Remessa a Terceiros', key: 'third_party_referral_date', icon: Send }] : []),
         { label: 'Remessa p/ Revisão', key: 'review_submission_date', icon: Clock },
         { label: 'Revisão Concluída', key: 'reviewed_date', icon: CheckCheck },
         { label: 'Devolução após Revisão', key: 'review_return_date', icon: CheckCircle2 },

@@ -37,7 +37,10 @@ import { useUserPreferences } from '@/hooks/useFirestore';
 
 
 // === Column Definitions ===
-const KANBAN_COLUMNS = [
+// Lista completa; a fase "Aguarda retorno de terceiros" é filtrada em tempo
+// de execução dentro do componente, conforme a configuração do órgão
+// (organization.thirdPartyPhaseEnabledConsultas) — ver KANBAN_COLUMNS mais abaixo.
+const ALL_KANBAN_COLUMNS = [
     {
         id: 'Pendente',
         label: 'Pendentes',
@@ -105,14 +108,6 @@ const KANBAN_COLUMNS = [
         dotColor: 'bg-green-400 dark:bg-green-400',
     },
 ];
-
-// Valid transitions: forward only for advancing to the next stage (ou pulando
-// direto a fase opcional "Aguarda retorno de terceiros", índice 2 — ela pode
-// nunca ocorrer). Backward transitions are computed dynamically and may move
-// to any previous stage.
-// Índices: 0 Pendente, 1 Em elaboração, 2 Aguarda retorno de terceiros,
-// 3 Em revisão, 4 Revisadas, 5 Na pasta.
-const VALID_FORWARD = { 0: [1], 1: [2, 3], 2: [3], 3: [4], 4: [5], 5: [] };
 
 const DATE_SORT_KEYS = new Set([
     'entry_date',
@@ -402,6 +397,11 @@ export default function KanbanBoard({
     // Padronização de Consultas), usada no modal "Aguarda retorno de terceiros".
     const thirdParties = organization?.thirdPartiesSettingsConsultas || DEFAULT_THIRD_PARTIES;
 
+    // Liga/desliga a fase "Aguarda retorno de terceiros" — só Painel de
+    // Consultas (Painel Administrativo → Classificação (matérias)). Ausente/
+    // undefined = habilitada (preserva o comportamento já publicado).
+    const thirdPartyPhaseEnabled = organization?.thirdPartyPhaseEnabledConsultas !== false;
+
     // Distribute into columns
     const columns = useMemo(() => {
         const grouped = { 'Pendente': [], 'Em elaboração': [], 'Aguarda retorno de terceiros': [], 'Em revisão': [], 'Revisadas': [], 'Na pasta': [] };
@@ -425,6 +425,34 @@ export default function KanbanBoard({
 
         return grouped;
     }, [filteredProcesses, compareProcesses]);
+
+    // Colunas efetivamente exibidas: a fase "Aguarda retorno de terceiros" só
+    // aparece se habilitada no órgão OU se já houver processos nela — assim,
+    // desligar a fase nunca esconde/perde processos que já estejam nela.
+    const KANBAN_COLUMNS = useMemo(() => {
+        const hasProcessesInPhase = (columns['Aguarda retorno de terceiros'] || []).length > 0;
+        if (thirdPartyPhaseEnabled || hasProcessesInPhase) return ALL_KANBAN_COLUMNS;
+        return ALL_KANBAN_COLUMNS.filter(col => col.id !== 'Aguarda retorno de terceiros');
+    }, [thirdPartyPhaseEnabled, columns]);
+
+    // Transições válidas "para frente": um passo por vez; quando a fase
+    // "Aguarda retorno de terceiros" está presente, a coluna anterior a ela
+    // também pode pular direto para a coluna seguinte (fase opcional).
+    const VALID_FORWARD = useMemo(() => {
+        const map = {};
+        KANBAN_COLUMNS.forEach((col, idx) => {
+            if (idx >= KANBAN_COLUMNS.length - 1) {
+                map[idx] = [];
+                return;
+            }
+            const targets = [idx + 1];
+            if (KANBAN_COLUMNS[idx + 1]?.id === 'Aguarda retorno de terceiros' && idx + 2 < KANBAN_COLUMNS.length) {
+                targets.push(idx + 2);
+            }
+            map[idx] = targets;
+        });
+        return map;
+    }, [KANBAN_COLUMNS]);
 
     const activeProcess = useMemo(() => {
         if (!activeId) return null;
@@ -580,7 +608,7 @@ export default function KanbanBoard({
         } catch (err) {
             toast.error('Erro ao mover processo: ' + err.message);
         }
-    }, [organization]);
+    }, [organization, KANBAN_COLUMNS]);
 
     // === Forward Transition ===
     const handleForwardTransition = useCallback(async (process, fromStatus, toStatus) => {
@@ -669,7 +697,7 @@ export default function KanbanBoard({
         } else {
             handleForwardTransition(process, currentStatus, targetColumnId);
         }
-    }, [filteredProcesses, isAssessor, userId, userMember, handleBackwardMove, handleForwardTransition]);
+    }, [filteredProcesses, isAssessor, userId, userMember, handleBackwardMove, handleForwardTransition, getColumnIndex, VALID_FORWARD]);
 
     const handleDragCancel = useCallback(() => {
         setActiveId(null);
@@ -927,7 +955,7 @@ export default function KanbanBoard({
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
             >
-                <div className="grid grid-cols-6 gap-3">
+                <div className={`grid gap-3 ${KANBAN_COLUMNS.length === 6 ? 'grid-cols-6' : 'grid-cols-5'}`}>
                     {KANBAN_COLUMNS.map((col) => (
                         <KanbanColumn
                             key={col.id}
@@ -975,6 +1003,7 @@ export default function KanbanBoard({
                 }}
                 onEdit={handleEditFromDetail}
                 getProcessField={getProcessField}
+                organization={organization}
             />
 
             {/* Edit Process Dialog (same as Controle de Processos) */}
