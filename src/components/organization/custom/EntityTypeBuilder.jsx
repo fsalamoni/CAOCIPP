@@ -255,7 +255,7 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col">
+            <DialogContent className="w-[min(96vw,72rem)] max-w-none h-[min(92vh,56rem)] resize overflow-hidden flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Settings2 className="h-5 w-5" />
@@ -275,7 +275,7 @@ export default function EntityTypeBuilder({ open, onOpenChange, organizationId, 
                         <TabsTrigger value="rules">Regras</TabsTrigger>
                     </TabsList>
 
-                    <ScrollArea className="flex-1 mt-3 pr-3">
+                    <ScrollArea className="flex-1 mt-3 pr-3 min-h-0">
                         {/* IDENTIFICAÇÃO */}
                         <TabsContent value="info" className="space-y-4 mt-0">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
