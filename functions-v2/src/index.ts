@@ -20,6 +20,7 @@ export { calculateProcessStatus } from './processes/calculateStatus';
 export { backfillProcessLogs } from './processes/backfillLogs';
 
 export { updateProfile } from './user/updateProfile';
+export { migrateMemberFunctions } from './user/migrateMemberFunctions';
 
 export { importProcessesFromExcel } from './import/fromExcel';
 

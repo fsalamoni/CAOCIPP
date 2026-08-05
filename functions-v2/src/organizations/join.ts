@@ -43,7 +43,21 @@ export const joinOrganization = onCall<JoinOrgRequest>(
                 const orgData = orgDoc.data();
                 const orgId = orgDoc.id;
 
-                // 2. Check if already a member
+                // 2. Puxar a função do "meu perfil" (users/{userId}.function) —
+                //    a mesma fonte que /Profile usa. Se o usuário preencheu a
+                //    função no meu perfil, ela vira a função deste member; se
+                //    não preencheu, fallback para "Membro". O member.function
+                //    deixa de ser o genérico "Membro" quando o usuário já tem
+                //    uma função real definida, evitando que o admin precise
+                //    re-cadastrar manualmente.
+                const userProfileRef = db.collection('users').doc(userId);
+                const userProfileDoc = await transaction.get(userProfileRef);
+                const profileFunction = userProfileDoc.exists
+                    ? String(userProfileDoc.get('function') || '').trim()
+                    : '';
+                const memberFunction = profileFunction || 'Membro';
+
+                // 3. Check if already a member
                 const membershipRef = db.collection('userOrganizations').doc(`${userId}_${orgId}`);
                 const membershipDoc = await transaction.get(membershipRef);
 
@@ -54,10 +68,12 @@ export const joinOrganization = onCall<JoinOrgRequest>(
                         throw new HttpsError('already-exists', 'Você já é membro desta organização.');
                     }
 
-                    // If inactive (soft deleted), reactivate
+                    // If inactive (soft deleted), reactivate. Mantemos a função
+                    // que o member já tinha (não sobrescrevemos com a do profile
+                    // porque pode ter sido editada pelo admin do órgão).
                     transaction.update(membershipRef, {
                         role: 'member',
-                        function: 'Membro',
+                        function: memberData?.function || memberFunction,
                         active: true,
                         // We update joined_at to request time to reflect "new" entry, 
                         // or we could keep original and add "rejoined_at". 
@@ -70,7 +86,7 @@ export const joinOrganization = onCall<JoinOrgRequest>(
                         left_at: admin.firestore.FieldValue.delete()
                     });
                 } else {
-                    // 3. Create new membership
+                    // 4. Create new membership
                     transaction.set(membershipRef, {
                         id: `${userId}_${orgId}`,
                         user_id: userId,
@@ -78,7 +94,7 @@ export const joinOrganization = onCall<JoinOrgRequest>(
                         user_email: userEmail,
                         user_name: userName,
                         role: 'member',
-                        function: 'Membro',
+                        function: memberFunction,
                         active: true, // Mark as active
                         joined_at: admin.firestore.FieldValue.serverTimestamp()
                     });

@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import StageTimeBadge from "@/components/ui/StageTimeBadge";
 import {
     Tooltip, TooltipContent, TooltipTrigger,
 } from '@/components/ui/tooltip';
@@ -14,6 +15,7 @@ import {
     calculateParceriaDerivedStatus,
     hasAdditives,
 } from '@/utils/parceriaUtils';
+import { getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from '@/lib/stageTime';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -51,8 +53,14 @@ export default function ParceriaKanbanCard({
     overlay = false,
     isAdditiveActive = false,
     additiveNumber = 0,
+    organization,
 }) {
     const canCopy = useFlag(FEATURE_FLAGS.COPY_PROCESS_NUMBER.key);
+    const isStageIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
+    const stageTimeConfig = React.useMemo(
+        () => resolveStageTimeConfig(organization?.stageTimeConfig),
+        [organization?.stageTimeConfig]
+    );
     const {
         attributes,
         listeners,
@@ -278,11 +286,17 @@ export default function ParceriaKanbanCard({
                         </div>
                     </div>
 
-                    {/* Status pill */}
-                    <div className="pt-1">
+                    {/* Status pill + tempo na etapa (se flag ON) */}
+                    <div className="pt-1 flex items-center justify-between gap-2">
                         <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full border ${pillClass}`}>
                             {status}
                         </span>
+                        {isStageIndicatorOn && (() => {
+                            const days = getDaysInCurrentStage(parceria, status, getParceriaField, stageTimeConfig.dayType);
+                            if (days == null) return null;
+                            const severity = getStageTimeSeverity(days, stageTimeConfig);
+                            return <StageTimeBadge days={days} severity={severity} colors={stageTimeConfig.colors} dayType={stageTimeConfig.dayType} />;
+                        })()}
                     </div>
                 </CardContent>
             </Card>

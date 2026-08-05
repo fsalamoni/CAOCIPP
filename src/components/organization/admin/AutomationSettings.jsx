@@ -60,7 +60,7 @@ export default function AutomationSettings({ organization }) {
                         <h3 className="text-lg font-medium">Metas de Conclusão por Assessor</h3>
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                        Cada assessor vê, em Meu Início, o percentual de suas Consultas/Expedientes concluídos (ou ainda dentro do prazo) em até N dias úteis, frente à meta definida aqui.
+                        Cada assessor vê, em Meu Início, o percentual de seus Consultas, Expedientes e Parcerias concluídos (ou ainda dentro do prazo) em até N dias úteis, frente à meta definida aqui.
                     </p>
                     <div className="space-y-4">
                         <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">

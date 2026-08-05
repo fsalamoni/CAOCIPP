@@ -17,12 +17,20 @@ import { calculateBusinessDays, calculateCalendarDays, parseLocalDate } from '@/
 import { isValid } from 'date-fns';
 
 // Campo de data em que o registro ENTROU em cada etapa (pré-arquivamento).
+// Inclui tanto o fluxo de Expedientes/Consultas quanto o de Parcerias —
+// Parceria é terminal (não entra em "Na pasta"), então o badge some quando
+// vira "Parcerias" / "Extintos". Mantemos as duas tabelas no mesmo objeto
+// para reuso de getDaysInCurrentStage / computeStageAverages.
 export const STAGE_ENTRY_FIELD = {
     'Pendente': 'entry_date',
     'Em elaboração': 'distribution_date',
     'Aguarda retorno de terceiros': 'third_party_referral_date',
     'Em revisão': 'review_submission_date',
     'Revisadas': 'reviewed_date',
+    // Fases de Parcerias (módulo built-in mesmo padrão de Consultas).
+    'Em análise': 'responsibility_date',
+    'Aguarda Terceiros': 'review_conclusion_date',
+    'Parcerias': 'signature_date',
 };
 
 // Campo de data em que o registro SAIU de cada etapa (para a próxima).
@@ -142,10 +150,21 @@ export function resolveStageTimeConfig(stageTimeConfig) {
 
 /**
  * Dias (úteis ou corridos, conforme dayType) desde que o registro entrou na
- * etapa atual. Retorna null se a etapa é terminal (Na pasta) ou se a data de
- * entrada não está preenchida.
+ * etapa atual. Retorna null se a etapa é terminal (Na pasta / Parcerias /
+ * Extintos — não há contagem de "tempo parado" em fase final) ou se a data
+ * de entrada não está preenchida.
  */
 export function getDaysInCurrentStage(record, status, getField, dayType = 'business') {
+    // Fases terminais: para Consultas/Expedientes, "Na pasta" / "Revisadas" são
+    // finais; para Parcerias, "Parcerias" e "Extintos" são finais. Em todos
+    // esses casos não há sentido em contar "tempo na etapa".
+    if (
+        status === 'Na pasta' ||
+        status === 'Revisadas' ||
+        status === 'Parcerias' ||
+        status === 'Extintos'
+    ) return null;
+
     const entryField = STAGE_ENTRY_FIELD[status];
     if (!entryField) return null;
 

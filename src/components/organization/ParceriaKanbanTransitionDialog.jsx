@@ -171,7 +171,7 @@ export default function ParceriaKanbanTransitionDialog({
                                 <SelectContent>
                                     {assessors.map((m) => (
                                         <SelectItem key={m.user_id} value={m.user_id}>
-                                            {m.user_name} {m.function && `(${m.function})`}
+                                            {m.user_name} {m.function ? `(${m.function})` : ''}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
