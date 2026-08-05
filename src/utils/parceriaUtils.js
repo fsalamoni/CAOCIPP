@@ -37,6 +37,8 @@ export const PARCERIA_FIELD_ALIASES = {
     current_additive_id: ['current_additive_id'],
     extinguished: ['extinguished', 'extinto'],
     extinguished_at: ['extinguished_at'],
+    created_at: ['created_at', 'criado_em', 'data_criacao', 'createdAt', 'createdAtMs'],
+    updated_at: ['updated_at', 'atualizado_em', 'data_atualizacao', 'updatedAt'],
 };
 
 /**

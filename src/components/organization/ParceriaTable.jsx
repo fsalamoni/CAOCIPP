@@ -16,9 +16,12 @@ import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { format, isValid, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { parseLocalDate } from '@/lib/dateUtils';
-import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark } from 'lucide-react';
+import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark, Columns3, GitBranch, Lock, FileText, FileSpreadsheet } from 'lucide-react';
 import EmptyState from '../ui/EmptyState';
 import { SearchX, ClipboardList } from 'lucide-react';
+import {
+    Tooltip, TooltipContent, TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import {
@@ -26,7 +29,7 @@ import {
     calculateParceriaDerivedStatus,
     hasAdditives,
 } from '@/utils/parceriaUtils';
-import { extinguishParceria } from '@/services/functionsService';
+import { extinguishParceria, logAccess } from '@/services/functionsService';
 
 // Tradução legada mantida por compat (não mais usada para selects, mas
 // renderização de células pode precisar).
@@ -44,18 +47,101 @@ const formatDate = (s) => {
     try { return format(d, 'dd/MM/yyyy', { locale: ptBR }); } catch { return '—'; }
 };
 
-// Tipos de coluna default.
+const isUrgencyMarked = (v) => v === true || String(v ?? '').toLowerCase().trim() === 'sim';
+const isUrgencyRestricted = (v) => v === true || String(v ?? '').toLowerCase().trim() === 'sim';
+
+// Tipos de coluna default — com `render` (espelho do padrão de ExpedienteTable).
 const DEFAULT_COLUMNS = [
-    { key: 'pgea', label: 'PGEA', width: 'w-32', type: 'pgea' },
-    { key: 'partnership_type', label: 'Tipo', width: 'w-44', type: 'type' },
-    { key: 'partnership_number', label: 'Número', width: 'w-32', type: 'text' },
-    { key: 'subject', label: 'Assunto', type: 'subject' },
-    { key: 'parties', label: 'Partes', type: 'parties' },
-    { key: 'responsible_user_name', label: 'Responsável', width: 'w-44', type: 'text' },
-    { key: 'signature_date', label: 'Assinatura', width: 'w-32', type: 'date' },
-    { key: 'end_date', label: 'Termo Final', width: 'w-32', type: 'date' },
-    { key: 'aditivo_count', label: 'Aditivos', width: 'w-24', type: 'aditivo' },
-    { key: 'status', label: 'Situação', width: 'w-40', type: 'status' },
+    {
+        key: 'pgea', label: 'PGEA', defaultVisible: true, sticky: 'left', sortable: true,
+        render: (p) => {
+            const isUrgent = isUrgencyMarked(getParceriaField(p, 'urgency_request'));
+            const isRestricted = isUrgencyRestricted(getParceriaField(p, 'access_restriction'));
+            return (
+                <div className="flex items-center gap-2">
+                    {isUrgent && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right">Prioridade Urgente</TooltipContent>
+                        </Tooltip>
+                    )}
+                    {isRestricted && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Lock className="w-3.5 h-3.5 text-rose-500 shrink-0 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right">Acesso restrito</TooltipContent>
+                        </Tooltip>
+                    )}
+                    <span className="font-semibold text-slate-800 dark:text-slate-100 font-mono text-[13px]">
+                        {getParceriaField(p, 'pgea') || '—'}
+                    </span>
+                </div>
+            );
+        },
+    },
+    {
+        key: 'partnership_type', label: 'Tipo', defaultVisible: true, sortable: true,
+        render: (p) => <Badge variant="outline" className="text-[12px] font-medium">{getParceriaField(p, 'partnership_type') || '—'}</Badge>,
+    },
+    {
+        key: 'partnership_number', label: 'Número', defaultVisible: true, sortable: true,
+        render: (p) => <span className="font-mono text-[13px]">{getParceriaField(p, 'partnership_number') || '—'}</span>,
+    },
+    {
+        key: 'subject', label: 'Assunto', defaultVisible: true, sortable: true,
+        render: (p) => (
+            <span className="text-slate-700 dark:text-slate-200 truncate block max-w-[260px]" title={String(getParceriaField(p, 'subject') || '')}>
+                {getParceriaField(p, 'subject') || '—'}
+            </span>
+        ),
+    },
+    {
+        key: 'parties', label: 'Partes', defaultVisible: true, sortable: true,
+        render: (p) => (
+            <span className="text-slate-700 dark:text-slate-200 truncate block max-w-[220px]" title={String(getParceriaField(p, 'parties') || '')}>
+                {getParceriaField(p, 'parties') || '—'}
+            </span>
+        ),
+    },
+    {
+        key: 'categoria', label: 'Categoria', defaultVisible: true, sortable: true,
+        render: (p) => <span className="text-[13px] text-slate-600">{getParceriaField(p, 'categoria') || '—'}</span>,
+    },
+    {
+        key: 'responsible_user_name', label: 'Responsável', defaultVisible: true, sortable: true,
+        render: (p) => <span className="text-[13px]">{getParceriaField(p, 'responsible_user_name') || '—'}</span>,
+    },
+    {
+        key: 'signature_date', label: 'Assinatura', defaultVisible: true, sortable: true,
+        render: (p) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getParceriaField(p, 'signature_date'))}</span>,
+    },
+    {
+        key: 'end_date', label: 'Termo Final', defaultVisible: true, sortable: true,
+        render: (p) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getParceriaField(p, 'end_date'))}</span>,
+    },
+    {
+        key: 'renewal_notice_date', label: 'Aviso Renovação', defaultVisible: false, sortable: true,
+        render: (p) => <span className="text-[13px] text-slate-500 font-medium dark:text-slate-400">{formatDate(getParceriaField(p, 'renewal_notice_date'))}</span>,
+    },
+    {
+        key: 'aditivo_count', label: 'Aditivos', defaultVisible: true, sortable: true,
+        render: (p) => {
+            const v = Number(getParceriaField(p, 'aditivo_count')) || 0;
+            return v > 0 ? (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-amber-50 text-amber-700 border-amber-200 gap-0.5">
+                    <GitBranch className="w-3 h-3" />
+                    {v}
+                </Badge>
+            ) : <span className="text-slate-400">—</span>;
+        },
+    },
+    {
+        key: 'status', label: 'Situação', defaultVisible: true, sortable: true,
+        render: (p) => <StatusBadge status={calculateParceriaDerivedStatus(p)} />,
+    },
 ];
 
 /**
@@ -110,6 +196,15 @@ export default function ParceriaTable({
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     const [newViewName, setNewViewName] = useState('');
     const savedViews = preferences?.savedParceriaViews || [];
+
+    // Colunas visíveis (preferences por usuário): toggle, persistência, etc.
+    const visibleColumns = preferences?.visibleParceriaColumns || {};
+    const activeColumns = useMemo(() => DEFAULT_COLUMNS.filter((c) => visibleColumns[c.key] !== false), [visibleColumns]);
+    const toggleColumn = useCallback((key) => {
+        const current = preferences?.visibleParceriaColumns || {};
+        const next = { ...current, [key]: current[key] === false ? true : false };
+        updatePreferences({ visibleParceriaColumns: next });
+    }, [preferences, updatePreferences]);
 
     // Disponível: tipos / responsáveis / aditivos.
     const availableTypes = useMemo(() => {
@@ -299,6 +394,43 @@ export default function ParceriaTable({
         toast.success('Exportação CSV gerada.');
     };
 
+    // Export Excel / PDF (via lib tableExport, import sob demanda).
+    const DATE_EXPORT_KEYS = new Set(['signature_date', 'end_date', 'renewal_notice_date', 'pgea_date', 'responsibility_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
+    const getExportValue = (col, p) => {
+        if (col.key === 'status') return calculateParceriaDerivedStatus(p);
+        if (col.key === 'aditivo_count') return String(getParceriaField(p, 'aditivo_count') || 0);
+        if (col.key === 'pgea') return getParceriaField(p, 'pgea') || '';
+        if (DATE_EXPORT_KEYS.has(col.key)) return formatDate(getParceriaField(p, col.key));
+        if (col.key === 'urgency_request') {
+            return isUrgencyMarked(getParceriaField(p, 'urgency_request')) ? 'Sim' : 'Não';
+        }
+        if (col.key === 'access_restriction') {
+            return isUrgencyRestricted(getParceriaField(p, 'access_restriction')) ? 'Sim' : 'Não';
+        }
+        return getParceriaField(p, col.key) ?? '';
+    };
+    const handleExport = async (kind) => {
+        const rows = filteredAndSorted;
+        if (rows.length === 0) {
+            toast.info('Nenhuma Parceria para exportar.');
+            return;
+        }
+        const columns = activeColumns.map((col) => ({ label: col.label, value: (p) => getExportValue(col, p) }));
+        const filenameBase = `parcerias-${new Date().toISOString().slice(0, 10)}`;
+        const { exportRowsToExcel, exportRowsToPdf } = await import('@/lib/tableExport');
+        if (kind === 'excel') exportRowsToExcel({ rows, columns, filenameBase });
+        else exportRowsToPdf({ rows, columns, filenameBase, title: 'Parcerias' });
+        toast.success(`Exportação de ${rows.length} parceria(s) iniciada.`);
+        if (isAccessAuditLogOn && organization?.id) {
+            logAccess({
+                organizationId: organization.id,
+                entityType: 'parceria',
+                action: 'export_table',
+                details: { format: kind, rowCount: rows.length },
+            }).catch(() => {});
+        }
+    };
+
     // Saved views.
     const applySavedView = (view) => {
         if (view.search !== undefined) setSearch(view.search);
@@ -476,11 +608,56 @@ export default function ParceriaTable({
                     )}
 
                     {isExportOn && (
-                        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV}>
-                            <Download className="w-3.5 h-3.5" />
-                            CSV
-                        </Button>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm" className="gap-1.5">
+                                    <Download className="w-3.5 h-3.5" />
+                                    Exportar
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-44 p-1">
+                                <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => handleExport('excel')}>
+                                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                    Excel (.xlsx)
+                                </Button>
+                                <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => handleExport('pdf')}>
+                                    <FileText className="w-3.5 h-3.5 text-rose-600" />
+                                    PDF
+                                </Button>
+                                <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={handleExportCSV}>
+                                    <Download className="w-3.5 h-3.5" />
+                                    CSV
+                                </Button>
+                            </PopoverContent>
+                        </Popover>
                     )}
+
+                    {/* Toggle colunas */}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-1.5">
+                                <Columns3 className="w-3.5 h-3.5" />
+                                Colunas
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
+                                    {activeColumns.length}
+                                </Badge>
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-72 p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Colunas visíveis</p>
+                            <div className="space-y-1.5 max-h-80 overflow-y-auto">
+                                {DEFAULT_COLUMNS.map((col) => (
+                                    <label key={col.key} className="flex items-center gap-2 cursor-pointer text-sm py-1">
+                                        <Checkbox
+                                            checked={visibleColumns[col.key] !== false}
+                                            onCheckedChange={() => toggleColumn(col.key)}
+                                        />
+                                        <span className="text-slate-700 dark:text-slate-200">{col.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </PopoverContent>
+                    </Popover>
                 </div>
 
                 {/* Saved views (flag saved_views) */}
@@ -545,7 +722,7 @@ export default function ParceriaTable({
                                     />
                                 </TableHead>
                             )}
-                            {DEFAULT_COLUMNS.map((c) => (
+                            {activeColumns.map((c) => (
                                 <TableHead key={c.key} className={c.width || ''}>
                                     <Button
                                         variant="ghost"
@@ -564,7 +741,7 @@ export default function ParceriaTable({
                     <TableBody>
                         {paginated.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={DEFAULT_COLUMNS.length + (isBulkActionsOn ? 2 : 1)} className="py-12 text-center">
+                                <TableCell colSpan={activeColumns.length + (isBulkActionsOn ? 2 : 1)} className="py-12 text-center">
                                     <EmptyState
                                         icon={SearchX}
                                         title="Nenhuma Parceria encontrada"
@@ -591,25 +768,12 @@ export default function ParceriaTable({
                                                 />
                                             </TableCell>
                                         )}
-                                        {DEFAULT_COLUMNS.map((c) => {
-                                            let content;
-                                            const raw = c.key === 'status' ? status : getParceriaField(p, c.key);
-                                            if (c.type === 'pgea') {
-                                                content = <span className="font-mono text-xs">{raw || '—'}</span>;
-                                            } else if (c.type === 'date') {
-                                                content = formatDate(raw);
-                                            } else if (c.type === 'aditivo') {
-                                                const v = Number(getParceriaField(p, 'aditivo_count')) || 0;
-                                                content = v > 0 ? (
-                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-amber-50 text-amber-700 border-amber-200">
-                                                        #{v}
-                                                    </Badge>
-                                                ) : <span className="text-slate-400">—</span>;
-                                            } else if (c.type === 'status') {
-                                                content = <StatusBadge status={status} />;
-                                            } else {
-                                                content = raw || '—';
-                                            }
+                                        {activeColumns.map((c) => {
+                                            const content = c.render ? c.render(p) : (
+                                                <span className="text-[13px] text-slate-700 dark:text-slate-200">
+                                                    {getParceriaField(p, c.key) || '—'}
+                                                </span>
+                                            );
                                             return <TableCell key={c.key} className={cellPadding}>{content}</TableCell>;
                                         })}
                                         <TableCell className={`${cellPadding} text-right`} onClick={(e) => e.stopPropagation()}>

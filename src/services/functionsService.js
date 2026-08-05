@@ -458,7 +458,7 @@ export const updateAditivo = async (data) => {
 export const deleteAditivo = async (data) => {
     try {
         const fn = httpsCallable(functions, 'deleteAditivo');
-        const result = await fn({ parceriaId, aditivoId, organizationId });
+        const result = await fn(data);
         return result.data;
     } catch (error) {
         logger.error('Error calling deleteAditivo:', error);
