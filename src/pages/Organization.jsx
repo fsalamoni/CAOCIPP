@@ -86,6 +86,10 @@ export default function Organization() {
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const deadlineCalendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
+  // Flag global do módulo de Parcerias: quando DESLIGADA, as abas e a página
+  // de Parcerias não aparecem em nenhum órgão, mesmo que o órgão tenha a
+  // chave `moduleConfig.parcerias.enabled = true` (defesa em profundidade).
+  const parceriasOn = useFlag(FEATURE_FLAGS.PARCERIAS.key);
 
   // Tipos de entidade personalizados (apenas quando a flag está ligada).
   const { entityTypes: customTypes } = useEntityTypes(customEntitiesOn ? selectedOrgId : null);
@@ -155,29 +159,31 @@ export default function Organization() {
   // V2) — mesma fonte e mesmo filtro de permissão usados no sub-menu da sidebar.
   const orgTabs = React.useMemo(() => {
     if (!isV2 || !organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn })
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, userRole, userMembership]);
+  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, userRole, userMembership]);
 
   // Abas para o tour de onboarding (flag `onboarding_tour`): independente do
   // design V2, já que a navegação existe (via sidebar) em qualquer um deles.
   const tourTabs = React.useMemo(() => {
     if (!organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn })
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, userRole, userMembership]);
+  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, userRole, userMembership]);
 
   // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
   // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible
-  // devolve true para todas as abas built-in (nada muda).
+  // devolve true para todas as abas built-in (nada muda). O `parceriasOn` é
+  // incluído para que uma eventual desativação da flag global redirecione o
+  // usuário de uma aba de Parceria para Informações Gerais.
   useEffect(() => {
     if (!customEntitiesOn || !organization) return;
-    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes, deadlineCalendarOn });
+    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn });
     // 'admin' depende do papel; mantém o comportamento atual (só creator vê).
     if (!visible && activeTab !== 'admin') {
       navigate(`/Organization?id=${selectedOrgId}&tab=info`, { replace: true });
     }
-  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes, deadlineCalendarOn]);
+  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes, deadlineCalendarOn, parceriasOn]);
 
   // Loading state
   if (isLoadingAuth || orgsLoading || orgLoading) {

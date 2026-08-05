@@ -171,6 +171,7 @@ const PARCERIA_FIELD_TYPES = {
     parties: 'text',
     partnership_type: 'text',
     partnership_number: 'text',
+    categoria: 'text',
     signature_date: 'date',
     validity_period: 'text',
     end_date: 'date',
@@ -196,6 +197,7 @@ const PARCERIA_FIELDS = [
     { key: 'parties', label: 'Partes', type: 'text' },
     { key: 'partnership_type', label: 'Tipo de Parceria', type: 'text' },
     { key: 'partnership_number', label: 'Número da Parceria', type: 'text' },
+    { key: 'categoria', label: 'Categoria', type: 'text' },
     { key: 'signature_date', label: 'Data da Assinatura', type: 'date' },
     { key: 'validity_period', label: 'Vigência', type: 'text' },
     { key: 'end_date', label: 'Termo Final', type: 'date' },
@@ -420,14 +422,16 @@ export function getDefaultCustomMetrics(entityType) {
  * Páginas de DADOS ativas do órgão (base do painel de métricas do GeneralInfo).
  * Respeita moduleConfig (quando a flag custom está ligada) e os tipos custom
  * habilitados. Com a flag DESLIGADA, devolve Consultas + Expedientes (idêntico
- * ao comportamento atual).
+ * ao comportamento atual). Parcerias também exige a flag global `parceriasOn`
+ * ligada — defesa em profundidade: nunca exibe a página de métricas de
+ * Parcerias se a flag global estiver OFF.
  */
 export function getActiveDataPages(organization, opts = {}) {
-    const { customEntitiesOn = false, entityTypes = [] } = opts;
+    const { customEntitiesOn = false, entityTypes = [], parceriasOn = false } = opts;
     const builtin = resolveBuiltinModules(organization);
     const showProcesses = !customEntitiesOn || builtin.processes;
     const showExpedientes = !customEntitiesOn || builtin.expedientes;
-    const showParcerias = !customEntitiesOn || builtin.parcerias;
+    const showParcerias = parceriasOn && (!customEntitiesOn || builtin.parcerias);
 
     const pages = [];
     if (showProcesses) pages.push(getProcessesPageSchema());
