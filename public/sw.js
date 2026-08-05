@@ -4,7 +4,7 @@
 // para fallback offline. Bumps no CACHE_NAME invalidam qualquer cache
 // residual de versões anteriores.
 
-const CACHE_NAME = 'caocipp-static-v3';
+const CACHE_NAME = 'caocipp-static-v4';
 const STATIC_CACHE_REGEX = /\/assets\//;
 
 self.addEventListener('install', () => {
@@ -12,9 +12,17 @@ self.addEventListener('install', () => {
 });
 
 self.addEventListener('activate', (event) => {
+    // Apaga TODOS os caches que não sejam o atual (v4). Garante limpeza
+    // agressiva de caches legados de SWs v1/v2/v3 que possam estar prendendo
+    // bundles antigos no navegador do usuário.
     event.waitUntil(
         caches.keys()
-            .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+            .then((keys) => Promise.all(
+                keys.filter((k) => k !== CACHE_NAME).map((k) => {
+                    console.log('[SW v4] Deletando cache legado:', k);
+                    return caches.delete(k);
+                })
+            ))
             .then(() => self.clients.claim())
     );
 });
