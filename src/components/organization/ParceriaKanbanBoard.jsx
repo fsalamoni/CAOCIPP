@@ -30,7 +30,8 @@ import {
 } from '@/utils/parceriaUtils';
 import { updateParceria } from '@/services/functionsService';
 import { parseLocalDate } from '@/lib/dateUtils';
-import { useUserPreferences } from '@/hooks/useFirestore';
+import { useUserPreferences, useAditivos } from '@/hooks/useFirestore';
+import ProcessLogDialog from './ProcessLogDialog';
 import ParceriaKanbanCard from './ParceriaKanbanCard';
 import ParceriaKanbanTransitionDialog from './ParceriaKanbanTransitionDialog';
 import ParceriaDetailSheet from './ParceriaDetailSheet';
@@ -115,7 +116,10 @@ export default function ParceriaKanbanBoard({
     const [aditivoTarget, setAditivoTarget] = useState(null);
     const [extinguishOpen, setExtinguishOpen] = useState(false);
     const [extinguishTarget, setExtinguishTarget] = useState(null);
+    const [logOpen, setLogOpen] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    // Aditivos da Parceria selecionada no DetailSheet (reativo).
+    const { aditivos = [] } = useAditivos(detailParceria?.id, !!detailParceria);
     const [viewFilters, setViewFilters] = useState(buildDefaultFilters());
     const [sortRules, setSortRules] = useState(buildDefaultSortRules());
     const [isPrefsInitialized, setIsPrefsInitialized] = useState(false);
@@ -470,6 +474,12 @@ export default function ParceriaKanbanBoard({
                 onEdit={handleEditFromDetail}
                 onIncludeAditivo={(p) => { setDetailOpen(false); setAditivoTarget(p); setAditivoDialogOpen(true); }}
                 onExtinguish={(p) => { setDetailOpen(false); setExtinguishTarget(p); setExtinguishOpen(true); }}
+                onViewLog={() => setLogOpen(true)}
+                aditivos={aditivos}
+                currentAdditiveId={detailParceria?.current_additive_id}
+                userRole={userRole}
+                organizationId={organization.id}
+                members={members}
             />
 
             {editParceria && (
@@ -503,6 +513,15 @@ export default function ParceriaKanbanBoard({
                     parceria={extinguishTarget}
                     organizationId={organization.id}
                     onSuccess={() => { setExtinguishOpen(false); setExtinguishTarget(null); }}
+                />
+            )}
+
+            {detailParceria && (
+                <ProcessLogDialog
+                    open={logOpen}
+                    onClose={() => setLogOpen(false)}
+                    process={detailParceria}
+                    collectionName="parcerias"
                 />
             )}
 
