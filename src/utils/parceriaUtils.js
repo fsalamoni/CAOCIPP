@@ -19,6 +19,7 @@ export const PARCERIA_FIELD_ALIASES = {
     parties: ['parties', 'partes', 'Partes', 'PARTES'],
     partnership_type: ['partnership_type', 'tipo_parceria', 'TIPO DE PARCERIA', 'Tipo de Parceria'],
     partnership_number: ['partnership_number', 'numero_parceria', 'NÚMERO DA PARCERIA', 'Número da Parceria'],
+    categoria: ['categoria', 'CATEGORIA', 'Categoria', 'category'],
     signature_date: ['signature_date', 'data_assinatura', 'DATA DA ASSINATURA', 'Data da Assinatura'],
     validity_period: ['validity_period', 'vigencia', 'VIGÊNCIA', 'Vigência'],
     end_date: ['end_date', 'termo_final', 'TERMO FINAL', 'Termo Final'],

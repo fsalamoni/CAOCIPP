@@ -440,6 +440,17 @@ Número do "Procedimento de Gestão Estratégica e Administrativa" — identific
 ### Tipo de Parceria
 Classificação jurídica: **Convênio**, **Termo de Cooperação** ou **Termo de Fomento**. Configurável por órgão (lista customizável em `parceriaSettings.tipos`).
 
+### Configurações do módulo de Parcerias (por órgão)
+O objeto `parceriaSettings` no documento da organização guarda:
+- `tipos`: tipos de Parceria aceitos (default: Convênio, Termo de Cooperação, Termo de Fomento).
+- `aditivoTipos`: tipos de Aditivo aceitos (default: Prazo, Valor, Alteração, Reequilíbrio, Execução).
+- `vigenciaOptions`: opções pré-definidas de vigência (default: 6, 12, 24, 36, 60 meses, Indeterminado). O usuário pode digitar valor livre; o sistema oferece como autocomplete.
+- `categorias`: tags opcionais para classificar Parcerias (ex.: Saúde, Educação). Lista vazia = campo não exibido.
+- `thirdPartyPhaseEnabled` (default true): liga/desliga a coluna "Aguarda Terceiros" no Kanban. Quando desligada, parcerias vão direto de "Revisão" para "Parcerias".
+- `autoExtinguishOnEnd` (default false): preferência por extinguir Parcerias automaticamente quando passam a data final. Lógica de execução é feita por Cloud Function.
+
+A lista de terceiros fica em `thirdPartiesSettingsParcerias` (mesmo padrão de Consultas/Expedientes, com permissão `configure_parcerias` separada).
+
 ### Vigência
 Período de validade da Parceria (ex.: "12 meses", "2 anos"). Campo texto livre; o sistema calcula o termo final a partir da data de assinatura quando cabível.
 

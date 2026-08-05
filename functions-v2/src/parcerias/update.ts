@@ -17,7 +17,7 @@ interface UpdateParceriaRequest {
 const FROZEN_WHEN_HAS_ADITIVO = new Set([
     'subject', 'object', 'parties',
     'pgea', 'pgea_date',
-    'partnership_type', 'partnership_number', 'signature_date',
+    'partnership_type', 'partnership_number', 'categoria', 'signature_date',
     'validity_period', 'end_date', 'renewal_notice_date',
 ]);
 
@@ -133,6 +133,7 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
             parties: 'Partes',
             partnership_type: 'Tipo de Parceria',
             partnership_number: 'Número da Parceria',
+            categoria: 'Categoria',
             signature_date: 'Data da Assinatura',
             validity_period: 'Vigência',
             end_date: 'Termo Final',

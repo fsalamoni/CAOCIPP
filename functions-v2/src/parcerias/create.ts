@@ -12,6 +12,7 @@ interface CreateParceriaRequest {
     parties: string;
     partnershipType?: string;
     partnershipNumber?: string;
+    categoria?: string;
     signatureDate?: string;
     validityPeriod?: string;
     endDate?: string;
@@ -93,6 +94,7 @@ export const createParceria = onCall<CreateParceriaRequest>(
             parties: String(parties).trim(),
             partnership_type: data.partnershipType || null,
             partnership_number: data.partnershipNumber || null,
+            categoria: data.categoria || null,
             signature_date: data.signatureDate || null,
             validity_period: data.validityPeriod || null,
             end_date: data.endDate || null,
