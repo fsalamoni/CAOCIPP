@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { updateParceria, updateAditivo, deleteAditivo } from '@/services/functionsService';
+import { useAuth } from '@/lib/FirebaseAuthContext';
+import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
+import {
+    updateParceria,
+    updateAditivo,
+    deleteAditivo,
+    deleteParceria,
+    logAccess,
+} from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,14 +25,22 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Trash2, Lock } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
+import { Loader2, CheckCircle2, Lock, Trash2, Archive } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { format, isValid } from 'date-fns';
+import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
 import { hasAdditives } from '@/utils/parceriaUtils';
+import ProcessLogDialog from './ProcessLogDialog';
+import EntityComments from './EntityComments';
+import { LivePresenceIndicator } from '@/lib/LivePresence';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 
-// Defaults alinhados com o backend (sanitizeParceriaSettings em
-// functions-v2/src/organizations/update.ts). Usados apenas se o órgão não
-// tiver parceriaSettings persistido.
+// Defaults alinhados com sanitizeParceriaSettings no backend.
 const DEFAULT_TIPOS = ['Convênio', 'Termo de Cooperação', 'Termo de Fomento'];
 const DEFAULT_ADITIVO_TIPOS = [
     'Aditivo de Prazo',
@@ -38,6 +54,37 @@ const DEFAULT_VIGENCIA_OPTIONS = [
 ];
 const DEFAULT_THIRD_PARTIES = ['Parceiro', 'Convenente', 'Outro Órgão Público', 'Terceiro'];
 
+// Fases (espelhadas em functions-v2/src/shared/status.ts).
+const PARCERIA_STATUSES = [
+    'Pendente',
+    'Em análise',
+    'Revisão',
+    'Aguarda Terceiros',
+    'Parcerias',
+    'Extintos',
+];
+
+/**
+ * EditParceriaDialog — diálogo de edição no padrão de EditExpedienteDialog.
+ *
+ * Mesma estrutura visual de Tabs:
+ *   - Dados Básicos: PGEA, Assunto, Partes, Objeto, Tipo/Número, Categoria, Restrição de Acesso, Urgência
+ *   - Formalização: Tipo, Número, Assinatura, Vigência, Termo Final, Aviso Renovação
+ *   - Fluxo de Trabalho: Assessor Responsável, Datas de Análise/Revisão/Terceiros, Observações, Status
+ *   - Revisão e Arquivo: Pasta na Rede, Datas de Revisão, Conclusão
+ *   - Colaboração (condicional): Comentários + Presença (flags)
+ *
+ * Suporta Parceria original (com lock se tem aditivos) OU aditivo (sempre
+ * editável). Quando `isAdditive === true`, o `formData` é carregado a partir
+ * de `additiveData` em vez de `parceria`.
+ *
+ * Permissões:
+ *   - canDeleteRecords (config) || userRole admin/owner/creator → pode excluir
+ *   - userRole === 'creator' → botão "Verificar Log"
+ *
+ * Log de acesso (flag access_audit_log): se a Parceria tem access_restriction
+ * true/"Sim", registra a abertura do diálogo.
+ */
 export default function EditParceriaDialog({
     open,
     setOpen,
@@ -50,52 +97,23 @@ export default function EditParceriaDialog({
     additiveData = null,
     onSuccess,
 }) {
+    const { user } = useAuth();
+    const canDeleteRecords = useOrgPermission('delete_records');
+    const isCommentsOn = useFlag(FEATURE_FLAGS.PROCESS_COMMENTS.key);
+    const isPresenceOn = useFlag(FEATURE_FLAGS.LIVE_PRESENCE.key);
+    const showCollabTab = isCommentsOn || isPresenceOn;
+    const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
+
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [logOpen, setLogOpen] = useState(false);
     const [formData, setFormData] = useState({});
-    const [isLocked, setIsLocked] = useState(false);
 
-    useEffect(() => {
-        if (!open) return;
-        const source = isAdditive && additiveData ? additiveData : parceria;
-        if (!source) return;
-        setFormData({
-            pgea: source.pgea || '',
-            subject: source.subject || '',
-            object: source.object || '',
-            parties: source.parties || '',
-            partnership_type: source.partnership_type || '',
-            partnership_number: source.partnership_number || '',
-            categoria: source.categoria || '',
-            signature_date: source.signature_date || '',
-            validity_period: source.validity_period || '',
-            end_date: source.end_date || '',
-            renewal_notice_date: source.renewal_notice_date || '',
-            responsible_user_id: source.responsible_user_id || '',
-            responsible_user_name: source.responsible_user_name || '',
-            responsibility_date: source.responsibility_date || '',
-            network_folder: source.network_folder || '',
-            observations: source.observations || '',
-            review_conclusion_date: source.review_conclusion_date || '',
-            third_party: source.third_party || '',
-            pgea_date: source.pgea_date || '',
-            // Campos de aditivo (só usados quando isAdditive === true).
-            aditivo_type: source.aditivo_type || '',
-            aditivo_number: source.aditivo_number || '',
-        });
-        // Se a Parceria original tem aditivos, os campos do original ficam
-        // read-only (lock). Para o aditivo em si, nunca há lock.
-        if (!isAdditive && hasAdditives(parceria)) {
-            setIsLocked(true);
-        } else {
-            setIsLocked(false);
-        }
-    }, [open, isAdditive, additiveData, parceria]);
+    // Lock: a Parceria ORIGINAL fica read-only quando tem aditivos. Para o
+    // aditivo em si, nunca há lock.
+    const isLocked = !isAdditive && hasAdditives(parceria);
 
-    const isCreator = userRole === 'creator';
-    const hasDeletePerm = userRole === 'creator' || isCreator;
-
-    // Configurações do módulo vindas do banco do órgão (com defaults
-    // alinhados com sanitizeParceriaSettings do backend).
+    // Configurações do módulo vindas do banco do órgão.
     const tipos = organization?.parceriaSettings?.tipos?.length
         ? organization.parceriaSettings.tipos
         : DEFAULT_TIPOS;
@@ -110,8 +128,177 @@ export default function EditParceriaDialog({
         ? organization.thirdPartiesSettingsParcerias
         : DEFAULT_THIRD_PARTIES;
 
+    // Log de acesso e auditoria (flag `access_audit_log`): registra a abertura
+    // de um registro com restrição de acesso. Uma vez por abertura do diálogo.
+    // Mesma normalização usada em EditExpedienteDialog.
+    const source = isAdditive && additiveData ? additiveData : parceria;
+    const isParceriaRestricted = source?.access_restriction === true
+        || String(source?.access_restriction).toLowerCase().trim() === 'sim';
+
+    useEffect(() => {
+        if (open && isAccessAuditLogOn && isParceriaRestricted && source?.id) {
+            logAccess({
+                organizationId,
+                entityType: 'parceria',
+                entityId: source.id,
+                action: 'view_restricted',
+            }).catch(() => { /* best-effort */ });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, source?.id]);
+
+    // Helper: formata data para input type="date"
+    const formatDateForInput = (value) => {
+        if (!value) return '';
+        try {
+            const d = parseLocalDate(value);
+            if (isValid(d)) return format(d, 'yyyy-MM-dd');
+        } catch { /* fallthrough */ }
+        return '';
+    };
+
+    // Carrega o formData a partir da fonte (parceria ou aditivo).
+    useEffect(() => {
+        if (!open) return;
+        const src = isAdditive && additiveData ? additiveData : parceria;
+        if (!src) return;
+
+        // Resolve o assessor responsável por nome legados (mesma estratégia do
+        // EditExpedienteDialog).
+        let respId = src.responsible_user_id || '';
+        const respName = src.responsible_user_name || '';
+        if (!respId && respName && members?.length) {
+            const found = members.find(
+                (m) => m.user_id === respName
+                    || m.user_name?.toLowerCase().trim() === respName.toString().toLowerCase().trim()
+            );
+            if (found) respId = found.user_id;
+        }
+        if (!respId && respName) respId = 'historical__advisor__placeholder';
+
+        setFormData({
+            pgea: src.pgea || '',
+            subject: src.subject || '',
+            object: src.object || '',
+            parties: src.parties || '',
+            partnership_type: src.partnership_type || '',
+            partnership_number: src.partnership_number || '',
+            categoria: src.categoria || '',
+            signature_date: formatDateForInput(src.signature_date),
+            validity_period: src.validity_period || '',
+            end_date: formatDateForInput(src.end_date),
+            renewal_notice_date: formatDateForInput(src.renewal_notice_date),
+            responsible_user_id: respId,
+            responsible_user_name: respName,
+            responsibility_date: formatDateForInput(src.responsibility_date),
+            network_folder: src.network_folder || '',
+            observations: src.observations || '',
+            review_conclusion_date: formatDateForInput(src.review_conclusion_date),
+            third_party: src.third_party || '',
+            third_party_referral_date: formatDateForInput(src.third_party_referral_date),
+            review_submission_date: formatDateForInput(src.review_submission_date),
+            reviewed_date: formatDateForInput(src.reviewed_date),
+            review_return_date: formatDateForInput(src.review_return_date),
+            archived_date: formatDateForInput(src.archived_date),
+            pgea_date: formatDateForInput(src.pgea_date),
+            access_restriction: src.access_restriction === true
+                || String(src.access_restriction).toLowerCase().trim() === 'sim',
+            urgency_request: src.urgency_request === true
+                || String(src.urgency_request).toLowerCase().trim() === 'sim',
+            status: src.status || calculateDerivedStatus(src) || 'Pendente',
+            // Campos só de aditivo.
+            aditivo_type: src.aditivo_type || '',
+            aditivo_number: src.aditivo_number || 0,
+        });
+        // `members` é resolvido a partir do nome legados e não deve resetar o form
+        // a cada mudança no roster.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, isAdditive, additiveData, parceria]);
+
+    // Status derivado (cópia da função em parceriaUtils para não importar ciclos).
+    function calculateDerivedStatus(p) {
+        if (!p) return 'Pendente';
+        if (p.extinguished === true || String(p.extinguished).toLowerCase() === 'true') return 'Extintos';
+        if (p.partnership_type && p.partnership_number && p.signature_date && p.end_date && p.renewal_notice_date) return 'Parcerias';
+        if (p.review_conclusion_date && p.third_party) return 'Aguarda Terceiros';
+        if (p.network_folder && p.observations) return 'Revisão';
+        if (p.responsible_user_id && p.responsibility_date) return 'Em análise';
+        return p.status || 'Pendente';
+    }
+
+    // Rollback de campos quando o status volta para uma fase anterior.
+    const getRollbackByStatus = (status) => {
+        if (status === 'Pendente') {
+            return {
+                responsible_user_id: null,
+                responsible_user_name: null,
+                responsibility_date: null,
+                network_folder: '',
+                observations: '',
+                review_conclusion_date: null,
+                third_party: null,
+                partnership_type: null,
+                partnership_number: null,
+                signature_date: null,
+                validity_period: null,
+                end_date: null,
+                renewal_notice_date: null,
+                review_submission_date: null,
+                reviewed_date: null,
+                review_return_date: null,
+            };
+        }
+        if (status === 'Em análise') {
+            return {
+                network_folder: '',
+                observations: '',
+                review_conclusion_date: null,
+                third_party: null,
+                partnership_type: null,
+                partnership_number: null,
+                signature_date: null,
+                validity_period: null,
+                end_date: null,
+                renewal_notice_date: null,
+                review_submission_date: null,
+                reviewed_date: null,
+                review_return_date: null,
+            };
+        }
+        if (status === 'Revisão') {
+            return {
+                review_conclusion_date: null,
+                third_party: null,
+                partnership_type: null,
+                partnership_number: null,
+                signature_date: null,
+                validity_period: null,
+                end_date: null,
+                renewal_notice_date: null,
+                review_submission_date: null,
+                reviewed_date: null,
+                review_return_date: null,
+            };
+        }
+        if (status === 'Aguarda Terceiros') {
+            return {
+                partnership_type: null,
+                partnership_number: null,
+                signature_date: null,
+                validity_period: null,
+                end_date: null,
+                renewal_notice_date: null,
+            };
+        }
+        return {};
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isLocked) {
+            toast.error('Esta Parceria possui aditivos. Edite o aditivo corrente.');
+            return;
+        }
         try {
             setIsSaving(true);
             const changes = { ...formData };
@@ -124,13 +311,6 @@ export default function EditParceriaDialog({
                 const m = members.find((mm) => mm.user_id === changes.responsible_user_id);
                 if (m) changes.responsible_user_name = m.user_name;
             }
-            // Remover campos que pertencem só ao aditivo, se estiver editando original
-            // (mantém pgea, pgea_date, etc do original mesmo locked)
-            if (!isAdditive && hasAdditives(parceria)) {
-                // Se estiver locked, o servidor vai rejeitar — não envia nada
-                toast.error('Esta Parceria possui aditivos. Edite o aditivo corrente.');
-                return;
-            }
 
             if (isAdditive) {
                 await updateAditivo({
@@ -139,14 +319,15 @@ export default function EditParceriaDialog({
                     organizationId,
                     changes,
                 });
+                toast.success('Aditivo atualizado!');
             } else {
                 await updateParceria({
                     id: parceria.id,
                     organizationId,
                     changes,
                 });
+                toast.success('Parceria atualizada!');
             }
-            toast.success(isAdditive ? 'Aditivo atualizado!' : 'Parceria atualizada!');
             setOpen(false);
             if (onSuccess) onSuccess();
         } catch (error) {
@@ -158,279 +339,616 @@ export default function EditParceriaDialog({
     };
 
     const handleDelete = async () => {
-        const isAditivoDelete = isAdditive;
-        const msg = isAditivoDelete
-            ? `Excluir o Aditivo #${additiveData?.aditivo_number}? Esta ação é irreversível.`
-            : `Excluir a Parceria ${parceria.pgea}? Esta ação apaga também todos os aditivos.`;
-        if (!window.confirm(msg)) return;
-        try {
-            setIsSaving(true);
-            if (isAditivoDelete) {
-                await deleteAditivo({
-                    parceriaId: parceria.id,
-                    aditivoId: additiveData.id,
-                    organizationId,
-                });
+        if (isAdditive) {
+            const msg = `Excluir o Aditivo #${additiveData?.aditivo_number}? Esta ação é irreversível.`;
+            if (!window.confirm(msg)) return;
+            try {
+                setIsDeleting(true);
+                await deleteAditivo({ parceriaId: parceria.id, aditivoId: additiveData.id, organizationId });
                 toast.success('Aditivo excluído!');
-            } else {
-                const { deleteParceria } = await import('@/services/functionsService');
+                setOpen(false);
+                if (onSuccess) onSuccess();
+            } catch (error) {
+                logger.error('Error deleting aditivo:', error);
+                toast.error('Erro ao excluir: ' + error.message);
+            } finally {
+                setIsDeleting(false);
+            }
+        } else {
+            const msg = `Excluir a Parceria ${parceria.pgea}? Esta ação apaga também todos os aditivos.`;
+            if (!window.confirm(msg)) return;
+            try {
+                setIsDeleting(true);
                 await deleteParceria({ id: parceria.id, organizationId });
                 toast.success('Parceria excluída!');
+                setOpen(false);
+                if (onSuccess) onSuccess();
+            } catch (error) {
+                logger.error('Error deleting parceria:', error);
+                toast.error('Erro ao excluir: ' + error.message);
+            } finally {
+                setIsDeleting(false);
             }
-            setOpen(false);
-            if (onSuccess) onSuccess();
-        } catch (error) {
-            logger.error('Error deleting:', error);
-            toast.error('Erro ao excluir: ' + error.message);
-        } finally {
-            setIsSaving(false);
         }
+    };
+
+    const handleStatusChange = (status) => {
+        setFormData((prev) => ({ ...prev, status, ...getRollbackByStatus(status) }));
+    };
+
+    const handleResponsibleChange = (userId) => {
+        if (userId === 'historical__advisor__placeholder') return;
+        if (userId === '__none__') {
+            setFormData((prev) => ({
+                ...prev,
+                responsible_user_id: '',
+                responsible_user_name: '',
+            }));
+            return;
+        }
+        const member = members.find((m) => m.user_id === userId);
+        setFormData((prev) => ({
+            ...prev,
+            responsible_user_id: userId,
+            responsible_user_name: member?.user_name || '',
+        }));
+    };
+
+    const canDelete = (userRole === 'admin' || userRole === 'owner' || userRole === 'creator' || canDeleteRecords)
+        && !isLocked;
+
+    const renderValidationSignal = (field) => {
+        if (formData[field] && String(formData[field]).trim() !== '') {
+            return <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in duration-300" />;
+        }
+        return null;
     };
 
     if (!parceria) return null;
 
+    const title = isAdditive
+        ? `Editar Aditivo #${additiveData?.aditivo_number} (${additiveData?.aditivo_type_label || additiveData?.aditivo_type})`
+        : `Editar Parceria ${parceria.pgea || ''}`;
+
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        {isAdditive
-                            ? `Editar Aditivo #${additiveData?.aditivo_number} (${additiveData?.aditivo_type_label})`
-                            : `Editar Parceria ${parceria.pgea}`}
-                        {isLocked && (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
-                                <Lock className="w-3 h-3" />
-                                Bloqueado (possui {parceria.aditivo_count} aditivo{parceria.aditivo_count > 1 ? 's' : ''})
-                            </span>
-                        )}
-                    </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                    {!isAdditive && (
-                        <>
-                            <div>
-                                <Label>PGEA</Label>
-                                <Input value={formData.pgea || ''} disabled className="mt-1 bg-slate-50" />
-                            </div>
-                            <div className="grid md:grid-cols-2 gap-4">
+        <>
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <div className="flex items-center justify-between gap-2">
+                            <DialogTitle>{title}</DialogTitle>
+                            {isLocked && (
+                                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
+                                    <Lock className="w-3 h-3" />
+                                    Bloqueado (possui {parceria.aditivo_count} aditivo{parceria.aditivo_count > 1 ? 's' : ''})
+                                </span>
+                            )}
+                        </div>
+                    </DialogHeader>
+
+                    <form onSubmit={handleSubmit} className="mt-4">
+                        <Tabs defaultValue="basic" className="w-full">
+                            <TabsList className={cn('grid w-full', showCollabTab ? 'grid-cols-4' : 'grid-cols-3')}>
+                                <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
+                                <TabsTrigger value="workflow">Fluxo de Trabalho</TabsTrigger>
+                                <TabsTrigger value="archive">Revisão e Arquivo</TabsTrigger>
+                                {showCollabTab && <TabsTrigger value="collab">Colaboração</TabsTrigger>}
+                            </TabsList>
+
+                            {/* ===================== DADOS BÁSICOS ===================== */}
+                            <TabsContent value="basic" className="space-y-4 mt-4">
+                                {!isAdditive && (
+                                    <>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <Label htmlFor="pgea">PGEA</Label>
+                                                    {renderValidationSignal('pgea')}
+                                                </div>
+                                                <Input
+                                                    id="pgea"
+                                                    value={formData.pgea || ''}
+                                                    disabled
+                                                    className="mt-1 bg-slate-50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <Label htmlFor="pgea_date">Data do PGEA</Label>
+                                                    {renderValidationSignal('pgea_date')}
+                                                </div>
+                                                <Input
+                                                    id="pgea_date"
+                                                    type="date"
+                                                    value={formData.pgea_date || ''}
+                                                    disabled={isLocked}
+                                                    onChange={(e) => setFormData({ ...formData, pgea_date: e.target.value })}
+                                                    className="mt-1"
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+
+                                {isAdditive && (
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Tipo do Aditivo</Label>
+                                            {renderValidationSignal('aditivo_type')}
+                                        </div>
+                                        <Select
+                                            value={formData.aditivo_type || ''}
+                                            onValueChange={(val) => setFormData({ ...formData, aditivo_type: val })}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {aditivoTipos.map((t) => (
+                                                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                                                ))}
+                                                {formData.aditivo_type && !aditivoTipos.includes(formData.aditivo_type) && (
+                                                    <SelectItem value={formData.aditivo_type}>{formData.aditivo_type} (Histórico)</SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
+
                                 <div>
-                                    <Label>Assunto</Label>
-                                    <Input value={formData.subject || ''} disabled={isLocked} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} className="mt-1" />
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="subject">Assunto</Label>
+                                        {renderValidationSignal('subject')}
+                                    </div>
+                                    <Input
+                                        id="subject"
+                                        value={formData.subject || ''}
+                                        disabled={isLocked}
+                                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                                        className="mt-1"
+                                    />
                                 </div>
+
                                 <div>
-                                    <Label>Partes</Label>
-                                    <Input value={formData.parties || ''} disabled={isLocked} onChange={(e) => setFormData({ ...formData, parties: e.target.value })} className="mt-1" />
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="parties">Partes</Label>
+                                        {renderValidationSignal('parties')}
+                                    </div>
+                                    <Input
+                                        id="parties"
+                                        value={formData.parties || ''}
+                                        disabled={isLocked}
+                                        onChange={(e) => setFormData({ ...formData, parties: e.target.value })}
+                                        className="mt-1"
+                                    />
                                 </div>
+
+                                <div>
+                                    <Label htmlFor="object">Objeto</Label>
+                                    <Textarea
+                                        id="object"
+                                        value={formData.object || ''}
+                                        disabled={isLocked}
+                                        onChange={(e) => setFormData({ ...formData, object: e.target.value })}
+                                        rows={3}
+                                        className="mt-1"
+                                    />
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Tipo de Parceria</Label>
+                                            {renderValidationSignal('partnership_type')}
+                                        </div>
+                                        <Select
+                                            value={formData.partnership_type || ''}
+                                            onValueChange={(val) => setFormData({ ...formData, partnership_type: val })}
+                                            disabled={isLocked}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="">—</SelectItem>
+                                                {tipos.map((t) => (
+                                                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                                                ))}
+                                                {formData.partnership_type && !tipos.includes(formData.partnership_type) && (
+                                                    <SelectItem value={formData.partnership_type}>{formData.partnership_type} (Histórico)</SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Número da Parceria</Label>
+                                            {renderValidationSignal('partnership_number')}
+                                        </div>
+                                        <Input
+                                            value={formData.partnership_number || ''}
+                                            disabled={isLocked}
+                                            onChange={(e) => setFormData({ ...formData, partnership_number: e.target.value })}
+                                            placeholder="Ex.: 001/2024"
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                </div>
+
+                                {categorias.length > 0 && (
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <div className="flex items-center justify-between">
+                                                <Label>Categoria</Label>
+                                                {renderValidationSignal('categoria')}
+                                            </div>
+                                            <Select
+                                                value={formData.categoria || ''}
+                                                onValueChange={(val) => setFormData({ ...formData, categoria: val })}
+                                                disabled={isLocked}
+                                            >
+                                                <SelectTrigger className="mt-1">
+                                                    <SelectValue placeholder="Selecione" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">—</SelectItem>
+                                                    {categorias.map((c) => (
+                                                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                                                    ))}
+                                                    {formData.categoria && !categorias.includes(formData.categoria) && (
+                                                        <SelectItem value={formData.categoria}>{formData.categoria} (Histórico)</SelectItem>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Data da Assinatura</Label>
+                                            {renderValidationSignal('signature_date')}
+                                        </div>
+                                        <Input
+                                            type="date"
+                                            value={formData.signature_date || ''}
+                                            disabled={isLocked}
+                                            onChange={(e) => setFormData({ ...formData, signature_date: e.target.value })}
+                                            className={cn(
+                                                "mt-1 transition-all duration-300",
+                                                formData.signature_date ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
+                                            )}
+                                        />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Vigência</Label>
+                                            {renderValidationSignal('validity_period')}
+                                        </div>
+                                        <Input
+                                            list="vigencia-options-edit"
+                                            value={formData.validity_period || ''}
+                                            disabled={isLocked}
+                                            onChange={(e) => setFormData({ ...formData, validity_period: e.target.value })}
+                                            placeholder="Ex.: 12 meses"
+                                            className="mt-1"
+                                        />
+                                        <datalist id="vigencia-options-edit">
+                                            {vigenciaOptions.map((v) => <option key={v} value={v} />)}
+                                        </datalist>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                    <div>
+                                        <Label htmlFor="urgency_request" className="cursor-pointer">Pedido de Urgência</Label>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Marcar esta Parceria como urgente</p>
+                                    </div>
+                                    <Switch
+                                        id="urgency_request"
+                                        checked={formData.urgency_request || false}
+                                        onCheckedChange={(checked) => setFormData({ ...formData, urgency_request: checked })}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                    <div>
+                                        <Label htmlFor="access_restriction" className="cursor-pointer">Restrição de Acesso</Label>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Restringe o acesso a este registro (auditado via flag `access_audit_log`)
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        id="access_restriction"
+                                        checked={formData.access_restriction || false}
+                                        onCheckedChange={(checked) => setFormData({ ...formData, access_restriction: checked })}
+                                    />
+                                </div>
+                            </TabsContent>
+
+                            {/* ===================== FLUXO DE TRABALHO ===================== */}
+                            <TabsContent value="workflow" className="space-y-4 mt-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Assessor Responsável</Label>
+                                        <Select
+                                            value={formData.responsible_user_id || ''}
+                                            onValueChange={handleResponsibleChange}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="__none__">Sem assessor responsável</SelectItem>
+                                                {members.map((member) => (
+                                                    <SelectItem key={member.user_id} value={member.user_id}>
+                                                        {member.user_name} {member.function ? `(${member.function})` : ''}
+                                                    </SelectItem>
+                                                ))}
+                                                {formData.responsible_user_id && !members.find((m) => m.user_id === formData.responsible_user_id) && formData.responsible_user_name && (
+                                                    <SelectItem value={formData.responsible_user_id}>
+                                                        {formData.responsible_user_name}
+                                                    </SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label>Data de Responsabilidade</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.responsibility_date || ''}
+                                            onChange={(e) => setFormData({ ...formData, responsibility_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4 p-4 bg-cyan-50/50 dark:bg-cyan-950/30 rounded-lg border border-cyan-100 dark:border-cyan-800">
+                                    <div>
+                                        <Label>Data da Remessa a Terceiros</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.third_party_referral_date || ''}
+                                            onChange={(e) => setFormData({ ...formData, third_party_referral_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Remetido para</Label>
+                                        <Select
+                                            value={formData.third_party || ''}
+                                            onValueChange={(val) => setFormData({ ...formData, third_party: val })}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Selecione o destinatário" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="">—</SelectItem>
+                                                {thirdParties.map((name) => (
+                                                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                                                ))}
+                                                {formData.third_party && !thirdParties.includes(formData.third_party) && (
+                                                    <SelectItem value={formData.third_party}>{formData.third_party} (Histórico)</SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <Label>Conclusão da Revisão</Label>
+                                    <Input
+                                        type="date"
+                                        value={formData.review_conclusion_date || ''}
+                                        onChange={(e) => setFormData({ ...formData, review_conclusion_date: e.target.value })}
+                                        className="mt-1"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label>Observações</Label>
+                                    <Textarea
+                                        value={formData.observations || ''}
+                                        onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+                                        placeholder="Observações sobre a Parceria..."
+                                        rows={4}
+                                        className="mt-1"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label>Status da Parceria</Label>
+                                    <Select
+                                        value={formData.status || 'Pendente'}
+                                        onValueChange={handleStatusChange}
+                                    >
+                                        <SelectTrigger className="mt-1">
+                                            <SelectValue placeholder="Selecione o status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {PARCERIA_STATUSES.map((s) => (
+                                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </TabsContent>
+
+                            {/* ===================== REVISÃO E ARQUIVO ===================== */}
+                            <TabsContent value="archive" className="space-y-4 mt-4">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Termo Final</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.end_date || ''}
+                                            disabled={isLocked}
+                                            onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Data do Aviso de Renovação</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.renewal_notice_date || ''}
+                                            disabled={isLocked}
+                                            onChange={(e) => setFormData({ ...formData, renewal_notice_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Remessa para Revisão</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.review_submission_date || ''}
+                                            onChange={(e) => setFormData({ ...formData, review_submission_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Revisão Concluída</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.reviewed_date || ''}
+                                            onChange={(e) => setFormData({ ...formData, reviewed_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Devolução após Revisão</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.review_return_date || ''}
+                                            onChange={(e) => setFormData({ ...formData, review_return_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <Label>Data de Arquivamento</Label>
+                                    <Input
+                                        type="date"
+                                        value={formData.archived_date || ''}
+                                        onChange={(e) => setFormData({ ...formData, archived_date: e.target.value })}
+                                        className="mt-1"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label>Pasta na Rede</Label>
+                                    <Input
+                                        value={formData.network_folder || ''}
+                                        onChange={(e) => setFormData({ ...formData, network_folder: e.target.value })}
+                                        placeholder="Caminho da pasta na rede..."
+                                        className="mt-1"
+                                    />
+                                </div>
+                            </TabsContent>
+
+                            {/* ===================== COLABORAÇÃO (condicional) ===================== */}
+                            {showCollabTab && (
+                                <TabsContent value="collab" className="space-y-4 mt-4">
+                                    {isPresenceOn && source?.id && (
+                                        <LivePresenceIndicator
+                                            organizationId={organizationId}
+                                            entityType="parceria"
+                                            entityId={source.id}
+                                            userName={user?.displayName}
+                                        />
+                                    )}
+                                    {isCommentsOn && source?.id ? (
+                                        <EntityComments
+                                            organizationId={organizationId}
+                                            entityType="parceria"
+                                            entityId={source.id}
+                                            members={members}
+                                        />
+                                    ) : isCommentsOn && (
+                                        <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">
+                                            Salve a Parceria antes de adicionar comentários.
+                                        </p>
+                                    )}
+                                </TabsContent>
+                            )}
+                        </Tabs>
+
+                        <div className="flex justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                            <div className="flex">
+                                {canDelete && (
+                                    <Button
+                                        type="button"
+                                        variant="destructive"
+                                        onClick={handleDelete}
+                                        disabled={isDeleting || isSaving}
+                                    >
+                                        {isDeleting ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Excluindo...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Trash2 className="w-4 h-4 mr-2" />
+                                                Excluir {isAdditive ? 'Aditivo' : 'Parceria'}
+                                            </>
+                                        )}
+                                    </Button>
+                                )}
                             </div>
-                            <div>
-                                <Label>Objeto</Label>
-                                <Textarea value={formData.object || ''} disabled={isLocked} onChange={(e) => setFormData({ ...formData, object: e.target.value })} rows={3} className="mt-1" />
+                            <div className="flex items-center gap-2">
+                                {userRole === 'creator' && !isAdditive && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setLogOpen(true)}
+                                        className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                    >
+                                        <Archive className="w-3.5 h-3.5 mr-1" />
+                                        Verificar Log
+                                    </Button>
+                                )}
                             </div>
-                        </>
-                    )}
-
-                    {isAdditive && (
-                        <>
-                            <div>
-                                <Label>Assunto</Label>
-                                <Input value={formData.subject || ''} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Partes</Label>
-                                <Input value={formData.parties || ''} onChange={(e) => setFormData({ ...formData, parties: e.target.value })} className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Objeto</Label>
-                                <Textarea value={formData.object || ''} onChange={(e) => setFormData({ ...formData, object: e.target.value })} rows={3} className="mt-1" />
-                            </div>
-                        </>
-                    )}
-
-                    <hr className="my-2 border-slate-200" />
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Dados de formalização (fase "Parcerias")</p>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <Label>Tipo de Parceria</Label>
-                            <Select
-                                value={formData.partnership_type || 'none'}
-                                onValueChange={(val) => setFormData({ ...formData, partnership_type: val === 'none' ? null : val })}
-                            >
-                                <SelectTrigger className="mt-1">
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">—</SelectItem>
-                                    {tipos.map((t) => (
-                                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div>
-                            <Label>Número da Parceria</Label>
-                            <Input value={formData.partnership_number || ''} onChange={(e) => setFormData({ ...formData, partnership_number: e.target.value })} placeholder="Ex.: 001/2024" className="mt-1" />
-                        </div>
-                    </div>
-                    {categorias.length > 0 && (
-                        <div className="grid md:grid-cols-2 gap-4">
-                            <div>
-                                <Label>Categoria</Label>
-                                <Select
-                                    value={formData.categoria || 'none'}
-                                    onValueChange={(val) => setFormData({ ...formData, categoria: val === 'none' ? null : val })}
-                                >
-                                    <SelectTrigger className="mt-1">
-                                        <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">—</SelectItem>
-                                        {categorias.map((c) => (
-                                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                    )}
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <Label>Data da Assinatura</Label>
-                            <Input type="date" value={formData.signature_date || ''} onChange={(e) => setFormData({ ...formData, signature_date: e.target.value })} className="mt-1" />
-                        </div>
-                        <div>
-                            <Label>Vigência</Label>
-                            <Input
-                                list="vigencia-options"
-                                value={formData.validity_period || ''}
-                                onChange={(e) => setFormData({ ...formData, validity_period: e.target.value })}
-                                placeholder="Ex.: 12 meses"
-                                className="mt-1"
-                            />
-                            <datalist id="vigencia-options">
-                                {vigenciaOptions.map((v) => <option key={v} value={v} />)}
-                            </datalist>
-                        </div>
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <Label>Termo Final</Label>
-                            <Input type="date" value={formData.end_date || ''} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} className="mt-1" />
-                        </div>
-                        <div>
-                            <Label>Data do Aviso de Renovação</Label>
-                            <Input type="date" value={formData.renewal_notice_date || ''} onChange={(e) => setFormData({ ...formData, renewal_notice_date: e.target.value })} className="mt-1" />
-                        </div>
-                    </div>
-
-                    <hr className="my-2 border-slate-200" />
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Responsável e revisão</p>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <Label>Assessor Responsável</Label>
-                            <Select
-                                value={formData.responsible_user_id || 'none'}
-                                onValueChange={(val) => {
-                                    const m = members.find((mm) => mm.user_id === val);
-                                    setFormData({
-                                        ...formData,
-                                        responsible_user_id: val === 'none' ? null : val,
-                                        responsible_user_name: m ? m.user_name : '',
-                                    });
-                                }}
-                            >
-                                <SelectTrigger className="mt-1">
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">—</SelectItem>
-                                    {members.map((m) => (
-                                        <SelectItem key={m.user_id} value={m.user_id}>
-                                            {m.user_name} {m.function ? `(${m.function})` : ''}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div>
-                            <Label>Data de Responsabilidade</Label>
-                            <Input type="date" value={formData.responsibility_date || ''} onChange={(e) => setFormData({ ...formData, responsibility_date: e.target.value })} className="mt-1" />
-                        </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <Label>Pasta na Rede</Label>
-                            <Input value={formData.network_folder || ''} onChange={(e) => setFormData({ ...formData, network_folder: e.target.value })} className="mt-1" />
-                        </div>
-                        <div>
-                            <Label>Data de Conclusão da Revisão</Label>
-                            <Input type="date" value={formData.review_conclusion_date || ''} onChange={(e) => setFormData({ ...formData, review_conclusion_date: e.target.value })} className="mt-1" />
-                        </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <Label>Terceiro</Label>
-                            <Select
-                                value={formData.third_party || 'none'}
-                                onValueChange={(val) => setFormData({ ...formData, third_party: val === 'none' ? null : val })}
-                            >
-                                <SelectTrigger className="mt-1">
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">—</SelectItem>
-                                    {thirdParties.map((tp) => (
-                                        <SelectItem key={tp} value={tp}>{tp}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <Label>Observações</Label>
-                        <Textarea value={formData.observations || ''} onChange={(e) => setFormData({ ...formData, observations: e.target.value })} rows={3} className="mt-1" />
-                    </div>
-
-                    {hasDeletePerm && (
-                        <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={handleDelete}
-                                disabled={isSaving}
-                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                            >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Excluir {isAdditive ? 'Aditivo' : 'Parceria'}
-                            </Button>
                             <div className="flex gap-2">
                                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" disabled={isSaving || isLocked}>
-                                    {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                    Salvar
+                                <Button
+                                    type="submit"
+                                    className="bg-primary"
+                                    disabled={isSaving || isDeleting || isLocked}
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Salvando...
+                                        </>
+                                    ) : (
+                                        'Salvar Alterações'
+                                    )}
                                 </Button>
                             </div>
                         </div>
-                    )}
-                    {!hasDeletePerm && (
-                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                                Cancelar
-                            </Button>
-                            <Button type="submit" disabled={isSaving || isLocked}>
-                                {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Salvar
-                            </Button>
-                        </div>
-                    )}
-                </form>
-            </DialogContent>
-        </Dialog>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Log de atividades (reusa ProcessLogDialog, mesmo padrão). */}
+            {!isAdditive && (
+                <ProcessLogDialog
+                    open={logOpen}
+                    onClose={() => setLogOpen(false)}
+                    process={parceria}
+                    collectionName="parcerias"
+                />
+            )}
+        </>
     );
 }

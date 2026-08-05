@@ -95,6 +95,30 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
             changes.responsibility_date = today;
         }
 
+        // Normalizar flags boolean/strings → boolean.
+        if ('urgency_request' in changes) {
+            const v = changes.urgency_request;
+            if (v === true) changes.urgency_request = true;
+            else if (v === false) changes.urgency_request = false;
+            else if (typeof v === 'string') {
+                const s = v.toLowerCase().trim();
+                changes.urgency_request = (s === 'sim' || s === 'true' || s === '1' || s === 'yes');
+            } else {
+                delete changes.urgency_request;
+            }
+        }
+        if ('access_restriction' in changes) {
+            const v = changes.access_restriction;
+            if (v === true) changes.access_restriction = true;
+            else if (v === false) changes.access_restriction = false;
+            else if (typeof v === 'string') {
+                const s = v.toLowerCase().trim();
+                changes.access_restriction = (s === 'sim' || s === 'true' || s === '1' || s === 'yes');
+            } else {
+                delete changes.access_restriction;
+            }
+        }
+
         changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
         changes.updated_by = userId;
 

@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StatusBadge from "@/components/ui/StatusBadge";
-import { Pencil, Calendar, User, FileText, GitBranch, Archive, Send, CheckCircle2, Eye, Plus, Lock } from 'lucide-react';
+import { Pencil, Calendar, User, FileText, GitBranch, Archive, Send, CheckCircle2, Eye, Lock, AlertCircle, ClipboardList } from 'lucide-react';
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -17,6 +17,11 @@ import {
     hasAdditives,
 } from '@/utils/parceriaUtils';
 import { parseLocalDate } from "@/lib/dateUtils";
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { LivePresenceIndicator } from '@/lib/LivePresence';
+import EntityComments from './EntityComments';
+import { useAuth } from '@/lib/FirebaseAuthContext';
 
 const PARTNERSHIP_TYPE_LABEL = {
     convenio: 'Convênio',
@@ -27,15 +32,22 @@ const PARTNERSHIP_TYPE_LABEL = {
 const formatDate = (s) => {
     const d = parseLocalDate(s);
     if (!d || !isValid(d)) return null;
-    try { return format(d, 'dd/MM/yyyy', { locale: ptBR }); } catch { return null; }
+    try { return format(d, "dd/MM/yyyy", { locale: ptBR }); } catch { return null; }
 };
 
 /**
- * ParceriaDetailSheet — sheet lateral com timeline, dados, aditivos e ações.
+ * ParceriaDetailSheet — sheet lateral com timeline, dados, aditivos,
+ * comentários, presença e log de atividades.
  *
  * Suporta modo de visualização:
  *  - 'parent': vê a Parceria original (read-only se tem aditivos)
  *  - 'aditivo': vê o aditivo corrente (editável)
+ *
+ * Props:
+ *  - parceria, open, onClose
+ *  - onEdit, onIncludeAditivo, onExtinguish, onViewLog
+ *  - aditivos, currentAdditiveId
+ *  - userRole, organizationId, members
  */
 export default function ParceriaDetailSheet({
     parceria,
@@ -44,11 +56,19 @@ export default function ParceriaDetailSheet({
     onEdit,
     onIncludeAditivo,
     onExtinguish,
+    onViewLog,
     aditivos = [],
     currentAdditiveId,
     userRole,
+    organizationId,
+    members = [],
 }) {
-    const [viewMode, setViewMode] = useState('parent'); // 'parent' | 'aditivo'
+    const { user } = useAuth();
+    const isCommentsOn = useFlag(FEATURE_FLAGS.PROCESS_COMMENTS.key);
+    const isPresenceOn = useFlag(FEATURE_FLAGS.LIVE_PRESENCE.key);
+    const showCollabSection = isCommentsOn || isPresenceOn;
+
+    const [viewMode, setViewMode] = useState('parent');
     const [selectedAdditive, setSelectedAdditive] = useState(null);
 
     useEffect(() => {
@@ -71,6 +91,11 @@ export default function ParceriaDetailSheet({
     const status = isViewingAdditive
         ? (selectedAdditive.status || 'Pendente')
         : calculateParceriaDerivedStatus(parceria);
+
+    const isRestricted = parceria?.access_restriction === true
+        || String(parceria?.access_restriction).toLowerCase().trim() === 'sim';
+    const isUrgent = parceria?.urgency_request === true
+        || String(parceria?.urgency_request).toLowerCase().trim() === 'sim';
 
     const timelineSteps = isViewingAdditive
         ? [
@@ -99,6 +124,17 @@ export default function ParceriaDetailSheet({
                                 <SheetTitle className="text-xl font-bold text-slate-900 dark:text-white font-mono">
                                     {getParceriaField(parceria, 'pgea')}
                                 </SheetTitle>
+                                {isUrgent && (
+                                    <Badge variant="destructive" className="text-[10px] px-2 py-0.5 h-5 border-none bg-rose-500 animate-pulse">
+                                        URGENTE
+                                    </Badge>
+                                )}
+                                {isRestricted && (
+                                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 h-5 bg-rose-50 text-rose-700 border-rose-200">
+                                        <Lock className="w-3 h-3 mr-0.5" />
+                                        Restrito
+                                    </Badge>
+                                )}
                                 {hasAdd && (
                                     <Badge variant="outline" className="text-[10px] px-2 py-0.5 h-5 bg-amber-50 text-amber-700 border-amber-200">
                                         <GitBranch className="w-3 h-3 mr-0.5" />
@@ -119,15 +155,30 @@ export default function ParceriaDetailSheet({
                                 )}
                             </div>
                         </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEdit?.(parceria)}
-                            className="shrink-0 gap-1.5"
-                        >
-                            <Pencil className="w-3.5 h-3.5" />
-                            Editar
-                        </Button>
+                        <div className="flex flex-col gap-2 shrink-0">
+                            {onEdit && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onEdit?.(parceria)}
+                                    className="gap-1.5"
+                                >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    Editar
+                                </Button>
+                            )}
+                            {isCreator && onViewLog && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onViewLog?.()}
+                                    className="gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                >
+                                    <ClipboardList className="w-3.5 h-3.5" />
+                                    Ver Log
+                                </Button>
+                            )}
+                        </div>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                         <StatusBadge status={status} />
@@ -140,7 +191,7 @@ export default function ParceriaDetailSheet({
 
                     {/* Toggle Original / Aditivo */}
                     {hasAdd && (
-                        <div className="mt-3 flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800 w-fit">
+                        <div className="mt-3 flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800 w-fit flex-wrap">
                             <button
                                 type="button"
                                 onClick={() => setViewMode('parent')}
@@ -181,6 +232,16 @@ export default function ParceriaDetailSheet({
                         </div>
                     )}
 
+                    {/* Live Presence (sinaliza quem está vendo agora) */}
+                    {isPresenceOn && organizationId && parceria.id && !isViewingAdditive && (
+                        <LivePresenceIndicator
+                            organizationId={organizationId}
+                            entityType="parceria"
+                            entityId={parceria.id}
+                            userName={user?.displayName}
+                        />
+                    )}
+
                     {/* Dados principais */}
                     <Section title={isViewingAdditive ? 'Dados do Aditivo' : 'Dados Principais'}>
                         <div className="pt-2 space-y-2">
@@ -197,12 +258,55 @@ export default function ParceriaDetailSheet({
                         </div>
                     </Section>
 
+                    {/* Timeline do Workflow */}
+                    <Section title="Timeline da Parceria">
+                        <div className="space-y-0">
+                            {timelineSteps.map((step, idx) => {
+                                const dateVal = getParceriaField(viewing, step.key);
+                                const formattedDate = formatDate(dateVal);
+                                const isCompleted = !!formattedDate;
+                                const isLast = idx === timelineSteps.length - 1;
+                                const StepIcon = step.icon;
+
+                                return (
+                                    <div key={step.key} className="flex gap-3">
+                                        <div className="flex flex-col items-center">
+                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${isCompleted
+                                                ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-100'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600'
+                                                }`}>
+                                                {isCompleted
+                                                    ? <StepIcon className="w-3.5 h-3.5" />
+                                                    : <AlertCircle className="w-3 h-3" />
+                                                }
+                                            </div>
+                                            {!isLast && (
+                                                <div className={`w-0.5 h-6 ${isCompleted ? 'bg-indigo-200 dark:bg-indigo-900' : 'bg-slate-100 dark:bg-slate-800'}`} />
+                                            )}
+                                        </div>
+                                        <div className="pb-4 pt-0.5">
+                                            <p className={`text-sm font-medium ${isCompleted ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600'}`}>
+                                                {step.label}
+                                            </p>
+                                            {formattedDate && (
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{formattedDate}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </Section>
+
                     {/* Dados de formalização */}
                     {getParceriaField(viewing, 'partnership_type') && (
                         <Section title="Formalização">
                             <div className="pt-2 grid grid-cols-2 gap-2">
                                 <DetailItem label="Tipo" value={PARTNERSHIP_TYPE_LABEL[getParceriaField(viewing, 'partnership_type')] || getParceriaField(viewing, 'partnership_type')} />
                                 <DetailItem label="Número" value={getParceriaField(viewing, 'partnership_number')} />
+                                {getParceriaField(viewing, 'categoria') && (
+                                    <DetailItem label="Categoria" value={getParceriaField(viewing, 'categoria')} />
+                                )}
                                 <DetailItem label="Assinatura" value={formatDate(getParceriaField(viewing, 'signature_date'))} />
                                 <DetailItem label="Vigência" value={getParceriaField(viewing, 'validity_period')} />
                                 <DetailItem label="Termo Final" value={formatDate(getParceriaField(viewing, 'end_date'))} />
@@ -252,9 +356,23 @@ export default function ParceriaDetailSheet({
                         </Section>
                     )}
 
+                    {/* Comentários (colaboração) */}
+                    {isCommentsOn && !isViewingAdditive && organizationId && parceria.id && (
+                        <Section title="Comentários">
+                            <div className="pt-2">
+                                <EntityComments
+                                    organizationId={organizationId}
+                                    entityType="parceria"
+                                    entityId={parceria.id}
+                                    members={members}
+                                />
+                            </div>
+                        </Section>
+                    )}
+
                     {/* Ações */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2">
-                        {!isViewingAdditive && !hasAdd && isCreator && (
+                        {!isViewingAdditive && isCreator && (
                             <>
                                 <Button
                                     type="button"
@@ -263,33 +381,9 @@ export default function ParceriaDetailSheet({
                                     onClick={() => onIncludeAditivo?.(parceria)}
                                 >
                                     <GitBranch className="w-4 h-4 text-amber-600" />
-                                    Incluir Aditivo
+                                    {hasAdd ? 'Incluir Novo Aditivo' : 'Incluir Aditivo'}
                                 </Button>
-                                {status === 'Parcerias' && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="w-full justify-start gap-2 text-slate-700"
-                                        onClick={() => onExtinguish?.(parceria)}
-                                    >
-                                        <Archive className="w-4 h-4" />
-                                        Confirmar Extinção sem Renovação
-                                    </Button>
-                                )}
-                            </>
-                        )}
-                        {!isViewingAdditive && hasAdd && isCreator && (
-                            <>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full justify-start gap-2"
-                                    onClick={() => onIncludeAditivo?.(parceria)}
-                                >
-                                    <Plus className="w-4 h-4 text-amber-600" />
-                                    Incluir Novo Aditivo
-                                </Button>
-                                {status === 'Parcerias' && (
+                                {status === 'Parcerias' && !hasAdd && onExtinguish && (
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -321,9 +415,7 @@ export default function ParceriaDetailSheet({
 function Section({ title, children }) {
     return (
         <div>
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                {title}
-            </h3>
+            <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">{title}</h3>
             {children}
         </div>
     );

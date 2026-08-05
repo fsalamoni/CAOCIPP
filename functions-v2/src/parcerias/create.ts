@@ -23,6 +23,8 @@ interface CreateParceriaRequest {
     responsibleUserName?: string;
     responsibilityDate?: string;
     pgeaDate?: string;
+    urgencyRequest?: boolean | string;
+    accessRestriction?: boolean | string;
     // Aliases snake_case aceitos pelo backend (frontend envia em snake).
     partnership_type?: string;
     partnership_number?: string;
@@ -35,6 +37,8 @@ interface CreateParceriaRequest {
     responsible_user_name?: string;
     responsibility_date?: string;
     pgea_date?: string;
+    urgency_request?: boolean | string;
+    access_restriction?: boolean | string;
 }
 
 export const createParceria = onCall<CreateParceriaRequest>(
@@ -63,6 +67,18 @@ export const createParceria = onCall<CreateParceriaRequest>(
         const responsibleUserName = data.responsibleUserName || data.responsible_user_name || null;
         const responsibilityDate = data.responsibilityDate || data.responsibility_date || null;
         const pgeaDate = data.pgeaDate || data.pgea_date || null;
+        // Flags opcionais (urgência e restrição de acesso) — aceitam boolean
+        // ou string "sim"/"true". Normaliza para boolean.
+        const toBool = (v: unknown): boolean => {
+            if (v === true) return true;
+            if (typeof v === 'string') {
+                const s = v.toLowerCase().trim();
+                return s === 'sim' || s === 'true' || s === '1' || s === 'yes';
+            }
+            return false;
+        };
+        const urgencyRequest = toBool(data.urgencyRequest ?? data.urgency_request);
+        const accessRestriction = toBool(data.accessRestriction ?? data.access_restriction);
 
         if (!organizationId) {
             throw new HttpsError('invalid-argument', 'organizationId é obrigatório');
@@ -136,6 +152,8 @@ export const createParceria = onCall<CreateParceriaRequest>(
             review_conclusion_date: null,
             third_party: null,
             pgea_date: pgeaDate,
+            urgency_request: urgencyRequest,
+            access_restriction: accessRestriction,
             status,
             extinguished: false,
             extinguished_at: null,

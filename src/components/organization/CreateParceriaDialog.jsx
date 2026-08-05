@@ -10,7 +10,8 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
+import { Switch } from '@/components/ui/switch';
 import {
     Dialog,
     DialogContent,
@@ -20,6 +21,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
+import { format } from 'date-fns';
 
 // Defaults alinhados com sanitizeParceriaSettings no backend.
 const DEFAULT_TIPOS = ['Convênio', 'Termo de Cooperação', 'Termo de Fomento'];
@@ -27,10 +29,16 @@ const DEFAULT_VIGENCIA_OPTIONS = [
     '6 meses', '12 meses', '24 meses', '36 meses', '60 meses', 'Indeterminado',
 ];
 
-export default function CreateParceriaDialog({ open, setOpen, organization, onSuccess }) {
+/**
+ * CreateParceriaDialog — modal de criação no padrão de CreateExpedienteDialog.
+ * Aceita campos opcionais de formalização (tipo, número, categoria, datas)
+ * e flags de comportamento (urgency_request, access_restriction).
+ */
+export default function CreateParceriaDialog({ open, setOpen, organization, members = [], onSuccess }) {
     const [isCreating, setIsCreating] = useState(false);
     const [formData, setFormData] = useState({
         pgea: '',
+        pgea_date: format(new Date(), 'yyyy-MM-dd'),
         subject: '',
         object: '',
         parties: '',
@@ -39,7 +47,12 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
         partnership_number: '',
         signature_date: '',
         validity_period: '',
-        pgea_date: '',
+        end_date: '',
+        renewal_notice_date: '',
+        responsible_user_id: '',
+        responsible_user_name: '',
+        urgency_request: false,
+        access_restriction: false,
     });
 
     // Configurações do módulo vindas do banco do órgão.
@@ -52,10 +65,32 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
         : DEFAULT_VIGENCIA_OPTIONS;
 
     const resetForm = () => setFormData({
-        pgea: '', subject: '', object: '', parties: '',
-        partnership_type: '', categoria: '', partnership_number: '',
-        signature_date: '', validity_period: '', pgea_date: '',
+        pgea: '',
+        pgea_date: format(new Date(), 'yyyy-MM-dd'),
+        subject: '',
+        object: '',
+        parties: '',
+        partnership_type: '',
+        categoria: '',
+        partnership_number: '',
+        signature_date: '',
+        validity_period: '',
+        end_date: '',
+        renewal_notice_date: '',
+        responsible_user_id: '',
+        responsible_user_name: '',
+        urgency_request: false,
+        access_restriction: false,
     });
+
+    const handleResponsibleChange = (userId) => {
+        const member = members.find((m) => m.user_id === userId);
+        setFormData((prev) => ({
+            ...prev,
+            responsible_user_id: userId,
+            responsible_user_name: member?.user_name || '',
+        }));
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -65,20 +100,31 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
         }
         try {
             setIsCreating(true);
-            // Limpa strings vazias para null nos campos opcionais.
+            // Envia apenas campos preenchidos (vazios viram null no backend).
             const payload = {
+                organizationId: organization.id,
                 pgea: formData.pgea.trim(),
+                pgeaDate: formData.pgea_date || null,
                 subject: formData.subject.trim(),
                 object: formData.object.trim(),
                 parties: formData.parties.trim(),
+                urgencyRequest: !!formData.urgency_request,
+                accessRestriction: !!formData.access_restriction,
             };
-            for (const k of ['partnership_type', 'categoria', 'partnership_number', 'signature_date', 'validity_period', 'pgea_date']) {
-                if (formData[k] && formData[k].trim()) payload[k] = formData[k].trim();
+            const optStr = (v) => (v && v.trim()) ? v.trim() : null;
+            if (formData.partnership_type) payload.partnershipType = formData.partnership_type;
+            if (formData.categoria) payload.categoria = formData.categoria;
+            if (formData.partnership_number) payload.partnershipNumber = formData.partnership_number;
+            if (formData.signature_date) payload.signatureDate = formData.signature_date;
+            if (formData.validity_period) payload.validityPeriod = formData.validity_period;
+            if (formData.end_date) payload.endDate = formData.end_date;
+            if (formData.renewal_notice_date) payload.renewalNoticeDate = formData.renewal_notice_date;
+            if (formData.responsible_user_id) {
+                payload.responsibleUserId = formData.responsible_user_id;
+                payload.responsibleUserName = formData.responsible_user_name || null;
             }
-            await createParceria({
-                organizationId: organization.id,
-                ...payload,
-            });
+
+            await createParceria(payload);
             toast.success('Parceria criada com sucesso!');
             setOpen(false);
             resetForm();
@@ -121,6 +167,7 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
                             />
                         </div>
                     </div>
+
                     <div>
                         <Label htmlFor="subject">Assunto *</Label>
                         <Input
@@ -132,6 +179,7 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
                             className="mt-1"
                         />
                     </div>
+
                     <div>
                         <Label htmlFor="object">Objeto *</Label>
                         <Textarea
@@ -144,6 +192,7 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
                             className="mt-1"
                         />
                     </div>
+
                     <div>
                         <Label htmlFor="parties">Partes *</Label>
                         <Textarea
@@ -157,7 +206,7 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
                         />
                     </div>
 
-                    <hr className="my-2 border-slate-200" />
+                    <hr className="my-2 border-slate-200 dark:border-slate-700" />
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                         Dados opcionais (completam o cadastro conforme o uso)
                     </p>
@@ -166,14 +215,13 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
                         <div>
                             <Label>Tipo de Parceria</Label>
                             <Select
-                                value={formData.partnership_type || 'none'}
-                                onValueChange={(val) => setFormData({ ...formData, partnership_type: val === 'none' ? '' : val })}
+                                value={formData.partnership_type || ''}
+                                onValueChange={(val) => setFormData({ ...formData, partnership_type: val })}
                             >
                                 <SelectTrigger className="mt-1">
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="none">—</SelectItem>
                                     {tipos.map((t) => (
                                         <SelectItem key={t} value={t}>{t}</SelectItem>
                                     ))}
@@ -196,14 +244,13 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
                         <div>
                             <Label>Categoria</Label>
                             <Select
-                                value={formData.categoria || 'none'}
-                                onValueChange={(val) => setFormData({ ...formData, categoria: val === 'none' ? '' : val })}
+                                value={formData.categoria || ''}
+                                onValueChange={(val) => setFormData({ ...formData, categoria: val })}
                             >
                                 <SelectTrigger className="mt-1">
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="none">—</SelectItem>
                                     {categorias.map((c) => (
                                         <SelectItem key={c} value={c}>{c}</SelectItem>
                                     ))}
@@ -239,13 +286,93 @@ export default function CreateParceriaDialog({ open, setOpen, organization, onSu
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-2">
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="end_date">Termo Final</Label>
+                            <Input
+                                id="end_date"
+                                type="date"
+                                value={formData.end_date}
+                                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                                className="mt-1"
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="renewal_notice_date">Data do Aviso de Renovação</Label>
+                            <Input
+                                id="renewal_notice_date"
+                                type="date"
+                                value={formData.renewal_notice_date}
+                                onChange={(e) => setFormData({ ...formData, renewal_notice_date: e.target.value })}
+                                className="mt-1"
+                            />
+                        </div>
+                    </div>
+
+                    {members.length > 0 && (
+                        <div>
+                            <Label>Assessor Responsável</Label>
+                            <Select
+                                value={formData.responsible_user_id || ''}
+                                onValueChange={handleResponsibleChange}
+                            >
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Selecione o responsável" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {members.map((m) => (
+                                        <SelectItem key={m.user_id} value={m.user_id}>
+                                            {m.user_name} {m.function && `(${m.function})`}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                        <div>
+                            <Label htmlFor="urgency_request" className="cursor-pointer">Pedido de Urgência</Label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Marcar esta Parceria como urgente</p>
+                        </div>
+                        <Switch
+                            id="urgency_request"
+                            checked={formData.urgency_request}
+                            onCheckedChange={(checked) => setFormData({ ...formData, urgency_request: checked })}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                        <div>
+                            <Label htmlFor="access_restriction" className="cursor-pointer">Restrição de Acesso</Label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Restringe o acesso a este registro (auditado via flag `access_audit_log`)
+                            </p>
+                        </div>
+                        <Switch
+                            id="access_restriction"
+                            checked={formData.access_restriction}
+                            onCheckedChange={(checked) => setFormData({ ...formData, access_restriction: checked })}
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4">
                         <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                             Cancelar
                         </Button>
-                        <Button type="submit" disabled={isCreating}>
-                            {isCreating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Criar Parceria
+                        <Button
+                            type="submit"
+                            className="bg-primary"
+                            disabled={isCreating}
+                        >
+                            {isCreating ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Criando...
+                                </>
+                            ) : (
+                                'Criar Parceria'
+                            )}
                         </Button>
                     </div>
                 </form>

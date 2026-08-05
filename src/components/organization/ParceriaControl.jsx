@@ -6,13 +6,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import CreateParceriaDialog from './CreateParceriaDialog';
 import EditParceriaDialog from './EditParceriaDialog';
 import ParceriaTable from './ParceriaTable';
+import ParceriaDetailSheet from './ParceriaDetailSheet';
+import ProcessLogDialog from './ProcessLogDialog';
+import CreateAditivoDialog from './CreateAditivoDialog';
+import ExtinguishConfirmDialog from './ExtinguishConfirmDialog';
 import ImportProgressModal from './ImportProgressModal';
+import { useAditivos } from '@/hooks/useFirestore';
 import { importParceriasFromExcel } from '@/services/functionsService';
+import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { toast } from 'sonner';
 
 /**
- * ParceriaControl — container do módulo de Parcerias (lista + import + criar).
- * Espelha ExpedienteControl.jsx.
+ * ParceriaControl — container do módulo de Parcerias (lista + import + criar
+ * + visualizar + editar + logar + extinguir + aditivos). Espelha o padrão
+ * de ExpedienteControl com todos os recursos disponíveis.
  */
 export default function ParceriaControl({
     organization,
@@ -24,27 +31,52 @@ export default function ParceriaControl({
     parceriasError,
     initialFilter,
 }) {
+    const canDeleteRecords = useOrgPermission('delete_records');
+
     const [createOpen, setCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [selectedParceria, setSelectedParceria] = useState(null);
 
+    // DetailSheet (lateral)
+    const [detailOpen, setDetailOpen] = useState(false);
+    const [detailParceria, setDetailParceria] = useState(null);
+    const [aditivoDialogOpen, setAditivoDialogOpen] = useState(false);
+    const [aditivoTarget, setAditivoTarget] = useState(null);
+    const [extinguishOpen, setExtinguishOpen] = useState(false);
+    const [extinguishTarget, setExtinguishTarget] = useState(null);
+
+    // Log de atividades
+    const [logOpen, setLogOpen] = useState(false);
+
+    // Import state
     const [uploading, setUploading] = useState(false);
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0, created: 0, updated: 0, errors: 0 });
     const [importComplete, setImportComplete] = useState(false);
     const [importStats, setImportStats] = useState(null);
 
+    // Hook reativo para aditivos da Parceria selecionada no DetailSheet.
+    const { aditivos = [] } = useAditivos(detailParceria?.id, !!detailParceria);
+
     const handleEdit = (p) => {
         setSelectedParceria(p);
         setEditOpen(true);
     };
 
+    const handleView = (p) => {
+        setDetailParceria(p);
+        setDetailOpen(true);
+    };
+
+    // Fecha diálogos ao trocar de órgão.
     const orgIdRef = useRef(organization?.id);
     useEffect(() => {
         if (orgIdRef.current === organization?.id) return;
         orgIdRef.current = organization?.id;
         setEditOpen(false);
         setSelectedParceria(null);
+        setDetailOpen(false);
+        setDetailParceria(null);
     }, [organization?.id]);
 
     const handleFileUpload = async (event) => {
@@ -175,6 +207,7 @@ export default function ParceriaControl({
                         userId={userId}
                         isLoading={parceriasLoading}
                         onEdit={handleEdit}
+                        onView={handleView}
                         initialFilter={initialFilter}
                         organization={organization}
                     />
@@ -184,6 +217,7 @@ export default function ParceriaControl({
                     open={createOpen}
                     setOpen={setCreateOpen}
                     organization={organization}
+                    members={members}
                     onSuccess={() => setCreateOpen(false)}
                 />
 
@@ -200,6 +234,70 @@ export default function ParceriaControl({
                             setEditOpen(false);
                             setSelectedParceria(null);
                         }}
+                    />
+                )}
+
+                {/* DetailSheet lateral (padrão ExpedienteDetailSheet) */}
+                <ParceriaDetailSheet
+                    parceria={detailParceria}
+                    open={detailOpen}
+                    onClose={() => {
+                        setDetailOpen(false);
+                        setDetailParceria(null);
+                    }}
+                    onEdit={(p) => {
+                        setDetailOpen(false);
+                        setSelectedParceria(p);
+                        setEditOpen(true);
+                    }}
+                    onIncludeAditivo={(p) => {
+                        setDetailOpen(false);
+                        setAditivoTarget(p);
+                        setAditivoDialogOpen(true);
+                    }}
+                    onExtinguish={(p) => {
+                        setDetailOpen(false);
+                        setExtinguishTarget(p);
+                        setExtinguishOpen(true);
+                    }}
+                    onViewLog={() => setLogOpen(true)}
+                    aditivos={aditivos}
+                    currentAdditiveId={detailParceria?.current_additive_id}
+                    userRole={userRole}
+                    organizationId={organization.id}
+                    members={members}
+                />
+
+                {/* Aditivo dialog */}
+                {aditivoTarget && (
+                    <CreateAditivoDialog
+                        open={aditivoDialogOpen}
+                        onClose={() => { setAditivoDialogOpen(false); setAditivoTarget(null); }}
+                        parceria={aditivoTarget}
+                        organizationId={organization.id}
+                        organization={organization}
+                        onSuccess={() => { setAditivoDialogOpen(false); setAditivoTarget(null); }}
+                    />
+                )}
+
+                {/* Extinção */}
+                {extinguishTarget && (
+                    <ExtinguishConfirmDialog
+                        open={extinguishOpen}
+                        onClose={() => { setExtinguishOpen(false); setExtinguishTarget(null); }}
+                        parceria={extinguishTarget}
+                        organizationId={organization.id}
+                        onSuccess={() => { setExtinguishOpen(false); setExtinguishTarget(null); }}
+                    />
+                )}
+
+                {/* Log de atividades (creator only) */}
+                {detailParceria && (
+                    <ProcessLogDialog
+                        open={logOpen}
+                        onClose={() => setLogOpen(false)}
+                        process={detailParceria}
+                        collectionName="parcerias"
                     />
                 )}
 
