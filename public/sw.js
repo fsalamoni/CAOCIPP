@@ -4,7 +4,7 @@
 // para fallback offline. Bumps no CACHE_NAME invalidam qualquer cache
 // residual de versões anteriores.
 
-const CACHE_NAME = 'caocipp-static-v2';
+const CACHE_NAME = 'caocipp-static-v3';
 const STATIC_CACHE_REGEX = /\/assets\//;
 
 self.addEventListener('install', () => {
