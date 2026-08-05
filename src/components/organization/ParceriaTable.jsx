@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Card } from '@/components/ui/card';
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useUserPreferences } from '@/hooks/useFirestore';
 import { useFlag } from '@/lib/FeatureFlagsContext';
