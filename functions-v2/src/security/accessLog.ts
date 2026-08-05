@@ -14,7 +14,7 @@ function isOrgAdmin(membership: MembershipLike | undefined): boolean {
 // coleção global `auditLogs` já usada pelas demais Cloud Functions.
 export const logAccess = onCall<{
     organizationId: string;
-    entityType?: 'process' | 'expediente';
+    entityType?: 'process' | 'expediente' | 'parceria';
     entityId?: string;
     action: 'view_restricted' | 'export_table';
     details?: Record<string, unknown>;

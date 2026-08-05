@@ -3,7 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 interface AddCommentRequest {
     organizationId: string;
-    entityType: 'process' | 'expediente';
+    entityType: 'process' | 'expediente' | 'parceria';
     entityId: string;
     text: string;
     mentionedUserIds?: string[];
@@ -12,16 +12,19 @@ interface AddCommentRequest {
 const ENTITY_COLLECTION: Record<string, string> = {
     process: 'processes',
     expediente: 'expedientes',
+    parceria: 'parcerias',
 };
 
 const ENTITY_NUMBER_FIELD: Record<string, string> = {
     process: 'process_number',
     expediente: 'expediente_number',
+    parceria: 'pgea',
 };
 
 const ENTITY_LABEL: Record<string, string> = {
     process: 'Consulta',
     expediente: 'Expediente',
+    parceria: 'Parceria',
 };
 
 // Comentários internos com @menção (flag `process_comments`). Escrita

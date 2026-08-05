@@ -26,6 +26,7 @@ import { formatPersonName } from '@/utils/nameUtils';
 const ENTITY_COLLECTION = {
     process: 'processes',
     expediente: 'expedientes',
+    parceria: 'parcerias',
 };
 
 function formatWhen(timestamp) {
