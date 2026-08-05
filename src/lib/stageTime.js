@@ -21,6 +21,11 @@ import { isValid } from 'date-fns';
 // Parceria é terminal (não entra em "Na pasta"), então o badge some quando
 // vira "Parcerias" / "Extintos". Mantemos as duas tabelas no mesmo objeto
 // para reuso de getDaysInCurrentStage / computeStageAverages.
+//
+// IMPORTANTE: a lista de fases terminais (sem badge de "tempo parado") fica
+// em TERMINAL_STAGES abaixo. NÃO misturar com STAGE_ENTRY_FIELD para não
+// quebrar Expedientes/Consultas (cuja fase "Revisadas" PRECISA continuar
+// mostrando o badge — não é terminal lá).
 export const STAGE_ENTRY_FIELD = {
     'Pendente': 'entry_date',
     'Em elaboração': 'distribution_date',
@@ -32,6 +37,12 @@ export const STAGE_ENTRY_FIELD = {
     'Aguarda Terceiros': 'review_conclusion_date',
     'Parcerias': 'signature_date',
 };
+
+// Fases terminais (não exibem badge de tempo na etapa, mesmo que tenham
+// STAGE_ENTRY_FIELD). Apenas as fases finais de Parcerias — "Revisadas" e
+// "Na pasta" NÃO entram aqui porque continuam ativas para Expedientes/
+// Consultas (badge continua valendo).
+export const TERMINAL_STAGES = new Set(['Parcerias', 'Extintos']);
 
 // Campo de data em que o registro SAIU de cada etapa (para a próxima).
 // "Em elaboração" tem DOIS campos de saída possíveis: um processo pode ir
@@ -150,20 +161,18 @@ export function resolveStageTimeConfig(stageTimeConfig) {
 
 /**
  * Dias (úteis ou corridos, conforme dayType) desde que o registro entrou na
- * etapa atual. Retorna null se a etapa é terminal (Na pasta / Parcerias /
- * Extintos — não há contagem de "tempo parado" em fase final) ou se a data
- * de entrada não está preenchida.
+ * etapa atual. Retorna null se a etapa é terminal (definida em
+ * TERMINAL_STAGES — apenas as fases finais de Parcerias) ou se a data de
+ * entrada não está preenchida.
+ *
+ * IMPORTANTE: "Na pasta" e "Revisadas" (fases de Expedientes/Consultas) NÃO
+ * são terminais aqui — elas mantêm o badge de tempo na etapa como antes. O
+ * único motivo de TERMINAL_STAGES existir é esconder o badge nas fases
+ * finais de Parcerias (Parcerias, Extintos) onde não há "tempo parado"
+ * relevante.
  */
 export function getDaysInCurrentStage(record, status, getField, dayType = 'business') {
-    // Fases terminais: para Consultas/Expedientes, "Na pasta" / "Revisadas" são
-    // finais; para Parcerias, "Parcerias" e "Extintos" são finais. Em todos
-    // esses casos não há sentido em contar "tempo na etapa".
-    if (
-        status === 'Na pasta' ||
-        status === 'Revisadas' ||
-        status === 'Parcerias' ||
-        status === 'Extintos'
-    ) return null;
+    if (TERMINAL_STAGES.has(status)) return null;
 
     const entryField = STAGE_ENTRY_FIELD[status];
     if (!entryField) return null;
