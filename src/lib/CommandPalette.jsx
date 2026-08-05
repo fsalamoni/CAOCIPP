@@ -104,6 +104,9 @@ export default function CommandPalette() {
         if (result.kind === 'processo') {
             localStorage.setItem('processSearchTerm', result.number || '');
             goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=processes`);
+        } else if (result.kind === 'parceria') {
+            localStorage.setItem('parceriaSearchTerm', result.number || '');
+            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=parcerias`);
         } else {
             localStorage.setItem('expedienteSearchTerm', result.number || '');
             goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=expedientes`);
@@ -144,7 +147,7 @@ export default function CommandPalette() {
             <CommandDialog open={open} onOpenChange={setOpen} commandProps={{ shouldFilter: !isGlobalSearchOn }}>
                 <CommandInput
                     placeholder={isGlobalSearchOn
-                        ? "Buscar página, órgão, Consulta ou Expediente... (Esc para fechar)"
+                        ? "Buscar página, órgão, Consulta, Expediente ou Parceria... (Esc para fechar)"
                         : "Buscar página ou órgão... (Esc para fechar)"}
                     value={searchValue}
                     onValueChange={setSearchValue}
@@ -152,7 +155,7 @@ export default function CommandPalette() {
                 <CommandList>
                     <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
                     {isGlobalSearchOn && searchValue.trim().length >= 2 && (
-                        <CommandGroup heading="Consultas e Expedientes">
+                        <CommandGroup heading="Consultas, Expedientes e Parcerias">
                             {searching && searchResults.length === 0 && (
                                 <CommandItem disabled value="__searching__">
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

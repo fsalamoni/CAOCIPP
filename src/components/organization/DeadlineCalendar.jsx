@@ -3,9 +3,10 @@
 // (flag `deadline_calendar`).
 // ----------------------------------------------------------------------------
 // Mostra, num calendário mensal, os dias em que há entrada, distribuição,
-// remessa/devolução de revisão ou arquivamento de Consultas e Expedientes do
-// órgão. Clicar num dia lista os itens daquele dia; clicar num item leva à
-// lista (Consultas/Expedientes) com o número já preenchido na busca.
+// remessa/devolução de revisão ou arquivamento de Consultas, Expedientes e
+// Parcerias (PGEA, assinatura, termo final, aviso de renovação) do órgão.
+// Clicar num dia lista os itens daquele dia; clicar num item leva à lista
+// (Consultas/Expedientes/Parcerias) com o número/PGEA já preenchido na busca.
 // ============================================================================
 
 import React, { useMemo, useState } from 'react';
@@ -31,11 +32,19 @@ const EVENT_FIELDS = [
     { field: 'archived_date', label: 'Arquivamento', dot: 'bg-slate-600' },
 ];
 
+// Parcerias usam nomes de campos próprios.
+const PARCERIA_EVENT_FIELDS = [
+    { field: 'pgea_date', label: 'PGEA', dot: 'bg-violet-500' },
+    { field: 'signature_date', label: 'Assinatura', dot: 'bg-amber-500' },
+    { field: 'end_date', label: 'Termo final', dot: 'bg-rose-500' },
+    { field: 'renewal_notice_date', label: 'Aviso de renovação', dot: 'bg-emerald-500' },
+];
+
 function dayKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export default function DeadlineCalendar({ organization, processes = [], expedientes = [] }) {
+export default function DeadlineCalendar({ organization, processes = [], expedientes = [], parcerias = [] }) {
     const navigate = useNavigate();
     const [cursor, setCursor] = useState(() => {
         const d = new Date();
@@ -47,8 +56,8 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
 
     const eventsByDay = useMemo(() => {
         const map = new Map();
-        const addRecord = (record, kind) => {
-            EVENT_FIELDS.forEach(({ field, label, dot }) => {
+        const addRecord = (record, kind, fields, getNumber) => {
+            fields.forEach(({ field, label, dot }) => {
                 const raw = record[field];
                 if (!raw) return;
                 const date = parseLocalDate(raw);
@@ -58,7 +67,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                 list.push({
                     kind,
                     id: record.id,
-                    number: kind === 'processo' ? record.process_number : record.expediente_number,
+                    number: getNumber(record),
                     field,
                     label,
                     dot,
@@ -66,10 +75,11 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                 map.set(key, list);
             });
         };
-        processes.forEach((p) => addRecord(p, 'processo'));
-        expedientes.forEach((e) => addRecord(e, 'expediente'));
+        processes.forEach((p) => addRecord(p, 'processo', EVENT_FIELDS, (r) => r.process_number));
+        expedientes.forEach((e) => addRecord(e, 'expediente', EVENT_FIELDS, (r) => r.expediente_number));
+        parcerias.forEach((p) => addRecord(p, 'parceria', PARCERIA_EVENT_FIELDS, (r) => r.pgea));
         return map;
-    }, [processes, expedientes]);
+    }, [processes, expedientes, parcerias]);
 
     const year = cursor.getFullYear();
     const month = cursor.getMonth();
@@ -91,9 +101,12 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
         if (evt.kind === 'processo') {
             localStorage.setItem('processSearchTerm', evt.number || '');
             navigate(`${createPageUrl('Organization')}?id=${organization.id}&tab=processes`);
-        } else {
+        } else if (evt.kind === 'expediente') {
             localStorage.setItem('expedienteSearchTerm', evt.number || '');
             navigate(`${createPageUrl('Organization')}?id=${organization.id}&tab=expedientes`);
+        } else if (evt.kind === 'parceria') {
+            localStorage.setItem('parceriaSearchTerm', evt.number || '');
+            navigate(`${createPageUrl('Organization')}?id=${organization.id}&tab=parcerias`);
         }
     };
 
@@ -215,7 +228,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                                         {evt.number || '(sem número)'}
                                     </span>
                                     <span className="text-xs text-slate-400 dark:text-slate-400 shrink-0">
-                                        {evt.kind === 'processo' ? 'Consulta' : 'Expediente'}
+                                        {evt.kind === 'processo' ? 'Consulta' : evt.kind === 'parceria' ? 'Parceria' : 'Expediente'}
                                     </span>
                                 </div>
                                 <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">{evt.label}</span>
