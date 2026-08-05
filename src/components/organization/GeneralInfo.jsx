@@ -39,7 +39,7 @@ import { getExpedienteField } from '@/utils/expedienteUtils';
 
 
 
-export default function GeneralInfo({ organization, members, processes = [], expedientes = [], userRole, userId, membersLoading, membersError, processesLoading, userNameMap = {} }) {
+export default function GeneralInfo({ organization, members, processes = [], expedientes = [], parcerias = [], userRole, userId, membersLoading, membersError, processesLoading, parceriasLoading, userNameMap = {} }) {
   const [isRemoving, setIsRemoving] = useState(false);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -116,6 +116,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
         organization={organization}
         processes={processes}
         expedientes={expedientes}
+        parcerias={parcerias}
         selectedYear={selectedYear}
         customEntitiesOn={customEntitiesOn}
         onCustomYears={setCustomYears}

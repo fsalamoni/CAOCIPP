@@ -785,6 +785,36 @@ The Consultas CAO platform implements **defense in depth** with multiple securit
 **Remaining Risks:** Acceptable for current use case  
 **Recommendations:** Implement future enhancements before scaling
 
+---
+
+## Módulo Parcerias (v1.16.0) — Decisões de Segurança Específicas
+
+### Lock de campos quando a Parceria tem aditivos
+
+Após o primeiro aditivo ser criado, os campos da Parceria **original** ficam congelados. Isso garante que:
+
+1. O aditivo não fique "órfão" se o usuário editar dados do original.
+2. A hierarquia temporal (original → aditivos) seja preservada.
+3. Não haja dois lugares com a "verdade" sobre os mesmos dados.
+
+**Implementação:** a Cloud Function `updateParceria` (em `functions-v2/src/parcerias/update.ts`) bloqueia mudanças nos campos `FROZEN_WHEN_HAS_ADITIVO` quando `parceria.aditivo_count > 0`, lançando `HttpsError('failed-precondition', ...)`. A UI espelha com um cadeado 🔒 no DetailSheet e inputs `disabled` no EditDialog.
+
+### Cascade de extinção
+
+A função `extinguishParceria` marca a Parceria pai como extinta E cascadeia para todos os aditivos. Nenhuma operação do cliente é permitida nessa cascade — é 100% server-side, com `recursiveUpdate` em batch.
+
+### Validação de transição de fase
+
+Toda mudança de `status` passa por `validateParceriaPhaseTransition(target, mergedRecord)` que verifica os campos obrigatórios da fase-alvo. Se faltar algo, o servidor lança `HttpsError('failed-precondition', 'Para entrar em "X", preencha: A, B, C')`. Defesa em profundidade: cliente AVISA, servidor EXIGE.
+
+### Permissão `configure_parcerias`
+
+Nova chave delegável no `OrgPermissionKey` (em `functions-v2/src/shared/permissions.ts`). Membro com essa permissão pode editar `parceriaSettings.tipos` e `thirdPartiesSettingsParcerias` do órgão. O criador sempre tem. Membro sem essa permissão NÃO consegue modificar a configuração do módulo de Parcerias, mesmo sendo admin do órgão.
+
+### Flag `parcerias_enabled`
+
+Default OFF (zero impacto em produção). O painel "Administração & Custos" do super-admin liga/desliga a flag globalmente. Quando a flag `custom_entities` também está ligada, cada órgão pode ligar/desligar Parcerias individualmente via `moduleConfig.parcerias.enabled` (toggle em Páginas e Módulos).
+
 For implementation details, see:
 - Architecture → `ARCHITECTURE_REFERENCE.md`
 - Features → `FEATURES_REFERENCE.md`

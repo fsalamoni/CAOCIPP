@@ -429,6 +429,46 @@ Notes and important points recorded during analysis.
 
 ---
 
+## Módulo Parcerias (v1.16.0)
+
+### Parceria
+Convênio, Termo de Cooperação ou Termo de Fomento firmado entre o MP/RS e outro ente. Entidade de primeiro nível na coleção `parcerias/`. Tem 6 fases: Pendentes, Em Análise, Revisão, Aguarda Terceiros, Parcerias, Extintos.
+
+### PGEA
+Número do "Procedimento de Gestão Estratégica e Administrativa" — identificador único da Parceria no órgão. Equivalente ao número de processo das Consultas. Pode ser gerado automaticamente pelo MP (formato livre).
+
+### Tipo de Parceria
+Classificação jurídica: **Convênio**, **Termo de Cooperação** ou **Termo de Fomento**. Configurável por órgão (lista customizável em `parceriaSettings.tipos`).
+
+### Vigência
+Período de validade da Parceria (ex.: "12 meses", "2 anos"). Campo texto livre; o sistema calcula o termo final a partir da data de assinatura quando cabível.
+
+### Termo Final
+Data de encerramento da Parceria. Quando a data atual passa do termo final e a Parceria não foi extinta, o sistema recomenda a criação de um aditivo (renovação).
+
+### Aviso de Renovação
+Data sugerida para início do processo de renovação. Usado para alertas de prazo no calendário de vencimentos.
+
+### Aditivo
+Documento complementar à Parceria original. Pode ser **Renovação/Prorrogação** (estende a vigência) ou **Qualitativo (Objeto)** (altera o objeto sem mudar prazo). Vive em subcoleção `parcerias/{id}/aditivos/{addId}`. Cada Parceria pode ter N aditivos.
+
+### Aditivo de Renovação/Prorrogação
+Tipo de aditivo que renova ou estende a vigência da Parceria. Mantém os mesmos campos de formalização (tipo, número, vigência, termo final).
+
+### Aditivo Qualitativo
+Tipo de aditivo que altera o **objeto** da Parceria sem necessariamente mudar a vigência. Usado para aditivos que modificam escopo.
+
+### Extinção
+Ação terminal que marca a Parceria como finda sem renovação. Requer confirmação textual (digitar "EXTINGUIR") e cascateia para todos os aditivos. Diferente de "arquivamento" de Consultas/Expedientes — é uma decisão consciente de NÃO renovar.
+
+### Aditivo corrente
+O aditivo que está sendo processado no momento (`parceria.current_additive_id`). Quando uma Parceria tem aditivos, o Kanban mostra o status do aditivo corrente, não do original.
+
+### Lock de campos
+Quando uma Parceria tem 1+ aditivos, os campos do documento original (PGEA, assunto, objeto, partes, partnership_type, partnership_number, signature_date, validity_period, end_date, renewal_notice_date) ficam **read-only**. Edições subsequentes vão para o aditivo corrente. O backend (Cloud Function `updateParceria`) recusa mudanças nesses campos quando `aditivo_count > 0`.
+
+---
+
 ## Acronyms Quick Reference
 
 | Acronym | Full Term | Category |

@@ -182,6 +182,76 @@ service cloud.firestore {
       }
     }
 
+    // ========== PARCERIAS (Convênio, Termo de Cooperação, Termo de Fomento) ==========
+    // Coleção de primeiro nível `parcerias/{parceriaId}`. Toda escrita passa
+    // por Cloud Functions (createParceria/updateParceria/deleteParceria/
+    // addAditivo/updateAditivo/deleteAditivo/extinguishParceria). Cada Parceria
+    // pode ter uma subcoleção de aditivos (parcerias/{id}/aditivos/{addId}) e
+    // espelha o activity_log na subcoleção `history/`.
+    match /parcerias/{parceriaId} {
+      // Membros da organização podem ler parcerias.
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+
+      // Membros podem criar parcerias (Cloud Function valida campos).
+      allow create: if isAuthenticated() &&
+                      isMemberOf(request.resource.data.organization_id);
+
+      // Pode atualizar se for:
+      // 1. Admin/creator da organização, OU
+      // 2. Assessor responsável pela parceria.
+      // organization_id não pode mudar na própria escrita.
+      // OBS: a trava fina sobre campos "congelados" quando aditivo_count > 0
+      // (não permitir editar o original depois do primeiro aditivo) é
+      // IMPLEMENTADA NO SERVIDOR (functions-v2/src/parcerias/update.ts).
+      // Regras do Firestore não conseguem inspecionar sub-campos arbitrários
+      // sem custo extra; vale manter a defesa em camadas.
+      allow update: if isAuthenticated() &&
+                      isMemberOf(resource.data.organization_id) && (
+                        hasRole(resource.data.organization_id, ['creator', 'admin']) ||
+                        isOwner(resource.data.responsible_user_id)
+                      ) &&
+                      request.resource.data.organization_id == resource.data.organization_id;
+
+      // Apenas admin/creator podem deletar.
+      allow delete: if isAuthenticated() &&
+                      isMemberOf(resource.data.organization_id) &&
+                      hasRole(resource.data.organization_id, ['creator', 'admin']);
+
+      // Subcoleção de histórico (Fase 3) — espelho do activity_log.
+      match /history/{entryId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/parcerias/$(parceriaId)).data.organization_id);
+        allow write: if false;
+      }
+
+      // Subcoleção de aditivos (parcerias/{id}/aditivos/{aditivoId}). Cada
+      // aditivo é um documento independente com histórico próprio. Leitura
+      // para membros do órgão da Parceria pai; escrita exclusiva de Cloud
+      // Functions (addAditivo/updateAditivo/deleteAditivo), com validação de
+      // status da Parceria e do aditivo.
+      match /aditivos/{aditivoId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/parcerias/$(parceriaId)).data.organization_id);
+        allow write: if false;
+
+        // Histórico do aditivo (mesma estratégia).
+        match /history/{entryId} {
+          allow read: if isAuthenticated() &&
+            isMemberOf(
+              get(/databases/$(database)/documents/parcerias/$(parceriaId)).data.organization_id
+            );
+          allow write: if false;
+        }
+      }
+
+      // Comentários internos com @menção (mesmo padrão de processos/expedientes).
+      match /comments/{commentId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/parcerias/$(parceriaId)).data.organization_id);
+        allow write: if false;
+      }
+    }
+
     // ========== PÁGINAS/PROCESSOS PERSONALIZADOS (flag: custom_entities) ==========
     // Definições dos tipos de entidade. Leitura para membros do órgão; toda
     // escrita passa por Cloud Functions (validação/sanitização no servidor).

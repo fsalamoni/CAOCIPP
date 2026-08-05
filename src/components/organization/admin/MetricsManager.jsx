@@ -98,7 +98,7 @@ export default function MetricsManager({ organization }) {
     useEffect(() => {
         if (!selectedPage) return;
         if (!dirty) reseed(selectedPage);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [selectedPage?.key, organization?.dashboardConfig]);
 
     const switchPage = (key) => {

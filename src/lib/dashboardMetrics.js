@@ -19,6 +19,7 @@ import { resolveBuiltinModules } from '@/lib/organizationModules';
 import { statusConfig } from '@/config/processStatus';
 import { isProcessUrgent } from '@/utils/processUtils';
 import { getExpedienteField, calculateExpedienteDerivedStatus, isExpedienteUrgent } from '@/utils/expedienteUtils';
+import { getParceriaField, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
 import { PHASE_FIELD_KEY } from '@/lib/metricsEngine';
 
 // ----------------------------------------------------------------------------
@@ -162,6 +163,53 @@ const EXPEDIENTE_FIELDS = [
     { key: 'network_folder', label: 'Pasta na rede', type: 'text' },
 ];
 
+// Parcerias (Convênio, Termo de Cooperação, Termo de Fomento).
+const PARCERIA_FIELD_TYPES = {
+    pgea: 'text',
+    subject: 'text',
+    object: 'text',
+    parties: 'text',
+    partnership_type: 'text',
+    partnership_number: 'text',
+    signature_date: 'date',
+    validity_period: 'text',
+    end_date: 'date',
+    renewal_notice_date: 'date',
+    responsible_user_id: 'text',
+    responsible_user_name: 'text',
+    responsibility_date: 'date',
+    network_folder: 'text',
+    observations: 'text',
+    review_conclusion_date: 'date',
+    third_party: 'text',
+    pgea_date: 'date',
+    aditivo_count: 'number',
+    status: 'text',
+    extinguished: 'boolean',
+    extinguished_at: 'date',
+};
+
+const PARCERIA_FIELDS = [
+    { key: 'pgea', label: 'PGEA', type: 'text' },
+    { key: 'subject', label: 'Assunto', type: 'text' },
+    { key: 'object', label: 'Objeto', type: 'text' },
+    { key: 'parties', label: 'Partes', type: 'text' },
+    { key: 'partnership_type', label: 'Tipo de Parceria', type: 'text' },
+    { key: 'partnership_number', label: 'Número da Parceria', type: 'text' },
+    { key: 'signature_date', label: 'Data da Assinatura', type: 'date' },
+    { key: 'validity_period', label: 'Vigência', type: 'text' },
+    { key: 'end_date', label: 'Termo Final', type: 'date' },
+    { key: 'renewal_notice_date', label: 'Data do Aviso de Renovação', type: 'date' },
+    { key: 'responsible_user_name', label: 'Assessor Responsável', type: 'text' },
+    { key: 'responsibility_date', label: 'Data de Responsabilidade', type: 'date' },
+    { key: 'network_folder', label: 'Pasta na Rede', type: 'text' },
+    { key: 'observations', label: 'Observações', type: 'text' },
+    { key: 'review_conclusion_date', label: 'Conclusão da Revisão', type: 'date' },
+    { key: 'third_party', label: 'Terceiro', type: 'text' },
+    { key: 'pgea_date', label: 'Data do PGEA', type: 'date' },
+    { key: 'aditivo_count', label: 'Qtd. de Aditivos', type: 'number' },
+];
+
 /** Fases/situações dos processos e expedientes (derivadas de statusConfig). */
 function builtinPhases() {
     return Object.keys(statusConfig).map((key, idx) => ({
@@ -192,6 +240,25 @@ export function getExpedientesPageSchema() {
         phaseLabel: 'Situação',
         fields: EXPEDIENTE_FIELDS,
         phases: builtinPhases(),
+    };
+}
+
+export function getParceriasPageSchema() {
+    return {
+        key: 'parcerias',
+        label: 'Parcerias',
+        kind: 'parcerias',
+        phaseLabel: 'Fase',
+        fields: PARCERIA_FIELDS,
+        // Fases próprias de Parcerias (espelhadas em functions-v2/src/shared/status.ts).
+        phases: [
+            { key: 'Pendente',           label: 'Pendentes',           color: 'slate'   },
+            { key: 'Em análise',         label: 'Em Análise',          color: 'amber'   },
+            { key: 'Revisão',            label: 'Revisão',             color: 'sky'     },
+            { key: 'Aguarda Terceiros',  label: 'Aguarda Terceiros',   color: 'cyan'    },
+            { key: 'Parcerias',          label: 'Parcerias',           color: 'emerald' },
+            { key: 'Extintos',           label: 'Extintos',            color: 'slate',  is_final: true },
+        ],
     };
 }
 
@@ -262,6 +329,19 @@ export function buildPageContext(kind, schema) {
             getFieldType: (key) => types[key] || 'text',
         };
     }
+    if (kind === 'parcerias') {
+        const types = PARCERIA_FIELD_TYPES;
+        return {
+            getField: (p, key) => {
+                if (key === 'status') return calculateParceriaDerivedStatus(p);
+                if (key === 'extinguished') return p?.extinguished === true;
+                if (key === 'aditivo_count') return Number(getParceriaField(p, 'aditivo_count')) || 0;
+                return getParceriaField(p, key);
+            },
+            getPhase: (p) => calculateParceriaDerivedStatus(p),
+            getFieldType: (key) => types[key] || 'text',
+        };
+    }
     // custom
     const types = fieldTypeMap(schema);
     return {
@@ -275,6 +355,15 @@ export function buildPageContext(kind, schema) {
 export function getRecordYear(record, kind) {
     if (kind === 'processes') return parseYear(record?.entry_date);
     if (kind === 'expedientes') return parseYear(getExpedienteField(record, 'entry_date'));
+    if (kind === 'parcerias') {
+        // Preferência: data de assinatura (mais fiel à "existência" da Parceria).
+        // Fallback: data de entrada do PGEA ou created_at.
+        return (
+            parseYear(getParceriaField(record, 'signature_date'))
+            ?? parseYear(getParceriaField(record, 'pgea_date'))
+            ?? parseYear(record?.created_at)
+        );
+    }
     return parseYear(record?.created_at) ?? parseYear(record?.values?.entry_date);
 }
 
@@ -294,6 +383,12 @@ export const DEFAULT_METRICS = {
         { id: 'e_done', label: 'Concluídos', agg: 'count', filters: [{ field: PHASE_FIELD_KEY, op: 'eq', value: 'Na pasta' }], icon: 'Target', color: 'emerald', size: 1 },
         { id: 'e_urgent', label: 'Urgentes Pendentes', agg: 'count', filters: [{ field: 'urgency_request', op: 'truthy' }, { field: PHASE_FIELD_KEY, op: 'eq', value: 'Pendente' }], icon: 'AlertTriangle', color: 'red', size: 1 },
         { id: 'e_rate', label: 'Taxa de Conclusão', agg: 'percent', filters: [{ field: PHASE_FIELD_KEY, op: 'eq', value: 'Na pasta' }], format: 'percent', icon: 'Clock', color: 'blue', size: 1 },
+    ],
+    parcerias: [
+        { id: 'p_total', label: 'Total (Parcerias)', agg: 'count', filters: [], icon: 'Handshake', color: 'indigo', size: 1 },
+        { id: 'p_active', label: 'Parcerias ativas', agg: 'count', filters: [{ field: PHASE_FIELD_KEY, op: 'neq', value: 'Extintos' }], icon: 'Activity', color: 'emerald', size: 1 },
+        { id: 'p_extinct', label: 'Parcerias extintas', agg: 'count', filters: [{ field: PHASE_FIELD_KEY, op: 'eq', value: 'Extintos' }], icon: 'Archive', color: 'slate', size: 1 },
+        { id: 'p_with_additive', label: 'Com aditivo(s)', agg: 'count', filters: [{ field: 'aditivo_count', op: 'gt', value: 0 }], icon: 'Layers', color: 'amber', size: 1 },
     ],
 };
 
@@ -332,10 +427,12 @@ export function getActiveDataPages(organization, opts = {}) {
     const builtin = resolveBuiltinModules(organization);
     const showProcesses = !customEntitiesOn || builtin.processes;
     const showExpedientes = !customEntitiesOn || builtin.expedientes;
+    const showParcerias = !customEntitiesOn || builtin.parcerias;
 
     const pages = [];
     if (showProcesses) pages.push(getProcessesPageSchema());
     if (showExpedientes) pages.push(getExpedientesPageSchema());
+    if (showParcerias) pages.push(getParceriasPageSchema());
 
     if (customEntitiesOn && Array.isArray(entityTypes)) {
         entityTypes
@@ -417,6 +514,7 @@ export function getPageMetrics(organization, page) {
     }
     if (page.kind === 'processes') return DEFAULT_METRICS.processes.map(normalizeMetric);
     if (page.kind === 'expedientes') return DEFAULT_METRICS.expedientes.map(normalizeMetric);
+    if (page.kind === 'parcerias') return DEFAULT_METRICS.parcerias.map(normalizeMetric);
     return getDefaultCustomMetrics(page.entityType).map(normalizeMetric);
 }
 

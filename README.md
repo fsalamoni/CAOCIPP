@@ -1,8 +1,8 @@
-# Consultas CAO (Version 1.15.0)
+# Consultas CAO (Version 1.16.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
-**Last Updated:** 05/06/2026
+**Last Updated:** 04/08/2026
 
 ## 🚀 Tecnologias
 
@@ -25,7 +25,8 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 - ✅ Sincronização em tempo real (onSnapshot)
 - ✅ Hover inteligente e uniforme em colunas fixas
 - ✅ Módulo Dedicado de Expedientes Administrativos
-- ✅ Quadro Kanban com drag-and-drop bidirecional (Consultas e Expedientes)
+- ✅ **Módulo de Parcerias (Convênio, Termo de Cooperação, Termo de Fomento)** com 6 fases, Kanban próprio, aditivos e configuração de terceiros
+- ✅ Quadro Kanban com drag-and-drop bidirecional (Consultas, Expedientes e Parcerias)
 - ✅ Log de atividades estruturado (auditoria completa)
 - ✅ Backfill retroativo de logs para processos existentes
 - ✅ Auto-distribuição e fluxo inteligente para assessores
@@ -158,6 +159,18 @@ Consultas-CAO/
 - Verifique colunas: Número, Consulente, Local, Data Entrada, Objeto
 
 ## 📝 Atualizações Recentes
+
+### 04/08/2026 - Módulo Parcerias (v1.16.0)
+- **Novo módulo Parcerias** (Convênio, Termo de Cooperação, Termo de Fomento) com 6 fases próprias: Pendentes, Em Análise, Revisão, Aguarda Terceiros, Parcerias, Extintos.
+- **Painel Kanban + Lista de Parcerias**, com drag-and-drop e todas as obrigatoriedades por fase validadas no servidor.
+- **Aditivos**: cada Parceria pode ter N aditivos (renovação/prorrogação ou qualitativo) sem limite. Ao incluir um aditivo, a Parceria original é congelada (campos read-only) e o aditivo segue o fluxo. Toggle "Original / Aditivo #N" no DetailSheet.
+- **Importação por planilha** (Excel/CSV/JSON): colunas PGEA, TIPO DE PARCERIA, NÚMERO, DATA DA ASSINATURA, VIGÊNCIA, TERMO FINAL, ASSUNTO, OBJETO, PARTES, ASSESSOR RESPONSÁVEL. UPSERT por PGEA + data de assinatura.
+- **Lista de terceiros dedicada** (`thirdPartiesSettingsParcerias`) editável em Painel Administrativo → Parcerias.
+- **Permissão `configure_parcerias`** delegável pelo Criador, em paralelo a `configure_expedientes`.
+- **Flag `parcerias_enabled`** (default OFF) — liga/desliga o módulo em todos os órgãos via Administração & Custos.
+- **Convive com `custom_entities`**: o admin pode ligar/desligar Parcerias por órgão via Páginas e Módulos (`moduleConfig.parcerias.enabled`).
+- **Métricas default** no GeneralInfo (Total, Ativas, Extintas, Com aditivo) — editáveis como todas as outras.
+- **Webhooks** `parceria_created` e `parceria_extinguished` (com `outbound_webhooks`).
 
 ### 05/06/2026 - Métricas Configuráveis por Página (v1.15.0)
 - **Painel de Métricas (no-code)**: Nova aba **Métricas** no Painel Administrativo permite ao admin criar, editar, reordenar, redimensionar e excluir indicadores (KPIs) para **cada página habilitada** — Consultas, Expedientes ou páginas personalizadas — usando as **colunas e fases** de cada uma.

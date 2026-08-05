@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations, useProcesses, useExpedientes, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
+import { useOrganizations, useProcesses, useExpedientes, useParcerias, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { isTabVisible, getOrganizationTabs } from '@/lib/organizationModules';
@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
 import ExpedienteControl from '../components/organization/ExpedienteControl';
+import ParceriaControl from '../components/organization/ParceriaControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
 import DeadlineCalendar from '../components/organization/DeadlineCalendar';
 import OnboardingTour from '../components/organization/OnboardingTour';
@@ -24,6 +25,7 @@ import OrgTabBar from '../components/organization/OrgTabBar';
 
 import KanbanBoard from '../components/organization/KanbanBoard';
 import ExpedienteKanbanBoard from '../components/organization/ExpedienteKanbanBoard';
+import ParceriaKanbanBoard from '../components/organization/ParceriaKanbanBoard';
 import AdminManagement from '../components/organization/admin/AdminManagement';
 import CustomEntityView from '../components/organization/custom/CustomEntityView';
 
@@ -99,29 +101,36 @@ export default function Organization() {
 
   const TABS_NEEDING_PROCESSES = ['info', 'kanban', 'processes', 'summary', 'calendar'];
   const TABS_NEEDING_EXPEDIENTES = ['info', 'kanban-expedientes', 'expedientes', 'summary', 'calendar'];
+  const TABS_NEEDING_PARCERIAS = ['info', 'kanban-parcerias', 'parcerias', 'summary', 'calendar'];
   const wantProcesses = !perTabLoading || TABS_NEEDING_PROCESSES.includes(activeTab);
   const wantExpedientes = !perTabLoading || TABS_NEEDING_EXPEDIENTES.includes(activeTab);
+  const wantParcerias = !perTabLoading || TABS_NEEDING_PARCERIAS.includes(activeTab);
   const processesOrgId = wantProcesses ? selectedOrgId : null;
   const expedientesOrgId = wantExpedientes ? selectedOrgId : null;
+  const parceriasOrgId = wantParcerias ? selectedOrgId : null;
 
   // Paginação no banco (flag): quando ligado, as ABAS DE LISTA (processos /
-  // expedientes) carregam apenas os N mais recentes, com um botão para carregar
-  // o restante sob demanda. Kanban/Resumo/Info continuam carregando tudo para
-  // não esconder dados. Flag DESLIGADO = comportamento atual (sem limite).
+  // expedientes / parcerias) carregam apenas os N mais recentes, com um botão
+  // para carregar o restante sob demanda. Kanban/Resumo/Info continuam
+  // carregando tudo para não esconder dados.
   const dbPagination = useFlag(FEATURE_FLAGS.DB_PAGINATION.key);
   const DB_PAGE_LIMIT = 500;
   const [loadAllProcesses, setLoadAllProcesses] = useState(false);
   const [loadAllExpedientes, setLoadAllExpedientes] = useState(false);
+  const [loadAllParcerias, setLoadAllParcerias] = useState(false);
 
   // Ao trocar de órgão, volta ao carregamento limitado.
   useEffect(() => {
     setLoadAllProcesses(false);
     setLoadAllExpedientes(false);
+    setLoadAllParcerias(false);
   }, [selectedOrgId]);
 
   const processesLimit = (dbPagination && !loadAllProcesses && activeTab === 'processes')
     ? DB_PAGE_LIMIT : undefined;
   const expedientesLimit = (dbPagination && !loadAllExpedientes && activeTab === 'expedientes')
+    ? DB_PAGE_LIMIT : undefined;
+  const parceriasLimit = (dbPagination && !loadAllParcerias && activeTab === 'parcerias')
     ? DB_PAGE_LIMIT : undefined;
 
   // Fetch processes
@@ -129,6 +138,9 @@ export default function Organization() {
 
   // Fetch expedientes
   const { expedientes, isLoading: expedientesLoading, error: expedientesError, hasMore: expedientesHasMore } = useExpedientes(expedientesOrgId, { limitTo: expedientesLimit });
+
+  // Fetch parcerias
+  const { parcerias, isLoading: parceriasLoading, error: parceriasError, hasMore: parceriasHasMore } = useParcerias(parceriasOrgId, { limitTo: parceriasLimit });
 
   // Filter active members for general views and process management
   const activeMembers = React.useMemo(() => {
@@ -273,11 +285,13 @@ export default function Organization() {
               members={activeMembers}
               processes={processes}
               expedientes={expedientes}
+              parcerias={parcerias}
               userRole={userRole}
               userId={user?.uid}
               membersLoading={membersLoading}
               membersError={membersError}
               processesLoading={processesLoading}
+              parceriasLoading={parceriasLoading}
               userNameMap={userNameMap}
             />
           )}
@@ -358,10 +372,49 @@ export default function Organization() {
             </>
           )}
 
+          {activeTab === 'kanban-parcerias' && (
+            <ParceriaKanbanBoard
+              organization={organization}
+              members={activeMembers}
+              parcerias={parcerias}
+              userRole={userRole}
+              userId={user?.uid}
+              parceriasLoading={parceriasLoading}
+            />
+          )}
+
+          {activeTab === 'parcerias' && (
+            <>
+              {dbPagination && !loadAllParcerias && parceriasHasMore && (
+                <Alert className="mb-3">
+                  <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <span>
+                      Exibindo as {DB_PAGE_LIMIT} Parcerias mais recentes. Para buscar em todos os registros, carregue a lista completa.
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => setLoadAllParcerias(true)}>
+                      Carregar todos
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              <ParceriaControl
+                organization={organization}
+                members={activeMembers}
+                parcerias={parcerias}
+                userRole={userRole}
+                userId={user?.uid}
+                parceriasLoading={parceriasLoading}
+                parceriasError={parceriasError}
+                initialFilter={searchParams.get('filter')}
+              />
+            </>
+          )}
+
           {activeTab === 'summary' && (
             <IntelligentSummary
               processes={processes}
               expedientes={expedientes}
+              parcerias={parcerias}
               members={activeMembers}
               organization={organization}
             />
@@ -372,6 +425,7 @@ export default function Organization() {
               organization={organization}
               processes={processes}
               expedientes={expedientes}
+              parcerias={parcerias}
             />
           )}
 

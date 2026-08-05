@@ -32,6 +32,11 @@ export const ORG_PERMISSIONS = [
         description: 'Gerenciar os sistemas e as origens dos expedientes.',
     },
     {
+        key: 'configure_parcerias',
+        label: 'Configurar parcerias',
+        description: 'Gerenciar os tipos de parceria e a lista de terceiros do módulo de Parcerias.',
+    },
+    {
         key: 'manage_metrics',
         label: 'Gerenciar métricas',
         description: 'Criar, editar e excluir as métricas do painel.',
@@ -65,6 +70,7 @@ export const ADMIN_TAB_PERMISSION = {
     details: 'edit_details',
     matters: 'manage_matters',
     expedientes: 'configure_expedientes',
+    parcerias: 'configure_parcerias',
     metrics: 'manage_metrics',
     modules: 'manage_modules',
     padronizacao: 'bulk_standardize',
