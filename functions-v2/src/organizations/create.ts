@@ -73,7 +73,18 @@ export const createOrganization = onCall<CreateOrgRequest>(
 
         await orgRef.set(organization);
 
-        // Add creator as member
+        // Add creator as member. A "função" (texto livre) do member é puxada
+        // do "meu perfil" (users/{userId}.function) quando existir — assim
+        // o admin do órgão vê a função real do criador (ex.: "Procurador",
+        // "Assessor") em vez de um genérico "Criador" que polui a UX. O
+        // "role" (creator/admin/member/owner) é separado e continua sendo
+        // o que governa permissões.
+        const userProfileSnap = await db.collection('users').doc(userId).get();
+        const profileFunction = userProfileSnap.exists
+            ? String(userProfileSnap.get('function') || '').trim()
+            : '';
+        const memberFunction = profileFunction || 'Criador';
+
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${orgRef.id}`);
         await membershipRef.set({
             id: `${userId}_${orgRef.id}`,
@@ -82,7 +93,7 @@ export const createOrganization = onCall<CreateOrgRequest>(
             user_name: formatPersonName(request.auth.token.name || ''),
             organization_id: orgRef.id,
             role: 'creator',
-            function: 'Criador',
+            function: memberFunction,
             joined_at: admin.firestore.FieldValue.serverTimestamp()
         });
 

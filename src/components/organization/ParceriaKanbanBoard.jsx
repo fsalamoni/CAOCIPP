@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isValid } from 'date-fns';
+import { computeStageAverages, resolveStageTimeConfig } from '@/lib/stageTime';
 import {
     calculateParceriaDerivedStatus,
     getParceriaField,
@@ -208,6 +209,7 @@ export default function ParceriaKanbanBoard({
     const canDeleteRecords = useOrgPermission('delete_records');
     const isCommentsOn = useFlag(FEATURE_FLAGS.PROCESS_COMMENTS.key);
     const isPresenceOn = useFlag(FEATURE_FLAGS.LIVE_PRESENCE.key);
+    const isStageIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
     const showCollabSection = isCommentsOn || isPresenceOn;
 
     const thirdParties = organization?.thirdPartiesSettingsParcerias?.length
@@ -286,12 +288,35 @@ export default function ParceriaKanbanBoard({
         return Array.from(set).sort((a, b) => b - a);
     }, [parcerias, currentYear]);
 
-    const assessors = useMemo(() =>
-        members.filter((m) => {
+    // Lista de pessoas que podem ser "responsáveis" por uma Parceria.
+    // Mesma heurística que ExpedienteKanbanBoard: o filtro por função
+    // "assessor"/"assessoria" ajuda quando o órgão tem vários tipos de
+    // membros, mas se a lista resultante vier vazia (caso comum: o admin
+    // do órgão ainda não atualizou as funções, ou os membros têm a função
+    // definida no "meu perfil" mas o member.function está desatualizado),
+    // caímos no fallback: TODOS os membros ativos do órgão podem ser
+    // escolhidos — o Kanban não tem como saber melhor do que o usuário
+    // quem pode receber uma Parceria nova.
+    const assessors = useMemo(() => {
+        const fnFiltered = members.filter((m) => {
             const fn = (m.function || '').toLowerCase();
             return fn.includes('assessor') || fn.includes('assessoria');
-        }),
-        [members]
+        });
+        if (fnFiltered.length > 0) return fnFiltered;
+        return members.filter((m) => m.active !== false);
+    }, [members]);
+
+    // Config do Indicador de Tempo (Painel Administrativo → Indicador de
+    // Tempo). Mesmo padrão de ExpedienteKanbanBoard.
+    const stageTimeConfig = useMemo(
+        () => resolveStageTimeConfig(organization?.stageTimeConfig),
+        [organization?.stageTimeConfig]
+    );
+    const stageAverages = useMemo(
+        () => (isStageIndicatorOn
+            ? computeStageAverages(parcerias, getParceriaField, stageTimeConfig.dayType)
+            : null),
+        [isStageIndicatorOn, parcerias, stageTimeConfig.dayType]
     );
 
     // Namespacing por órgão (mesma razão de ExpedienteKanbanBoard).
@@ -1057,6 +1082,7 @@ function KanbanColumn({ column, parcerias, onViewDetails, onEdit, onDelete, canD
                                 onDelete={onDelete}
                                 canDelete={canDelete}
                                 isDeleting={isDeleting}
+                                organization={organization}
                             />
                         ))
                     ) : (

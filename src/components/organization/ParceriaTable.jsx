@@ -11,10 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card } from '@/components/ui/card';
 import StatusBadge from "@/components/ui/StatusBadge";
+import StageTimeBadge from "@/components/ui/StageTimeBadge";
 import { useUserPreferences } from '@/hooks/useFirestore';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { format, isValid, startOfDay, endOfDay } from 'date-fns';
+import { getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from '@/lib/stageTime';
 import { ptBR } from 'date-fns/locale';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark, Columns3, GitBranch, Lock, FileText, FileSpreadsheet } from 'lucide-react';
@@ -143,6 +145,16 @@ const DEFAULT_COLUMNS = [
         key: 'status', label: 'Situação', defaultVisible: true, sortable: true,
         render: (p) => <StatusBadge status={calculateParceriaDerivedStatus(p)} />,
     },
+    {
+        key: 'stage_time', label: 'Tempo na etapa', defaultVisible: true, sortable: false,
+        render: (p) => {
+            const status = calculateParceriaDerivedStatus(p);
+            const days = getDaysInCurrentStage(p, status, getParceriaField, stageTimeConfig.dayType);
+            if (days == null) return <span className="text-slate-300 text-xs">—</span>;
+            const severity = getStageTimeSeverity(days, stageTimeConfig);
+            return <StageTimeBadge days={days} severity={severity} colors={stageTimeConfig.colors} dayType={stageTimeConfig.dayType} />;
+        },
+    },
 ];
 
 /**
@@ -181,6 +193,14 @@ export default function ParceriaTable({
         setSearch('');
     }, [organization?.id]);
 
+    // Config do Indicador de Tempo (Painel Administrativo → Indicador de
+    // Tempo). Mesmo padrão de ExpedienteTable. Lemos do org. atual; default
+    // 5/10 dias úteis, verde/amarelo/vermelho quando o admin não configurou.
+    const stageTimeConfig = useMemo(
+        () => resolveStageTimeConfig(organization?.stageTimeConfig),
+        [organization?.stageTimeConfig]
+    );
+
     const [typeFilter, setTypeFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
     const [responsibleFilter, setResponsibleFilter] = useState('all');
@@ -199,8 +219,17 @@ export default function ParceriaTable({
     const savedViews = preferences?.savedParceriaViews || [];
 
     // Colunas visíveis (preferences por usuário): toggle, persistência, etc.
+    // Filtra também pela flag STAGE_TIME_INDICATOR (a coluna "Tempo na etapa"
+    // só aparece quando a flag está ligada).
     const visibleColumns = preferences?.visibleParceriaColumns || {};
-    const activeColumns = useMemo(() => DEFAULT_COLUMNS.filter((c) => visibleColumns[c.key] !== false), [visibleColumns]);
+    const activeColumns = useMemo(
+        () => DEFAULT_COLUMNS.filter((c) => {
+            if (visibleColumns[c.key] === false) return false;
+            if (c.key === 'stage_time' && !isStageIndicatorOn) return false;
+            return true;
+        }),
+        [visibleColumns, isStageIndicatorOn]
+    );
     const toggleColumn = useCallback((key) => {
         const current = preferences?.visibleParceriaColumns || {};
         const next = { ...current, [key]: current[key] === false ? true : false };
@@ -399,6 +428,11 @@ export default function ParceriaTable({
     const DATE_EXPORT_KEYS = new Set(['signature_date', 'end_date', 'renewal_notice_date', 'pgea_date', 'responsibility_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
     const getExportValue = (col, p) => {
         if (col.key === 'status') return calculateParceriaDerivedStatus(p);
+        if (col.key === 'stage_time') {
+            const status = calculateParceriaDerivedStatus(p);
+            const days = getDaysInCurrentStage(p, status, getParceriaField, stageTimeConfig.dayType);
+            return days == null ? '' : String(days);
+        }
         if (col.key === 'aditivo_count') return String(getParceriaField(p, 'aditivo_count') || 0);
         if (col.key === 'pgea') return getParceriaField(p, 'pgea') || '';
         if (DATE_EXPORT_KEYS.has(col.key)) return formatDate(getParceriaField(p, col.key));

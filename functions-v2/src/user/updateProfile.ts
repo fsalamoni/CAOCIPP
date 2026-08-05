@@ -59,6 +59,41 @@ export const updateProfile = onCall<UpdateProfileRequest>(
             }
         }
 
+        // Propagar a "função" (texto livre do /Profile) para TODOS os
+        // memberships do usuário, desde que o admin do órgão não tenha
+        // sobrescrito manualmente o member.function. Heurística: se a
+        // função atual do member for um dos genéricos do sistema
+        // ("Membro", "Criador", "Admin", "Owner") OU for igual ao nome
+        // antigo do usuário no profile, sobrescrevemos. Caso contrário
+        // (admin já personalizou), mantemos a função do org.
+        //
+        // Isso resolve o bug "estou com a função 'criador' mas meu perfil
+        // diz outra coisa": o que vale é o /Profile, e o admin pode
+        // customizar localmente sem perder a sincronia.
+        if (userFunction !== undefined) {
+            const GENERIC_FUNCTIONS = new Set(['Membro', 'Criador', 'Admin', 'Owner', 'Membro fundador']);
+            const oldProfileFunction = String(
+                (await db.collection('users').doc(userId).get()).get('function') || ''
+            );
+            const membershipsSnap = await db.collection('userOrganizations')
+                .where('user_id', '==', userId)
+                .get();
+            if (!membershipsSnap.empty) {
+                const batch = db.batch();
+                membershipsSnap.docs.forEach((doc) => {
+                    const currentFunction = String(doc.get('function') || '');
+                    const shouldSync =
+                        GENERIC_FUNCTIONS.has(currentFunction) ||
+                        currentFunction === '' ||
+                        (oldProfileFunction && currentFunction === oldProfileFunction);
+                    if (shouldSync) {
+                        batch.update(doc.ref, { function: userFunction || '' });
+                    }
+                });
+                await batch.commit();
+            }
+        }
+
         return { success: true };
     }
 );

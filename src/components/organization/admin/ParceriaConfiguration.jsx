@@ -36,10 +36,40 @@ const DEFAULT_THIRD_PARTIES = ['Parceiro', 'Convenente', 'Outro Órgão Público
  * A lista de terceiros fica em organization.thirdPartiesSettingsParcerias
  * (mesmo padrão dos painéis de Consultas/Expedientes, com permissões
  * separadas por painel).
+ *
+ * OUTRAS configurações que valem para Parcerias (ficam em outras abas do
+ * Painel Administrativo porque são globais a todos os módulos — ou seja,
+ * mexer nelas afeta Consultas, Expedientes e Parcerias do mesmo órgão):
+ *   - Métricas           → aba "Métricas" (MetricsManager) — Parcerias já
+ *                          tem DEFAULT_METRICS.parcerias
+ *   - Padronização em Bloco → aba "Padronização em Bloco" (BulkReplaceTool)
+ *                              — alvo 'parcerias' + campos subject/parties/
+ *                              network_folder já suportados
+ *   - Indicador de Tempo → aba "Indicador de Tempo" (StageTimeSettings) —
+ *                          organization.stageTimeConfig é lido pelo
+ *                          StageTimeBadge em ParceriaKanbanCard e ParceriaTable
+ *                          (com as fases Em análise / Revisão / Aguarda
+ *                          Terceiros mapeadas em STAGE_ENTRY_FIELD)
+ *   - Segurança          → aba "Segurança" (SecuritySettings) — log de
+ *                          acesso, retenção e webhooks aceitam entityType
+ *                          'parceria' nas Cloud Functions
+ *   - Automação          → aba "Automação" (AutomationSettings) — metas,
+ *                          escalonamento e relatórios por e-mail funcionam
+ *                          com Parcerias (assim como Consultas/Expedientes)
  */
 export default function ParceriaConfiguration({ organization }) {
     return (
         <div className="space-y-6">
+            <div className="bg-indigo-50/60 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 text-sm text-indigo-900 dark:text-indigo-100">
+                <div className="font-semibold mb-1">Configurações que valem para Parcerias (em outras abas):</div>
+                <ul className="list-disc pl-5 space-y-0.5 text-[13px] text-indigo-800 dark:text-indigo-200">
+                    <li><b>Métricas</b> → cards e gráficos do painel principal</li>
+                    <li><b>Padronização em Bloco</b> → alterações em massa de assunto, partes, pasta na rede</li>
+                    <li><b>Indicador de Tempo</b> → selos de tempo parado em cada etapa do Kanban e da tabela</li>
+                    <li><b>Segurança</b> → log de acesso, retenção e webhooks cobrem Parcerias automaticamente</li>
+                    <li><b>Automação</b> → metas, escalonamento e relatórios consideram Parcerias junto com Consultas/Expedientes</li>
+                </ul>
+            </div>
             <TiposSection organization={organization} />
             <AditivoTiposSection organization={organization} />
             <VigenciaOptionsSection organization={organization} />
