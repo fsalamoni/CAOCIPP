@@ -341,6 +341,17 @@ export const FEATURE_FLAGS = {
         risk: 'low',
         default: false,
     },
+
+    // --- Módulo Parcerias (Convênio, Termo de Cooperação, Termo de Fomento) ---
+    PARCERIAS: {
+        key: 'parcerias_enabled',
+        label: 'Módulo de Parcerias',
+        description:
+            'Habilita o módulo de Parcerias (Convênio, Termo de Cooperação, Termo de Fomento) em todos os órgãos, com Painel Kanban, lista, aditivos, importação por planilha e configuração de terceiros. Inclui 2 abas (Painel de Parcerias + Parcerias). Com a flag DESLIGADA, nada aparece na interface — comportamento idêntico ao atual. Quando a flag CUSTOM_ENTITIES está ligada, cada órgão pode ligar/desligar Parcerias individualmente em Gerenciar Páginas e Módulos.',
+        category: 'Funcionalidades',
+        risk: 'high',
+        default: false,
+    },
 };
 
 // Lista plana das flags para iteração em UI.

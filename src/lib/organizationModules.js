@@ -23,6 +23,7 @@ import {
     LayoutDashboard,
     Search,
     FileText,
+    Handshake,
     Sparkles,
     Settings,
     CalendarDays,
@@ -32,6 +33,7 @@ import {
 export const BUILTIN_MODULES = {
     PROCESSES: 'processes',
     EXPEDIENTES: 'expedientes',
+    PARCERIAS: 'parcerias',
     SUMMARY: 'summary',
 };
 
@@ -50,6 +52,12 @@ export const BUILTIN_MODULE_META = [
         icon: FileText,
     },
     {
+        key: BUILTIN_MODULES.PARCERIAS,
+        label: 'Parcerias',
+        description: 'Painel de Parcerias (kanban) + lista de Parcerias. Convênio, Termo de Cooperação, Termo de Fomento. Suporta aditivos.',
+        icon: Handshake,
+    },
+    {
         key: BUILTIN_MODULES.SUMMARY,
         label: 'Resumos Inteligentes',
         description: 'Indicadores e gráficos consolidados do órgão.',
@@ -66,11 +74,12 @@ export function resolveBuiltinModules(organization) {
     const cfg = organization?.moduleConfig;
     // Legado: sem config => tudo ligado (comportamento atual, nada some).
     if (!cfg || typeof cfg !== 'object') {
-        return { processes: true, expedientes: true, summary: true };
+        return { processes: true, expedientes: true, parcerias: true, summary: true };
     }
     return {
         processes: cfg.processes?.enabled === true,
         expedientes: cfg.expedientes?.enabled === true,
+        parcerias: cfg.parcerias?.enabled === true,
         summary: cfg.summary?.enabled === true,
     };
 }
@@ -91,6 +100,7 @@ export function getOrganizationTabs(organization, opts = {}) {
     // Quando a flag está DESLIGADA, todos os built-ins aparecem (idêntico a hoje).
     const showProcesses = !customEntitiesOn || enabled.processes;
     const showExpedientes = !customEntitiesOn || enabled.expedientes;
+    const showParcerias = !customEntitiesOn || enabled.parcerias;
     const showSummary = !customEntitiesOn || enabled.summary;
 
     const tabs = [];
@@ -108,13 +118,18 @@ export function getOrganizationTabs(organization, opts = {}) {
         tabs.push({ key: 'expedientes', label: 'Expedientes', icon: FileText, module: BUILTIN_MODULES.EXPEDIENTES });
     }
 
+    if (showParcerias) {
+        tabs.push({ key: 'kanban-parcerias', label: 'Painel de Parcerias', icon: LayoutDashboard, module: BUILTIN_MODULES.PARCERIAS });
+        tabs.push({ key: 'parcerias', label: 'Parcerias', icon: Handshake, module: BUILTIN_MODULES.PARCERIAS });
+    }
+
     if (showSummary) {
         tabs.push({ key: 'summary', label: 'Resumos Inteligentes', icon: Sparkles, module: BUILTIN_MODULES.SUMMARY });
     }
 
     // Calendário de vencimentos (flag `deadline_calendar`): só faz sentido se
-    // houver ao menos um módulo de Consultas/Expedientes ativo no órgão.
-    if (deadlineCalendarOn && (showProcesses || showExpedientes)) {
+    // houver ao menos um módulo de Consultas/Expedientes/Parcerias ativo no órgão.
+    if (deadlineCalendarOn && (showProcesses || showExpedientes || showParcerias)) {
         tabs.push({ key: 'calendar', label: 'Calendário de Vencimentos', icon: CalendarDays, module: 'core' });
     }
 
@@ -144,6 +159,8 @@ export const BUILTIN_TAB_KEYS = [
     'processes',
     'kanban-expedientes',
     'expedientes',
+    'kanban-parcerias',
+    'parcerias',
     'summary',
     'calendar',
     'admin',
