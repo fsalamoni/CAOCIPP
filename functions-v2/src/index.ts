@@ -28,6 +28,18 @@ export { updateExpediente } from './expedientes/update';
 export { deleteExpediente } from './expedientes/delete';
 export { importExpedientesFromExcel } from './import/fromExcelExpedientes';
 
+// ========== PARCERIAS (Convênio, Termo de Cooperação, Termo de Fomento) ==========
+// Módulo novo (v1.16.0) com 6 fases próprias (Pendente, Em análise, Revisão,
+// Aguarda Terceiros, Parcerias, Extintos) e suporte a aditivos em subcoleção.
+export { createParceria } from './parcerias/create';
+export { updateParceria } from './parcerias/update';
+export { deleteParceria } from './parcerias/delete';
+export { addAditivo } from './parcerias/addAditivo';
+export { updateAditivo } from './parcerias/updateAditivo';
+export { deleteAditivo } from './parcerias/deleteAditivo';
+export { extinguishParceria } from './parcerias/extinguish';
+export { importParceriasFromExcel } from './import/fromExcelParcerias';
+
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
 export { getPlatformOverview } from './platform/overview';
 export { getFeatureFlags, setFeatureFlag } from './platform/featureFlags';

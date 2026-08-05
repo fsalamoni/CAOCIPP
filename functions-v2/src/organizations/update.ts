@@ -22,6 +22,14 @@ interface UpdateOrganizationRequest {
         // serem campos separados: permissões delegadas diferentes por painel.
         thirdPartiesSettingsConsultas?: string[];
         thirdPartiesSettingsExpedientes?: string[];
+        // Configuração do módulo de Parcerias (Convênio, Termo de Cooperação,
+        // Termo de Fomento). Tipos customizáveis pelo admin do órgão.
+        parceriaSettings?: {
+            tipos: string[];
+        };
+        // Lista de terceiros do painel de Parcerias (independente das listas
+        // de Consultas/Expedientes; mesmo padrão).
+        thirdPartiesSettingsParcerias?: string[];
         // Liga/desliga a fase "Aguarda retorno de terceiros" — apenas para o
         // painel de Consultas (Expedientes sempre a tem disponível). Ausente/
         // undefined equivale a habilitada (comportamento atual preservado
@@ -88,8 +96,10 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             description: 'edit_details',
             matterSettings: 'manage_matters',
             expedienteSettings: 'configure_expedientes',
+            parceriaSettings: 'configure_parcerias',
             thirdPartiesSettingsConsultas: 'manage_matters',
             thirdPartiesSettingsExpedientes: 'configure_expedientes',
+            thirdPartiesSettingsParcerias: 'configure_parcerias',
             thirdPartyPhaseEnabledConsultas: 'manage_matters',
             moduleConfig: 'manage_modules',
             dashboardConfig: 'manage_metrics',
@@ -120,8 +130,10 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.matterSettings !== undefined) updates.matterSettings = data.matterSettings;
         if (data.summarySettings !== undefined) updates.summarySettings = data.summarySettings;
         if (data.expedienteSettings !== undefined) updates.expedienteSettings = data.expedienteSettings;
+        if (data.parceriaSettings !== undefined) updates.parceriaSettings = sanitizeParceriaSettings(data.parceriaSettings);
         if (data.thirdPartiesSettingsConsultas !== undefined) updates.thirdPartiesSettingsConsultas = sanitizeThirdParties(data.thirdPartiesSettingsConsultas);
         if (data.thirdPartiesSettingsExpedientes !== undefined) updates.thirdPartiesSettingsExpedientes = sanitizeThirdParties(data.thirdPartiesSettingsExpedientes);
+        if (data.thirdPartiesSettingsParcerias !== undefined) updates.thirdPartiesSettingsParcerias = sanitizeThirdParties(data.thirdPartiesSettingsParcerias);
         if (data.thirdPartyPhaseEnabledConsultas !== undefined) updates.thirdPartyPhaseEnabledConsultas = data.thirdPartyPhaseEnabledConsultas === true;
         if (data.moduleConfig !== undefined) updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
         if (data.dashboardConfig !== undefined) updates.dashboardConfig = sanitizeDashboardConfig(data.dashboardConfig);
@@ -244,7 +256,10 @@ function sanitizeStageTimeConfig(
     };
 }
 
-const WEBHOOK_VALID_EVENTS = new Set(['urgent_created', 'archived']);
+const WEBHOOK_VALID_EVENTS = new Set([
+    'urgent_created', 'archived',
+    'parceria_created', 'parceria_extinguished',
+]);
 
 // Webhooks de integração externa (flag `outbound_webhooks`).
 function sanitizeWebhookConfig(
@@ -284,7 +299,7 @@ function sanitizeThirdParties(input: unknown): string[] {
 function sanitizeModuleConfig(
     input: Record<string, { enabled: boolean; order?: number }>
 ): Record<string, { enabled: boolean; order?: number }> {
-    const allowed = ['processes', 'expedientes', 'summary'];
+    const allowed = ['processes', 'expedientes', 'parcerias', 'summary'];
     const out: Record<string, { enabled: boolean; order?: number }> = {};
     for (const key of allowed) {
         const entry = input?.[key];
@@ -296,6 +311,26 @@ function sanitizeModuleConfig(
         }
     }
     return out;
+}
+
+// ParceriaSettings: tipos de parceria customizados pelo admin. Aceita até 50
+// strings não-vazias, deduplicadas. Default é mantido no frontend.
+const PARCERIA_DEFAULT_TIPOS = ['Convênio', 'Termo de Cooperação', 'Termo de Fomento'];
+function sanitizeParceriaSettings(
+    input: { tipos?: string[] }
+): { tipos: string[] } {
+    const tipos = (Array.isArray(input?.tipos) ? input.tipos : [])
+        .map((t) => String(t ?? '').trim().slice(0, 100))
+        .filter((t) => t.length > 0);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of tipos) {
+        if (seen.has(t)) continue;
+        seen.add(t);
+        out.push(t);
+        if (out.length >= 50) break;
+    }
+    return { tipos: out.length > 0 ? out : PARCERIA_DEFAULT_TIPOS };
 }
 
 // ============================================================================
