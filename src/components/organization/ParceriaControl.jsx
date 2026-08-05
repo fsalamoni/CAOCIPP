@@ -12,7 +12,7 @@ import CreateAditivoDialog from './CreateAditivoDialog';
 import ExtinguishConfirmDialog from './ExtinguishConfirmDialog';
 import ImportProgressModal from './ImportProgressModal';
 import { useAditivos } from '@/hooks/useFirestore';
-import { importParceriasFromExcel } from '@/services/functionsService';
+import { importParceriasFromExcel, deleteParceria } from '@/services/functionsService';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { toast } from 'sonner';
 
@@ -66,6 +66,19 @@ export default function ParceriaControl({
     const handleView = (p) => {
         setDetailParceria(p);
         setDetailOpen(true);
+    };
+
+    const handleDelete = async (p) => {
+        if (!p) return;
+        const confirmed = window.confirm(`Excluir a Parceria ${p.pgea || p.id}? Esta ação é irreversível.`);
+        if (!confirmed) return;
+        try {
+            await deleteParceria({ id: p.id, organizationId: organization.id });
+            toast.success('Parceria excluída com sucesso.');
+            if (detailOpen && detailParceria?.id === p.id) setDetailOpen(false);
+        } catch (err) {
+            toast.error('Erro ao excluir: ' + (err?.message || err));
+        }
     };
 
     // Fecha diálogos ao trocar de órgão.
@@ -260,6 +273,9 @@ export default function ParceriaControl({
                         setExtinguishTarget(p);
                         setExtinguishOpen(true);
                     }}
+                    onDelete={canDeleteRecords || userRole === 'admin' || userRole === 'owner' || userRole === 'creator'
+                        ? (p) => { setDetailOpen(false); handleDelete(p); }
+                        : null}
                     onViewLog={() => setLogOpen(true)}
                     aditivos={aditivos}
                     currentAdditiveId={detailParceria?.current_additive_id}

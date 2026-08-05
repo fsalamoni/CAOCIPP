@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StatusBadge from "@/components/ui/StatusBadge";
-import { Pencil, Calendar, User, FileText, GitBranch, Archive, Send, CheckCircle2, Eye, Lock, AlertCircle, ClipboardList } from 'lucide-react';
+import { Pencil, Calendar, User, FileText, GitBranch, Archive, Send, CheckCircle2, Eye, Lock, AlertCircle, ClipboardList, Trash2 } from 'lucide-react';
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -54,6 +54,7 @@ export default function ParceriaDetailSheet({
     open,
     onClose,
     onEdit,
+    onDelete,
     onIncludeAditivo,
     onExtinguish,
     onViewLog,
@@ -165,6 +166,17 @@ export default function ParceriaDetailSheet({
                                 >
                                     <Pencil className="w-3.5 h-3.5" />
                                     Editar
+                                </Button>
+                            )}
+                            {onDelete && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onDelete?.(parceria)}
+                                    className="gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Excluir
                                 </Button>
                             )}
                             {isCreator && onViewLog && (
