@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { hasOrgPermission, hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -10,6 +10,7 @@ import OrganizationDetails from './OrganizationDetails';
 import MemberManagement from './MemberManagement';
 import MatterConfiguration from './MatterConfiguration';
 import ExpedienteConfiguration from './ExpedienteConfiguration';
+import ParceriaConfiguration from './ParceriaConfiguration';
 import AISettings from './AISettings';
 import DangerZone from './DangerZone';
 import BulkReplaceTool from './BulkReplaceTool';
@@ -42,6 +43,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         modules: isCreator || hasOrgPermission(userMembership, 'manage_modules'),
         metrics: isCreator || hasOrgPermission(userMembership, 'manage_metrics'),
         expedientes: isCreator || hasOrgPermission(userMembership, 'configure_expedientes'),
+        parcerias: isCreator || hasOrgPermission(userMembership, 'configure_parcerias'),
         padronizacao: isCreator || hasOrgPermission(userMembership, 'bulk_standardize'),
     }), [userMembership, isCreator]);
 
@@ -63,6 +65,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         || (customEntitiesOn && can.modules && 'modules')
         || (can.metrics && 'metrics')
         || (can.expedientes && 'expedientes')
+        || (can.parcerias && 'parcerias')
         || (can.padronizacao && 'padronizacao')
         || 'details';
 
@@ -119,6 +122,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                         <TabsTrigger value="expedientes" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <FileText className="w-4 h-4" />
                             Expedientes
+                        </TabsTrigger>
+                    )}
+                    {can.parcerias && (
+                        <TabsTrigger value="parcerias" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
+                            <Handshake className="w-4 h-4" />
+                            Parcerias
                         </TabsTrigger>
                     )}
                     {can.padronizacao && (
@@ -198,6 +207,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                 {can.expedientes && (
                     <TabsContent value="expedientes">
                         <ExpedienteConfiguration organization={organization} />
+                    </TabsContent>
+                )}
+
+                {can.parcerias && (
+                    <TabsContent value="parcerias">
+                        <ParceriaConfiguration organization={organization} />
                     </TabsContent>
                 )}
 
