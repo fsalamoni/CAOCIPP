@@ -25,6 +25,7 @@ interface OverviewResponse {
         users: number;
         processes: number;
         expedientes: number;
+        parcerias: number;
         memberships: number;
         auditLogs: number;
         notifications: number;
@@ -43,6 +44,7 @@ const AVG_DOC_BYTES: Record<string, number> = {
     users: 1_500,
     processes: 3_000,
     expedientes: 2_500,
+    parcerias: 2_800,
     userOrganizations: 600,
     auditLogs: 800,
     notifications: 600,
@@ -63,6 +65,7 @@ export const getPlatformOverview = onCall<void>(
             users,
             processes,
             expedientes,
+            parcerias,
             memberships,
             auditLogs,
             notifications,
@@ -71,6 +74,7 @@ export const getPlatformOverview = onCall<void>(
             countCollection(db, 'users'),
             countCollection(db, 'processes'),
             countCollection(db, 'expedientes'),
+            countCollection(db, 'parcerias'),
             countCollection(db, 'userOrganizations'),
             countCollection(db, 'auditLogs'),
             countCollection(db, 'notifications'),
@@ -81,6 +85,7 @@ export const getPlatformOverview = onCall<void>(
             users,
             processes,
             expedientes,
+            parcerias,
             userOrganizations: memberships,
             auditLogs,
             notifications,
@@ -101,6 +106,7 @@ export const getPlatformOverview = onCall<void>(
                 users,
                 processes,
                 expedientes,
+                parcerias,
                 memberships,
                 auditLogs,
                 notifications,

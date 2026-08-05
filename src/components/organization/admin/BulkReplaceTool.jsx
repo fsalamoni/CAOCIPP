@@ -14,18 +14,22 @@ const FIELD_OPTIONS = [
     { value: 'location', label: 'Local dos fatos (consultas)' },
     { value: 'origin', label: 'Origem (expedientes)' },
     { value: 'object', label: 'Objeto (expedientes)' },
+    { value: 'subject', label: 'Assunto (parcerias)' },
+    { value: 'parties', label: 'Partes (parcerias)' },
+    { value: 'network_folder', label: 'Pasta na rede' },
 ];
 
 const TARGET_OPTIONS = [
     { value: 'processes', label: 'Consultas' },
     { value: 'expedientes', label: 'Expedientes' },
+    { value: 'parcerias', label: 'Parcerias' },
 ];
 
 export default function BulkReplaceTool({ organization }) {
     const [field, setField] = useState('responsible_user_name');
     const [fromValue, setFromValue] = useState('');
     const [toValue, setToValue] = useState('');
-    const [targets, setTargets] = useState(['processes', 'expedientes']);
+    const [targets, setTargets] = useState(['processes', 'expedientes', 'parcerias']);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const normalizedPreview = useMemo(() => {
