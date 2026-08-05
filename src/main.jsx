@@ -12,8 +12,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 // PWA: registra o service worker só em produção (evita interferir com o
 // dev server/HMR do Vite). Instalabilidade — sem flag, é infraestrutura.
+// Cache-bust (?v=2) garante que o browser SEMPRE baixa o SW novo mesmo
+// quando o servidor não envia `Cache-Control: no-cache` no sw.js.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => { /* best-effort */ });
+    navigator.serviceWorker.register('/sw.js?v=2').catch(() => { /* best-effort */ });
   });
 }

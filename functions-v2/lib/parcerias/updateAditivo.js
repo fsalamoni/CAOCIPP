@@ -1,0 +1,164 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.updateAditivo = void 0;
+const admin = require("firebase-admin");
+const https_1 = require("firebase-functions/v2/https");
+const status_1 = require("../shared/status");
+const history_1 = require("../shared/history");
+const normalization_1 = require("../shared/normalization");
+const validators_1 = require("../shared/validators");
+const PROTECTED_ADITIVO_FIELDS = new Set([
+    'id',
+    'parceria_id',
+    'organization_id',
+    'aditivo_number',
+    'aditivo_type',
+    'aditivo_type_label',
+    'pgea_at_additive_creation',
+    'partnership_type_at_additive_creation',
+    'partnership_number_at_additive_creation',
+    'created_at',
+    'created_by',
+    'activity_log',
+    'anonymized',
+    'anonymized_at',
+    'anonymized_by',
+]);
+exports.updateAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
+    }
+    const data = request.data || {};
+    const { parceriaId, aditivoId, organizationId, changes } = data;
+    if (!parceriaId || !aditivoId || !organizationId || !changes) {
+        throw new https_1.HttpsError('invalid-argument', 'Campos obrigatórios faltando');
+    }
+    const db = admin.firestore();
+    const userId = request.auth.uid;
+    // 1. Verify membership
+    const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
+    const membershipSnap = await membershipRef.get();
+    if (!membershipSnap.exists) {
+        throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
+    }
+    // 2. Read parceria pai (para checar organization_id)
+    const parceriaRef = db.collection('parcerias').doc(parceriaId);
+    const parceriaSnap = await parceriaRef.get();
+    if (!parceriaSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Parceria não encontrada');
+    }
+    const parceriaData = parceriaSnap.data() || {};
+    if (parceriaData.organization_id !== organizationId) {
+        throw new https_1.HttpsError('permission-denied', 'Parceria pertence a outra organização');
+    }
+    // 3. Ler o aditivo
+    const aditivoRef = parceriaRef.collection('aditivos').doc(aditivoId);
+    const aditivoSnap = await aditivoRef.get();
+    if (!aditivoSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Aditivo não encontrado');
+    }
+    const aditivoData = aditivoSnap.data() || {};
+    // 4. Sanitize changes
+    for (const field of PROTECTED_ADITIVO_FIELDS) {
+        delete changes[field];
+    }
+    // Auto-preencher responsibility_date ao mudar assessor (mesma UX do create/update).
+    if (changes.responsible_user_id &&
+        changes.responsible_user_id !== aditivoData.responsible_user_id &&
+        !changes.responsibility_date) {
+        changes.responsibility_date = new Date().toISOString().split('T')[0];
+    }
+    if (typeof changes.responsible_user_name === 'string') {
+        changes.responsible_user_name = (0, normalization_1.formatPersonName)(changes.responsible_user_name);
+    }
+    changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
+    changes.updated_by = userId;
+    // 5. Recalcular status
+    const merged = Object.assign(Object.assign({}, aditivoData), changes);
+    const statusInChanges = changes.status;
+    const currentStatus = aditivoData.status;
+    let nextStatus;
+    if (statusInChanges && statusInChanges !== currentStatus) {
+        (0, validators_1.validateAditivoPhaseTransition)(merged, statusInChanges);
+        nextStatus = statusInChanges;
+    }
+    else {
+        const computed = (0, status_1.calculateParceriaStatus)(merged);
+        if (computed && computed !== currentStatus) {
+            (0, validators_1.validateAditivoPhaseTransition)(merged, computed);
+            nextStatus = computed;
+        }
+    }
+    if (nextStatus) {
+        changes.status = nextStatus;
+    }
+    // 6. Activity log
+    const now = new Date();
+    const logDate = now.toISOString().split('T')[0];
+    const logTime = now.toTimeString().split(' ')[0];
+    const userName = request.auth.token.name || 'Usuário desconhecido';
+    const fieldLabels = {
+        partnership_type: 'Tipo de Parceria',
+        partnership_number: 'Número da Parceria',
+        signature_date: 'Data da Assinatura',
+        validity_period: 'Vigência',
+        end_date: 'Termo Final',
+        renewal_notice_date: 'Data do Aviso de Renovação',
+        subject: 'Assunto',
+        object: 'Objeto',
+        parties: 'Partes',
+        responsible_user_id: 'Assessor Responsável',
+        responsible_user_name: 'Nome do Responsável',
+        responsibility_date: 'Data de Responsabilidade',
+        network_folder: 'Pasta na Rede',
+        observations: 'Observações',
+        review_conclusion_date: 'Data de Conclusão da Revisão',
+        third_party: 'Terceiro',
+        status: 'Status',
+    };
+    const changedFields = Object.keys(changes)
+        .filter((k) => !['updated_at', 'updated_by'].includes(k))
+        .map((k) => fieldLabels[k] || k);
+    let actionDesc = '';
+    if (changedFields.length === 1 && changes.status && changes.status !== currentStatus) {
+        actionDesc = `Status alterado de "${currentStatus || 'Pendente'}" para "${changes.status}"`;
+    }
+    else if (changedFields.length > 0) {
+        actionDesc = `Campos atualizados: ${changedFields.join(', ')}`;
+    }
+    else {
+        actionDesc = 'Aditivo atualizado';
+    }
+    const logEntry = {
+        date: logDate,
+        time: logTime,
+        user_id: userId,
+        user_name: userName,
+        action: actionDesc,
+        timestamp: now.toISOString(),
+    };
+    changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
+    await aditivoRef.update(changes);
+    // Dual-write do histórico do aditivo.
+    try {
+        await aditivoRef.collection('history').doc((0, history_1.historyEntryId)(logEntry)).set(Object.assign(Object.assign({}, logEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
+    }
+    catch (histErr) {
+        console.error('[history dual-write] aditivo update', aditivoId, histErr);
+    }
+    // 7. Audit log
+    await db.collection('auditLogs').add({
+        organization_id: organizationId,
+        user_id: userId,
+        user_name: userName,
+        action: 'UPDATE_ADITIVO',
+        details: {
+            parceria_id: parceriaId,
+            aditivo_id: aditivoId,
+            changes: Object.keys(changes),
+        },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true, status: nextStatus || currentStatus };
+});
+//# sourceMappingURL=updateAditivo.js.map

@@ -1,12 +1,10 @@
 // Service worker mínimo para instalabilidade do PWA (sempre ativo — não tem
-// flag, é infraestrutura). Deliberadamente conservador: só cacheia os
-// arquivos estáticos versionados do build (JS/CSS em /assets/, cujo nome já
-// muda a cada deploy por causa do hash do Vite), em stale-while-revalidate.
-// NUNCA intercepta navegação de página, chamadas de API ou Firestore — o
-// app sempre busca dados/HTML da rede, evitando qualquer risco de servir
-// conteúdo ou lógica desatualizada.
+// flag, é infraestrutura). Estratégia: network-first para HTML e para
+// bundles em /assets/ (garante deploy novo SEMPRE vence o cache); cache só
+// para fallback offline. Bumps no CACHE_NAME invalidam qualquer cache
+// residual de versões anteriores.
 
-const CACHE_NAME = 'caocipp-static-v1';
+const CACHE_NAME = 'caocipp-static-v2';
 const STATIC_CACHE_REGEX = /\/assets\//;
 
 self.addEventListener('install', () => {
@@ -29,15 +27,19 @@ self.addEventListener('fetch', (event) => {
     if (url.origin !== self.location.origin) return;
     if (!STATIC_CACHE_REGEX.test(url.pathname)) return;
 
+    // Network-first: tenta a rede; em caso de sucesso, atualiza o cache. Se a
+    // rede falhar (offline), usa o cache como fallback. Esta ordem garante
+    // que o bundle novo publicado em produção VENCE o cache antigo, sem
+    // esperar o ciclo de SW activate.
     event.respondWith(
-        caches.open(CACHE_NAME).then((cache) => cache.match(request).then((cached) => {
-            const networkFetch = fetch(request)
-                .then((response) => {
-                    if (response && response.ok) cache.put(request, response.clone());
-                    return response;
-                })
-                .catch(() => cached);
-            return cached || networkFetch;
-        }))
+        fetch(request)
+            .then((response) => {
+                if (response && response.ok) {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+                }
+                return response;
+            })
+            .catch(() => caches.open(CACHE_NAME).then((cache) => cache.match(request).then((cached) => cached || Response.error())))
     );
 });
