@@ -38,7 +38,7 @@ function isUrgentValue(value) {
   return value === true || String(value ?? '').toLowerCase().trim() === 'sim';
 }
 
-export default function IntelligentSummary({ processes = [], members, expedientes = [] }) {
+export default function IntelligentSummary({ processes = [], members, expedientes = [], parcerias = [] }) {
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const isPeriodComparisonOn = useFlag(FEATURE_FLAGS.PERIOD_COMPARISON.key);
   const currentYear = new Date().getFullYear();

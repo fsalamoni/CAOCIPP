@@ -17,7 +17,7 @@ import MetricCard from './MetricCard';
  * Expedientes exatamente como hoje.
  *
  * props:
- *   - organization, processes, expedientes
+ *   - organization, processes, expedientes, parcerias
  *   - selectedYear
  *   - customEntitiesOn
  *   - onCustomYears?(yearsArray)  reporta anos encontrados nas páginas custom,
@@ -27,6 +27,7 @@ export default function DashboardMetrics({
     organization,
     processes = [],
     expedientes = [],
+    parcerias = [],
     selectedYear,
     customEntitiesOn = false,
     onCustomYears,
@@ -76,7 +77,10 @@ export default function DashboardMetrics({
                         />
                     );
                 }
-                const records = page.kind === 'processes' ? processes : expedientes;
+                const records = page.kind === 'processes' ? processes
+                    : page.kind === 'expedientes' ? expedientes
+                    : page.kind === 'parcerias' ? parcerias
+                    : [];
                 return (
                     <BuiltinMetricsSection
                         key={page.key}
