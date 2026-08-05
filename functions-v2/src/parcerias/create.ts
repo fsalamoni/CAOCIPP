@@ -23,6 +23,18 @@ interface CreateParceriaRequest {
     responsibleUserName?: string;
     responsibilityDate?: string;
     pgeaDate?: string;
+    // Aliases snake_case aceitos pelo backend (frontend envia em snake).
+    partnership_type?: string;
+    partnership_number?: string;
+    signature_date?: string;
+    validity_period?: string;
+    end_date?: string;
+    renewal_notice_date?: string;
+    network_folder?: string;
+    responsible_user_id?: string;
+    responsible_user_name?: string;
+    responsibility_date?: string;
+    pgea_date?: string;
 }
 
 export const createParceria = onCall<CreateParceriaRequest>(
@@ -34,6 +46,23 @@ export const createParceria = onCall<CreateParceriaRequest>(
 
         const data = request.data || ({} as CreateParceriaRequest);
         const { organizationId, pgea, subject, object, parties } = data;
+
+        // Normalização snake/camel: o frontend envia em snake_case
+        // (partnership_type, signature_date, etc), mas a interface canônica
+        // é camelCase. Aceitar ambos para não quebrar chamadas legadas.
+        const partnershipType = data.partnershipType || data.partnership_type || null;
+        const partnershipNumber = data.partnershipNumber || data.partnership_number || null;
+        const categoria = data.categoria || null;
+        const signatureDate = data.signatureDate || data.signature_date || null;
+        const validityPeriod = data.validityPeriod || data.validity_period || null;
+        const endDate = data.endDate || data.end_date || null;
+        const renewalNoticeDate = data.renewalNoticeDate || data.renewal_notice_date || null;
+        const networkFolder = data.networkFolder || data.network_folder || '';
+        const observations = data.observations || '';
+        const responsibleUserId = data.responsibleUserId || data.responsible_user_id || null;
+        const responsibleUserName = data.responsibleUserName || data.responsible_user_name || null;
+        const responsibilityDate = data.responsibilityDate || data.responsibility_date || null;
+        const pgeaDate = data.pgeaDate || data.pgea_date || null;
 
         if (!organizationId) {
             throw new HttpsError('invalid-argument', 'organizationId é obrigatório');
@@ -70,15 +99,15 @@ export const createParceria = onCall<CreateParceriaRequest>(
 
         // 3. Calculate initial status (vai ser "Pendente" se faltar tudo do fluxo)
         const initialRecord: Record<string, unknown> = {
-            partnership_type: data.partnershipType || null,
-            partnership_number: data.partnershipNumber || null,
-            signature_date: data.signatureDate || null,
-            end_date: data.endDate || null,
-            renewal_notice_date: data.renewalNoticeDate || null,
-            network_folder: data.networkFolder || '',
-            observations: data.observations || '',
-            responsible_user_id: data.responsibleUserId || null,
-            responsibility_date: data.responsibilityDate || null,
+            partnership_type: partnershipType,
+            partnership_number: partnershipNumber,
+            signature_date: signatureDate,
+            end_date: endDate,
+            renewal_notice_date: renewalNoticeDate,
+            network_folder: networkFolder,
+            observations: observations,
+            responsible_user_id: responsibleUserId,
+            responsibility_date: responsibilityDate,
             review_conclusion_date: null,
             third_party: null,
             extinguished: false,
@@ -92,21 +121,21 @@ export const createParceria = onCall<CreateParceriaRequest>(
             subject: String(subject).trim(),
             object: String(object).trim(),
             parties: String(parties).trim(),
-            partnership_type: data.partnershipType || null,
-            partnership_number: data.partnershipNumber || null,
-            categoria: data.categoria || null,
-            signature_date: data.signatureDate || null,
-            validity_period: data.validityPeriod || null,
-            end_date: data.endDate || null,
-            renewal_notice_date: data.renewalNoticeDate || null,
-            network_folder: data.networkFolder || '',
-            observations: data.observations || '',
-            responsible_user_id: data.responsibleUserId || null,
-            responsible_user_name: data.responsibleUserName || null,
-            responsibility_date: data.responsibilityDate || null,
+            partnership_type: partnershipType,
+            partnership_number: partnershipNumber,
+            categoria,
+            signature_date: signatureDate,
+            validity_period: validityPeriod,
+            end_date: endDate,
+            renewal_notice_date: renewalNoticeDate,
+            network_folder: networkFolder,
+            observations: observations,
+            responsible_user_id: responsibleUserId,
+            responsible_user_name: responsibleUserName,
+            responsibility_date: responsibilityDate,
             review_conclusion_date: null,
             third_party: null,
-            pgea_date: data.pgeaDate || null,
+            pgea_date: pgeaDate,
             status,
             extinguished: false,
             extinguished_at: null,

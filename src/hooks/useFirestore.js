@@ -602,6 +602,10 @@ export function useOrganizationUserNameMap(organizationId) {
 /**
  * Hook to fetch Parcerias (Convênio, Termo de Cooperação, Termo de Fomento)
  * for a specific organization in real-time. Espelha useExpedientes.
+ *
+ * Resiliência: faz fallback automático para uma query SEM orderBy se o índice
+ * composto (organization_id, updated_at) ainda não estiver sido criado/propagado
+ * no Firestore. Sem isso, a UI fica vazia sem nenhum sinal do problema.
  */
 export function useParcerias(organizationId, options = {}) {
     const [parcerias, setParcerias] = useState([]);
@@ -625,28 +629,50 @@ export function useParcerias(organizationId, options = {}) {
         setError(null);
 
         const parceriasRef = collection(db, 'parcerias');
-        const constraints = [
-            where('organization_id', '==', organizationId),
-            orderBy('updated_at', 'desc')
-        ];
-        if (limitTo) constraints.push(limit(limitTo));
-        const q = query(parceriasRef, ...constraints);
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setParcerias(data);
-            setHasMore(limitTo ? snapshot.size >= limitTo : false);
-            setIsLoading(false);
-        }, (err) => {
-            logger.error('Error listening to parcerias:', err);
-            setError(err.message);
-            setIsLoading(false);
-        });
+        // 1ª tentativa: query completa com orderBy (requer índice composto).
+        // 2ª tentativa (fallback): apenas where — funciona sem índice composto,
+        // e mostra a Parceria recém-criada mesmo antes do índice propagar.
+        const tryQuery = (withOrder, attempt = 0) => {
+            const constraints = [
+                where('organization_id', '==', organizationId),
+            ];
+            if (withOrder) constraints.push(orderBy('updated_at', 'desc'));
+            if (limitTo) constraints.push(limit(limitTo));
+            const q = query(parceriasRef, ...constraints);
 
-        return () => unsubscribe();
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const data = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                // Se a query com orderBy retornar vazio mas o fallback trouxer
+                // resultados, sabemos que é um problema de índice.
+                if (withOrder && data.length === 0 && attempt === 0) {
+                    unsubscribe();
+                    tryQuery(false, 1);
+                    return;
+                }
+                setParcerias(data);
+                setHasMore(limitTo ? snapshot.size >= limitTo : false);
+                setIsLoading(false);
+            }, (err) => {
+                // Erro típico: "The query requires an index". Faz fallback.
+                if (withOrder && attempt === 0 && err && /index/i.test(err.message || '')) {
+                    logger.warn('[useParcerias] índice composto ausente, usando fallback sem orderBy:', err.message);
+                    tryQuery(false, 1);
+                    return;
+                }
+                logger.error('Error listening to parcerias:', err);
+                setError(err.message);
+                setIsLoading(false);
+            });
+
+            return unsubscribe;
+        };
+
+        const unsubscribe = tryQuery(true);
+        return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
     }, [organizationId, limitTo]);
 
     return { parcerias, isLoading, error, hasMore };
