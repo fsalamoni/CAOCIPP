@@ -809,11 +809,13 @@ Toda mudança de `status` passa por `validateParceriaPhaseTransition(target, mer
 
 ### Permissão `configure_parcerias`
 
-Nova chave delegável no `OrgPermissionKey` (em `functions-v2/src/shared/permissions.ts`). Membro com essa permissão pode editar `parceriaSettings.tipos` e `thirdPartiesSettingsParcerias` do órgão. O criador sempre tem. Membro sem essa permissão NÃO consegue modificar a configuração do módulo de Parcerias, mesmo sendo admin do órgão.
+Nova chave delegável no `OrgPermissionKey` (em `functions-v2/src/shared/permissions.ts`). Membro com essa permissão pode editar TODO o objeto `parceriaSettings` (tipos, tipos de aditivo, vigência, categorias, toggles `thirdPartyPhaseEnabled` e `autoExtinguishOnEnd`) e `thirdPartiesSettingsParcerias` do órgão. O criador sempre tem. Membro sem essa permissão NÃO consegue modificar a configuração do módulo de Parcerias, mesmo sendo admin do órgão.
 
 ### Flag `parcerias_enabled`
 
 Default OFF (zero impacto em produção). O painel "Administração & Custos" do super-admin liga/desliga a flag globalmente. Quando a flag `custom_entities` também está ligada, cada órgão pode ligar/desligar Parcerias individualmente via `moduleConfig.parcerias.enabled` (toggle em Páginas e Módulos).
+
+**Defesa em profundidade**: a flag global é checada também em `getOrganizationTabs` e `getActiveDataPages` — mesmo que `moduleConfig.parcerias.enabled = true` no órgão, se a flag global estiver OFF, as abas e métricas de Parcerias não aparecem. Configurado no frontend em `src/lib/organizationModules.js` e `src/lib/dashboardMetrics.js`.
 
 For implementation details, see:
 - Architecture → `ARCHITECTURE_REFERENCE.md`

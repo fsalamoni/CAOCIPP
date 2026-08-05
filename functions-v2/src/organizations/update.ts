@@ -23,9 +23,16 @@ interface UpdateOrganizationRequest {
         thirdPartiesSettingsConsultas?: string[];
         thirdPartiesSettingsExpedientes?: string[];
         // Configuração do módulo de Parcerias (Convênio, Termo de Cooperação,
-        // Termo de Fomento). Tipos customizáveis pelo admin do órgão.
+        // Termo de Fomento). Cada campo é customizável pelo admin do órgão e
+        // tem default no backend (compatibilidade com órgãos existentes que
+        // nunca mexeram nestas configurações).
         parceriaSettings?: {
-            tipos: string[];
+            tipos?: string[];
+            aditivoTipos?: string[];
+            vigenciaOptions?: string[];
+            categorias?: string[];
+            thirdPartyPhaseEnabled?: boolean;
+            autoExtinguishOnEnd?: boolean;
         };
         // Lista de terceiros do painel de Parcerias (independente das listas
         // de Consultas/Expedientes; mesmo padrão).
@@ -313,24 +320,72 @@ function sanitizeModuleConfig(
     return out;
 }
 
-// ParceriaSettings: tipos de parceria customizados pelo admin. Aceita até 50
-// strings não-vazias, deduplicadas. Default é mantido no frontend.
+// ParceriaSettings: configurações do módulo de Parcerias customizáveis por
+// órgão. Cada lista é saneada para strings não-vazias, únicas e limitadas em
+// tamanho/contagem. Defaults são SEMPRE aplicados quando o admin não
+// configurou um campo (preserva o comportamento de órgãos existentes que
+// nunca mexeram nestas configurações).
 const PARCERIA_DEFAULT_TIPOS = ['Convênio', 'Termo de Cooperação', 'Termo de Fomento'];
-function sanitizeParceriaSettings(
-    input: { tipos?: string[] }
-): { tipos: string[] } {
-    const tipos = (Array.isArray(input?.tipos) ? input.tipos : [])
-        .map((t) => String(t ?? '').trim().slice(0, 100))
-        .filter((t) => t.length > 0);
+const PARCERIA_DEFAULT_ADITIVO_TIPOS = [
+    'Aditivo de Prazo',
+    'Aditivo de Valor',
+    'Aditivo de Alteração',
+    'Aditivo de Reequilíbrio',
+    'Aditivo de Execução',
+];
+const PARCERIA_DEFAULT_VIGENCIA_OPTIONS = [
+    '6 meses', '12 meses', '24 meses', '36 meses', '60 meses', 'Indeterminado',
+];
+const PARCERIA_DEFAULT_CATEGORIAS: string[] = [];
+
+// Deduplica + limita uma lista de strings. Retorna o default se o array
+// resultante ficar vazio (apenas para listas obrigatórias).
+function sanitizeStringList(
+    input: unknown,
+    max: number,
+    defaultValue: string[]
+): string[] {
+    const arr = Array.isArray(input) ? input : [];
     const seen = new Set<string>();
     const out: string[] = [];
-    for (const t of tipos) {
-        if (seen.has(t)) continue;
-        seen.add(t);
-        out.push(t);
-        if (out.length >= 50) break;
+    for (const item of arr) {
+        const s = String(item ?? '').trim().slice(0, 100);
+        if (!s || seen.has(s)) continue;
+        seen.add(s);
+        out.push(s);
+        if (out.length >= max) break;
     }
-    return { tipos: out.length > 0 ? out : PARCERIA_DEFAULT_TIPOS };
+    return out.length > 0 ? out : defaultValue;
+}
+
+function sanitizeParceriaSettings(
+    input: {
+        tipos?: string[];
+        aditivoTipos?: string[];
+        vigenciaOptions?: string[];
+        categorias?: string[];
+        thirdPartyPhaseEnabled?: boolean;
+        autoExtinguishOnEnd?: boolean;
+    }
+): {
+    tipos: string[];
+    aditivoTipos: string[];
+    vigenciaOptions: string[];
+    categorias: string[];
+    thirdPartyPhaseEnabled: boolean;
+    autoExtinguishOnEnd: boolean;
+} {
+    return {
+        tipos: sanitizeStringList(input?.tipos, 50, PARCERIA_DEFAULT_TIPOS),
+        aditivoTipos: sanitizeStringList(input?.aditivoTipos, 30, PARCERIA_DEFAULT_ADITIVO_TIPOS),
+        vigenciaOptions: sanitizeStringList(input?.vigenciaOptions, 30, PARCERIA_DEFAULT_VIGENCIA_OPTIONS),
+        // categorias é opcional — pode ficar vazio sem cair no default.
+        categorias: sanitizeStringList(input?.categorias, 30, PARCERIA_DEFAULT_CATEGORIAS),
+        // Toggles: default ON para não quebrar comportamento (a fase "Aguarda
+        // Terceiros" sempre existiu). O admin desliga se não quiser usá-la.
+        thirdPartyPhaseEnabled: input?.thirdPartyPhaseEnabled !== false,
+        autoExtinguishOnEnd: input?.autoExtinguishOnEnd === true,
+    };
 }
 
 // ============================================================================

@@ -22,11 +22,21 @@ import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import { hasAdditives } from '@/utils/parceriaUtils';
 
-const PARTNERSHIP_TYPES = [
-    { value: 'convenio', label: 'Convênio' },
-    { value: 'termo_cooperacao', label: 'Termo de Cooperação' },
-    { value: 'termo_fomento', label: 'Termo de Fomento' },
+// Defaults alinhados com o backend (sanitizeParceriaSettings em
+// functions-v2/src/organizations/update.ts). Usados apenas se o órgão não
+// tiver parceriaSettings persistido.
+const DEFAULT_TIPOS = ['Convênio', 'Termo de Cooperação', 'Termo de Fomento'];
+const DEFAULT_ADITIVO_TIPOS = [
+    'Aditivo de Prazo',
+    'Aditivo de Valor',
+    'Aditivo de Alteração',
+    'Aditivo de Reequilíbrio',
+    'Aditivo de Execução',
 ];
+const DEFAULT_VIGENCIA_OPTIONS = [
+    '6 meses', '12 meses', '24 meses', '36 meses', '60 meses', 'Indeterminado',
+];
+const DEFAULT_THIRD_PARTIES = ['Parceiro', 'Convenente', 'Outro Órgão Público', 'Terceiro'];
 
 export default function EditParceriaDialog({
     open,
@@ -55,6 +65,7 @@ export default function EditParceriaDialog({
             parties: source.parties || '',
             partnership_type: source.partnership_type || '',
             partnership_number: source.partnership_number || '',
+            categoria: source.categoria || '',
             signature_date: source.signature_date || '',
             validity_period: source.validity_period || '',
             end_date: source.end_date || '',
@@ -67,6 +78,9 @@ export default function EditParceriaDialog({
             review_conclusion_date: source.review_conclusion_date || '',
             third_party: source.third_party || '',
             pgea_date: source.pgea_date || '',
+            // Campos de aditivo (só usados quando isAdditive === true).
+            aditivo_type: source.aditivo_type || '',
+            aditivo_number: source.aditivo_number || '',
         });
         // Se a Parceria original tem aditivos, os campos do original ficam
         // read-only (lock). Para o aditivo em si, nunca há lock.
@@ -80,8 +94,21 @@ export default function EditParceriaDialog({
     const isCreator = userRole === 'creator';
     const hasDeletePerm = userRole === 'creator' || isCreator;
 
-    const thirdParties = organization?.thirdPartiesSettingsParcerias
-        || ['Parceiro', 'Convenente', 'Outro Órgão Público', 'Terceiro'];
+    // Configurações do módulo vindas do banco do órgão (com defaults
+    // alinhados com sanitizeParceriaSettings do backend).
+    const tipos = organization?.parceriaSettings?.tipos?.length
+        ? organization.parceriaSettings.tipos
+        : DEFAULT_TIPOS;
+    const aditivoTipos = organization?.parceriaSettings?.aditivoTipos?.length
+        ? organization.parceriaSettings.aditivoTipos
+        : DEFAULT_ADITIVO_TIPOS;
+    const vigenciaOptions = organization?.parceriaSettings?.vigenciaOptions?.length
+        ? organization.parceriaSettings.vigenciaOptions
+        : DEFAULT_VIGENCIA_OPTIONS;
+    const categorias = organization?.parceriaSettings?.categorias || [];
+    const thirdParties = organization?.thirdPartiesSettingsParcerias?.length
+        ? organization.thirdPartiesSettingsParcerias
+        : DEFAULT_THIRD_PARTIES;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -234,8 +261,8 @@ export default function EditParceriaDialog({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">—</SelectItem>
-                                    {PARTNERSHIP_TYPES.map((t) => (
-                                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                    {tipos.map((t) => (
+                                        <SelectItem key={t} value={t}>{t}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -245,6 +272,27 @@ export default function EditParceriaDialog({
                             <Input value={formData.partnership_number || ''} onChange={(e) => setFormData({ ...formData, partnership_number: e.target.value })} placeholder="Ex.: 001/2024" className="mt-1" />
                         </div>
                     </div>
+                    {categorias.length > 0 && (
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <Label>Categoria</Label>
+                                <Select
+                                    value={formData.categoria || 'none'}
+                                    onValueChange={(val) => setFormData({ ...formData, categoria: val === 'none' ? null : val })}
+                                >
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">—</SelectItem>
+                                        {categorias.map((c) => (
+                                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
                     <div className="grid md:grid-cols-2 gap-4">
                         <div>
                             <Label>Data da Assinatura</Label>
@@ -252,7 +300,16 @@ export default function EditParceriaDialog({
                         </div>
                         <div>
                             <Label>Vigência</Label>
-                            <Input value={formData.validity_period || ''} onChange={(e) => setFormData({ ...formData, validity_period: e.target.value })} placeholder="Ex.: 12 meses" className="mt-1" />
+                            <Input
+                                list="vigencia-options"
+                                value={formData.validity_period || ''}
+                                onChange={(e) => setFormData({ ...formData, validity_period: e.target.value })}
+                                placeholder="Ex.: 12 meses"
+                                className="mt-1"
+                            />
+                            <datalist id="vigencia-options">
+                                {vigenciaOptions.map((v) => <option key={v} value={v} />)}
+                            </datalist>
                         </div>
                     </div>
                     <div className="grid md:grid-cols-2 gap-4">

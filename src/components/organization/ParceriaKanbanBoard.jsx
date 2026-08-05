@@ -39,18 +39,48 @@ import ExtinguishConfirmDialog from './ExtinguishConfirmDialog';
 import EditParceriaDialog from './EditParceriaDialog';
 import EmptyState from '../ui/EmptyState';
 
-const KANBAN_COLUMNS = [
+const KANBAN_COLUMNS_BASE = [
     { id: 'Pendente',          label: 'Pendentes',         icon: Inbox,     color: 'slate'   },
     { id: 'Em análise',        label: 'Em Análise',        icon: Pencil,    color: 'amber'   },
     { id: 'Revisão',           label: 'Revisão',           icon: Eye,       color: 'sky'     },
-    { id: 'Aguarda Terceiros', label: 'Aguarda Terceiros', icon: Send,      color: 'cyan'    },
+    { id: 'Aguarda Terceiros', label: 'Aguarda Terceiros', icon: Send,      color: 'cyan',   conditional: 'thirdPartyPhaseEnabled' },
     { id: 'Parcerias',         label: 'Parcerias',         icon: Handshake, color: 'emerald' },
     { id: 'Extintos',          label: 'Extintos',          icon: Archive,   color: 'slate'   },
 ];
 
-// Transições válidas: forward only (1 a 1).
+// Resolve as colunas visíveis de acordo com a configuração do órgão.
+// A coluna "Aguarda Terceiros" só aparece se thirdPartyPhaseEnabled !== false
+// (default ON; admin pode desligar em Administração → Configurações → Parcerias).
+function resolveColumns(organization) {
+    const flag = organization?.parceriaSettings?.thirdPartyPhaseEnabled;
+    const showThirdParty = flag !== false;
+    return KANBAN_COLUMNS_BASE.filter((c) => {
+        if (c.conditional === 'thirdPartyPhaseEnabled') return showThirdParty;
+        return true;
+    });
+}
+
+// Transições válidas (forward only), recalculadas quando uma coluna é removida.
 // Pode pular "Aguarda Terceiros" indo direto de "Em análise" para "Revisão".
-const VALID_FORWARD = { 0: [1], 1: [2, 3], 2: [3], 3: [4], 4: [5], 5: [] };
+function buildValidForward(columns) {
+    const idx = (id) => columns.findIndex((c) => c.id === id);
+    const map = {};
+    columns.forEach((c, i) => {
+        const next = columns[i + 1]?.id;
+        const skipOne = columns[i + 2]?.id;
+        if (next) {
+            // "Em análise" pode pular "Aguarda Terceiros" indo para "Revisão"
+            // (ou, se a coluna intermediária for outra, ainda assim para o próximo).
+            map[idx(c.id)] = [idx(next)];
+            if (skipOne && c.id === 'Em análise') {
+                map[idx(c.id)].push(idx(skipOne));
+            }
+        } else {
+            map[idx(c.id)] = [];
+        }
+    });
+    return map;
+}
 
 const buildDefaultFilters = () => ({ type: 'all', responsible: 'all', hasAdditive: 'all' });
 const buildDefaultSortRules = () => ([{ key: 'pgea', direction: 'asc' }]);
@@ -66,6 +96,10 @@ export default function ParceriaKanbanBoard({
     const { preferences, updatePreferences, isLoading: isLoadingPrefs } = useUserPreferences();
     const thirdParties = organization?.thirdPartiesSettingsParcerias
         || ['Parceiro', 'Convenente', 'Outro Órgão Público', 'Terceiro'];
+
+    // Colunas e transições respeitam thirdPartyPhaseEnabled do órgão.
+    const columns_list = useMemo(() => resolveColumns(organization), [organization]);
+    const validForward = useMemo(() => buildValidForward(columns_list), [columns_list]);
 
     const [activeId, setActiveId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -154,16 +188,24 @@ export default function ParceriaKanbanBoard({
     }, [parcerias, selectedYear, viewFilters]);
 
     const columns = useMemo(() => {
-        const grouped = {
-            'Pendente': [], 'Em análise': [], 'Revisão': [],
-            'Aguarda Terceiros': [], 'Parcerias': [], 'Extintos': [],
-        };
+        // Colunas visíveis no Kanban (dinâmicas conforme thirdPartyPhaseEnabled).
+        const grouped = {};
+        columns_list.forEach((c) => { grouped[c.id] = []; });
+        // Garante que todas as colunas base existam, mesmo se desabilitadas
+        // (parcerias nessa fase vão para a primeira coluna visível à esquerda).
         filteredParcerias.forEach((p) => {
             const status = calculateParceriaDerivedStatus(p);
-            (grouped[status] || grouped['Pendente']).push(p);
+            if (grouped[status]) {
+                grouped[status].push(p);
+            } else {
+                // Fase não-visível (ex.: Aguarda Terceiros desabilitada) → joga
+                // na fase anterior visível, mantendo o card na UI.
+                const fallback = grouped['Revisão'] || grouped['Em análise'] || grouped['Pendente'] || [];
+                fallback.push(p);
+            }
         });
         return grouped;
-    }, [filteredParcerias]);
+    }, [filteredParcerias, columns_list]);
 
     const activeParceria = useMemo(() => {
         if (!activeId) return null;
@@ -172,7 +214,7 @@ export default function ParceriaKanbanBoard({
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }));
 
-    const getColumnIndex = (status) => KANBAN_COLUMNS.findIndex((c) => c.id === status);
+    const getColumnIndex = (status) => columns_list.findIndex((c) => c.id === status);
 
     const handleViewDetails = useCallback((p) => {
         setDetailParceria(p);
@@ -187,7 +229,7 @@ export default function ParceriaKanbanBoard({
 
     const handleBackwardMove = useCallback(async (parceria, fromStatus, toStatus) => {
         const pgea = getParceriaField(parceria, 'pgea');
-        const colLabel = KANBAN_COLUMNS.find((c) => c.id === toStatus)?.label || toStatus;
+        const colLabel = columns_list.find((c) => c.id === toStatus)?.label || toStatus;
         const rollbackByStatus = {
             'Pendente': {
                 responsible_user_id: null,
@@ -249,7 +291,7 @@ export default function ParceriaKanbanBoard({
         } catch (err) {
             toast.error('Erro ao mover Parceria: ' + err.message);
         }
-    }, [organization]);
+    }, [organization, columns_list]);
 
     const handleForwardTransition = useCallback((parceria, fromStatus, toStatus) => {
         if (fromStatus === 'Pendente' && toStatus === 'Em análise') {
@@ -307,7 +349,7 @@ export default function ParceriaKanbanBoard({
             toast.error('Não foi possível identificar a coluna.');
             return;
         }
-        const isForward = VALID_FORWARD[currentIdx]?.includes(targetIdx);
+        const isForward = validForward[currentIdx]?.includes(targetIdx);
         const isBackward = targetIdx < currentIdx;
         if (!isForward && !isBackward) {
             toast.error('Para avançar, mova para a próxima fase do fluxo.');
@@ -318,7 +360,7 @@ export default function ParceriaKanbanBoard({
         } else {
             handleForwardTransition(parceria, currentStatus, targetColumnId);
         }
-    }, [filteredParcerias, handleBackwardMove, handleForwardTransition]);
+    }, [filteredParcerias, handleBackwardMove, handleForwardTransition, columns_list, validForward]);
 
     const handleDialogConfirm = async (data) => {
         if (!pendingParceria || !pendingTarget) return;
@@ -390,8 +432,8 @@ export default function ParceriaKanbanBoard({
                 onDragEnd={handleDragEnd}
                 onDragCancel={() => setActiveId(null)}
             >
-                <div className="grid grid-cols-6 gap-3">
-                    {KANBAN_COLUMNS.map((col) => (
+                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns_list.length}, minmax(0, 1fr))` }}>
+                    {columns_list.map((col) => (
                         <KanbanColumn
                             key={col.id}
                             column={col}
@@ -449,6 +491,7 @@ export default function ParceriaKanbanBoard({
                     onClose={() => { setAditivoDialogOpen(false); setAditivoTarget(null); }}
                     parceria={aditivoTarget}
                     organizationId={organization.id}
+                    organization={organization}
                     onSuccess={() => { setAditivoDialogOpen(false); setAditivoTarget(null); }}
                 />
             )}

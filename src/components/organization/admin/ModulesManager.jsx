@@ -17,11 +17,13 @@ export default function ModulesManager({ organization }) {
     const [enabled, setEnabled] = useState(initial);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Compara módulo a módulo com o estado original, para garantir que QUALQUER
+    // toggle (incluindo Parcerias) marque o formulário como "sujo" e habilite
+    // o botão Salvar. Omitir parcerias aqui era o bug que impedia o admin de
+    // persistir a ativação do módulo no órgão.
     const dirty = useMemo(() => {
-        return (
-            enabled.processes !== initial.processes ||
-            enabled.expedientes !== initial.expedientes ||
-            enabled.summary !== initial.summary
+        return BUILTIN_MODULE_META.some(
+            (mod) => enabled[mod.key] !== initial[mod.key]
         );
     }, [enabled, initial]);
 
@@ -32,11 +34,13 @@ export default function ModulesManager({ organization }) {
     const handleSave = async () => {
         try {
             setIsSaving(true);
-            const moduleConfig = {
-                processes: { enabled: enabled.processes === true },
-                expedientes: { enabled: enabled.expedientes === true },
-                summary: { enabled: enabled.summary === true },
-            };
+            // Envia TODOS os módulos built-in (não apenas os alterados), para que
+            // o sanitizeModuleConfig do backend receba um payload completo e o
+            // moduleConfig do órgão não perca chaves.
+            const moduleConfig = {};
+            for (const mod of BUILTIN_MODULE_META) {
+                moduleConfig[mod.key] = { enabled: enabled[mod.key] === true };
+            }
             await updateOrganization({
                 organizationId: organization.id,
                 data: { moduleConfig },

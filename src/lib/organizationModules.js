@@ -91,16 +91,22 @@ export function resolveBuiltinModules(organization) {
  * @param {object} [opts]
  * @param {boolean} [opts.customEntitiesOn=false]  Estado da flag CUSTOM_ENTITIES.
  * @param {Array}  [opts.customTypes=[]]  Tipos de entidade custom (fases futuras).
+ * @param {boolean} [opts.deadlineCalendarOn=false]  Estado da flag DEADLINE_CALENDAR.
+ * @param {boolean} [opts.parceriasOn=false]  Estado da flag PARCERIAS (Módulo de Parcerias).
+ *   Quando DESLIGADA, as abas de Parcerias nunca aparecem, mesmo com
+ *   `moduleConfig.parcerias.enabled = true` no órgão (defesa em profundidade).
  * @returns {Array<{key:string,label:string,icon:Function,creatorOnly?:boolean,module?:string,custom?:boolean,typeId?:string}>}
  */
 export function getOrganizationTabs(organization, opts = {}) {
-    const { customEntitiesOn = false, customTypes = [], deadlineCalendarOn = false } = opts;
+    const { customEntitiesOn = false, customTypes = [], deadlineCalendarOn = false, parceriasOn = false } = opts;
     const enabled = resolveBuiltinModules(organization);
 
     // Quando a flag está DESLIGADA, todos os built-ins aparecem (idêntico a hoje).
+    // Parcerias também exige a flag global `parceriasOn` ligada, além do
+    // respeitar o moduleConfig (comportamento custom-entities-ligado).
     const showProcesses = !customEntitiesOn || enabled.processes;
     const showExpedientes = !customEntitiesOn || enabled.expedientes;
-    const showParcerias = !customEntitiesOn || enabled.parcerias;
+    const showParcerias = parceriasOn && (!customEntitiesOn || enabled.parcerias);
     const showSummary = !customEntitiesOn || enabled.summary;
 
     const tabs = [];

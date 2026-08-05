@@ -30,13 +30,14 @@ export default function DashboardMetrics({
     parcerias = [],
     selectedYear,
     customEntitiesOn = false,
+    parceriasOn = false,
     onCustomYears,
 }) {
     const { entityTypes } = useEntityTypes(customEntitiesOn ? organization?.id : null);
 
     const pages = useMemo(
-        () => getActiveDataPages(organization, { customEntitiesOn, entityTypes }),
-        [organization, customEntitiesOn, entityTypes]
+        () => getActiveDataPages(organization, { customEntitiesOn, entityTypes, parceriasOn }),
+        [organization, customEntitiesOn, entityTypes, parceriasOn]
     );
 
     // Agregação dos anos descobertos nas páginas custom (para o seletor de ano).

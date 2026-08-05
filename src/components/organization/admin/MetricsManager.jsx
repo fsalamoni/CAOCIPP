@@ -67,11 +67,12 @@ function describeMetric(schema, m) {
  */
 export default function MetricsManager({ organization }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+    const parceriasOn = useFlag(FEATURE_FLAGS.PARCERIAS.key);
     const { entityTypes, isLoading: typesLoading } = useEntityTypes(customEntitiesOn ? organization?.id : null);
 
     const pages = useMemo(
-        () => getActiveDataPages(organization, { customEntitiesOn, entityTypes }),
-        [organization, customEntitiesOn, entityTypes]
+        () => getActiveDataPages(organization, { customEntitiesOn, entityTypes, parceriasOn }),
+        [organization, customEntitiesOn, entityTypes, parceriasOn]
     );
 
     const [selectedKey, setSelectedKey] = useState(null);
@@ -133,7 +134,9 @@ export default function MetricsManager({ organization }) {
             ? DEFAULT_METRICS.processes
             : selectedPage.kind === 'expedientes'
                 ? DEFAULT_METRICS.expedientes
-                : getDefaultCustomMetrics(selectedPage.entityType);
+                : selectedPage.kind === 'parcerias'
+                    ? DEFAULT_METRICS.parcerias
+                    : getDefaultCustomMetrics(selectedPage.entityType);
         mutate(defaults.map(normalizeMetric));
     };
 

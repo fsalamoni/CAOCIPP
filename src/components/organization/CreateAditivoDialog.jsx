@@ -14,27 +14,59 @@ import { addAditivo } from '@/services/functionsService';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 
-const VALID_TYPES = [
-    { value: 'renovacao_prorrogacao', label: 'Renovação / Prorrogação' },
-    { value: 'qualitativo', label: 'Qualitativo (Objeto)' },
+// Defaults alinhados com sanitizeParceriaSettings no backend.
+const DEFAULT_ADITIVO_TIPOS = [
+    'Aditivo de Prazo',
+    'Aditivo de Valor',
+    'Aditivo de Alteração',
+    'Aditivo de Reequilíbrio',
+    'Aditivo de Execução',
 ];
 
 /**
- * CreateAditivoDialog — modal que pede APENAS o tipo de aditivo.
+ * CreateAditivoDialog — modal que pede o TIPO de aditivo.
+ * O tipo é uma string livre (customizável pelo admin do órgão em
+ * Administração → Configurações → Parcerias → Tipos de Aditivo).
  * Após confirmar, o backend cria o aditivo vazio (status Pendente) e abre
- * o EditAditivoDialog para preenchimento.
+ * o EditParceriaDialog para preenchimento.
  */
-export default function CreateAditivoDialog({ open, onClose, parceria, organizationId, onSuccess }) {
-    const [type, setType] = useState('renovacao_prorrogacao');
+export default function CreateAditivoDialog({
+    open,
+    onClose,
+    parceria,
+    organizationId,
+    organization,
+    onSuccess,
+}) {
+    // Tipos configurados pelo admin (com fallback para defaults).
+    const tipos = (organization?.parceriaSettings?.aditivoTipos?.length
+        ? organization.parceriaSettings.aditivoTipos
+        : DEFAULT_ADITIVO_TIPOS
+    );
+
+    const [type, setType] = useState(tipos[0] || DEFAULT_ADITIVO_TIPOS[0]);
     const [saving, setSaving] = useState(false);
 
+    // Garante que o tipo inicial sempre exista na lista (caso o admin troque
+    // as configs enquanto o modal está aberto).
+    React.useEffect(() => {
+        if (!tipos.includes(type) && tipos.length > 0) {
+            setType(tipos[0]);
+        }
+    }, [tipos, type]);
+
     const handleConfirm = async () => {
+        if (!type) {
+            toast.error('Selecione um tipo de aditivo.');
+            return;
+        }
         try {
             setSaving(true);
             const result = await addAditivo({
                 parceriaId: parceria.id,
                 organizationId,
                 aditivoType: type,
+                aditivoTypeLabel: type,
             });
             toast.success(`Aditivo #${result.aditivoNumber} criado!`);
             onSuccess?.(result);
@@ -64,13 +96,13 @@ export default function CreateAditivoDialog({ open, onClose, parceria, organizat
 
                 <div className="space-y-2 py-2">
                     <Label>Tipo de Aditivo</Label>
-                    <div className="space-y-2">
-                        {VALID_TYPES.map((t) => (
+                    <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                        {tipos.map((t) => (
                             <label
-                                key={t.value}
+                                key={t}
                                 className={`
                                     flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition
-                                    ${type === t.value
+                                    ${type === t
                                         ? 'border-amber-500 bg-amber-50'
                                         : 'border-slate-200 hover:border-slate-300'}
                                 `}
@@ -78,15 +110,19 @@ export default function CreateAditivoDialog({ open, onClose, parceria, organizat
                                 <input
                                     type="radio"
                                     name="aditivo_type"
-                                    value={t.value}
-                                    checked={type === t.value}
+                                    value={t}
+                                    checked={type === t}
                                     onChange={(e) => setType(e.target.value)}
                                     className="text-amber-600 focus:ring-amber-500"
                                 />
-                                <span className="font-medium text-sm">{t.label}</span>
+                                <span className="font-medium text-sm">{t}</span>
                             </label>
                         ))}
                     </div>
+                    <p className="text-xs text-slate-500 mt-2">
+                        Os tipos são configurados pelo administrador do órgão em
+                        <strong> Administração → Configurações → Parcerias → Tipos de Aditivo</strong>.
+                    </p>
                 </div>
 
                 <DialogFooter>

@@ -46,6 +46,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
   // Anos descobertos nas páginas personalizadas (reportados pelo DashboardMetrics).
   const [customYears, setCustomYears] = useState([]);
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
+  const parceriasOn = useFlag(FEATURE_FLAGS.PARCERIAS.key);
 
   // Available years for filter (dados ordinários + páginas custom + ano atual)
   const years = React.useMemo(() => {
@@ -119,6 +120,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
         parcerias={parcerias}
         selectedYear={selectedYear}
         customEntitiesOn={customEntitiesOn}
+        parceriasOn={parceriasOn}
         onCustomYears={setCustomYears}
       />
 

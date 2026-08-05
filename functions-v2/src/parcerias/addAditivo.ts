@@ -5,7 +5,12 @@ import { historyEntryId } from '../shared/history';
 interface AddAditivoRequest {
     parceriaId: string;
     organizationId: string;
-    aditivoType: 'renovacao_prorrogacao' | 'qualitativo';
+    // O tipo é uma string livre — validado apenas contra a lista configurada
+    // no órgão (parceriaSettings.aditivoTipos), com defaults alinhados no
+    // frontend. Mantemos compat com os dois valores antigos.
+    aditivoType: string;
+    // Label legível (para exibição). Se ausente, derivado do aditivoType.
+    aditivoTypeLabel?: string;
     // Campos opcionais para preenchimento inicial (caso o admin queira
     // já entrar com algum dado; o restante entra depois via updateAditivo).
     subject?: string;
@@ -13,7 +18,19 @@ interface AddAditivoRequest {
     parties?: string;
 }
 
-const VALID_ADITIVO_TYPES = new Set(['renovacao_prorrogacao', 'qualitativo']);
+const ADITIVO_TYPE_MAX = 100;
+const LEGACY_TYPE_LABELS: Record<string, string> = {
+    'renovacao_prorrogacao': 'Renovação/Prorrogação',
+    'qualitativo': 'Qualitativo (Objeto)',
+};
+
+function sanitizeAditivoType(input: string): { type: string; label: string } | null {
+    const type = String(input ?? '').trim().slice(0, ADITIVO_TYPE_MAX);
+    if (!type) return null;
+    // Se for um dos legacy kebab-case, mantém o label tradicional.
+    const label = LEGACY_TYPE_LABELS[type] || type;
+    return { type, label };
+}
 
 export const addAditivo = onCall<AddAditivoRequest>(
     { region: 'southamerica-east1' },
@@ -23,17 +40,18 @@ export const addAditivo = onCall<AddAditivoRequest>(
         }
 
         const data = request.data || ({} as AddAditivoRequest);
-        const { parceriaId, organizationId, aditivoType } = data;
+        const { parceriaId, organizationId, aditivoType: rawAditivoType } = data;
 
         if (!parceriaId || !organizationId) {
             throw new HttpsError('invalid-argument', 'parceriaId e organizationId são obrigatórios');
         }
-        if (!aditivoType || !VALID_ADITIVO_TYPES.has(aditivoType)) {
-            throw new HttpsError(
-                'invalid-argument',
-                'aditivoType deve ser "renovacao_prorrogacao" ou "qualitativo"'
-            );
+        const typeInfo = sanitizeAditivoType(rawAditivoType);
+        if (!typeInfo) {
+            throw new HttpsError('invalid-argument', 'aditivoType é obrigatório (até 100 caracteres)');
         }
+        // Label customizado do frontend tem precedência sobre o derivado.
+        const customLabel = String(data.aditivoTypeLabel || '').trim().slice(0, 100);
+        const aditivoTypeLabel = customLabel || typeInfo.label;
 
         const db = admin.firestore();
         const userId = request.auth.uid;
@@ -75,10 +93,8 @@ export const addAditivo = onCall<AddAditivoRequest>(
         const logTime = now.toTimeString().split(' ')[0];
         const userName = request.auth.token.name || 'Usuário desconhecido';
 
-        const aditivoTypeLabel =
-            aditivoType === 'renovacao_prorrogacao'
-                ? 'Renovação/Prorrogação'
-                : 'Qualitativo (Objeto)';
+        const aditivoType = typeInfo.type;
+        const aditivoTypeLabelFinal = aditivoTypeLabel;
 
         const aditivoData: Record<string, unknown> = {
             id: aditivoRef.id,
@@ -86,7 +102,7 @@ export const addAditivo = onCall<AddAditivoRequest>(
             organization_id: organizationId,
             aditivo_number: aditivoNumber,
             aditivo_type: aditivoType,
-            aditivo_type_label: aditivoTypeLabel,
+            aditivo_type_label: aditivoTypeLabelFinal,
             // Snapshot do original (somente leitura) — guardado para auditoria.
             pgea_at_additive_creation: parceriaData.pgea || null,
             partnership_type_at_additive_creation: parceriaData.partnership_type || null,
@@ -117,7 +133,7 @@ export const addAditivo = onCall<AddAditivoRequest>(
                 time: logTime,
                 user_id: userId,
                 user_name: userName,
-                action: `Aditivo #${aditivoNumber} criado (${aditivoTypeLabel})`,
+                action: `Aditivo #${aditivoNumber} criado (${aditivoTypeLabelFinal})`,
                 timestamp: now.toISOString(),
                 details: { aditivo_id: aditivoRef.id, aditivo_type: aditivoType },
             }],
@@ -132,7 +148,7 @@ export const addAditivo = onCall<AddAditivoRequest>(
                 time: logTime,
                 user_id: userId,
                 user_name: userName,
-                action: `Aditivo #${aditivoNumber} criado (${aditivoTypeLabel})`,
+                action: `Aditivo #${aditivoNumber} criado (${aditivoTypeLabelFinal})`,
                 timestamp: now.toISOString(),
             };
             await aditivoRef
@@ -161,7 +177,7 @@ export const addAditivo = onCall<AddAditivoRequest>(
                 time: logTime,
                 user_id: userId,
                 user_name: userName,
-                action: `Aditivo #${aditivoNumber} incluído (${aditivoTypeLabel})`,
+                action: `Aditivo #${aditivoNumber} incluído (${aditivoTypeLabelFinal})`,
                 timestamp: now.toISOString(),
                 details: { aditivo_id: aditivoRef.id, aditivo_type: aditivoType },
             }),
@@ -175,7 +191,7 @@ export const addAditivo = onCall<AddAditivoRequest>(
                 time: logTime,
                 user_id: userId,
                 user_name: userName,
-                action: `Aditivo #${aditivoNumber} incluído (${aditivoTypeLabel})`,
+                action: `Aditivo #${aditivoNumber} incluído (${aditivoTypeLabelFinal})`,
                 timestamp: now.toISOString(),
             };
             await parceriaRef
