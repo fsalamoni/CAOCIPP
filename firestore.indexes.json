@@ -287,6 +287,66 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "parcerias",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "updated_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "parcerias",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "created_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "parcerias",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "responsible_user_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "updated_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "parcerias",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "pgea",
+                    "order": "ASCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []
