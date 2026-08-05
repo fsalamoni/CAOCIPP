@@ -395,3 +395,104 @@ export const verifyLoginOtp = async (code) => {
         throw error;
     }
 };
+
+// ========== PARCERIA FUNCTIONS ==========
+// Convênio, Termo de Cooperação, Termo de Fomento.
+// Espelha o módulo de Expedientes (criado originalmente em v1.14.0).
+
+export const createParceria = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'createParceria');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling createParceria:', error);
+        throw error;
+    }
+};
+
+export const updateParceria = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'updateParceria');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling updateParceria:', error);
+        throw error;
+    }
+};
+
+export const deleteParceria = async ({ id, organizationId }) => {
+    try {
+        const fn = httpsCallable(functions, 'deleteParceria');
+        const result = await fn({ id, organizationId });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling deleteParceria:', error);
+        throw error;
+    }
+};
+
+export const addAditivo = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'addAditivo');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling addAditivo:', error);
+        throw error;
+    }
+};
+
+export const updateAditivo = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'updateAditivo');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling updateAditivo:', error);
+        throw error;
+    }
+};
+
+export const deleteAditivo = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'deleteAditivo');
+        const result = await fn({ parceriaId, aditivoId, organizationId });
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling deleteAditivo:', error);
+        throw error;
+    }
+};
+
+export const extinguishParceria = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'extinguishParceria');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling extinguishParceria:', error);
+        throw error;
+    }
+};
+
+export const importParceriasFromExcel = async (data) => {
+    try {
+        const { auth } = await import('@/config/firebase');
+        if (!auth.currentUser) {
+            throw new Error('Você precisa estar autenticado para importar parcerias');
+        }
+        try {
+            await auth.currentUser.getIdToken(true);
+        } catch (tokenError) {
+            throw new Error('Erro ao renovar autenticação. Faça login novamente.');
+        }
+        const fn = httpsCallable(functions, 'importParceriasFromExcel', { timeout: 600000 });
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling importParceriasFromExcel:', error);
+        throw error;
+    }
+};

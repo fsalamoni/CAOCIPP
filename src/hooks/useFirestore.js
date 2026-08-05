@@ -598,3 +598,96 @@ export function useOrganizationUserNameMap(organizationId) {
 
     return { nameMap, isLoading, error };
 }
+
+/**
+ * Hook to fetch Parcerias (Convênio, Termo de Cooperação, Termo de Fomento)
+ * for a specific organization in real-time. Espelha useExpedientes.
+ */
+export function useParcerias(organizationId, options = {}) {
+    const [parcerias, setParcerias] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
+
+    const limitTo = (typeof options.limitTo === 'number' && options.limitTo > 0)
+        ? options.limitTo
+        : null;
+
+    useEffect(() => {
+        if (!organizationId) {
+            setParcerias([]);
+            setHasMore(false);
+            setIsLoading(false);
+            return;
+        }
+        setParcerias([]);
+        setIsLoading(true);
+        setError(null);
+
+        const parceriasRef = collection(db, 'parcerias');
+        const constraints = [
+            where('organization_id', '==', organizationId),
+            orderBy('updated_at', 'desc')
+        ];
+        if (limitTo) constraints.push(limit(limitTo));
+        const q = query(parceriasRef, ...constraints);
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setParcerias(data);
+            setHasMore(limitTo ? snapshot.size >= limitTo : false);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to parcerias:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [organizationId, limitTo]);
+
+    return { parcerias, isLoading, error, hasMore };
+}
+
+/**
+ * Hook to fetch all aditivos (subcollection) of a Parceria in real-time.
+ * Returns aditivos sorted by aditivo_number ascending.
+ */
+export function useAditivos(parceriaId, enabled = true) {
+    const [aditivos, setAditivos] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!parceriaId || !enabled) {
+            setAditivos([]);
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+
+        const aditivosRef = collection(db, 'parcerias', parceriaId, 'aditivos');
+        const q = query(aditivosRef, orderBy('aditivo_number', 'asc'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+            setAditivos(data);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to aditivos:', err);
+            setError(err.message);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [parceriaId, enabled]);
+
+    return { aditivos, isLoading, error };
+}
