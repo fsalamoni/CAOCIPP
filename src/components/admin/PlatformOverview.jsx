@@ -10,6 +10,7 @@ import {
     HardDrive,
     RefreshCw,
     Loader2,
+    Handshake,
 } from 'lucide-react';
 import { getPlatformOverview } from '@/services/platformService';
 import { logger } from '@/utils/logger';
@@ -35,6 +36,7 @@ const KPI_CARDS = [
     { key: 'users', label: 'Usuários', icon: Users, color: 'text-violet-600' },
     { key: 'processes', label: 'Processos', icon: FileText, color: 'text-blue-600' },
     { key: 'expedientes', label: 'Expedientes', icon: ScrollText, color: 'text-cyan-600' },
+    { key: 'parcerias', label: 'Parcerias', icon: Handshake, color: 'text-emerald-600' },
     { key: 'memberships', label: 'Vínculos', icon: Users, color: 'text-emerald-600' },
     { key: 'auditLogs', label: 'Movimentações', icon: Database, color: 'text-amber-600' },
 ];

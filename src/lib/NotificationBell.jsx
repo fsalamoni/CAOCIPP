@@ -79,7 +79,9 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
         } catch { /* melhor esforço — navegação segue mesmo se falhar */ }
         setOpen(false);
         if (notif.organization_id && notif.entity_type && notif.entity_id) {
-            const tab = notif.entity_type === 'process' ? 'processes' : 'expedientes';
+            const tab = notif.entity_type === 'process' ? 'processes'
+                : notif.entity_type === 'parceria' ? 'parcerias'
+                : 'expedientes';
             navigate(`${createPageUrl('Organization')}?id=${notif.organization_id}&tab=${tab}`);
         }
     };

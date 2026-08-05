@@ -86,7 +86,7 @@ export default function DataToolsPanel() {
         };
         let hitSafetyGuard = false;
         try {
-            for (const collection of ['processes', 'expedientes']) {
+            for (const collection of ['processes', 'expedientes', 'parcerias']) {
                 let startAfter = null;
                 let done = false;
                 let guard = 0;

@@ -4,8 +4,8 @@ import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
 import { hasOrgPermission, MembershipLike } from '../shared/permissions';
 
-type TargetCollection = 'processes' | 'expedientes';
-type TargetField = 'responsible_user_name' | 'consultant' | 'location' | 'origin' | 'object';
+type TargetCollection = 'processes' | 'expedientes' | 'parcerias';
+type TargetField = 'responsible_user_name' | 'consultant' | 'location' | 'origin' | 'object' | 'subject' | 'parties' | 'network_folder';
 
 interface BulkReplaceFieldValuesRequest {
     organizationId: string;
@@ -15,8 +15,11 @@ interface BulkReplaceFieldValuesRequest {
     toValue: string;
 }
 
-const VALID_COLLECTIONS: TargetCollection[] = ['processes', 'expedientes'];
-const VALID_FIELDS: TargetField[] = ['responsible_user_name', 'consultant', 'location', 'origin', 'object'];
+const VALID_COLLECTIONS: TargetCollection[] = ['processes', 'expedientes', 'parcerias'];
+const VALID_FIELDS: TargetField[] = [
+    'responsible_user_name', 'consultant', 'location', 'origin', 'object',
+    'subject', 'parties', 'network_folder',
+];
 
 function normalizeSearch(value: string): string {
     return (value || '').trim().toLowerCase();
@@ -67,7 +70,7 @@ export const bulkReplaceFieldValues = onCall<BulkReplaceFieldValuesRequest>(
             throw new HttpsError('permission-denied', 'Apenas o criador da organização pode executar substituição em bloco');
         }
 
-        const totals: Record<TargetCollection, number> = { processes: 0, expedientes: 0 };
+        const totals: Record<TargetCollection, number> = { processes: 0, expedientes: 0, parcerias: 0 };
         const batches: FirebaseFirestore.WriteBatch[] = [];
         let currentBatch = db.batch();
         let operationsInBatch = 0;
@@ -136,7 +139,7 @@ export const bulkReplaceFieldValues = onCall<BulkReplaceFieldValuesRequest>(
             await batch.commit();
         }
 
-        const totalUpdated = totals.processes + totals.expedientes;
+        const totalUpdated = totals.processes + totals.expedientes + totals.parcerias;
 
         await db.collection('auditLogs').add({
             organization_id: organizationId,
