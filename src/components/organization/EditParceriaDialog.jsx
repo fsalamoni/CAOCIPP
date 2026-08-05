@@ -306,6 +306,12 @@ export default function EditParceriaDialog({
             for (const k of Object.keys(changes)) {
                 if (changes[k] === '') changes[k] = null;
             }
+            // Normalizar sentinelas de Select (Radix não permite value=""):
+            // o usuário escolheu "—" => voltamos para string vazia, que o
+            // backend normaliza como null.
+            for (const k of ['partnership_type', 'categoria', 'third_party']) {
+                if (changes[k] === '__none__') changes[k] = null;
+            }
             // responsible_user_name baseado no member selecionado
             if (changes.responsible_user_id) {
                 const m = members.find((mm) => mm.user_id === changes.responsible_user_id);
@@ -542,7 +548,7 @@ export default function EditParceriaDialog({
                                             {renderValidationSignal('partnership_type')}
                                         </div>
                                         <Select
-                                            value={formData.partnership_type || ''}
+                                            value={formData.partnership_type || '__none__'}
                                             onValueChange={(val) => setFormData({ ...formData, partnership_type: val })}
                                             disabled={isLocked}
                                         >
@@ -550,7 +556,7 @@ export default function EditParceriaDialog({
                                                 <SelectValue placeholder="Selecione" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">—</SelectItem>
+                                                <SelectItem value="__none__">—</SelectItem>
                                                 {tipos.map((t) => (
                                                     <SelectItem key={t} value={t}>{t}</SelectItem>
                                                 ))}
@@ -583,7 +589,7 @@ export default function EditParceriaDialog({
                                                 {renderValidationSignal('categoria')}
                                             </div>
                                             <Select
-                                                value={formData.categoria || ''}
+                                                value={formData.categoria || '__none__'}
                                                 onValueChange={(val) => setFormData({ ...formData, categoria: val })}
                                                 disabled={isLocked}
                                             >
@@ -591,7 +597,7 @@ export default function EditParceriaDialog({
                                                     <SelectValue placeholder="Selecione" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">—</SelectItem>
+                                                    <SelectItem value="__none__">—</SelectItem>
                                                     {categorias.map((c) => (
                                                         <SelectItem key={c} value={c}>{c}</SelectItem>
                                                     ))}
@@ -673,7 +679,7 @@ export default function EditParceriaDialog({
                                     <div>
                                         <Label>Assessor Responsável</Label>
                                         <Select
-                                            value={formData.responsible_user_id || ''}
+                                            value={formData.responsible_user_id || '__none__'}
                                             onValueChange={handleResponsibleChange}
                                         >
                                             <SelectTrigger className="mt-1">
@@ -718,14 +724,14 @@ export default function EditParceriaDialog({
                                     <div>
                                         <Label>Remetido para</Label>
                                         <Select
-                                            value={formData.third_party || ''}
+                                            value={formData.third_party || '__none__'}
                                             onValueChange={(val) => setFormData({ ...formData, third_party: val })}
                                         >
                                             <SelectTrigger className="mt-1">
                                                 <SelectValue placeholder="Selecione o destinatário" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">—</SelectItem>
+                                                <SelectItem value="__none__">—</SelectItem>
                                                 {thirdParties.map((name) => (
                                                     <SelectItem key={name} value={name}>{name}</SelectItem>
                                                 ))}
