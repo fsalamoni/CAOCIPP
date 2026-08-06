@@ -53,7 +53,7 @@ export default function ParceriaKanbanCard({
     overlay = false,
     isAdditiveActive = false,
     additiveNumber = 0,
-    organization,
+    organization = null,
 }) {
     const canCopy = useFlag(FEATURE_FLAGS.COPY_PROCESS_NUMBER.key);
     const isStageIndicatorOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
