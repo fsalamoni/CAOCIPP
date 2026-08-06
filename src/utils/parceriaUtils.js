@@ -47,19 +47,31 @@ export const PARCERIA_FIELD_ALIASES = {
  */
 export function getParceriaField(parceria, fieldKey) {
     if (!parceria) return '';
-    const aliases = PARCERIA_FIELD_ALIASES[fieldKey] || [fieldKey];
 
-    // 1. Match preciso.
-    for (const alias of aliases) {
-        if (parceria[alias] !== undefined && parceria[alias] !== null && String(parceria[alias]).trim() !== '') {
-            const value = parceria[alias];
-            if (fieldKey === 'responsible_user_name') return formatPersonName(String(value));
-            return value;
+    try {
+        const aliases = PARCERIA_FIELD_ALIASES[fieldKey] || [fieldKey];
+
+        // 1. Match preciso.
+        for (const alias of aliases) {
+            if (parceria[alias] !== undefined && parceria[alias] !== null && String(parceria[alias]).trim() !== '') {
+                const value = parceria[alias];
+                if (fieldKey === 'responsible_user_name') return formatPersonName(String(value));
+                return value;
+            }
         }
-    }
 
     // 2. Match normalizado (agressivo) — p.ex. "PGEA" == "pgea" == "Pgea".
-    const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalize = (s) => {
+        if (s == null) return '';
+        try {
+            return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+        } catch (e) {
+            if (typeof window !== 'undefined' && window.console) {
+                console.warn('[getParceriaField] normalize error', { s, fieldKey, e });
+            }
+            return '';
+        }
+    };
     const normalizedTargetAliases = aliases.map(normalize);
     const dbKeys = Object.keys(parceria);
 
@@ -73,7 +85,13 @@ export function getParceriaField(parceria, fieldKey) {
         }
     }
 
-    return fieldKey === 'extinguished' ? false : '';
+        return fieldKey === 'extinguished' ? false : '';
+    } catch (e) {
+        if (typeof window !== 'undefined' && window.console) {
+            console.error('[getParceriaField] CRASH', { parceria, fieldKey, e: e?.message, stack: e?.stack });
+        }
+        return fieldKey === 'extinguished' ? false : '';
+    }
 }
 
 /**

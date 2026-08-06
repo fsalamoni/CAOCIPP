@@ -34,19 +34,30 @@ export const EXPEDIENTE_FIELD_ALIASES = {
 export function getExpedienteField(exp, fieldKey) {
     if (!exp) return '';
 
-    const aliases = EXPEDIENTE_FIELD_ALIASES[fieldKey] || [fieldKey];
+    try {
+        const aliases = EXPEDIENTE_FIELD_ALIASES[fieldKey] || [fieldKey];
 
-    // 1. Precise Match
-    for (const alias of aliases) {
-        if (exp[alias] !== undefined && exp[alias] !== null && String(exp[alias]).trim() !== '') {
-            const value = exp[alias];
-            if (fieldKey === 'responsible_user_name') return formatPersonName(String(value));
-            return value;
+        // 1. Precise Match
+        for (const alias of aliases) {
+            if (exp[alias] !== undefined && exp[alias] !== null && String(exp[alias]).trim() !== '') {
+                const value = exp[alias];
+                if (fieldKey === 'responsible_user_name') return formatPersonName(String(value));
+                return value;
+            }
         }
-    }
 
     // 2. Normalized Match (Aggressive)
-    const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalize = (s) => {
+        if (s == null) return '';
+        try {
+            return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+        } catch (e) {
+            if (typeof window !== 'undefined' && window.console) {
+                console.warn('[getExpedienteField] normalize error', { s, fieldKey, e });
+            }
+            return '';
+        }
+    };
     const normalizedTargetAliases = aliases.map(normalize);
     const dbKeys = Object.keys(exp);
 
@@ -60,7 +71,13 @@ export function getExpedienteField(exp, fieldKey) {
         }
     }
 
-    return fieldKey === 'urgency_request' ? false : '';
+        return fieldKey === 'urgency_request' ? false : '';
+    } catch (e) {
+        if (typeof window !== 'undefined' && window.console) {
+            console.error('[getExpedienteField] CRASH', { exp, fieldKey, e: e?.message, stack: e?.stack });
+        }
+        return fieldKey === 'urgency_request' ? false : '';
+    }
 }
 
 /**
