@@ -145,8 +145,24 @@ const DEFAULT_COLUMNS = [
         key: 'status', label: 'Situação', defaultVisible: true, sortable: true,
         render: (p) => <StatusBadge status={calculateParceriaDerivedStatus(p)} />,
     },
-    {
-        key: 'stage_time', label: 'Tempo na etapa', defaultVisible: true, sortable: false,
+    // IMPORTANTE: a coluna 'stage_time' foi MOVIDA para dentro do componente
+    // (ver STAGE_TIME_COLUMN_FOR abaixo). Motivo: o `render` precisa acessar
+    // `stageTimeConfig` que é um useMemo local. Tê-lo dentro do array do
+    // módulo causava `ReferenceError: stageTimeConfig is not defined` quando
+    // a closure era executada no escopo do módulo.
+];
+
+/**
+ * Helper: retorna a definição da coluna 'stage_time' já com o render
+ * vinculado ao `stageTimeConfig` recebido. Usado dentro do componente
+ * ParceriaTable (onde `stageTimeConfig` está no escopo via useMemo).
+ */
+function getStageTimeColumn(stageTimeConfig) {
+    return {
+        key: 'stage_time',
+        label: 'Tempo na etapa',
+        defaultVisible: true,
+        sortable: false,
         render: (p) => {
             const status = calculateParceriaDerivedStatus(p);
             const days = getDaysInCurrentStage(p, status, getParceriaField, stageTimeConfig.dayType);
@@ -154,8 +170,8 @@ const DEFAULT_COLUMNS = [
             const severity = getStageTimeSeverity(days, stageTimeConfig);
             return <StageTimeBadge days={days} severity={severity} colors={stageTimeConfig.colors} dayType={stageTimeConfig.dayType} />;
         },
-    },
-];
+    };
+}
 
 /**
  * ParceriaTable — tabela completa no padrão de ExpedienteTable.
@@ -222,13 +238,22 @@ export default function ParceriaTable({
     // Filtra também pela flag STAGE_TIME_INDICATOR (a coluna "Tempo na etapa"
     // só aparece quando a flag está ligada).
     const visibleColumns = preferences?.visibleParceriaColumns || {};
+
+    // Lista completa de colunas incluindo a 'stage_time' (criada a partir
+    // do stageTimeConfig local). Usada tanto para activeColumns quanto
+    // para o toggle de visibilidade.
+    const allColumns = useMemo(() => {
+        const cols = [...DEFAULT_COLUMNS];
+        if (isStageIndicatorOn) cols.push(getStageTimeColumn(stageTimeConfig));
+        return cols;
+    }, [stageTimeConfig, isStageIndicatorOn]);
+
     const activeColumns = useMemo(
-        () => DEFAULT_COLUMNS.filter((c) => {
+        () => allColumns.filter((c) => {
             if (visibleColumns[c.key] === false) return false;
-            if (c.key === 'stage_time' && !isStageIndicatorOn) return false;
             return true;
         }),
-        [visibleColumns, isStageIndicatorOn]
+        [allColumns, visibleColumns]
     );
     const toggleColumn = useCallback((key) => {
         const current = preferences?.visibleParceriaColumns || {};
@@ -681,7 +706,7 @@ export default function ParceriaTable({
                         <PopoverContent align="end" className="w-72 p-3">
                             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Colunas visíveis</p>
                             <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                                {DEFAULT_COLUMNS.map((col) => (
+                                {allColumns.map((col) => (
                                     <label key={col.key} className="flex items-center gap-2 cursor-pointer text-sm py-1">
                                         <Checkbox
                                             checked={visibleColumns[col.key] !== false}
