@@ -945,11 +945,12 @@ export default function ParceriaKanbanBoard({
                             onDelete={canDelete ? handleDelete : null}
                             canDelete={canDelete}
                             isDeleting={isDeleting}
+                            organization={organization}
                         />
                     ))}
                 </div>
                 <DragOverlay dropAnimation={null}>
-                    {activeParceria ? <ParceriaKanbanCard parceria={activeParceria} overlay /> : null}
+                    {activeParceria ? <ParceriaKanbanCard parceria={activeParceria} overlay organization={organization} /> : null}
                 </DragOverlay>
             </DndContext>
 
@@ -1042,7 +1043,7 @@ export default function ParceriaKanbanBoard({
     );
 }
 
-function KanbanColumn({ column, parcerias, onViewDetails, onEdit, onDelete, canDelete, isDeleting }) {
+function KanbanColumn({ column, parcerias, onViewDetails, onEdit, onDelete, canDelete, isDeleting, organization }) {
     const { setNodeRef, isOver } = useDroppable({ id: column.id, data: { columnId: column.id } });
     const ColIcon = column.icon;
     return (
