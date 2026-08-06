@@ -294,7 +294,7 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
   }, [isGoalsOn, goalsConfig, myProcesses, myExpedientes]);
 
   // Normalize function name
-  const userFunc = (organization.userFunction || '').toLowerCase();
+  const userFunc = (organization.userFunction && typeof organization.userFunction === 'string' ? organization.userFunction : '').toLowerCase();
   const isAssessor = userFunc.includes('assessor') || userFunc.includes('assessoria');
   const isSecretaria = userFunc.includes('secretaria') || userFunc.includes('apoio');
   const isDecisor = userFunc.includes('decisor') || userFunc.includes('decisória') || userFunc.includes('promotor') || userFunc.includes('procurador');

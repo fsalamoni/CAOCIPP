@@ -27,6 +27,7 @@ import { parseLocalDate } from '@/lib/dateUtils';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { computeStageAverages, resolveStageTimeConfig } from '@/lib/stageTime';
+import { safeLower } from '@/lib/stringUtils';
 import ExpedienteKanbanCard from './ExpedienteKanbanCard';
 import ExpedienteKanbanTransitionDialog from './ExpedienteKanbanTransitionDialog';
 import ExpedienteDetailSheet from './ExpedienteDetailSheet';
@@ -402,12 +403,12 @@ export default function ExpedienteKanbanBoard({
         members.find(m => m.user_id === userId),
         [members, userId]
     );
-    const userFunc = (userMember?.function || '').toLowerCase();
+    const userFunc = safeLower(userMember?.function);
     const isAssessor = userFunc.includes('assessor') || userFunc.includes('assessoria');
 
     const assessors = useMemo(() =>
         members.filter(m => {
-            const fn = (m.function || '').toLowerCase();
+            const fn = safeLower(m.function);
             return fn.includes('assessor') || fn.includes('assessoria');
         }),
         [members]

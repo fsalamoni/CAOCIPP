@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { isValid } from 'date-fns';
 import { computeStageAverages, resolveStageTimeConfig } from '@/lib/stageTime';
+import { safeLower } from '@/lib/stringUtils';
 import {
     calculateParceriaDerivedStatus,
     getParceriaField,
@@ -299,7 +300,7 @@ export default function ParceriaKanbanBoard({
     // quem pode receber uma Parceria nova.
     const assessors = useMemo(() => {
         const fnFiltered = members.filter((m) => {
-            const fn = (m.function || '').toLowerCase();
+            const fn = safeLower(m.function);
             return fn.includes('assessor') || fn.includes('assessoria');
         });
         if (fnFiltered.length > 0) return fnFiltered;
