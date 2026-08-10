@@ -130,16 +130,28 @@ export const statusConfig = {
             groupHover: "group-hover:!bg-muted/60"
         }
     },
+};
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Status derivados do módulo de Parcerias (Convênio, Termo de Cooperação,
-    // Termo de Fomento). Chaves distintas das de Consultas/Expedientes — não
-    // há colisão, então adicioná-las aqui é inerte para os módulos existentes
-    // (que nunca produzem estas strings). A paleta espelha as colunas do
-    // Kanban de Parcerias (ParceriaKanbanBoard) para consistência entre as
-    // visões de lista e quadro. Só têm efeito quando a flag `parcerias_enabled`
-    // está ligada, pois apenas os componentes de Parcerias emitem estes status.
-    // ─────────────────────────────────────────────────────────────────────
+export const DEFAULT_STATUS_CONFIG = statusConfig['Pendente'];
+
+// ─────────────────────────────────────────────────────────────────────────
+// Configuração de status do módulo de Parcerias (Convênio, Termo de
+// Cooperação, Termo de Fomento).
+//
+// IMPORTANTE: mantida SEPARADA de `statusConfig` de propósito. Vários
+// consumidores iteram `Object.keys(statusConfig)` para montar as fases de
+// Consultas/Expedientes (ver dashboardMetrics.builtinPhases e
+// IntelligentSummary). Injetar status de Parcerias no mapa compartilhado
+// criaria "fases fantasma" nesses módulos. Este mapa dedicado é consumido
+// apenas pelos componentes de Parcerias (StatusBadge via prop `configMap`,
+// e ParceriaTable.getStatusRowColor), portanto só tem efeito com a flag
+// `parcerias_enabled` ligada.
+//
+// A paleta espelha as colunas do Kanban de Parcerias (ParceriaKanbanBoard)
+// para consistência entre as visões de lista e quadro.
+// ─────────────────────────────────────────────────────────────────────────
+export const parceriaStatusConfig = {
+    'Pendente': statusConfig['Pendente'],
     'Em análise': {
         color: '#fbbf24',
         label: 'Em análise',
@@ -246,5 +258,3 @@ export const statusConfig = {
         }
     },
 };
-
-export const DEFAULT_STATUS_CONFIG = statusConfig['Pendente'];

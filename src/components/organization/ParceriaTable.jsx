@@ -21,7 +21,7 @@ import { parseLocalDate } from '@/lib/dateUtils';
 import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark, Columns3, GitBranch, Lock, Settings2, Handshake } from 'lucide-react';
 import EmptyState from '../ui/EmptyState';
 import { SearchX, ClipboardList } from 'lucide-react';
-import { statusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
+import { parceriaStatusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import {
     Tooltip, TooltipContent, TooltipTrigger,
 } from '@/components/ui/tooltip';
@@ -143,7 +143,7 @@ const DEFAULT_COLUMNS = [
     },
     {
         key: 'status', label: 'Situação', defaultVisible: true, sortable: true,
-        render: (p) => <StatusBadge status={calculateParceriaDerivedStatus(p)} />,
+        render: (p) => <StatusBadge status={calculateParceriaDerivedStatus(p)} configMap={parceriaStatusConfig} />,
     },
     // IMPORTANTE: a coluna 'stage_time' foi MOVIDA para dentro do componente
     // (ver STAGE_TIME_COLUMN_FOR abaixo). Motivo: o `render` precisa acessar
@@ -293,7 +293,7 @@ export default function ParceriaTable({
                 ? { bg: 'bg-white dark:bg-slate-900', accent: 'border-l-red-500', border: 'border-b-border', hover: 'hover:bg-muted/60', groupHover: 'group-hover:!bg-muted/60' }
                 : { bg: 'bg-[#FF7979]', accent: 'border-l-[#CC0000]', border: 'border-b-[#E06666]', hover: 'hover:bg-[#FF6060]', groupHover: 'group-hover:!bg-[#FF6060]' };
         }
-        const config = statusConfig[status] || DEFAULT_STATUS_CONFIG;
+        const config = parceriaStatusConfig[status] || DEFAULT_STATUS_CONFIG;
         if (isV2) return config.rowV2 || DEFAULT_STATUS_CONFIG.rowV2;
         return config.row || DEFAULT_STATUS_CONFIG.row;
     }, [isV2]);

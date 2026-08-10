@@ -31,9 +31,13 @@ const ICONS = {
   'Extintos': Archive
 };
 
-export default function StatusBadge({ status, className, variant }) {
+export default function StatusBadge({ status, className, variant, configMap }) {
   const isNeutral = variant === 'neutral';
-  const config = statusConfig[status] || DEFAULT_STATUS_CONFIG;
+  // `configMap` permite que módulos com status próprios (ex.: Parcerias)
+  // forneçam sua paleta sem poluir o `statusConfig` compartilhado de
+  // Consultas/Expedientes. Default: mapa compartilhado.
+  const map = configMap || statusConfig;
+  const config = map[status] || statusConfig[status] || DEFAULT_STATUS_CONFIG;
   const Icon = ICONS[status] || AlertCircle;
 
   return (
