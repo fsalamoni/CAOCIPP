@@ -10,7 +10,11 @@ import {
   PenTool,
   CheckCircle,
   CheckCheck,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  Send,
+  Handshake,
+  Archive
 } from 'lucide-react';
 
 const ICONS = {
@@ -18,7 +22,13 @@ const ICONS = {
   'Em elaboração': FileText,
   'Em revisão': Eye,
   'Revisadas': CheckCheck,
-  'Na pasta': CheckCircle
+  'Na pasta': CheckCircle,
+  // Status do módulo de Parcerias (ícones espelham as colunas do Kanban).
+  'Em análise': Pencil,
+  'Aguarda Terceiros': Send,
+  'Revisão': Eye,
+  'Parcerias': Handshake,
+  'Extintos': Archive
 };
 
 export default function StatusBadge({ status, className, variant }) {
