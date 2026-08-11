@@ -3,59 +3,85 @@
         "rules": "firestore.rules",
         "indexes": "firestore.indexes.json"
     },
-    "hosting": {
-        "site": "consultascao",
-        "public": "dist",
-        "ignore": [
-            "firebase.json",
-            "**/.*",
-            "**/node_modules/**"
-        ],
-        "rewrites": [
-            {
-                "source": "**",
-                "destination": "/index.html"
-            }
-        ],
-        "headers": [
-            {
-                "source": "**",
-                "headers": [
-                    { "key": "X-Content-Type-Options", "value": "nosniff" },
-                    { "key": "X-Frame-Options", "value": "DENY" },
-                    { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-                    { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-                ]
-            },
-            {
-                "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "max-age=31536000"
-                    }
-                ]
-            },
-            {
-                "source": "**/*.@(js|css)",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "max-age=31536000"
-                    }
-                ]
-            },
-            {
-                "source": "/sw.js",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "no-cache"
-                    }
-                ]
-            }
-        ]
-    },
+    "hosting": [
+        {
+            "site": "consultascao",
+            "public": "dist-redirect",
+            "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+            ],
+            "redirects": [
+                {
+                    "source": "**",
+                    "destination": "https://sigo.web.app",
+                    "type": 301
+                }
+            ],
+            "headers": [
+                {
+                    "source": "**",
+                    "headers": [
+                        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+                    ]
+                }
+            ]
+        },
+        {
+            "site": "sigo",
+            "public": "dist",
+            "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+            ],
+            "rewrites": [
+                {
+                    "source": "**",
+                    "destination": "/index.html"
+                }
+            ],
+            "headers": [
+                {
+                    "source": "**",
+                    "headers": [
+                        { "key": "X-Content-Type-Options", "value": "nosniff" },
+                        { "key": "X-Frame-Options", "value": "DENY" },
+                        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+                        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+                    ]
+                },
+                {
+                    "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
+                    "headers": [
+                        {
+                            "key": "Cache-Control",
+                            "value": "max-age=31536000"
+                        }
+                    ]
+                },
+                {
+                    "source": "**/*.@(js|css)",
+                    "headers": [
+                        {
+                            "key": "Cache-Control",
+                            "value": "max-age=31536000"
+                        }
+                    ]
+                },
+                {
+                    "source": "/sw.js",
+                    "headers": [
+                        {
+                            "key": "Cache-Control",
+                            "value": "no-cache"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
     "functions": [
         {
             "source": "functions-v2",
