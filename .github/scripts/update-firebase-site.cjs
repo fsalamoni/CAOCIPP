@@ -21,6 +21,15 @@ if (Array.isArray(cfg.hosting)) {
       h.site = created;
       console.log(`  -> atualizado 'sigo' -> '${created}'`);
     }
+    // Também atualiza o destination do redirect do site legacy
+    if (Array.isArray(h.redirects)) {
+      for (const r of h.redirects) {
+        if (r.destination === 'https://sigo.web.app') {
+          r.destination = `https://${created}.web.app`;
+          console.log(`  -> redirect destination atualizado para 'https://${created}.web.app'`);
+        }
+      }
+    }
   }
 }
 

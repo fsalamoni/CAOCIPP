@@ -15,7 +15,7 @@
             "redirects": [
                 {
                     "source": "**",
-                    "destination": "https://sigo.web.app",
+                    "destination": "https://sigo-caocipp.web.app",
                     "type": 301
                 }
             ],

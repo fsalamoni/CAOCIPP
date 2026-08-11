@@ -9,7 +9,9 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 - **Frontend**: React 18 + Vite
 - **UI**: shadcn/ui + Tailwind CSS
 - **Backend**: Firebase (Auth + Firestore + Cloud Functions v2)
-- **Deploy**: Firebase Hosting → [sigo.web.app](https://sigo.web.app) (site principal) e [consultascao.web.app](https://consultascao.web.app) (redirect 301 → sigo.web.app)
+- **Deploy**: Firebase Hosting → [sigo-caocipp.web.app](https://sigo-caocipp.web.app) (site principal) e [consultascao.web.app](https://consultascao.web.app) (redirect 301 → sigo-caocipp.web.app)
+
+> **Nota sobre `sigo.web.app`**: o domínio `sigo.web.app` **não pode** ser custom domain de outro site Firebase porque `*.web.app` é reservado para projetos Firebase. O site `sigo-caocipp` é o site ID do nosso projeto. Para usar `sigo.web.app` como URL visível, seria preciso comprar um domínio customizado (ex: `sigo.mp.rs.gov.br`) e configurá-lo como custom domain do site `sigo-caocipp`.
 
 ## 📋 Funcionalidades
 
@@ -121,44 +123,62 @@ feature/*      ← Features específicas
 
 Este projeto usa **multi-hosting** no Firebase. Existem dois sites configurados em `firebase.json`:
 
-- **`sigo` (site principal)**: serve a aplicação completa em [sigo.web.app](https://sigo.web.app) — público `dist/`
-- **`consultascao` (legacy)**: redireciona TUDO (301) para `https://sigo.web.app` — público `dist-redirect/`
+- **`sigo-caocipp` (site principal)**: serve a aplicação completa em [sigo-caocipp.web.app](https://sigo-caocipp.web.app) — público `dist/`
+- **`consultascao` (legacy)**: redireciona TUDO (301) para `https://sigo-caocipp.web.app` — público `dist-redirect/`
 
-### Setup do site `sigo` (primeira vez)
+### Por que `sigo-caocipp` e não `sigo`?
 
-O site `sigo` precisa ser criado no Firebase **uma única vez**. Após isso, o deploy normal do CI/CD funciona para os dois sites automaticamente.
+O nome `sigo` está **reservado por outro projeto Firebase no mundo** (os site IDs são globais, não por projeto). O CI/CD detecta isso e cria automaticamente o `sigo-caocipp` (primeiro da lista de fallback). O `firebase.json` é atualizado dinamicamente para usar o ID real.
 
-**Importante**: o nome `sigo` está **reservado por outro projeto Firebase** (os site IDs são globais). O CI/CD tenta nesta ordem:
+### Por que não `sigo.web.app` como custom domain?
+
+O Firebase **NÃO permite** adicionar `xxx.web.app` como custom domain de outro site porque `*.web.app` é reservado para projetos Firebase. Para usar `sigo.web.app` como URL, seria preciso comprar um domínio customizado (ex: `sigo.mp.rs.gov.br`, `sigo.caocipp.com.br`) e configurá-lo como custom domain do site `sigo-caocipp`.
+
+### Setup do site `sigo-caocipp` (primeira vez)
+
+O site `sigo-caocipp` foi criado automaticamente em 11/08/2026 pelo CI/CD. Para referência, a ordem de tentativa é:
 1. `sigo` → preferido, mas geralmente está reservado
-2. `sigo-caocipp` → fallback 1 (criado automaticamente em 11/08/2026)
+2. `sigo-caocipp` → fallback 1 (criado em 11/08/2026)
 3. `sigo-mp-rs` → fallback 2
 4. `sigo-protagonista` → fallback 3
 
-O domínio `sigo.web.app` pode ser **custom domain** em qualquer site (não precisa ser o ID do site). Para isso:
+Se o site foi criado por outro motivo e precisa recriar manualmente:
 
-1. Acesse [Firebase Console → Hosting](https://console.firebase.google.com/project/protagonista-rpg/hosting/sites) → site `sigo-caocipp` → **Add custom domain**
-2. Digite `sigo.web.app` → o Firebase vai provisionar SSL automaticamente
-3. Pronto — `sigo.web.app` passa a servir a app via `sigo-caocipp`
+```bash
+firebase login
+firebase use protagonista-rpg
+firebase hosting:sites:create sigo-caocipp
+```
 
-**Verificação**:
+**Verificação dos domínios**:
 
-| Domínio | Status atual | O que serve |
+| Domínio | Status | O que serve |
 |---|---|---|
-| `consultascao.web.app` | ✅ 301 → `sigo.web.app` | Redirect legado (configurado em `firebase.json`) |
+| `consultascao.web.app` | ✅ 301 → `sigo-caocipp.web.app` | Redirect legado (configurado em `firebase.json`) |
 | `sigo-caocipp.web.app` | ✅ 200 OK | App real (site ID do Firebase) |
-| `sigo.web.app` | ⏳ 404 → precisa add custom domain | Após config no Console, vai servir a app |
 
 **Adicionar domínio autorizado no Firebase Auth:**
 
 1. Acesse [Firebase Console → Authentication → Settings → Authorized domains](https://console.firebase.google.com/project/protagonista-rpg/authentication/settings)
-2. Verifique se `sigo.web.app` está na lista (user já adicionou em 11/08/2026)
-3. Adicione `sigo-caocipp.web.app` também (enquanto o custom domain não está pronto)
+2. Confirme que tem na lista:
+   - `protagonista-rpg.firebaseapp.com` (default)
+   - `protagonista-rpg.web.app` (default)
+   - `sigo-caocipp.web.app` ← IMPORTANTE (você adicionou)
+   - `sigo.web.app` ← adicione também (mesmo que ainda dê 404, fica pronto para o custom domain)
 
 **Adicionar o site no OAuth Consent Screen (Google):**
 
 1. Acesse [Google Cloud Console → APIs & Services → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
 2. Atualize o nome do app para "SIGO - Sistema Interno de Gestão Operacional"
-3. Adicione `sigo-caocipp.web.app` nos **Authorized JavaScript origins**
+3. Adicione `sigo-caocipp.web.app` nos **Authorized domains**
+
+**Adicionar JavaScript origins (Google):**
+
+1. Acesse [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
+2. Encontre o **OAuth 2.0 Client ID** do projeto protagonista-rpg
+3. Em **Authorized JavaScript origins**, adicione:
+   - `https://sigo-caocipp.web.app` ← IMPORTANTE
+   - `https://sigo.web.app` ← IMPORTANTE
 
 ### Como o redirect funciona
 
@@ -168,13 +188,13 @@ O domínio `sigo.web.app` pode ser **custom domain** em qualquer site (não prec
 "redirects": [
   {
     "source": "**",
-    "destination": "https://sigo.web.app",
+    "destination": "https://sigo-caocipp.web.app",
     "type": 301
   }
 ]
 ```
 
-Qualquer requisição a `consultascao.web.app/qualquer-coisa` retorna **HTTP 301** com `Location: https://sigo.web.app`. O navegador segue o redirect automaticamente.
+Qualquer requisição a `consultascao.web.app/qualquer-coisa` retorna **HTTP 301** com `Location: https://sigo-caocipp.web.app`. O navegador segue o redirect automaticamente.
 
 ## 📁 Estrutura do Projeto
 
