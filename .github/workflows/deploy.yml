@@ -139,27 +139,76 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          # O site 'sigo' precisa existir no Firebase para o multi-hosting
-          # funcionar. Tentamos criar best-effort — se já existir, ignoramos.
-          # Se o deploy falhar mais tarde porque o site não foi criado, as
-          # instruções estão no README.
-          CREATE_ARGS="hosting:sites:create sigo --project protagonista-rpg --non-interactive"
-          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
-            CREATE_ARGS="$CREATE_ARGS --token $FIREBASE_TOKEN"
+          # O site 'sigo' pode estar reservado por outro projeto Firebase (os
+          # site IDs são globais). Tentamos nesta ordem:
+          #   1. 'sigo'            → preferido, mas pode estar reservado
+          #   2. 'sigo-caocipp'    → fallback 1
+          #   3. 'sigo-mp-rs'      → fallback 2
+          #   4. 'sigo-protagonista' → fallback 3
+          # O domínio 'sigo.web.app' pode ser custom domain em qualquer site
+          # (não precisa ser o ID do site).
+
+          TRY_NAMES=("sigo" "sigo-caocipp" "sigo-mp-rs" "sigo-protagonista")
+          CREATED_SITE=""
+
+          for SITE_NAME in "${TRY_NAMES[@]}"; do
+            echo "→ Tentando criar site: $SITE_NAME"
+            CREATE_ARGS="hosting:sites:create $SITE_NAME --project protagonista-rpg --non-interactive"
+            if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
+              CREATE_ARGS="$CREATE_ARGS --token $FIREBASE_TOKEN"
+            fi
+            set +e
+            OUT=$(npx firebase $CREATE_ARGS 2>&1)
+            CREATE_EXIT=$?
+            set -e
+            if echo "$OUT" | grep -qiE "already exists|already_exists"; then
+              echo "✓ Site '$SITE_NAME' já existe — usando este"
+              CREATED_SITE="$SITE_NAME"
+              break
+            elif [ $CREATE_EXIT -eq 0 ]; then
+              echo "✓ Site '$SITE_NAME' criado com sucesso"
+              CREATED_SITE="$SITE_NAME"
+              break
+            elif echo "$OUT" | grep -qiE "reserved by another project"; then
+              echo "✗ '$SITE_NAME' reservado por outro projeto — tentando próximo"
+              continue
+            else
+              echo "✗ Falha ao criar '$SITE_NAME':"
+              echo "$OUT" | head -5
+              continue
+            fi
+          done
+
+          if [ -z "$CREATED_SITE" ]; then
+            echo "::error::Nenhum dos nomes de site candidatos pôde ser criado."
+            echo "Veja o log acima para detalhes. Você pode:"
+            echo "  1. Tentar criar manualmente: firebase hosting:sites:create <nome>"
+            echo "  2. Adicionar o nome criado em firebase.json (campo 'site' do array hosting)"
+            exit 1
           fi
-          set +e
-          npx firebase $CREATE_ARGS 2>&1 | tee /tmp/site-create.log
-          CREATE_EXIT=$?
-          set -e
-          if grep -qiE "already exists|already_exists" /tmp/site-create.log; then
-            echo "✓ Site 'sigo' já existe — ok"
-          elif [ $CREATE_EXIT -eq 0 ]; then
-            echo "✓ Site 'sigo' criado com sucesso"
-          else
-            echo "::warning::Não foi possível criar o site 'sigo' automaticamente."
-            echo "Para criar manualmente: firebase hosting:sites:create sigo"
-            echo "O deploy pode falhar se o site 'sigo' não existir — mas o site"
-            echo "'consultascao' (com redirect 301) será deployado normalmente."
+
+          if [ "$CREATED_SITE" != "sigo" ]; then
+            echo "::warning::Site criado com nome '$CREATED_SITE' (não 'sigo' que está reservado)"
+            echo "Atualizando firebase.json para usar '$CREATED_SITE' como site ID."
+            # Atualiza dinamicamente o firebase.json para o nome do site criado.
+            # Substitui o bloco "site": "sigo" pelo nome real.
+            python3 - << PYEOF
+            import json, re
+            p = 'firebase.json'
+            with open(p) as f:
+                cfg = json.load(f)
+            if isinstance(cfg.get('hosting'), list):
+                for h in cfg['hosting']:
+                    if h.get('site') == 'sigo':
+                        h['site'] = '$CREATED_SITE'
+                        print(f"  → atualizado 'sigo' → '$CREATED_SITE'")
+            with open(p, 'w') as f:
+                json.dump(cfg, f, indent=4)
+                f.write('\n')
+            PYEOF
+            echo "⚠️ IMPORTANTE: este site ID '$CREATED_SITE' precisa virar o custom"
+            echo "   domain 'sigo.web.app' manualmente no Firebase Console:"
+            echo "   Hosting → site $CREATED_SITE → Add custom domain → sigo.web.app"
           fi
 
       - name: Deploy to Firebase (hosting + functions + firestore)
