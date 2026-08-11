@@ -25,6 +25,7 @@ const PROTECTED_ADITIVO_FIELDS = new Set([
     'anonymized_by',
 ]);
 exports.updateAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -62,11 +63,28 @@ exports.updateAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     for (const field of PROTECTED_ADITIVO_FIELDS) {
         delete changes[field];
     }
-    // Auto-preencher responsibility_date ao mudar assessor (mesma UX do create/update).
+    const todayStr = new Date().toISOString().split('T')[0];
+    // (3.1) Data de distribuição ao (re)atribuir assessor — em qualquer fase.
     if (changes.responsible_user_id &&
         changes.responsible_user_id !== aditivoData.responsible_user_id &&
-        !changes.responsibility_date) {
-        changes.responsibility_date = new Date().toISOString().split('T')[0];
+        !changes.distribution_date) {
+        changes.distribution_date = todayStr;
+    }
+    // Datas automáticas por fase-alvo — o aditivo segue as MESMAS fases da
+    // Parceria (item 2), então reaproveita o mesmo mapa de automações.
+    const autoDateByPhase = {
+        'Em análise': 'distribution_date',
+        'Em revisão': 'review_start_date',
+        'Revisadas': 'reviewed_date',
+        'Aguarda Terceiros': 'third_party_referral_date',
+        'Parcerias': 'third_party_return_date',
+        'Extintos': 'archived_date',
+    };
+    if (changes.status && autoDateByPhase[changes.status]) {
+        const f = autoDateByPhase[changes.status];
+        const already = (_a = changes[f]) !== null && _a !== void 0 ? _a : aditivoData[f];
+        if (!already)
+            changes[f] = todayStr;
     }
     if (typeof changes.responsible_user_name === 'string') {
         changes.responsible_user_name = (0, normalization_1.formatPersonName)(changes.responsible_user_name);
@@ -139,6 +157,22 @@ exports.updateAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     };
     changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
     await aditivoRef.update(changes);
+    // (Item 2) Espelha a FASE do aditivo corrente na Parceria pai, para que
+    // o Kanban (que lê os docs de parceria) mostre a parceria na fase em que
+    // o aditivo está. Só espelha quando este é o aditivo corrente e o status
+    // mudou. Best-effort — não deve falhar a atualização do aditivo.
+    if (nextStatus && parceriaData.current_additive_id === aditivoId) {
+        try {
+            await parceriaRef.update({
+                status: nextStatus,
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+                updated_by: userId,
+            });
+        }
+        catch (mirrorErr) {
+            console.error('[aditivo→parceria status mirror]', parceriaId, mirrorErr);
+        }
+    }
     // Dual-write do histórico do aditivo.
     try {
         await aditivoRef.collection('history').doc((0, history_1.historyEntryId)(logEntry)).set(Object.assign(Object.assign({}, logEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));

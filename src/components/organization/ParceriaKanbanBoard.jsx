@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-    Loader2, Inbox, Pencil, Send, Eye, Handshake, Archive, Plus, SlidersHorizontal,
+    Loader2, Inbox, Pencil, Send, Eye, CheckCheck, Handshake, Archive, Plus, SlidersHorizontal,
     FilterX, ArrowUpDown, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,7 +32,7 @@ import {
     hasAdditives,
 } from '@/utils/parceriaUtils';
 import {
-    updateParceria, deleteParceria,
+    updateParceria, updateAditivo, deleteParceria,
 } from '@/services/functionsService';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useUserPreferences, useAditivos } from '@/hooks/useFirestore';
@@ -73,6 +73,28 @@ const KANBAN_COLUMNS_BASE = [
         dotColor: 'bg-amber-400 dark:bg-amber-400',
     },
     {
+        id: 'Em revisão',
+        label: 'Em Revisão',
+        icon: Eye,
+        emptyText: 'Nenhuma parceria em revisão',
+        headerBg: 'bg-sky-50 dark:bg-sky-900',
+        headerBorder: 'border-sky-200 dark:border-sky-600',
+        headerText: 'text-sky-700 dark:text-sky-100',
+        columnBg: 'bg-sky-50/30 dark:bg-sky-950/30',
+        dotColor: 'bg-sky-400 dark:bg-sky-400',
+    },
+    {
+        id: 'Revisadas',
+        label: 'Revisadas',
+        icon: CheckCheck,
+        emptyText: 'Nenhuma parceria revisada',
+        headerBg: 'bg-violet-50 dark:bg-violet-900',
+        headerBorder: 'border-violet-200 dark:border-violet-600',
+        headerText: 'text-violet-700 dark:text-violet-100',
+        columnBg: 'bg-violet-50/30 dark:bg-violet-950/30',
+        dotColor: 'bg-violet-400 dark:bg-violet-400',
+    },
+    {
         id: 'Aguarda Terceiros',
         label: 'Aguarda Terceiros',
         icon: Send,
@@ -83,17 +105,6 @@ const KANBAN_COLUMNS_BASE = [
         columnBg: 'bg-cyan-50/30 dark:bg-cyan-950/30',
         dotColor: 'bg-cyan-400 dark:bg-cyan-400',
         conditional: 'thirdPartyPhaseEnabled',
-    },
-    {
-        id: 'Revisão',
-        label: 'Revisão',
-        icon: Eye,
-        emptyText: 'Nenhuma parceria em revisão',
-        headerBg: 'bg-sky-50 dark:bg-sky-900',
-        headerBorder: 'border-sky-200 dark:border-sky-600',
-        headerText: 'text-sky-700 dark:text-sky-100',
-        columnBg: 'bg-sky-50/30 dark:bg-sky-950/30',
-        dotColor: 'bg-sky-400 dark:bg-sky-400',
     },
     {
         id: 'Parcerias',
@@ -130,7 +141,7 @@ function resolveColumns(organization) {
 
 // Transições válidas para mover para frente, recalculadas quando colunas são
 // removidas. Pula "Aguarda Terceiros" indo direto de "Em análise" para
-// "Revisão" se a coluna intermediária for essa.
+// "Parcerias" se a coluna intermediária ("Aguarda Terceiros") for removida.
 function buildValidForward(columns) {
     const map = {};
     columns.forEach((c, i) => {
@@ -138,7 +149,9 @@ function buildValidForward(columns) {
         const skipOne = columns[i + 2]?.id;
         if (next) {
             map[i] = [i + 1];
-            if (skipOne && c.id === 'Em análise') map[i].push(i + 2);
+            // "Aguarda Terceiros" é opcional: de "Revisadas" pode-se ir direto
+            // para "Parcerias" (pulando a coluna de terceiros quando presente).
+            if (skipOne && c.id === 'Revisadas') map[i].push(i + 2);
         } else {
             map[i] = [];
         }
@@ -394,11 +407,21 @@ export default function ParceriaKanbanBoard({
 
     const filteredParcerias = useMemo(() => {
         return parcerias.filter((p) => {
-            // Filtro de ano: parcerias SEM data válida caem no ano atual (não somem).
-            const d = safeParseDate(getParceriaField(p, 'signature_date'))
-                || safeParseDate(getParceriaField(p, 'pgea_date'))
-                || safeParseDate(getParceriaField(p, 'created_at'));
-            if (d && d.getFullYear() !== selectedYear) return false;
+            // (Bug #2) Parcerias EM ANDAMENTO (Pendente → Aguarda Terceiros)
+            // aparecem SEMPRE no quadro, independentemente do ano — são trabalho
+            // ativo e não devem "sumir" só porque o PGEA é de um ano anterior.
+            // Apenas as FINALIZADAS (Parcerias/Extintos) são filtradas por ano,
+            // pela data de assinatura (fallback termo final/PGEA/criação), para
+            // não poluir o quadro com formalizações antigas.
+            const status = calculateParceriaDerivedStatus(p);
+            const isFinalized = status === 'Parcerias' || status === 'Extintos';
+            if (isFinalized) {
+                const d = safeParseDate(getParceriaField(p, 'signature_date'))
+                    || safeParseDate(getParceriaField(p, 'end_date'))
+                    || safeParseDate(getParceriaField(p, 'pgea_date'))
+                    || safeParseDate(getParceriaField(p, 'created_at'));
+                if (d && d.getFullYear() !== selectedYear) return false;
+            }
 
             // Filtros.
             const isUrgent = isUrgencyMarked(getParceriaField(p, 'urgency_request'));
@@ -423,7 +446,7 @@ export default function ParceriaKanbanBoard({
             if (grouped[status]) {
                 grouped[status].push(p);
             } else {
-                const fallback = grouped['Revisão'] || grouped['Em análise'] || grouped['Pendente'] || [];
+                const fallback = grouped['Em revisão'] || grouped['Em análise'] || grouped['Pendente'] || [];
                 fallback.push(p);
             }
         });
@@ -531,107 +554,103 @@ export default function ParceriaKanbanBoard({
         }
     }, [organization, detailOpen, detailParceria]);
 
-    // === Backward Move (rollback de campos por fase) ===
+    // Aplica uma mudança de fase no alvo correto: se a Parceria tem um aditivo
+    // corrente, é o ADITIVO que caminha pelas fases (item 2) — e o backend
+    // espelha a fase do aditivo de volta na Parceria pai. Caso contrário, muda
+    // a própria Parceria.
+    const applyPhaseChange = useCallback(async (parceria, changes) => {
+        const aditivoId = parceria?.current_additive_id;
+        const hasAditivo = (parceria?.aditivo_count || 0) > 0 && !!aditivoId;
+        if (hasAditivo) {
+            return updateAditivo({
+                parceriaId: parceria.id,
+                aditivoId,
+                organizationId: organization.id,
+                changes,
+            });
+        }
+        return updateParceria({ id: parceria.id, organizationId: organization.id, changes });
+    }, [organization]);
+
+    // Campos "marcadores" de cada fase — usados no rollback (limpar tudo das
+    // fases posteriores ao voltar). NÃO inclui `object` (conteúdo, não fase).
+    const PHASE_MARKER_FIELDS = {
+        'Em análise': { responsible_user_id: null, responsible_user_name: null, responsibility_date: null, distribution_date: null },
+        'Em revisão': { review_start_date: null, network_folder: '', observations: '' },
+        'Revisadas': { reviewed_date: null, review_conclusion_date: null },
+        'Aguarda Terceiros': { third_party_referral_date: null, third_party: null },
+        'Parcerias': {
+            third_party_return_date: null, partnership_type: null, partnership_number: null,
+            signature_date: null, publication_date: null, demp: null, validity_period: null,
+            end_date: null, renewal_notice_date: null,
+        },
+    };
+    const PHASE_SEQUENCE = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros', 'Parcerias', 'Extintos'];
+
+    // === Backward Move (rollback de campos das fases posteriores) ===
     const handleBackwardMove = useCallback(async (parceria, fromStatus, toStatus) => {
         const pgea = getParceriaField(parceria, 'pgea');
         const colLabel = columns_list.find((c) => c.id === toStatus)?.label || toStatus;
-        const rollbackByStatus = {
-            'Pendente': {
-                responsible_user_id: null,
-                responsible_user_name: null,
-                responsibility_date: null,
-                network_folder: '',
-                observations: '',
-                review_conclusion_date: null,
-                third_party: null,
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-                extinguished: false,
-            },
-            'Em análise': {
-                network_folder: '',
-                observations: '',
-                review_conclusion_date: null,
-                third_party: null,
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-            },
-            'Revisão': {
-                review_conclusion_date: null,
-                third_party: null,
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-            },
-            'Aguarda Terceiros': {
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-            },
-            'Parcerias': { extinguished: true },
-        };
-        const changes = { status: toStatus, ...(rollbackByStatus[toStatus] || {}) };
+        const targetIdx = PHASE_SEQUENCE.indexOf(toStatus);
+        const rollback = {};
+        // Limpa os marcadores de todas as fases APÓS a fase-alvo.
+        PHASE_SEQUENCE.forEach((phase, idx) => {
+            if (idx > targetIdx && PHASE_MARKER_FIELDS[phase]) {
+                Object.assign(rollback, PHASE_MARKER_FIELDS[phase]);
+            }
+        });
+        // Ao voltar de "Extintos" para qualquer fase anterior, "des-extingue".
+        if (fromStatus === 'Extintos') {
+            rollback.extinguished = false;
+            rollback.archived_date = null;
+        }
+        const changes = { status: toStatus, ...rollback };
         try {
-            await updateParceria({ id: parceria.id, organizationId: organization.id, changes });
+            await applyPhaseChange(parceria, changes);
             toast.success(`Parceria ${pgea} retornou para "${colLabel}".`);
         } catch (err) {
             toast.error('Erro ao mover Parceria: ' + err.message);
         }
-    }, [organization, columns_list]);
+    }, [organization, columns_list, applyPhaseChange]);
 
-    // === Forward Transition (abre diálogo intermediário) ===
+    // Transição direta (sem diálogo): usada quando a fase só registra uma data
+    // automática, sem campos manuais (ex.: "Revisadas" só registra a data de
+    // conclusão da revisão — item 3.4).
+    const handleDirectTransition = useCallback(async (parceria, toStatus) => {
+        const pgea = getParceriaField(parceria, 'pgea');
+        try {
+            await applyPhaseChange(parceria, { status: toStatus });
+            toast.success(`Parceria ${pgea} → "${toStatus}".`);
+        } catch (err) {
+            toast.error('Erro ao mover Parceria: ' + (err?.message || err));
+        }
+    }, [applyPhaseChange]);
+
+    // === Forward Transition (abre diálogo intermediário quando há campos) ===
     const handleForwardTransition = useCallback((parceria, fromStatus, toStatus) => {
-        if (fromStatus === 'Pendente' && toStatus === 'Em análise') {
+        const openDialog = (mode) => {
             setPendingParceria(parceria);
             setPendingTarget(toStatus);
-            setDialogMode('assign');
+            setDialogMode(mode);
             setDialogOpen(true);
+        };
+        if (fromStatus === 'Pendente' && toStatus === 'Em análise') return openDialog('assign');
+        if (fromStatus === 'Em análise' && toStatus === 'Em revisão') return openDialog('review');
+        if (fromStatus === 'Em revisão' && toStatus === 'Revisadas') {
+            // Item 3.4: só registra a data de conclusão (backend auto) — sem diálogo.
+            handleDirectTransition(parceria, 'Revisadas');
             return;
         }
-        if (fromStatus === 'Em análise' && toStatus === 'Revisão') {
-            setPendingParceria(parceria);
-            setPendingTarget(toStatus);
-            setDialogMode('review');
-            setDialogOpen(true);
-            return;
-        }
-        if (
-            (fromStatus === 'Em análise' || fromStatus === 'Revisão') &&
-            toStatus === 'Aguarda Terceiros'
-        ) {
-            setPendingParceria(parceria);
-            setPendingTarget(toStatus);
-            setDialogMode('third_party');
-            setDialogOpen(true);
-            return;
-        }
-        if (fromStatus === 'Aguarda Terceiros' && toStatus === 'Parcerias') {
-            setPendingParceria(parceria);
-            setPendingTarget(toStatus);
-            setDialogMode('formalize');
-            setDialogOpen(true);
-            return;
+        if (fromStatus === 'Revisadas' && toStatus === 'Aguarda Terceiros') return openDialog('third_party');
+        if (toStatus === 'Parcerias' && (fromStatus === 'Aguarda Terceiros' || fromStatus === 'Revisadas')) {
+            return openDialog('formalize');
         }
         if (fromStatus === 'Parcerias' && toStatus === 'Extintos') {
             setExtinguishTarget(parceria);
             setExtinguishOpen(true);
             return;
         }
-    }, []);
+    }, [handleDirectTransition]);
 
     const handleDragStart = useCallback((event) => setActiveId(event.active.id), []);
     const handleDragEnd = useCallback((event) => {
@@ -664,33 +683,42 @@ export default function ParceriaKanbanBoard({
         if (!pendingParceria || !pendingTarget) return;
         const pgea = getParceriaField(pendingParceria, 'pgea');
         const today = new Date().toISOString().split('T')[0];
+        // Datas automáticas (review_start_date, reviewed_date,
+        // third_party_referral_date, third_party_return_date) são registradas
+        // pelo BACKEND ao entrar na fase — o frontend só envia os campos manuais.
         let changes = {};
         if (dialogMode === 'assign') {
+            // (3.2) Em análise: assessor obrigatório → registra distribuição.
             changes = {
                 responsible_user_id: data.responsible_user_id,
                 responsible_user_name: data.responsible_user_name,
                 responsibility_date: data.responsibility_date || today,
+                distribution_date: data.distribution_date || today,
                 status: 'Em análise',
             };
         } else if (dialogMode === 'review') {
+            // (3.3) Em revisão: pasta na rede + observações (início auto no backend).
             changes = {
                 network_folder: data.network_folder || '',
                 observations: data.observations || '',
-                review_submission_date: today,
-                status: 'Revisão',
+                status: 'Em revisão',
             };
         } else if (dialogMode === 'third_party') {
+            // (3.5) Aguarda Terceiros: "Remetido para" (remessa auto no backend).
             changes = {
-                review_conclusion_date: data.review_conclusion_date || today,
                 third_party: data.third_party,
                 status: 'Aguarda Terceiros',
             };
         } else if (dialogMode === 'formalize') {
+            // (3.6) Parcerias: dados de formalização (retorno de terceiros auto).
             changes = {
                 partnership_type: data.partnership_type,
                 partnership_number: data.partnership_number,
                 signature_date: data.signature_date || today,
+                publication_date: data.publication_date || null,
+                demp: data.demp || '',
                 validity_period: data.validity_period,
+                object: data.object || '',
                 end_date: data.end_date,
                 renewal_notice_date: data.renewal_notice_date,
                 categoria: data.categoria,
@@ -698,18 +726,14 @@ export default function ParceriaKanbanBoard({
             };
         }
         try {
-            await updateParceria({
-                id: pendingParceria.id,
-                organizationId: organization.id,
-                changes: { ...changes, status: pendingTarget },
-            });
+            await applyPhaseChange(pendingParceria, { ...changes, status: pendingTarget });
             const messages = {
                 assign: `Parceria ${pgea} em análise!`,
                 review: `Parceria ${pgea} em revisão!`,
                 third_party: `Parceria ${pgea} remetida a terceiros!`,
                 formalize: `Parceria ${pgea} formalizada!`,
             };
-            toast.success(messages[dialogMode]);
+            toast.success(messages[dialogMode] || `Parceria ${pgea} atualizada!`);
         } catch (err) {
             toast.error('Erro ao atualizar Parceria: ' + err.message);
             throw err;

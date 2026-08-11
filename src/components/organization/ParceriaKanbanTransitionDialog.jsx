@@ -44,9 +44,11 @@ export default function ParceriaKanbanTransitionDialog({
     const [selectedAssessor, setSelectedAssessor] = useState(defaultAssessor);
     const [observations, setObservations] = useState('');
     const [networkFolder, setNetworkFolder] = useState('');
-    const [reviewConclusaoDate, setReviewConclusaoDate] = useState(new Date().toISOString().split('T')[0]);
     const [thirdParty, setThirdParty] = useState('');
     const [signatureDate, setSignatureDate] = useState(new Date().toISOString().split('T')[0]);
+    const [publicationDate, setPublicationDate] = useState('');
+    const [demp, setDemp] = useState('');
+    const [objectText, setObjectText] = useState('');
     const [partnershipType, setPartnershipType] = useState('');
     const [partnershipNumber, setPartnershipNumber] = useState('');
     const [validityPeriod, setValidityPeriod] = useState('');
@@ -76,7 +78,6 @@ export default function ParceriaKanbanTransitionDialog({
                 });
             } else if (mode === 'third_party') {
                 await onConfirm({
-                    review_conclusion_date: reviewConclusaoDate,
                     third_party: thirdParty,
                 });
             } else if (mode === 'formalize') {
@@ -84,7 +85,10 @@ export default function ParceriaKanbanTransitionDialog({
                     partnership_type: partnershipType,
                     partnership_number: partnershipNumber.trim(),
                     signature_date: signatureDate,
+                    publication_date: publicationDate,
+                    demp: demp.trim(),
                     validity_period: validityPeriod.trim(),
+                    object: objectText.trim(),
                     end_date: endDate,
                     renewal_notice_date: renewalNoticeDate,
                 });
@@ -101,9 +105,11 @@ export default function ParceriaKanbanTransitionDialog({
         setSelectedAssessor('');
         setObservations('');
         setNetworkFolder('');
-        setReviewConclusaoDate(new Date().toISOString().split('T')[0]);
         setThirdParty('');
         setSignatureDate(new Date().toISOString().split('T')[0]);
+        setPublicationDate('');
+        setDemp('');
+        setObjectText('');
         setPartnershipType('');
         setPartnershipNumber('');
         setValidityPeriod('');
@@ -116,13 +122,16 @@ export default function ParceriaKanbanTransitionDialog({
     const isValid = () => {
         if (mode === 'assign') return !!selectedAssessor;
         if (mode === 'review') return observations.trim().length > 0 && networkFolder.trim().length > 0;
-        if (mode === 'third_party') return !!reviewConclusaoDate && !!thirdParty;
+        if (mode === 'third_party') return !!thirdParty;
         if (mode === 'formalize') {
             return (
                 !!partnershipType &&
                 partnershipNumber.trim().length > 0 &&
                 !!signatureDate &&
+                !!publicationDate &&
+                demp.trim().length > 0 &&
                 validityPeriod.trim().length > 0 &&
+                objectText.trim().length > 0 &&
                 !!endDate &&
                 !!renewalNoticeDate
             );
@@ -138,10 +147,10 @@ export default function ParceriaKanbanTransitionDialog({
     };
 
     const descriptions = {
-        assign: 'Escolha o assessor responsável e a data de responsabilidade.',
-        review: 'Preencha os campos obrigatórios para enviar a Parceria para revisão.',
-        third_party: 'Preencha os campos para remeter a Parceria a um terceiro.',
-        formalize: 'Preencha os dados de formalização da Parceria.',
+        assign: 'Escolha o assessor responsável. A data de distribuição é registrada automaticamente.',
+        review: 'Preencha os campos obrigatórios. A data de início da revisão é registrada automaticamente.',
+        third_party: 'Informe para quem a Parceria foi remetida. A data da remessa é registrada automaticamente.',
+        formalize: 'Preencha os dados de formalização. A data de retorno de terceiros é registrada automaticamente.',
     };
 
     return (
@@ -208,30 +217,19 @@ export default function ParceriaKanbanTransitionDialog({
                     )}
 
                     {mode === 'third_party' && (
-                        <>
-                            <div>
-                                <Label>Data de Conclusão da Revisão <span className="text-rose-500">*</span></Label>
-                                <Input
-                                    type="date"
-                                    value={reviewConclusaoDate}
-                                    onChange={(e) => setReviewConclusaoDate(e.target.value)}
-                                    className="mt-1"
-                                />
-                            </div>
-                            <div>
-                                <Label>Terceiro <span className="text-rose-500">*</span></Label>
-                                <Select value={thirdParty} onValueChange={setThirdParty}>
-                                    <SelectTrigger className="mt-1">
-                                        <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {thirdParties.map((tp) => (
-                                            <SelectItem key={tp} value={tp}>{tp}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </>
+                        <div>
+                            <Label>Remetido para <span className="text-rose-500">*</span></Label>
+                            <Select value={thirdParty} onValueChange={setThirdParty}>
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {thirdParties.map((tp) => (
+                                        <SelectItem key={tp} value={tp}>{tp}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     )}
 
                     {mode === 'formalize' && (
@@ -269,12 +267,42 @@ export default function ParceriaKanbanTransitionDialog({
                                     />
                                 </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <Label>Data da Publicação <span className="text-rose-500">*</span></Label>
+                                    <Input
+                                        type="date"
+                                        value={publicationDate}
+                                        onChange={(e) => setPublicationDate(e.target.value)}
+                                        className="mt-1"
+                                    />
+                                </div>
+                                <div>
+                                    <Label>DEMP <span className="text-rose-500">*</span></Label>
+                                    <Input
+                                        value={demp}
+                                        onChange={(e) => setDemp(e.target.value)}
+                                        placeholder="DEMP"
+                                        className="mt-1"
+                                    />
+                                </div>
+                            </div>
                             <div>
                                 <Label>Vigência <span className="text-rose-500">*</span></Label>
                                 <Input
                                     value={validityPeriod}
                                     onChange={(e) => setValidityPeriod(e.target.value)}
                                     placeholder="Ex.: 12 meses"
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <Label>Objeto <span className="text-rose-500">*</span></Label>
+                                <Textarea
+                                    value={objectText}
+                                    onChange={(e) => setObjectText(e.target.value)}
+                                    rows={3}
+                                    placeholder="Descreva o objeto da Parceria..."
                                     className="mt-1"
                                 />
                             </div>

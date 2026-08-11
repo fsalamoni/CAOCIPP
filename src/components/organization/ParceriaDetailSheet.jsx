@@ -99,21 +99,32 @@ export default function ParceriaDetailSheet({
     const isUrgent = parceria?.urgency_request === true
         || String(parceria?.urgency_request).toLowerCase().trim() === 'sim';
 
+    // Timeline no fluxo canônico das fases:
+    // Pendente → Em análise → Em revisão → Revisadas → Aguarda Terceiros
+    //          → Parcerias → Extintos
     const timelineSteps = isViewingAdditive
         ? [
             { label: 'Aditivo criado', key: 'created_at', icon: GitBranch },
-            { label: 'Data de Responsabilidade', key: 'responsibility_date', icon: User },
-            { label: 'Pasta na Rede', key: 'network_folder', icon: FileText },
-            { label: 'Conclusão da Revisão', key: 'review_conclusion_date', icon: Eye },
+            { label: 'Distribuição', key: 'distribution_date', icon: Send },
+            { label: 'Entrada em Análise', key: 'responsibility_date', icon: User },
+            { label: 'Início da Revisão', key: 'review_start_date', icon: FileText },
+            { label: 'Conclusão da Revisão', key: 'reviewed_date', icon: Eye },
+            { label: 'Remessa a Terceiros', key: 'third_party_referral_date', icon: Send },
+            { label: 'Retorno de Terceiros', key: 'third_party_return_date', icon: CheckCircle2 },
             { label: 'Data da Assinatura', key: 'signature_date', icon: CheckCircle2 },
+            { label: 'Arquivamento', key: 'archived_date', icon: Archive },
         ]
         : [
             { label: 'PGEA recebido', key: 'pgea_date', icon: Calendar },
-            { label: 'Data de Responsabilidade', key: 'responsibility_date', icon: User },
-            { label: 'Pasta na Rede', key: 'network_folder', icon: FileText },
-            { label: 'Conclusão da Revisão', key: 'review_conclusion_date', icon: Eye },
+            { label: 'Distribuição', key: 'distribution_date', icon: Send },
+            { label: 'Entrada em Análise', key: 'responsibility_date', icon: User },
+            { label: 'Início da Revisão', key: 'review_start_date', icon: FileText },
+            { label: 'Conclusão da Revisão', key: 'reviewed_date', icon: Eye },
+            { label: 'Remessa a Terceiros', key: 'third_party_referral_date', icon: Send },
+            { label: 'Retorno de Terceiros', key: 'third_party_return_date', icon: CheckCircle2 },
             { label: 'Data da Assinatura', key: 'signature_date', icon: CheckCircle2 },
             { label: 'Termo Final', key: 'end_date', icon: Calendar },
+            { label: 'Arquivamento', key: 'archived_date', icon: Archive },
         ];
 
     return (
@@ -321,6 +332,10 @@ export default function ParceriaDetailSheet({
                                     <DetailItem label="Categoria" value={getParceriaField(viewing, 'categoria')} />
                                 )}
                                 <DetailItem label="Assinatura" value={formatDate(getParceriaField(viewing, 'signature_date'))} />
+                                <DetailItem label="Publicação" value={formatDate(getParceriaField(viewing, 'publication_date'))} />
+                                {getParceriaField(viewing, 'demp') && (
+                                    <DetailItem label="DEMP" value={getParceriaField(viewing, 'demp')} />
+                                )}
                                 <DetailItem label="Vigência" value={getParceriaField(viewing, 'validity_period')} />
                                 <DetailItem label="Termo Final" value={formatDate(getParceriaField(viewing, 'end_date'))} />
                                 <DetailItem label="Aviso Renovação" value={formatDate(getParceriaField(viewing, 'renewal_notice_date'))} />
@@ -331,16 +346,22 @@ export default function ParceriaDetailSheet({
                     {/* Terceiros */}
                     {getParceriaField(viewing, 'third_party') && (
                         <Section title="Terceiros">
-                            <div className="pt-2">
+                            <div className="pt-2 grid grid-cols-2 gap-2">
                                 <DetailItem
                                     icon={Send}
-                                    label="Terceiro"
+                                    label="Remetido para"
                                     value={getParceriaField(viewing, 'third_party')}
                                 />
-                                {getParceriaField(viewing, 'review_conclusion_date') && (
+                                {getParceriaField(viewing, 'third_party_referral_date') && (
                                     <DetailItem
-                                        label="Conclusão da Revisão"
-                                        value={formatDate(getParceriaField(viewing, 'review_conclusion_date'))}
+                                        label="Remessa a Terceiros"
+                                        value={formatDate(getParceriaField(viewing, 'third_party_referral_date'))}
+                                    />
+                                )}
+                                {getParceriaField(viewing, 'third_party_return_date') && (
+                                    <DetailItem
+                                        label="Retorno de Terceiros"
+                                        value={formatDate(getParceriaField(viewing, 'third_party_return_date'))}
                                     />
                                 )}
                             </div>

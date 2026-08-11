@@ -23,10 +23,13 @@ import { FEATURE_FLAGS } from '@/constants/featureFlags';
 const STATUS_PILL = {
     'Pendente': 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600',
     'Em análise': 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900 dark:text-amber-100 dark:border-amber-700',
-    'Revisão': 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900 dark:text-sky-100 dark:border-sky-700',
+    'Em revisão': 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900 dark:text-sky-100 dark:border-sky-700',
+    'Revisadas': 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900 dark:text-violet-100 dark:border-violet-700',
     'Aguarda Terceiros': 'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-900 dark:text-cyan-100 dark:border-cyan-700',
     'Parcerias': 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900 dark:text-emerald-100 dark:border-emerald-700',
     'Extintos': 'bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-500',
+    // Compat com registros legados rotulados "Revisão".
+    'Revisão': 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900 dark:text-sky-100 dark:border-sky-700',
 };
 
 const PARTNERSHIP_TYPE_LABEL = {

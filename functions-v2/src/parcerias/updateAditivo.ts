@@ -78,13 +78,31 @@ export const updateAditivo = onCall<UpdateAditivoRequest>(
             delete changes[field];
         }
 
-        // Auto-preencher responsibility_date ao mudar assessor (mesma UX do create/update).
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // (3.1) Data de distribuição ao (re)atribuir assessor — em qualquer fase.
         if (
             changes.responsible_user_id &&
             changes.responsible_user_id !== aditivoData.responsible_user_id &&
-            !changes.responsibility_date
+            !changes.distribution_date
         ) {
-            changes.responsibility_date = new Date().toISOString().split('T')[0];
+            changes.distribution_date = todayStr;
+        }
+
+        // Datas automáticas por fase-alvo — o aditivo segue as MESMAS fases da
+        // Parceria (item 2), então reaproveita o mesmo mapa de automações.
+        const autoDateByPhase: Record<string, string> = {
+            'Em análise': 'distribution_date',
+            'Em revisão': 'review_start_date',
+            'Revisadas': 'reviewed_date',
+            'Aguarda Terceiros': 'third_party_referral_date',
+            'Parcerias': 'third_party_return_date',
+            'Extintos': 'archived_date',
+        };
+        if (changes.status && autoDateByPhase[changes.status]) {
+            const f = autoDateByPhase[changes.status];
+            const already = changes[f] ?? aditivoData[f];
+            if (!already) changes[f] = todayStr;
         }
 
         if (typeof changes.responsible_user_name === 'string') {
@@ -164,6 +182,22 @@ export const updateAditivo = onCall<UpdateAditivoRequest>(
         changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
 
         await aditivoRef.update(changes);
+
+        // (Item 2) Espelha a FASE do aditivo corrente na Parceria pai, para que
+        // o Kanban (que lê os docs de parceria) mostre a parceria na fase em que
+        // o aditivo está. Só espelha quando este é o aditivo corrente e o status
+        // mudou. Best-effort — não deve falhar a atualização do aditivo.
+        if (nextStatus && parceriaData.current_additive_id === aditivoId) {
+            try {
+                await parceriaRef.update({
+                    status: nextStatus,
+                    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+                    updated_by: userId,
+                });
+            } catch (mirrorErr) {
+                console.error('[aditivo→parceria status mirror]', parceriaId, mirrorErr);
+            }
+        }
 
         // Dual-write do histórico do aditivo.
         try {

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Loader2, GitBranch } from 'lucide-react';
 import { addAditivo } from '@/services/functionsService';
 import { toast } from 'sonner';
@@ -45,7 +46,15 @@ export default function CreateAditivoDialog({
     );
 
     const [type, setType] = useState(tipos[0] || DEFAULT_ADITIVO_TIPOS[0]);
+    // (3.8) PGEA do aditivo: começa com o PGEA da Parceria (herdado), mas pode
+    // ser editado para um PGEA próprio do aditivo.
+    const [aditivoPgea, setAditivoPgea] = useState(parceria?.pgea || '');
     const [saving, setSaving] = useState(false);
+
+    // Sincroniza o PGEA herdado quando a Parceria muda / o modal reabre.
+    React.useEffect(() => {
+        if (open) setAditivoPgea(parceria?.pgea || '');
+    }, [open, parceria?.pgea]);
 
     // Garante que o tipo inicial sempre exista na lista (caso o admin troque
     // as configs enquanto o modal está aberto).
@@ -67,6 +76,8 @@ export default function CreateAditivoDialog({
                 organizationId,
                 aditivoType: type,
                 aditivoTypeLabel: type,
+                // Vazio → backend herda o PGEA da Parceria original.
+                aditivoPgea: aditivoPgea.trim(),
             });
             toast.success(`Aditivo #${result.aditivoNumber} criado!`);
             onSuccess?.(result);
@@ -95,6 +106,19 @@ export default function CreateAditivoDialog({
                 </DialogHeader>
 
                 <div className="space-y-2 py-2">
+                    <div className="mb-3">
+                        <Label htmlFor="aditivo_pgea">PGEA do Aditivo</Label>
+                        <Input
+                            id="aditivo_pgea"
+                            value={aditivoPgea}
+                            onChange={(e) => setAditivoPgea(e.target.value)}
+                            placeholder="PGEA próprio do aditivo"
+                            className="mt-1"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">
+                            Por padrão, herda o PGEA da Parceria. Edite para um PGEA próprio do aditivo.
+                        </p>
+                    </div>
                     <Label>Tipo de Aditivo</Label>
                     <div className="space-y-2 max-h-[40vh] overflow-y-auto">
                         {tipos.map((t) => (
