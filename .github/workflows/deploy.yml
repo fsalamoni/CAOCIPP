@@ -134,6 +134,34 @@ jobs:
           [ -n "$BILLING_BQ_TABLE" ] && printf 'BILLING_BQ_TABLE=%s\n' "$BILLING_BQ_TABLE" >> "$ENV_FILE"
           echo "$(wc -l < "$ENV_FILE") variável(is) de ambiente escrita(s) em $ENV_FILE."
 
+      - name: Ensure Hosting sites exist (create 'sigo' if missing)
+        if: steps.pre.outputs.ready == 'true'
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          # O site 'sigo' precisa existir no Firebase para o multi-hosting
+          # funcionar. Tentamos criar best-effort — se já existir, ignoramos.
+          # Se o deploy falhar mais tarde porque o site não foi criado, as
+          # instruções estão no README.
+          CREATE_ARGS="hosting:sites:create sigo --project protagonista-rpg --non-interactive"
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
+            CREATE_ARGS="$CREATE_ARGS --token $FIREBASE_TOKEN"
+          fi
+          set +e
+          npx firebase $CREATE_ARGS 2>&1 | tee /tmp/site-create.log
+          CREATE_EXIT=$?
+          set -e
+          if grep -qiE "already exists|already_exists" /tmp/site-create.log; then
+            echo "✓ Site 'sigo' já existe — ok"
+          elif [ $CREATE_EXIT -eq 0 ]; then
+            echo "✓ Site 'sigo' criado com sucesso"
+          else
+            echo "::warning::Não foi possível criar o site 'sigo' automaticamente."
+            echo "Para criar manualmente: firebase hosting:sites:create sigo"
+            echo "O deploy pode falhar se o site 'sigo' não existir — mas o site"
+            echo "'consultascao' (com redirect 301) será deployado normalmente."
+          fi
+
       - name: Deploy to Firebase (hosting + functions + firestore)
         if: steps.pre.outputs.ready == 'true'
         env:
