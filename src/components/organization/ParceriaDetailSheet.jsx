@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StatusBadge from "@/components/ui/StatusBadge";
+import { parceriaStatusConfig } from "@/config/processStatus";
 import { Pencil, Calendar, User, FileText, GitBranch, Archive, Send, CheckCircle2, Eye, Lock, AlertCircle, ClipboardList, Trash2 } from 'lucide-react';
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -193,7 +194,7 @@ export default function ParceriaDetailSheet({
                         </div>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
-                        <StatusBadge status={status} />
+                        <StatusBadge status={status} configMap={parceriaStatusConfig} />
                         {isViewingAdditive && (
                             <span className="text-xs text-amber-700 font-semibold">
                                 Vendo Aditivo #{selectedAdditive.aditivo_number}

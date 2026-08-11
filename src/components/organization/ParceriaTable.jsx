@@ -9,7 +9,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card } from '@/components/ui/card';
 import StatusBadge from "@/components/ui/StatusBadge";
 import StageTimeBadge from "@/components/ui/StageTimeBadge";
 import { useUserPreferences } from '@/hooks/useFirestore';
@@ -19,9 +18,10 @@ import { format, isValid, startOfDay, endOfDay } from 'date-fns';
 import { getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from '@/lib/stageTime';
 import { ptBR } from 'date-fns/locale';
 import { parseLocalDate } from '@/lib/dateUtils';
-import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark, Columns3, GitBranch, Lock, FileText, FileSpreadsheet } from 'lucide-react';
+import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark, Columns3, GitBranch, Lock, Settings2, Handshake } from 'lucide-react';
 import EmptyState from '../ui/EmptyState';
 import { SearchX, ClipboardList } from 'lucide-react';
+import { parceriaStatusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
 import {
     Tooltip, TooltipContent, TooltipTrigger,
 } from '@/components/ui/tooltip';
@@ -143,7 +143,7 @@ const DEFAULT_COLUMNS = [
     },
     {
         key: 'status', label: 'Situação', defaultVisible: true, sortable: true,
-        render: (p) => <StatusBadge status={calculateParceriaDerivedStatus(p)} />,
+        render: (p) => <StatusBadge status={calculateParceriaDerivedStatus(p)} configMap={parceriaStatusConfig} />,
     },
     // IMPORTANTE: a coluna 'stage_time' foi MOVIDA para dentro do componente
     // (ver STAGE_TIME_COLUMN_FOR abaixo). Motivo: o `render` precisa acessar
@@ -221,6 +221,7 @@ export default function ParceriaTable({
     const [statusFilter, setStatusFilter] = useState('all');
     const [responsibleFilter, setResponsibleFilter] = useState('all');
     const [aditivoFilter, setAditivoFilter] = useState('all');
+    const [urgencyFilter, setUrgencyFilter] = useState('all');
     const [dateFilters, setDateFilters] = useState({
         signature: { start: '', end: '' },
         end: { start: '', end: '' },
@@ -248,18 +249,54 @@ export default function ParceriaTable({
         return cols;
     }, [stageTimeConfig, isStageIndicatorOn]);
 
+    // Visibilidade efetiva de uma coluna: quando o usuário nunca configurou,
+    // respeita o `defaultVisible` da definição (espelho de ExpedienteTable, que
+    // inicializa o mapa a partir de defaultVisible).
+    const isColumnVisible = useCallback((col) => {
+        const pref = visibleColumns[col.key];
+        if (pref === undefined) return col.defaultVisible !== false;
+        return pref !== false;
+    }, [visibleColumns]);
+
     const activeColumns = useMemo(
-        () => allColumns.filter((c) => {
-            if (visibleColumns[c.key] === false) return false;
-            return true;
-        }),
-        [allColumns, visibleColumns]
+        () => allColumns.filter(isColumnVisible),
+        [allColumns, isColumnVisible]
     );
     const toggleColumn = useCallback((key) => {
         const current = preferences?.visibleParceriaColumns || {};
-        const next = { ...current, [key]: current[key] === false ? true : false };
+        const col = allColumns.find((c) => c.key === key);
+        const currentlyVisible = current[key] === undefined
+            ? (col?.defaultVisible !== false)
+            : current[key] !== false;
+        const next = { ...current, [key]: !currentlyVisible };
         updatePreferences({ visibleParceriaColumns: next });
-    }, [preferences, updatePreferences]);
+    }, [preferences, updatePreferences, allColumns]);
+    const resetColumns = useCallback(() => {
+        updatePreferences({ visibleParceriaColumns: {} });
+    }, [updatePreferences]);
+
+    // Largura mínima da tabela (espelho de ExpedienteTable): garante scroll
+    // horizontal em telas estreitas em vez de espremer as colunas.
+    const tableMinWidth = useMemo(() => {
+        const base = isBulkActionsOn ? 40 : 0;
+        return base + (activeColumns.length * 150) + 80;
+    }, [activeColumns.length, isBulkActionsOn]);
+
+    // Cor da linha por status (espelho de ExpedienteTable → getStatusRowColor).
+    // Usa a mesma fonte de verdade de cores (config/processStatus) já estendida
+    // com os status de Parcerias. Em V2 usa o acento lateral minimalista.
+    const getStatusRowColor = useCallback((p) => {
+        const status = calculateParceriaDerivedStatus(p);
+        const isUrgent = isUrgencyMarked(getParceriaField(p, 'urgency_request'));
+        if (isUrgent && (status === 'Pendente' || !status)) {
+            return isV2
+                ? { bg: 'bg-white dark:bg-slate-900', accent: 'border-l-red-500', border: 'border-b-border', hover: 'hover:bg-muted/60', groupHover: 'group-hover:!bg-muted/60' }
+                : { bg: 'bg-[#FF7979]', accent: 'border-l-[#CC0000]', border: 'border-b-[#E06666]', hover: 'hover:bg-[#FF6060]', groupHover: 'group-hover:!bg-[#FF6060]' };
+        }
+        const config = parceriaStatusConfig[status] || DEFAULT_STATUS_CONFIG;
+        if (isV2) return config.rowV2 || DEFAULT_STATUS_CONFIG.rowV2;
+        return config.row || DEFAULT_STATUS_CONFIG.row;
+    }, [isV2]);
 
     // Disponível: tipos / responsáveis / aditivos.
     const availableTypes = useMemo(() => {
@@ -312,6 +349,10 @@ export default function ParceriaTable({
                 return aditivoFilter === 'yes' ? has : !has;
             });
         }
+        if (urgencyFilter !== 'all') {
+            const wantUrgent = urgencyFilter === 'sim' || urgencyFilter === 'urgent';
+            out = out.filter((p) => isUrgencyMarked(getParceriaField(p, 'urgency_request')) === wantUrgent);
+        }
         // Filtros por data de assinatura / termo final.
         const inRange = (val, range) => {
             if (!val) return true;
@@ -346,7 +387,7 @@ export default function ParceriaTable({
             return 0;
         });
         return sorted;
-    }, [parcerias, search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, dateFilters, sortRules]);
+    }, [parcerias, search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters, sortRules]);
 
     function getSortValue(p, key) {
         if (key === 'status') return calculateParceriaDerivedStatus(p);
@@ -366,7 +407,7 @@ export default function ParceriaTable({
         return filteredAndSorted.slice(start, start + itemsPerPage);
     }, [filteredAndSorted, currentPage, itemsPerPage]);
 
-    useEffect(() => { setCurrentPage(1); }, [search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, dateFilters]);
+    useEffect(() => { setCurrentPage(1); }, [search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters]);
     useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [totalPages, currentPage]);
 
     // Ações.
@@ -376,8 +417,22 @@ export default function ParceriaTable({
         setStatusFilter('all');
         setResponsibleFilter('all');
         setAditivoFilter('all');
+        setUrgencyFilter('all');
         setDateFilters({ signature: { start: '', end: '' }, end: { start: '', end: '' } });
     };
+
+    // Deep-link vindo do Dashboard / sidebar (?filter=urgent|mine), espelho de
+    // ExpedienteTable: aplica o filtro inicial uma única vez.
+    useEffect(() => {
+        if (initialFilter === 'urgent') {
+            setUrgencyFilter('sim');
+        } else if (initialFilter === 'mine') {
+            const currentUserMember = members.find((m) => m.user_id === userId);
+            if (currentUserMember?.user_name) {
+                setResponsibleFilter(currentUserMember.user_name);
+            }
+        }
+    }, [initialFilter, userId, members]);
 
     const handleSort = (key) => {
         setSortRules((prev) => {
@@ -498,6 +553,7 @@ export default function ParceriaTable({
         if (view.statusFilter) setStatusFilter(view.statusFilter);
         if (view.responsibleFilter) setResponsibleFilter(view.responsibleFilter);
         if (view.aditivoFilter) setAditivoFilter(view.aditivoFilter);
+        if (view.urgencyFilter) setUrgencyFilter(view.urgencyFilter);
         if (view.dateFilters) setDateFilters(view.dateFilters);
         toast.success(`Visão "${view.name}" aplicada.`);
     };
@@ -506,7 +562,7 @@ export default function ParceriaTable({
         const view = {
             id: `v_${Date.now()}`,
             name: newViewName.trim(),
-            search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, dateFilters,
+            search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters,
         };
         const next = [...savedViews, view];
         updatePreferences({ savedParceriaViews: next });
@@ -518,349 +574,427 @@ export default function ParceriaTable({
     };
 
     const hasFilters = search || typeFilter !== 'all' || statusFilter !== 'all'
-        || responsibleFilter !== 'all' || aditivoFilter !== 'all'
+        || responsibleFilter !== 'all' || aditivoFilter !== 'all' || urgencyFilter !== 'all'
         || dateFilters.signature.start || dateFilters.signature.end
         || dateFilters.end.start || dateFilters.end.end;
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <span className="text-slate-500">Carregando...</span>
-            </div>
-        );
-    }
-
-    if (parcerias.length === 0) {
-        return (
-            <EmptyState
-                title="Nenhuma Parceria cadastrada"
-                description="Crie a primeira Parceria ou importe uma planilha."
-                className="py-16"
-            />
-        );
-    }
+    // Contador de filtros avançados (dentro do popover "Filtros"): espelha o
+    // padrão de ExpedienteTable, onde busca/status/responsável ficam fora do
+    // popover e os demais entram na contagem do badge.
+    const activeFiltersCount = (
+        (typeFilter !== 'all' ? 1 : 0)
+        + (aditivoFilter !== 'all' ? 1 : 0)
+        + (urgencyFilter !== 'all' ? 1 : 0)
+        + (dateFilters.signature.start || dateFilters.signature.end ? 1 : 0)
+        + (dateFilters.end.start || dateFilters.end.end ? 1 : 0)
+    );
 
     const cellPadding = density === 'compact' ? 'py-1' : 'py-3';
 
     return (
-        <div className="space-y-3">
-            {/* Filtros principais */}
-            <Card className="p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="relative flex-1 min-w-[200px]">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div className="space-y-4">
+            {/* ── Barra de ferramentas (espelho de ExpedienteTable) ── */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="flex flex-wrap gap-3 items-center">
+                    <div className="relative flex-1 min-w-[300px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                         <Input
+                            placeholder="Buscar por PGEA, número, assunto, partes, categoria..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar por PGEA, número, assunto, partes, categoria..."
-                            className="pl-8"
+                            className="pl-10 h-10"
                         />
                     </div>
 
-                    <Select value={typeFilter} onValueChange={setTypeFilter}>
-                        <SelectTrigger className="w-48">
-                            <SelectValue placeholder="Tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todos os tipos</SelectItem>
-                            {availableTypes.map((t) => (
-                                <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-48">
-                            <SelectValue placeholder="Situação" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todas as situações</SelectItem>
-                            {STATUSES.map((s) => (
-                                <SelectItem key={s} value={s}>{s}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
-                    {availableResponsibles.length > 0 && (
-                        <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
-                            <SelectTrigger className="w-48">
-                                <SelectValue placeholder="Responsável" />
+                    <div className="flex items-center gap-2">
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="w-40 h-10">
+                                <SelectValue placeholder="Situação" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">Todos os responsáveis</SelectItem>
-                                {availableResponsibles.map((r) => (
-                                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                                <SelectItem value="all">Todas as situações</SelectItem>
+                                {STATUSES.map((s) => (
+                                    <SelectItem key={s} value={s}>{s}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
-                    )}
 
-                    <Select value={aditivoFilter} onValueChange={setAditivoFilter}>
-                        <SelectTrigger className="w-40">
-                            <SelectValue placeholder="Aditivos" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todos</SelectItem>
-                            <SelectItem value="yes">Com aditivos</SelectItem>
-                            <SelectItem value="no">Sem aditivos</SelectItem>
-                        </SelectContent>
-                    </Select>
+                        {availableResponsibles.length > 0 && (
+                            <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
+                                <SelectTrigger className="w-44 h-10">
+                                    <SelectValue placeholder="Responsável" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os responsáveis</SelectItem>
+                                    {availableResponsibles.map((r) => (
+                                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
 
-                    {/* Filtro de data (popover) */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="gap-1.5">
-                                <Filter className="w-3.5 h-3.5" />
-                                Período
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80 p-3" align="end">
-                            <p className="text-xs font-semibold text-slate-700 mb-2">Filtro por período</p>
-                            <div className="space-y-3">
-                                <div>
-                                    <p className="text-xs text-slate-500 mb-1">Data de Assinatura</p>
-                                    <div className="flex gap-2">
-                                        <Input type="date" value={dateFilters.signature.start}
-                                            onChange={(e) => setDateFilters((p) => ({ ...p, signature: { ...p.signature, start: e.target.value } }))}
-                                            placeholder="De" />
-                                        <Input type="date" value={dateFilters.signature.end}
-                                            onChange={(e) => setDateFilters((p) => ({ ...p, signature: { ...p.signature, end: e.target.value } }))}
-                                            placeholder="Até" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-slate-500 mb-1">Termo Final</p>
-                                    <div className="flex gap-2">
-                                        <Input type="date" value={dateFilters.end.start}
-                                            onChange={(e) => setDateFilters((p) => ({ ...p, end: { ...p.end, start: e.target.value } }))}
-                                            placeholder="De" />
-                                        <Input type="date" value={dateFilters.end.end}
-                                            onChange={(e) => setDateFilters((p) => ({ ...p, end: { ...p.end, end: e.target.value } }))}
-                                            placeholder="Até" />
-                                    </div>
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={() => setDateFilters({ signature: { start: '', end: '' }, end: { start: '', end: '' } })}>
-                                    Limpar períodos
-                                </Button>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-
-                    {hasFilters && (
-                        <Button variant="ghost" size="sm" onClick={clearFilters}>
-                            <FilterX className="w-4 h-4 mr-1" />
-                            Limpar
-                        </Button>
-                    )}
-
-                    {isDensityOn && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="gap-1.5">
-                                    {density === 'compact' ? <Rows4 className="w-3.5 h-3.5" /> : <Rows3 className="w-3.5 h-3.5" />}
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setDensity('comfortable')}>Confortável</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setDensity('compact')}>Compacto</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    )}
-
-                    {isExportOn && (
+                        {/* Filtros avançados (popover) */}
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" size="sm" className="gap-1.5">
-                                    <Download className="w-3.5 h-3.5" />
-                                    Exportar
+                                <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
+                                    <Filter className="w-4 h-4" />
+                                    Filtros
+                                    {activeFiltersCount > 0 && (
+                                        <Badge variant="secondary" className="bg-indigo-600 text-white hover:bg-indigo-700 px-1.5 min-w-[20px] h-5 rounded-full text-[10px]">
+                                            {activeFiltersCount}
+                                        </Badge>
+                                    )}
                                 </Button>
                             </PopoverTrigger>
-                            <PopoverContent align="end" className="w-44 p-1">
-                                <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => handleExport('excel')}>
-                                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                                    Excel (.xlsx)
-                                </Button>
-                                <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => handleExport('pdf')}>
-                                    <FileText className="w-3.5 h-3.5 text-rose-600" />
-                                    PDF
-                                </Button>
-                                <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={handleExportCSV}>
-                                    <Download className="w-3.5 h-3.5" />
-                                    CSV
-                                </Button>
+                            <PopoverContent align="end" className="w-[400px] p-4 shadow-xl border-slate-200 dark:border-slate-700">
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between border-b pb-2 border-slate-100 dark:border-slate-700">
+                                        <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                            <Settings2 className="w-4 h-4" />
+                                            Filtros Avançados
+                                        </h4>
+                                        <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 uppercase tracking-tight">
+                                            Limpar Tudo
+                                        </Button>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tipo</label>
+                                            <Select value={typeFilter} onValueChange={setTypeFilter}>
+                                                <SelectTrigger className="h-9"><SelectValue placeholder="Qualquer" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Qualquer</SelectItem>
+                                                    {availableTypes.map((t) => (
+                                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Aditivos</label>
+                                            <Select value={aditivoFilter} onValueChange={setAditivoFilter}>
+                                                <SelectTrigger className="h-9"><SelectValue placeholder="Qualquer" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Qualquer</SelectItem>
+                                                    <SelectItem value="yes">Com aditivos</SelectItem>
+                                                    <SelectItem value="no">Sem aditivos</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Urgência</label>
+                                            <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+                                                <SelectTrigger className="h-9"><SelectValue placeholder="Qualquer" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Qualquer</SelectItem>
+                                                    <SelectItem value="sim">Urgente</SelectItem>
+                                                    <SelectItem value="nao">Normal</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 block">Filtros de Datas</label>
+                                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin">
+                                            {[
+                                                { label: 'Data de Assinatura', key: 'signature' },
+                                                { label: 'Termo Final', key: 'end' },
+                                            ].map(({ label, key }) => (
+                                                <div key={key} className="p-2 border rounded-md bg-slate-50/50 dark:bg-slate-800/50 space-y-1.5">
+                                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight">{label}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input type="date" value={dateFilters[key].start} onChange={(e) => setDateFilters((prev) => ({ ...prev, [key]: { ...prev[key], start: e.target.value } }))} className="h-8 text-xs px-2" />
+                                                        <ArrowUpDown className="w-3 h-3 text-slate-300 dark:text-slate-600 shrink-0 rotate-90" />
+                                                        <Input type="date" value={dateFilters[key].end} onChange={(e) => setDateFilters((prev) => ({ ...prev, [key]: { ...prev[key], end: e.target.value } }))} className="h-8 text-xs px-2" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </PopoverContent>
                         </Popover>
-                    )}
 
-                    {/* Toggle colunas */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="gap-1.5">
-                                <Columns3 className="w-3.5 h-3.5" />
-                                Colunas
-                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
-                                    {activeColumns.length}
-                                </Badge>
+                        <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
+
+                        {/* Colunas */}
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-10 gap-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-none shadow-none">
+                                    <Columns3 className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Colunas</span>
+                                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">{activeColumns.length}</Badge>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-4 shadow-xl border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl mt-2">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Colunas Visíveis</h4>
+                                        <Button variant="ghost" size="sm" onClick={resetColumns} className="h-7 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">Restaurar</Button>
+                                    </div>
+                                    <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                                        {allColumns.map((col) => (
+                                            <label key={col.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                                                <Checkbox checked={isColumnVisible(col)} onCheckedChange={() => toggleColumn(col.key)} className="h-4 w-4" />
+                                                <span className="text-sm text-slate-600 dark:text-slate-300">{col.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+
+                        {hasFilters && (
+                            <Button variant="ghost" size="icon" onClick={clearFilters} className="h-10 w-10 text-rose-500 hover:text-rose-600 hover:bg-rose-50" title="Limpar todos os filtros">
+                                <FilterX className="w-4 h-4" />
                             </Button>
-                        </PopoverTrigger>
-                        <PopoverContent align="end" className="w-72 p-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Colunas visíveis</p>
-                            <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                                {allColumns.map((col) => (
-                                    <label key={col.key} className="flex items-center gap-2 cursor-pointer text-sm py-1">
-                                        <Checkbox
-                                            checked={visibleColumns[col.key] !== false}
-                                            onCheckedChange={() => toggleColumn(col.key)}
-                                        />
-                                        <span className="text-slate-700 dark:text-slate-200">{col.label}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-                </div>
-
-                {/* Saved views (flag saved_views) */}
-                {isSavedViewsOn && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
-                        <span className="text-xs text-slate-500 font-semibold">Visões salvas:</span>
-                        {savedViews.length === 0 && (
-                            <span className="text-xs text-slate-400">nenhuma</span>
                         )}
-                        {savedViews.map((v) => (
-                            <div key={v.id} className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full pl-3 pr-1 py-0.5">
-                                <button type="button" onClick={() => applySavedView(v)} className="text-xs font-medium hover:text-indigo-600">
-                                    {v.name}
-                                </button>
-                                <button type="button" onClick={() => removeSavedView(v.id)} className="text-slate-300 hover:text-rose-500">
-                                    <X className="w-3 h-3" />
-                                </button>
+
+                        {isSavedViewsOn && (
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
+                                        <Bookmark className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Visões</span>
+                                        {savedViews.length > 0 && (
+                                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">{savedViews.length}</Badge>
+                                        )}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="end" className="w-72 p-3">
+                                    <div className="space-y-1 mb-3 max-h-48 overflow-y-auto">
+                                        {savedViews.length === 0 ? (
+                                            <p className="text-xs text-slate-400 dark:text-slate-500 px-1 py-2">Nenhuma visão salva ainda. Configure os filtros e salve abaixo.</p>
+                                        ) : (
+                                            savedViews.map((view) => (
+                                                <div key={view.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+                                                    <button type="button" className="text-sm text-slate-700 dark:text-slate-200 flex-1 text-left truncate" onClick={() => applySavedView(view)}>
+                                                        {view.name}
+                                                    </button>
+                                                    <button type="button" className="text-slate-300 dark:text-slate-600 hover:text-rose-500 shrink-0" onClick={() => removeSavedView(view.id)} title="Excluir visão">
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
+                                        <Input
+                                            placeholder="Nome da visão atual..."
+                                            value={newViewName}
+                                            onChange={(e) => setNewViewName(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') saveCurrentView(); }}
+                                            className="h-8 text-xs"
+                                        />
+                                        <Button size="sm" className="h-8 shrink-0" onClick={saveCurrentView} disabled={!newViewName.trim()}>Salvar</Button>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        )}
+
+                        {isExportOn && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="h-10 gap-2 text-slate-600 dark:text-slate-300">
+                                        <Download className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Exportar</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleExport('excel')}>Exportar Excel (.xlsx)</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExport('pdf')}>Exportar PDF</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleExportCSV}>Exportar CSV</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+
+                        {isDensityOn && (
+                            <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden h-10">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDensity('comfortable')}
+                                            className={`h-full px-2.5 flex items-center transition-colors ${density === 'comfortable' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`}
+                                        >
+                                            <Rows3 className="w-4 h-4" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">Densidade confortável</TooltipContent>
+                                </Tooltip>
+                                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" />
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDensity('compact')}
+                                            className={`h-full px-2.5 flex items-center transition-colors ${density === 'compact' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`}
+                                        >
+                                            <Rows4 className="w-4 h-4" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">Densidade compacta</TooltipContent>
+                                </Tooltip>
                             </div>
-                        ))}
-                        <div className="flex items-center gap-1 ml-auto">
-                            <Input
-                                value={newViewName}
-                                onChange={(e) => setNewViewName(e.target.value)}
-                                placeholder="Nome da visão"
-                                className="h-7 w-32 text-xs"
-                            />
-                            <Button size="sm" variant="ghost" onClick={saveCurrentView} disabled={!newViewName.trim()}>
-                                <Bookmark className="w-3.5 h-3.5" />
-                            </Button>
-                        </div>
+                        )}
                     </div>
-                )}
-            </Card>
+                </div>
+            </div>
 
             {/* Ações em massa (flag bulk_actions) */}
             {isBulkActionsOn && selectedIds.size > 0 && (
-                <div className="flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 rounded-lg p-3">
-                    <span className="text-sm text-indigo-700 dark:text-indigo-200 font-medium">
-                        {selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}
-                    </span>
+                <div className="flex items-center justify-between gap-3 bg-indigo-50 dark:bg-indigo-900 border border-indigo-200 dark:border-indigo-600 rounded-lg px-4 py-2.5">
+                    <span className="text-sm font-medium text-indigo-700 dark:text-indigo-100">{selectedIds.size} selecionada(s)</span>
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={clearSelection}>Limpar seleção</Button>
-                        <Button size="sm" variant="destructive" onClick={handleBulkExtinguish}>
-                            <ClipboardList className="w-3.5 h-3.5 mr-1" />
-                            Extinguir selecionadas
+                        {isExportOn && (
+                            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => handleExport('excel')}>
+                                <Download className="w-3.5 h-3.5" /> Exportar selecionadas
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-rose-600 hover:text-rose-700 border-rose-200 hover:bg-rose-50" onClick={handleBulkExtinguish}>
+                            <ClipboardList className="w-3.5 h-3.5" /> Extinguir selecionadas
                         </Button>
+                        <Button variant="ghost" size="sm" className="h-8 text-slate-500 dark:text-slate-400" onClick={clearSelection}>Limpar seleção</Button>
                     </div>
                 </div>
             )}
 
             {/* Tabela */}
-            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="bg-slate-50 dark:bg-slate-800">
-                            {isBulkActionsOn && (
-                                <TableHead className="w-10">
-                                    <Checkbox
-                                        checked={paginated.length > 0 && selectedIds.size === paginated.length}
-                                        onCheckedChange={toggleSelectAll}
-                                        aria-label="Selecionar todas"
-                                    />
-                                </TableHead>
-                            )}
-                            {activeColumns.map((c) => (
-                                <TableHead key={c.key} className={c.width || ''}>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleSort(c.key)}
-                                        className="-ml-2 h-8 font-semibold gap-1"
-                                    >
-                                        {c.label}
-                                        <ArrowUpDown className="w-3 h-3 opacity-50" />
-                                    </Button>
-                                </TableHead>
-                            ))}
-                            <TableHead className="text-right w-24">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {paginated.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={activeColumns.length + (isBulkActionsOn ? 2 : 1)} className="py-12 text-center">
-                                    <EmptyState
-                                        icon={SearchX}
-                                        title="Nenhuma Parceria encontrada"
-                                        description="Ajuste os filtros para ver resultados."
-                                    />
-                                </TableCell>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <Table style={{ minWidth: `${tableMinWidth}px` }}>
+                        <TableHeader>
+                            <TableRow className="bg-slate-50 dark:bg-slate-800 shadow-sm">
+                                {isBulkActionsOn && (
+                                    <TableHead className="w-[40px] bg-slate-50 dark:bg-slate-800 sticky top-0 z-30">
+                                        <Checkbox
+                                            checked={paginated.length > 0 && selectedIds.size === paginated.length}
+                                            onCheckedChange={toggleSelectAll}
+                                            aria-label="Selecionar todas nesta página"
+                                        />
+                                    </TableHead>
+                                )}
+                                {activeColumns.map((c) => {
+                                    const isStickyLeft = c.sticky === 'left';
+                                    return (
+                                        <TableHead
+                                            key={c.key}
+                                            className={`font-semibold ${c.width || ''} bg-slate-50 dark:bg-slate-800 sticky top-0 z-30 ${isStickyLeft ? 'left-0 z-40 border-r' : ''}`}
+                                        >
+                                            {c.sortable !== false ? (
+                                                <Button variant="ghost" size="sm" onClick={() => handleSort(c.key)} className="-ml-2 h-8 font-semibold">
+                                                    {c.label} <ArrowUpDown className={`w-3 h-3 ml-1 ${sortRules.some((r) => r.key === c.key) ? 'text-indigo-600' : 'opacity-50'}`} />
+                                                </Button>
+                                            ) : c.label}
+                                        </TableHead>
+                                    );
+                                })}
+                                <TableHead className="font-semibold text-center sticky top-0 right-0 z-40 bg-slate-50 dark:bg-slate-800 border-l w-[80px]">Ações</TableHead>
                             </TableRow>
-                        ) : (
-                            paginated.map((p) => {
-                                const status = calculateParceriaDerivedStatus(p);
-                                const isSelected = selectedIds.has(p.id);
-                                return (
-                                    <TableRow
-                                        key={p.id}
-                                        className={`cursor-pointer ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-900/20' : ''}`}
-                                        onClick={() => onView?.(p)}
-                                    >
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <TableRow key={`skeleton-${i}`}>
                                         {isBulkActionsOn && (
-                                            <TableCell className={cellPadding} onClick={(e) => e.stopPropagation()}>
-                                                <Checkbox
-                                                    checked={isSelected}
-                                                    onCheckedChange={() => toggleSelectOne(p.id)}
-                                                    aria-label={`Selecionar Parceria ${getParceriaField(p, 'pgea') || ''}`}
-                                                />
-                                            </TableCell>
+                                            <TableCell><div className="h-4 w-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse"></div></TableCell>
                                         )}
-                                        {activeColumns.map((c) => {
-                                            const content = c.render ? c.render(p) : (
-                                                <span className="text-[13px] text-slate-700 dark:text-slate-200">
-                                                    {getParceriaField(p, c.key) || '—'}
-                                                </span>
-                                            );
-                                            return <TableCell key={c.key} className={cellPadding}>{content}</TableCell>;
-                                        })}
-                                        <TableCell className={`${cellPadding} text-right`} onClick={(e) => e.stopPropagation()}>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                        <MoreHorizontal className="w-4 h-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-40">
-                                                    <DropdownMenuItem onClick={() => onView?.(p)}>
-                                                        <Search className="w-3.5 h-3.5 mr-2" />
-                                                        Ver detalhes
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => onEdit?.(p)}>
-                                                        <Pencil className="w-3.5 h-3.5 mr-2" />
-                                                        Editar
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
+                                        {activeColumns.map((col) => (
+                                            <TableCell key={col.key}>
+                                                <div className="h-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse w-full"></div>
+                                            </TableCell>
+                                        ))}
+                                        <TableCell><div className="h-4 bg-slate-100/60 dark:bg-slate-700/60 rounded animate-pulse w-8 mx-auto"></div></TableCell>
                                     </TableRow>
-                                );
-                            })
-                        )}
-                    </TableBody>
-                </Table>
+                                ))
+                            ) : paginated.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={activeColumns.length + 1 + (isBulkActionsOn ? 1 : 0)} className="py-20">
+                                        <EmptyState
+                                            icon={search || hasFilters ? SearchX : Handshake}
+                                            title={search || hasFilters ? 'Nenhuma Parceria encontrada' : 'Nenhuma Parceria cadastrada'}
+                                            description={search || hasFilters
+                                                ? 'Ajuste os filtros ou a busca para ver resultados.'
+                                                : 'Esta organização ainda não possui parcerias registradas. Crie a primeira ou importe uma planilha.'}
+                                            action={(search || hasFilters) && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={clearFilters}
+                                                    className="mt-4 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-900/50 dark:hover:bg-indigo-950/50"
+                                                >
+                                                    Limpar Busca e Filtros
+                                                </Button>
+                                            )}
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                paginated.map((p) => {
+                                    const colors = getStatusRowColor(p);
+                                    const isSelected = selectedIds.has(p.id);
+                                    return (
+                                        <TableRow
+                                            key={p.id}
+                                            className={`${colors.bg} ${colors.hover} ${colors.border} transition-all duration-150 group cursor-pointer border-b-[1.5px]`}
+                                            onClick={() => onView?.(p)}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    onView?.(p);
+                                                }
+                                            }}
+                                        >
+                                            {isBulkActionsOn && (
+                                                <TableCell className={cellPadding} onClick={(e) => e.stopPropagation()}>
+                                                    <Checkbox
+                                                        checked={isSelected}
+                                                        onCheckedChange={() => toggleSelectOne(p.id)}
+                                                        aria-label={`Selecionar Parceria ${getParceriaField(p, 'pgea') || ''}`}
+                                                    />
+                                                </TableCell>
+                                            )}
+                                            {activeColumns.map((c) => {
+                                                const isStickyLeft = c.sticky === 'left';
+                                                const isFirstCol = c.key === 'pgea';
+                                                const content = c.render ? c.render(p) : (
+                                                    <span className="text-[13px] text-slate-700 dark:text-slate-200">
+                                                        {getParceriaField(p, c.key) || '—'}
+                                                    </span>
+                                                );
+                                                return (
+                                                    <TableCell
+                                                        key={c.key}
+                                                        className={`${cellPadding} transition-colors ${isStickyLeft ? `sticky left-0 z-10 ${colors.bg} border-r ${colors.groupHover}` : ''} ${isFirstCol ? `border-l-[4px] ${colors.accent}` : ''}`}
+                                                    >
+                                                        {content}
+                                                    </TableCell>
+                                                );
+                                            })}
+                                            <TableCell className={`text-center sticky right-0 z-10 ${colors.bg} border-l ${colors.groupHover} transition-colors`} onClick={(e) => e.stopPropagation()}>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-black/5"><MoreHorizontal className="w-4 h-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-48 border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-1 dark:ring-white/10 dark:shadow-2xl">
+                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView?.(p); }}><Search className="w-4 h-4 mr-2 text-slate-500 dark:text-slate-400" />Ver detalhes</DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit?.(p); }}><Pencil className="w-4 h-4 mr-2 text-slate-500 dark:text-slate-400" />Editar</DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </div>
 
             {/* Footer de paginação */}
@@ -886,10 +1020,10 @@ export default function ParceriaTable({
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1 || totalPages === 0}>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1 || totalPages === 0} className="h-8">
                             Anterior
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0}>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="h-8">
                             Próximo
                         </Button>
                     </div>

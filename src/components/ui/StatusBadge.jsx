@@ -10,7 +10,11 @@ import {
   PenTool,
   CheckCircle,
   CheckCheck,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  Send,
+  Handshake,
+  Archive
 } from 'lucide-react';
 
 const ICONS = {
@@ -18,12 +22,22 @@ const ICONS = {
   'Em elaboração': FileText,
   'Em revisão': Eye,
   'Revisadas': CheckCheck,
-  'Na pasta': CheckCircle
+  'Na pasta': CheckCircle,
+  // Status do módulo de Parcerias (ícones espelham as colunas do Kanban).
+  'Em análise': Pencil,
+  'Aguarda Terceiros': Send,
+  'Revisão': Eye,
+  'Parcerias': Handshake,
+  'Extintos': Archive
 };
 
-export default function StatusBadge({ status, className, variant }) {
+export default function StatusBadge({ status, className, variant, configMap }) {
   const isNeutral = variant === 'neutral';
-  const config = statusConfig[status] || DEFAULT_STATUS_CONFIG;
+  // `configMap` permite que módulos com status próprios (ex.: Parcerias)
+  // forneçam sua paleta sem poluir o `statusConfig` compartilhado de
+  // Consultas/Expedientes. Default: mapa compartilhado.
+  const map = configMap || statusConfig;
+  const config = map[status] || statusConfig[status] || DEFAULT_STATUS_CONFIG;
   const Icon = ICONS[status] || AlertCircle;
 
   return (

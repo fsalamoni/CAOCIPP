@@ -1,7 +1,6 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import StageTimeBadge from "@/components/ui/StageTimeBadge";
 import {
@@ -138,17 +137,18 @@ export default function ParceriaKanbanCard({
             {...(overlay ? {} : listeners)}
             className="touch-none"
         >
-            <Card
+            {/* Container no mesmo padrão visual do ExpedienteKanbanCard (div
+                simples). O acento lateral só aparece para Parcerias com aditivo
+                — sinal específico do módulo, sem equivalente em Expedientes. */}
+            <div
                 className={`
-                    cursor-grab active:cursor-grabbing
-                    hover:shadow-md transition-shadow
-                    border-l-4
-                    ${hasAdd ? 'border-l-amber-500' : 'border-l-indigo-500'}
+                    bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 p-3 space-y-2
+                    shadow-sm dark:shadow-black/30 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow
+                    ${hasAdd ? 'border-l-4 border-l-amber-500' : ''}
                     ${isDragging && !overlay ? 'border-indigo-400 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900' : ''}
                     ${overlay ? 'shadow-xl border-indigo-400 dark:border-indigo-400 bg-white dark:bg-slate-800' : ''}
                 `}
             >
-                <CardContent className="p-3 space-y-2">
                     {/* Header: PGEA + Urgência + Restrição + Aditivo badge + Ações */}
                     <div className="flex items-start justify-between gap-2">
                         {canCopy && pgea ? (
@@ -298,8 +298,7 @@ export default function ParceriaKanbanCard({
                             return <StageTimeBadge days={days} severity={severity} colors={stageTimeConfig.colors} dayType={stageTimeConfig.dayType} />;
                         })()}
                     </div>
-                </CardContent>
-            </Card>
+            </div>
         </div>
     );
 }
