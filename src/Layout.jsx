@@ -22,7 +22,9 @@ import {
   X,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowRight,
+  MoveRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -135,15 +137,20 @@ export default function Layout({ children, currentPageName }) {
         )}>
           <div className="flex flex-col h-full">
             {/* Logo */}
-            <div className={cn('h-16 flex items-center border-b border-slate-200 dark:border-slate-700', isCollapsed ? 'justify-center px-0' : 'px-6')}>
+            <div className={cn('h-16 flex items-center border-b border-slate-200 dark:border-slate-700', isCollapsed ? 'justify-center px-0' : 'px-6 gap-2')}>
               {isCollapsed ? (
-                <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
-                  SI
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shrink-0">
+                  <ArrowRight className="w-4 h-4" strokeWidth={3} />
                 </div>
               ) : (
-                <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                  SIGO
-                </h1>
+                <>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shrink-0">
+                    <ArrowRight className="w-4 h-4" strokeWidth={3} />
+                  </div>
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+                    SIGO
+                  </h1>
+                </>
               )}
             </div>
 
