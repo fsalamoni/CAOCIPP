@@ -49,6 +49,8 @@ exports.extinguishParceria = (0, https_1.onCall)({ region: 'southamerica-east1' 
         extinguished: true,
         extinguished_at: logDate,
         extinguished_by: userId,
+        // (3.7) Data de arquivamento registrada automaticamente ao extinguir.
+        archived_date: logDate,
         status: 'Extintos',
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
         updated_by: userId,
@@ -86,6 +88,7 @@ exports.extinguishParceria = (0, https_1.onCall)({ region: 'southamerica-east1' 
             continue;
         await aditivoDoc.ref.update({
             status: 'Extintos',
+            archived_date: logDate,
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_by: userId,
         });

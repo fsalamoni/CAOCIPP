@@ -73,6 +73,8 @@ export const extinguishParceria = onCall<ExtinguishParceriaRequest>(
             extinguished: true,
             extinguished_at: logDate,
             extinguished_by: userId,
+            // (3.7) Data de arquivamento registrada automaticamente ao extinguir.
+            archived_date: logDate,
             status: 'Extintos',
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_by: userId,
@@ -113,6 +115,7 @@ export const extinguishParceria = onCall<ExtinguishParceriaRequest>(
             if (aditivoData.status === 'Extintos') continue;
             await aditivoDoc.ref.update({
                 status: 'Extintos',
+                archived_date: logDate,
                 updated_at: admin.firestore.FieldValue.serverTimestamp(),
                 updated_by: userId,
             });

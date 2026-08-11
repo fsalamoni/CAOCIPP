@@ -17,6 +17,7 @@ const FROZEN_WHEN_HAS_ADITIVO = new Set([
     'validity_period', 'end_date', 'renewal_notice_date',
 ]);
 exports.updateParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -66,13 +67,33 @@ exports.updateParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
     if (typeof changes.responsible_user_name === 'string') {
         changes.responsible_user_name = (0, normalization_1.formatPersonName)(changes.responsible_user_name);
     }
-    // Auto-preencher responsabilidade_date quando o assessor é atribuído
-    // (UX: o usuário marca o assessor e a data "vira" hoje).
+    const todayStr = new Date().toISOString().split('T')[0];
+    // (3.1) Data de DISTRIBUIÇÃO é registrada automaticamente sempre que um
+    // assessor é atribuído/alterado — em qualquer fase — a menos que já
+    // venha explicitamente nos changes. NÃO define responsibility_date aqui:
+    // "entrar em análise" é uma transição própria (que envia responsibility_date).
     if (changes.responsible_user_id &&
         changes.responsible_user_id !== parceriaData.responsible_user_id &&
-        !changes.responsibility_date) {
-        const today = new Date().toISOString().split('T')[0];
-        changes.responsibility_date = today;
+        !changes.distribution_date) {
+        changes.distribution_date = todayStr;
+    }
+    // Datas automáticas por fase-alvo (espelha o fluxo do Kanban). Só são
+    // injetadas quando a transição é explícita (changes.status) e o campo
+    // ainda não existe, para não sobrescrever em re-salvamentos.
+    const autoDateByPhase = {
+        'Em análise': 'distribution_date',
+        'Em revisão': 'review_start_date',
+        'Revisadas': 'reviewed_date',
+        'Aguarda Terceiros': 'third_party_referral_date',
+        'Parcerias': 'third_party_return_date',
+        'Extintos': 'archived_date',
+    };
+    const targetPhase = changes.status;
+    if (targetPhase && autoDateByPhase[targetPhase]) {
+        const field = autoDateByPhase[targetPhase];
+        const already = (_a = changes[field]) !== null && _a !== void 0 ? _a : parceriaData[field];
+        if (!already)
+            changes[field] = todayStr;
     }
     // Normalizar flags boolean/strings → boolean.
     if ('urgency_request' in changes) {
@@ -145,10 +166,18 @@ exports.updateParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
         responsible_user_id: 'Assessor Responsável',
         responsible_user_name: 'Nome do Responsável',
         responsibility_date: 'Data de Responsabilidade',
+        distribution_date: 'Data de Distribuição',
+        review_start_date: 'Data de Início da Revisão',
         network_folder: 'Pasta na Rede',
         observations: 'Observações',
+        reviewed_date: 'Data de Conclusão da Revisão',
         review_conclusion_date: 'Data de Conclusão da Revisão',
-        third_party: 'Terceiro',
+        third_party_referral_date: 'Data da Remessa a Terceiros',
+        third_party_return_date: 'Data de Retorno de Terceiros',
+        third_party: 'Remetido para',
+        publication_date: 'Data da Publicação',
+        demp: 'DEMP',
+        archived_date: 'Data de Arquivamento',
         extinguished: 'Extinção',
         status: 'Status',
     };

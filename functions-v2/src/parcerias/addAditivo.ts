@@ -16,6 +16,10 @@ interface AddAditivoRequest {
     subject?: string;
     object?: string;
     parties?: string;
+    // (3.8) PGEA próprio do aditivo. Se ausente/vazio, herda o PGEA da
+    // Parceria original.
+    aditivoPgea?: string;
+    pgea?: string;
 }
 
 const ADITIVO_TYPE_MAX = 100;
@@ -96,6 +100,10 @@ export const addAditivo = onCall<AddAditivoRequest>(
         const aditivoType = typeInfo.type;
         const aditivoTypeLabelFinal = aditivoTypeLabel;
 
+        // (3.8) PGEA do aditivo: próprio (se informado) ou herdado da Parceria.
+        const ownPgea = String(data.aditivoPgea || data.pgea || '').trim();
+        const aditivoPgea = ownPgea || parceriaData.pgea || '';
+
         const aditivoData: Record<string, unknown> = {
             id: aditivoRef.id,
             parceria_id: parceriaId,
@@ -103,6 +111,8 @@ export const addAditivo = onCall<AddAditivoRequest>(
             aditivo_number: aditivoNumber,
             aditivo_type: aditivoType,
             aditivo_type_label: aditivoTypeLabelFinal,
+            // PGEA próprio do aditivo (herda o da Parceria quando não informado).
+            pgea: aditivoPgea,
             // Snapshot do original (somente leitura) — guardado para auditoria.
             pgea_at_additive_creation: parceriaData.pgea || null,
             partnership_type_at_additive_creation: parceriaData.partnership_type || null,

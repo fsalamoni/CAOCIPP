@@ -66,6 +66,9 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     const userName = request.auth.token.name || 'Usuário desconhecido';
     const aditivoType = typeInfo.type;
     const aditivoTypeLabelFinal = aditivoTypeLabel;
+    // (3.8) PGEA do aditivo: próprio (se informado) ou herdado da Parceria.
+    const ownPgea = String(data.aditivoPgea || data.pgea || '').trim();
+    const aditivoPgea = ownPgea || parceriaData.pgea || '';
     const aditivoData = {
         id: aditivoRef.id,
         parceria_id: parceriaId,
@@ -73,6 +76,8 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
         aditivo_number: aditivoNumber,
         aditivo_type: aditivoType,
         aditivo_type_label: aditivoTypeLabelFinal,
+        // PGEA próprio do aditivo (herda o da Parceria quando não informado).
+        pgea: aditivoPgea,
         // Snapshot do original (somente leitura) — guardado para auditoria.
         pgea_at_additive_creation: parceriaData.pgea || null,
         partnership_type_at_additive_creation: parceriaData.partnership_type || null,

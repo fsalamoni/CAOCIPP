@@ -33,7 +33,7 @@ import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
-import { hasAdditives } from '@/utils/parceriaUtils';
+import { hasAdditives, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
 import ProcessLogDialog from './ProcessLogDialog';
 import EntityComments from './EntityComments';
 import { LivePresenceIndicator } from '@/lib/LivePresence';
@@ -58,7 +58,8 @@ const DEFAULT_THIRD_PARTIES = ['Parceiro', 'Convenente', 'Outro Órgão Público
 const PARCERIA_STATUSES = [
     'Pendente',
     'Em análise',
-    'Revisão',
+    'Em revisão',
+    'Revisadas',
     'Aguarda Terceiros',
     'Parcerias',
     'Extintos',
@@ -215,82 +216,37 @@ export default function EditParceriaDialog({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, isAdditive, additiveData, parceria]);
 
-    // Status derivado (cópia da função em parceriaUtils para não importar ciclos).
+    // Status derivado — usa a função canônica (com aliases e prioridade do
+    // campo `status`) para não divergir do Kanban/planilha.
     function calculateDerivedStatus(p) {
-        if (!p) return 'Pendente';
-        if (p.extinguished === true || String(p.extinguished).toLowerCase() === 'true') return 'Extintos';
-        if (p.partnership_type && p.partnership_number && p.signature_date && p.end_date && p.renewal_notice_date) return 'Parcerias';
-        if (p.review_conclusion_date && p.third_party) return 'Aguarda Terceiros';
-        if (p.network_folder && p.observations) return 'Revisão';
-        if (p.responsible_user_id && p.responsibility_date) return 'Em análise';
-        return p.status || 'Pendente';
+        return calculateParceriaDerivedStatus(p);
     }
 
-    // Rollback de campos quando o status volta para uma fase anterior.
+    // Rollback de campos ao voltar o status para uma fase anterior: limpa os
+    // marcadores de TODAS as fases posteriores à fase escolhida. Espelha o
+    // rollback do Kanban (ParceriaKanbanBoard.PHASE_MARKER_FIELDS).
+    const PHASE_MARKER_FIELDS = {
+        'Em análise': { responsible_user_id: null, responsible_user_name: null, responsibility_date: null, distribution_date: null },
+        'Em revisão': { review_start_date: null, network_folder: '', observations: '' },
+        'Revisadas': { reviewed_date: null, review_conclusion_date: null },
+        'Aguarda Terceiros': { third_party_referral_date: null, third_party: null },
+        'Parcerias': {
+            third_party_return_date: null, partnership_type: null, partnership_number: null,
+            signature_date: null, publication_date: null, demp: null, validity_period: null,
+            end_date: null, renewal_notice_date: null,
+        },
+    };
+    const PHASE_SEQUENCE = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros', 'Parcerias', 'Extintos'];
     const getRollbackByStatus = (status) => {
-        if (status === 'Pendente') {
-            return {
-                responsible_user_id: null,
-                responsible_user_name: null,
-                responsibility_date: null,
-                network_folder: '',
-                observations: '',
-                review_conclusion_date: null,
-                third_party: null,
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-                review_submission_date: null,
-                reviewed_date: null,
-                review_return_date: null,
-            };
-        }
-        if (status === 'Em análise') {
-            return {
-                network_folder: '',
-                observations: '',
-                review_conclusion_date: null,
-                third_party: null,
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-                review_submission_date: null,
-                reviewed_date: null,
-                review_return_date: null,
-            };
-        }
-        if (status === 'Revisão') {
-            return {
-                review_conclusion_date: null,
-                third_party: null,
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-                review_submission_date: null,
-                reviewed_date: null,
-                review_return_date: null,
-            };
-        }
-        if (status === 'Aguarda Terceiros') {
-            return {
-                partnership_type: null,
-                partnership_number: null,
-                signature_date: null,
-                validity_period: null,
-                end_date: null,
-                renewal_notice_date: null,
-            };
-        }
-        return {};
+        const targetIdx = PHASE_SEQUENCE.indexOf(status);
+        if (targetIdx < 0) return {};
+        const rollback = {};
+        PHASE_SEQUENCE.forEach((phase, idx) => {
+            if (idx > targetIdx && PHASE_MARKER_FIELDS[phase]) {
+                Object.assign(rollback, PHASE_MARKER_FIELDS[phase]);
+            }
+        });
+        return rollback;
     };
 
     const handleSubmit = async (e) => {

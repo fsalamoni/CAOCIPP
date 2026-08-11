@@ -89,12 +89,11 @@ export const createParceria = onCall<CreateParceriaRequest>(
         if (!subject || !String(subject).trim()) {
             throw new HttpsError('invalid-argument', 'Assunto é obrigatório');
         }
-        if (!object || !String(object).trim()) {
-            throw new HttpsError('invalid-argument', 'Objeto é obrigatório');
-        }
         if (!parties || !String(parties).trim()) {
             throw new HttpsError('invalid-argument', 'Partes é obrigatório');
         }
+        // Objeto deixou de ser obrigatório na criação: ele é exigido apenas na
+        // formalização (fase "Parcerias"). Novas parcerias entram em "Pendente".
 
         const db = admin.firestore();
         const userId = request.auth.uid;
@@ -130,13 +129,20 @@ export const createParceria = onCall<CreateParceriaRequest>(
         };
         const status = calculateParceriaStatus(initialRecord);
 
+        // (3.1) Se um assessor já é atribuído na criação, registra a data de
+        // distribuição — mas NÃO a data de responsabilidade: a parceria
+        // permanece em "Pendente" (entrar em "Em análise" é uma transição
+        // própria no Kanban, que exige assessor e registra responsibility_date).
+        const distributionDate = responsibleUserId ? logDate : null;
+
         const parceriaData: Record<string, unknown> = {
             id: parceriaRef.id,
             organization_id: organizationId,
             pgea: String(pgea).trim(),
             subject: String(subject).trim(),
-            object: String(object).trim(),
+            object: object ? String(object).trim() : '',
             parties: String(parties).trim(),
+            distribution_date: distributionDate,
             partnership_type: partnershipType,
             partnership_number: partnershipNumber,
             categoria,

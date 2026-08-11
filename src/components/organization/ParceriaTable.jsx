@@ -42,7 +42,7 @@ const PARTNERSHIP_TYPE_LABEL = {
     termo_fomento: 'Termo de Fomento',
 };
 
-const STATUSES = ['Pendente', 'Em análise', 'Revisão', 'Aguarda Terceiros', 'Parcerias', 'Extintos'];
+const STATUSES = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros', 'Parcerias', 'Extintos'];
 
 const formatDate = (s) => {
     const d = parseLocalDate(s);

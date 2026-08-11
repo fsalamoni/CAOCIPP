@@ -21,16 +21,24 @@ export const PARCERIA_FIELD_ALIASES = {
     partnership_number: ['partnership_number', 'numero_parceria', 'NÚMERO DA PARCERIA', 'Número da Parceria'],
     categoria: ['categoria', 'CATEGORIA', 'Categoria', 'category'],
     signature_date: ['signature_date', 'data_assinatura', 'DATA DA ASSINATURA', 'Data da Assinatura'],
+    publication_date: ['publication_date', 'data_publicacao', 'DATA DA PUBLICAÇÃO', 'Data da Publicação'],
+    demp: ['demp', 'DEMP', 'Demp'],
     validity_period: ['validity_period', 'vigencia', 'VIGÊNCIA', 'Vigência'],
     end_date: ['end_date', 'termo_final', 'TERMO FINAL', 'Termo Final'],
     renewal_notice_date: ['renewal_notice_date', 'data_aviso_renovacao', 'DATA DO AVISO DE RENOVAÇÃO', 'Data do Aviso de Renovação'],
     responsible_user_name: ['responsible_user_name', 'assessor_responsavel', 'ASSESSOR RESPONSÁVEL', 'Assessor Responsável', 'responsavel', 'RESPONSÁVEL', 'Responsável'],
     responsible_user_id: ['responsible_user_id'],
     responsibility_date: ['responsibility_date', 'data_responsabilidade'],
+    distribution_date: ['distribution_date', 'data_distribuicao', 'DISTRIBUIÇÃO (DATA)', 'Distribuição'],
     network_folder: ['network_folder', 'pasta_rede', 'PASTA NA REDE', 'Pasta na Rede'],
     observations: ['observations', 'observacoes', 'OBSERVAÇÕES', 'Observações', 'obs'],
+    review_start_date: ['review_start_date', 'data_inicio_revisao', 'inicio_revisao', 'INÍCIO DA REVISÃO (DATA)'],
+    reviewed_date: ['reviewed_date', 'data_conclusao_revisao', 'revisao_concluida', 'REVISÃO CONCLUÍDA (DATA)'],
     review_conclusion_date: ['review_conclusion_date', 'data_conclusao_revisao'],
-    third_party: ['third_party', 'terceiro'],
+    third_party_referral_date: ['third_party_referral_date', 'data_remessa_terceiros', 'remessa_terceiros', 'REMESSA A TERCEIROS (DATA)'],
+    third_party_return_date: ['third_party_return_date', 'data_retorno_terceiros', 'retorno_terceiros', 'RETORNO DE TERCEIROS (DATA)'],
+    third_party: ['third_party', 'terceiro', 'remetido_para'],
+    archived_date: ['archived_date', 'data_arquivamento', 'arquivamento'],
     status: ['status', 'situacao', 'estado'],
     pgea_date: ['pgea_date', 'data_pgea', 'DATA PGEA', 'Data PGEA'],
     aditivo_count: ['aditivo_count', 'qtd_aditivos'],
@@ -111,20 +119,42 @@ export function hasAdditives(p) {
     return count > 0;
 }
 
+// Fases válidas do fluxo de Parcerias (ordem canônica).
+export const PARCERIA_VALID_STATUSES = [
+    'Pendente',
+    'Em análise',
+    'Em revisão',
+    'Revisadas',
+    'Aguarda Terceiros',
+    'Parcerias',
+    'Extintos',
+];
+
 /**
- * Hierarquia de status (espelho de calculateParceriaStatus no backend).
- * Ordem: do mais "avançado" para o mais "inicial".
+ * Fase da Parceria para exibição no Kanban/planilha.
  *
- *   Extintos                  → extinguished === true
- *   Parcerias                 → tem todos os campos de formalização
- *   Aguarda Terceiros         → review_conclusion_date + third_party
- *   Revisão                   → network_folder + observations
- *   Em análise                → responsible_user_id + responsibility_date
- *   Pendente                  → fallback
+ * Fluxo: Pendente → Em análise → Em revisão → Revisadas → Aguarda Terceiros
+ *        → Parcerias → Extintos
+ *
+ * AUTORIDADE DA FASE: o campo `status` (definido nas transições do Kanban e
+ * mantido em sincronia pelo backend). Isso resolve dois casos importantes:
+ *   - Parceria com aditivo: o pai tem os campos de formalização preenchidos,
+ *     mas seu `status` espelha a fase do aditivo corrente (item 2).
+ *   - Parceria em "Pendente" que já tem assessor (a distribuição foi
+ *     registrada, mas ela só entra em "Em análise" na transição própria).
+ *
+ * O rótulo legado "Revisão" é normalizado para "Em revisão". Para registros
+ * sem `status` válido, cai no cálculo por campos (fallback), espelhando
+ * calculateParceriaStatus do backend.
  */
 export function calculateParceriaDerivedStatus(p) {
     if (isParceriaExtinguished(p)) return 'Extintos';
 
+    let stored = getParceriaField(p, 'status');
+    if (stored === 'Revisão') stored = 'Em revisão';
+    if (stored && PARCERIA_VALID_STATUSES.includes(stored)) return stored;
+
+    // Fallback por campos (registros legados/sem status).
     if (
         getParceriaField(p, 'partnership_type') &&
         getParceriaField(p, 'partnership_number') &&
@@ -134,19 +164,21 @@ export function calculateParceriaDerivedStatus(p) {
     ) return 'Parcerias';
 
     if (
-        getParceriaField(p, 'review_conclusion_date') &&
+        getParceriaField(p, 'third_party_referral_date') &&
         getParceriaField(p, 'third_party')
     ) return 'Aguarda Terceiros';
 
     if (
-        getParceriaField(p, 'network_folder') &&
-        getParceriaField(p, 'observations')
-    ) return 'Revisão';
+        getParceriaField(p, 'reviewed_date') ||
+        getParceriaField(p, 'review_conclusion_date')
+    ) return 'Revisadas';
 
     if (
-        getParceriaField(p, 'responsible_user_id') &&
-        getParceriaField(p, 'responsibility_date')
-    ) return 'Em análise';
+        getParceriaField(p, 'review_start_date') ||
+        (getParceriaField(p, 'network_folder') && getParceriaField(p, 'observations'))
+    ) return 'Em revisão';
 
-    return getParceriaField(p, 'status') || 'Pendente';
+    if (getParceriaField(p, 'responsibility_date')) return 'Em análise';
+
+    return 'Pendente';
 }

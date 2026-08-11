@@ -194,9 +194,9 @@ export const parceriaStatusConfig = {
             groupHover: "group-hover:!bg-muted/60"
         }
     },
-    'Revisão': {
+    'Em revisão': {
         color: '#0ea5e9',
-        label: 'Revisão',
+        label: 'Em revisão',
         startColor: 'bg-[#B6DDE8] dark:bg-sky-800',
         text: 'text-sky-800 dark:text-sky-100',
         border: 'border-sky-200 dark:border-sky-500',
@@ -210,6 +210,27 @@ export const parceriaStatusConfig = {
         rowV2: {
             bg: "bg-white dark:bg-slate-900",
             accent: "border-l-sky-400",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
+        }
+    },
+    'Revisadas': {
+        color: '#a855f7',
+        label: 'Revisadas',
+        startColor: 'bg-[#E5D9F5] dark:bg-violet-800',
+        text: 'text-purple-800 dark:text-violet-100',
+        border: 'border-purple-200 dark:border-violet-500',
+        row: {
+            bg: "bg-[#E5D9F5]",
+            accent: "border-l-[#8E7CC3]",
+            border: "border-b-[#D3C2EC]",
+            hover: "hover:bg-[#DCCDF0]",
+            groupHover: "group-hover:!bg-[#DCCDF0]"
+        },
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-violet-400",
             border: "border-b-border",
             hover: "hover:bg-muted/60",
             groupHover: "group-hover:!bg-muted/60"
