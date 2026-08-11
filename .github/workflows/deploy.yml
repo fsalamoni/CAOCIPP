@@ -192,20 +192,21 @@ jobs:
             echo "Atualizando firebase.json para usar '$CREATED_SITE' como site ID."
             # Atualiza dinamicamente o firebase.json para o nome do site criado.
             # Substitui o bloco "site": "sigo" pelo nome real.
-            python3 - << PYEOF
-            import json, re
-            p = 'firebase.json'
-            with open(p) as f:
-                cfg = json.load(f)
-            if isinstance(cfg.get('hosting'), list):
-                for h in cfg['hosting']:
-                    if h.get('site') == 'sigo':
-                        h['site'] = '$CREATED_SITE'
-                        print(f"  → atualizado 'sigo' → '$CREATED_SITE'")
-            with open(p, 'w') as f:
-                json.dump(cfg, f, indent=4)
-                f.write('\n')
-            PYEOF
+            CREATED_SITE="$CREATED_SITE" python3 -c "
+import json, os
+p = 'firebase.json'
+created = os.environ['CREATED_SITE']
+with open(p) as f:
+    cfg = json.load(f)
+if isinstance(cfg.get('hosting'), list):
+    for h in cfg['hosting']:
+        if h.get('site') == 'sigo':
+            h['site'] = created
+            print(f\"  → atualizado 'sigo' → '{created}'\")
+with open(p, 'w') as f:
+    json.dump(cfg, f, indent=4)
+    f.write('\n')
+"
             echo "⚠️ IMPORTANTE: este site ID '$CREATED_SITE' precisa virar o custom"
             echo "   domain 'sigo.web.app' manualmente no Firebase Console:"
             echo "   Hosting → site $CREATED_SITE → Add custom domain → sigo.web.app"
