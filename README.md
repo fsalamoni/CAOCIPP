@@ -9,7 +9,7 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 - **Frontend**: React 18 + Vite
 - **UI**: shadcn/ui + Tailwind CSS
 - **Backend**: Firebase (Auth + Firestore + Cloud Functions v2)
-- **Deploy**: Firebase Hosting → [consultascao.web.app](https://consultascao.web.app)
+- **Deploy**: Firebase Hosting → [sigo.web.app](https://sigo.web.app) (site principal) e [consultascao.web.app](https://consultascao.web.app) (redirect 301 → sigo.web.app)
 
 ## 📋 Funcionalidades
 
@@ -116,6 +116,56 @@ feature/*      ← Features específicas
 2. Teste completamente
 3. Merge para `main` quando estável
 4. Deploy a partir de `main`
+
+## 🌐 Sites Firebase Hosting
+
+Este projeto usa **multi-hosting** no Firebase. Existem dois sites configurados em `firebase.json`:
+
+- **`sigo` (site principal)**: serve a aplicação completa em [sigo.web.app](https://sigo.web.app) — público `dist/`
+- **`consultascao` (legacy)**: redireciona TUDO (301) para `https://sigo.web.app` — público `dist-redirect/`
+
+### Setup do site `sigo` (primeira vez)
+
+O site `sigo` precisa ser criado no Firebase **uma única vez**. Após isso, o deploy normal do CI/CD funciona para os dois sites automaticamente.
+
+**Criar o site manualmente:**
+
+```bash
+# 1. Login no Firebase
+npx firebase login
+
+# 2. Selecionar o projeto
+npx firebase use protagonista-rpg
+
+# 3. Criar o site
+npx firebase hosting:sites:create sigo
+```
+
+**Adicionar domínio autorizado no Firebase Auth:**
+
+1. Acesse [Firebase Console → Authentication → Settings → Authorized domains](https://console.firebase.google.com/project/protagonista-rpg/authentication/settings)
+2. Adicione `sigo.web.app` à lista
+
+**Adicionar o site no OAuth Consent Screen (Google):**
+
+1. Acesse [Google Cloud Console → APIs & Services → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
+2. Atualize o nome do app para "SIGO - Sistema Interno de Gestão Operacional"
+
+### Como o redirect funciona
+
+`firebase.json` configura o site `consultascao` com:
+
+```json
+"redirects": [
+  {
+    "source": "**",
+    "destination": "https://sigo.web.app",
+    "type": 301
+  }
+]
+```
+
+Qualquer requisição a `consultascao.web.app/qualquer-coisa` retorna **HTTP 301** com `Location: https://sigo.web.app`. O navegador segue o redirect automaticamente.
 
 ## 📁 Estrutura do Projeto
 
@@ -242,7 +292,7 @@ SIGO/
 - **Limpeza de Build**: Resolução de 100% dos avisos de ESLint e erros de parsing.
 
 ### 12/02/2026 - Persistência Definitiva & Novo Domínio (v1.3.0)
-- **Novo URL**: Aplicação migrada para [consultascao.web.app](https://consultascao.web.app)
+- **Novo URL**: Aplicação migrada para [consultascao.web.app](https://consultascao.web.app) (atualmente redirecionando para [sigo.web.app](https://sigo.web.app) — ver rebranding 11/08/2026)
 - **Persistência Bulletproof**: Itens por página e ordenação agora usam localStorage como cache instantâneo + Firestore como backup.
 - **Ordenação Type-Aware**: Registro de tipos por coluna com parser universal de datas.
 
