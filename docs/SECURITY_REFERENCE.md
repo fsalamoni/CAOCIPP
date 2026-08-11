@@ -1,8 +1,8 @@
-# 🔒 CAO - Security Reference (Consultas CAO)
+# 🔒 SIGO - Security Reference
 
 **Version:** 1.2.0 - Final (Precision Rebranding)  
 **Last Updated:** 2026-02-12  
-**Purpose:** Complete security documentation for the Consultas CAO platform
+**Purpose:** Complete security documentation for the SIGO platform
 
 ---
 
@@ -773,7 +773,7 @@ const apiKey = process.env.VITE_API_KEY; // Environment variable
 
 ## Conclusion
 
-The Consultas CAO platform implements **defense in depth** with multiple security layers:
+The SIGO platform implements **defense in depth** with multiple security layers:
 
 1. ✅ **Authentication:** Firebase OAuth 2.0
 2. ✅ **Authorization:** Role-based Firestore rules

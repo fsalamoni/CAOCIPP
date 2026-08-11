@@ -1,7 +1,7 @@
 {
-  "name": "Consultas CAO",
-  "short_name": "CAOCIPP",
-  "description": "Gestão de Consultas e Expedientes Administrativos.",
+  "name": "SIGO - Sistema Interno de Gestão Operacional",
+  "short_name": "SIGO",
+  "description": "Sistema Interno de Gestão Operacional — gestão de processos, expedientes e parcerias.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

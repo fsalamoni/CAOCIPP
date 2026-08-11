@@ -2,7 +2,7 @@
 
 ## Problema Detectado
 
-Node.js não foi encontrado no seu sistema PATH. Para executar a plataforma Consultas CAO localmente, você precisa ter Node.js instalado.
+Node.js não foi encontrado no seu sistema PATH. Para executar a plataforma SIGO localmente, você precisa ter Node.js instalado.
 
 ---
 
@@ -61,7 +61,7 @@ winget install OpenJS.NodeJS.LTS
 
 2. **Navegue até a pasta do projeto:**
    ```powershell
-   cd C:\Users\Usuario\Desktop\Consultas-CAO
+   cd C:\Users\Usuario\Desktop\CAOCIPP
    ```
 
 3. **Instale as dependências:**

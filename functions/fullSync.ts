@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
             return Response.json({ error: 'Parâmetros faltando' }, { status: 400 });
         }
 
-        console.log('SINCRONIZAÇÃO COMPLETA (Consultas CAO) - INÍCIO');
+        console.log('SINCRONIZAÇÃO COMPLETA (SIGO) - INÍCIO');
 
         // 1. BAIXAR JSON
         const fileResponse = await fetch(file_url);

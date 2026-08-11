@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
       return Response.json({ error: 'file_url, organization_id e failed_rows são obrigatórios' }, { status: 400 });
     }
 
-    console.log(`Reprocessando ${failed_rows.length} linhas com falha (Consultas CAO)...`);
+    console.log(`Reprocessando ${failed_rows.length} linhas com falha (SIGO)...`);
 
     // Download arquivo JSON
     const fileResponse = await fetch(file_url);

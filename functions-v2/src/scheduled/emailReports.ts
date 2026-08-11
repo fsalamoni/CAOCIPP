@@ -66,7 +66,7 @@ export const sendDailyUrgentSummary = onSchedule(
                 for (const userId of recipients) {
                     const email = await resolveUserEmail(userId);
                     if (!email) continue;
-                    await sendEmail({ to: email, subject: `[Consultas CAO] Resumo diário — ${org.name || 'Órgão'}`, html });
+                    await sendEmail({ to: email, subject: `[SIGO] Resumo diário — ${org.name || 'Órgão'}`, html });
                 }
             } catch (error) {
                 console.error('[sendDailyUrgentSummary] falha no órgão', orgDoc.id, error);
@@ -129,7 +129,7 @@ export const sendWeeklyOrgReport = onSchedule(
                 for (const userId of recipients) {
                     const email = await resolveUserEmail(userId);
                     if (!email) continue;
-                    await sendEmail({ to: email, subject: `[Consultas CAO] Relatório semanal — ${org.name || 'Órgão'}`, html });
+                    await sendEmail({ to: email, subject: `[SIGO] Relatório semanal — ${org.name || 'Órgão'}`, html });
                 }
             } catch (error) {
                 console.error('[sendWeeklyOrgReport] falha no órgão', orgDoc.id, error);

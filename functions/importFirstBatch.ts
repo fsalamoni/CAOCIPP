@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
       }
     });
 
-    console.log(`Importando ${processes.length} processos (Consultas CAO)...`);
+    console.log(`Importando ${processes.length} processos (SIGO)...`);
 
     let created = 0;
     let updated = 0;

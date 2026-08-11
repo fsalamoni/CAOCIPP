@@ -1,4 +1,4 @@
-# 🚀 Quick Start Guide - Consultas CAO Local Testing
+# 🚀 Quick Start Guide - SIGO Local Testing
 
 ## Passo 1: Verificar Pré-requisitos ✅
 
@@ -43,7 +43,7 @@ Se suas outras plataformas no Firebase **NÃO** usam as coleções:
 
 3. Copie TODO o conteúdo de `firestore.rules.backup`
 
-4. Cole ANTES das regras do Consultas CAO (que começam com `// ========== Consultas CAO PLATFORM RULES`)
+4. Cole ANTES das regras do SIGO (que começam com `// ========== SIGO PLATFORM RULES`)
 
 5. Salve o arquivo
 
@@ -55,13 +55,13 @@ Se suas outras plataformas no Firebase **NÃO** usam as coleções:
 
 ### Opção B: Se HOUVER conflito (mais seguro)
 
-Se você usa as mesmas coleções em outras plataformas, **renomeie as coleções do Consultas CAO**:
+Se você usa as mesmas coleções em outras plataformas, **renomeie as coleções do SIGO**:
 
 1. Abra `src/config/firebase.js`
 2. No final do arquivo, adicione:
 
 ```javascript
-// Collection names with namespace for Consultas CAO
+// Collection names with namespace for SIGO
 export const COLLECTIONS = {
   USERS: 'caocipp_users',
   ORGANIZATIONS: 'caocipp_organizations',

@@ -1,4 +1,4 @@
-# 🚀 Migração Consultas CAO para Firebase - Status Final
+# 🚀 Migração SIGO para Firebase - Status Final
 
 **Data:** 2026-02-05  
 **Status:** ✅ **95% Completo - Pronto para Testes**
@@ -131,7 +131,7 @@ firebase deploy
 
 ## ✨ Resultado
 
-A plataforma Consultas CAO está **totalmente migrada** para Firebase, mantendo **todas as funcionalidades essenciais** e adicionando:
+A plataforma SIGO está **totalmente migrada** para Firebase, mantendo **todas as funcionalidades essenciais** e adicionando:
 
 - 🔐 Segurança melhorada
 - ⚡ Performance otimizada

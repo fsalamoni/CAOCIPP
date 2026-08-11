@@ -89,7 +89,7 @@ export default function EmailProviderPanel() {
                                 id="fromName"
                                 value={fromName}
                                 onChange={(e) => setFromName(e.target.value)}
-                                placeholder="Consultas CAO"
+                                placeholder="SIGO"
                                 className="mt-1"
                             />
                         </div>

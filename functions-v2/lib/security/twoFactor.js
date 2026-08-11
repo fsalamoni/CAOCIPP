@@ -55,7 +55,7 @@ exports.sendLoginOtp = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     }
     const sent = await (0, email_1.sendEmail)({
         to: email,
-        subject: 'Seu código de verificação — Consultas CAO',
+        subject: 'Seu código de verificação — SIGO',
         html: `
                 <p>Use o código abaixo para concluir seu login:</p>
                 <p style="font-size:28px;font-weight:bold;letter-spacing:4px;">${code}</p>

@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
 
     // Buscar todos os processos da organização
     const processes = await consultasCao.entities.Process.filter({ organization_id }) as ProcessEntity[];
-    console.log(`Deletando ${processes.length} processos (Consultas CAO)...`);
+    console.log(`Deletando ${processes.length} processos (SIGO)...`);
 
     // Deletar em lotes
     for (let i = 0; i < processes.length; i += 50) {

@@ -60,7 +60,7 @@ exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every 
                 const email = await (0, email_1.resolveUserEmail)(userId);
                 if (!email)
                     continue;
-                await (0, email_1.sendEmail)({ to: email, subject: `[Consultas CAO] Resumo diário — ${org.name || 'Órgão'}`, html });
+                await (0, email_1.sendEmail)({ to: email, subject: `[SIGO] Resumo diário — ${org.name || 'Órgão'}`, html });
             }
         }
         catch (error) {
@@ -115,7 +115,7 @@ exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every mon
                 const email = await (0, email_1.resolveUserEmail)(userId);
                 if (!email)
                     continue;
-                await (0, email_1.sendEmail)({ to: email, subject: `[Consultas CAO] Relatório semanal — ${org.name || 'Órgão'}`, html });
+                await (0, email_1.sendEmail)({ to: email, subject: `[SIGO] Relatório semanal — ${org.name || 'Órgão'}`, html });
             }
         }
         catch (error) {

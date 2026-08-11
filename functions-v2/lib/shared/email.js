@@ -35,7 +35,7 @@ async function sendEmail({ to, subject, html }) {
         console.log('[email] Remetente (fromEmail) não configurado em Administração da Plataforma — envio ignorado.');
         return false;
     }
-    const fromName = (provider === null || provider === void 0 ? void 0 : provider.fromName) || 'Consultas CAO';
+    const fromName = (provider === null || provider === void 0 ? void 0 : provider.fromName) || 'SIGO';
     try {
         const response = await fetch('https://api.resend.com/emails', {
             method: 'POST',

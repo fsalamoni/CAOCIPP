@@ -1,4 +1,4 @@
-# 📖 CAO - Glossary (Consultas CAO)
+# 📖 SIGO - Glossary
 
 **Version:** 1.2.0 - Final (Precision Rebranding)  
 **Last Updated:** 2026-02-12  
@@ -21,9 +21,9 @@
 
 ## General Terms
 
-### Consultas CAO
-**Centro de Apoio Operacional de Controle Institucional de Projetos e Processos**  
-The legal/administrative organization that manages processes and inquiries.
+### SIGO
+**Sistema Interno de Gestão Operacional**  
+Plataforma interna para gestão de processos, expedientes e parcerias do Centro de Apoio Operacional.
 
 ### Processo
 A legal or administrative inquiry/case tracked in the system. Contains consultant information, dates, analysis notes, and workflow stages.
@@ -484,7 +484,7 @@ Quando uma Parceria tem 1+ aditivos, os campos do documento original (PGEA, assu
 
 | Acronym | Full Term | Category |
 |---------|-----------|----------|
-| **Consultas CAO** | Centro de Apoio Operacional de Controle Institucional de Projetos e Processos | Business |
+| **SIGO** | Sistema Interno de Gestão Operacional | Business |
 | **SPA** | Single Page Application | Technical |
 | **CSR** | Client-Side Rendering | Technical |
 | **SSR** | Server-Side Rendering | Technical |

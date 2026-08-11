@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
             }, { status: 400 });
         }
 
-        console.log('Iniciando importação (Consultas CAO):', { file_url, organization_id, user: user.email });
+        console.log('Iniciando importação (SIGO):', { file_url, organization_id, user: user.email });
 
         // 3. Baixar arquivo COM VALIDAÇÃO DE TAMANHO
         const fileResponse = await fetch(file_url);
@@ -231,7 +231,7 @@ Deno.serve(async (req: Request) => {
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const errorStack = error instanceof Error ? error.stack : undefined;
-        console.error('ERRO CRÍTICO (Consultas CAO):', errorMessage);
+        console.error('ERRO CRÍTICO (SIGO):', errorMessage);
         return Response.json({
             error: errorMessage,
             stack: errorStack,
