@@ -11,6 +11,7 @@ import { hasAnyAdminPermission } from '@/constants/orgPermissions';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { formatPersonName } from '@/utils/nameUtils';
 import { cn } from '@/lib/utils';
+import Logo from '@/components/Logo';
 import {
   LayoutDashboard,
   User,
@@ -22,8 +23,7 @@ import {
   X,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight,
-  ArrowRight
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -136,20 +136,11 @@ export default function Layout({ children, currentPageName }) {
         )}>
           <div className="flex flex-col h-full">
             {/* Logo */}
-            <div className={cn('h-16 flex items-center border-b border-slate-200 dark:border-slate-700', isCollapsed ? 'justify-center px-0' : 'px-6 gap-2')}>
+            <div className={cn('h-16 flex items-center border-b border-slate-200 dark:border-slate-700', isCollapsed ? 'justify-center px-0' : 'px-6')}>
               {isCollapsed ? (
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shrink-0">
-                  <ArrowRight className="w-4 h-4" strokeWidth={3} />
-                </div>
+                <Logo size="sm" />
               ) : (
-                <>
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shrink-0">
-                    <ArrowRight className="w-4 h-4" strokeWidth={3} />
-                  </div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                    SIGO
-                  </h1>
-                </>
+                <Logo size="md" showText />
               )}
             </div>
 

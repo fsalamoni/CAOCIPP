@@ -4,7 +4,8 @@ import { useAuth } from '@/lib/FirebaseAuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileText, TrendingUp, Users, Shield, Chrome, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { FileText, TrendingUp, Users, Shield, Chrome, AlertCircle, Loader2 } from 'lucide-react';
+import Logo from '@/components/Logo';
 import { logger } from '@/utils/logger';
 
 export default function Landing() {
@@ -49,15 +50,7 @@ export default function Landing() {
       {/* Header */}
       <header className="border-b bg-white dark:bg-slate-900 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shrink-0">
-              <ArrowRight className="w-5 h-5" strokeWidth={3} />
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white leading-none">SIGO</h1>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tracking-wider uppercase mt-0.5">Sistema Interno de Gestão Operacional</span>
-            </div>
-          </div>
+          <Logo size="lg" showText />
           <Button
             onClick={handleGoogleSignIn}
             disabled={isSigningIn}
