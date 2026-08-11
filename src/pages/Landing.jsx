@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/FirebaseAuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileText, TrendingUp, Users, Shield, Chrome, AlertCircle, Loader2, ArrowRight, MoveRight } from 'lucide-react';
+import { FileText, TrendingUp, Users, Shield, Chrome, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import { logger } from '@/utils/logger';
 
 export default function Landing() {
