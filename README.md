@@ -128,28 +128,37 @@ Este projeto usa **multi-hosting** no Firebase. Existem dois sites configurados 
 
 O site `sigo` precisa ser criado no Firebase **uma única vez**. Após isso, o deploy normal do CI/CD funciona para os dois sites automaticamente.
 
-**Criar o site manualmente:**
+**Importante**: o nome `sigo` está **reservado por outro projeto Firebase** (os site IDs são globais). O CI/CD tenta nesta ordem:
+1. `sigo` → preferido, mas geralmente está reservado
+2. `sigo-caocipp` → fallback 1 (criado automaticamente em 11/08/2026)
+3. `sigo-mp-rs` → fallback 2
+4. `sigo-protagonista` → fallback 3
 
-```bash
-# 1. Login no Firebase
-npx firebase login
+O domínio `sigo.web.app` pode ser **custom domain** em qualquer site (não precisa ser o ID do site). Para isso:
 
-# 2. Selecionar o projeto
-npx firebase use protagonista-rpg
+1. Acesse [Firebase Console → Hosting](https://console.firebase.google.com/project/protagonista-rpg/hosting/sites) → site `sigo-caocipp` → **Add custom domain**
+2. Digite `sigo.web.app` → o Firebase vai provisionar SSL automaticamente
+3. Pronto — `sigo.web.app` passa a servir a app via `sigo-caocipp`
 
-# 3. Criar o site
-npx firebase hosting:sites:create sigo
-```
+**Verificação**:
+
+| Domínio | Status atual | O que serve |
+|---|---|---|
+| `consultascao.web.app` | ✅ 301 → `sigo.web.app` | Redirect legado (configurado em `firebase.json`) |
+| `sigo-caocipp.web.app` | ✅ 200 OK | App real (site ID do Firebase) |
+| `sigo.web.app` | ⏳ 404 → precisa add custom domain | Após config no Console, vai servir a app |
 
 **Adicionar domínio autorizado no Firebase Auth:**
 
 1. Acesse [Firebase Console → Authentication → Settings → Authorized domains](https://console.firebase.google.com/project/protagonista-rpg/authentication/settings)
-2. Adicione `sigo.web.app` à lista
+2. Verifique se `sigo.web.app` está na lista (user já adicionou em 11/08/2026)
+3. Adicione `sigo-caocipp.web.app` também (enquanto o custom domain não está pronto)
 
 **Adicionar o site no OAuth Consent Screen (Google):**
 
 1. Acesse [Google Cloud Console → APIs & Services → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
 2. Atualize o nome do app para "SIGO - Sistema Interno de Gestão Operacional"
+3. Adicione `sigo-caocipp.web.app` nos **Authorized JavaScript origins**
 
 ### Como o redirect funciona
 
