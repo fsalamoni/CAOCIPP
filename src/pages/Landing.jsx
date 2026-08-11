@@ -51,7 +51,7 @@ export default function Landing() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileText className="w-8 h-8 text-primary" />
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Consultas CAO</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">SIGO</h1>
           </div>
           <Button
             onClick={handleGoogleSignIn}
@@ -79,7 +79,7 @@ export default function Landing() {
         {/* Hero Section */}
         <div className="text-center mb-16 max-w-3xl mx-auto">
           <h2 className="text-5xl font-bold text-slate-900 dark:text-white mb-6">
-            Gestão Inteligente de<br />Processos Administrativos
+            SIGO<br />Sistema Interno de Gestão Operacional
           </h2>
           <p className="text-xl text-slate-600 dark:text-slate-300 mb-8">
             Plataforma completa para controle, análise e acompanhamento de processos.
@@ -183,7 +183,7 @@ export default function Landing() {
       <footer className="border-t bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm mt-16">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600 dark:text-slate-400">
           <p className="text-sm">
-            © 2026 Consultas CAO - Gestão de Processos Administrativos
+            © 2026 SIGO - Sistema Interno de Gestão Operacional
           </p>
         </div>
       </footer>

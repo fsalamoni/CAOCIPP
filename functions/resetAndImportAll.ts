@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
             }, { status: 400 });
         }
 
-        console.log('INICIANDO RESET E IMPORTAÇÃO COMPLETA (Consultas CAO)');
+        console.log('INICIANDO RESET E IMPORTAÇÃO COMPLETA (SIGO)');
 
         // 1. DELETAR TODOS OS PROCESSOS DA ORGANIZAÇÃO EM LOTES
         const existingProcesses = await consultasCao.asServiceRole.entities.Process.filter({ organization_id }) as ProcessEntity[];

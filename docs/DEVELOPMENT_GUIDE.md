@@ -1,8 +1,8 @@
-# 👨‍💻 CAO - Development Guide (Consultas CAO)
+# 👨‍💻 SIGO - Development Guide
 
 **Version:** 1.2.0 - Final (Precision Rebranding)  
 **Last Updated:** 2026-02-12  
-**Purpose:** Guide for developers and AI agents working on Consultas CAO
+**Purpose:** Guide for developers and AI agents working on SIGO
 
 ---
 
@@ -20,7 +20,7 @@
 ```powershell
 # 1. Clone repository (if applicable)
 git clone <repo-url>
-cd Consultas-CAO
+cd CAOCIPP
 
 # 2. Install dependencies
 npm install
@@ -442,7 +442,7 @@ firebase deploy --only firestore
 
 ---## AI Agent Guidelines
 
-### For AI Assistants Working on Consultas CAO
+### For AI Assistants Working on SIGO
 
 **Before Making Changes:**
 1. Read relevant reference docs (`ARCHITECTURE_REFERENCE.md`, `SECURITY_REFERENCE.md`, etc.)

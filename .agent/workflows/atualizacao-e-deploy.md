@@ -2,7 +2,7 @@
 description: Sincronização, atualização de documentos, commit e deploy total
 ---
 
-# Fluxo de Atualização e Deploy (Consultas CAO)
+# Fluxo de Atualização e Deploy (SIGO)
 
 Este workflow automatiza a sequência final de sincronização do backup, atualização de memoriais e publicação do sistema.
 
@@ -41,4 +41,4 @@ git push origin main
 ```bash
 npx firebase deploy --only hosting
 ```
-> Deploy agora vai para **consultascao.web.app** (configurado em `firebase.json` com `"site": "consultascao"`)
+> Deploy agora vai para **consultascao.web.app** (domínio legado do Firebase Hosting, configurado em `firebase.json` com `"site": "consultascao"`). O nome visível ao usuário final é **SIGO**. Para renomear o domínio, criar um novo site no Firebase Console e migrar.

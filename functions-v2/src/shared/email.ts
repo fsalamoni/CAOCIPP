@@ -40,7 +40,7 @@ export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<
         console.log('[email] Remetente (fromEmail) não configurado em Administração da Plataforma — envio ignorado.');
         return false;
     }
-    const fromName = provider?.fromName || 'Consultas CAO';
+    const fromName = provider?.fromName || 'SIGO';
 
     try {
         const response = await fetch('https://api.resend.com/emails', {

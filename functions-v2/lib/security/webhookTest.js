@@ -45,7 +45,7 @@ exports.testOrgWebhook = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
                 event: 'test',
                 organization_id: organizationId,
                 timestamp: new Date().toISOString(),
-                message: 'Disparo de teste do Consultas CAO — se você recebeu isto, a integração está funcionando.',
+                message: 'Disparo de teste do SIGO — se você recebeu isto, a integração está funcionando.',
             }),
             signal: AbortSignal.timeout(8000),
         });

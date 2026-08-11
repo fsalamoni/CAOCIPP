@@ -1,4 +1,4 @@
-# 📝 Migration Progress - Consultas CAO (Firebase)
+# 📝 Migration Progress - SIGO (Firebase)
 
 **Versão:** 1.16.0 (Módulo Parcerias)  
 **Last Updated:** 2026-08-04  

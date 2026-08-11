@@ -1,4 +1,4 @@
-# Consultas CAO (Version 1.16.0)
+# SIGO (Version 1.16.0)
 
 Sistema de gestão de processos para o Centro de Apoio Operacional.
 
@@ -45,8 +45,8 @@ Sistema de gestão de processos para o Centro de Apoio Operacional.
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/fsalamoni/Consultas-CAO.git
-cd Consultas-CAO
+git clone https://github.com/fsalamoni/CAOCIPP.git
+cd CAOCIPP
 
 # 2. Instale dependências do frontend
 npm install
@@ -120,7 +120,7 @@ feature/*      ← Features específicas
 ## 📁 Estrutura do Projeto
 
 ```
-Consultas-CAO/
+SIGO/
 ├── src/
 │   ├── components/     # Componentes React
 │   │   ├── organization/  # Componentes de organização
@@ -233,7 +233,7 @@ Consultas-CAO/
 - **Lógica de Roles**: Assessoria, Secretaria e Decisória agora possuem KPIs e feeds de atividade distintos.
 - **Filtro Avançado**: Implementado seletor de Ano e Mês nos Resumos Inteligentes para análise histórica precisa.
 - **Filtro de Ano por Órgão**: Controle temporal individualizado para cada card do Dashboard.
-- **Rebranding Final**: Nome oficial consolidado em todo o ecossistema como **Consultas CAO**.
+- **Rebranding Final**: Nome oficial consolidado em todo o ecossistema como **SIGO** (Sistema Interno de Gestão Operacional).
 
 ### 12/02/2026 - UX Pro Max & Zero Problems (v1.4.0)
 - **Zero Problems (IDE)**: Otimização total do ambiente de desenvolvimento (jsconfig.json) para eliminar falsos-positivos de tipos.
@@ -248,7 +248,7 @@ Consultas-CAO/
 
 ## 📝 Licença
 
-Este projeto é proprietário do Consultas CAO.
+Este projeto é proprietário do SIGO.
 
 ## 👤 Autor
 

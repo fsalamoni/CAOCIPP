@@ -1,4 +1,4 @@
-# 🏗️ CAO - Architecture Reference (Consultas CAO)
+# 🏗️ SIGO - Architecture Reference
 
 **Version:** 1.14.2 - Expedientes Administrativos  
 **Last Updated:** 2026-03-31  
@@ -120,7 +120,7 @@ CAOCIPP/
 ├── public/                      # Static assets
 │   └── logo.svg
 ├── src/                         # Source code
-│   ├── api/                     # API clients (Consultas CAO - legacy)
+│   ├── api/                     # API clients (SIGO - legacy)
 │   │   └── consultasCaoClient.js
 │   ├── components/              # React components
 │   │   ├── organization/        # Organization-specific components

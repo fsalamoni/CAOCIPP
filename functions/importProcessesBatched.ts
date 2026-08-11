@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
       }, { status: 400 });
     }
 
-    console.log(`Iniciando importação (Consultas CAO): offset=${offset}, limit=${limit}`);
+    console.log(`Iniciando importação (SIGO): offset=${offset}, limit=${limit}`);
 
     // Baixar e parsear JSON
     const fileResponse = await fetch(file_url);

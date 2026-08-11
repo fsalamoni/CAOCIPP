@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
             }, { status: 400 });
         }
 
-        console.log('Iniciando importação em lotes (Consultas CAO):', { file_url, organization_id });
+        console.log('Iniciando importação em lotes (SIGO):', { file_url, organization_id });
 
         // Baixar e parsear JSON
         const fileResponse = await fetch(file_url);

@@ -1,4 +1,4 @@
-# ⚙️ Consultas CAO - Features Reference
+# ⚙️ SIGO - Features Reference
 
 **Version:** 1.14.2 (Expedientes Administrativos)  
 **Last Updated:** 2026-03-31  

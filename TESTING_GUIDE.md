@@ -1,6 +1,6 @@
-# 🧪 Guia de Testes - Consultas CAO Firebase
+# 🧪 Guia de Testes - SIGO Firebase
 
-**Objetivo:** Validar todas as funcionalidades da plataforma Consultas CAO migrada para Firebase
+**Objetivo:** Validar todas as funcionalidades da plataforma SIGO migrada para Firebase
 
 ---
 

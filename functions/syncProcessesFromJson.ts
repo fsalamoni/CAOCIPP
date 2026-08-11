@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
             }, { status: 400 });
         }
 
-        console.log('Iniciando sincronização (Consultas CAO):', { file_url, organization_id });
+        console.log('Iniciando sincronização (SIGO):', { file_url, organization_id });
 
         // Baixar e parsear JSON
         const fileResponse = await fetch(file_url);

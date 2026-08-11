@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
     // Recarrega para confirmar que foi salvo
     const updatedUser = await consultasCao.auth.me() as UserEntity;
 
-    console.log('✅ Perfil atualizado (Consultas CAO):', {
+    console.log('✅ Perfil atualizado (SIGO):', {
       id: updatedUser.id,
       platform_name: updatedUser.platform_name,
       function: updatedUser.function,

@@ -1,6 +1,6 @@
 import { formatPersonName } from '@/utils/nameUtils';
 
-// processUtils.js - Centralized Logic for Consultas CAOPP (v1.13.0)
+// processUtils.js - Centralized Logic for SIGO (v1.13.0)
 
 /**
  * Field Aliases Mapping

@@ -1,6 +1,6 @@
-# 📚 Consultas CAO - Documentation Index
+# 📚 SIGO - Documentation Index
 
-**Purpose:** Central index for all Consultas CAO reference documentation
+**Purpose:** Central index for all SIGO reference documentation
 
 ---
 

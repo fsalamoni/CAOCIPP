@@ -231,7 +231,7 @@ html.theme-v2:not(.dark) .from-indigo-50 {
   background-color: #EAEEF1;
 }
 
-/* Texto com gradiente recortado (logo "Consultas CAO" em bg-clip-text) volta
+/* Texto com gradiente recortado (logo "SIGO" em bg-clip-text) volta
    a ser texto sólido navy, mantendo legibilidade. Precisa vencer também a
    regra de fundo genérica acima (.from-indigo-600 etc.), senão o texto
    navy fica ilegível sobre uma caixa também navy. */

@@ -1,5 +1,5 @@
 {
-    "name": "consultas-cao-functions",
+    "name": "sigo-functions",
     "version": "1.0.0",
     "main": "lib/index.js",
     "engines": {

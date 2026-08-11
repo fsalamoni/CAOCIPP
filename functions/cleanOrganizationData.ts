@@ -36,7 +36,7 @@ Deno.serve(async (req: Request) => {
       return Response.json({ error: `Organização "${organization_name}" não encontrada` }, { status: 404 });
     }
 
-    console.log(`Limpando organização (Consultas CAO): ${org.name} (${org.id})`);
+    console.log(`Limpando organização (SIGO): ${org.name} (${org.id})`);
 
     // Buscar e deletar todos os processos
     const processes = await consultasCao.entities.Process.filter({ organization_id: org.id }) as ProcessEntity[];

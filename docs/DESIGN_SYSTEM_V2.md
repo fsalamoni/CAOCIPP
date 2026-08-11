@@ -1,4 +1,4 @@
-# 🎨 Consultas CAO - Design System V2 (Minimalista)
+# 🎨 SIGO - Design System V2 (Minimalista)
 
 **Version:** 1.1.0
 **Last Updated:** 2026-07-09
@@ -9,7 +9,7 @@
 
 ## O que é isto
 
-Este documento descreve o **novo padrão visual** da Consultas CAO: tipografia
+Este documento descreve o **novo padrão visual** da SIGO: tipografia
 IBM Plex, paleta neutra quente + navy, cantos e sombras suaves, sem
 gradientes. É o resultado da proposta de redesign entregue em
 `Proposta de redesign frontend minimalista.zip` (protótipo `.dc.html`),

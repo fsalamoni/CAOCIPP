@@ -1,4 +1,4 @@
-# 🎨 Consultas CAO - Design System Reference
+# 🎨 SIGO - Design System Reference
 
 **Version:** 1.0.0  
 **Last Updated:** 2026-02-12  
@@ -380,7 +380,7 @@ Located in `src/components/ui/`
 
 ## Conclusion
 
-The Consultas CAO design system provides:
+The SIGO design system provides:
 - ✅ Consistent visual language
 - ✅ Reusable component patterns
 - ✅ Accessible UI primitives

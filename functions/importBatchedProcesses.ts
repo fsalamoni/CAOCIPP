@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
       return Response.json({ error: 'file_url e organization_id são obrigatórios' }, { status: 400 });
     }
 
-    console.log(`Iniciando importação em lotes de ${batch_size} (Consultas CAO)...`);
+    console.log(`Iniciando importação em lotes de ${batch_size} (SIGO)...`);
 
     // Download arquivo JSON
     const fileResponse = await fetch(file_url);
@@ -179,7 +179,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`\n🎉 Importação finalizada (Consultas CAO)!`);
+    console.log(`\n🎉 Importação finalizada (SIGO)!`);
     console.log(`📊 Total: ${created + updated} / ${processes.length}`);
     console.log(`✅ Criados: ${created}`);
     console.log(`🔄 Atualizados: ${updated}`);

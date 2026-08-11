@@ -48,7 +48,7 @@ export const testOrgWebhook = onCall<{ organizationId: string }>(
                     event: 'test',
                     organization_id: organizationId,
                     timestamp: new Date().toISOString(),
-                    message: 'Disparo de teste do Consultas CAO — se você recebeu isto, a integração está funcionando.',
+                    message: 'Disparo de teste do SIGO — se você recebeu isto, a integração está funcionando.',
                 }),
                 signal: AbortSignal.timeout(8000),
             });

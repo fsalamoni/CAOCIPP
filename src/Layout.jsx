@@ -138,11 +138,11 @@ export default function Layout({ children, currentPageName }) {
             <div className={cn('h-16 flex items-center border-b border-slate-200 dark:border-slate-700', isCollapsed ? 'justify-center px-0' : 'px-6')}>
               {isCollapsed ? (
                 <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
-                  CC
+                  SI
                 </div>
               ) : (
                 <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                  Consultas CAO
+                  SIGO
                 </h1>
               )}
             </div>
