@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Flag, ShieldAlert, Info } from 'lucide-react';
+import { Flag, ShieldAlert, Info, CheckCircle2 } from 'lucide-react';
 import {
-    FEATURE_FLAG_LIST,
-    FEATURE_FLAG_CATEGORIES,
+    OPTIONAL_FLAG_LIST,
+    INTEGRATED_FLAG_LIST,
 } from '@/constants/featureFlags';
 import { useFeatureFlags } from '@/lib/FeatureFlagsContext';
 import { setFeatureFlag } from '@/services/platformService';
@@ -40,20 +40,32 @@ export default function FeatureFlagsPanel() {
         }
     };
 
+    // Categorias que ainda têm ao menos uma flag opcional (toggle).
+    const optionalCategories = [
+        ...new Set(OPTIONAL_FLAG_LIST.map((f) => f.category)),
+    ];
+
+    // Integradas agrupadas por categoria (somente leitura).
+    const integratedCategories = [
+        ...new Set(INTEGRATED_FLAG_LIST.map((f) => f.category)),
+    ];
+
     return (
         <div className="space-y-6">
             <Alert>
                 <Info className="w-4 h-4" />
                 <AlertDescription className="text-sm">
-                    Todas as novas funcionalidades chegam <strong>desligadas</strong> por
-                    padrão — o sistema continua exatamente como está. Ao ligar uma chave,
-                    a melhoria correspondente é ativada e pode ser desligada a qualquer
-                    momento, voltando 100% ao comportamento anterior.
+                    A maior parte das funcionalidades já foi <strong>integrada
+                    permanentemente</strong> ao produto — elas ficam sempre ativas e não
+                    aparecem aqui para ligar/desligar. Abaixo ficam apenas as
+                    funcionalidades <strong>opcionais</strong>, que você pode ligar ou
+                    desligar a qualquer momento.
                 </AlertDescription>
             </Alert>
 
-            {FEATURE_FLAG_CATEGORIES.map((category) => {
-                const flagsInCategory = FEATURE_FLAG_LIST.filter(
+            {/* --- Funcionalidades opcionais (toggle) --- */}
+            {optionalCategories.map((category) => {
+                const flagsInCategory = OPTIONAL_FLAG_LIST.filter(
                     (f) => f.category === category
                 );
                 return (
@@ -110,6 +122,49 @@ export default function FeatureFlagsPanel() {
                     </Card>
                 );
             })}
+
+            {/* --- Integradas ao produto (somente leitura) --- */}
+            {INTEGRATED_FLAG_LIST.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            Integradas ao produto (permanentes)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Estas funcionalidades fazem parte do produto e ficam sempre
+                            ativas por padrão. Não exigem configuração aqui.
+                        </p>
+                        {integratedCategories.map((category) => {
+                            const flagsInCategory = INTEGRATED_FLAG_LIST.filter(
+                                (f) => f.category === category
+                            );
+                            return (
+                                <div key={category}>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                                        {category}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {flagsInCategory.map((flag) => (
+                                            <Badge
+                                                key={flag.key}
+                                                variant="secondary"
+                                                className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 gap-1"
+                                                title={flag.description}
+                                            >
+                                                <CheckCircle2 className="w-3 h-3" />
+                                                {flag.label}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
