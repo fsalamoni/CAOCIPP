@@ -29,14 +29,19 @@ async function countUrgentPending(orgId, collection) {
 // Resumo diário de urgentes pendentes (flag `scheduled_email_reports`,
 // organization.reportsConfig.dailySummaryEnabled).
 exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every day 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
-    var _a;
+    var _a, _b;
     const db = admin.firestore();
-    // Funcionalidade integrada permanentemente ao produto: o disparo é
-    // controlado apenas pela configuração por órgão (reportsConfig.*).
+    // Funcionalidade integrada: roda por padrão, controlada pela config por
+    // órgão (reportsConfig.*). O flag global serve apenas como VÁLVULA DE
+    // EMERGÊNCIA — interrompe só se estiver EXPLICITAMENTE desligado.
+    const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
+    const flags = (((_a = flagsSnap.data()) === null || _a === void 0 ? void 0 : _a.flags) || {});
+    if (flags.scheduled_email_reports === false)
+        return;
     const orgsSnap = await db.collection('organizations').get();
     for (const orgDoc of orgsSnap.docs) {
         const org = orgDoc.data();
-        if (!((_a = org.reportsConfig) === null || _a === void 0 ? void 0 : _a.dailySummaryEnabled))
+        if (!((_b = org.reportsConfig) === null || _b === void 0 ? void 0 : _b.dailySummaryEnabled))
             continue;
         // Isola falhas por órgão: um erro num órgão não deve impedir o
         // envio do resumo para os demais.
@@ -69,16 +74,21 @@ exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every 
 // Relatório semanal do órgão (flag `scheduled_email_reports`,
 // organization.reportsConfig.weeklyReportEnabled). Toda segunda-feira.
 exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every monday 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
-    var _a;
+    var _a, _b;
     const db = admin.firestore();
-    // Funcionalidade integrada permanentemente ao produto: o disparo é
-    // controlado apenas pela configuração por órgão (reportsConfig.*).
+    // Funcionalidade integrada: roda por padrão, controlada pela config por
+    // órgão (reportsConfig.*). O flag global serve apenas como VÁLVULA DE
+    // EMERGÊNCIA — interrompe só se estiver EXPLICITAMENTE desligado.
+    const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
+    const flags = (((_a = flagsSnap.data()) === null || _a === void 0 ? void 0 : _a.flags) || {});
+    if (flags.scheduled_email_reports === false)
+        return;
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const orgsSnap = await db.collection('organizations').get();
     for (const orgDoc of orgsSnap.docs) {
         const org = orgDoc.data();
-        if (!((_a = org.reportsConfig) === null || _a === void 0 ? void 0 : _a.weeklyReportEnabled))
+        if (!((_b = org.reportsConfig) === null || _b === void 0 ? void 0 : _b.weeklyReportEnabled))
             continue;
         // Isola falhas por órgão: um erro num órgão não deve impedir o
         // envio do relatório para os demais.

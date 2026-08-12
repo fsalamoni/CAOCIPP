@@ -134,8 +134,8 @@ export default function FeatureFlagsPanel() {
                     </CardHeader>
                     <CardContent className="space-y-5">
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Estas funcionalidades fazem parte do produto e estão sempre
-                            ativas. Não dependem mais de chave e não podem ser desligadas.
+                            Estas funcionalidades fazem parte do produto e ficam sempre
+                            ativas por padrão. Não exigem configuração aqui.
                         </p>
                         {integratedCategories.map((category) => {
                             const flagsInCategory = INTEGRATED_FLAG_LIST.filter(

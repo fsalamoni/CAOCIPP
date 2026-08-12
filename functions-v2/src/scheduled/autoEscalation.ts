@@ -64,8 +64,12 @@ export const autoEscalateStalledUrgent = onSchedule(
     async () => {
         const db = admin.firestore();
 
-        // Funcionalidade integrada permanentemente ao produto: o disparo é
-        // controlado apenas pela configuração por órgão (escalationConfig.*).
+        // Funcionalidade integrada: roda por padrão, controlada pela config por
+        // órgão (escalationConfig.*). O flag global serve apenas como VÁLVULA DE
+        // EMERGÊNCIA — interrompe só se estiver EXPLICITAMENTE desligado.
+        const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
+        const flags = (flagsSnap.data()?.flags || {}) as Record<string, boolean>;
+        if (flags.auto_escalation === false) return;
 
         const orgsSnap = await db.collection('organizations').get();
 

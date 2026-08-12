@@ -61,9 +61,15 @@ const ENTITY_DEFS = [
 // etapa atual (dias úteis) já ultrapassou o limite configurado, e notifica
 // o criador, os administradores delegados e o responsável pelo registro.
 exports.autoEscalateStalledUrgent = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
+    var _a;
     const db = admin.firestore();
-    // Funcionalidade integrada permanentemente ao produto: o disparo é
-    // controlado apenas pela configuração por órgão (escalationConfig.*).
+    // Funcionalidade integrada: roda por padrão, controlada pela config por
+    // órgão (escalationConfig.*). O flag global serve apenas como VÁLVULA DE
+    // EMERGÊNCIA — interrompe só se estiver EXPLICITAMENTE desligado.
+    const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
+    const flags = (((_a = flagsSnap.data()) === null || _a === void 0 ? void 0 : _a.flags) || {});
+    if (flags.auto_escalation === false)
+        return;
     const orgsSnap = await db.collection('organizations').get();
     for (const orgDoc of orgsSnap.docs) {
         const org = orgDoc.data();

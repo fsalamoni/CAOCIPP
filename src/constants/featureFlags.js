@@ -3,10 +3,11 @@
 // ----------------------------------------------------------------------------
 // MODELO ATUAL (após a integração permanente):
 //   - A MAIORIA das funcionalidades foi INTEGRADA permanentemente ao produto
-//     (permanentes/design). Elas ficam SEMPRE ligadas, não aparecem na página
-//     de Administração para ligar/desligar e não dependem mais do Firestore.
-//     Ver `OPTIONAL_FLAG_KEYS` abaixo: tudo o que NÃO está nesse conjunto é
-//     considerado integrado.
+//     (permanentes/design). Ficam LIGADAS por padrão e NÃO aparecem na página
+//     de Administração para ligar/desligar — não exigem manutenção de flag.
+//     Um `false` explícito no Firestore ainda é respeitado como VÁLVULA DE
+//     EMERGÊNCIA (permite desligar sem redeploy). Ver `OPTIONAL_FLAG_KEYS`
+//     abaixo: tudo o que NÃO está nesse conjunto é considerado integrado.
 //   - Um pequeno conjunto continua como flag OPCIONAL (o admin liga/desliga):
 //     ver `OPTIONAL_FLAG_KEYS`. Essas têm DEFAULT = false (OFF) e são lidas do
 //     Firestore normalmente.
@@ -381,22 +382,18 @@ export const OPTIONAL_FLAG_KEYS = new Set([
     'onboarding_tour',
 ]);
 
-// Uma flag é "integrada" (permanente/on) se NÃO está no conjunto opcional.
+// Uma flag é "integrada" (permanente/on por padrão) se NÃO está no conjunto
+// opcional.
 export const isIntegratedFlag = (key) => !OPTIONAL_FLAG_KEYS.has(key);
 
 // Listas derivadas para a UI de Administração.
 export const INTEGRATED_FLAG_LIST = FEATURE_FLAG_LIST.filter((f) => isIntegratedFlag(f.key));
 export const OPTIONAL_FLAG_LIST = FEATURE_FLAG_LIST.filter((f) => !isIntegratedFlag(f.key));
 
-// Mapa { key: true } das integradas — usado para FORÇAR o estado ligado,
-// sobrepondo qualquer valor do Firestore (garante permanência).
-export const INTEGRATED_FLAG_ON = FEATURE_FLAG_LIST.reduce((acc, flag) => {
-    if (isIntegratedFlag(flag.key)) acc[flag.key] = true;
-    return acc;
-}, {});
-
-// Mapa { key: default } para inicialização segura.
-//   - Integradas: default TRUE (permanentes, já valem antes de ler o Firestore).
+// Mapa { key: default } para inicialização.
+//   - Integradas: default TRUE (permanentes; já valem antes de ler o Firestore
+//     e mesmo se a leitura falhar). Um `false` explícito no Firestore ainda é
+//     respeitado como válvula de emergência (ver FeatureFlagsContext).
 //   - Opcionais: mantêm seu default declarado (false / OFF).
 export const FEATURE_FLAG_DEFAULTS = FEATURE_FLAG_LIST.reduce((acc, flag) => {
     acc[flag.key] = isIntegratedFlag(flag.key) ? true : flag.default;
