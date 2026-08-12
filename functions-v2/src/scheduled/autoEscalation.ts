@@ -64,9 +64,8 @@ export const autoEscalateStalledUrgent = onSchedule(
     async () => {
         const db = admin.firestore();
 
-        const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
-        const flags = (flagsSnap.data()?.flags || {}) as Record<string, boolean>;
-        if (flags.auto_escalation !== true) return;
+        // Funcionalidade integrada permanentemente ao produto: o disparo é
+        // controlado apenas pela configuração por órgão (escalationConfig.*).
 
         const orgsSnap = await db.collection('organizations').get();
 

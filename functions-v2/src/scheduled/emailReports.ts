@@ -35,9 +35,8 @@ export const sendDailyUrgentSummary = onSchedule(
     async () => {
         const db = admin.firestore();
 
-        const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
-        const flags = (flagsSnap.data()?.flags || {}) as Record<string, boolean>;
-        if (flags.scheduled_email_reports !== true) return;
+        // Funcionalidade integrada permanentemente ao produto: o disparo é
+        // controlado apenas pela configuração por órgão (reportsConfig.*).
 
         const orgsSnap = await db.collection('organizations').get();
 
@@ -82,9 +81,8 @@ export const sendWeeklyOrgReport = onSchedule(
     async () => {
         const db = admin.firestore();
 
-        const flagsSnap = await db.collection('platformConfig').doc('featureFlags').get();
-        const flags = (flagsSnap.data()?.flags || {}) as Record<string, boolean>;
-        if (flags.scheduled_email_reports !== true) return;
+        // Funcionalidade integrada permanentemente ao produto: o disparo é
+        // controlado apenas pela configuração por órgão (reportsConfig.*).
 
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

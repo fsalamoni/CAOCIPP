@@ -17,7 +17,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { FEATURE_FLAG_DEFAULTS } from '@/constants/featureFlags';
+import { FEATURE_FLAG_DEFAULTS, INTEGRATED_FLAG_ON } from '@/constants/featureFlags';
 import { logger } from '@/utils/logger';
 
 const FeatureFlagsContext = createContext({
@@ -42,11 +42,13 @@ export const FeatureFlagsProvider = ({ children }) => {
                 if (snapshot.exists()) {
                     const data = snapshot.data() || {};
                     const stored = data.flags || {};
-                    // Merge: defaults primeiro, depois os valores salvos.
-                    setFlags({ ...FEATURE_FLAG_DEFAULTS, ...stored });
+                    // Merge: defaults primeiro, depois os valores salvos, e por
+                    // último as INTEGRADAS forçadas em TRUE (permanentes — não
+                    // podem ser desligadas pelo Firestore).
+                    setFlags({ ...FEATURE_FLAG_DEFAULTS, ...stored, ...INTEGRATED_FLAG_ON });
                 } else {
-                    // Documento ainda não criado => tudo OFF (comportamento atual).
-                    setFlags(FEATURE_FLAG_DEFAULTS);
+                    // Documento ainda não criado => opcionais OFF, integradas ON.
+                    setFlags({ ...FEATURE_FLAG_DEFAULTS, ...INTEGRATED_FLAG_ON });
                 }
                 setIsLoading(false);
             },

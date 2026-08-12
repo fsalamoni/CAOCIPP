@@ -1,15 +1,23 @@
 // ============================================================================
 // FEATURE FLAGS - Catálogo central de flags da plataforma
 // ----------------------------------------------------------------------------
-// IMPORTANTE (segurança / zero quebra):
-//   - Toda flag tem DEFAULT = false (OFF).
-//   - Flag OFF significa SEMPRE o comportamento atual do sistema.
-//   - Nenhuma flag ligada por padrão. Você habilita na página de Administração.
-//   - O caminho antigo permanece intacto como fallback para cada flag.
+// MODELO ATUAL (após a integração permanente):
+//   - A MAIORIA das funcionalidades foi INTEGRADA permanentemente ao produto
+//     (permanentes/design). Elas ficam SEMPRE ligadas, não aparecem na página
+//     de Administração para ligar/desligar e não dependem mais do Firestore.
+//     Ver `OPTIONAL_FLAG_KEYS` abaixo: tudo o que NÃO está nesse conjunto é
+//     considerado integrado.
+//   - Um pequeno conjunto continua como flag OPCIONAL (o admin liga/desliga):
+//     ver `OPTIONAL_FLAG_KEYS`. Essas têm DEFAULT = false (OFF) e são lidas do
+//     Firestore normalmente.
 //
-// Estrutura: cada flag possui chave estável (key) + metadados para a UI.
-// A persistência fica em Firestore: platformConfig/featureFlags (global)
-// e organizations/{id}.featureFlags (override por órgão, opcional).
+// Por que manter as entradas das integradas neste catálogo? Muitas partes do
+// código referenciam `FEATURE_FLAGS.X.key` — remover as entradas quebraria
+// essas referências. Mantê-las (com useFlag retornando sempre true para as
+// integradas) preserva 100% do comportamento atual sem risco.
+//
+// A persistência das OPCIONAIS fica em Firestore: platformConfig/featureFlags
+// (global) e organizations/{id}.featureFlags (override por órgão, opcional).
 // ============================================================================
 
 export const FEATURE_FLAGS = {
@@ -357,9 +365,41 @@ export const FEATURE_FLAGS = {
 // Lista plana das flags para iteração em UI.
 export const FEATURE_FLAG_LIST = Object.values(FEATURE_FLAGS);
 
+// ----------------------------------------------------------------------------
+// Integração permanente
+// ----------------------------------------------------------------------------
+// Conjunto das ÚNICAS flags que permanecem OPCIONAIS (o admin liga/desliga).
+// Fonte: estado real em produção (Admin → Funcionalidades). Todo o resto foi
+// integrado permanentemente ao produto e fica sempre ligado.
+//
+// Manter/alterar aqui é o único ponto necessário para promover uma flag de
+// "opcional" para "integrada" (basta removê-la deste conjunto) ou o inverso.
+export const OPTIONAL_FLAG_KEYS = new Set([
+    'global_search',
+    'assessor_goals',
+    'two_factor_auth',
+    'onboarding_tour',
+]);
+
+// Uma flag é "integrada" (permanente/on) se NÃO está no conjunto opcional.
+export const isIntegratedFlag = (key) => !OPTIONAL_FLAG_KEYS.has(key);
+
+// Listas derivadas para a UI de Administração.
+export const INTEGRATED_FLAG_LIST = FEATURE_FLAG_LIST.filter((f) => isIntegratedFlag(f.key));
+export const OPTIONAL_FLAG_LIST = FEATURE_FLAG_LIST.filter((f) => !isIntegratedFlag(f.key));
+
+// Mapa { key: true } das integradas — usado para FORÇAR o estado ligado,
+// sobrepondo qualquer valor do Firestore (garante permanência).
+export const INTEGRATED_FLAG_ON = FEATURE_FLAG_LIST.reduce((acc, flag) => {
+    if (isIntegratedFlag(flag.key)) acc[flag.key] = true;
+    return acc;
+}, {});
+
 // Mapa { key: default } para inicialização segura.
+//   - Integradas: default TRUE (permanentes, já valem antes de ler o Firestore).
+//   - Opcionais: mantêm seu default declarado (false / OFF).
 export const FEATURE_FLAG_DEFAULTS = FEATURE_FLAG_LIST.reduce((acc, flag) => {
-    acc[flag.key] = flag.default;
+    acc[flag.key] = isIntegratedFlag(flag.key) ? true : flag.default;
     return acc;
 }, {});
 
