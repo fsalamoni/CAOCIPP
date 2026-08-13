@@ -455,6 +455,17 @@ export const updateAditivo = async (data) => {
     }
 };
 
+export const concludeAditivo = async (data) => {
+    try {
+        const fn = httpsCallable(functions, 'concludeAditivo');
+        const result = await fn(data);
+        return result.data;
+    } catch (error) {
+        logger.error('Error calling concludeAditivo:', error);
+        throw error;
+    }
+};
+
 export const deleteAditivo = async (data) => {
     try {
         const fn = httpsCallable(functions, 'deleteAditivo');

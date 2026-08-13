@@ -278,4 +278,27 @@ export const parceriaStatusConfig = {
             groupHover: "group-hover:!bg-muted/60"
         }
     },
+    // Estado terminal de um ADITIVO (não é fase de Parceria): usado no
+    // StatusBadge do aditivo concluído dentro do DetailSheet.
+    'Concluído': {
+        color: '#14b8a6',
+        label: 'Concluído',
+        startColor: 'bg-teal-100 dark:bg-teal-800',
+        text: 'text-teal-800 dark:text-teal-100',
+        border: 'border-teal-200 dark:border-teal-500',
+        row: {
+            bg: "bg-teal-50",
+            accent: "border-l-teal-400",
+            border: "border-b-teal-100",
+            hover: "hover:bg-teal-100/60",
+            groupHover: "group-hover:!bg-teal-100/60"
+        },
+        rowV2: {
+            bg: "bg-white dark:bg-slate-900",
+            accent: "border-l-teal-400",
+            border: "border-b-border",
+            hover: "hover:bg-muted/60",
+            groupHover: "group-hover:!bg-muted/60"
+        }
+    },
 };

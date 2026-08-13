@@ -250,8 +250,10 @@ export default function ParceriaDetailSheet({
                     {isViewingAdditive && (
                         <div className="rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 p-3">
                             <p className="text-xs text-amber-800 dark:text-amber-200">
-                                <strong>Aditivo #{selectedAdditive.aditivo_number}</strong> ({selectedAdditive.aditivo_type_label || selectedAdditive.aditivo_type}).
-                                A Parceria original está congelada; os dados abaixo são do aditivo corrente.
+                                <strong>Aditivo nº {selectedAdditive.aditivo_number}</strong> ({selectedAdditive.aditivo_type_label || selectedAdditive.aditivo_type}).
+                                {selectedAdditive.status === 'Concluído'
+                                    ? ' Aditivo concluído — as alterações já foram aplicadas à Parceria original.'
+                                    : ' Procedimento de alteração da Parceria original. Ao concluí-lo (fase “Parcerias”), as mudanças de prazo/objeto serão aplicadas à original.'}
                             </p>
                         </div>
                     )}
@@ -343,6 +345,49 @@ export default function ParceriaDetailSheet({
                         </Section>
                     )}
 
+                    {/* Dados de conclusão do ADITIVO (aditivo não tem "tipo de parceria") */}
+                    {isViewingAdditive && (getParceriaField(viewing, 'aditivo_signature_date') || getParceriaField(viewing, 'objeto_aditivo') || getParceriaField(viewing, 'prazo_valor')) && (
+                        <Section title="Conclusão do Aditivo">
+                            <div className="pt-2 grid grid-cols-2 gap-2">
+                                <DetailItem label="Nº do Aditivo" value={selectedAdditive.aditivo_number} />
+                                <DetailItem label="Assinatura do Aditivo" value={formatDate(getParceriaField(viewing, 'aditivo_signature_date'))} />
+                                {getParceriaField(viewing, 'prazo_valor') && (
+                                    <DetailItem label="Prazo de Prorrogação" value={`${getParceriaField(viewing, 'prazo_valor')} ${getParceriaField(viewing, 'prazo_unidade') || ''}`} />
+                                )}
+                                {getParceriaField(viewing, 'objeto_aditivo') && (
+                                    <DetailItem label="Objeto do Aditivo" value={getParceriaField(viewing, 'objeto_aditivo')} multiline />
+                                )}
+                            </div>
+                        </Section>
+                    )}
+
+                    {/* Alterações aplicadas por aditivos (na ORIGINAL) */}
+                    {!isViewingAdditive && Array.isArray(parceria.aditivo_modifications) && parceria.aditivo_modifications.length > 0 && (
+                        <Section title="Alterações por Aditivo(s)">
+                            <div className="pt-2 space-y-2">
+                                {parceria.aditivo_modifications.map((m, i) => (
+                                    <div key={m.aditivo_id || i} className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 p-2.5">
+                                        <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                            Aditivo nº {m.aditivo_number}
+                                            {m.aditivo_signature_date ? ` — assinado em ${formatDate(m.aditivo_signature_date)}` : ''}
+                                        </p>
+                                        {(m.prazo_valor || m.new_end_date) && (
+                                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                                                Prorrogação: +{m.prazo_valor} {m.prazo_unidade}
+                                                {m.new_end_date ? ` → termo final ${formatDate(m.new_end_date)}` : ''}
+                                            </p>
+                                        )}
+                                        {m.objeto_aditivo && (
+                                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 whitespace-pre-wrap">
+                                                Objeto acrescido: {m.objeto_aditivo}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </Section>
+                    )}
+
                     {/* Terceiros */}
                     {getParceriaField(viewing, 'third_party') && (
                         <Section title="Terceiros">
@@ -408,16 +453,21 @@ export default function ParceriaDetailSheet({
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2">
                         {!isViewingAdditive && isCreator && (
                             <>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full justify-start gap-2"
-                                    onClick={() => onIncludeAditivo?.(parceria)}
-                                >
-                                    <GitBranch className="w-4 h-4 text-amber-600" />
-                                    {hasAdd ? 'Incluir Novo Aditivo' : 'Incluir Aditivo'}
-                                </Button>
-                                {status === 'Parcerias' && !hasAdd && onExtinguish && (
+                                {/* Só é possível incluir aditivo quando a Parceria está
+                                    ativa em "Parcerias" e não há aditivo em andamento
+                                    (um por vez). */}
+                                {status === 'Parcerias' && !parceria.current_additive_id && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full justify-start gap-2"
+                                        onClick={() => onIncludeAditivo?.(parceria)}
+                                    >
+                                        <GitBranch className="w-4 h-4 text-amber-600" />
+                                        {hasAdd ? 'Incluir Novo Aditivo' : 'Incluir Aditivo'}
+                                    </Button>
+                                )}
+                                {status === 'Parcerias' && !parceria.current_additive_id && onExtinguish && (
                                     <Button
                                         type="button"
                                         variant="outline"

@@ -37,6 +37,7 @@ export { updateParceria } from './parcerias/update';
 export { deleteParceria } from './parcerias/delete';
 export { addAditivo } from './parcerias/addAditivo';
 export { updateAditivo } from './parcerias/updateAditivo';
+export { concludeAditivo } from './parcerias/concludeAditivo';
 export { deleteAditivo } from './parcerias/deleteAditivo';
 export { extinguishParceria } from './parcerias/extinguish';
 export { importParceriasFromExcel } from './import/fromExcelParcerias';
