@@ -59,6 +59,14 @@ exports.updateAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         throw new https_1.HttpsError('not-found', 'Aditivo não encontrado');
     }
     const aditivoData = aditivoSnap.data() || {};
+    // A CONCLUSÃO do aditivo (fase final "Parcerias") NÃO passa por aqui:
+    // ela é feita pela função `concludeAditivo`, que coleta os dados
+    // próprios do aditivo (nº, data de assinatura, prazo/objeto) e aplica as
+    // alterações na Parceria original. Bloqueamos a definição direta destes
+    // status por updateAditivo para evitar caminhos divergentes.
+    if (changes.status === 'Parcerias' || changes.status === 'Concluído') {
+        throw new https_1.HttpsError('failed-precondition', 'Para concluir o aditivo, arraste-o para "Parcerias" e preencha os dados de conclusão.');
+    }
     // 4. Sanitize changes
     for (const field of PROTECTED_ADITIVO_FIELDS) {
         delete changes[field];

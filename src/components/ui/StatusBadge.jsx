@@ -28,7 +28,8 @@ const ICONS = {
   'Aguarda Terceiros': Send,
   'Revisão': Eye,
   'Parcerias': Handshake,
-  'Extintos': Archive
+  'Extintos': Archive,
+  'Concluído': CheckCircle
 };
 
 export default function StatusBadge({ status, className, variant, configMap }) {

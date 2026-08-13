@@ -80,6 +80,16 @@ export const addAditivo = onCall<AddAditivoRequest>(
 
         // 3. Regra de negócio: só é possível incluir aditivo quando a Parceria
         // está em status "Parcerias" (formalizada, com vigência rolando).
+        // Como só pode haver UM aditivo em andamento por vez (sequencial),
+        // durante um aditivo a parceria fica espelhando a fase dele (não fica
+        // em "Parcerias"), então esta checagem já bloqueia um segundo aditivo.
+        // O check de `current_additive_id` reforça a regra explicitamente.
+        if (parceriaData.current_additive_id) {
+            throw new HttpsError(
+                'failed-precondition',
+                'Já existe um aditivo em andamento nesta Parceria. Conclua-o antes de incluir um novo.'
+            );
+        }
         if (parceriaData.status !== 'Parcerias') {
             throw new HttpsError(
                 'failed-precondition',
