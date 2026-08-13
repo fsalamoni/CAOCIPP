@@ -5,30 +5,41 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const history_1 = require("../shared/history");
 const UNIDADES = new Set(['dias', 'meses', 'anos']);
-/** Soma uma duração a uma data 'yyyy-MM-dd', devolvendo 'yyyy-MM-dd'. */
-function addDurationToDate(dateStr, valor, unidade) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || '').trim());
-    if (!m)
-        return null;
-    const y = Number(m[1]);
-    const mo = Number(m[2]);
-    const d = Number(m[3]);
-    // Meio-dia local evita off-by-one por fuso ao formatar de volta.
-    const dt = new Date(y, mo - 1, d, 12, 0, 0);
+function fmtDate(dt) {
     if (Number.isNaN(dt.getTime()))
-        return null;
-    if (unidade === 'dias')
-        dt.setDate(dt.getDate() + valor);
-    else if (unidade === 'meses')
-        dt.setMonth(dt.getMonth() + valor);
-    else if (unidade === 'anos')
-        dt.setFullYear(dt.getFullYear() + valor);
-    else
         return null;
     const yy = dt.getFullYear();
     const mm = String(dt.getMonth() + 1).padStart(2, '0');
     const dd = String(dt.getDate()).padStart(2, '0');
     return `${yy}-${mm}-${dd}`;
+}
+/**
+ * Soma uma duração a uma data 'yyyy-MM-dd', devolvendo 'yyyy-MM-dd'.
+ * Para meses/anos, faz "clamp" no último dia do mês-alvo para evitar overflow
+ * (ex.: 31/01 + 1 mês → 28/02, não 03/03; 29/02 + 1 ano → 28/02). Meio-dia
+ * local evita off-by-one por fuso ao formatar de volta.
+ */
+function addDurationToDate(dateStr, valor, unidade) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || '').trim());
+    if (!m)
+        return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1; // 0-indexed
+    const d = Number(m[3]);
+    if (unidade === 'dias') {
+        return fmtDate(new Date(y, mo, d + valor, 12, 0, 0));
+    }
+    if (unidade === 'meses' || unidade === 'anos') {
+        const monthsToAdd = unidade === 'anos' ? valor * 12 : valor;
+        const total = mo + monthsToAdd;
+        const targetYear = y + Math.floor(total / 12);
+        const targetMonth = ((total % 12) + 12) % 12;
+        // Último dia do mês-alvo (dia 0 do mês seguinte).
+        const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const day = Math.min(d, lastDay);
+        return fmtDate(new Date(targetYear, targetMonth, day, 12, 0, 0));
+    }
+    return null;
 }
 exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
@@ -92,13 +103,26 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
         };
         let previousEndDate = null;
         let newEndDate = null;
+        let newRenewalNoticeDate = null;
         if (hasPrazo) {
             previousEndDate = parceria.end_date || null;
-            if (previousEndDate) {
-                const computed = addDurationToDate(previousEndDate, prazoValorNum, prazoUnidade);
-                if (computed) {
-                    newEndDate = computed;
-                    parentUpdate.end_date = computed;
+            // A original formalizada tem end_date (exigido na fase Parcerias);
+            // como fallback defensivo, ancora na data de assinatura do aditivo
+            // para que o termo final SEMPRE seja atualizado quando há prazo.
+            const base = previousEndDate || aditivoSignatureDate;
+            const computed = addDurationToDate(base, prazoValorNum, prazoUnidade);
+            if (computed) {
+                newEndDate = computed;
+                parentUpdate.end_date = computed;
+            }
+            // A data do aviso de renovação acompanha a extensão do termo,
+            // para que os alertas de renovação reflitam o novo prazo.
+            const prevRenewal = parceria.renewal_notice_date || null;
+            if (prevRenewal) {
+                const r = addDurationToDate(prevRenewal, prazoValorNum, prazoUnidade);
+                if (r) {
+                    newRenewalNoticeDate = r;
+                    parentUpdate.renewal_notice_date = r;
                 }
             }
             // Vigência (texto): acrescenta a prorrogação e a razão.
@@ -126,6 +150,7 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
             prazo_unidade: hasPrazo ? prazoUnidade : null,
             previous_end_date: previousEndDate,
             new_end_date: newEndDate,
+            new_renewal_notice_date: newRenewalNoticeDate,
             objeto_aditivo: hasObjeto ? objetoAditivo : null,
             applied_at: logDate,
             applied_by: userId,
@@ -165,16 +190,15 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
         t.update(aditivoRef, aditivoUpdate);
         return { aditivoNumber, newEndDate, parentLog, aditivoLog };
     });
-    // Dual-write de histórico (best-effort, fora da transação).
-    try {
-        await parceriaRef.collection('history').doc((0, history_1.historyEntryId)(result.parentLog)).set(Object.assign(Object.assign({}, result.parentLog), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
-        await aditivoRef.collection('history').doc((0, history_1.historyEntryId)(result.aditivoLog)).set(Object.assign(Object.assign({}, result.aditivoLog), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
-    }
-    catch (histErr) {
+    // Escritas independentes pós-transação em paralelo (menor latência).
+    // O histórico é best-effort (não deve derrubar a operação já concluída).
+    const historyWrites = Promise.all([
+        parceriaRef.collection('history').doc((0, history_1.historyEntryId)(result.parentLog)).set(Object.assign(Object.assign({}, result.parentLog), { created_at: admin.firestore.FieldValue.serverTimestamp() })),
+        aditivoRef.collection('history').doc((0, history_1.historyEntryId)(result.aditivoLog)).set(Object.assign(Object.assign({}, result.aditivoLog), { created_at: admin.firestore.FieldValue.serverTimestamp() })),
+    ]).catch((histErr) => {
         console.error('[history dual-write] concludeAditivo', parceriaId, aditivoId, histErr);
-    }
-    // Audit log.
-    await db.collection('auditLogs').add({
+    });
+    const auditWrite = db.collection('auditLogs').add({
         organization_id: organizationId,
         user_id: userId,
         user_name: userName,
@@ -189,6 +213,7 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
         },
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
+    await Promise.all([historyWrites, auditWrite]);
     return { success: true, status: 'Concluído', newEndDate: result.newEndDate };
 });
 //# sourceMappingURL=concludeAditivo.js.map

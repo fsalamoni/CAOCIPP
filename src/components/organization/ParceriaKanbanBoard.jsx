@@ -160,6 +160,13 @@ function buildValidForward(columns) {
     return map;
 }
 
+// Id do aditivo EM ANDAMENTO da parceria (ou null). Fonte única de verdade
+// para decidir "esta parceria está tramitando um aditivo?".
+function getActiveAditivoId(parceria) {
+    const id = parceria?.current_additive_id;
+    return ((parceria?.aditivo_count || 0) > 0 && id) ? id : null;
+}
+
 const PARCERIA_SORT_OPTIONS = [
     { key: 'pgea', label: 'PGEA' },
     { key: 'partnership_type', label: 'Tipo' },
@@ -562,9 +569,8 @@ export default function ParceriaKanbanBoard({
     // espelha a fase do aditivo de volta na Parceria pai. Caso contrário, muda
     // a própria Parceria.
     const applyPhaseChange = useCallback(async (parceria, changes) => {
-        const aditivoId = parceria?.current_additive_id;
-        const hasAditivo = (parceria?.aditivo_count || 0) > 0 && !!aditivoId;
-        if (hasAditivo) {
+        const aditivoId = getActiveAditivoId(parceria);
+        if (aditivoId) {
             return updateAditivo({
                 parceriaId: parceria.id,
                 aditivoId,
@@ -649,9 +655,7 @@ export default function ParceriaKanbanBoard({
             // Se a parceria está tramitando um ADITIVO, o passo final não é
             // "formalizar" (a original já é formalizada): é CONCLUIR o aditivo,
             // que aplica prazo/objeto na original e a devolve para "Parcerias".
-            const aditivoId = parceria?.current_additive_id;
-            const hasAditivo = (parceria?.aditivo_count || 0) > 0 && !!aditivoId;
-            if (hasAditivo) {
+            if (getActiveAditivoId(parceria)) {
                 setConcludeTarget(parceria);
                 setConcludeOpen(true);
                 return;
@@ -669,7 +673,7 @@ export default function ParceriaKanbanBoard({
     const handleConcludeAditivo = async (data) => {
         const parceria = concludeTarget;
         if (!parceria) return;
-        const aditivoId = parceria.current_additive_id;
+        const aditivoId = getActiveAditivoId(parceria);
         const pgea = getParceriaField(parceria, 'pgea');
         try {
             await concludeAditivo({
