@@ -141,12 +141,42 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                 throw new HttpsError('failed-precondition', 'Este aditivo já está concluído.');
             }
 
+            // Escopo declarado do aditivo (inclusão). Quando ausente (aditivo
+            // legado), ambos ficam permissivos. Cada efeito declarado é exigido;
+            // efeitos fora do escopo são ignorados.
+            const scopeUndefined = aditivo.is_prorrogacao == null && aditivo.is_objeto == null;
+            const allowProrrogacao = scopeUndefined || aditivo.is_prorrogacao === true;
+            const allowObjeto = scopeUndefined || aditivo.is_objeto === true;
+            const effectivePrazo = hasPrazo && allowProrrogacao;
+            const effectiveObjeto = hasObjeto && allowObjeto;
+            // Escopo DECLARADO exige cada efeito correspondente. Escopo ausente
+            // (aditivo legado) mantém a semântica antiga de "ao menos um"
+            // (garantida pelo guard de nível superior).
+            if (!scopeUndefined) {
+                if (allowProrrogacao && !hasPrazo) {
+                    throw new HttpsError(
+                        'failed-precondition',
+                        'Este aditivo é de prorrogação: informe o prazo (quantidade + unidade).'
+                    );
+                }
+                if (allowObjeto && !hasObjeto) {
+                    throw new HttpsError(
+                        'failed-precondition',
+                        'Este aditivo é de objeto: informe o objeto do aditivo.'
+                    );
+                }
+            }
+
             const aditivoNumber = Number(aditivo.aditivo_number) || 0;
 
             // --- Calcular alterações na ORIGINAL ---
             const parentUpdate: Record<string, unknown> = {
                 status: 'Parcerias',
                 current_additive_id: '',
+                // Libera o escopo do aditivo corrente (não há mais aditivo em
+                // andamento após a conclusão).
+                current_additive_prorrogacao: admin.firestore.FieldValue.delete(),
+                current_additive_objeto: admin.firestore.FieldValue.delete(),
                 updated_at: admin.firestore.FieldValue.serverTimestamp(),
                 updated_by: userId,
             };
@@ -155,7 +185,7 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
             let newEndDate: string | null = null;
             let newRenewalNoticeDate: string | null = null;
 
-            if (hasPrazo) {
+            if (effectivePrazo) {
                 previousEndDate = (parceria.end_date as string) || null;
                 // A original formalizada tem end_date (exigido na fase Parcerias);
                 // como fallback defensivo, ancora na data de assinatura do aditivo
@@ -184,7 +214,7 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                     : prazoTexto;
             }
 
-            if (hasObjeto) {
+            if (effectiveObjeto) {
                 const prevObject = String(parceria.object || '').trim();
                 const objetoTexto = `[Aditivo nº ${aditivoNumber}] ${objetoAditivo}`;
                 parentUpdate.object = prevObject
@@ -200,12 +230,12 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                 aditivo_type_label: aditivo.aditivo_type_label || null,
                 aditivo_signature_date: aditivoSignatureDate,
                 demp: demp,
-                prazo_valor: hasPrazo ? prazoValorNum : null,
-                prazo_unidade: hasPrazo ? prazoUnidade : null,
+                prazo_valor: effectivePrazo ? prazoValorNum : null,
+                prazo_unidade: effectivePrazo ? prazoUnidade : null,
                 previous_end_date: previousEndDate,
                 new_end_date: newEndDate,
                 new_renewal_notice_date: newRenewalNoticeDate,
-                objeto_aditivo: hasObjeto ? objetoAditivo : null,
+                objeto_aditivo: effectiveObjeto ? objetoAditivo : null,
                 applied_at: logDate,
                 applied_by: userId,
             };
@@ -216,7 +246,7 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                 time: logTime,
                 user_id: userId,
                 user_name: userName,
-                action: `Aditivo nº ${aditivoNumber} concluído${hasPrazo ? ` — prazo +${prazoValorNum} ${prazoUnidade}` : ''}${hasObjeto ? ' — objeto alterado' : ''}`,
+                action: `Aditivo nº ${aditivoNumber} concluído${effectivePrazo ? ` — prazo +${prazoValorNum} ${prazoUnidade}` : ''}${effectiveObjeto ? ' — objeto alterado' : ''}`,
                 timestamp: now.toISOString(),
             };
             parentUpdate.activity_log = admin.firestore.FieldValue.arrayUnion(parentLog);
@@ -228,9 +258,9 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                 status: 'Concluído',
                 aditivo_signature_date: aditivoSignatureDate,
                 demp: demp,
-                prazo_valor: hasPrazo ? prazoValorNum : null,
-                prazo_unidade: hasPrazo ? prazoUnidade : null,
-                objeto_aditivo: hasObjeto ? objetoAditivo : null,
+                prazo_valor: effectivePrazo ? prazoValorNum : null,
+                prazo_unidade: effectivePrazo ? prazoUnidade : null,
+                objeto_aditivo: effectiveObjeto ? objetoAditivo : null,
                 concluded_at: logDate,
                 concluded_by: userId,
                 updated_at: admin.firestore.FieldValue.serverTimestamp(),

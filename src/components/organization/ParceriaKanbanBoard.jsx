@@ -758,9 +758,10 @@ export default function ParceriaKanbanBoard({
                 partnership_type: data.partnership_type,
                 partnership_number: data.partnership_number,
                 signature_date: data.signature_date || today,
-                publication_date: data.publication_date || null,
                 demp: data.demp || '',
                 validity_period: data.validity_period,
+                validity_value: data.validity_value ?? null,
+                validity_unit: data.validity_unit || null,
                 object: data.object || '',
                 end_date: data.end_date,
                 renewal_notice_date: data.renewal_notice_date,
@@ -1083,6 +1084,8 @@ export default function ParceriaKanbanBoard({
                     open={concludeOpen}
                     onClose={() => { setConcludeOpen(false); setConcludeTarget(null); }}
                     aditivoNumber={Number(getParceriaField(concludeTarget, 'aditivo_count')) || concludeTarget.aditivo_count || 1}
+                    isProrrogacao={concludeTarget.current_additive_prorrogacao}
+                    isObjeto={concludeTarget.current_additive_objeto}
                     onConfirm={handleConcludeAditivo}
                 />
             )}

@@ -31,9 +31,10 @@ import { toast } from 'sonner';
 import { Loader2, CheckCircle2, Lock, Trash2, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
-import { parseLocalDate } from '@/lib/dateUtils';
+import { parseLocalDate, parseValidityPeriod, formatValidityPeriod, VIGENCIA_UNITS } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
 import { hasAdditives, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
+import { useAditivos } from '@/hooks/useFirestore';
 import ProcessLogDialog from './ProcessLogDialog';
 import EntityComments from './EntityComments';
 import { LivePresenceIndicator } from '@/lib/LivePresence';
@@ -48,9 +49,6 @@ const DEFAULT_ADITIVO_TIPOS = [
     'Aditivo de Alteração',
     'Aditivo de Reequilíbrio',
     'Aditivo de Execução',
-];
-const DEFAULT_VIGENCIA_OPTIONS = [
-    '6 meses', '12 meses', '24 meses', '36 meses', '60 meses', 'Indeterminado',
 ];
 const DEFAULT_THIRD_PARTIES = ['Parceiro', 'Convenente', 'Outro Órgão Público', 'Terceiro'];
 
@@ -114,6 +112,10 @@ export default function EditParceriaDialog({
     // aditivo em si, nunca há lock.
     const isLocked = !isAdditive && hasAdditives(parceria);
 
+    // Aditivos da Parceria (somente ao editar a original): cada um vira uma
+    // aba própria, somente leitura, com todas as informações do aditivo.
+    const { aditivos } = useAditivos(parceria?.id, open && !isAdditive);
+
     // Configurações do módulo vindas do banco do órgão.
     const tipos = organization?.parceriaSettings?.tipos?.length
         ? organization.parceriaSettings.tipos
@@ -121,9 +123,6 @@ export default function EditParceriaDialog({
     const aditivoTipos = organization?.parceriaSettings?.aditivoTipos?.length
         ? organization.parceriaSettings.aditivoTipos
         : DEFAULT_ADITIVO_TIPOS;
-    const vigenciaOptions = organization?.parceriaSettings?.vigenciaOptions?.length
-        ? organization.parceriaSettings.vigenciaOptions
-        : DEFAULT_VIGENCIA_OPTIONS;
     const categorias = organization?.parceriaSettings?.categorias || [];
     const thirdParties = organization?.thirdPartiesSettingsParcerias?.length
         ? organization.thirdPartiesSettingsParcerias
@@ -158,6 +157,16 @@ export default function EditParceriaDialog({
         return '';
     };
 
+    // Helper: formata data para exibição (dd/MM/yyyy) nas abas de aditivo.
+    const formatDateDisplay = (value) => {
+        if (!value) return '—';
+        try {
+            const d = parseLocalDate(value);
+            if (isValid(d)) return format(d, 'dd/MM/yyyy');
+        } catch { /* fallthrough */ }
+        return '—';
+    };
+
     // Carrega o formData a partir da fonte (parceria ou aditivo).
     useEffect(() => {
         if (!open) return;
@@ -186,7 +195,23 @@ export default function EditParceriaDialog({
             partnership_number: src.partnership_number || '',
             categoria: src.categoria || '',
             signature_date: formatDateForInput(src.signature_date),
+            demp: formatDateForInput(src.demp),
             validity_period: src.validity_period || '',
+            // Vigência estruturada (número + unidade). Usa os campos próprios
+            // quando existem; caso contrário, tenta interpretar o texto legado.
+            ...(() => {
+                if (Number(src.validity_value) > 0) {
+                    return {
+                        validity_value: String(src.validity_value),
+                        validity_unit: VIGENCIA_UNITS.includes(src.validity_unit) ? src.validity_unit : 'meses',
+                    };
+                }
+                const parsed = parseValidityPeriod(src.validity_period);
+                return {
+                    validity_value: parsed ? String(parsed.value) : '',
+                    validity_unit: parsed ? parsed.unit : 'meses',
+                };
+            })(),
             end_date: formatDateForInput(src.end_date),
             renewal_notice_date: formatDateForInput(src.renewal_notice_date),
             responsible_user_id: respId,
@@ -258,6 +283,18 @@ export default function EditParceriaDialog({
         try {
             setIsSaving(true);
             const changes = { ...formData };
+            // Vigência: compõe o texto ('N unidade') a partir do número +
+            // unidade quando informado. Sem número válido, preserva o valor
+            // legado de validity_period e não grava os campos estruturados.
+            const vv = Number(changes.validity_value);
+            if (Number.isFinite(vv) && vv > 0) {
+                changes.validity_value = vv;
+                changes.validity_unit = VIGENCIA_UNITS.includes(changes.validity_unit) ? changes.validity_unit : 'meses';
+                changes.validity_period = formatValidityPeriod(vv, changes.validity_unit);
+            } else {
+                delete changes.validity_value;
+                delete changes.validity_unit;
+            }
             // Limpar campos vazios para null (exceto strings "")
             for (const k of Object.keys(changes)) {
                 if (changes[k] === '') changes[k] = null;
@@ -375,7 +412,10 @@ export default function EditParceriaDialog({
     return (
         <>
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className={cn(
+                    'max-h-[90vh] overflow-y-auto',
+                    !isAdditive && aditivos.length > 0 ? 'max-w-5xl' : 'max-w-3xl'
+                )}>
                     <DialogHeader>
                         <div className="flex items-center justify-between gap-2">
                             <DialogTitle>{title}</DialogTitle>
@@ -390,11 +430,20 @@ export default function EditParceriaDialog({
 
                     <form onSubmit={handleSubmit} className="mt-4">
                         <Tabs defaultValue="basic" className="w-full">
-                            <TabsList className={cn('grid w-full', showCollabTab ? 'grid-cols-4' : 'grid-cols-3')}>
-                                <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
-                                <TabsTrigger value="workflow">Fluxo de Trabalho</TabsTrigger>
-                                <TabsTrigger value="archive">Revisão e Arquivo</TabsTrigger>
-                                {showCollabTab && <TabsTrigger value="collab">Colaboração</TabsTrigger>}
+                            <TabsList className="flex w-full flex-wrap h-auto">
+                                <TabsTrigger value="basic" className="flex-1 min-w-[8rem]">Dados Básicos</TabsTrigger>
+                                <TabsTrigger value="workflow" className="flex-1 min-w-[8rem]">Fluxo de Trabalho</TabsTrigger>
+                                <TabsTrigger value="archive" className="flex-1 min-w-[8rem]">Revisão e Arquivo</TabsTrigger>
+                                {showCollabTab && <TabsTrigger value="collab" className="flex-1 min-w-[8rem]">Colaboração</TabsTrigger>}
+                                {!isAdditive && aditivos.map((a) => (
+                                    <TabsTrigger
+                                        key={a.id}
+                                        value={`aditivo-${a.id}`}
+                                        className="flex-1 min-w-[8rem] text-amber-700 data-[state=active]:text-amber-800"
+                                    >
+                                        Aditivo {a.aditivo_number}
+                                    </TabsTrigger>
+                                ))}
                             </TabsList>
 
                             {/* ===================== DADOS BÁSICOS ===================== */}
@@ -585,20 +634,54 @@ export default function EditParceriaDialog({
                                     </div>
                                     <div>
                                         <div className="flex items-center justify-between">
-                                            <Label>Vigência</Label>
-                                            {renderValidationSignal('validity_period')}
+                                            <Label>Publicação no DEMP</Label>
+                                            {renderValidationSignal('demp')}
                                         </div>
                                         <Input
-                                            list="vigencia-options-edit"
-                                            value={formData.validity_period || ''}
+                                            type="date"
+                                            value={formData.demp || ''}
                                             disabled={isLocked}
-                                            onChange={(e) => setFormData({ ...formData, validity_period: e.target.value })}
-                                            placeholder="Ex.: 12 meses"
+                                            onChange={(e) => setFormData({ ...formData, demp: e.target.value })}
                                             className="mt-1"
                                         />
-                                        <datalist id="vigencia-options-edit">
-                                            {vigenciaOptions.map((v) => <option key={v} value={v} />)}
-                                        </datalist>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Data de publicação no Diário Eletrônico do MP</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Vigência</Label>
+                                            {renderValidationSignal('validity_value')}
+                                        </div>
+                                        <div className="flex gap-2 mt-1">
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                value={formData.validity_value || ''}
+                                                disabled={isLocked}
+                                                onChange={(e) => setFormData({ ...formData, validity_value: e.target.value })}
+                                                placeholder="Ex.: 12"
+                                                className="w-24"
+                                            />
+                                            <Select
+                                                value={formData.validity_unit || 'meses'}
+                                                onValueChange={(val) => setFormData({ ...formData, validity_unit: val })}
+                                                disabled={isLocked}
+                                            >
+                                                <SelectTrigger className="flex-1">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {VIGENCIA_UNITS.map((u) => (
+                                                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        {formData.validity_period && !(Number(formData.validity_value) > 0) && (
+                                            <p className="text-[10px] text-slate-400 mt-0.5">Vigência atual: {formData.validity_period}</p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -839,6 +922,16 @@ export default function EditParceriaDialog({
                                     )}
                                 </TabsContent>
                             )}
+
+                            {/* ===================== ABAS DE ADITIVO (somente leitura) ===================== */}
+                            {!isAdditive && aditivos.map((a) => (
+                                <TabsContent key={a.id} value={`aditivo-${a.id}`} className="space-y-4 mt-4">
+                                    <AditivoReadOnlyPanel
+                                        aditivo={a}
+                                        formatDate={formatDateDisplay}
+                                    />
+                                </TabsContent>
+                            ))}
                         </Tabs>
 
                         <div className="flex justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
@@ -912,5 +1005,126 @@ export default function EditParceriaDialog({
                 />
             )}
         </>
+    );
+}
+
+/**
+ * Escopo declarado do aditivo em texto legível (prorrogação/objeto).
+ */
+function aditivoScopeLabel(aditivo) {
+    const p = aditivo?.is_prorrogacao === true;
+    const o = aditivo?.is_objeto === true;
+    if (p && o) return 'Prorrogação e Objeto';
+    if (p) return 'Prorrogação';
+    if (o) return 'Objeto';
+    return aditivo?.aditivo_type_label || aditivo?.aditivo_type || '—';
+}
+
+/**
+ * AditivoReadOnlyPanel — visão somente leitura de um aditivo, dentro da aba
+ * própria do aditivo no modal de edição da Parceria. Segue a ordem das fases
+ * e da inclusão: identificação → dados → fluxo → conclusão.
+ *
+ * O aditivo é um procedimento próprio; sua edição acontece no fluxo dele
+ * (Kanban / diálogo do aditivo). Aqui é apenas consulta consolidada.
+ */
+function AditivoReadOnlyPanel({ aditivo, formatDate }) {
+    if (!aditivo) return null;
+    const isConcluded = aditivo.status === 'Concluído';
+    const hasConclusion = isConcluded
+        || aditivo.aditivo_signature_date
+        || aditivo.demp
+        || aditivo.prazo_valor
+        || aditivo.objeto_aditivo;
+
+    return (
+        <div className="space-y-5">
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-4 py-3">
+                <div>
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                        Aditivo nº {aditivo.aditivo_number} — {aditivoScopeLabel(aditivo)}
+                    </p>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                        Procedimento próprio da Parceria. Edite-o pelo fluxo do aditivo.
+                    </p>
+                </div>
+                <span className="shrink-0 inline-flex items-center rounded-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-700 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-200">
+                    {aditivo.status || 'Pendente'}
+                </span>
+            </div>
+
+            <ReadOnlySection title="Identificação">
+                <ReadOnlyField label="Nº do Aditivo" value={aditivo.aditivo_number} />
+                <ReadOnlyField label="Escopo" value={aditivoScopeLabel(aditivo)} />
+                <ReadOnlyField label="PGEA do Aditivo" value={aditivo.pgea} mono />
+                <ReadOnlyField label="PGEA da Parceria (origem)" value={aditivo.pgea_at_additive_creation} mono />
+            </ReadOnlySection>
+
+            <ReadOnlySection title="Dados">
+                <ReadOnlyField label="Assunto" value={aditivo.subject} full />
+                <ReadOnlyField label="Partes" value={aditivo.parties} full />
+                <ReadOnlyField label="Objeto" value={aditivo.object} full multiline />
+            </ReadOnlySection>
+
+            <ReadOnlySection title="Fluxo de Trabalho">
+                <ReadOnlyField label="Assessor Responsável" value={aditivo.responsible_user_name} />
+                <ReadOnlyField label="Data de Responsabilidade" value={formatDate(aditivo.responsibility_date)} />
+                <ReadOnlyField label="Remessa a Terceiros" value={formatDate(aditivo.third_party_referral_date)} />
+                <ReadOnlyField label="Remetido para" value={aditivo.third_party} />
+                <ReadOnlyField label="Conclusão da Revisão" value={formatDate(aditivo.review_conclusion_date || aditivo.reviewed_date)} />
+                <ReadOnlyField label="Pasta na Rede" value={aditivo.network_folder} full mono />
+                <ReadOnlyField label="Observações" value={aditivo.observations} full multiline />
+            </ReadOnlySection>
+
+            {hasConclusion && (
+                <ReadOnlySection title="Conclusão do Aditivo">
+                    <ReadOnlyField label="Assinatura do Aditivo" value={formatDate(aditivo.aditivo_signature_date)} />
+                    <ReadOnlyField label="Publicação no DEMP" value={formatDate(aditivo.demp)} />
+                    {aditivo.prazo_valor ? (
+                        <ReadOnlyField
+                            label="Prazo de Prorrogação"
+                            value={`+${aditivo.prazo_valor} ${aditivo.prazo_unidade || ''}`.trim()}
+                        />
+                    ) : null}
+                    <ReadOnlyField label="Objeto do Aditivo" value={aditivo.objeto_aditivo} full multiline />
+                </ReadOnlySection>
+            )}
+        </div>
+    );
+}
+
+function ReadOnlySection({ title, children }) {
+    return (
+        <div>
+            <h4 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                {title}
+            </h4>
+            <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
+                {children}
+            </div>
+        </div>
+    );
+}
+
+function ReadOnlyField({ label, value, full = false, multiline = false, mono = false }) {
+    const isEmpty = value === null || value === undefined || String(value).trim() === '' || String(value).trim() === '—';
+    return (
+        <div className={full ? 'md:col-span-2' : ''}>
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</p>
+            {isEmpty ? (
+                <p className="text-sm text-slate-300 dark:text-slate-600">—</p>
+            ) : multiline ? (
+                <p className={cn(
+                    'text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 rounded-md p-2.5 border border-slate-100 dark:border-slate-700 mt-0.5',
+                    mono && 'font-mono break-all'
+                )}>
+                    {value}
+                </p>
+            ) : (
+                <p className={cn('text-sm text-slate-700 dark:text-slate-200', mono && 'font-mono break-all')}>
+                    {value}
+                </p>
+            )}
+        </div>
     );
 }

@@ -11,6 +11,10 @@ interface AddAditivoRequest {
     aditivoType: string;
     // Label legível (para exibição). Se ausente, derivado do aditivoType.
     aditivoTypeLabel?: string;
+    // Escopo declarado do aditivo (checkboxes na inclusão). Ao menos um true.
+    // Determina quais efeitos serão coletados na conclusão.
+    isProrrogacao?: boolean;
+    isObjeto?: boolean;
     // Campos opcionais para preenchimento inicial (caso o admin queira
     // já entrar com algum dado; o restante entra depois via updateAditivo).
     subject?: string;
@@ -36,6 +40,17 @@ function sanitizeAditivoType(input: string): { type: string; label: string } | n
     return { type, label };
 }
 
+/**
+ * Deriva o rótulo do aditivo a partir do escopo declarado. Mantém-se em
+ * sincronia com o frontend (CreateAditivoDialog.deriveAditivoLabel).
+ */
+function deriveAditivoLabel(isProrrogacao: boolean, isObjeto: boolean): string {
+    if (isProrrogacao && isObjeto) return 'Prorrogação e Objeto';
+    if (isProrrogacao) return 'Prorrogação';
+    if (isObjeto) return 'Objeto';
+    return '';
+}
+
 export const addAditivo = onCall<AddAditivoRequest>(
     { region: 'southamerica-east1' },
     async (request) => {
@@ -49,13 +64,34 @@ export const addAditivo = onCall<AddAditivoRequest>(
         if (!parceriaId || !organizationId) {
             throw new HttpsError('invalid-argument', 'parceriaId e organizationId são obrigatórios');
         }
-        const typeInfo = sanitizeAditivoType(rawAditivoType);
-        if (!typeInfo) {
-            throw new HttpsError('invalid-argument', 'aditivoType é obrigatório (até 100 caracteres)');
+
+        // Escopo declarado do aditivo (prorrogação/objeto). Ao menos um deve ser
+        // verdadeiro. É a fonte canônica do tipo/label do aditivo.
+        const isProrrogacao = data.isProrrogacao === true;
+        const isObjeto = data.isObjeto === true;
+        const hasDeclaredScope = isProrrogacao || isObjeto;
+
+        // Tipo/label: derivados do escopo quando declarado; caso contrário,
+        // mantém compat com o fluxo antigo (aditivoType string livre).
+        let aditivoTypeResolved: string;
+        let aditivoTypeLabel: string;
+        if (hasDeclaredScope) {
+            const label = deriveAditivoLabel(isProrrogacao, isObjeto);
+            aditivoTypeResolved = label;
+            aditivoTypeLabel = label;
+        } else {
+            const typeInfo = sanitizeAditivoType(rawAditivoType);
+            if (!typeInfo) {
+                throw new HttpsError(
+                    'invalid-argument',
+                    'Informe o escopo do aditivo (prorrogação e/ou objeto).'
+                );
+            }
+            // Label customizado do frontend tem precedência sobre o derivado.
+            const customLabel = String(data.aditivoTypeLabel || '').trim().slice(0, 100);
+            aditivoTypeResolved = typeInfo.type;
+            aditivoTypeLabel = customLabel || typeInfo.label;
         }
-        // Label customizado do frontend tem precedência sobre o derivado.
-        const customLabel = String(data.aditivoTypeLabel || '').trim().slice(0, 100);
-        const aditivoTypeLabel = customLabel || typeInfo.label;
 
         const db = admin.firestore();
         const userId = request.auth.uid;
@@ -107,7 +143,7 @@ export const addAditivo = onCall<AddAditivoRequest>(
         const logTime = now.toTimeString().split(' ')[0];
         const userName = request.auth.token.name || 'Usuário desconhecido';
 
-        const aditivoType = typeInfo.type;
+        const aditivoType = aditivoTypeResolved;
         const aditivoTypeLabelFinal = aditivoTypeLabel;
 
         // (3.8) PGEA do aditivo: próprio (se informado) ou herdado da Parceria.
@@ -121,6 +157,10 @@ export const addAditivo = onCall<AddAditivoRequest>(
             aditivo_number: aditivoNumber,
             aditivo_type: aditivoType,
             aditivo_type_label: aditivoTypeLabelFinal,
+            // Escopo declarado do aditivo (define os efeitos coletados na
+            // conclusão). No fluxo antigo (sem escopo), os flags ficam ausentes
+            // e a conclusão mantém a semântica de "ao menos um" efeito.
+            ...(hasDeclaredScope ? { is_prorrogacao: isProrrogacao, is_objeto: isObjeto } : {}),
             // PGEA próprio do aditivo (herda o da Parceria quando não informado).
             pgea: aditivoPgea,
             // Snapshot do original (somente leitura) — guardado para auditoria.
@@ -189,6 +229,12 @@ export const addAditivo = onCall<AddAditivoRequest>(
         const parentUpdate = {
             aditivo_count: admin.firestore.FieldValue.increment(1),
             current_additive_id: aditivoRef.id,
+            // Espelha o escopo do aditivo corrente na Parceria pai, para que o
+            // diálogo de conclusão (que recebe a Parceria) restrinja os efeitos.
+            // Sem escopo declarado (fluxo antigo), os flags ficam ausentes.
+            ...(hasDeclaredScope
+                ? { current_additive_prorrogacao: isProrrogacao, current_additive_objeto: isObjeto }
+                : {}),
             status: 'Pendente',
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_by: userId,

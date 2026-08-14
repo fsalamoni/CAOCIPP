@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { addDurationToDate, formatValidityPeriod, VIGENCIA_UNITS } from '@/lib/dateUtils';
 import {
     Dialog,
     DialogContent,
@@ -46,15 +47,30 @@ export default function ParceriaKanbanTransitionDialog({
     const [networkFolder, setNetworkFolder] = useState('');
     const [thirdParty, setThirdParty] = useState('');
     const [signatureDate, setSignatureDate] = useState(new Date().toISOString().split('T')[0]);
-    const [publicationDate, setPublicationDate] = useState('');
     const [demp, setDemp] = useState('');
     const [objectText, setObjectText] = useState('');
     const [partnershipType, setPartnershipType] = useState('');
     const [partnershipNumber, setPartnershipNumber] = useState('');
-    const [validityPeriod, setValidityPeriod] = useState('');
+    // Vigência no formato unificado (igual ao aditivo): número + unidade.
+    const [validityValue, setValidityValue] = useState('');
+    const [validityUnit, setValidityUnit] = useState('meses');
     const [endDate, setEndDate] = useState('');
+    // Termo final é derivado da assinatura + vigência, mas pode ser editado
+    // manualmente; após edição manual paramos de sobrescrever.
+    const [endDateTouched, setEndDateTouched] = useState(false);
     const [renewalNoticeDate, setRenewalNoticeDate] = useState('');
     const [saving, setSaving] = useState(false);
+
+    // Deriva o Termo Final a partir da assinatura + vigência (número + unidade),
+    // enquanto o usuário não editar o campo manualmente.
+    useEffect(() => {
+        if (mode !== 'formalize') return;
+        if (endDateTouched) return;
+        if (signatureDate && Number(validityValue) > 0) {
+            const computed = addDurationToDate(signatureDate, Number(validityValue), validityUnit);
+            if (computed) setEndDate(computed);
+        }
+    }, [mode, signatureDate, validityValue, validityUnit, endDateTouched]);
 
     const getInitials = (name) => {
         if (!name) return '?';
@@ -85,9 +101,10 @@ export default function ParceriaKanbanTransitionDialog({
                     partnership_type: partnershipType,
                     partnership_number: partnershipNumber.trim(),
                     signature_date: signatureDate,
-                    publication_date: publicationDate,
                     demp: demp.trim(),
-                    validity_period: validityPeriod.trim(),
+                    validity_period: formatValidityPeriod(validityValue, validityUnit),
+                    validity_value: Number(validityValue),
+                    validity_unit: validityUnit,
                     object: objectText.trim(),
                     end_date: endDate,
                     renewal_notice_date: renewalNoticeDate,
@@ -107,13 +124,14 @@ export default function ParceriaKanbanTransitionDialog({
         setNetworkFolder('');
         setThirdParty('');
         setSignatureDate(new Date().toISOString().split('T')[0]);
-        setPublicationDate('');
         setDemp('');
         setObjectText('');
         setPartnershipType('');
         setPartnershipNumber('');
-        setValidityPeriod('');
+        setValidityValue('');
+        setValidityUnit('meses');
         setEndDate('');
+        setEndDateTouched(false);
         setRenewalNoticeDate('');
         setSaving(false);
         onClose();
@@ -128,9 +146,8 @@ export default function ParceriaKanbanTransitionDialog({
                 !!partnershipType &&
                 partnershipNumber.trim().length > 0 &&
                 !!signatureDate &&
-                !!publicationDate &&
                 demp.trim().length > 0 &&
-                validityPeriod.trim().length > 0 &&
+                Number(validityValue) > 0 &&
                 objectText.trim().length > 0 &&
                 !!endDate &&
                 !!renewalNoticeDate
@@ -267,35 +284,39 @@ export default function ParceriaKanbanTransitionDialog({
                                     />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <Label>Data da Publicação <span className="text-rose-500">*</span></Label>
-                                    <Input
-                                        type="date"
-                                        value={publicationDate}
-                                        onChange={(e) => setPublicationDate(e.target.value)}
-                                        className="mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <Label>DEMP <span className="text-rose-500">*</span></Label>
-                                    <Input
-                                        type="date"
-                                        value={demp}
-                                        onChange={(e) => setDemp(e.target.value)}
-                                        className="mt-1"
-                                    />
-                                    <p className="text-[10px] text-slate-400 mt-0.5">Data de publicação no Diário Eletrônico do MP</p>
-                                </div>
+                            <div>
+                                <Label>Publicação no DEMP <span className="text-rose-500">*</span></Label>
+                                <Input
+                                    type="date"
+                                    value={demp}
+                                    onChange={(e) => setDemp(e.target.value)}
+                                    className="mt-1"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-0.5">Data de publicação no Diário Eletrônico do MP</p>
                             </div>
                             <div>
                                 <Label>Vigência <span className="text-rose-500">*</span></Label>
-                                <Input
-                                    value={validityPeriod}
-                                    onChange={(e) => setValidityPeriod(e.target.value)}
-                                    placeholder="Ex.: 12 meses"
-                                    className="mt-1"
-                                />
+                                <div className="flex gap-2 mt-1">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={validityValue}
+                                        onChange={(e) => setValidityValue(e.target.value)}
+                                        placeholder="Ex.: 12"
+                                        className="w-28"
+                                    />
+                                    <Select value={validityUnit} onValueChange={setValidityUnit}>
+                                        <SelectTrigger className="w-36">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {VIGENCIA_UNITS.map((u) => (
+                                                <SelectItem key={u} value={u}>{u}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-0.5">Define o Termo Final automaticamente a partir da assinatura.</p>
                             </div>
                             <div>
                                 <Label>Objeto <span className="text-rose-500">*</span></Label>
@@ -313,7 +334,7 @@ export default function ParceriaKanbanTransitionDialog({
                                     <Input
                                         type="date"
                                         value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
+                                        onChange={(e) => { setEndDate(e.target.value); setEndDateTouched(true); }}
                                         className="mt-1"
                                     />
                                 </div>
