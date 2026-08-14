@@ -336,7 +336,7 @@ export default function ParceriaDetailSheet({
                                 <DetailItem label="Assinatura" value={formatDate(getParceriaField(viewing, 'signature_date'))} />
                                 <DetailItem label="Publicação" value={formatDate(getParceriaField(viewing, 'publication_date'))} />
                                 {getParceriaField(viewing, 'demp') && (
-                                    <DetailItem label="DEMP" value={getParceriaField(viewing, 'demp')} />
+                                    <DetailItem label="DEMP" value={formatDate(getParceriaField(viewing, 'demp'))} />
                                 )}
                                 <DetailItem label="Vigência" value={getParceriaField(viewing, 'validity_period')} />
                                 <DetailItem label="Termo Final" value={formatDate(getParceriaField(viewing, 'end_date'))} />
@@ -346,11 +346,14 @@ export default function ParceriaDetailSheet({
                     )}
 
                     {/* Dados de conclusão do ADITIVO (aditivo não tem "tipo de parceria") */}
-                    {isViewingAdditive && (getParceriaField(viewing, 'aditivo_signature_date') || getParceriaField(viewing, 'objeto_aditivo') || getParceriaField(viewing, 'prazo_valor')) && (
+                    {isViewingAdditive && (getParceriaField(viewing, 'aditivo_signature_date') || getParceriaField(viewing, 'demp') || getParceriaField(viewing, 'objeto_aditivo') || getParceriaField(viewing, 'prazo_valor')) && (
                         <Section title="Conclusão do Aditivo">
                             <div className="pt-2 grid grid-cols-2 gap-2">
                                 <DetailItem label="Nº do Aditivo" value={selectedAdditive.aditivo_number} />
                                 <DetailItem label="Assinatura do Aditivo" value={formatDate(getParceriaField(viewing, 'aditivo_signature_date'))} />
+                                {getParceriaField(viewing, 'demp') && (
+                                    <DetailItem label="DEMP" value={formatDate(getParceriaField(viewing, 'demp'))} />
+                                )}
                                 {getParceriaField(viewing, 'prazo_valor') && (
                                     <DetailItem label="Prazo de Prorrogação" value={`${getParceriaField(viewing, 'prazo_valor')} ${getParceriaField(viewing, 'prazo_unidade') || ''}`} />
                                 )}
@@ -370,6 +373,7 @@ export default function ParceriaDetailSheet({
                                         <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
                                             Aditivo nº {m.aditivo_number}
                                             {m.aditivo_signature_date ? ` — assinado em ${formatDate(m.aditivo_signature_date)}` : ''}
+                                            {m.demp ? ` — DEMP ${formatDate(m.demp)}` : ''}
                                         </p>
                                         {(m.prazo_valor || m.new_end_date) && (
                                             <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
