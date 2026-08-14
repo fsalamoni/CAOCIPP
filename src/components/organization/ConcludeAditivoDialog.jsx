@@ -35,6 +35,7 @@ export default function ConcludeAditivoDialog({
 }) {
     const today = new Date().toISOString().split('T')[0];
     const [signatureDate, setSignatureDate] = useState(today);
+    const [demp, setDemp] = useState('');
     const [prazoValor, setPrazoValor] = useState('');
     const [prazoUnidade, setPrazoUnidade] = useState('meses');
     const [objeto, setObjeto] = useState('');
@@ -45,6 +46,7 @@ export default function ConcludeAditivoDialog({
 
     const reset = () => {
         setSignatureDate(today);
+        setDemp('');
         setPrazoValor('');
         setPrazoUnidade('meses');
         setObjeto('');
@@ -56,7 +58,9 @@ export default function ConcludeAditivoDialog({
         onClose?.();
     };
 
-    const isValid = () => !!signatureDate && (hasPrazo || hasObjeto);
+    // Este aditivo tem DEMP e data de assinatura PRÓPRIOS (independentes da
+    // original e de outros aditivos). Exige ao menos um efeito (prazo ou objeto).
+    const isValid = () => !!signatureDate && !!demp && (hasPrazo || hasObjeto);
 
     const handleConfirm = async () => {
         if (!isValid()) return;
@@ -64,6 +68,7 @@ export default function ConcludeAditivoDialog({
         try {
             await onConfirm({
                 aditivoSignatureDate: signatureDate,
+                demp,
                 prazoValor: hasPrazo ? Number(prazoValor) : null,
                 prazoUnidade: hasPrazo ? prazoUnidade : null,
                 objetoAditivo: hasObjeto ? objeto.trim() : null,
@@ -99,14 +104,26 @@ export default function ConcludeAditivoDialog({
                         </span>
                     </div>
 
-                    <div>
-                        <Label>Data de Assinatura do Aditivo <span className="text-rose-500">*</span></Label>
-                        <Input
-                            type="date"
-                            value={signatureDate}
-                            onChange={(e) => setSignatureDate(e.target.value)}
-                            className="mt-1"
-                        />
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label>Data de Assinatura do Aditivo <span className="text-rose-500">*</span></Label>
+                            <Input
+                                type="date"
+                                value={signatureDate}
+                                onChange={(e) => setSignatureDate(e.target.value)}
+                                className="mt-1"
+                            />
+                        </div>
+                        <div>
+                            <Label>DEMP <span className="text-rose-500">*</span></Label>
+                            <Input
+                                type="date"
+                                value={demp}
+                                onChange={(e) => setDemp(e.target.value)}
+                                className="mt-1"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-0.5">Publicação no Diário Eletrônico do MP (própria deste aditivo)</p>
+                        </div>
                     </div>
 
                     <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
@@ -151,7 +168,7 @@ export default function ConcludeAditivoDialog({
 
                     {!isValid() && (
                         <p className="text-xs text-rose-500">
-                            Informe a data de assinatura e ao menos um: prazo de prorrogação ou objeto do aditivo.
+                            Informe a data de assinatura, o DEMP e ao menos um: prazo de prorrogação ou objeto do aditivo.
                         </p>
                     )}
                 </div>

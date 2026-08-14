@@ -681,6 +681,7 @@ export default function ParceriaKanbanBoard({
                 aditivoId,
                 organizationId: organization.id,
                 aditivoSignatureDate: data.aditivoSignatureDate,
+                demp: data.demp,
                 prazoValor: data.prazoValor,
                 prazoUnidade: data.prazoUnidade,
                 objetoAditivo: data.objetoAditivo,

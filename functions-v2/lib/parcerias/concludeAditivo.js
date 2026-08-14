@@ -48,6 +48,7 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
     const data = request.data || {};
     const { parceriaId, aditivoId, organizationId } = data;
     const aditivoSignatureDate = String(data.aditivoSignatureDate || '').trim();
+    const demp = String(data.demp || '').trim();
     const objetoAditivo = String(data.objetoAditivo || '').trim();
     const prazoValorNum = Number(data.prazoValor);
     const prazoUnidade = String(data.prazoUnidade || '').trim();
@@ -58,6 +59,9 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
     }
     if (!aditivoSignatureDate) {
         throw new https_1.HttpsError('invalid-argument', 'A data de assinatura do aditivo é obrigatória.');
+    }
+    if (!demp) {
+        throw new https_1.HttpsError('invalid-argument', 'O DEMP (data de publicação no Diário Eletrônico do MP) é obrigatório.');
     }
     if (!hasPrazo && !hasObjeto) {
         throw new https_1.HttpsError('failed-precondition', 'Informe ao menos um: prazo de prorrogação (quantidade + unidade) ou objeto do aditivo.');
@@ -146,6 +150,7 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
             aditivo_type: aditivo.aditivo_type || null,
             aditivo_type_label: aditivo.aditivo_type_label || null,
             aditivo_signature_date: aditivoSignatureDate,
+            demp: demp,
             prazo_valor: hasPrazo ? prazoValorNum : null,
             prazo_unidade: hasPrazo ? prazoUnidade : null,
             previous_end_date: previousEndDate,
@@ -166,9 +171,12 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
         };
         parentUpdate.activity_log = admin.firestore.FieldValue.arrayUnion(parentLog);
         // --- Atualizar o ADITIVO (conclusão) ---
+        // O DEMP é PRÓPRIO deste aditivo: gravado apenas no doc do aditivo,
+        // NUNCA na Parceria original nem em outros aditivos.
         const aditivoUpdate = {
             status: 'Concluído',
             aditivo_signature_date: aditivoSignatureDate,
+            demp: demp,
             prazo_valor: hasPrazo ? prazoValorNum : null,
             prazo_unidade: hasPrazo ? prazoUnidade : null,
             objeto_aditivo: hasObjeto ? objetoAditivo : null,

@@ -280,11 +280,12 @@ export default function ParceriaKanbanTransitionDialog({
                                 <div>
                                     <Label>DEMP <span className="text-rose-500">*</span></Label>
                                     <Input
+                                        type="date"
                                         value={demp}
                                         onChange={(e) => setDemp(e.target.value)}
-                                        placeholder="DEMP"
                                         className="mt-1"
                                     />
+                                    <p className="text-[10px] text-slate-400 mt-0.5">Data de publicação no Diário Eletrônico do MP</p>
                                 </div>
                             </div>
                             <div>
