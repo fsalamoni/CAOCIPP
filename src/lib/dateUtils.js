@@ -92,3 +92,88 @@ export function calculateCalendarDays(startDate, endDate) {
 
     return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
 }
+
+// ============================================================================
+// Vigência / prazos (número + unidade) — formato unificado com o aditivo.
+// ============================================================================
+
+// Unidades aceitas para prazos de vigência/prorrogação.
+export const VIGENCIA_UNITS = ['dias', 'meses', 'anos'];
+
+function fmtISO(dt) {
+    if (Number.isNaN(dt.getTime())) return null;
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+}
+
+/**
+ * Soma uma duração (valor + unidade) a uma data e devolve 'yyyy-MM-dd'.
+ * Espelha functions-v2/src/parcerias/concludeAditivo.addDurationToDate:
+ * para meses/anos faz "clamp" no último dia do mês-alvo (31/01 + 1 mês → 28/02).
+ *
+ * @param {string|Date} dateStr data base
+ * @param {number} valor quantidade
+ * @param {string} unidade 'dias' | 'meses' | 'anos'
+ * @returns {string|null} data resultante em 'yyyy-MM-dd' ou null
+ */
+export function addDurationToDate(dateStr, valor, unidade) {
+    const base = parseLocalDate(dateStr);
+    if (isNaN(base.getTime())) return null;
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n <= 0) return null;
+
+    const y = base.getFullYear();
+    const mo = base.getMonth();
+    const d = base.getDate();
+
+    if (unidade === 'dias') {
+        return fmtISO(new Date(y, mo, d + n, 12, 0, 0));
+    }
+    if (unidade === 'meses' || unidade === 'anos') {
+        const monthsToAdd = unidade === 'anos' ? n * 12 : n;
+        const total = mo + monthsToAdd;
+        const targetYear = y + Math.floor(total / 12);
+        const targetMonth = ((total % 12) + 12) % 12;
+        const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const day = Math.min(d, lastDay);
+        return fmtISO(new Date(targetYear, targetMonth, day, 12, 0, 0));
+    }
+    return null;
+}
+
+/**
+ * Interpreta um texto de vigência ('12 meses', '2 anos', '90 dias', '12
+ * meses; +6 meses (aditivo nº 1)') no par { value, unit }. Usa a PRIMEIRA
+ * ocorrência número+unidade. Retorna null quando não há um par reconhecível
+ * (ex.: 'Indeterminado'), para que o chamador preserve o valor legado.
+ *
+ * @param {string} text
+ * @returns {{value:number, unit:string}|null}
+ */
+export function parseValidityPeriod(text) {
+    const s = String(text ?? '').trim().toLowerCase();
+    if (!s) return null;
+    const m = /(\d+)\s*(dia|dias|m[eê]s|meses|ano|anos)/.exec(s);
+    if (!m) return null;
+    const value = Number(m[1]);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    const raw = m[2];
+    let unit = 'meses';
+    if (raw.startsWith('dia')) unit = 'dias';
+    else if (raw.startsWith('ano')) unit = 'anos';
+    else unit = 'meses';
+    return { value, unit };
+}
+
+/**
+ * Compõe o texto de vigência a partir de valor + unidade ('12 meses').
+ * Devolve '' quando o valor é inválido.
+ */
+export function formatValidityPeriod(value, unit) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    const u = VIGENCIA_UNITS.includes(unit) ? unit : 'meses';
+    return `${n} ${u}`;
+}
