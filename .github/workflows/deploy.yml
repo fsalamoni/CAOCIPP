@@ -227,12 +227,19 @@ jobs:
           # IMPORTANTE: o job do Cloud Scheduler associado à função
           # 'checkPartnershipNoticeDeadlines' PODE estar órfão e o
           # `firebase deploy --force` vai tentar recriá-lo/atualizá-lo.
-          # A SA do CI precisa ter 'Cloud Scheduler Admin' (roles/cloudscheduler.admin)
-          # para que isso funcione. Ver nota em README.md → "Permissões GCP do CI".
-          # Se o job órfão persistir e impedir o deploy, o owner precisa:
-          #   1. Conceder o papel acima à SA
-          #   2. gcloud scheduler jobs delete firebase-schedule-checkPartnershipNoticeDeadlines-southamerica-east1 \
-          #        --location=southamerica-east1 --project=protagonista-rpg
+          # Tenta deletar via API REST (precisa de 'cloudscheduler.jobs.delete'
+          # na SA do CI). Se não conseguir, o deploy subsequente vai falhar
+          # e o owner precisa conceder 'Cloud Scheduler Admin' à SA.
+          if [ "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+            set +e
+            python3 -m pip install --quiet cryptography 2>&1 | tail -1
+            python3 .github/scripts/delete_scheduler_job.py \
+              "$GOOGLE_APPLICATION_CREDENTIALS" \
+              "protagonista-rpg" \
+              "southamerica-east1" \
+              "firebase-schedule-checkPartnershipNoticeDeadlines-southamerica-east1" || true
+            set -e
+          fi
           ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive --force"
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
             ARGS="$ARGS --token $FIREBASE_TOKEN"
