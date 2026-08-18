@@ -15,6 +15,8 @@ interface CreateParceriaRequest {
     categoria?: string;
     signatureDate?: string;
     validityPeriod?: string;
+    // Item 4: 'vigência a contar de' — base do cálculo do termo final.
+    validityStartsFrom?: 'signature_date' | 'demp';
     endDate?: string;
     renewalNoticeDate?: string;
     networkFolder?: string;
@@ -28,6 +30,7 @@ interface CreateParceriaRequest {
     partnership_number?: string;
     signature_date?: string;
     validity_period?: string;
+    validity_starts_from?: 'signature_date' | 'demp';
     end_date?: string;
     renewal_notice_date?: string;
     network_folder?: string;
@@ -55,6 +58,7 @@ export const createParceria = onCall<CreateParceriaRequest>(
         const categoria = data.categoria || null;
         const signatureDate = data.signatureDate || data.signature_date || null;
         const validityPeriod = data.validityPeriod || data.validity_period || null;
+        const validityStartsFrom = data.validityStartsFrom || data.validity_starts_from || null;
         const endDate = data.endDate || data.end_date || null;
         const renewalNoticeDate = data.renewalNoticeDate || data.renewal_notice_date || null;
         const networkFolder = data.networkFolder || data.network_folder || '';
@@ -142,6 +146,7 @@ export const createParceria = onCall<CreateParceriaRequest>(
             categoria,
             signature_date: signatureDate,
             validity_period: validityPeriod,
+            validity_starts_from: validityStartsFrom,
             end_date: endDate,
             renewal_notice_date: renewalNoticeDate,
             network_folder: networkFolder,

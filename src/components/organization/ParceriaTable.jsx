@@ -81,7 +81,7 @@ const DEFAULT_COLUMNS = [
     },
     {
         key: 'partnership_number', label: 'Número', defaultVisible: true, sortable: true,
-        render: (p) => <span className="font-mono text-[13px]">{getParceriaField(p, 'partnership_number') || '—'}</span>,
+        render: (p) => <span className="font-mono text-[13px]">{getParceriaField(p, 'partnership_number') || 'Sem número'}</span>,
     },
     {
         key: 'subject', label: 'Assunto', defaultVisible: true, sortable: true,
@@ -474,7 +474,7 @@ export default function ParceriaTable({
         const rows = filteredAndSorted.map((p) => [
             getParceriaField(p, 'pgea') || '',
             getParceriaField(p, 'partnership_type') || '',
-            getParceriaField(p, 'partnership_number') || '',
+            getParceriaField(p, 'partnership_number') || 'Sem número',
             getParceriaField(p, 'subject') || '',
             getParceriaField(p, 'parties') || '',
             getParceriaField(p, 'responsible_user_name') || '',

@@ -54,6 +54,9 @@ export default function ParceriaKanbanTransitionDialog({
     // Vigência no formato unificado (igual ao aditivo): número + unidade.
     const [validityValue, setValidityValue] = useState('');
     const [validityUnit, setValidityUnit] = useState('meses');
+    // Item 4: 'vigência a contar de' — base do cálculo do termo final.
+    // Default: assinatura (preserva comportamento atual).
+    const [validityStartsFrom, setValidityStartsFrom] = useState('signature_date');
     const [endDate, setEndDate] = useState('');
     // Termo final é derivado da assinatura + vigência, mas pode ser editado
     // manualmente; após edição manual paramos de sobrescrever.
@@ -61,16 +64,19 @@ export default function ParceriaKanbanTransitionDialog({
     const [renewalNoticeDate, setRenewalNoticeDate] = useState('');
     const [saving, setSaving] = useState(false);
 
-    // Deriva o Termo Final a partir da assinatura + vigência (número + unidade),
-    // enquanto o usuário não editar o campo manualmente.
+    // Deriva o Termo Final a partir da (assinatura OU DEMP) + vigência
+    // (número + unidade), enquanto o usuário não editar o campo manualmente.
     useEffect(() => {
         if (mode !== 'formalize') return;
         if (endDateTouched) return;
-        if (signatureDate && Number(validityValue) > 0) {
-            const computed = addDurationToDate(signatureDate, Number(validityValue), validityUnit);
+        // Item 4: a base do cálculo é signature_date OU demp, conforme
+        // escolha do usuário. Default: assinatura.
+        const base = validityStartsFrom === 'demp' ? demp : signatureDate;
+        if (base && Number(validityValue) > 0) {
+            const computed = addDurationToDate(base, Number(validityValue), validityUnit);
             if (computed) setEndDate(computed);
         }
-    }, [mode, signatureDate, validityValue, validityUnit, endDateTouched]);
+    }, [mode, signatureDate, demp, validityValue, validityUnit, validityStartsFrom, endDateTouched]);
 
     const getInitials = (name) => {
         if (!name) return '?';
@@ -99,11 +105,13 @@ export default function ParceriaKanbanTransitionDialog({
             } else if (mode === 'formalize') {
                 await onConfirm({
                     partnership_type: partnershipType,
+                    // partnership_number é OPCIONAL (vazio = "Sem número").
                     partnership_number: partnershipNumber.trim(),
                     signature_date: signatureDate,
                     demp: demp.trim(),
                     validity_period: formatValidityPeriod(validityValue, validityUnit),
                     validity_value: Number(validityValue),
+                    validity_starts_from: validityStartsFrom,
                     validity_unit: validityUnit,
                     object: objectText.trim(),
                     end_date: endDate,
@@ -130,6 +138,7 @@ export default function ParceriaKanbanTransitionDialog({
         setPartnershipNumber('');
         setValidityValue('');
         setValidityUnit('meses');
+        setValidityStartsFrom('signature_date');
         setEndDate('');
         setEndDateTouched(false);
         setRenewalNoticeDate('');
@@ -144,7 +153,7 @@ export default function ParceriaKanbanTransitionDialog({
         if (mode === 'formalize') {
             return (
                 !!partnershipType &&
-                partnershipNumber.trim().length > 0 &&
+                // partnershipNumber é OPCIONAL (vazio = "Sem número").
                 !!signatureDate &&
                 demp.trim().length > 0 &&
                 Number(validityValue) > 0 &&
@@ -266,12 +275,12 @@ export default function ParceriaKanbanTransitionDialog({
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <Label>Número <span className="text-rose-500">*</span></Label>
+                                    <Label>Número (vazio = "Sem número")</Label>
                                     <Input
                                         value={partnershipNumber}
                                         onChange={(e) => setPartnershipNumber(e.target.value)}
-                                        placeholder="Ex.: 001/2024"
-                                        className="mt-1"
+                                        placeholder="Ex.: 001/2024 (vazio = 'Sem número')"
+                                        className="mt-1 font-mono"
                                     />
                                 </div>
                                 <div>
@@ -316,7 +325,23 @@ export default function ParceriaKanbanTransitionDialog({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <p className="text-[10px] text-slate-400 mt-0.5">Define o Termo Final automaticamente a partir da assinatura.</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">Define o Termo Final automaticamente.</p>
+                            </div>
+                            <div>
+                                <Label>Vigência a contar de</Label>
+                                <Select
+                                    value={validityStartsFrom}
+                                    onValueChange={setValidityStartsFrom}
+                                >
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="signature_date">Data da Assinatura</SelectItem>
+                                        <SelectItem value="demp">Publicação no DEMP</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-[10px] text-slate-400 mt-0.5">Base para o cálculo do Termo Final.</p>
                             </div>
                             <div>
                                 <Label>Objeto <span className="text-rose-500">*</span></Label>
