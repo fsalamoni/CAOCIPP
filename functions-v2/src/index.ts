@@ -88,8 +88,12 @@ export { addComment } from './collaboration/comments';
 // Item 7/8 do plano: cria aditivo automático quando o aviso de renovação
 // (parceria com prazo determinado) ou o aviso de revisão (parceria com
 // prazo indeterminado) é atingido. Roda 1x por dia às 03:00 horário de Brasília.
-// Reativada após habilitação da API cloudscheduler.googleapis.com pelo owner.
-export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
+// Comentada: API cloudscheduler.googleapis.com está habilitada, mas a
+// service account do CI ainda não tem o papel "Cloud Scheduler Admin"
+// (permissão cloudscheduler.jobs.update). O owner precisa conceder
+// essa permissão à service account. Enquanto isso, schema/UI estão
+// funcionais.
+// export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
 export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
 
 // ========== Segurança, conformidade e integrações (Fase 5) ==========
