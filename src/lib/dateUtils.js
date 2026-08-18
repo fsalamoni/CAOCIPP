@@ -205,6 +205,44 @@ export function calculateEndDate({
 }
 
 /**
+ * Calcula a "Data do Aviso de Renovação" (item 7 do plano).
+ * Base: Termo Final (end_date) - X (período) unidades para trás.
+ *
+ * @param {string} endDate 'yyyy-MM-dd' (termo final)
+ * @param {number} period quantidade de tempo antes do termo final
+ * @param {string} unit 'dias' | 'meses' | 'anos'
+ * @returns {string|null} data 'yyyy-MM-dd' ou null
+ */
+export function calculateRenewalNoticeDate(endDate, period, unit) {
+    if (!endDate || !period || !unit) return null;
+    const n = Number(period);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    if (!VIGENCIA_UNITS.includes(unit)) return null;
+    return addDurationToDate(endDate, -n, unit);
+}
+
+/**
+ * Calcula a "Data do Aviso de Revisão" (item 8 do plano).
+ * Base: data da assinatura (ou DEMP, conforme validity_starts_from) + período.
+ *
+ * @param {string} signatureDate 'yyyy-MM-dd'
+ * @param {string} demp 'yyyy-MM-dd'
+ * @param {string} startsFrom 'signature_date' | 'demp' (default: signature_date)
+ * @param {number} period quantidade de tempo
+ * @param {string} unit 'dias' | 'meses' | 'anos'
+ * @returns {string|null} data 'yyyy-MM-dd' ou null
+ */
+export function calculateReviewNoticeDate(signatureDate, demp, startsFrom, period, unit) {
+    if (!period || !unit) return null;
+    const n = Number(period);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    if (!VIGENCIA_UNITS.includes(unit)) return null;
+    const base = startsFrom === 'demp' ? demp : signatureDate;
+    if (!base) return null;
+    return addDurationToDate(base, n, unit);
+}
+
+/**
  * Interpreta um texto de vigência ('12 meses', '2 anos', '90 dias', '12
  * meses; +6 meses (aditivo nº 1)') no par { value, unit }. Usa a PRIMEIRA
  * ocorrência número+unidade. Retorna null quando não há um par reconhecível

@@ -30,7 +30,7 @@ import { toast } from 'sonner';
 import { Loader2, CheckCircle2, Lock, Trash2, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
-import { parseLocalDate, parseValidityPeriod, formatValidityPeriod, VIGENCIA_UNITS, calculateEndDate, isIndeterminateValidity } from '@/lib/dateUtils';
+import { parseLocalDate, parseValidityPeriod, formatValidityPeriod, VIGENCIA_UNITS, calculateEndDate, isIndeterminateValidity, calculateRenewalNoticeDate, calculateReviewNoticeDate } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
 import { hasAdditives, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
 import { useAditivos } from '@/hooks/useFirestore';
@@ -198,7 +198,15 @@ export default function EditParceriaDialog({
             // Default: assinatura (preserva comportamento atual).
             validity_starts_from: src.validity_starts_from || 'signature_date',
             end_date: formatDateForInput(src.end_date),
+            // Itens 7/8/9: avisos automáticos.
+            renewal_notice_period: src.renewal_notice_period || '',
+            renewal_notice_period_unit: ['dias','meses','anos'].includes(src.renewal_notice_period_unit)
+                ? src.renewal_notice_period_unit : 'dias',
             renewal_notice_date: formatDateForInput(src.renewal_notice_date),
+            review_notice_period: src.review_notice_period || '',
+            review_notice_period_unit: ['dias','meses','anos'].includes(src.review_notice_period_unit)
+                ? src.review_notice_period_unit : 'meses',
+            review_notice_date: formatDateForInput(src.review_notice_date),
             responsible_user_id: respId,
             responsible_user_name: respName,
             responsibility_date: formatDateForInput(src.responsibility_date),
@@ -249,6 +257,51 @@ export default function EditParceriaDialog({
         formData.validity_period,
         formData.validity_value,
         formData.validity_unit,
+    ]);
+
+    // Itens 7/8/9: recalcula as datas dos avisos automáticos quando o
+    // período ou as datas-base mudam. NÃO sobrescreve se o usuário
+    // editou manualmente a data (heurística simples: se a data atual
+    // do form não bate com o cálculo, considerar manual; reset só se
+    // o usuário tocar no período).
+    useEffect(() => {
+        if (!open) return;
+        // Aviso de Renovação
+        const newRenewal = calculateRenewalNoticeDate(
+            formData.end_date,
+            formData.renewal_notice_period,
+            formData.renewal_notice_period_unit,
+        );
+        // Recalcula só se o período está preenchido OU se a data atual
+        // está vazia (para preencher inicialmente).
+        if (formData.renewal_notice_period && Number(formData.renewal_notice_period) > 0) {
+            if (newRenewal !== formData.renewal_notice_date) {
+                setFormData((prev) => ({ ...prev, renewal_notice_date: newRenewal || null }));
+            }
+        }
+        // Aviso de Revisão
+        const newReview = calculateReviewNoticeDate(
+            formData.signature_date,
+            formData.demp,
+            formData.validity_starts_from || 'signature_date',
+            formData.review_notice_period,
+            formData.review_notice_period_unit,
+        );
+        if (formData.review_notice_period && Number(formData.review_notice_period) > 0) {
+            if (newReview !== formData.review_notice_date) {
+                setFormData((prev) => ({ ...prev, review_notice_date: newReview || null }));
+            }
+        }
+    }, [
+        open,
+        formData.end_date,
+        formData.signature_date,
+        formData.demp,
+        formData.validity_starts_from,
+        formData.renewal_notice_period,
+        formData.renewal_notice_period_unit,
+        formData.review_notice_period,
+        formData.review_notice_period_unit,
     ]);
 
     // Status derivado — usa a função canônica (com aliases e prioridade do
@@ -826,6 +879,100 @@ export default function EditParceriaDialog({
 
                             {/* ===================== REVISÃO E ARQUIVO ===================== */}
                             <TabsContent value="archive" className="space-y-4 mt-4">
+                                {/* Item 7: Aviso de Renovação — só se a vigência NÃO é Indeterminada */}
+                                {!isIndeterminateValidity(formData.validity_period) && (
+                                    <div className="p-4 bg-amber-50/40 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800 space-y-3">
+                                        <div>
+                                            <Label>Aviso de Renovação (período)</Label>
+                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                Quando esta data for atingida, a Parceria cria automaticamente um aditivo em "Pendentes" com urgência ligada.
+                                            </p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                value={formData.renewal_notice_period || ''}
+                                                disabled={isLocked}
+                                                onChange={(e) => setFormData({ ...formData, renewal_notice_period: e.target.value })}
+                                                placeholder="Ex.: 30"
+                                                className="mt-1"
+                                            />
+                                            <Select
+                                                value={formData.renewal_notice_period_unit || 'dias'}
+                                                onValueChange={(val) => setFormData({ ...formData, renewal_notice_period_unit: val })}
+                                                disabled={isLocked}
+                                            >
+                                                <SelectTrigger className="mt-1">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {VIGENCIA_UNITS.map((u) => (
+                                                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-slate-500">Data do Aviso (calculada automaticamente a partir do Termo Final)</Label>
+                                            <Input
+                                                type="date"
+                                                value={formData.renewal_notice_date || ''}
+                                                disabled={isLocked}
+                                                onChange={(e) => setFormData({ ...formData, renewal_notice_date: e.target.value })}
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Item 8: Aviso de Revisão — só se a vigência É Indeterminada */}
+                                {isIndeterminateValidity(formData.validity_period) && (
+                                    <div className="p-4 bg-cyan-50/40 dark:bg-cyan-950/20 rounded-lg border border-cyan-200 dark:border-cyan-800 space-y-3">
+                                        <div>
+                                            <Label>Aviso de Revisão (período)</Label>
+                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                Quando esta data for atingida, a Parceria cria automaticamente um aditivo em "Pendentes" com urgência ligada.
+                                            </p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                value={formData.review_notice_period || ''}
+                                                disabled={isLocked}
+                                                onChange={(e) => setFormData({ ...formData, review_notice_period: e.target.value })}
+                                                placeholder="Ex.: 12"
+                                                className="mt-1"
+                                            />
+                                            <Select
+                                                value={formData.review_notice_period_unit || 'meses'}
+                                                onValueChange={(val) => setFormData({ ...formData, review_notice_period_unit: val })}
+                                                disabled={isLocked}
+                                            >
+                                                <SelectTrigger className="mt-1">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {VIGENCIA_UNITS.map((u) => (
+                                                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-slate-500">Data do Aviso (calculada a partir da data-base: {formData.validity_starts_from === 'demp' ? 'Publicação no DEMP' : 'Assinatura'})</Label>
+                                            <Input
+                                                type="date"
+                                                value={formData.review_notice_date || ''}
+                                                disabled={isLocked}
+                                                onChange={(e) => setFormData({ ...formData, review_notice_date: e.target.value })}
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div>
                                         <Label>Termo Final {isIndeterminateValidity(formData.validity_period) && <span className="text-xs text-slate-500 ml-1">(Indeterminado — bloqueado)</span>}</Label>
@@ -837,16 +984,6 @@ export default function EditParceriaDialog({
                                                 setFormData({ ...formData, end_date: e.target.value });
                                                 setEndDateTouched(true);
                                             }}
-                                            className="mt-1"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label>Data do Aviso de Renovação</Label>
-                                        <Input
-                                            type="date"
-                                            value={formData.renewal_notice_date || ''}
-                                            disabled={isLocked}
-                                            onChange={(e) => setFormData({ ...formData, renewal_notice_date: e.target.value })}
                                             className="mt-1"
                                         />
                                     </div>

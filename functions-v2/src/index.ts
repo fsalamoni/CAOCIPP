@@ -85,6 +85,10 @@ export { addComment } from './collaboration/comments';
 // depois é só descomentar as 3 linhas abaixo e fazer o deploy de novo.
 // export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
 // export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
+// Item 7/8 do plano: cria aditivo automático quando o aviso de renovação
+// (parceria com prazo determinado) ou o aviso de revisão (parceria com
+// prazo indeterminado) é atingido. Roda 1x por dia às 03:00 horário de Brasília.
+export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
 export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
 
 // ========== Segurança, conformidade e integrações (Fase 5) ==========

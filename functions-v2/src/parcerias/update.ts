@@ -6,6 +6,37 @@ import { formatPersonName } from '../shared/normalization';
 import { fireOrgWebhook } from '../shared/webhooks';
 import { validateParceriaPhaseTransition } from '../shared/validators';
 
+// ============================================================================
+// addDurationToDate — helper inline (espelha src/lib/dateUtils.js e
+// functions-v2/src/parcerias/concludeAditivo.addDurationToDate).
+// Para meses/anos: "clamp" no último dia do mês-alvo.
+// ============================================================================
+function fmtDateLocal(dt: Date): string | null {
+    if (Number.isNaN(dt.getTime())) return null;
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+}
+function addDurationToDate(dateStr: string, valor: number, unidade: string): string | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || '').trim());
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    if (unidade === 'dias') return fmtDateLocal(new Date(y, mo, d + valor, 12, 0, 0));
+    if (unidade === 'meses' || unidade === 'anos') {
+        const monthsToAdd = unidade === 'anos' ? valor * 12 : valor;
+        const total = mo + monthsToAdd;
+        const targetYear = y + Math.floor(total / 12);
+        const targetMonth = ((total % 12) + 12) % 12;
+        const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const day = Math.min(d, lastDay);
+        return fmtDateLocal(new Date(targetYear, targetMonth, day, 12, 0, 0));
+    }
+    return null;
+}
+
 interface UpdateParceriaRequest {
     id: string;
     organizationId: string;
@@ -74,6 +105,50 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
         delete changes.access_restriction;
         delete changes.review_return_date;
         delete changes.anonymized_by;
+
+        // Itens 7/8/9: se o usuário mudou o PERÍODO do aviso, recalcular a
+        // data automática. Se ficou vazio, limpar a data. (NÃO sobrescreve
+        // se o usuário editou a data manualmente no mesmo change — mas
+        // isso é raro; o caminho normal é editar período → data é derivada.)
+        if (
+            ('renewal_notice_period' in changes
+                || 'renewal_notice_period_unit' in changes)
+            && !('renewal_notice_date' in changes)
+        ) {
+            const period = Number(changes.renewal_notice_period ?? parceriaData.renewal_notice_period);
+            const unit = String(
+                changes.renewal_notice_period_unit ?? (parceriaData.renewal_notice_period_unit || '')
+            );
+            const endDate = (changes.end_date ?? parceriaData.end_date) as string | null;
+            if (Number.isFinite(period) && period > 0 && ['dias','meses','anos'].includes(unit) && endDate) {
+                const computed = addDurationToDate(endDate, period, unit);
+                if (computed) changes.renewal_notice_date = computed;
+                else delete changes.renewal_notice_date;
+            } else {
+                delete changes.renewal_notice_date;
+            }
+        }
+        if (
+            ('review_notice_period' in changes
+                || 'review_notice_period_unit' in changes)
+            && !('review_notice_date' in changes)
+        ) {
+            const period = Number(changes.review_notice_period ?? parceriaData.review_notice_period);
+            const unit = String(
+                changes.review_notice_period_unit ?? (parceriaData.review_notice_period_unit || '')
+            );
+            const startsFrom = (changes.validity_starts_from ?? parceriaData.validity_starts_from) as string | null;
+            const base = startsFrom === 'demp'
+                ? (changes.demp ?? parceriaData.demp)
+                : (changes.signature_date ?? parceriaData.signature_date);
+            if (Number.isFinite(period) && period > 0 && ['dias','meses','anos'].includes(unit) && base) {
+                const computed = addDurationToDate(base, period, unit);
+                if (computed) changes.review_notice_date = computed;
+                else delete changes.review_notice_date;
+            } else {
+                delete changes.review_notice_date;
+            }
+        }
 
         // Item 6: se a vigência é Indeterminada, end_date DEVE ser null.
         const mergedValidity = (typeof changes.validity_period === 'string'
