@@ -93,7 +93,7 @@ export { addComment } from './collaboration/comments';
 // (permissão cloudscheduler.jobs.update). O owner precisa conceder
 // essa permissão à service account. Enquanto isso, schema/UI estão
 // funcionais.
-export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
+// export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
 export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
 
 // ========== Segurança, conformidade e integrações (Fase 5) ==========
