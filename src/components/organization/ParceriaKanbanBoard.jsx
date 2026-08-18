@@ -305,7 +305,6 @@ export default function ParceriaKanbanBoard({
         const set = new Set([currentYear]);
         parcerias.forEach((p) => {
             const d = safeParseDate(getParceriaField(p, 'signature_date'))
-                || safeParseDate(getParceriaField(p, 'pgea_date'))
                 || safeParseDate(getParceriaField(p, 'created_at'));
             if (d) set.add(d.getFullYear());
         });
@@ -393,7 +392,7 @@ export default function ParceriaKanbanBoard({
         }
         const rawValue = getParceriaField(parceria, key);
         if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') return null;
-        if (['signature_date', 'end_date', 'renewal_notice_date', 'pgea_date'].includes(key)) {
+        if (['signature_date', 'end_date', 'renewal_notice_date'].includes(key)) {
             const d = safeParseDate(rawValue);
             return d ? d.getTime() : null;
         }
@@ -428,7 +427,6 @@ export default function ParceriaKanbanBoard({
             if (isFinalized) {
                 const d = safeParseDate(getParceriaField(p, 'signature_date'))
                     || safeParseDate(getParceriaField(p, 'end_date'))
-                    || safeParseDate(getParceriaField(p, 'pgea_date'))
                     || safeParseDate(getParceriaField(p, 'created_at'));
                 if (d && d.getFullYear() !== selectedYear) return false;
             }

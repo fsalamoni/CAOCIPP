@@ -40,7 +40,6 @@ export const PARCERIA_FIELD_ALIASES = {
     third_party: ['third_party', 'terceiro', 'remetido_para'],
     archived_date: ['archived_date', 'data_arquivamento', 'arquivamento'],
     status: ['status', 'situacao', 'estado'],
-    pgea_date: ['pgea_date', 'data_pgea', 'DATA PGEA', 'Data PGEA'],
     aditivo_count: ['aditivo_count', 'qtd_aditivos'],
     current_additive_id: ['current_additive_id'],
     extinguished: ['extinguished', 'extinto'],

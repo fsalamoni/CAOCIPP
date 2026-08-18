@@ -183,7 +183,6 @@ const PARCERIA_FIELD_TYPES = {
     observations: 'text',
     review_conclusion_date: 'date',
     third_party: 'text',
-    pgea_date: 'date',
     aditivo_count: 'number',
     status: 'text',
     extinguished: 'boolean',
@@ -208,7 +207,6 @@ const PARCERIA_FIELDS = [
     { key: 'observations', label: 'Observações', type: 'text' },
     { key: 'review_conclusion_date', label: 'Conclusão da Revisão', type: 'date' },
     { key: 'third_party', label: 'Terceiro', type: 'text' },
-    { key: 'pgea_date', label: 'Data do PGEA', type: 'date' },
     { key: 'aditivo_count', label: 'Qtd. de Aditivos', type: 'number' },
 ];
 
@@ -359,10 +357,9 @@ export function getRecordYear(record, kind) {
     if (kind === 'expedientes') return parseYear(getExpedienteField(record, 'entry_date'));
     if (kind === 'parcerias') {
         // Preferência: data de assinatura (mais fiel à "existência" da Parceria).
-        // Fallback: data de entrada do PGEA ou created_at.
+        // Fallback: data de criação (PGEA não tem mais data própria).
         return (
             parseYear(getParceriaField(record, 'signature_date'))
-            ?? parseYear(getParceriaField(record, 'pgea_date'))
             ?? parseYear(record?.created_at)
         );
     }

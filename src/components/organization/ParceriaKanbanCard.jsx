@@ -7,7 +7,7 @@ import {
     Tooltip, TooltipContent, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-    Eye, GitBranch, Pencil, Trash2, AlertCircle, Calendar, User, Lock,
+    Eye, GitBranch, Pencil, Trash2, AlertCircle, Calendar, User,
 } from 'lucide-react';
 import {
     getParceriaField,
@@ -39,9 +39,6 @@ const PARTNERSHIP_TYPE_LABEL = {
 };
 
 const isUrgencyMarked = (value) =>
-    value === true || String(value ?? '').toLowerCase().trim() === 'sim';
-
-const isRestricted = (value) =>
     value === true || String(value ?? '').toLowerCase().trim() === 'sim';
 
 export default function ParceriaKanbanCard({
@@ -89,7 +86,6 @@ export default function ParceriaKanbanCard({
     const responsible = getParceriaField(parceria, 'responsible_user_name');
     const hasAdd = hasAdditives(parceria) || isAdditiveActive;
     const isUrgent = isUrgencyMarked(getParceriaField(parceria, 'urgency_request'));
-    const restricted = isRestricted(getParceriaField(parceria, 'access_restriction'));
     const status = calculateParceriaDerivedStatus(parceria);
     const pillClass = STATUS_PILL[status] || STATUS_PILL['Pendente'];
 
@@ -179,16 +175,6 @@ export default function ParceriaKanbanCard({
                                         </Badge>
                                     </TooltipTrigger>
                                     <TooltipContent side="top">Prioridade Urgente</TooltipContent>
-                                </Tooltip>
-                            )}
-                            {restricted && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-rose-50 dark:bg-rose-900 text-rose-700 dark:text-rose-200 border-rose-200 dark:border-rose-700 cursor-help">
-                                            <Lock className="w-2.5 h-2.5" />
-                                        </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top">Acesso restrito</TooltipContent>
                                 </Tooltip>
                             )}
                             {hasAdd && (

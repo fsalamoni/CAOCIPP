@@ -94,8 +94,6 @@ export default function ParceriaDetailSheet({
         ? (selectedAdditive.status || 'Pendente')
         : calculateParceriaDerivedStatus(parceria);
 
-    const isRestricted = parceria?.access_restriction === true
-        || String(parceria?.access_restriction).toLowerCase().trim() === 'sim';
     const isUrgent = parceria?.urgency_request === true
         || String(parceria?.urgency_request).toLowerCase().trim() === 'sim';
 
@@ -116,7 +114,6 @@ export default function ParceriaDetailSheet({
             { label: 'Arquivamento', key: 'archived_date', icon: Archive },
         ]
         : [
-            { label: 'PGEA recebido', key: 'pgea_date', icon: Calendar },
             { label: 'Distribuição', key: 'distribution_date', icon: Send },
             { label: 'Entrada em Análise', key: 'responsibility_date', icon: User },
             { label: 'Início da Revisão', key: 'review_start_date', icon: FileText },
@@ -142,12 +139,6 @@ export default function ParceriaDetailSheet({
                                 {isUrgent && (
                                     <Badge variant="destructive" className="text-[10px] px-2 py-0.5 h-5 border-none bg-rose-500 animate-pulse">
                                         URGENTE
-                                    </Badge>
-                                )}
-                                {isRestricted && (
-                                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 h-5 bg-rose-50 text-rose-700 border-rose-200">
-                                        <Lock className="w-3 h-3 mr-0.5" />
-                                        Restrito
                                     </Badge>
                                 )}
                                 {hasAdd && (

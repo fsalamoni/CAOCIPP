@@ -186,11 +186,7 @@ export const importParceriasFromExcel = onCall<ImportParceriasRequest>(
                             'assessor_responsavel', 'responsible_user_name',
                             'RESPONSÁVEL', 'Responsável',
                         ]);
-                        const pgeaDate = parseExcelDate(
-                            pickFirst(row, [
-                                'DATA PGEA', 'Data PGEA', 'data_pgea', 'pgea_date',
-                            ])
-                        );
+                        // pgea_date removido (item 1 do plano — não é mais usado).
 
                         // Anti-lixo: linha integralmente vazia é descartada.
                         const isGarbage =
@@ -248,7 +244,7 @@ export const importParceriasFromExcel = onCall<ImportParceriasRequest>(
                             row, rowIndex, skip: false as const,
                             pgea, subject, object, parties, partnershipType,
                             partnershipNumber, signatureDate, validityPeriod, endDate,
-                            renewalNoticeDate, responsibleUserName, pgeaDate,
+                            renewalNoticeDate, responsibleUserName,
                             existingDoc,
                         };
                     } catch (err: any) {
@@ -300,7 +296,6 @@ export const importParceriasFromExcel = onCall<ImportParceriasRequest>(
                             observations: '',
                             review_conclusion_date: null,
                             third_party: null,
-                            pgea_date: r.pgeaDate || null,
                             extinguished: false,
                             extinguished_at: null,
                             extinguished_by: null,
@@ -326,7 +321,6 @@ export const importParceriasFromExcel = onCall<ImportParceriasRequest>(
                             end_date: 'Termo Final',
                             renewal_notice_date: 'Data do Aviso de Renovação',
                             responsible_user_name: 'Assessor Responsável',
-                            pgea_date: 'Data do PGEA',
                             status: 'Status',
                         };
 
