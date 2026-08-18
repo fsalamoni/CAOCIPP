@@ -218,6 +218,8 @@ jobs:
           set -e
           if [ $DEL_EXIT -eq 0 ]; then
             echo "✓ checkPartnershipNoticeDeadlines removida (estava órfã)."
+            echo "  Aguardando 30s para o cache do Firebase propagar a remoção..."
+            sleep 30
           elif echo "$OUT" | grep -qiE "not found|not_found|NOT_FOUND"; then
             echo "✓ checkPartnershipNoticeDeadlines não existe — nada a remover."
           else
