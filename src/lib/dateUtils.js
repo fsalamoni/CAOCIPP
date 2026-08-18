@@ -144,6 +144,67 @@ export function addDurationToDate(dateStr, valor, unidade) {
 }
 
 /**
+ * Verifica se a vigência é "Indeterminada" (sem prazo definido).
+ * Considera 'Indeterminado', 'indeterminado', 'Indeterminada', etc.
+ *
+ * @param {string|number|object} validityText texto da vigência (ex.: '12 meses', 'Indeterminado')
+ * @returns {boolean}
+ */
+export function isIndeterminateValidity(validityText) {
+    if (validityText == null) return false;
+    const s = String(validityText).toLowerCase().trim();
+    return s.startsWith('indeterm');
+}
+
+/**
+ * Calcula o Termo Final a partir dos campos de vigência.
+ * Helper centralizado para Parceria (item 6 do plano): usado por
+ * EditParceriaDialog, ParceriaKanbanTransitionDialog, e qualquer
+ * outro lugar que precisar do cálculo.
+ *
+ * @param {object} opts
+ * @param {string} opts.signatureDate 'yyyy-MM-dd' (assinatura)
+ * @param {string} opts.demp 'yyyy-MM-dd' (publicação no DEMP)
+ * @param {string} [opts.validityStartsFrom] 'signature_date' | 'demp' (default: signature_date)
+ * @param {string} [opts.validityPeriod] texto da vigência (ex.: '12 meses', 'Indeterminado')
+ * @param {number|string} [opts.validityValue] número (forma estruturada)
+ * @param {string} [opts.validityUnit] unidade (dias|meses|anos)
+ * @param {string} [opts.endDate] termo final atual (se já calculado manualmente)
+ * @returns {string|null} data 'yyyy-MM-dd' ou null
+ */
+export function calculateEndDate({
+    signatureDate,
+    demp,
+    validityStartsFrom = 'signature_date',
+    validityPeriod,
+    validityValue,
+    validityUnit,
+    endDate,
+} = {}) {
+    // Se a vigência é Indeterminada, termo final é sempre vazio.
+    if (isIndeterminateValidity(validityPeriod)) {
+        return null;
+    }
+    // Se já tem end_date manual, mantém.
+    if (endDate) {
+        return endDate;
+    }
+    // Calcula pela vigência estruturada (valor + unidade).
+    if (validityValue && Number(validityValue) > 0) {
+        const base = validityStartsFrom === 'demp' ? demp : signatureDate;
+        if (base) {
+            return addDurationToDate(base, Number(validityValue), validityUnit || 'meses');
+        }
+    }
+    // Fallback: tenta interpretar texto de vigência (legado).
+    const parsed = parseValidityPeriod(validityPeriod);
+    if (parsed && signatureDate) {
+        return addDurationToDate(signatureDate, parsed.value, parsed.unit);
+    }
+    return null;
+}
+
+/**
  * Interpreta um texto de vigência ('12 meses', '2 anos', '90 dias', '12
  * meses; +6 meses (aditivo nº 1)') no par { value, unit }. Usa a PRIMEIRA
  * ocorrência número+unidade. Retorna null quando não há um par reconhecível

@@ -30,7 +30,7 @@ import { toast } from 'sonner';
 import { Loader2, CheckCircle2, Lock, Trash2, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
-import { parseLocalDate, parseValidityPeriod, formatValidityPeriod, VIGENCIA_UNITS } from '@/lib/dateUtils';
+import { parseLocalDate, parseValidityPeriod, formatValidityPeriod, VIGENCIA_UNITS, calculateEndDate, isIndeterminateValidity } from '@/lib/dateUtils';
 import { logger } from '@/utils/logger';
 import { hasAdditives, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
 import { useAditivos } from '@/hooks/useFirestore';
@@ -105,6 +105,9 @@ export default function EditParceriaDialog({
     const [isDeleting, setIsDeleting] = useState(false);
     const [logOpen, setLogOpen] = useState(false);
     const [formData, setFormData] = useState({});
+    // Item 6: termo final pode ser editado manualmente; após edição manual
+    // paramos de sobrescrever com o cálculo automático.
+    const [endDateTouched, setEndDateTouched] = useState(false);
 
     // Lock: a Parceria ORIGINAL fica read-only quando tem aditivos. Para o
     // aditivo em si, nunca há lock.
@@ -218,6 +221,35 @@ export default function EditParceriaDialog({
         // a cada mudança no roster.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, isAdditive, additiveData, parceria]);
+
+    // Item 6: recalcula o Termo Final automaticamente quando os campos de
+    // vigência mudam. Se o usuário já editou o end_date manualmente
+    // (endDateTouched=true), paramos de sobrescrever.
+    useEffect(() => {
+        if (!open || endDateTouched) return;
+        const computed = calculateEndDate({
+            signatureDate: formData.signature_date,
+            demp: formData.demp,
+            validityStartsFrom: formData.validity_starts_from || 'signature_date',
+            validityPeriod: formData.validity_period,
+            validityValue: formData.validity_value,
+            validityUnit: formData.validity_unit,
+            endDate: formData.end_date,
+        });
+        // Se o cálculo mudou o end_date, atualiza o form.
+        if (computed !== formData.end_date) {
+            setFormData((prev) => ({ ...prev, end_date: computed || null }));
+        }
+    }, [
+        open,
+        endDateTouched,
+        formData.signature_date,
+        formData.demp,
+        formData.validity_starts_from,
+        formData.validity_period,
+        formData.validity_value,
+        formData.validity_unit,
+    ]);
 
     // Status derivado — usa a função canônica (com aliases e prioridade do
     // campo `status`) para não divergir do Kanban/planilha.
@@ -796,12 +828,15 @@ export default function EditParceriaDialog({
                             <TabsContent value="archive" className="space-y-4 mt-4">
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div>
-                                        <Label>Termo Final</Label>
+                                        <Label>Termo Final {isIndeterminateValidity(formData.validity_period) && <span className="text-xs text-slate-500 ml-1">(Indeterminado — bloqueado)</span>}</Label>
                                         <Input
                                             type="date"
                                             value={formData.end_date || ''}
-                                            disabled={isLocked}
-                                            onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                                            disabled={isLocked || isIndeterminateValidity(formData.validity_period)}
+                                            onChange={(e) => {
+                                                setFormData({ ...formData, end_date: e.target.value });
+                                                setEndDateTouched(true);
+                                            }}
                                             className="mt-1"
                                         />
                                     </div>

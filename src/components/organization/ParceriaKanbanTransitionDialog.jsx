@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { addDurationToDate, formatValidityPeriod, VIGENCIA_UNITS } from '@/lib/dateUtils';
+import { formatValidityPeriod, VIGENCIA_UNITS, calculateEndDate } from '@/lib/dateUtils';
 import {
     Dialog,
     DialogContent,
@@ -69,14 +69,19 @@ export default function ParceriaKanbanTransitionDialog({
     useEffect(() => {
         if (mode !== 'formalize') return;
         if (endDateTouched) return;
-        // Item 4: a base do cálculo é signature_date OU demp, conforme
-        // escolha do usuário. Default: assinatura.
-        const base = validityStartsFrom === 'demp' ? demp : signatureDate;
-        if (base && Number(validityValue) > 0) {
-            const computed = addDurationToDate(base, Number(validityValue), validityUnit);
-            if (computed) setEndDate(computed);
-        }
-    }, [mode, signatureDate, demp, validityValue, validityUnit, validityStartsFrom, endDateTouched]);
+        // Item 6: usa o helper centralizado (considera vigência Indeterminada,
+        // base signature_date/demp e fallback para texto de vigência).
+        const computed = calculateEndDate({
+            signatureDate,
+            demp,
+            validityStartsFrom,
+            validityPeriod: formatValidityPeriod(validityValue, validityUnit),
+            validityValue,
+            validityUnit,
+            endDate,
+        });
+        if (computed) setEndDate(computed);
+    }, [mode, signatureDate, demp, validityValue, validityUnit, validityStartsFrom, endDate, endDateTouched]);
 
     const getInitials = (name) => {
         if (!name) return '?';

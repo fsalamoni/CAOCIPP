@@ -75,6 +75,19 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
         delete changes.review_return_date;
         delete changes.anonymized_by;
 
+        // Item 6: se a vigência é Indeterminada, end_date DEVE ser null.
+        const mergedValidity = (typeof changes.validity_period === 'string'
+            ? changes.validity_period
+            : parceriaData.validity_period) || '';
+        const isIndeterminate = typeof mergedValidity === 'string'
+            && mergedValidity.toLowerCase().trim().startsWith('indeterm');
+        if (isIndeterminate && 'end_date' in changes && changes.end_date) {
+            throw new HttpsError(
+                'failed-precondition',
+                'Não é possível definir Termo Final com vigência Indeterminada.'
+            );
+        }
+
         // Se a Parceria tem aditivo, bloquear edição dos campos do original.
         if ((parceriaData.aditivo_count || 0) > 0) {
             for (const field of FROZEN_WHEN_HAS_ADITIVO) {
