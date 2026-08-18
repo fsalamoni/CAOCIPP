@@ -203,6 +203,27 @@ jobs:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
           set -e
+          # Limpeza preventiva: se a Cloud Function 'checkPartnershipNoticeDeadlines'
+          # estiver órfã no projeto (ex.: deploy anterior criou a função mas o
+          # job do Cloud Scheduler falhou), o deploy subsequente recusa prosseguir
+          # com a exclusão automática. Removemos manualmente para destravar.
+          # Idempotente: falha silenciosa se a função não existir.
+          set +e
+          DEL_ARGS="functions:delete checkPartnershipNoticeDeadlines --region southamerica-east1 --project protagonista-rpg --force --non-interactive"
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
+            DEL_ARGS="$DEL_ARGS --token $FIREBASE_TOKEN"
+          fi
+          OUT=$(npx firebase $DEL_ARGS 2>&1)
+          DEL_EXIT=$?
+          set -e
+          if [ $DEL_EXIT -eq 0 ]; then
+            echo "✓ checkPartnershipNoticeDeadlines removida (estava órfã)."
+          elif echo "$OUT" | grep -qiE "not found|not_found|NOT_FOUND"; then
+            echo "✓ checkPartnershipNoticeDeadlines não existe — nada a remover."
+          else
+            echo "::warning::Falha ao tentar remover função órfã (prosseguindo):"
+            echo "$OUT" | head -5
+          fi
           ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive"
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
             ARGS="$ARGS --token $FIREBASE_TOKEN"
