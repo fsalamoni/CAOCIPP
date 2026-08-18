@@ -20,7 +20,6 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
-import { format } from 'date-fns';
 
 /**
  * CreateParceriaDialog — modal de criação enxuto.
@@ -36,7 +35,6 @@ export default function CreateParceriaDialog({ open, setOpen, organization, memb
     const [isCreating, setIsCreating] = useState(false);
     const [formData, setFormData] = useState({
         pgea: '',
-        pgea_date: format(new Date(), 'yyyy-MM-dd'),
         subject: '',
         parties: '',
         responsible_user_id: '',
@@ -45,7 +43,6 @@ export default function CreateParceriaDialog({ open, setOpen, organization, memb
 
     const resetForm = () => setFormData({
         pgea: '',
-        pgea_date: format(new Date(), 'yyyy-MM-dd'),
         subject: '',
         parties: '',
         responsible_user_id: '',
@@ -63,8 +60,8 @@ export default function CreateParceriaDialog({ open, setOpen, organization, memb
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!formData.pgea.trim() || !formData.pgea_date || !formData.subject.trim() || !formData.parties.trim()) {
-            toast.error('Preencha PGEA, Data do PGEA, Assunto e Partes.');
+        if (!formData.pgea.trim() || !formData.subject.trim() || !formData.parties.trim()) {
+            toast.error('Preencha PGEA, Assunto e Partes.');
             return;
         }
         try {
@@ -72,7 +69,6 @@ export default function CreateParceriaDialog({ open, setOpen, organization, memb
             const payload = {
                 organizationId: organization.id,
                 pgea: formData.pgea.trim(),
-                pgeaDate: formData.pgea_date,
                 subject: formData.subject.trim(),
                 parties: formData.parties.trim(),
             };
@@ -101,29 +97,16 @@ export default function CreateParceriaDialog({ open, setOpen, organization, memb
                     <DialogTitle>Nova Parceria</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="pgea">PGEA *</Label>
-                            <Input
-                                id="pgea"
-                                value={formData.pgea}
-                                onChange={(e) => setFormData({ ...formData, pgea: e.target.value })}
-                                placeholder="Ex.: 12345/2024"
-                                required
-                                className="mt-1"
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="pgea_date">Data do PGEA *</Label>
-                            <Input
-                                id="pgea_date"
-                                type="date"
-                                value={formData.pgea_date}
-                                onChange={(e) => setFormData({ ...formData, pgea_date: e.target.value })}
-                                required
-                                className="mt-1"
-                            />
-                        </div>
+                    <div>
+                        <Label htmlFor="pgea">PGEA *</Label>
+                        <Input
+                            id="pgea"
+                            value={formData.pgea}
+                            onChange={(e) => setFormData({ ...formData, pgea: e.target.value })}
+                            placeholder="Ex.: 12345/2024"
+                            required
+                            className="mt-1 font-mono"
+                        />
                     </div>
 
                     <div>

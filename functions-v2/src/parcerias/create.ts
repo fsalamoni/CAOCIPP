@@ -22,9 +22,7 @@ interface CreateParceriaRequest {
     responsibleUserId?: string;
     responsibleUserName?: string;
     responsibilityDate?: string;
-    pgeaDate?: string;
     urgencyRequest?: boolean | string;
-    accessRestriction?: boolean | string;
     // Aliases snake_case aceitos pelo backend (frontend envia em snake).
     partnership_type?: string;
     partnership_number?: string;
@@ -36,9 +34,7 @@ interface CreateParceriaRequest {
     responsible_user_id?: string;
     responsible_user_name?: string;
     responsibility_date?: string;
-    pgea_date?: string;
     urgency_request?: boolean | string;
-    access_restriction?: boolean | string;
 }
 
 export const createParceria = onCall<CreateParceriaRequest>(
@@ -66,9 +62,8 @@ export const createParceria = onCall<CreateParceriaRequest>(
         const responsibleUserId = data.responsibleUserId || data.responsible_user_id || null;
         const responsibleUserName = data.responsibleUserName || data.responsible_user_name || null;
         const responsibilityDate = data.responsibilityDate || data.responsibility_date || null;
-        const pgeaDate = data.pgeaDate || data.pgea_date || null;
-        // Flags opcionais (urgência e restrição de acesso) — aceitam boolean
-        // ou string "sim"/"true". Normaliza para boolean.
+        // Flag opcional de urgência — aceita boolean ou string "sim"/"true".
+        // (Restrição de acesso removida no PR #70 — sem uso no produto.)
         const toBool = (v: unknown): boolean => {
             if (v === true) return true;
             if (typeof v === 'string') {
@@ -78,7 +73,6 @@ export const createParceria = onCall<CreateParceriaRequest>(
             return false;
         };
         const urgencyRequest = toBool(data.urgencyRequest ?? data.urgency_request);
-        const accessRestriction = toBool(data.accessRestriction ?? data.access_restriction);
 
         if (!organizationId) {
             throw new HttpsError('invalid-argument', 'organizationId é obrigatório');
@@ -157,9 +151,7 @@ export const createParceria = onCall<CreateParceriaRequest>(
             responsibility_date: responsibilityDate,
             review_conclusion_date: null,
             third_party: null,
-            pgea_date: pgeaDate,
             urgency_request: urgencyRequest,
-            access_restriction: accessRestriction,
             status,
             extinguished: false,
             extinguished_at: null,

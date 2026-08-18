@@ -14,9 +14,11 @@ interface UpdateParceriaRequest {
 
 // Campos "congelados" quando a Parceria tem 1+ aditivos. Quem tenta mexer
 // neles via updateParceria (em vez de updateAditivo) é bloqueado aqui.
+// NOTA: pgea NÃO está na lista (item 2 do plano — PGEA continua editável
+// mesmo com aditivos, pois é o identificador de auditoria e pode ser corrigido
+// sem invalidar a substância do aditivo).
 const FROZEN_WHEN_HAS_ADITIVO = new Set([
     'subject', 'object', 'parties',
-    'pgea', 'pgea_date',
     'partnership_type', 'partnership_number', 'categoria', 'signature_date',
     'validity_period', 'end_date', 'renewal_notice_date',
 ]);
@@ -65,6 +67,12 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
         delete changes.current_additive_id; // só addAditivo pode mexer
         delete changes.anonymized;          // só runAnonymization
         delete changes.anonymized_at;
+        // Campos descontinuados (PR #70) — silenciosamente ignorados se vierem
+        // de chamadas legadas. NÃO removemos os campos do Firestore (dados
+        // legados permanecem consultáveis via aliases).
+        delete changes.pgea_date;
+        delete changes.access_restriction;
+        delete changes.review_return_date;
         delete changes.anonymized_by;
 
         // Se a Parceria tem aditivo, bloquear edição dos campos do original.
@@ -128,16 +136,9 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
                 delete changes.urgency_request;
             }
         }
+        // access_restriction removido no PR #70 — silenciosamente ignorado se vier.
         if ('access_restriction' in changes) {
-            const v = changes.access_restriction;
-            if (v === true) changes.access_restriction = true;
-            else if (v === false) changes.access_restriction = false;
-            else if (typeof v === 'string') {
-                const s = v.toLowerCase().trim();
-                changes.access_restriction = (s === 'sim' || s === 'true' || s === '1' || s === 'yes');
-            } else {
-                delete changes.access_restriction;
-            }
+            delete changes.access_restriction;
         }
 
         changes.updated_at = admin.firestore.FieldValue.serverTimestamp();

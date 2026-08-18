@@ -6,7 +6,6 @@ import {
     updateAditivo,
     deleteAditivo,
     deleteParceria,
-    logAccess,
 } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,7 +66,7 @@ const PARCERIA_STATUSES = [
  * EditParceriaDialog — diálogo de edição no padrão de EditExpedienteDialog.
  *
  * Mesma estrutura visual de Tabs:
- *   - Dados Básicos: PGEA, Assunto, Partes, Objeto, Tipo/Número, Categoria, Restrição de Acesso, Urgência
+ *   - Dados Básicos: PGEA, Assunto, Partes, Objeto, Tipo/Número, Categoria, Urgência
  *   - Formalização: Tipo, Número, Assinatura, Vigência, Termo Final, Aviso Renovação
  *   - Fluxo de Trabalho: Assessor Responsável, Datas de Análise/Revisão/Terceiros, Observações, Status
  *   - Revisão e Arquivo: Pasta na Rede, Datas de Revisão, Conclusão
@@ -81,8 +80,8 @@ const PARCERIA_STATUSES = [
  *   - canDeleteRecords (config) || userRole admin/owner/creator → pode excluir
  *   - userRole === 'creator' → botão "Verificar Log"
  *
- * Log de acesso (flag access_audit_log): se a Parceria tem access_restriction
- * true/"Sim", registra a abertura do diálogo.
+ * Log de acesso (flag access_audit_log): a Parceria não tem mais restrição
+ * de acesso; o registro de log de auditoria é feito em outros pontos.
  */
 export default function EditParceriaDialog({
     open,
@@ -101,7 +100,6 @@ export default function EditParceriaDialog({
     const isCommentsOn = useFlag(FEATURE_FLAGS.PROCESS_COMMENTS.key);
     const isPresenceOn = useFlag(FEATURE_FLAGS.LIVE_PRESENCE.key);
     const showCollabTab = isCommentsOn || isPresenceOn;
-    const isAccessAuditLogOn = useFlag(FEATURE_FLAGS.ACCESS_AUDIT_LOG.key);
 
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -127,25 +125,6 @@ export default function EditParceriaDialog({
     const thirdParties = organization?.thirdPartiesSettingsParcerias?.length
         ? organization.thirdPartiesSettingsParcerias
         : DEFAULT_THIRD_PARTIES;
-
-    // Log de acesso e auditoria (flag `access_audit_log`): registra a abertura
-    // de um registro com restrição de acesso. Uma vez por abertura do diálogo.
-    // Mesma normalização usada em EditExpedienteDialog.
-    const source = isAdditive && additiveData ? additiveData : parceria;
-    const isParceriaRestricted = source?.access_restriction === true
-        || String(source?.access_restriction).toLowerCase().trim() === 'sim';
-
-    useEffect(() => {
-        if (open && isAccessAuditLogOn && isParceriaRestricted && source?.id) {
-            logAccess({
-                organizationId,
-                entityType: 'parceria',
-                entityId: source.id,
-                action: 'view_restricted',
-            }).catch(() => { /* best-effort */ });
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, source?.id]);
 
     // Helper: formata data para input type="date"
     const formatDateForInput = (value) => {
@@ -224,11 +203,7 @@ export default function EditParceriaDialog({
             third_party_referral_date: formatDateForInput(src.third_party_referral_date),
             review_submission_date: formatDateForInput(src.review_submission_date),
             reviewed_date: formatDateForInput(src.reviewed_date),
-            review_return_date: formatDateForInput(src.review_return_date),
             archived_date: formatDateForInput(src.archived_date),
-            pgea_date: formatDateForInput(src.pgea_date),
-            access_restriction: src.access_restriction === true
-                || String(src.access_restriction).toLowerCase().trim() === 'sim',
             urgency_request: src.urgency_request === true
                 || String(src.urgency_request).toLowerCase().trim() === 'sim',
             status: src.status || calculateDerivedStatus(src) || 'Pendente',
@@ -449,36 +424,19 @@ export default function EditParceriaDialog({
                             {/* ===================== DADOS BÁSICOS ===================== */}
                             <TabsContent value="basic" className="space-y-4 mt-4">
                                 {!isAdditive && (
-                                    <>
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            <div>
-                                                <div className="flex items-center justify-between">
-                                                    <Label htmlFor="pgea">PGEA</Label>
-                                                    {renderValidationSignal('pgea')}
-                                                </div>
-                                                <Input
-                                                    id="pgea"
-                                                    value={formData.pgea || ''}
-                                                    disabled
-                                                    className="mt-1 bg-slate-50"
-                                                />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center justify-between">
-                                                    <Label htmlFor="pgea_date">Data do PGEA</Label>
-                                                    {renderValidationSignal('pgea_date')}
-                                                </div>
-                                                <Input
-                                                    id="pgea_date"
-                                                    type="date"
-                                                    value={formData.pgea_date || ''}
-                                                    disabled={isLocked}
-                                                    onChange={(e) => setFormData({ ...formData, pgea_date: e.target.value })}
-                                                    className="mt-1"
-                                                />
-                                            </div>
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label htmlFor="pgea">PGEA</Label>
+                                            {renderValidationSignal('pgea')}
                                         </div>
-                                    </>
+                                        <Input
+                                            id="pgea"
+                                            value={formData.pgea || ''}
+                                            disabled={isLocked}
+                                            onChange={(e) => setFormData({ ...formData, pgea: e.target.value })}
+                                            className="mt-1 font-mono"
+                                        />
+                                    </div>
                                 )}
 
                                 {isAdditive && (
@@ -697,19 +655,6 @@ export default function EditParceriaDialog({
                                     />
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <div>
-                                        <Label htmlFor="access_restriction" className="cursor-pointer">Restrição de Acesso</Label>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            Restringe o acesso a este registro (auditado via flag `access_audit_log`)
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        id="access_restriction"
-                                        checked={formData.access_restriction || false}
-                                        onCheckedChange={(checked) => setFormData({ ...formData, access_restriction: checked })}
-                                    />
-                                </div>
                             </TabsContent>
 
                             {/* ===================== FLUXO DE TRABALHO ===================== */}
@@ -862,15 +807,6 @@ export default function EditParceriaDialog({
                                             type="date"
                                             value={formData.reviewed_date || ''}
                                             onChange={(e) => setFormData({ ...formData, reviewed_date: e.target.value })}
-                                            className="mt-1"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label>Devolução após Revisão</Label>
-                                        <Input
-                                            type="date"
-                                            value={formData.review_return_date || ''}
-                                            onChange={(e) => setFormData({ ...formData, review_return_date: e.target.value })}
                                             className="mt-1"
                                         />
                                     </div>

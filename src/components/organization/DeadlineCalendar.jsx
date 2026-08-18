@@ -34,7 +34,6 @@ const EVENT_FIELDS = [
 
 // Parcerias usam nomes de campos próprios.
 const PARCERIA_EVENT_FIELDS = [
-    { field: 'pgea_date', label: 'PGEA', dot: 'bg-violet-500' },
     { field: 'signature_date', label: 'Assinatura', dot: 'bg-amber-500' },
     { field: 'end_date', label: 'Termo final', dot: 'bg-rose-500' },
     { field: 'renewal_notice_date', label: 'Aviso de renovação', dot: 'bg-emerald-500' },

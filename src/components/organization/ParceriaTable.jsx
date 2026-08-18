@@ -18,7 +18,7 @@ import { format, isValid, startOfDay, endOfDay } from 'date-fns';
 import { getDaysInCurrentStage, getStageTimeSeverity, resolveStageTimeConfig } from '@/lib/stageTime';
 import { ptBR } from 'date-fns/locale';
 import { parseLocalDate } from '@/lib/dateUtils';
-import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark, Columns3, GitBranch, Lock, Settings2, Handshake } from 'lucide-react';
+import { Search, MoreHorizontal, Pencil, ArrowUpDown, Filter, FilterX, X, Download, Rows3, Rows4, Bookmark, Columns3, GitBranch, Settings2, Handshake } from 'lucide-react';
 import EmptyState from '../ui/EmptyState';
 import { SearchX, ClipboardList } from 'lucide-react';
 import { parceriaStatusConfig, DEFAULT_STATUS_CONFIG } from '@/config/processStatus';
@@ -51,7 +51,6 @@ const formatDate = (s) => {
 };
 
 const isUrgencyMarked = (v) => v === true || String(v ?? '').toLowerCase().trim() === 'sim';
-const isUrgencyRestricted = (v) => v === true || String(v ?? '').toLowerCase().trim() === 'sim';
 
 // Tipos de coluna default — com `render` (espelho do padrão de ExpedienteTable).
 const DEFAULT_COLUMNS = [
@@ -59,7 +58,6 @@ const DEFAULT_COLUMNS = [
         key: 'pgea', label: 'PGEA', defaultVisible: true, sticky: 'left', sortable: true,
         render: (p) => {
             const isUrgent = isUrgencyMarked(getParceriaField(p, 'urgency_request'));
-            const isRestricted = isUrgencyRestricted(getParceriaField(p, 'access_restriction'));
             return (
                 <div className="flex items-center gap-2">
                     {isUrgent && (
@@ -68,14 +66,6 @@ const DEFAULT_COLUMNS = [
                                 <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent side="right">Prioridade Urgente</TooltipContent>
-                        </Tooltip>
-                    )}
-                    {isRestricted && (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Lock className="w-3.5 h-3.5 text-rose-500 shrink-0 cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent side="right">Acesso restrito</TooltipContent>
                         </Tooltip>
                     )}
                     <span className="font-semibold text-slate-800 dark:text-slate-100 font-mono text-[13px]">
@@ -518,9 +508,6 @@ export default function ParceriaTable({
         if (DATE_EXPORT_KEYS.has(col.key)) return formatDate(getParceriaField(p, col.key));
         if (col.key === 'urgency_request') {
             return isUrgencyMarked(getParceriaField(p, 'urgency_request')) ? 'Sim' : 'Não';
-        }
-        if (col.key === 'access_restriction') {
-            return isUrgencyRestricted(getParceriaField(p, 'access_restriction')) ? 'Sim' : 'Não';
         }
         return getParceriaField(p, col.key) ?? '';
     };
