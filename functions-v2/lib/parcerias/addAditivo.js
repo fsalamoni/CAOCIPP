@@ -17,6 +17,19 @@ function sanitizeAditivoType(input) {
     const label = LEGACY_TYPE_LABELS[type] || type;
     return { type, label };
 }
+/**
+ * Deriva o rótulo do aditivo a partir do escopo declarado. Mantém-se em
+ * sincronia com o frontend (CreateAditivoDialog.deriveAditivoLabel).
+ */
+function deriveAditivoLabel(isProrrogacao, isObjeto) {
+    if (isProrrogacao && isObjeto)
+        return 'Prorrogação e Objeto';
+    if (isProrrogacao)
+        return 'Prorrogação';
+    if (isObjeto)
+        return 'Objeto';
+    return '';
+}
 exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -26,13 +39,30 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     if (!parceriaId || !organizationId) {
         throw new https_1.HttpsError('invalid-argument', 'parceriaId e organizationId são obrigatórios');
     }
-    const typeInfo = sanitizeAditivoType(rawAditivoType);
-    if (!typeInfo) {
-        throw new https_1.HttpsError('invalid-argument', 'aditivoType é obrigatório (até 100 caracteres)');
+    // Escopo declarado do aditivo (prorrogação/objeto). Ao menos um deve ser
+    // verdadeiro. É a fonte canônica do tipo/label do aditivo.
+    const isProrrogacao = data.isProrrogacao === true;
+    const isObjeto = data.isObjeto === true;
+    const hasDeclaredScope = isProrrogacao || isObjeto;
+    // Tipo/label: derivados do escopo quando declarado; caso contrário,
+    // mantém compat com o fluxo antigo (aditivoType string livre).
+    let aditivoTypeResolved;
+    let aditivoTypeLabel;
+    if (hasDeclaredScope) {
+        const label = deriveAditivoLabel(isProrrogacao, isObjeto);
+        aditivoTypeResolved = label;
+        aditivoTypeLabel = label;
     }
-    // Label customizado do frontend tem precedência sobre o derivado.
-    const customLabel = String(data.aditivoTypeLabel || '').trim().slice(0, 100);
-    const aditivoTypeLabel = customLabel || typeInfo.label;
+    else {
+        const typeInfo = sanitizeAditivoType(rawAditivoType);
+        if (!typeInfo) {
+            throw new https_1.HttpsError('invalid-argument', 'Informe o escopo do aditivo (prorrogação e/ou objeto).');
+        }
+        // Label customizado do frontend tem precedência sobre o derivado.
+        const customLabel = String(data.aditivoTypeLabel || '').trim().slice(0, 100);
+        aditivoTypeResolved = typeInfo.type;
+        aditivoTypeLabel = customLabel || typeInfo.label;
+    }
     const db = admin.firestore();
     const userId = request.auth.uid;
     // 1. Verify membership
@@ -53,6 +83,13 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     }
     // 3. Regra de negócio: só é possível incluir aditivo quando a Parceria
     // está em status "Parcerias" (formalizada, com vigência rolando).
+    // Como só pode haver UM aditivo em andamento por vez (sequencial),
+    // durante um aditivo a parceria fica espelhando a fase dele (não fica
+    // em "Parcerias"), então esta checagem já bloqueia um segundo aditivo.
+    // O check de `current_additive_id` reforça a regra explicitamente.
+    if (parceriaData.current_additive_id) {
+        throw new https_1.HttpsError('failed-precondition', 'Já existe um aditivo em andamento nesta Parceria. Conclua-o antes de incluir um novo.');
+    }
     if (parceriaData.status !== 'Parcerias') {
         throw new https_1.HttpsError('failed-precondition', `Só é possível incluir aditivo quando a Parceria está na fase "Parcerias" (atual: "${parceriaData.status || 'Pendente'}").`);
     }
@@ -64,46 +101,18 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     const logDate = now.toISOString().split('T')[0];
     const logTime = now.toTimeString().split(' ')[0];
     const userName = request.auth.token.name || 'Usuário desconhecido';
-    const aditivoType = typeInfo.type;
+    const aditivoType = aditivoTypeResolved;
     const aditivoTypeLabelFinal = aditivoTypeLabel;
     // (3.8) PGEA do aditivo: próprio (se informado) ou herdado da Parceria.
     const ownPgea = String(data.aditivoPgea || data.pgea || '').trim();
     const aditivoPgea = ownPgea || parceriaData.pgea || '';
-    const aditivoData = {
-        id: aditivoRef.id,
-        parceria_id: parceriaId,
-        organization_id: organizationId,
-        aditivo_number: aditivoNumber,
-        aditivo_type: aditivoType,
-        aditivo_type_label: aditivoTypeLabelFinal,
+    const aditivoData = Object.assign(Object.assign({ id: aditivoRef.id, parceria_id: parceriaId, organization_id: organizationId, aditivo_number: aditivoNumber, aditivo_type: aditivoType, aditivo_type_label: aditivoTypeLabelFinal }, (hasDeclaredScope ? { is_prorrogacao: isProrrogacao, is_objeto: isObjeto } : {})), { 
         // PGEA próprio do aditivo (herda o da Parceria quando não informado).
-        pgea: aditivoPgea,
+        pgea: aditivoPgea, 
         // Snapshot do original (somente leitura) — guardado para auditoria.
-        pgea_at_additive_creation: parceriaData.pgea || null,
-        partnership_type_at_additive_creation: parceriaData.partnership_type || null,
-        partnership_number_at_additive_creation: parceriaData.partnership_number || null,
+        pgea_at_additive_creation: parceriaData.pgea || null, partnership_type_at_additive_creation: parceriaData.partnership_type || null, partnership_number_at_additive_creation: parceriaData.partnership_number || null, 
         // Campos próprios do aditivo (vazios para serem preenchidos no fluxo).
-        partnership_type: null,
-        partnership_number: null,
-        signature_date: null,
-        validity_period: null,
-        end_date: null,
-        renewal_notice_date: null,
-        subject: data.subject || parceriaData.subject || '',
-        object: data.object || parceriaData.object || '',
-        parties: data.parties || parceriaData.parties || '',
-        responsible_user_id: null,
-        responsible_user_name: null,
-        responsibility_date: null,
-        network_folder: '',
-        observations: '',
-        review_conclusion_date: null,
-        third_party: null,
-        status: 'Pendente',
-        created_by: userId,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        activity_log: [{
+        partnership_type: null, partnership_number: null, signature_date: null, validity_period: null, end_date: null, renewal_notice_date: null, subject: data.subject || parceriaData.subject || '', object: data.object || parceriaData.object || '', parties: data.parties || parceriaData.parties || '', responsible_user_id: null, responsible_user_name: null, responsibility_date: null, network_folder: '', observations: '', review_conclusion_date: null, third_party: null, status: 'Pendente', created_by: userId, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), activity_log: [{
                 date: logDate,
                 time: logTime,
                 user_id: userId,
@@ -111,8 +120,7 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
                 action: `Aditivo #${aditivoNumber} criado (${aditivoTypeLabelFinal})`,
                 timestamp: now.toISOString(),
                 details: { aditivo_id: aditivoRef.id, aditivo_type: aditivoType },
-            }],
-    };
+            }] });
     await aditivoRef.set(aditivoData);
     // Dual-write do log do aditivo na subcoleção history/ do aditivo.
     try {
@@ -136,13 +144,9 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     // current_additive_id, e MIGRA o status para "Pendente" (a Parceria
     // original "desce" para o início do fluxo; o aditivo é o que vai
     // prosseguir).
-    const parentUpdate = {
-        aditivo_count: admin.firestore.FieldValue.increment(1),
-        current_additive_id: aditivoRef.id,
-        status: 'Pendente',
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_by: userId,
-        activity_log: admin.firestore.FieldValue.arrayUnion({
+    const parentUpdate = Object.assign(Object.assign({ aditivo_count: admin.firestore.FieldValue.increment(1), current_additive_id: aditivoRef.id }, (hasDeclaredScope
+        ? { current_additive_prorrogacao: isProrrogacao, current_additive_objeto: isObjeto }
+        : {})), { status: 'Pendente', updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, activity_log: admin.firestore.FieldValue.arrayUnion({
             date: logDate,
             time: logTime,
             user_id: userId,
@@ -150,8 +154,7 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
             action: `Aditivo #${aditivoNumber} incluído (${aditivoTypeLabelFinal})`,
             timestamp: now.toISOString(),
             details: { aditivo_id: aditivoRef.id, aditivo_type: aditivoType },
-        }),
-    };
+        }) });
     await parceriaRef.update(parentUpdate);
     // Dual-write do log do parent na subcoleção history/ da Parceria.
     try {

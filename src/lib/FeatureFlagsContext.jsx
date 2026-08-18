@@ -1,17 +1,21 @@
 // ============================================================================
 // FeatureFlagsContext - Provider global de feature flags
 // ----------------------------------------------------------------------------
-// Lê o documento Firestore `platformConfig/featureFlags` em tempo real.
-// Combina com os DEFAULTS (todos OFF) garantindo que, se o documento não
-// existir ou uma flag não estiver definida, o comportamento atual é mantido.
+// Lê o documento Firestore `platformConfig/featureFlags` em tempo real e
+// combina com os DEFAULTS.
+//
+// MODELO ATUAL (ver src/constants/featureFlags.js):
+//   - Flags INTEGRADAS: default = TRUE (permanentes). Não aparecem no admin
+//     para ligar/desligar. Ficam sempre ligadas por padrão; um valor
+//     explícito `false` no Firestore ainda é respeitado como VÁLVULA DE
+//     EMERGÊNCIA (permite desligar sem redeploy se algo der errado).
+//   - Flags OPCIONAIS: default = FALSE (OFF). Geridas normalmente no admin.
+//   - Doc ausente ou erro de leitura: integradas ON, opcionais OFF (via
+//     FEATURE_FLAG_DEFAULTS) — o produto continua funcionando.
 //
 // Uso:
 //   const enabled = useFlag('db_pagination');   // boolean
 //   const { flags, isLoading } = useFeatureFlags();
-//
-// SEGURANÇA / ZERO QUEBRA:
-//   - Default sempre false. Falha de leitura => mantém defaults (OFF).
-//   - Suporta override por organização via parâmetro opcional.
 // ============================================================================
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -42,17 +46,21 @@ export const FeatureFlagsProvider = ({ children }) => {
                 if (snapshot.exists()) {
                     const data = snapshot.data() || {};
                     const stored = data.flags || {};
-                    // Merge: defaults primeiro, depois os valores salvos.
+                    // Defaults primeiro (integradas ON, opcionais OFF), depois os
+                    // valores salvos. As integradas já vêm gravadas como true; um
+                    // `false` explícito no Firestore é respeitado (válvula de
+                    // emergência para desligar sem redeploy).
                     setFlags({ ...FEATURE_FLAG_DEFAULTS, ...stored });
                 } else {
-                    // Documento ainda não criado => tudo OFF (comportamento atual).
+                    // Documento ainda não criado => integradas ON, opcionais OFF.
                     setFlags(FEATURE_FLAG_DEFAULTS);
                 }
                 setIsLoading(false);
             },
             (error) => {
-                // Em caso de erro (ex.: regras), mantém defaults seguros (OFF).
-                logger.warn('Feature flags indisponíveis, usando defaults (OFF):', error?.code);
+                // Erro de leitura (ex.: regras/offline): mantém os defaults —
+                // integradas ON (o produto continua funcionando), opcionais OFF.
+                logger.warn('Feature flags indisponíveis, usando defaults:', error?.code);
                 setFlags(FEATURE_FLAG_DEFAULTS);
                 setIsLoading(false);
             }

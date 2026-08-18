@@ -32,7 +32,7 @@ import {
     hasAdditives,
 } from '@/utils/parceriaUtils';
 import {
-    updateParceria, updateAditivo, deleteParceria,
+    updateParceria, updateAditivo, concludeAditivo, deleteParceria,
 } from '@/services/functionsService';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { useUserPreferences, useAditivos } from '@/hooks/useFirestore';
@@ -44,6 +44,7 @@ import ParceriaKanbanCard from './ParceriaKanbanCard';
 import ParceriaKanbanTransitionDialog from './ParceriaKanbanTransitionDialog';
 import ParceriaDetailSheet from './ParceriaDetailSheet';
 import CreateAditivoDialog from './CreateAditivoDialog';
+import ConcludeAditivoDialog from './ConcludeAditivoDialog';
 import ExtinguishConfirmDialog from './ExtinguishConfirmDialog';
 import EditParceriaDialog from './EditParceriaDialog';
 import EmptyState from '../ui/EmptyState';
@@ -159,6 +160,13 @@ function buildValidForward(columns) {
     return map;
 }
 
+// Id do aditivo EM ANDAMENTO da parceria (ou null). Fonte única de verdade
+// para decidir "esta parceria está tramitando um aditivo?".
+function getActiveAditivoId(parceria) {
+    const id = parceria?.current_additive_id;
+    return ((parceria?.aditivo_count || 0) > 0 && id) ? id : null;
+}
+
 const PARCERIA_SORT_OPTIONS = [
     { key: 'pgea', label: 'PGEA' },
     { key: 'partnership_type', label: 'Tipo' },
@@ -250,6 +258,8 @@ export default function ParceriaKanbanBoard({
     const [editParceria, setEditParceria] = useState(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [aditivoDialogOpen, setAditivoDialogOpen] = useState(false);
+    const [concludeOpen, setConcludeOpen] = useState(false);
+    const [concludeTarget, setConcludeTarget] = useState(null);
     const [aditivoTarget, setAditivoTarget] = useState(null);
     const [extinguishOpen, setExtinguishOpen] = useState(false);
     const [extinguishTarget, setExtinguishTarget] = useState(null);
@@ -559,9 +569,8 @@ export default function ParceriaKanbanBoard({
     // espelha a fase do aditivo de volta na Parceria pai. Caso contrário, muda
     // a própria Parceria.
     const applyPhaseChange = useCallback(async (parceria, changes) => {
-        const aditivoId = parceria?.current_additive_id;
-        const hasAditivo = (parceria?.aditivo_count || 0) > 0 && !!aditivoId;
-        if (hasAditivo) {
+        const aditivoId = getActiveAditivoId(parceria);
+        if (aditivoId) {
             return updateAditivo({
                 parceriaId: parceria.id,
                 aditivoId,
@@ -643,6 +652,14 @@ export default function ParceriaKanbanBoard({
         }
         if (fromStatus === 'Revisadas' && toStatus === 'Aguarda Terceiros') return openDialog('third_party');
         if (toStatus === 'Parcerias' && (fromStatus === 'Aguarda Terceiros' || fromStatus === 'Revisadas')) {
+            // Se a parceria está tramitando um ADITIVO, o passo final não é
+            // "formalizar" (a original já é formalizada): é CONCLUIR o aditivo,
+            // que aplica prazo/objeto na original e a devolve para "Parcerias".
+            if (getActiveAditivoId(parceria)) {
+                setConcludeTarget(parceria);
+                setConcludeOpen(true);
+                return;
+            }
             return openDialog('formalize');
         }
         if (fromStatus === 'Parcerias' && toStatus === 'Extintos') {
@@ -651,6 +668,32 @@ export default function ParceriaKanbanBoard({
             return;
         }
     }, [handleDirectTransition]);
+
+    // Conclusão do aditivo: chama concludeAditivo (aplica na original).
+    const handleConcludeAditivo = async (data) => {
+        const parceria = concludeTarget;
+        if (!parceria) return;
+        const aditivoId = getActiveAditivoId(parceria);
+        const pgea = getParceriaField(parceria, 'pgea');
+        try {
+            await concludeAditivo({
+                parceriaId: parceria.id,
+                aditivoId,
+                organizationId: organization.id,
+                aditivoSignatureDate: data.aditivoSignatureDate,
+                demp: data.demp,
+                prazoValor: data.prazoValor,
+                prazoUnidade: data.prazoUnidade,
+                objetoAditivo: data.objetoAditivo,
+            });
+            toast.success(`Aditivo concluído! Parceria ${pgea} atualizada e ativa.`);
+            setConcludeOpen(false);
+            setConcludeTarget(null);
+        } catch (err) {
+            toast.error('Erro ao concluir aditivo: ' + (err?.message || err));
+            throw err;
+        }
+    };
 
     const handleDragStart = useCallback((event) => setActiveId(event.active.id), []);
     const handleDragEnd = useCallback((event) => {
@@ -715,9 +758,10 @@ export default function ParceriaKanbanBoard({
                 partnership_type: data.partnership_type,
                 partnership_number: data.partnership_number,
                 signature_date: data.signature_date || today,
-                publication_date: data.publication_date || null,
                 demp: data.demp || '',
                 validity_period: data.validity_period,
+                validity_value: data.validity_value ?? null,
+                validity_unit: data.validity_unit || null,
                 object: data.object || '',
                 end_date: data.end_date,
                 renewal_notice_date: data.renewal_notice_date,
@@ -1031,6 +1075,18 @@ export default function ParceriaKanbanBoard({
                     organizationId={organization.id}
                     organization={organization}
                     onSuccess={() => { setAditivoDialogOpen(false); setAditivoTarget(null); }}
+                />
+            )}
+
+            {/* Conclusão de aditivo (passo final) */}
+            {concludeTarget && (
+                <ConcludeAditivoDialog
+                    open={concludeOpen}
+                    onClose={() => { setConcludeOpen(false); setConcludeTarget(null); }}
+                    aditivoNumber={Number(getParceriaField(concludeTarget, 'aditivo_count')) || concludeTarget.aditivo_count || 1}
+                    isProrrogacao={concludeTarget.current_additive_prorrogacao}
+                    isObjeto={concludeTarget.current_additive_objeto}
+                    onConfirm={handleConcludeAditivo}
                 />
             )}
 

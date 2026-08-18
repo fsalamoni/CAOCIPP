@@ -10,72 +10,77 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, GitBranch } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, GitBranch, CalendarClock, FileText } from 'lucide-react';
 import { addAditivo } from '@/services/functionsService';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 
-// Defaults alinhados com sanitizeParceriaSettings no backend.
-const DEFAULT_ADITIVO_TIPOS = [
-    'Aditivo de Prazo',
-    'Aditivo de Valor',
-    'Aditivo de Alteração',
-    'Aditivo de Reequilíbrio',
-    'Aditivo de Execução',
-];
+/**
+ * Deriva o rótulo do aditivo a partir do escopo declarado (prorrogação/objeto).
+ * Mantém-se em sincronia com o backend (addAditivo.deriveAditivoLabel).
+ */
+export function deriveAditivoLabel(isProrrogacao, isObjeto) {
+    if (isProrrogacao && isObjeto) return 'Prorrogação e Objeto';
+    if (isProrrogacao) return 'Prorrogação';
+    if (isObjeto) return 'Objeto';
+    return '';
+}
 
 /**
- * CreateAditivoDialog — modal que pede o TIPO de aditivo.
- * O tipo é uma string livre (customizável pelo admin do órgão em
- * Administração → Configurações → Parcerias → Tipos de Aditivo).
+ * CreateAditivoDialog — modal de inclusão de aditivo.
+ *
+ * O usuário declara o ESCOPO do aditivo por meio de checkboxes:
+ *   - Prorrogação (amplia prazo/vigência da Parceria original)
+ *   - Objeto (acrescenta ao objeto da Parceria original)
+ * Pode marcar um, o outro ou os dois. No mínimo um deve estar marcado.
+ *
  * Após confirmar, o backend cria o aditivo vazio (status Pendente) e abre
- * o EditParceriaDialog para preenchimento.
+ * o EditParceriaDialog para preenchimento. Os efeitos (prazo/objeto) são
+ * coletados na conclusão do aditivo, restritos ao escopo declarado aqui.
  */
 export default function CreateAditivoDialog({
     open,
     onClose,
     parceria,
     organizationId,
-    organization,
     onSuccess,
 }) {
-    // Tipos configurados pelo admin (com fallback para defaults).
-    const tipos = (organization?.parceriaSettings?.aditivoTipos?.length
-        ? organization.parceriaSettings.aditivoTipos
-        : DEFAULT_ADITIVO_TIPOS
-    );
-
-    const [type, setType] = useState(tipos[0] || DEFAULT_ADITIVO_TIPOS[0]);
+    const [isProrrogacao, setIsProrrogacao] = useState(true);
+    const [isObjeto, setIsObjeto] = useState(false);
     // (3.8) PGEA do aditivo: começa com o PGEA da Parceria (herdado), mas pode
     // ser editado para um PGEA próprio do aditivo.
     const [aditivoPgea, setAditivoPgea] = useState(parceria?.pgea || '');
     const [saving, setSaving] = useState(false);
 
-    // Sincroniza o PGEA herdado quando a Parceria muda / o modal reabre.
+    // Sincroniza o PGEA herdado e reseta o escopo quando o modal reabre.
     React.useEffect(() => {
-        if (open) setAditivoPgea(parceria?.pgea || '');
+        if (open) {
+            setAditivoPgea(parceria?.pgea || '');
+            setIsProrrogacao(true);
+            setIsObjeto(false);
+        }
     }, [open, parceria?.pgea]);
 
-    // Garante que o tipo inicial sempre exista na lista (caso o admin troque
-    // as configs enquanto o modal está aberto).
-    React.useEffect(() => {
-        if (!tipos.includes(type) && tipos.length > 0) {
-            setType(tipos[0]);
-        }
-    }, [tipos, type]);
+    const hasScope = isProrrogacao || isObjeto;
 
     const handleConfirm = async () => {
-        if (!type) {
-            toast.error('Selecione um tipo de aditivo.');
+        if (!hasScope) {
+            toast.error('Selecione ao menos um escopo: Prorrogação ou Objeto.');
             return;
         }
+        const label = deriveAditivoLabel(isProrrogacao, isObjeto);
         try {
             setSaving(true);
             const result = await addAditivo({
                 parceriaId: parceria.id,
                 organizationId,
-                aditivoType: type,
-                aditivoTypeLabel: type,
+                // Escopo declarado do aditivo.
+                isProrrogacao,
+                isObjeto,
+                // Compat: tipo/label derivados do escopo.
+                aditivoType: label,
+                aditivoTypeLabel: label,
                 // Vazio → backend herda o PGEA da Parceria original.
                 aditivoPgea: aditivoPgea.trim(),
             });
@@ -100,13 +105,13 @@ export default function CreateAditivoDialog({
                     </DialogTitle>
                     <DialogDescription className="text-sm text-slate-500">
                         Parceria <span className="font-mono font-semibold">{parceria?.pgea}</span>.
-                        Escolha o tipo de aditivo. A Parceria original será congelada
+                        Marque o escopo do aditivo. A Parceria original será congelada
                         e o aditivo seguirá o fluxo normal.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-2 py-2">
-                    <div className="mb-3">
+                <div className="space-y-4 py-2">
+                    <div>
                         <Label htmlFor="aditivo_pgea">PGEA do Aditivo</Label>
                         <Input
                             id="aditivo_pgea"
@@ -119,41 +124,62 @@ export default function CreateAditivoDialog({
                             Por padrão, herda o PGEA da Parceria. Edite para um PGEA próprio do aditivo.
                         </p>
                     </div>
-                    <Label>Tipo de Aditivo</Label>
-                    <div className="space-y-2 max-h-[40vh] overflow-y-auto">
-                        {tipos.map((t) => (
-                            <label
-                                key={t}
-                                className={`
-                                    flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition
-                                    ${type === t
-                                        ? 'border-amber-500 bg-amber-50'
-                                        : 'border-slate-200 hover:border-slate-300'}
-                                `}
-                            >
-                                <input
-                                    type="radio"
-                                    name="aditivo_type"
-                                    value={t}
-                                    checked={type === t}
-                                    onChange={(e) => setType(e.target.value)}
-                                    className="text-amber-600 focus:ring-amber-500"
-                                />
-                                <span className="font-medium text-sm">{t}</span>
-                            </label>
-                        ))}
+
+                    <div className="space-y-2">
+                        <Label>Escopo do Aditivo <span className="text-rose-500">*</span></Label>
+                        <label
+                            className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${
+                                isProrrogacao ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                            }`}
+                        >
+                            <Checkbox
+                                checked={isProrrogacao}
+                                onCheckedChange={(v) => setIsProrrogacao(v === true)}
+                                className="mt-0.5"
+                            />
+                            <span>
+                                <span className="flex items-center gap-1.5 font-medium text-sm">
+                                    <CalendarClock className="w-4 h-4 text-amber-600" />
+                                    Prorrogação
+                                </span>
+                                <span className="block text-xs text-slate-500 mt-0.5">
+                                    Amplia o prazo de vigência e o termo final da Parceria original.
+                                </span>
+                            </span>
+                        </label>
+                        <label
+                            className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${
+                                isObjeto ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                            }`}
+                        >
+                            <Checkbox
+                                checked={isObjeto}
+                                onCheckedChange={(v) => setIsObjeto(v === true)}
+                                className="mt-0.5"
+                            />
+                            <span>
+                                <span className="flex items-center gap-1.5 font-medium text-sm">
+                                    <FileText className="w-4 h-4 text-amber-600" />
+                                    Objeto
+                                </span>
+                                <span className="block text-xs text-slate-500 mt-0.5">
+                                    Acrescenta conteúdo ao objeto da Parceria original.
+                                </span>
+                            </span>
+                        </label>
+                        {!hasScope && (
+                            <p className="text-xs text-rose-500">
+                                Marque ao menos um escopo (Prorrogação e/ou Objeto).
+                            </p>
+                        )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-2">
-                        Os tipos são configurados pelo administrador do órgão em
-                        <strong> Administração → Configurações → Parcerias → Tipos de Aditivo</strong>.
-                    </p>
                 </div>
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={onClose}>
                         Cancelar
                     </Button>
-                    <Button type="button" onClick={handleConfirm} disabled={saving}>
+                    <Button type="button" onClick={handleConfirm} disabled={saving || !hasScope}>
                         {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Criar Aditivo
                     </Button>
