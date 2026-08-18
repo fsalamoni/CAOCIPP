@@ -19,6 +19,12 @@ interface CreateParceriaRequest {
     validityStartsFrom?: 'signature_date' | 'demp';
     endDate?: string;
     renewalNoticeDate?: string;
+    // Itens 7/8/9: avisos automáticos.
+    renewalNoticePeriod?: number;
+    renewalNoticePeriodUnit?: 'dias' | 'meses' | 'anos';
+    reviewNoticePeriod?: number;
+    reviewNoticePeriodUnit?: 'dias' | 'meses' | 'anos';
+    reviewNoticeDate?: string;
     networkFolder?: string;
     observations?: string;
     responsibleUserId?: string;
@@ -31,6 +37,11 @@ interface CreateParceriaRequest {
     signature_date?: string;
     validity_period?: string;
     validity_starts_from?: 'signature_date' | 'demp';
+    renewal_notice_period?: number;
+    renewal_notice_period_unit?: 'dias' | 'meses' | 'anos';
+    review_notice_period?: number;
+    review_notice_period_unit?: 'dias' | 'meses' | 'anos';
+    review_notice_date?: string;
     end_date?: string;
     renewal_notice_date?: string;
     network_folder?: string;
@@ -59,6 +70,20 @@ export const createParceria = onCall<CreateParceriaRequest>(
         const signatureDate = data.signatureDate || data.signature_date || null;
         const validityPeriod = data.validityPeriod || data.validity_period || null;
         const validityStartsFrom = data.validityStartsFrom || data.validity_starts_from || null;
+        // Itens 7/8/9: avisos automáticos.
+        const renewalNoticePeriod = Number(
+            data.renewalNoticePeriod ?? data.renewal_notice_period
+        );
+        const renewalNoticePeriodUnit = String(
+            data.renewalNoticePeriodUnit ?? (data.renewal_notice_period_unit || '')
+        ) as 'dias' | 'meses' | 'anos' | '';
+        const reviewNoticePeriod = Number(
+            data.reviewNoticePeriod ?? data.review_notice_period
+        );
+        const reviewNoticePeriodUnit = String(
+            data.reviewNoticePeriodUnit ?? (data.review_notice_period_unit || '')
+        ) as 'dias' | 'meses' | 'anos' | '';
+        const reviewNoticeDate = data.reviewNoticeDate || data.review_notice_date || null;
         const endDate = data.endDate || data.end_date || null;
         const renewalNoticeDate = data.renewalNoticeDate || data.renewal_notice_date || null;
         const networkFolder = data.networkFolder || data.network_folder || '';
@@ -148,6 +173,15 @@ export const createParceria = onCall<CreateParceriaRequest>(
             validity_period: validityPeriod,
             validity_starts_from: validityStartsFrom,
             end_date: endDate,
+            renewal_notice_period: Number.isFinite(renewalNoticePeriod) && renewalNoticePeriod > 0
+                ? renewalNoticePeriod : null,
+            renewal_notice_period_unit: ['dias','meses','anos'].includes(renewalNoticePeriodUnit as string)
+                ? renewalNoticePeriodUnit : null,
+            review_notice_period: Number.isFinite(reviewNoticePeriod) && reviewNoticePeriod > 0
+                ? reviewNoticePeriod : null,
+            review_notice_period_unit: ['dias','meses','anos'].includes(reviewNoticePeriodUnit as string)
+                ? reviewNoticePeriodUnit : null,
+            review_notice_date: reviewNoticeDate,
             renewal_notice_date: renewalNoticeDate,
             network_folder: networkFolder,
             observations: observations,

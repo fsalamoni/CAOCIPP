@@ -24,6 +24,11 @@ interface AddAditivoRequest {
     // Parceria original.
     aditivoPgea?: string;
     pgea?: string;
+    // Item 7/8: indica se o aditivo foi criado automaticamente pela Cloud
+    // Function agendada (aviso de renovação/revisão atingido).
+    isAuto?: boolean;
+    // Origem do aditivo automático (para auditoria).
+    autoReason?: 'renewal_notice' | 'review_notice';
 }
 
 const ADITIVO_TYPE_MAX = 100;
@@ -126,7 +131,11 @@ export const addAditivo = onCall<AddAditivoRequest>(
                 'Já existe um aditivo em andamento nesta Parceria. Conclua-o antes de incluir um novo.'
             );
         }
-        if (parceriaData.status !== 'Parcerias') {
+        // Regra de status: SOMENTE aditivo MANUAL exige status='Parcerias'.
+        // Aditivo AUTOMÁTICO (itens 7/8) é criado pela Cloud Function agendada
+        // e pode estar em qualquer status (a CF garante que a Parceria tem
+        // renewal_notice_date ou review_notice_date válido).
+        if (data.isAuto !== true && parceriaData.status !== 'Parcerias') {
             throw new HttpsError(
                 'failed-precondition',
                 `Só é possível incluir aditivo quando a Parceria está na fase "Parcerias" (atual: "${parceriaData.status || 'Pendente'}").`
@@ -163,6 +172,11 @@ export const addAditivo = onCall<AddAditivoRequest>(
             ...(hasDeclaredScope ? { is_prorrogacao: isProrrogacao, is_objeto: isObjeto } : {}),
             // PGEA próprio do aditivo (herda o da Parceria quando não informado).
             pgea: aditivoPgea,
+            // Itens 7/8: marca de aditivo automático + razão. Quando is_auto=true,
+            // o aditivo foi criado pela Cloud Function agendada por aviso
+            // de renovação (renewal_notice) ou aviso de revisão (review_notice)
+            // atingido — não por ação manual do usuário.
+            ...(data.isAuto === true ? { is_auto: true, auto_reason: data.autoReason || 'renewal_notice' } : {}),
             // Snapshot do original (somente leitura) — guardado para auditoria.
             pgea_at_additive_creation: parceriaData.pgea || null,
             partnership_type_at_additive_creation: parceriaData.partnership_type || null,
