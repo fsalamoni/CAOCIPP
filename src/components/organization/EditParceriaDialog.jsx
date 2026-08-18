@@ -191,6 +191,9 @@ export default function EditParceriaDialog({
                     validity_unit: parsed ? parsed.unit : 'meses',
                 };
             })(),
+            // Item 4: 'vigência a contar de' — base do cálculo do termo final.
+            // Default: assinatura (preserva comportamento atual).
+            validity_starts_from: src.validity_starts_from || 'signature_date',
             end_date: formatDateForInput(src.end_date),
             renewal_notice_date: formatDateForInput(src.renewal_notice_date),
             responsible_user_id: respId,
@@ -279,6 +282,10 @@ export default function EditParceriaDialog({
             // backend normaliza como null.
             for (const k of ['partnership_type', 'categoria', 'third_party']) {
                 if (changes[k] === '__none__') changes[k] = null;
+            }
+            // Valida validity_starts_from — se vazio, default signature_date.
+            if (!changes.validity_starts_from) {
+                changes.validity_starts_from = 'signature_date';
             }
             // responsible_user_name baseado no member selecionado
             if (changes.responsible_user_id) {
@@ -538,8 +545,8 @@ export default function EditParceriaDialog({
                                             value={formData.partnership_number || ''}
                                             disabled={isLocked}
                                             onChange={(e) => setFormData({ ...formData, partnership_number: e.target.value })}
-                                            placeholder="Ex.: 001/2024"
-                                            className="mt-1"
+                                            placeholder="Ex.: 001/2024 (vazio = 'Sem número')"
+                                            className="mt-1 font-mono"
                                         />
                                     </div>
                                 </div>
@@ -640,6 +647,25 @@ export default function EditParceriaDialog({
                                         {formData.validity_period && !(Number(formData.validity_value) > 0) && (
                                             <p className="text-[10px] text-slate-400 mt-0.5">Vigência atual: {formData.validity_period}</p>
                                         )}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Vigência a contar de</Label>
+                                        </div>
+                                        <Select
+                                            value={formData.validity_starts_from || 'signature_date'}
+                                            onValueChange={(val) => setFormData({ ...formData, validity_starts_from: val })}
+                                            disabled={isLocked}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="signature_date">Data da Assinatura</SelectItem>
+                                                <SelectItem value="demp">Publicação no DEMP</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Base para o cálculo do Termo Final.</p>
                                     </div>
                                 </div>
 

@@ -24,6 +24,7 @@ export const PARCERIA_FIELD_ALIASES = {
     publication_date: ['publication_date', 'data_publicacao', 'DATA DA PUBLICAÇÃO', 'Data da Publicação'],
     demp: ['demp', 'DEMP', 'Demp'],
     validity_period: ['validity_period', 'vigencia', 'VIGÊNCIA', 'Vigência'],
+    validity_starts_from: ['validity_starts_from'],
     end_date: ['end_date', 'termo_final', 'TERMO FINAL', 'Termo Final'],
     renewal_notice_date: ['renewal_notice_date', 'data_aviso_renovacao', 'DATA DO AVISO DE RENOVAÇÃO', 'Data do Aviso de Renovação'],
     responsible_user_name: ['responsible_user_name', 'assessor_responsavel', 'ASSESSOR RESPONSÁVEL', 'Assessor Responsável', 'responsavel', 'RESPONSÁVEL', 'Responsável'],

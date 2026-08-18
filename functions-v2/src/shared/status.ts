@@ -69,10 +69,10 @@ export function calculateParceriaStatus(parceria: ProcessStatusInput): string {
     // 1. "Extintos" (slate desaturado): marcado explicitamente como extinto.
     if (parceria?.extinguished === true) return 'Extintos';
 
-    // 2. "Parcerias" (emerald): tem todos os campos de formalização preenchidos.
+    // 2. "Parcerias" (emerald): tem os campos essenciais de formalização.
+    // partnership_number é OPCIONAL (vazio = "Sem número") — item 3 do plano.
     if (
         getSmartField(parceria, 'partnership_type') &&
-        getSmartField(parceria, 'partnership_number') &&
         getSmartField(parceria, 'signature_date') &&
         getSmartField(parceria, 'end_date') &&
         getSmartField(parceria, 'renewal_notice_date')

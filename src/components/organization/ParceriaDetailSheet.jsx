@@ -154,11 +154,9 @@ export default function ParceriaDetailSheet({
                                         {PARTNERSHIP_TYPE_LABEL[getParceriaField(parceria, 'partnership_type')] || getParceriaField(parceria, 'partnership_type')}
                                     </Badge>
                                 )}
-                                {getParceriaField(parceria, 'partnership_number') && (
-                                    <Badge variant="outline" className="text-xs bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 font-mono">
-                                        {getParceriaField(parceria, 'partnership_number')}
-                                    </Badge>
-                                )}
+                                <Badge variant="outline" className="text-xs bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 font-mono">
+                                    {getParceriaField(parceria, 'partnership_number') || 'Sem número'}
+                                </Badge>
                             </div>
                         </div>
                         <div className="flex flex-col gap-2 shrink-0">
