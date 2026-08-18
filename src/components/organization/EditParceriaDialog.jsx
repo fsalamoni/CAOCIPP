@@ -1034,19 +1034,19 @@ export default function EditParceriaDialog({
                             {/* ===================== COLABORAÇÃO (condicional) ===================== */}
                             {showCollabTab && (
                                 <TabsContent value="collab" className="space-y-4 mt-4">
-                                    {isPresenceOn && source?.id && (
+                                    {isPresenceOn && src?.id && (
                                         <LivePresenceIndicator
                                             organizationId={organizationId}
                                             entityType="parceria"
-                                            entityId={source.id}
+                                            entityId={src.id}
                                             userName={user?.displayName}
                                         />
                                     )}
-                                    {isCommentsOn && source?.id ? (
+                                    {isCommentsOn && src?.id ? (
                                         <EntityComments
                                             organizationId={organizationId}
                                             entityType="parceria"
-                                            entityId={source.id}
+                                            entityId={src.id}
                                             members={members}
                                         />
                                     ) : isCommentsOn && (
@@ -1060,9 +1060,12 @@ export default function EditParceriaDialog({
                             {/* ===================== ABAS DE ADITIVO (somente leitura) ===================== */}
                             {!isAdditive && aditivos.map((a) => (
                                 <TabsContent key={a.id} value={`aditivo-${a.id}`} className="space-y-4 mt-4">
-                                    <AditivoReadOnlyPanel
+                                    <AditivoEditablePanel
                                         aditivo={a}
                                         formatDate={formatDateDisplay}
+                                        organizationId={organizationId}
+                                        parceriaId={parceria.id}
+                                        members={members}
                                     />
                                 </TabsContent>
                             ))}
@@ -1155,14 +1158,78 @@ function aditivoScopeLabel(aditivo) {
 }
 
 /**
- * AditivoReadOnlyPanel — visão somente leitura de um aditivo, dentro da aba
- * própria do aditivo no modal de edição da Parceria. Segue a ordem das fases
- * e da inclusão: identificação → dados → fluxo → conclusão.
+ * AditivoEditablePanel — painel EDITÁVEL do aditivo, dentro da aba própria
+ * do aditivo no modal de edição da Parceria.
  *
- * O aditivo é um procedimento próprio; sua edição acontece no fluxo dele
- * (Kanban / diálogo do aditivo). Aqui é apenas consulta consolidada.
+ * Item 14: aberto a TODOS os membros da organização. Cada campo tem o mesmo
+ * padrão visual das demais abas do EditParceriaDialog (Label + Input/Textarea
+ * + Select). O botão "Salvar Alterações do Aditivo" chama a Cloud Function
+ * `updateAditivo` (que já gera log automático em `activity_log`).
+ *
+ * Os campos de IDENTIFICAÇÃO (nº, escopo, PGEAs) e de CONCLUSÃO (assinatura,
+ * DEMP, prazo, objeto_aditivo) permanecem como ReadOnlyField — a edição desses
+ * é feita pela `concludeAditivo` (transação de conclusão) e pelo fluxo do aditivo.
  */
-function AditivoReadOnlyPanel({ aditivo, formatDate }) {
+function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId, members = [] }) {
+    // Helper local: yyyy-MM-dd para <input type="date">.
+    // Aceita: ISO com/sem tempo, Date, string vazia.
+    const formatDateForInput = (value) => {
+        if (!value) return '';
+        if (typeof value === 'string') {
+            if (value.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+            // Tenta parsear dd/MM/yyyy → yyyy-MM-dd
+            const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(value);
+            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+            return '';
+        }
+        try {
+            const d = new Date(value);
+            if (!isValid(d)) return '';
+            return format(d, 'yyyy-MM-dd');
+        } catch {
+            return '';
+        }
+    };
+
+    // formData: snapshot local dos campos editáveis.
+    const [formData, setFormData] = useState(() => ({
+        subject: aditivo?.subject || '',
+        object: aditivo?.object || '',
+        parties: aditivo?.parties || '',
+        responsible_user_id: aditivo?.responsible_user_id || '',
+        responsible_user_name: aditivo?.responsible_user_name || '',
+        responsibility_date: formatDateForInput(aditivo?.responsibility_date),
+        network_folder: aditivo?.network_folder || '',
+        observations: aditivo?.observations || '',
+        review_submission_date: formatDateForInput(aditivo?.review_submission_date),
+        review_conclusion_date: formatDateForInput(aditivo?.review_conclusion_date || aditivo?.reviewed_date),
+        third_party: aditivo?.third_party || '',
+        third_party_referral_date: formatDateForInput(aditivo?.third_party_referral_date),
+        distribution_date: formatDateForInput(aditivo?.distribution_date),
+    }));
+    const [isSaving, setIsSaving] = useState(false);
+    const [dirty, setDirty] = useState(false);
+
+    // Atualiza formData se o aditivo mudar (ex: refresh do firestore)
+    useEffect(() => {
+        if (!aditivo || dirty) return;
+        setFormData({
+            subject: aditivo.subject || '',
+            object: aditivo.object || '',
+            parties: aditivo.parties || '',
+            responsible_user_id: aditivo.responsible_user_id || '',
+            responsible_user_name: aditivo.responsible_user_name || '',
+            responsibility_date: formatDateForInput(aditivo.responsibility_date),
+            network_folder: aditivo.network_folder || '',
+            observations: aditivo.observations || '',
+            review_submission_date: formatDateForInput(aditivo.review_submission_date),
+            review_conclusion_date: formatDateForInput(aditivo.review_conclusion_date || aditivo.reviewed_date),
+            third_party: aditivo.third_party || '',
+            third_party_referral_date: formatDateForInput(aditivo.third_party_referral_date),
+            distribution_date: formatDateForInput(aditivo.distribution_date),
+        });
+    }, [aditivo, dirty]);
+
     if (!aditivo) return null;
     const isConcluded = aditivo.status === 'Concluído';
     const hasConclusion = isConcluded
@@ -1170,6 +1237,66 @@ function AditivoReadOnlyPanel({ aditivo, formatDate }) {
         || aditivo.demp
         || aditivo.prazo_valor
         || aditivo.objeto_aditivo;
+
+    const update = (patch) => {
+        setFormData((prev) => ({ ...prev, ...patch }));
+        setDirty(true);
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            // Monta o diff: só envia o que mudou (em relação ao aditivo original).
+            const changes = {};
+            const compare = (key, current, original) => {
+                const c = (current === '' || current === null) ? null : current;
+                const o = (original === '' || original === null) ? null : original;
+                if (c !== o) changes[key] = c;
+            };
+            compare('subject', formData.subject, aditivo.subject);
+            compare('object', formData.object, aditivo.object);
+            compare('parties', formData.parties, aditivo.parties);
+            compare('responsible_user_id', formData.responsible_user_id, aditivo.responsible_user_id);
+            compare('responsible_user_name', formData.responsible_user_name, aditivo.responsible_user_name);
+            compare('responsibility_date', formData.responsibility_date, aditivo.responsibility_date);
+            compare('network_folder', formData.network_folder, aditivo.network_folder);
+            compare('observations', formData.observations, aditivo.observations);
+            compare('review_submission_date', formData.review_submission_date, aditivo.review_submission_date);
+            compare('review_conclusion_date', formData.review_conclusion_date,
+                aditivo.review_conclusion_date || aditivo.reviewed_date);
+            compare('third_party', formData.third_party, aditivo.third_party);
+            compare('third_party_referral_date', formData.third_party_referral_date, aditivo.third_party_referral_date);
+            compare('distribution_date', formData.distribution_date, aditivo.distribution_date);
+
+            if (Object.keys(changes).length === 0) {
+                toast.info('Nenhuma alteração para salvar.');
+                setDirty(false);
+                return;
+            }
+
+            // (3.1) Data de distribuição ao (re)atribuir assessor
+            if (changes.responsible_user_id
+                && changes.responsible_user_id !== aditivo.responsible_user_id
+                && !changes.distribution_date) {
+                const today = new Date().toISOString().split('T')[0];
+                changes.distribution_date = today;
+            }
+
+            await updateAditivo({
+                parceriaId,
+                aditivoId: aditivo.id,
+                organizationId,
+                changes,
+            });
+            toast.success('Aditivo atualizado! O log foi registrado.');
+            setDirty(false);
+        } catch (error) {
+            logger.error('Error saving aditivo:', error);
+            toast.error('Erro ao salvar: ' + (error?.message || String(error)));
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="space-y-5">
@@ -1179,7 +1306,8 @@ function AditivoReadOnlyPanel({ aditivo, formatDate }) {
                         Aditivo nº {aditivo.aditivo_number} — {aditivoScopeLabel(aditivo)}
                     </p>
                     <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
-                        Procedimento próprio da Parceria. Edite-o pelo fluxo do aditivo.
+                        Procedimento próprio da Parceria. Disponível para todos os membros da organização.
+                        Cada alteração gera um registro de log (atividade).
                     </p>
                 </div>
                 <span className="shrink-0 inline-flex items-center rounded-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-700 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-200">
@@ -1194,22 +1322,140 @@ function AditivoReadOnlyPanel({ aditivo, formatDate }) {
                 <ReadOnlyField label="PGEA da Parceria (origem)" value={aditivo.pgea_at_additive_creation} mono />
             </ReadOnlySection>
 
-            <ReadOnlySection title="Dados">
-                <ReadOnlyField label="Assunto" value={aditivo.subject} full />
-                <ReadOnlyField label="Partes" value={aditivo.parties} full />
-                <ReadOnlyField label="Objeto" value={aditivo.object} full multiline />
-            </ReadOnlySection>
+            {/* ===================== DADOS (editável) ===================== */}
+            <Section title="Dados">
+                <div className="md:col-span-2">
+                    <Label>Assunto</Label>
+                    <Input
+                        value={formData.subject}
+                        onChange={(e) => update({ subject: e.target.value })}
+                        className="mt-1"
+                        placeholder="Assunto do aditivo"
+                    />
+                </div>
+                <div className="md:col-span-2">
+                    <Label>Partes</Label>
+                    <Input
+                        value={formData.parties}
+                        onChange={(e) => update({ parties: e.target.value })}
+                        className="mt-1"
+                        placeholder="Partes envolvidas no aditivo"
+                    />
+                </div>
+                <div className="md:col-span-2">
+                    <Label>Objeto</Label>
+                    <Textarea
+                        value={formData.object}
+                        onChange={(e) => update({ object: e.target.value })}
+                        className="mt-1"
+                        rows={4}
+                        placeholder="Descrição detalhada do objeto do aditivo"
+                    />
+                </div>
+            </Section>
 
-            <ReadOnlySection title="Fluxo de Trabalho">
-                <ReadOnlyField label="Assessor Responsável" value={aditivo.responsible_user_name} />
-                <ReadOnlyField label="Data de Responsabilidade" value={formatDate(aditivo.responsibility_date)} />
-                <ReadOnlyField label="Remessa a Terceiros" value={formatDate(aditivo.third_party_referral_date)} />
-                <ReadOnlyField label="Remetido para" value={aditivo.third_party} />
-                <ReadOnlyField label="Conclusão da Revisão" value={formatDate(aditivo.review_conclusion_date || aditivo.reviewed_date)} />
-                <ReadOnlyField label="Pasta na Rede" value={aditivo.network_folder} full mono />
-                <ReadOnlyField label="Observações" value={aditivo.observations} full multiline />
-            </ReadOnlySection>
+            {/* ===================== FLUXO DE TRABALHO (editável) ===================== */}
+            <Section title="Fluxo de Trabalho">
+                <div>
+                    <Label>Assessor Responsável</Label>
+                    <Select
+                        value={formData.responsible_user_id || '__none__'}
+                        onValueChange={(val) => {
+                            const id = val === '__none__' ? '' : val;
+                            const m = members.find((mm) => mm.user_id === id);
+                            update({
+                                responsible_user_id: id,
+                                responsible_user_name: m ? m.user_name : formData.responsible_user_name,
+                            });
+                        }}
+                    >
+                        <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecione o assessor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__none__">— Sem responsável —</SelectItem>
+                            {members.map((m) => (
+                                <SelectItem key={m.user_id} value={m.user_id}>{m.user_name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div>
+                    <Label>Data de Responsabilidade</Label>
+                    <Input
+                        type="date"
+                        value={formData.responsibility_date}
+                        onChange={(e) => update({ responsibility_date: e.target.value })}
+                        className="mt-1"
+                    />
+                </div>
+                <div>
+                    <Label>Data de Distribuição</Label>
+                    <Input
+                        type="date"
+                        value={formData.distribution_date}
+                        onChange={(e) => update({ distribution_date: e.target.value })}
+                        className="mt-1"
+                    />
+                </div>
+                <div>
+                    <Label>Remessa a Terceiros</Label>
+                    <Input
+                        type="date"
+                        value={formData.third_party_referral_date}
+                        onChange={(e) => update({ third_party_referral_date: e.target.value })}
+                        className="mt-1"
+                    />
+                </div>
+                <div className="md:col-span-2">
+                    <Label>Remetido para</Label>
+                    <Input
+                        value={formData.third_party}
+                        onChange={(e) => update({ third_party: e.target.value })}
+                        className="mt-1"
+                        placeholder="Destinatário da remessa"
+                    />
+                </div>
+                <div>
+                    <Label>Remessa para Revisão</Label>
+                    <Input
+                        type="date"
+                        value={formData.review_submission_date}
+                        onChange={(e) => update({ review_submission_date: e.target.value })}
+                        className="mt-1"
+                    />
+                </div>
+                <div>
+                    <Label>Conclusão da Revisão</Label>
+                    <Input
+                        type="date"
+                        value={formData.review_conclusion_date}
+                        onChange={(e) => update({ review_conclusion_date: e.target.value })}
+                        className="mt-1"
+                    />
+                </div>
+                <div className="md:col-span-2">
+                    <Label>Pasta na Rede</Label>
+                    <Input
+                        value={formData.network_folder}
+                        onChange={(e) => update({ network_folder: e.target.value })}
+                        className="mt-1 font-mono"
+                        placeholder="Caminho da pasta de rede"
+                    />
+                </div>
+                <div className="md:col-span-2">
+                    <Label>Observações</Label>
+                    <Textarea
+                        value={formData.observations}
+                        onChange={(e) => update({ observations: e.target.value })}
+                        className="mt-1"
+                        rows={3}
+                        placeholder="Anotações livres sobre o aditivo"
+                    />
+                </div>
+            </Section>
 
+            {/* ===================== CONCLUSÃO (read-only, via concludeAditivo) ===================== */}
             {hasConclusion && (
                 <ReadOnlySection title="Conclusão do Aditivo">
                     <ReadOnlyField label="Assinatura do Aditivo" value={formatDate(aditivo.aditivo_signature_date)} />
@@ -1223,6 +1469,41 @@ function AditivoReadOnlyPanel({ aditivo, formatDate }) {
                     <ReadOnlyField label="Objeto do Aditivo" value={aditivo.objeto_aditivo} full multiline />
                 </ReadOnlySection>
             )}
+
+            {/* Rodapé do painel — botão de salvar (próprio, não conflita com o do form principal) */}
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {dirty ? 'Há alterações não salvas neste aditivo.' : 'Sem alterações pendentes.'}
+                </p>
+                <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving || !dirty}
+                    className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Salvando...
+                        </>
+                    ) : (
+                        'Salvar Alterações do Aditivo'
+                    )}
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+function Section({ title, children }) {
+    return (
+        <div>
+            <h4 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                {title}
+            </h4>
+            <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
+                {children}
+            </div>
         </div>
     );
 }

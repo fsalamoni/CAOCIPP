@@ -88,6 +88,9 @@ export default function ParceriaDetailSheet({
 
     const hasAdd = hasAdditives(parceria);
     const isCreator = userRole === 'creator';
+    // Item 14: "Incluir Aditivo" é aberto a TODOS os membros da organização
+    // (creator/owner/admin/member). Visitantes sem userRole definido ficam de fora.
+    const isMember = ['creator', 'owner', 'admin', 'member'].includes(userRole);
     const viewing = viewMode === 'aditivo' && selectedAdditive ? selectedAdditive : parceria;
     const isViewingAdditive = viewMode === 'aditivo' && !!selectedAdditive;
     const status = isViewingAdditive
@@ -445,11 +448,14 @@ export default function ParceriaDetailSheet({
 
                     {/* Ações */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2">
-                        {!isViewingAdditive && isCreator && (
+                        {!isViewingAdditive && isMember && (
                             <>
                                 {/* Só é possível incluir aditivo quando a Parceria está
                                     ativa em "Parcerias" e não há aditivo em andamento
-                                    (um por vez). */}
+                                    (um por vez).
+                                    Item 14: Aberto a TODOS os membros da organização
+                                    (não restrito ao criador). Guest/visitante sem
+                                    userMembership é bloqueado pela camada de UI/pai. */}
                                 {status === 'Parcerias' && !parceria.current_additive_id && (
                                     <Button
                                         type="button"
