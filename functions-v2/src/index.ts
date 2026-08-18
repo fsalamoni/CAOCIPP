@@ -88,7 +88,9 @@ export { addComment } from './collaboration/comments';
 // Item 7/8 do plano: cria aditivo automático quando o aviso de renovação
 // (parceria com prazo determinado) ou o aviso de revisão (parceria com
 // prazo indeterminado) é atingido. Roda 1x por dia às 03:00 horário de Brasília.
-export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
+// Comentada por enquanto — mesma razão que autoEscalation/emailReports:
+// requer a API cloudscheduler.googleapis.com habilitada no projeto GCP.
+// export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
 export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
 
 // ========== Segurança, conformidade e integrações (Fase 5) ==========
