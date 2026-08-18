@@ -72,6 +72,24 @@ jobs:
             package-lock.json
             functions-v2/package-lock.json
 
+      - name: Install gcloud CLI
+        if: steps.pre.outputs.ready == 'true'
+        run: |
+          # Necessário para limpar jobs órfãos do Cloud Scheduler que o
+          # 'firebase functions:delete' não consegue remover.
+          if ! command -v gcloud >/dev/null 2>&1; then
+            echo "Instalando gcloud CLI..."
+            apt-get update -qq
+            apt-get install -y -qq apt-transport-https ca-certificates gnupg
+            echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+              > /etc/apt/sources.list.d/google-cloud-sdk.list
+            curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+              | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+            apt-get update -qq
+            apt-get install -y -qq google-cloud-cli
+          fi
+          gcloud --version | head -1
+
       - name: Install frontend dependencies
         if: steps.pre.outputs.ready == 'true'
         run: npm ci
@@ -224,10 +242,20 @@ jobs:
             echo "::warning::Falha ao tentar remover função órfã (prosseguindo):"
             echo "$OUT" | head -5
           fi
-          # O cache do firebase-tools pode reter a referência à função por
-          # mais tempo que o Firebase. O --force abaixo instrui o 'firebase
-          # deploy' a prosseguir com a exclusão da função órfã mesmo que
-          # o cache local não a veja como removida.
+          # Limpa o JOB do Cloud Scheduler associado, se existir (pode ter ficado
+          # órfão de deploys anteriores). O `firebase deploy` não consegue
+          # excluí-lo se a SA do CI não tiver cloudscheduler.jobs.delete.
+          # Usa o token da SA via curl com a API REST do Cloud Scheduler.
+          if [ "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+            set +e
+            # Auth: usa o gcloud instalado abaixo
+            if command -v gcloud >/dev/null 2>&1; then
+              gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" 2>/dev/null
+              gcloud scheduler jobs delete firebase-schedule-checkPartnershipNoticeDeadlines-southamerica-east1 \
+                --location=southamerica-east1 --project=protagonista-rpg --quiet 2>&1 | head -3 || true
+            fi
+            set -e
+          fi
           ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive --force"
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
             ARGS="$ARGS --token $FIREBASE_TOKEN"
