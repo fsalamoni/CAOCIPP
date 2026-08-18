@@ -218,30 +218,17 @@ jobs:
           set -e
           if [ $DEL_EXIT -eq 0 ]; then
             echo "✓ checkPartnershipNoticeDeadlines removida (estava órfã)."
-            # O cache do Firebase pode demorar 60-120s para propagar a remoção.
-            # Loop de verificação: tenta de novo até 4x com espera crescente.
-            for i in 1 2 3 4; do
-              WAIT=$((i * 30))
-              echo "  Tentativa $i: aguardando ${WAIT}s..."
-              sleep $WAIT
-              set +e
-              LIST_OUT=$(npx firebase functions:list --region southamerica-east1 --project protagonista-rpg 2>&1)
-              LIST_EXIT=$?
-              set -e
-              if echo "$LIST_OUT" | grep -q "checkPartnershipNoticeDeadlines"; then
-                echo "  Função ainda visível no cache. Aguardando mais..."
-                continue
-              fi
-              echo "  Cache propagado — função não aparece mais."
-              break
-            done
           elif echo "$OUT" | grep -qiE "not found|not_found|NOT_FOUND"; then
             echo "✓ checkPartnershipNoticeDeadlines não existe — nada a remover."
           else
             echo "::warning::Falha ao tentar remover função órfã (prosseguindo):"
             echo "$OUT" | head -5
           fi
-          ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive"
+          # O cache do firebase-tools pode reter a referência à função por
+          # mais tempo que o Firebase. O --force abaixo instrui o 'firebase
+          # deploy' a prosseguir com a exclusão da função órfã mesmo que
+          # o cache local não a veja como removida.
+          ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive --force"
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
             ARGS="$ARGS --token $FIREBASE_TOKEN"
           fi
