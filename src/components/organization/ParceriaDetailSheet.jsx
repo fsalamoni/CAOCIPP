@@ -196,6 +196,21 @@ export default function ParceriaDetailSheet({
                                     Ver Log
                                 </Button>
                             )}
+                            {/* Incluir Aditivo — no topo. Só quando vendo a Parceria
+                                original, ela está em "Parcerias" e não há aditivo em
+                                andamento (um por vez). Aberto a todos os membros. */}
+                            {!isViewingAdditive && isMember && status === 'Parcerias'
+                                && !parceria.current_additive_id && onIncludeAditivo && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onIncludeAditivo?.(parceria)}
+                                    className="gap-1.5 text-amber-700 border-amber-200 hover:bg-amber-50"
+                                >
+                                    <GitBranch className="w-3.5 h-3.5" />
+                                    {hasAdd ? 'Incluir Novo Aditivo' : 'Incluir Aditivo'}
+                                </Button>
+                            )}
                         </div>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
@@ -450,23 +465,8 @@ export default function ParceriaDetailSheet({
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2">
                         {!isViewingAdditive && isMember && (
                             <>
-                                {/* Só é possível incluir aditivo quando a Parceria está
-                                    ativa em "Parcerias" e não há aditivo em andamento
-                                    (um por vez).
-                                    Item 14: Aberto a TODOS os membros da organização
-                                    (não restrito ao criador). Guest/visitante sem
-                                    userMembership é bloqueado pela camada de UI/pai. */}
-                                {status === 'Parcerias' && !parceria.current_additive_id && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="w-full justify-start gap-2"
-                                        onClick={() => onIncludeAditivo?.(parceria)}
-                                    >
-                                        <GitBranch className="w-4 h-4 text-amber-600" />
-                                        {hasAdd ? 'Incluir Novo Aditivo' : 'Incluir Aditivo'}
-                                    </Button>
-                                )}
+                                {/* O botão "Incluir Aditivo" foi movido para o topo
+                                    (cabeçalho). Aqui permanece apenas a extinção. */}
                                 {status === 'Parcerias' && !parceria.current_additive_id && onExtinguish && (
                                     <Button
                                         type="button"
