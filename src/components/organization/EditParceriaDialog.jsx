@@ -63,6 +63,31 @@ const PARCERIA_STATUSES = [
     'Extintos',
 ];
 
+// Fases selecionáveis do ADITIVO no modal. A CONCLUSÃO (fase "Parcerias") e a
+// "Extintos" NÃO são definidas por aqui: a conclusão do aditivo é feita
+// arrastando-o para "Parcerias" no Kanban (concludeAditivo), e o backend
+// (updateAditivo) rejeita esses status. Por isso o seletor oferece apenas as
+// fases anteriores à conclusão. Espelha PARCERIA_PHASE_REQUIREMENTS do backend.
+const ADITIVO_STATUSES = [
+    'Pendente',
+    'Em análise',
+    'Em revisão',
+    'Revisadas',
+    'Aguarda Terceiros',
+];
+
+// Rollback de marcadores por fase do ADITIVO (espelha PHASE_MARKER_FIELDS da
+// Parceria, sem a fase "Parcerias" que não é atingida por aqui). Ao voltar o
+// status para uma fase anterior, limpamos os marcadores de TODAS as fases
+// posteriores — mesma lógica aplicada à Parceria original.
+const ADITIVO_PHASE_MARKER_FIELDS = {
+    'Em análise': { responsible_user_id: '', responsible_user_name: '', responsibility_date: '', distribution_date: '' },
+    'Em revisão': { review_start_date: '', network_folder: '', observations: '' },
+    'Revisadas': { reviewed_date: '', review_conclusion_date: '' },
+    'Aguarda Terceiros': { third_party_referral_date: '', third_party: '' },
+};
+const ADITIVO_PHASE_SEQUENCE = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros'];
+
 /**
  * EditParceriaDialog — diálogo de edição no padrão de EditExpedienteDialog.
  *
@@ -109,6 +134,15 @@ export default function EditParceriaDialog({
     // Item 6: termo final pode ser editado manualmente; após edição manual
     // paramos de sobrescrever com o cálculo automático.
     const [endDateTouched, setEndDateTouched] = useState(false);
+
+    // Formulários das abas de aditivo — mantidos AQUI (no pai) e não dentro do
+    // painel, porque o Radix Tabs DESMONTA o conteúdo da aba inativa; se o
+    // estado vivesse no painel, as edições de uma aba seriam perdidas ao trocar
+    // de aba. Mantendo no pai, o botão principal "Salvar Alterações" persiste
+    // TODAS as abas de uma vez (não há mais botão de salvar por aditivo).
+    const [aditivoForms, setAditivoForms] = useState({});   // { [aditivoId]: formData }
+    const [aditivoDirty, setAditivoDirty] = useState({});   // { [aditivoId]: bool }
+    const anyAditivoDirty = Object.values(aditivoDirty).some(Boolean);
 
     // Lock: a Parceria ORIGINAL fica read-only quando tem aditivos. Para o
     // aditivo em si, nunca há lock.
@@ -236,6 +270,24 @@ export default function EditParceriaDialog({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, isAdditive, additiveData, parceria]);
 
+    // (Re)inicializa os formulários das abas de aditivo a partir dos docs.
+    // Preserva as abas com edições pendentes (dirty) para não descartar o que o
+    // usuário digitou quando o Firestore devolve um snapshot novo. Também
+    // remove entradas de aditivos que deixaram de existir.
+    useEffect(() => {
+        if (!open || isAdditive) return;
+        setAditivoForms((prev) => {
+            const next = { ...prev };
+            for (const a of aditivos) {
+                if (!aditivoDirty[a.id]) next[a.id] = buildAditivoForm(a);
+            }
+            for (const id of Object.keys(next)) {
+                if (!aditivos.some((a) => a.id === id)) delete next[id];
+            }
+            return next;
+        });
+    }, [open, isAdditive, aditivos]);
+
     // Item 6: recalcula o Termo Final automaticamente quando os campos de
     // vigência mudam. Se o usuário já editou o end_date manualmente
     // (endDateTouched=true), paramos de sobrescrever.
@@ -352,63 +404,90 @@ export default function EditParceriaDialog({
     // Assim o user VÊ a data no formulário e o backend não precisa recalcular
     // (evita a sensação de "salvei e a data apareceu magicamente").
 
+    // Monta o objeto `changes` da Parceria/aditivo (modo principal) a partir do
+    // formData, com as mesmas normalizações de sempre (vigência, sentinelas,
+    // responsável). Extraído para reuso.
+    const buildMainChanges = () => {
+        const changes = { ...formData };
+        // Vigência: compõe o texto ('N unidade') a partir do número +
+        // unidade quando informado. Sem número válido, preserva o valor
+        // legado de validity_period e não grava os campos estruturados.
+        const vv = Number(changes.validity_value);
+        if (Number.isFinite(vv) && vv > 0) {
+            changes.validity_value = vv;
+            changes.validity_unit = VIGENCIA_UNITS.includes(changes.validity_unit) ? changes.validity_unit : 'meses';
+            changes.validity_period = formatValidityPeriod(vv, changes.validity_unit);
+        } else {
+            delete changes.validity_value;
+            delete changes.validity_unit;
+        }
+        // Limpar campos vazios para null (exceto strings "")
+        for (const k of Object.keys(changes)) {
+            if (changes[k] === '') changes[k] = null;
+        }
+        // Normalizar sentinelas de Select (Radix não permite value=""):
+        // o usuário escolheu "—" => voltamos para string vazia, que o
+        // backend normaliza como null.
+        for (const k of ['partnership_type', 'categoria', 'third_party']) {
+            if (changes[k] === '__none__') changes[k] = null;
+        }
+        // Valida validity_starts_from — se vazio, default signature_date.
+        if (!changes.validity_starts_from) {
+            changes.validity_starts_from = 'signature_date';
+        }
+        // responsible_user_name baseado no member selecionado
+        if (changes.responsible_user_id) {
+            const m = members.find((mm) => mm.user_id === changes.responsible_user_id);
+            if (m) changes.responsible_user_name = m.user_name;
+        }
+        return changes;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isLocked) {
-            toast.error('Esta Parceria possui aditivos. Edite o aditivo corrente.');
-            return;
-        }
         try {
             setIsSaving(true);
-            const changes = { ...formData };
-            // Vigência: compõe o texto ('N unidade') a partir do número +
-            // unidade quando informado. Sem número válido, preserva o valor
-            // legado de validity_period e não grava os campos estruturados.
-            const vv = Number(changes.validity_value);
-            if (Number.isFinite(vv) && vv > 0) {
-                changes.validity_value = vv;
-                changes.validity_unit = VIGENCIA_UNITS.includes(changes.validity_unit) ? changes.validity_unit : 'meses';
-                changes.validity_period = formatValidityPeriod(vv, changes.validity_unit);
-            } else {
-                delete changes.validity_value;
-                delete changes.validity_unit;
-            }
-            // Limpar campos vazios para null (exceto strings "")
-            for (const k of Object.keys(changes)) {
-                if (changes[k] === '') changes[k] = null;
-            }
-            // Normalizar sentinelas de Select (Radix não permite value=""):
-            // o usuário escolheu "—" => voltamos para string vazia, que o
-            // backend normaliza como null.
-            for (const k of ['partnership_type', 'categoria', 'third_party']) {
-                if (changes[k] === '__none__') changes[k] = null;
-            }
-            // Valida validity_starts_from — se vazio, default signature_date.
-            if (!changes.validity_starts_from) {
-                changes.validity_starts_from = 'signature_date';
-            }
-            // responsible_user_name baseado no member selecionado
-            if (changes.responsible_user_id) {
-                const m = members.find((mm) => mm.user_id === changes.responsible_user_id);
-                if (m) changes.responsible_user_name = m.user_name;
-            }
+            let savedCount = 0;
 
+            // 1) Entidade principal do modal:
+            //    - modo aditivo direto (isAdditive): salva o aditivo;
+            //    - modo Parceria SEM aditivos (editável): salva a Parceria;
+            //    - modo Parceria COM aditivos (isLocked): NÃO salva a Parceria
+            //      original (permanece congelada), apenas as abas de aditivo.
             if (isAdditive) {
                 await updateAditivo({
                     parceriaId: parceria.id,
                     aditivoId: additiveData.id,
                     organizationId,
-                    changes,
+                    changes: buildMainChanges(),
                 });
-                toast.success('Aditivo atualizado!');
-            } else {
+                savedCount += 1;
+            } else if (!isLocked) {
                 await updateParceria({
                     id: parceria.id,
                     organizationId,
-                    changes,
+                    changes: buildMainChanges(),
                 });
-                toast.success('Parceria atualizada!');
+                savedCount += 1;
             }
+
+            // 2) Abas de aditivo: salva TODAS as que têm alterações pendentes.
+            //    Cada painel expõe { isDirty(), save() } via ref. Um único botão
+            //    "Salvar Alterações" persiste todas as abas.
+            if (!isAdditive) {
+                for (const a of aditivos) {
+                    if (!aditivoDirty[a.id]) continue;
+                    const res = await saveAditivoDoc(a, aditivoForms[a.id] || buildAditivoForm(a));
+                    if (res.saved) savedCount += 1;
+                }
+                if (savedCount > 0) setAditivoDirty({});
+            }
+
+            if (savedCount === 0) {
+                toast.info('Nenhuma alteração para salvar.');
+                return;
+            }
+            toast.success(savedCount > 1 ? 'Alterações salvas!' : (isAdditive ? 'Aditivo atualizado!' : 'Alterações salvas!'));
             setOpen(false);
             if (onSuccess) onSuccess();
         } catch (error) {
@@ -481,6 +560,71 @@ export default function EditParceriaDialog({
             responsible_user_id: userId,
             responsible_user_name: member?.user_name || '',
         }));
+    };
+
+    // ---- Handlers das abas de aditivo (estado mantido no pai) -------------
+    const handleAditivoChange = (id, patch) => {
+        setAditivoForms((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+        setAditivoDirty((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+    };
+
+    // Troca de fase do aditivo: injeta a data automática da fase-alvo (se ainda
+    // não houver) e faz rollback dos marcadores das fases posteriores. Mesma
+    // lógica de handleStatusChange da Parceria.
+    const handleAditivoStatusChange = (id, status) => {
+        setAditivoForms((prev) => {
+            const cur = prev[id] || {};
+            const rollback = getAditivoRollback(status);
+            const autoDate = getAutoDateForPhase(status, cur);
+            return { ...prev, [id]: { ...cur, status, ...rollback, ...autoDate } };
+        });
+        setAditivoDirty((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+    };
+
+    // Salva um aditivo: monta o diff (só o que mudou vs. o doc original) e chama
+    // updateAditivo (que gera o log). Lança em erro para o handler principal.
+    const saveAditivoDoc = async (a, form) => {
+        const changes = {};
+        const compare = (key, current, original) => {
+            const c = (current === '' || current === null || current === undefined) ? null : current;
+            const o = (original === '' || original === null || original === undefined) ? null : original;
+            if (c !== o) changes[key] = c;
+        };
+        compare('pgea', form.pgea, a.pgea);
+        compare('subject', form.subject, a.subject);
+        compare('object', form.object, a.object);
+        compare('parties', form.parties, a.parties);
+        compare('responsible_user_id', form.responsible_user_id, a.responsible_user_id);
+        compare('responsible_user_name', form.responsible_user_name, a.responsible_user_name);
+        compare('responsibility_date', form.responsibility_date, a.responsibility_date);
+        compare('distribution_date', form.distribution_date, a.distribution_date);
+        compare('review_start_date', form.review_start_date, a.review_start_date);
+        compare('review_submission_date', form.review_submission_date, a.review_submission_date);
+        compare('review_conclusion_date', form.review_conclusion_date, a.review_conclusion_date);
+        compare('reviewed_date', form.reviewed_date, a.reviewed_date);
+        compare('network_folder', form.network_folder, a.network_folder);
+        compare('observations', form.observations, a.observations);
+        compare('third_party', form.third_party, a.third_party);
+        compare('third_party_referral_date', form.third_party_referral_date, a.third_party_referral_date);
+        compare('status', form.status, a.status);
+
+        if (Object.keys(changes).length === 0) return { saved: false };
+
+        // Data de distribuição ao (re)atribuir assessor (o backend também aplica;
+        // mantemos por consistência/visibilidade com a Parceria).
+        if (changes.responsible_user_id
+            && changes.responsible_user_id !== a.responsible_user_id
+            && !changes.distribution_date) {
+            changes.distribution_date = new Date().toISOString().split('T')[0];
+        }
+
+        await updateAditivo({
+            parceriaId: parceria.id,
+            aditivoId: a.id,
+            organizationId,
+            changes,
+        });
+        return { saved: true };
     };
 
     const canDelete = (userRole === 'admin' || userRole === 'owner' || userRole === 'creator' || canDeleteRecords)
@@ -1080,15 +1224,18 @@ export default function EditParceriaDialog({
                                 </TabsContent>
                             )}
 
-                            {/* ===================== ABAS DE ADITIVO (somente leitura) ===================== */}
+                            {/* ===================== ABAS DE ADITIVO (editável) ===================== */}
                             {!isAdditive && aditivos.map((a) => (
                                 <TabsContent key={a.id} value={`aditivo-${a.id}`} className="space-y-4 mt-4">
                                     <AditivoEditablePanel
                                         aditivo={a}
                                         formatDate={formatDateDisplay}
-                                        organizationId={organizationId}
-                                        parceriaId={parceria.id}
                                         members={members}
+                                        thirdParties={thirdParties}
+                                        value={aditivoForms[a.id] || buildAditivoForm(a)}
+                                        dirty={!!aditivoDirty[a.id]}
+                                        onChange={(patch) => handleAditivoChange(a.id, patch)}
+                                        onStatusChange={(status) => handleAditivoStatusChange(a.id, status)}
                                     />
                                 </TabsContent>
                             ))}
@@ -1138,7 +1285,10 @@ export default function EditParceriaDialog({
                                 <Button
                                     type="submit"
                                     className="bg-primary"
-                                    disabled={isSaving || isDeleting || isLocked}
+                                    /* Quando a Parceria está congelada (tem aditivos), o botão
+                                       continua salvando as abas de aditivo — habilita se houver
+                                       alterações pendentes em alguma aba. */
+                                    disabled={isSaving || isDeleting || (isLocked && !anyAditivoDirty)}
                                 >
                                     {isSaving ? (
                                         <>
@@ -1180,146 +1330,110 @@ function aditivoScopeLabel(aditivo) {
     return aditivo?.aditivo_type_label || aditivo?.aditivo_type || '—';
 }
 
+// Parser permissivo p/ <input type="date"> a partir de valores de aditivo
+// (ISO com/sem tempo, dd/MM/yyyy, Date, string vazia).
+function aditivoDateInput(value) {
+    if (!value) return '';
+    if (typeof value === 'string') {
+        if (value.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+        const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(value);
+        if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+        return '';
+    }
+    try {
+        const d = new Date(value);
+        if (!isValid(d)) return '';
+        return format(d, 'yyyy-MM-dd');
+    } catch {
+        return '';
+    }
+}
+
+// Snapshot de um aditivo em formato de formulário (mesmos nomes de campo do
+// backend; espelha os campos da Parceria original). Function declaration =>
+// hoisted, disponível dentro do componente e do painel.
+function buildAditivoForm(a) {
+    return {
+        pgea: a?.pgea || '',
+        subject: a?.subject || '',
+        object: a?.object || '',
+        parties: a?.parties || '',
+        responsible_user_id: a?.responsible_user_id || '',
+        responsible_user_name: a?.responsible_user_name || '',
+        responsibility_date: aditivoDateInput(a?.responsibility_date),
+        distribution_date: aditivoDateInput(a?.distribution_date),
+        review_start_date: aditivoDateInput(a?.review_start_date),
+        review_submission_date: aditivoDateInput(a?.review_submission_date),
+        review_conclusion_date: aditivoDateInput(a?.review_conclusion_date),
+        reviewed_date: aditivoDateInput(a?.reviewed_date),
+        network_folder: a?.network_folder || '',
+        observations: a?.observations || '',
+        third_party: a?.third_party || '',
+        third_party_referral_date: aditivoDateInput(a?.third_party_referral_date),
+        status: a?.status || 'Pendente',
+    };
+}
+
+// Rollback dos marcadores das fases posteriores do ADITIVO (mesma lógica da
+// Parceria). Ao voltar para uma fase anterior, limpa marcadores de todas as
+// fases seguintes.
+function getAditivoRollback(status) {
+    const targetIdx = ADITIVO_PHASE_SEQUENCE.indexOf(status);
+    if (targetIdx < 0) return {};
+    const rollback = {};
+    ADITIVO_PHASE_SEQUENCE.forEach((phase, idx) => {
+        if (idx > targetIdx && ADITIVO_PHASE_MARKER_FIELDS[phase]) {
+            Object.assign(rollback, ADITIVO_PHASE_MARKER_FIELDS[phase]);
+        }
+    });
+    return rollback;
+}
+
 /**
  * AditivoEditablePanel — painel EDITÁVEL do aditivo, dentro da aba própria
  * do aditivo no modal de edição da Parceria.
  *
  * Item 14: aberto a TODOS os membros da organização. Cada campo tem o mesmo
  * padrão visual das demais abas do EditParceriaDialog (Label + Input/Textarea
- * + Select). O botão "Salvar Alterações do Aditivo" chama a Cloud Function
- * `updateAditivo` (que já gera log automático em `activity_log`).
+ * + Select) e o aditivo segue o MESMO fluxo de fases da Parceria original,
+ * inclusive com preenchimento automático de datas por fase (getAutoDateForPhase)
+ * e rollback dos marcadores ao voltar de fase.
  *
- * Os campos de IDENTIFICAÇÃO (nº, escopo, PGEAs) e de CONCLUSÃO (assinatura,
- * DEMP, prazo, objeto_aditivo) permanecem como ReadOnlyField — a edição desses
- * é feita pela `concludeAditivo` (transação de conclusão) e pelo fluxo do aditivo.
+ * NÃO há botão de salvar próprio nem estado interno: o painel é CONTROLADO
+ * pelo pai (props `value` + `onChange` + `onStatusChange`). O estado vive no
+ * pai porque o Radix Tabs desmonta a aba inativa — assim as edições sobrevivem
+ * à troca de abas e o botão principal "Salvar Alterações" persiste todas as
+ * abas de uma vez. `updateAditivo` gera o log automático em `activity_log`.
+ *
+ * Campos FIXOS (imutáveis): Nº do Aditivo, Escopo e PGEA da Parceria (origem).
+ * O PGEA do próprio Aditivo é EDITÁVEL. A CONCLUSÃO (assinatura, DEMP, prazo,
+ * objeto_aditivo) permanece read-only — é feita pela `concludeAditivo`.
  */
-function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId, members = [] }) {
-    // Helper local: yyyy-MM-dd para <input type="date">.
-    // Aceita: ISO com/sem tempo, Date, string vazia.
-    const formatDateForInput = (value) => {
-        if (!value) return '';
-        if (typeof value === 'string') {
-            if (value.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
-            // Tenta parsear dd/MM/yyyy → yyyy-MM-dd
-            const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(value);
-            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-            return '';
-        }
-        try {
-            const d = new Date(value);
-            if (!isValid(d)) return '';
-            return format(d, 'yyyy-MM-dd');
-        } catch {
-            return '';
-        }
-    };
-
-    // formData: snapshot local dos campos editáveis.
-    const [formData, setFormData] = useState(() => ({
-        subject: aditivo?.subject || '',
-        object: aditivo?.object || '',
-        parties: aditivo?.parties || '',
-        responsible_user_id: aditivo?.responsible_user_id || '',
-        responsible_user_name: aditivo?.responsible_user_name || '',
-        responsibility_date: formatDateForInput(aditivo?.responsibility_date),
-        network_folder: aditivo?.network_folder || '',
-        observations: aditivo?.observations || '',
-        review_submission_date: formatDateForInput(aditivo?.review_submission_date),
-        review_conclusion_date: formatDateForInput(aditivo?.review_conclusion_date || aditivo?.reviewed_date),
-        third_party: aditivo?.third_party || '',
-        third_party_referral_date: formatDateForInput(aditivo?.third_party_referral_date),
-        distribution_date: formatDateForInput(aditivo?.distribution_date),
-    }));
-    const [isSaving, setIsSaving] = useState(false);
-    const [dirty, setDirty] = useState(false);
-
-    // Atualiza formData se o aditivo mudar (ex: refresh do firestore)
-    useEffect(() => {
-        if (!aditivo || dirty) return;
-        setFormData({
-            subject: aditivo.subject || '',
-            object: aditivo.object || '',
-            parties: aditivo.parties || '',
-            responsible_user_id: aditivo.responsible_user_id || '',
-            responsible_user_name: aditivo.responsible_user_name || '',
-            responsibility_date: formatDateForInput(aditivo.responsibility_date),
-            network_folder: aditivo.network_folder || '',
-            observations: aditivo.observations || '',
-            review_submission_date: formatDateForInput(aditivo.review_submission_date),
-            review_conclusion_date: formatDateForInput(aditivo.review_conclusion_date || aditivo.reviewed_date),
-            third_party: aditivo.third_party || '',
-            third_party_referral_date: formatDateForInput(aditivo.third_party_referral_date),
-            distribution_date: formatDateForInput(aditivo.distribution_date),
-        });
-    }, [aditivo, dirty]);
-
+function AditivoEditablePanel({
+    aditivo,
+    formatDate,
+    members = [],
+    thirdParties = [],
+    value,
+    dirty = false,
+    onChange,
+    onStatusChange,
+}) {
     if (!aditivo) return null;
+    const formData = value || buildAditivoForm(aditivo);
+    const update = (patch) => onChange?.(patch);
+
     const isConcluded = aditivo.status === 'Concluído';
     const hasConclusion = isConcluded
         || aditivo.aditivo_signature_date
         || aditivo.demp
         || aditivo.prazo_valor
         || aditivo.objeto_aditivo;
-
-    const update = (patch) => {
-        setFormData((prev) => ({ ...prev, ...patch }));
-        setDirty(true);
-    };
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            // Monta o diff: só envia o que mudou (em relação ao aditivo original).
-            const changes = {};
-            const compare = (key, current, original) => {
-                const c = (current === '' || current === null) ? null : current;
-                const o = (original === '' || original === null) ? null : original;
-                if (c !== o) changes[key] = c;
-            };
-            compare('subject', formData.subject, aditivo.subject);
-            compare('object', formData.object, aditivo.object);
-            compare('parties', formData.parties, aditivo.parties);
-            compare('responsible_user_id', formData.responsible_user_id, aditivo.responsible_user_id);
-            compare('responsible_user_name', formData.responsible_user_name, aditivo.responsible_user_name);
-            compare('responsibility_date', formData.responsibility_date, aditivo.responsibility_date);
-            compare('network_folder', formData.network_folder, aditivo.network_folder);
-            compare('observations', formData.observations, aditivo.observations);
-            compare('review_submission_date', formData.review_submission_date, aditivo.review_submission_date);
-            compare('review_conclusion_date', formData.review_conclusion_date,
-                aditivo.review_conclusion_date || aditivo.reviewed_date);
-            compare('third_party', formData.third_party, aditivo.third_party);
-            compare('third_party_referral_date', formData.third_party_referral_date, aditivo.third_party_referral_date);
-            compare('distribution_date', formData.distribution_date, aditivo.distribution_date);
-
-            if (Object.keys(changes).length === 0) {
-                toast.info('Nenhuma alteração para salvar.');
-                setDirty(false);
-                return;
-            }
-
-            // (3.1) Data de distribuição ao (re)atribuir assessor
-            if (changes.responsible_user_id
-                && changes.responsible_user_id !== aditivo.responsible_user_id
-                && !changes.distribution_date) {
-                const today = new Date().toISOString().split('T')[0];
-                changes.distribution_date = today;
-            }
-
-            await updateAditivo({
-                parceriaId,
-                aditivoId: aditivo.id,
-                organizationId,
-                changes,
-            });
-            toast.success('Aditivo atualizado! O log foi registrado.');
-            setDirty(false);
-        } catch (error) {
-            logger.error('Error saving aditivo:', error);
-            toast.error('Erro ao salvar: ' + (error?.message || String(error)));
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    // Opções de status: fases pré-conclusão. Se o aditivo já está numa fase
+    // fora da lista (ex.: "Concluído"), acrescenta como item histórico.
+    const statusOptions = ADITIVO_STATUSES.includes(formData.status)
+        ? ADITIVO_STATUSES
+        : [...ADITIVO_STATUSES, formData.status];
 
     return (
         <div className="space-y-5">
@@ -1329,8 +1443,8 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                         Aditivo nº {aditivo.aditivo_number} — {aditivoScopeLabel(aditivo)}
                     </p>
                     <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
-                        Procedimento próprio da Parceria. Disponível para todos os membros da organização.
-                        Cada alteração gera um registro de log (atividade).
+                        Segue o mesmo fluxo da Parceria original. Cada alteração gera um registro de
+                        log. Use o botão <strong>Salvar Alterações</strong> abaixo para gravar todas as abas.
                     </p>
                 </div>
                 <span className="shrink-0 inline-flex items-center rounded-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-700 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-200">
@@ -1338,15 +1452,30 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                 </span>
             </div>
 
-            <ReadOnlySection title="Identificação">
-                <ReadOnlyField label="Nº do Aditivo" value={aditivo.aditivo_number} />
-                <ReadOnlyField label="Escopo" value={aditivoScopeLabel(aditivo)} />
-                <ReadOnlyField label="PGEA do Aditivo" value={aditivo.pgea} mono />
-                <ReadOnlyField label="PGEA da Parceria (origem)" value={aditivo.pgea_at_additive_creation} mono />
-            </ReadOnlySection>
+            {/* ===================== IDENTIFICAÇÃO ===================== */}
+            {/* Fixos: nº, escopo e PGEA da Parceria (origem). PGEA do Aditivo é editável. */}
+            <div>
+                <h4 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                    Identificação
+                </h4>
+                <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
+                    <ReadOnlyField label="Nº do Aditivo" value={aditivo.aditivo_number} />
+                    <ReadOnlyField label="Escopo" value={aditivoScopeLabel(aditivo)} />
+                    <div>
+                        <Label>PGEA do Aditivo</Label>
+                        <Input
+                            value={formData.pgea}
+                            onChange={(e) => update({ pgea: e.target.value })}
+                            className="mt-1 font-mono"
+                            placeholder="PGEA próprio do aditivo"
+                        />
+                    </div>
+                    <ReadOnlyField label="PGEA da Parceria (origem)" value={aditivo.pgea_at_additive_creation} mono />
+                </div>
+            </div>
 
-            {/* ===================== DADOS (editável) ===================== */}
-            <Section title="Dados">
+            {/* ===================== DADOS BÁSICOS (editável) ===================== */}
+            <Section title="Dados Básicos">
                 <div className="md:col-span-2">
                     <Label>Assunto</Label>
                     <Input
@@ -1388,7 +1517,7 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                             const m = members.find((mm) => mm.user_id === id);
                             update({
                                 responsible_user_id: id,
-                                responsible_user_name: m ? m.user_name : formData.responsible_user_name,
+                                responsible_user_name: m ? m.user_name : (id ? formData.responsible_user_name : ''),
                             });
                         }}
                     >
@@ -1400,6 +1529,13 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                             {members.map((m) => (
                                 <SelectItem key={m.user_id} value={m.user_id}>{m.user_name}</SelectItem>
                             ))}
+                            {formData.responsible_user_id
+                                && !members.find((m) => m.user_id === formData.responsible_user_id)
+                                && formData.responsible_user_name && (
+                                <SelectItem value={formData.responsible_user_id}>
+                                    {formData.responsible_user_name}
+                                </SelectItem>
+                            )}
                         </SelectContent>
                     </Select>
                 </div>
@@ -1432,11 +1568,67 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                 </div>
                 <div className="md:col-span-2">
                     <Label>Remetido para</Label>
-                    <Input
-                        value={formData.third_party}
-                        onChange={(e) => update({ third_party: e.target.value })}
+                    <Select
+                        value={formData.third_party || '__none__'}
+                        onValueChange={(val) => update({ third_party: val === '__none__' ? '' : val })}
+                    >
+                        <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecione o destinatário" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__none__">—</SelectItem>
+                            {thirdParties.map((name) => (
+                                <SelectItem key={name} value={name}>{name}</SelectItem>
+                            ))}
+                            {formData.third_party && !thirdParties.includes(formData.third_party) && (
+                                <SelectItem value={formData.third_party}>{formData.third_party} (Histórico)</SelectItem>
+                            )}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="md:col-span-2">
+                    <Label>Observações</Label>
+                    <Textarea
+                        value={formData.observations}
+                        onChange={(e) => update({ observations: e.target.value })}
                         className="mt-1"
-                        placeholder="Destinatário da remessa"
+                        rows={3}
+                        placeholder="Anotações livres sobre o aditivo"
+                    />
+                </div>
+                <div className="md:col-span-2">
+                    <Label>Status do Aditivo</Label>
+                    <Select
+                        value={formData.status || 'Pendente'}
+                        onValueChange={(val) => onStatusChange?.(val)}
+                        disabled={isConcluded}
+                    >
+                        <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Selecione a fase" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {statusOptions.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                        {isConcluded
+                            ? 'Aditivo concluído — a fase não pode ser alterada por aqui.'
+                            : 'A conclusão (fase “Parcerias”) é feita arrastando o aditivo no Kanban.'}
+                    </p>
+                </div>
+            </Section>
+
+            {/* ===================== REVISÃO E ARQUIVO (editável) ===================== */}
+            <Section title="Revisão e Arquivo">
+                <div>
+                    <Label>Início da Revisão</Label>
+                    <Input
+                        type="date"
+                        value={formData.review_start_date}
+                        onChange={(e) => update({ review_start_date: e.target.value })}
+                        className="mt-1"
                     />
                 </div>
                 <div>
@@ -1457,6 +1649,15 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                         className="mt-1"
                     />
                 </div>
+                <div>
+                    <Label>Revisão Concluída</Label>
+                    <Input
+                        type="date"
+                        value={formData.reviewed_date}
+                        onChange={(e) => update({ reviewed_date: e.target.value })}
+                        className="mt-1"
+                    />
+                </div>
                 <div className="md:col-span-2">
                     <Label>Pasta na Rede</Label>
                     <Input
@@ -1464,16 +1665,6 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                         onChange={(e) => update({ network_folder: e.target.value })}
                         className="mt-1 font-mono"
                         placeholder="Caminho da pasta de rede"
-                    />
-                </div>
-                <div className="md:col-span-2">
-                    <Label>Observações</Label>
-                    <Textarea
-                        value={formData.observations}
-                        onChange={(e) => update({ observations: e.target.value })}
-                        className="mt-1"
-                        rows={3}
-                        placeholder="Anotações livres sobre o aditivo"
                     />
                 </div>
             </Section>
@@ -1493,27 +1684,12 @@ function AditivoEditablePanel({ aditivo, formatDate, organizationId, parceriaId,
                 </ReadOnlySection>
             )}
 
-            {/* Rodapé do painel — botão de salvar (próprio, não conflita com o do form principal) */}
-            <div className="flex items-center justify-between gap-3 pt-3 border-t border-amber-200 dark:border-amber-800">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {dirty ? 'Há alterações não salvas neste aditivo.' : 'Sem alterações pendentes.'}
+            {/* Dica de alterações pendentes (o salvamento é feito pelo botão principal). */}
+            {dirty && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 pt-1">
+                    Há alterações não salvas neste aditivo. Clique em <strong>Salvar Alterações</strong> para gravar.
                 </p>
-                <Button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isSaving || !dirty}
-                    className="bg-amber-600 hover:bg-amber-700 text-white"
-                >
-                    {isSaving ? (
-                        <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Salvando...
-                        </>
-                    ) : (
-                        'Salvar Alterações do Aditivo'
-                    )}
-                </Button>
-            </div>
+            )}
         </div>
     );
 }
