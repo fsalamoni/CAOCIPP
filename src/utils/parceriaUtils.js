@@ -73,30 +73,30 @@ export function getParceriaField(parceria, fieldKey) {
             }
         }
 
-    // 2. Match normalizado (agressivo) — p.ex. "PGEA" == "pgea" == "Pgea".
-    const normalize = (s) => {
-        if (s == null) return '';
-        try {
-            return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
-        } catch (e) {
-            if (typeof window !== 'undefined' && window.console) {
-                console.warn('[getParceriaField] normalize error', { s, fieldKey, e });
+        // 2. Match normalizado (agressivo) — p.ex. "PGEA" == "pgea" == "Pgea".
+        const normalize = (s) => {
+            if (s == null) return '';
+            try {
+                return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+            } catch (e) {
+                if (typeof window !== 'undefined' && window.console) {
+                    console.warn('[getParceriaField] normalize error', { s, fieldKey, e });
+                }
+                return '';
             }
-            return '';
-        }
-    };
-    const normalizedTargetAliases = aliases.map(normalize);
-    const dbKeys = Object.keys(parceria);
+        };
+        const normalizedTargetAliases = aliases.map(normalize);
+        const dbKeys = Object.keys(parceria);
 
-    for (const dbKey of dbKeys) {
-        if (normalizedTargetAliases.includes(normalize(dbKey))) {
-            const val = parceria[dbKey];
-            if (val !== undefined && val !== null && String(val).trim() !== '') {
-                if (fieldKey === 'responsible_user_name') return formatPersonName(String(val));
-                return val;
+        for (const dbKey of dbKeys) {
+            if (normalizedTargetAliases.includes(normalize(dbKey))) {
+                const val = parceria[dbKey];
+                if (val !== undefined && val !== null && String(val).trim() !== '') {
+                    if (fieldKey === 'responsible_user_name') return formatPersonName(String(val));
+                    return val;
+                }
             }
         }
-    }
 
         return fieldKey === 'extinguished' ? false : '';
     } catch (e) {
