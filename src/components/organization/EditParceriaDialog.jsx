@@ -114,6 +114,11 @@ export default function EditParceriaDialog({
     // aditivo em si, nunca há lock.
     const isLocked = !isAdditive && hasAdditives(parceria);
 
+    // Fonte da entidade (parceria original ou aditivo). Disponível no escopo
+    // do componente para uso no render (abas de colaboração) e espelhando a
+    // mesma expressão usada no useEffect que carrega o formData.
+    const entitySource = isAdditive && additiveData ? additiveData : parceria;
+
     // Aditivos da Parceria (somente ao editar a original): cada um vira uma
     // aba própria, somente leitura, com todas as informações do aditivo.
     const { aditivos } = useAditivos(parceria?.id, open && !isAdditive);
@@ -1052,19 +1057,19 @@ export default function EditParceriaDialog({
                             {/* ===================== COLABORAÇÃO (condicional) ===================== */}
                             {showCollabTab && (
                                 <TabsContent value="collab" className="space-y-4 mt-4">
-                                    {isPresenceOn && src?.id && (
+                                    {isPresenceOn && entitySource?.id && (
                                         <LivePresenceIndicator
                                             organizationId={organizationId}
                                             entityType="parceria"
-                                            entityId={src.id}
+                                            entityId={entitySource.id}
                                             userName={user?.displayName}
                                         />
                                     )}
-                                    {isCommentsOn && src?.id ? (
+                                    {isCommentsOn && entitySource?.id ? (
                                         <EntityComments
                                             organizationId={organizationId}
                                             entityType="parceria"
-                                            entityId={src.id}
+                                            entityId={entitySource.id}
                                             members={members}
                                         />
                                     ) : isCommentsOn && (
