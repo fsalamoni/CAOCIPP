@@ -243,7 +243,7 @@ jobs:
           # Deploy SOMENTE do hosting. As functions ficaram bloqueadas por
           # causa da permissão cloudscheduler.jobs.delete. Ver
           # docs/CI-DEPLOY-PERMISSIONS.md para destravar.
-          ARGS="deploy --only hosting,firestore --project protagonista-rpg --non-interactive"
+          ARGS="deploy --only hosting,functions,firestore --project protagonista-rpg --non-interactive --force"
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
             ARGS="$ARGS --token $FIREBASE_TOKEN"
           fi
