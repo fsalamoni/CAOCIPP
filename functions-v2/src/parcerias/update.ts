@@ -5,6 +5,7 @@ import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 import { fireOrgWebhook } from '../shared/webhooks';
 import { validateParceriaPhaseTransition } from '../shared/validators';
+import { applyAutoDateForPhase } from '../shared/phaseDates';
 
 // ============================================================================
 // addDurationToDate — helper inline (espelha src/lib/dateUtils.js e
@@ -194,23 +195,10 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
             changes.distribution_date = todayStr;
         }
 
-        // Datas automáticas por fase-alvo (espelha o fluxo do Kanban). Só são
-        // injetadas quando a transição é explícita (changes.status) e o campo
-        // ainda não existe, para não sobrescrever em re-salvamentos.
-        const autoDateByPhase: Record<string, string> = {
-            'Em análise': 'distribution_date',
-            'Em revisão': 'review_start_date',
-            'Revisadas': 'reviewed_date',
-            'Aguarda Terceiros': 'third_party_referral_date',
-            'Parcerias': 'third_party_return_date',
-            'Extintos': 'archived_date',
-        };
-        const targetPhase = changes.status;
-        if (targetPhase && autoDateByPhase[targetPhase]) {
-            const field = autoDateByPhase[targetPhase];
-            const already = changes[field] ?? parceriaData[field];
-            if (!already) changes[field] = todayStr;
-        }
+        // Item 10: data automática por fase-alvo (espelha o fluxo do Kanban).
+        // Centralizado em shared/phaseDates para evitar divergência entre
+        // update.ts, updateAditivo.ts e o frontend.
+        applyAutoDateForPhase(changes, parceriaData, todayStr);
 
         // Normalizar flags boolean/strings → boolean.
         if ('urgency_request' in changes) {

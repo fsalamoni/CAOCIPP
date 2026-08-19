@@ -4,6 +4,7 @@ import { calculateParceriaStatus } from '../shared/status';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 import { validateAditivoPhaseTransition } from '../shared/validators';
+import { applyAutoDateForPhase } from '../shared/phaseDates';
 
 interface UpdateAditivoRequest {
     parceriaId: string;
@@ -101,21 +102,9 @@ export const updateAditivo = onCall<UpdateAditivoRequest>(
             changes.distribution_date = todayStr;
         }
 
-        // Datas automáticas por fase-alvo — o aditivo segue as MESMAS fases da
-        // Parceria (item 2), então reaproveita o mesmo mapa de automações.
-        const autoDateByPhase: Record<string, string> = {
-            'Em análise': 'distribution_date',
-            'Em revisão': 'review_start_date',
-            'Revisadas': 'reviewed_date',
-            'Aguarda Terceiros': 'third_party_referral_date',
-            'Parcerias': 'third_party_return_date',
-            'Extintos': 'archived_date',
-        };
-        if (changes.status && autoDateByPhase[changes.status]) {
-            const f = autoDateByPhase[changes.status];
-            const already = changes[f] ?? aditivoData[f];
-            if (!already) changes[f] = todayStr;
-        }
+        // Item 11: data automática por fase-alvo. O aditivo segue as MESMAS
+        // fases da Parceria, então reaproveita o mesmo helper centralizado.
+        applyAutoDateForPhase(changes, aditivoData, todayStr);
 
         if (typeof changes.responsible_user_name === 'string') {
             changes.responsible_user_name = formatPersonName(changes.responsible_user_name);
