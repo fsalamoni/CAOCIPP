@@ -1,3 +1,4 @@
+"use strict";
 // ============================================================================
 // phaseDates — mapa de fases → data automática
 // ----------------------------------------------------------------------------
@@ -12,13 +13,15 @@
 //
 // Aditivo (item 11) e Parceria (item 10) seguem o MESMO mapa (mesmas fases).
 // ============================================================================
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AUTO_DATE_BY_PHASE = void 0;
+exports.applyAutoDateForPhase = applyAutoDateForPhase;
 /**
  * Mapa de fase → campos de data automática na coleção.
  * Cada fase pode preencher MAIS DE UM campo (ex.: "Em revisão" preenche o
  * início da revisão E a remessa para revisão).
  */
-export const AUTO_DATE_BY_PHASE: Record<string, string[]> = {
+exports.AUTO_DATE_BY_PHASE = {
     'Em análise': ['distribution_date'],
     // "Em revisão": início da revisão E remessa para revisão.
     'Em revisão': ['review_start_date', 'review_submission_date'],
@@ -29,7 +32,6 @@ export const AUTO_DATE_BY_PHASE: Record<string, string[]> = {
     'Parcerias': ['third_party_return_date'],
     'Extintos': ['archived_date'],
 };
-
 /**
  * Aplica a(s) data(s) automática(s) ao `changes` quando a fase muda.
  * Idempotente: se a data já existir (em changes ou no estado atual), não sobrescreve.
@@ -39,22 +41,23 @@ export const AUTO_DATE_BY_PHASE: Record<string, string[]> = {
  * @param todayStr data atual no formato yyyy-MM-dd
  * @returns os campos aplicados (pode ser vazio se nada foi aplicado)
  */
-export function applyAutoDateForPhase(
-    changes: Record<string, any>,
-    current: Record<string, any>,
-    todayStr: string,
-): string[] {
+function applyAutoDateForPhase(changes, current, todayStr) {
+    var _a;
     const targetPhase = changes.status;
-    if (!targetPhase) return [];
-    const fields = AUTO_DATE_BY_PHASE[targetPhase];
-    if (!fields || fields.length === 0) return [];
-    const applied: string[] = [];
+    if (!targetPhase)
+        return [];
+    const fields = exports.AUTO_DATE_BY_PHASE[targetPhase];
+    if (!fields || fields.length === 0)
+        return [];
+    const applied = [];
     for (const field of fields) {
         // Preserva valor existente (manual ou já gravado).
-        const already = changes[field] ?? current?.[field];
-        if (already) continue;
+        const already = (_a = changes[field]) !== null && _a !== void 0 ? _a : current === null || current === void 0 ? void 0 : current[field];
+        if (already)
+            continue;
         changes[field] = todayStr;
         applied.push(field);
     }
     return applied;
 }
+//# sourceMappingURL=phaseDates.js.map

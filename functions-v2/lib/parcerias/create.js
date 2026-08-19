@@ -7,7 +7,7 @@ const status_1 = require("../shared/status");
 const history_1 = require("../shared/history");
 const webhooks_1 = require("../shared/webhooks");
 exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b;
+    var _a, _b, _c, _d, _e;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -21,6 +21,13 @@ exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
     const categoria = data.categoria || null;
     const signatureDate = data.signatureDate || data.signature_date || null;
     const validityPeriod = data.validityPeriod || data.validity_period || null;
+    const validityStartsFrom = data.validityStartsFrom || data.validity_starts_from || null;
+    // Itens 7/8/9: avisos automáticos.
+    const renewalNoticePeriod = Number((_a = data.renewalNoticePeriod) !== null && _a !== void 0 ? _a : data.renewal_notice_period);
+    const renewalNoticePeriodUnit = String((_b = data.renewalNoticePeriodUnit) !== null && _b !== void 0 ? _b : (data.renewal_notice_period_unit || ''));
+    const reviewNoticePeriod = Number((_c = data.reviewNoticePeriod) !== null && _c !== void 0 ? _c : data.review_notice_period);
+    const reviewNoticePeriodUnit = String((_d = data.reviewNoticePeriodUnit) !== null && _d !== void 0 ? _d : (data.review_notice_period_unit || ''));
+    const reviewNoticeDate = data.reviewNoticeDate || data.review_notice_date || null;
     const endDate = data.endDate || data.end_date || null;
     const renewalNoticeDate = data.renewalNoticeDate || data.renewal_notice_date || null;
     const networkFolder = data.networkFolder || data.network_folder || '';
@@ -28,9 +35,8 @@ exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
     const responsibleUserId = data.responsibleUserId || data.responsible_user_id || null;
     const responsibleUserName = data.responsibleUserName || data.responsible_user_name || null;
     const responsibilityDate = data.responsibilityDate || data.responsibility_date || null;
-    const pgeaDate = data.pgeaDate || data.pgea_date || null;
-    // Flags opcionais (urgência e restrição de acesso) — aceitam boolean
-    // ou string "sim"/"true". Normaliza para boolean.
+    // Flag opcional de urgência — aceita boolean ou string "sim"/"true".
+    // (Restrição de acesso removida no PR #70 — sem uso no produto.)
     const toBool = (v) => {
         if (v === true)
             return true;
@@ -40,8 +46,7 @@ exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
         }
         return false;
     };
-    const urgencyRequest = toBool((_a = data.urgencyRequest) !== null && _a !== void 0 ? _a : data.urgency_request);
-    const accessRestriction = toBool((_b = data.accessRestriction) !== null && _b !== void 0 ? _b : data.access_restriction);
+    const urgencyRequest = toBool((_e = data.urgencyRequest) !== null && _e !== void 0 ? _e : data.urgency_request);
     if (!organizationId) {
         throw new https_1.HttpsError('invalid-argument', 'organizationId é obrigatório');
     }
@@ -104,7 +109,17 @@ exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
         categoria,
         signature_date: signatureDate,
         validity_period: validityPeriod,
+        validity_starts_from: validityStartsFrom,
         end_date: endDate,
+        renewal_notice_period: Number.isFinite(renewalNoticePeriod) && renewalNoticePeriod > 0
+            ? renewalNoticePeriod : null,
+        renewal_notice_period_unit: ['dias', 'meses', 'anos'].includes(renewalNoticePeriodUnit)
+            ? renewalNoticePeriodUnit : null,
+        review_notice_period: Number.isFinite(reviewNoticePeriod) && reviewNoticePeriod > 0
+            ? reviewNoticePeriod : null,
+        review_notice_period_unit: ['dias', 'meses', 'anos'].includes(reviewNoticePeriodUnit)
+            ? reviewNoticePeriodUnit : null,
+        review_notice_date: reviewNoticeDate,
         renewal_notice_date: renewalNoticeDate,
         network_folder: networkFolder,
         observations: observations,
@@ -113,9 +128,7 @@ exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
         responsibility_date: responsibilityDate,
         review_conclusion_date: null,
         third_party: null,
-        pgea_date: pgeaDate,
         urgency_request: urgencyRequest,
-        access_restriction: accessRestriction,
         status,
         extinguished: false,
         extinguished_at: null,

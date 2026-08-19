@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteEntityType = exports.upsertEntityType = exports.getSetupStatus = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importParceriasFromExcel = exports.extinguishParceria = exports.deleteAditivo = exports.concludeAditivo = exports.updateAditivo = exports.addAditivo = exports.deleteParceria = exports.updateParceria = exports.createParceria = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.migrateMemberFunctions = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
-exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = void 0;
+exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.checkPartnershipNoticeDeadlines = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -129,6 +129,16 @@ Object.defineProperty(exports, "addComment", { enumerable: true, get: function (
 // depois é só descomentar as 3 linhas abaixo e fazer o deploy de novo.
 // export { autoEscalateStalledUrgent } from './scheduled/autoEscalation';
 // export { sendDailyUrgentSummary, sendWeeklyOrgReport } from './scheduled/emailReports';
+// Item 7/8 do plano: cria aditivo automático quando o aviso de renovação
+// (parceria com prazo determinado) ou o aviso de revisão (parceria com
+// prazo indeterminado) é atingido. Roda 1x por dia às 03:00 horário de Brasília.
+// Comentada: API cloudscheduler.googleapis.com está habilitada, mas a
+// service account do CI ainda não tem o papel "Cloud Scheduler Admin"
+// (permissão cloudscheduler.jobs.update). O owner precisa conceder
+// essa permissão à service account. Enquanto isso, schema/UI estão
+// funcionais.
+var checkPartnershipNoticeDeadlines_1 = require("./scheduled/checkPartnershipNoticeDeadlines");
+Object.defineProperty(exports, "checkPartnershipNoticeDeadlines", { enumerable: true, get: function () { return checkPartnershipNoticeDeadlines_1.checkPartnershipNoticeDeadlines; } });
 var emailProvider_1 = require("./platform/emailProvider");
 Object.defineProperty(exports, "getEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.getEmailProviderConfig; } });
 Object.defineProperty(exports, "setEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.setEmailProviderConfig; } });

@@ -145,9 +145,7 @@ exports.importParceriasFromExcel = (0, https_1.onCall)({
                         'assessor_responsavel', 'responsible_user_name',
                         'RESPONSÁVEL', 'Responsável',
                     ]);
-                    const pgeaDate = parseExcelDate(pickFirst(row, [
-                        'DATA PGEA', 'Data PGEA', 'data_pgea', 'pgea_date',
-                    ]));
+                    // pgea_date removido (item 1 do plano — não é mais usado).
                     // Anti-lixo: linha integralmente vazia é descartada.
                     const isGarbage = !pgea &&
                         !subject &&
@@ -199,7 +197,7 @@ exports.importParceriasFromExcel = (0, https_1.onCall)({
                         row, rowIndex, skip: false,
                         pgea, subject, object, parties, partnershipType,
                         partnershipNumber, signatureDate, validityPeriod, endDate,
-                        renewalNoticeDate, responsibleUserName, pgeaDate,
+                        renewalNoticeDate, responsibleUserName,
                         existingDoc,
                     };
                 }
@@ -250,7 +248,6 @@ exports.importParceriasFromExcel = (0, https_1.onCall)({
                         observations: '',
                         review_conclusion_date: null,
                         third_party: null,
-                        pgea_date: r.pgeaDate || null,
                         extinguished: false,
                         extinguished_at: null,
                         extinguished_by: null,
@@ -274,7 +271,6 @@ exports.importParceriasFromExcel = (0, https_1.onCall)({
                         end_date: 'Termo Final',
                         renewal_notice_date: 'Data do Aviso de Renovação',
                         responsible_user_name: 'Assessor Responsável',
-                        pgea_date: 'Data do PGEA',
                         status: 'Status',
                     };
                     let importAction = '';

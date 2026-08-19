@@ -23,7 +23,7 @@ const PARCERIA_PHASE_REQUIREMENTS = {
     'Aguarda Terceiros': ['third_party_referral_date', 'third_party'],
     'Parcerias': [
         'third_party_return_date',
-        'partnership_number',
+        // partnership_number é OPCIONAL (vazio = "Sem número").
         'partnership_type',
         'signature_date',
         'demp',

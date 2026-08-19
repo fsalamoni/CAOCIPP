@@ -8,16 +8,52 @@ const history_1 = require("../shared/history");
 const normalization_1 = require("../shared/normalization");
 const webhooks_1 = require("../shared/webhooks");
 const validators_1 = require("../shared/validators");
+const phaseDates_1 = require("../shared/phaseDates");
+// ============================================================================
+// addDurationToDate — helper inline (espelha src/lib/dateUtils.js e
+// functions-v2/src/parcerias/concludeAditivo.addDurationToDate).
+// Para meses/anos: "clamp" no último dia do mês-alvo.
+// ============================================================================
+function fmtDateLocal(dt) {
+    if (Number.isNaN(dt.getTime()))
+        return null;
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+}
+function addDurationToDate(dateStr, valor, unidade) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || '').trim());
+    if (!m)
+        return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    if (unidade === 'dias')
+        return fmtDateLocal(new Date(y, mo, d + valor, 12, 0, 0));
+    if (unidade === 'meses' || unidade === 'anos') {
+        const monthsToAdd = unidade === 'anos' ? valor * 12 : valor;
+        const total = mo + monthsToAdd;
+        const targetYear = y + Math.floor(total / 12);
+        const targetMonth = ((total % 12) + 12) % 12;
+        const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const day = Math.min(d, lastDay);
+        return fmtDateLocal(new Date(targetYear, targetMonth, day, 12, 0, 0));
+    }
+    return null;
+}
 // Campos "congelados" quando a Parceria tem 1+ aditivos. Quem tenta mexer
 // neles via updateParceria (em vez de updateAditivo) é bloqueado aqui.
+// NOTA: pgea NÃO está na lista (item 2 do plano — PGEA continua editável
+// mesmo com aditivos, pois é o identificador de auditoria e pode ser corrigido
+// sem invalidar a substância do aditivo).
 const FROZEN_WHEN_HAS_ADITIVO = new Set([
     'subject', 'object', 'parties',
-    'pgea', 'pgea_date',
     'partnership_type', 'partnership_number', 'categoria', 'signature_date',
     'validity_period', 'end_date', 'renewal_notice_date',
 ]);
 exports.updateParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -54,7 +90,63 @@ exports.updateParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
     delete changes.current_additive_id; // só addAditivo pode mexer
     delete changes.anonymized; // só runAnonymization
     delete changes.anonymized_at;
+    // Campos descontinuados (PR #70) — silenciosamente ignorados se vierem
+    // de chamadas legadas. NÃO removemos os campos do Firestore (dados
+    // legados permanecem consultáveis via aliases).
+    delete changes.pgea_date;
+    delete changes.access_restriction;
+    delete changes.review_return_date;
     delete changes.anonymized_by;
+    // Itens 7/8/9: se o usuário mudou o PERÍODO do aviso, recalcular a
+    // data automática. Se ficou vazio, limpar a data. (NÃO sobrescreve
+    // se o usuário editou a data manualmente no mesmo change — mas
+    // isso é raro; o caminho normal é editar período → data é derivada.)
+    if (('renewal_notice_period' in changes
+        || 'renewal_notice_period_unit' in changes)
+        && !('renewal_notice_date' in changes)) {
+        const period = Number((_a = changes.renewal_notice_period) !== null && _a !== void 0 ? _a : parceriaData.renewal_notice_period);
+        const unit = String((_b = changes.renewal_notice_period_unit) !== null && _b !== void 0 ? _b : (parceriaData.renewal_notice_period_unit || ''));
+        const endDate = ((_c = changes.end_date) !== null && _c !== void 0 ? _c : parceriaData.end_date);
+        if (Number.isFinite(period) && period > 0 && ['dias', 'meses', 'anos'].includes(unit) && endDate) {
+            const computed = addDurationToDate(endDate, period, unit);
+            if (computed)
+                changes.renewal_notice_date = computed;
+            else
+                delete changes.renewal_notice_date;
+        }
+        else {
+            delete changes.renewal_notice_date;
+        }
+    }
+    if (('review_notice_period' in changes
+        || 'review_notice_period_unit' in changes)
+        && !('review_notice_date' in changes)) {
+        const period = Number((_d = changes.review_notice_period) !== null && _d !== void 0 ? _d : parceriaData.review_notice_period);
+        const unit = String((_e = changes.review_notice_period_unit) !== null && _e !== void 0 ? _e : (parceriaData.review_notice_period_unit || ''));
+        const startsFrom = ((_f = changes.validity_starts_from) !== null && _f !== void 0 ? _f : parceriaData.validity_starts_from);
+        const base = startsFrom === 'demp'
+            ? ((_g = changes.demp) !== null && _g !== void 0 ? _g : parceriaData.demp)
+            : ((_h = changes.signature_date) !== null && _h !== void 0 ? _h : parceriaData.signature_date);
+        if (Number.isFinite(period) && period > 0 && ['dias', 'meses', 'anos'].includes(unit) && base) {
+            const computed = addDurationToDate(base, period, unit);
+            if (computed)
+                changes.review_notice_date = computed;
+            else
+                delete changes.review_notice_date;
+        }
+        else {
+            delete changes.review_notice_date;
+        }
+    }
+    // Item 6: se a vigência é Indeterminada, end_date DEVE ser null.
+    const mergedValidity = (typeof changes.validity_period === 'string'
+        ? changes.validity_period
+        : parceriaData.validity_period) || '';
+    const isIndeterminate = typeof mergedValidity === 'string'
+        && mergedValidity.toLowerCase().trim().startsWith('indeterm');
+    if (isIndeterminate && 'end_date' in changes && changes.end_date) {
+        throw new https_1.HttpsError('failed-precondition', 'Não é possível definir Termo Final com vigência Indeterminada.');
+    }
     // Se a Parceria tem aditivo, bloquear edição dos campos do original.
     if ((parceriaData.aditivo_count || 0) > 0) {
         for (const field of FROZEN_WHEN_HAS_ADITIVO) {
@@ -77,24 +169,10 @@ exports.updateParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
         !changes.distribution_date) {
         changes.distribution_date = todayStr;
     }
-    // Datas automáticas por fase-alvo (espelha o fluxo do Kanban). Só são
-    // injetadas quando a transição é explícita (changes.status) e o campo
-    // ainda não existe, para não sobrescrever em re-salvamentos.
-    const autoDateByPhase = {
-        'Em análise': 'distribution_date',
-        'Em revisão': 'review_start_date',
-        'Revisadas': 'reviewed_date',
-        'Aguarda Terceiros': 'third_party_referral_date',
-        'Parcerias': 'third_party_return_date',
-        'Extintos': 'archived_date',
-    };
-    const targetPhase = changes.status;
-    if (targetPhase && autoDateByPhase[targetPhase]) {
-        const field = autoDateByPhase[targetPhase];
-        const already = (_a = changes[field]) !== null && _a !== void 0 ? _a : parceriaData[field];
-        if (!already)
-            changes[field] = todayStr;
-    }
+    // Item 10: data automática por fase-alvo (espelha o fluxo do Kanban).
+    // Centralizado em shared/phaseDates para evitar divergência entre
+    // update.ts, updateAditivo.ts e o frontend.
+    (0, phaseDates_1.applyAutoDateForPhase)(changes, parceriaData, todayStr);
     // Normalizar flags boolean/strings → boolean.
     if ('urgency_request' in changes) {
         const v = changes.urgency_request;
@@ -110,19 +188,9 @@ exports.updateParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
             delete changes.urgency_request;
         }
     }
+    // access_restriction removido no PR #70 — silenciosamente ignorado se vier.
     if ('access_restriction' in changes) {
-        const v = changes.access_restriction;
-        if (v === true)
-            changes.access_restriction = true;
-        else if (v === false)
-            changes.access_restriction = false;
-        else if (typeof v === 'string') {
-            const s = v.toLowerCase().trim();
-            changes.access_restriction = (s === 'sim' || s === 'true' || s === '1' || s === 'yes');
-        }
-        else {
-            delete changes.access_restriction;
-        }
+        delete changes.access_restriction;
     }
     changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
     changes.updated_by = userId;

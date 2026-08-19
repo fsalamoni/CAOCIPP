@@ -66,9 +66,9 @@ function calculateParceriaStatus(parceria) {
     // 1. "Extintos" (slate desaturado): marcado explicitamente como extinto.
     if ((parceria === null || parceria === void 0 ? void 0 : parceria.extinguished) === true)
         return 'Extintos';
-    // 2. "Parcerias" (emerald): tem todos os campos de formalização preenchidos.
+    // 2. "Parcerias" (emerald): tem os campos essenciais de formalização.
+    // partnership_number é OPCIONAL (vazio = "Sem número") — item 3 do plano.
     if ((0, fields_1.getSmartField)(parceria, 'partnership_type') &&
-        (0, fields_1.getSmartField)(parceria, 'partnership_number') &&
         (0, fields_1.getSmartField)(parceria, 'signature_date') &&
         (0, fields_1.getSmartField)(parceria, 'end_date') &&
         (0, fields_1.getSmartField)(parceria, 'renewal_notice_date'))
