@@ -196,10 +196,22 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                     newEndDate = computed;
                     parentUpdate.end_date = computed;
                 }
-                // A data do aviso de renovação acompanha a extensão do termo,
-                // para que os alertas de renovação reflitam o novo prazo.
+                // A data do aviso de renovação é RENOVADA quando há prorrogação,
+                // para que o próximo ciclo de alerta reflita o novo termo final.
+                // Preferimos recalcular a partir do NOVO termo final + período de
+                // aviso configurado (mesma fórmula do computeRenewalNoticeDate);
+                // se o período não estiver configurado, mantemos o comportamento
+                // legado de deslocar a data anterior pelo prazo do aditivo.
+                const rPeriod = Number(parceria.renewal_notice_period);
+                const rUnit = String(parceria.renewal_notice_period_unit || '');
                 const prevRenewal = (parceria.renewal_notice_date as string) || null;
-                if (prevRenewal) {
+                if (newEndDate && Number.isFinite(rPeriod) && rPeriod > 0 && UNIDADES.has(rUnit)) {
+                    const r = addDurationToDate(newEndDate, rPeriod, rUnit);
+                    if (r) {
+                        newRenewalNoticeDate = r;
+                        parentUpdate.renewal_notice_date = r;
+                    }
+                } else if (prevRenewal) {
                     const r = addDurationToDate(prevRenewal, prazoValorNum, prazoUnidade);
                     if (r) {
                         newRenewalNoticeDate = r;
@@ -266,6 +278,11 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                 updated_at: admin.firestore.FieldValue.serverTimestamp(),
                 updated_by: userId,
             };
+            // Retorno de Terceiros no aditivo = data em que ele é "largado" na
+            // coluna "Parcerias" (conclusão). Só preenche se ainda não houver.
+            if (!aditivo.third_party_return_date) {
+                aditivoUpdate.third_party_return_date = logDate;
+            }
             const aditivoLog = {
                 date: logDate,
                 time: logTime,

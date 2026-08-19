@@ -1046,13 +1046,14 @@ export default function EditParceriaDialog({
 
                             {/* ===================== REVISÃO E ARQUIVO ===================== */}
                             <TabsContent value="archive" className="space-y-4 mt-4">
-                                {/* Item 7: Aviso de Renovação — só se a vigência NÃO é Indeterminada */}
-                                {!isIndeterminateValidity(formData.validity_period) && (
+                                {/* Item 7: Aviso de Renovação — vale SEMPRE (independe da vigência).
+                                    Ao atingir a data, cria automaticamente um aditivo de Prorrogação. */}
+                                {(
                                     <div className="p-4 bg-amber-50/40 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800 space-y-3">
                                         <div>
                                             <Label>Aviso de Renovação (período)</Label>
                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                                Quando esta data for atingida, a Parceria cria automaticamente um aditivo em "Pendentes" com urgência ligada.
+                                                Quando esta data for atingida, a Parceria cria automaticamente um aditivo de Prorrogação em "Pendentes" com urgência ligada.
                                             </p>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
@@ -1099,7 +1100,7 @@ export default function EditParceriaDialog({
                                         <div>
                                             <Label>Aviso de Revisão (período)</Label>
                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                                Quando esta data for atingida, a Parceria cria automaticamente um aditivo em "Pendentes" com urgência ligada.
+                                                Quando esta data for atingida, a Parceria cria automaticamente um aditivo de Objeto em "Pendentes" com urgência ligada.
                                             </p>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">

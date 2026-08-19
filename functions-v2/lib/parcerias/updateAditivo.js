@@ -7,6 +7,7 @@ const status_1 = require("../shared/status");
 const history_1 = require("../shared/history");
 const normalization_1 = require("../shared/normalization");
 const validators_1 = require("../shared/validators");
+const phaseDates_1 = require("../shared/phaseDates");
 const PROTECTED_ADITIVO_FIELDS = new Set([
     'id',
     'parceria_id',
@@ -25,7 +26,6 @@ const PROTECTED_ADITIVO_FIELDS = new Set([
     'anonymized_by',
 ]);
 exports.updateAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -78,22 +78,9 @@ exports.updateAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         !changes.distribution_date) {
         changes.distribution_date = todayStr;
     }
-    // Datas automáticas por fase-alvo — o aditivo segue as MESMAS fases da
-    // Parceria (item 2), então reaproveita o mesmo mapa de automações.
-    const autoDateByPhase = {
-        'Em análise': 'distribution_date',
-        'Em revisão': 'review_start_date',
-        'Revisadas': 'reviewed_date',
-        'Aguarda Terceiros': 'third_party_referral_date',
-        'Parcerias': 'third_party_return_date',
-        'Extintos': 'archived_date',
-    };
-    if (changes.status && autoDateByPhase[changes.status]) {
-        const f = autoDateByPhase[changes.status];
-        const already = (_a = changes[f]) !== null && _a !== void 0 ? _a : aditivoData[f];
-        if (!already)
-            changes[f] = todayStr;
-    }
+    // Item 11: data automática por fase-alvo. O aditivo segue as MESMAS
+    // fases da Parceria, então reaproveita o mesmo helper centralizado.
+    (0, phaseDates_1.applyAutoDateForPhase)(changes, aditivoData, todayStr);
     if (typeof changes.responsible_user_name === 'string') {
         changes.responsible_user_name = (0, normalization_1.formatPersonName)(changes.responsible_user_name);
     }

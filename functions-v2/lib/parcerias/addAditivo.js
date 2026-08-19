@@ -90,7 +90,11 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     if (parceriaData.current_additive_id) {
         throw new https_1.HttpsError('failed-precondition', 'Já existe um aditivo em andamento nesta Parceria. Conclua-o antes de incluir um novo.');
     }
-    if (parceriaData.status !== 'Parcerias') {
+    // Regra de status: SOMENTE aditivo MANUAL exige status='Parcerias'.
+    // Aditivo AUTOMÁTICO (itens 7/8) é criado pela Cloud Function agendada
+    // e pode estar em qualquer status (a CF garante que a Parceria tem
+    // renewal_notice_date ou review_notice_date válido).
+    if (data.isAuto !== true && parceriaData.status !== 'Parcerias') {
         throw new https_1.HttpsError('failed-precondition', `Só é possível incluir aditivo quando a Parceria está na fase "Parcerias" (atual: "${parceriaData.status || 'Pendente'}").`);
     }
     // 4. Calcular número sequencial do aditivo.
@@ -106,9 +110,9 @@ exports.addAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     // (3.8) PGEA do aditivo: próprio (se informado) ou herdado da Parceria.
     const ownPgea = String(data.aditivoPgea || data.pgea || '').trim();
     const aditivoPgea = ownPgea || parceriaData.pgea || '';
-    const aditivoData = Object.assign(Object.assign({ id: aditivoRef.id, parceria_id: parceriaId, organization_id: organizationId, aditivo_number: aditivoNumber, aditivo_type: aditivoType, aditivo_type_label: aditivoTypeLabelFinal }, (hasDeclaredScope ? { is_prorrogacao: isProrrogacao, is_objeto: isObjeto } : {})), { 
+    const aditivoData = Object.assign(Object.assign(Object.assign(Object.assign({ id: aditivoRef.id, parceria_id: parceriaId, organization_id: organizationId, aditivo_number: aditivoNumber, aditivo_type: aditivoType, aditivo_type_label: aditivoTypeLabelFinal }, (hasDeclaredScope ? { is_prorrogacao: isProrrogacao, is_objeto: isObjeto } : {})), { 
         // PGEA próprio do aditivo (herda o da Parceria quando não informado).
-        pgea: aditivoPgea, 
+        pgea: aditivoPgea }), (data.isAuto === true ? { is_auto: true, auto_reason: data.autoReason || 'renewal_notice' } : {})), { 
         // Snapshot do original (somente leitura) — guardado para auditoria.
         pgea_at_additive_creation: parceriaData.pgea || null, partnership_type_at_additive_creation: parceriaData.partnership_type || null, partnership_number_at_additive_creation: parceriaData.partnership_number || null, 
         // Campos próprios do aditivo (vazios para serem preenchidos no fluxo).

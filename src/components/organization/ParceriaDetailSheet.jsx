@@ -112,7 +112,9 @@ export default function ParceriaDetailSheet({
             { label: 'Conclusão da Revisão', key: 'reviewed_date', icon: Eye },
             { label: 'Remessa a Terceiros', key: 'third_party_referral_date', icon: Send },
             { label: 'Retorno de Terceiros', key: 'third_party_return_date', icon: CheckCircle2 },
-            { label: 'Data da Assinatura', key: 'signature_date', icon: CheckCircle2 },
+            // A "assinatura" do aditivo é a data lançada na conclusão
+            // (aditivo_signature_date), não o signature_date da Parceria.
+            { label: 'Data da Assinatura', key: 'aditivo_signature_date', icon: CheckCircle2 },
             { label: 'Publicação no DEMP', key: 'demp', icon: Calendar },
             { label: 'Arquivamento', key: 'archived_date', icon: Archive },
         ]
