@@ -347,6 +347,20 @@
                     "order": "ASCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "parcerias",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "extinguished",
+                    "order": "ASCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []
