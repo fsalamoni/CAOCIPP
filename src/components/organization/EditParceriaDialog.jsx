@@ -31,6 +31,7 @@ import { Loader2, CheckCircle2, Lock, Trash2, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate, parseValidityPeriod, formatValidityPeriod, VIGENCIA_UNITS, calculateEndDate, isIndeterminateValidity, calculateRenewalNoticeDate, calculateReviewNoticeDate } from '@/lib/dateUtils';
+import { getAutoDateForPhase } from '@/lib/phaseDates';
 import { logger } from '@/utils/logger';
 import { hasAdditives, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
 import { useAditivos } from '@/hooks/useFirestore';
@@ -337,6 +338,15 @@ export default function EditParceriaDialog({
         return rollback;
     };
 
+    // Mapa de fases → data automática. Espelhado em:
+    //   - functions-v2/src/shared/phaseDates.ts (backend — update.ts, updateAditivo.ts)
+    //   - src/lib/phaseDates.js (este frontend)
+    // Centralizado em lib/phaseDates.js para evitar divergência.
+    // Quando o user troca o status, injetamos a data atual do campo
+    // correspondente SE ele ainda não estiver preenchido (preserva edição manual).
+    // Assim o user VÊ a data no formulário e o backend não precisa recalcular
+    // (evita a sensação de "salvei e a data apareceu magicamente").
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (isLocked) {
@@ -439,7 +449,15 @@ export default function EditParceriaDialog({
     };
 
     const handleStatusChange = (status) => {
-        setFormData((prev) => ({ ...prev, status, ...getRollbackByStatus(status) }));
+        // 1) Rollback dos marcadores das fases posteriores (limpa se voltou)
+        // 2) Injeta a data automática da fase alvo (se ainda não existir)
+        // Resultado: o user VÊ a data no formulário imediatamente após trocar
+        // o status, sem precisar salvar para "descobrir" que o backend gravou.
+        setFormData((prev) => {
+            const rollback = getRollbackByStatus(status);
+            const autoDate = getAutoDateForPhase(status, prev);
+            return { ...prev, status, ...rollback, ...autoDate };
+        });
     };
 
     const handleResponsibleChange = (userId) => {
