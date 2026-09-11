@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import {
@@ -27,13 +27,14 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
-import { Loader2, CheckCircle2, Lock, Trash2, Archive } from 'lucide-react';
+import { Loader2, CheckCircle2, Lock, Trash2, Archive, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isValid } from 'date-fns';
 import { parseLocalDate, parseValidityPeriod, formatValidityPeriod, VIGENCIA_UNITS, calculateEndDate, isIndeterminateValidity, calculateRenewalNoticeDate, calculateReviewNoticeDate } from '@/lib/dateUtils';
 import { getAutoDateForPhase } from '@/lib/phaseDates';
 import { logger } from '@/utils/logger';
 import { hasAdditives, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
+import { getMissingPhaseFields, PARCERIA_FIELD_LABELS } from '@/utils/parceriaPhases';
 import { useAditivos } from '@/hooks/useFirestore';
 import ProcessLogDialog from './ProcessLogDialog';
 import EntityComments from './EntityComments';
@@ -75,6 +76,39 @@ const ADITIVO_STATUSES = [
     'Revisadas',
     'Aguarda Terceiros',
 ];
+
+/**
+ * Opções do seletor de fase do ADITIVO. Se o aditivo já está numa fase fora da
+ * lista (ex.: "Concluído" ou "Parcerias", definidas por concludeAditivo),
+ * acrescenta a fase atual como item histórico para o Select não ficar vazio.
+ */
+function aditivoStatusOptions(currentStatus) {
+    if (!currentStatus || ADITIVO_STATUSES.includes(currentStatus)) return ADITIVO_STATUSES;
+    return [...ADITIVO_STATUSES, currentStatus];
+}
+
+// Campos de FASE da Parceria — os únicos que continuam gravaveis quando ela já
+// teve aditivo. Nenhum deles está em FROZEN_WHEN_HAS_ADITIVO (backend:
+// functions-v2/src/parcerias/update.ts), que congela a substância da Parceria
+// (assunto, objeto, partes, tipo/número, assinatura, vigência, termo final e
+// aviso de renovação) a partir do primeiro aditivo.
+const PHASE_ONLY_FIELDS = [
+    'status',
+    'responsible_user_id', 'responsible_user_name', 'responsibility_date', 'distribution_date',
+    'review_start_date', 'review_submission_date', 'reviewed_date', 'review_conclusion_date',
+    'network_folder', 'observations',
+    'third_party', 'third_party_referral_date', 'third_party_return_date',
+    'archived_date', 'extinguished',
+];
+
+/** Recorta um objeto de mudanças deixando apenas os campos de fase. */
+function pickPhaseFields(changes) {
+    const out = {};
+    for (const k of PHASE_ONLY_FIELDS) {
+        if (changes && Object.prototype.hasOwnProperty.call(changes, k)) out[k] = changes[k];
+    }
+    return out;
+}
 
 // Rollback de marcadores por fase do ADITIVO (espelha PHASE_MARKER_FIELDS da
 // Parceria, sem a fase "Parcerias" que não é atingida por aqui). Ao voltar o
@@ -134,6 +168,33 @@ export default function EditParceriaDialog({
     // Item 6: termo final pode ser editado manualmente; após edição manual
     // paramos de sobrescrever com o cálculo automático.
     const [endDateTouched, setEndDateTouched] = useState(false);
+    // Mesma ideia para as datas dos avisos: enquanto o usuário não editar a
+    // data à mão, ela é derivada do período informado.
+    const [renewalNoticeTouched, setRenewalNoticeTouched] = useState(false);
+    const [reviewNoticeTouched, setReviewNoticeTouched] = useState(false);
+
+    // Aba ativa (controlada) — o aviso de campos faltantes leva o usuário
+    // direto para a aba onde o campo é preenchido.
+    const [activeTab, setActiveTab] = useState('basic');
+
+    // Aviso de fase: { title, message, missing: [{label, tabLabel}] }. Quando
+    // preenchido, o formulário NÃO é enviado e o bloco de aviso é exibido.
+    const [phaseWarning, setPhaseWarning] = useState(null);
+
+    // Fase com que o formulário foi carregado — serve para saber se o usuário
+    // realmente mexeu no seletor de status nesta sessão de edição.
+    const [loadedStatus, setLoadedStatus] = useState('');
+
+    // O aviso fica no topo do modal; ao aparecer, trazemos ele para a vista
+    // (o usuário costuma estar rolado até o botão Salvar).
+    const warningRef = useRef(null);
+    useEffect(() => {
+        if (phaseWarning && warningRef.current) {
+            try {
+                warningRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch { /* browsers antigos: ignora */ }
+        }
+    }, [phaseWarning]);
 
     // Formulários das abas de aditivo — mantidos AQUI (no pai) e não dentro do
     // painel, porque o Radix Tabs DESMONTA o conteúdo da aba inativa; se o
@@ -156,6 +217,33 @@ export default function EditParceriaDialog({
     // Aditivos da Parceria (somente ao editar a original): cada um vira uma
     // aba própria, somente leitura, com todas as informações do aditivo.
     const { aditivos } = useAditivos(parceria?.id, open && !isAdditive);
+
+    // Quem "caminha" pelas fases: com um aditivo EM ANDAMENTO, é o ADITIVO que
+    // muda de fase e o backend espelha a fase de volta na Parceria pai (mesma
+    // regra do Kanban — ParceriaKanbanBoard.applyPhaseChange). Sem aditivo em
+    // andamento (nenhum ainda, ou o último já concluído), é a própria Parceria.
+    const hasPendingAditivo = !isAdditive && isLocked && !!parceria?.current_additive_id;
+    const currentAditivo = hasPendingAditivo
+        ? aditivos.find((a) => a.id === parceria.current_additive_id) || null
+        : null;
+    const statusGoesToAditivo = !!currentAditivo;
+    // O doc do aditivo corrente ainda não chegou (ou sumiu): não dá para
+    // decidir o alvo da fase, então o seletor fica desabilitado em vez de
+    // fingir que salva.
+    const statusSelectDisabled = hasPendingAditivo && !currentAditivo;
+
+    // Parceria congelada e SEM aditivo em andamento: a substância continua
+    // congelada, mas a FASE volta a ser da própria Parceria — é ela que o
+    // Kanban move. Então o modal também pode movê-la, enviando SOMENTE os
+    // campos de fase (PHASE_ONLY_FIELDS).
+    const lockedPhaseOnly = isLocked && !hasPendingAditivo;
+    const lockedPhaseChanged = lockedPhaseOnly && (formData.status || '') !== loadedStatus;
+
+    // Campos de FASE (PHASE_ONLY_FIELDS) na tela: só ficam bloqueados quando a
+    // tramitação é do aditivo em andamento — aí eles são preenchidos na aba
+    // dele. Com a Parceria congelada mas sem aditivo em andamento, eles
+    // continuam editáveis (é o que o backend aceita e o que a fase exige).
+    const phaseFieldsDisabled = hasPendingAditivo;
 
     // Configurações do módulo vindas do banco do órgão.
     const tipos = organization?.parceriaSettings?.tipos?.length
@@ -194,6 +282,9 @@ export default function EditParceriaDialog({
         if (!open) return;
         const src = isAdditive && additiveData ? additiveData : parceria;
         if (!src) return;
+
+        const srcStatus = src.status || calculateDerivedStatus(src) || 'Pendente';
+        setLoadedStatus(srcStatus);
 
         // Resolve o assessor responsável por nome legados (mesma estratégia do
         // EditExpedienteDialog).
@@ -250,6 +341,12 @@ export default function EditParceriaDialog({
             responsible_user_id: respId,
             responsible_user_name: respName,
             responsibility_date: formatDateForInput(src.responsibility_date),
+            // Marcadores de fase que alimentam o Timeline da Parceria. Antes
+            // não eram carregados: além de o Timeline ficar furado, as datas
+            // automáticas por fase sobrescreviam valores já gravados.
+            distribution_date: formatDateForInput(src.distribution_date),
+            review_start_date: formatDateForInput(src.review_start_date),
+            third_party_return_date: formatDateForInput(src.third_party_return_date),
             network_folder: src.network_folder || '',
             observations: src.observations || '',
             review_conclusion_date: formatDateForInput(src.review_conclusion_date),
@@ -260,7 +357,7 @@ export default function EditParceriaDialog({
             archived_date: formatDateForInput(src.archived_date),
             urgency_request: src.urgency_request === true
                 || String(src.urgency_request).toLowerCase().trim() === 'sim',
-            status: src.status || calculateDerivedStatus(src) || 'Pendente',
+            status: srcStatus,
             // Campos só de aditivo.
             aditivo_type: src.aditivo_type || '',
             aditivo_number: src.aditivo_number || 0,
@@ -269,6 +366,17 @@ export default function EditParceriaDialog({
         // a cada mudança no roster.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, isAdditive, additiveData, parceria]);
+
+    // Estado de UI reiniciado a cada abertura (aba, aviso de fase e os
+    // marcadores de "editei esta data à mão").
+    useEffect(() => {
+        if (!open) return;
+        setActiveTab('basic');
+        setPhaseWarning(null);
+        setEndDateTouched(false);
+        setRenewalNoticeTouched(false);
+        setReviewNoticeTouched(false);
+    }, [open]);
 
     // (Re)inicializa os formulários das abas de aditivo a partir dos docs.
     // Preserva as abas com edições pendentes (dirty) para não descartar o que o
@@ -317,41 +425,45 @@ export default function EditParceriaDialog({
         formData.validity_unit,
     ]);
 
-    // Itens 7/8/9: recalcula as datas dos avisos automáticos quando o
-    // período ou as datas-base mudam. NÃO sobrescreve se o usuário
-    // editou manualmente a data (heurística simples: se a data atual
-    // do form não bate com o cálculo, considerar manual; reset só se
-    // o usuário tocar no período).
+    // Itens 7/8/9: recalcula as datas dos avisos automáticos quando o período
+    // (ou a data-base) muda.
+    //
+    // Regras — nesta ordem:
+    //   1. Se o usuário editou a data à mão (…Touched), não mexemos mais nela.
+    //   2. Com período > 0 e data-base disponível, a data é derivada.
+    //   3. Se o cálculo não é possível (sem Termo Final, por exemplo), a data
+    //      existente é PRESERVADA — nunca apagamos um valor já gravado por não
+    //      conseguir recalculá-lo.
     useEffect(() => {
         if (!open) return;
-        // Aviso de Renovação
-        const newRenewal = calculateRenewalNoticeDate(
-            formData.end_date,
-            formData.renewal_notice_period,
-            formData.renewal_notice_period_unit,
-        );
-        // Recalcula só se o período está preenchido OU se a data atual
-        // está vazia (para preencher inicialmente).
-        if (formData.renewal_notice_period && Number(formData.renewal_notice_period) > 0) {
-            if (newRenewal !== formData.renewal_notice_date) {
-                setFormData((prev) => ({ ...prev, renewal_notice_date: newRenewal || null }));
+        // Aviso de Renovação: Termo Final MENOS o período informado.
+        if (!renewalNoticeTouched && Number(formData.renewal_notice_period) > 0) {
+            const newRenewal = calculateRenewalNoticeDate(
+                formData.end_date,
+                formData.renewal_notice_period,
+                formData.renewal_notice_period_unit,
+            );
+            if (newRenewal && newRenewal !== formData.renewal_notice_date) {
+                setFormData((prev) => ({ ...prev, renewal_notice_date: newRenewal }));
             }
         }
-        // Aviso de Revisão
-        const newReview = calculateReviewNoticeDate(
-            formData.signature_date,
-            formData.demp,
-            formData.validity_starts_from || 'signature_date',
-            formData.review_notice_period,
-            formData.review_notice_period_unit,
-        );
-        if (formData.review_notice_period && Number(formData.review_notice_period) > 0) {
-            if (newReview !== formData.review_notice_date) {
-                setFormData((prev) => ({ ...prev, review_notice_date: newReview || null }));
+        // Aviso de Revisão: data-base (assinatura ou DEMP) MAIS o período.
+        if (!reviewNoticeTouched && Number(formData.review_notice_period) > 0) {
+            const newReview = calculateReviewNoticeDate(
+                formData.signature_date,
+                formData.demp,
+                formData.validity_starts_from || 'signature_date',
+                formData.review_notice_period,
+                formData.review_notice_period_unit,
+            );
+            if (newReview && newReview !== formData.review_notice_date) {
+                setFormData((prev) => ({ ...prev, review_notice_date: newReview }));
             }
         }
     }, [
         open,
+        renewalNoticeTouched,
+        reviewNoticeTouched,
         formData.end_date,
         formData.signature_date,
         formData.demp,
@@ -443,8 +555,68 @@ export default function EditParceriaDialog({
         return changes;
     };
 
+    // Checa, ANTES de chamar a Cloud Function, se a fase escolhida tem todos os
+    // campos obrigatórios (mesmo mapa do backend — parceriaPhases espelha
+    // PARCERIA_PHASE_REQUIREMENTS). Devolve `true` quando está tudo certo;
+    // quando falta algo, monta o aviso dizendo EXATAMENTE o que preencher,
+    // abre a aba do primeiro campo faltante e devolve `false` (nada é enviado).
+    const validatePhaseBeforeSave = (mainChanges) => {
+        // 1) Entidade principal (Parceria ou, no modo aditivo, o próprio aditivo).
+        if (mainChanges?.status) {
+            const currentStored = entitySource?.status || '';
+            if (mainChanges.status !== currentStored) {
+                const merged = { ...(entitySource || {}), ...mainChanges };
+                const missing = getMissingPhaseFields(merged, mainChanges.status, { isAditivo: isAdditive });
+                if (missing.length > 0) {
+                    setPhaseWarning({
+                        title: `Faltam dados para a fase "${mainChanges.status}"`,
+                        message: isAdditive
+                            ? 'Preencha os campos abaixo para o aditivo entrar nesta fase:'
+                            : 'Preencha os campos abaixo para a Parceria entrar nesta fase:',
+                        missing,
+                    });
+                    if (missing[0]?.tab) setActiveTab(missing[0].tab);
+                    return false;
+                }
+            }
+        }
+
+        // 2) Abas de aditivo com alterações pendentes.
+        if (!isAdditive) {
+            for (const a of aditivos) {
+                if (!aditivoDirty[a.id]) continue;
+                const form = aditivoForms[a.id] || buildAditivoForm(a);
+                if (!form?.status || form.status === (a.status || '')) continue;
+                const merged = { ...a, ...form };
+                const missing = getMissingPhaseFields(merged, form.status, { isAditivo: true });
+                if (missing.length > 0) {
+                    setPhaseWarning({
+                        title: `Aditivo ${a.aditivo_number}: faltam dados para a fase "${form.status}"`,
+                        message: 'Preencha os campos abaixo na aba do aditivo para ele entrar nesta fase:',
+                        missing: missing.map((m) => ({ ...m, tabLabel: `Aditivo ${a.aditivo_number}` })),
+                    });
+                    setActiveTab(`aditivo-${a.id}`);
+                    return false;
+                }
+            }
+        }
+
+        setPhaseWarning(null);
+        return true;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        // Parceria congelada (já teve aditivo) e sem aditivo corrente: só a
+        // FASE vai para o backend — os campos congelados seriam recusados por
+        // updateParceria e não devem ser tocados.
+        let mainChanges = null;
+        if (isAdditive || !isLocked) mainChanges = buildMainChanges();
+        else if (lockedPhaseChanged) mainChanges = pickPhaseFields(buildMainChanges());
+        if (!validatePhaseBeforeSave(mainChanges)) {
+            toast.error('Não foi possível salvar: há campos obrigatórios em branco para a fase escolhida.');
+            return;
+        }
         try {
             setIsSaving(true);
             let savedCount = 0;
@@ -452,21 +624,22 @@ export default function EditParceriaDialog({
             // 1) Entidade principal do modal:
             //    - modo aditivo direto (isAdditive): salva o aditivo;
             //    - modo Parceria SEM aditivos (editável): salva a Parceria;
-            //    - modo Parceria COM aditivos (isLocked): NÃO salva a Parceria
-            //      original (permanece congelada), apenas as abas de aditivo.
+            //    - modo Parceria COM aditivos (isLocked): a substância continua
+            //      congelada; salva as abas de aditivo e, quando não há aditivo
+            //      corrente, também a FASE da Parceria (só PHASE_ONLY_FIELDS).
             if (isAdditive) {
                 await updateAditivo({
                     parceriaId: parceria.id,
                     aditivoId: additiveData.id,
                     organizationId,
-                    changes: buildMainChanges(),
+                    changes: mainChanges,
                 });
                 savedCount += 1;
-            } else if (!isLocked) {
+            } else if (mainChanges) {
                 await updateParceria({
                     id: parceria.id,
                     organizationId,
-                    changes: buildMainChanges(),
+                    changes: mainChanges,
                 });
                 savedCount += 1;
             }
@@ -492,6 +665,16 @@ export default function EditParceriaDialog({
             if (onSuccess) onSuccess();
         } catch (error) {
             logger.error('Error saving parceria/aditivo:', error);
+            // Regra de fase recusada pelo backend (última linha de defesa): o
+            // texto já diz o que falta — mostramos no mesmo bloco de aviso, que
+            // fica visível no modal, em vez de só num toast que some.
+            if (error?.code === 'functions/failed-precondition' || /preencha|congelado|EXTINGUIR/i.test(error?.message || '')) {
+                setPhaseWarning({
+                    title: 'A alteração não foi aceita',
+                    message: error.message,
+                    missing: [],
+                });
+            }
             toast.error('Erro ao salvar: ' + error.message);
         } finally {
             setIsSaving(false);
@@ -532,15 +715,56 @@ export default function EditParceriaDialog({
         }
     };
 
+    // Voltar de fase LIMPA os marcadores das fases posteriores (mesma regra do
+    // Kanban). Como aqui isso acontece com um clique no seletor, pedimos
+    // confirmação listando o que realmente será apagado — só os campos que hoje
+    // têm conteúdo. Devolve false se o usuário cancelar.
+    const confirmRollback = (rollback, current, toStatus, entityLabel) => {
+        const willClear = Object.keys(rollback || {}).filter((k) => {
+            const v = current?.[k];
+            return v !== null && v !== undefined && String(v).trim() !== '';
+        });
+        if (willClear.length === 0) return true;
+        const labels = willClear.map((k) => PARCERIA_FIELD_LABELS[k] || k);
+        return window.confirm(
+            `Voltar ${entityLabel} para a fase "${toStatus}" vai APAGAR os dados das fases seguintes:\n\n`
+            + `• ${labels.join('\n• ')}\n\nDeseja continuar?`
+        );
+    };
+
     const handleStatusChange = (status) => {
+        // A extinção é uma ação terminal, com confirmação própria (o backend
+        // exige digitar "EXTINGUIR" e só aceita a partir da fase "Parcerias").
+        // Por isso ela NÃO é definida por este seletor.
+        if (status === 'Extintos' && formData.status !== 'Extintos') {
+            setPhaseWarning({
+                title: 'A fase "Extintos" não é definida por aqui',
+                message: 'Use a ação "Extinguir Parceria" (no painel da Parceria ou no Kanban): ela exige confirmação e registra a extinção corretamente.',
+                missing: [],
+            });
+            return;
+        }
+        // Com a Parceria congelada (já teve aditivo), o rollback fica restrito
+        // aos campos de fase: os campos congelados não são enviados ao backend,
+        // então também não podem sumir da tela.
+        const rollback = lockedPhaseOnly
+            ? pickPhaseFields(getRollbackByStatus(status))
+            : getRollbackByStatus(status);
+        if (!confirmRollback(rollback, formData, status, 'a Parceria')) return;
+        setPhaseWarning(null);
         // 1) Rollback dos marcadores das fases posteriores (limpa se voltou)
         // 2) Injeta a data automática da fase alvo (se ainda não existir)
         // Resultado: o user VÊ a data no formulário imediatamente após trocar
         // o status, sem precisar salvar para "descobrir" que o backend gravou.
         setFormData((prev) => {
-            const rollback = getRollbackByStatus(status);
             const autoDate = getAutoDateForPhase(status, prev);
-            return { ...prev, status, ...rollback, ...autoDate };
+            // Sair de "Extintos" para uma fase anterior "des-extingue" a
+            // Parceria (mesma regra do handleBackwardMove do Kanban); sem isso
+            // o registro continuaria aparecendo como extinto em toda a UI.
+            const undoExtinction = prev.status === 'Extintos'
+                ? { extinguished: false, archived_date: null }
+                : {};
+            return { ...prev, status, ...rollback, ...autoDate, ...undoExtinction };
         });
     };
 
@@ -572,6 +796,9 @@ export default function EditParceriaDialog({
     // não houver) e faz rollback dos marcadores das fases posteriores. Mesma
     // lógica de handleStatusChange da Parceria.
     const handleAditivoStatusChange = (id, status) => {
+        const aditivoLabel = `o Aditivo ${aditivos.find((a) => a.id === id)?.aditivo_number ?? ''}`.trim();
+        if (!confirmRollback(getAditivoRollback(status), aditivoForms[id], status, aditivoLabel)) return;
+        setPhaseWarning(null);
         setAditivoForms((prev) => {
             const cur = prev[id] || {};
             const rollback = getAditivoRollback(status);
@@ -663,7 +890,50 @@ export default function EditParceriaDialog({
                     </DialogHeader>
 
                     <form onSubmit={handleSubmit} className="mt-4">
-                        <Tabs defaultValue="basic" className="w-full">
+                        {/* Aviso de fase: aparece ao tentar salvar uma mudança de
+                            status sem os campos obrigatórios daquela fase. */}
+                        {phaseWarning && (
+                            <div
+                                ref={warningRef}
+                                role="alert"
+                                className="mb-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4"
+                            >
+                                <div className="flex items-start gap-3">
+                                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                                            {phaseWarning.title}
+                                        </p>
+                                        <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                                            {phaseWarning.message}
+                                        </p>
+                                        {phaseWarning.missing?.length > 0 && (
+                                            <ul className="mt-2 space-y-1">
+                                                {phaseWarning.missing.map((m) => (
+                                                    <li key={m.field} className="text-xs text-amber-900 dark:text-amber-100 flex items-start gap-1.5">
+                                                        <span className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        <span>
+                                                            <strong>{m.label}</strong>
+                                                            {m.tabLabel ? <span className="text-amber-700 dark:text-amber-300"> — aba "{m.tabLabel}"</span> : null}
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="shrink-0 h-7 px-2 text-amber-700 dark:text-amber-300"
+                                        onClick={() => setPhaseWarning(null)}
+                                    >
+                                        Fechar
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                             <TabsList className="flex w-full flex-wrap h-auto">
                                 <TabsTrigger value="basic" className="flex-1 min-w-[8rem]">Dados Básicos</TabsTrigger>
                                 <TabsTrigger value="workflow" className="flex-1 min-w-[8rem]">Fluxo de Trabalho</TabsTrigger>
@@ -929,6 +1199,7 @@ export default function EditParceriaDialog({
                                     <Switch
                                         id="urgency_request"
                                         checked={formData.urgency_request || false}
+                                        disabled={isLocked}
                                         onCheckedChange={(checked) => setFormData({ ...formData, urgency_request: checked })}
                                     />
                                 </div>
@@ -943,6 +1214,7 @@ export default function EditParceriaDialog({
                                         <Select
                                             value={formData.responsible_user_id || '__none__'}
                                             onValueChange={handleResponsibleChange}
+                                            disabled={phaseFieldsDisabled}
                                         >
                                             <SelectTrigger className="mt-1">
                                                 <SelectValue placeholder="Selecione" />
@@ -967,9 +1239,24 @@ export default function EditParceriaDialog({
                                         <Input
                                             type="date"
                                             value={formData.responsibility_date || ''}
+                                            disabled={phaseFieldsDisabled}
                                             onChange={(e) => setFormData({ ...formData, responsibility_date: e.target.value })}
                                             className="mt-1"
                                         />
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Distribuição</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.distribution_date || ''}
+                                            disabled={phaseFieldsDisabled}
+                                            onChange={(e) => setFormData({ ...formData, distribution_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Primeiro marco do Timeline da Parceria.</p>
                                     </div>
                                 </div>
 
@@ -979,6 +1266,7 @@ export default function EditParceriaDialog({
                                         <Input
                                             type="date"
                                             value={formData.third_party_referral_date || ''}
+                                            disabled={phaseFieldsDisabled}
                                             onChange={(e) => setFormData({ ...formData, third_party_referral_date: e.target.value })}
                                             className="mt-1"
                                         />
@@ -988,6 +1276,7 @@ export default function EditParceriaDialog({
                                         <Select
                                             value={formData.third_party || '__none__'}
                                             onValueChange={(val) => setFormData({ ...formData, third_party: val })}
+                                            disabled={phaseFieldsDisabled}
                                         >
                                             <SelectTrigger className="mt-1">
                                                 <SelectValue placeholder="Selecione o destinatário" />
@@ -1003,6 +1292,17 @@ export default function EditParceriaDialog({
                                             </SelectContent>
                                         </Select>
                                     </div>
+                                    <div>
+                                        <Label>Data de Retorno de Terceiros</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.third_party_return_date || ''}
+                                            disabled={phaseFieldsDisabled}
+                                            onChange={(e) => setFormData({ ...formData, third_party_return_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Exigida para a fase "Parcerias".</p>
+                                    </div>
                                 </div>
 
                                 <div>
@@ -1010,6 +1310,7 @@ export default function EditParceriaDialog({
                                     <Input
                                         type="date"
                                         value={formData.review_conclusion_date || ''}
+                                        disabled={phaseFieldsDisabled}
                                         onChange={(e) => setFormData({ ...formData, review_conclusion_date: e.target.value })}
                                         className="mt-1"
                                     />
@@ -1019,6 +1320,7 @@ export default function EditParceriaDialog({
                                     <Label>Observações</Label>
                                     <Textarea
                                         value={formData.observations || ''}
+                                        disabled={phaseFieldsDisabled}
                                         onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
                                         placeholder="Observações sobre a Parceria..."
                                         rows={4}
@@ -1028,19 +1330,51 @@ export default function EditParceriaDialog({
 
                                 <div>
                                     <Label>Status da Parceria</Label>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                        O status é a FASE da Parceria: ao salvar, ela muda de coluna no Kanban e de
+                                        situação na tabela.
+                                        {statusGoesToAditivo && (
+                                            <> Como há um aditivo em andamento, quem caminha pelas fases é o
+                                                <strong> Aditivo {currentAditivo.aditivo_number}</strong> — a Parceria
+                                                acompanha a fase dele.</>
+                                        )}
+                                    </p>
                                     <Select
-                                        value={formData.status || 'Pendente'}
-                                        onValueChange={handleStatusChange}
+                                        value={statusGoesToAditivo
+                                            ? (aditivoForms[currentAditivo.id]?.status || currentAditivo.status || 'Pendente')
+                                            : (formData.status || 'Pendente')}
+                                        onValueChange={statusGoesToAditivo
+                                            ? ((s) => handleAditivoStatusChange(currentAditivo.id, s))
+                                            : handleStatusChange}
+                                        disabled={statusSelectDisabled}
                                     >
                                         <SelectTrigger className="mt-1">
                                             <SelectValue placeholder="Selecione o status" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {PARCERIA_STATUSES.map((s) => (
+                                            {(statusGoesToAditivo ? aditivoStatusOptions(aditivoForms[currentAditivo.id]?.status || currentAditivo.status) : PARCERIA_STATUSES).map((s) => (
                                                 <SelectItem key={s} value={s}>{s}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    {statusSelectDisabled && (
+                                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                                            Carregando o aditivo em andamento — a fase é dele e pode ser alterada assim
+                                            que a aba do aditivo abrir.
+                                        </p>
+                                    )}
+                                    {lockedPhaseOnly && (
+                                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                                            Esta Parceria já teve aditivo: os dados da Parceria ficam congelados, mas a
+                                            fase continua sendo dela — só a mudança de fase é salva por aqui.
+                                        </p>
+                                    )}
+                                    {statusGoesToAditivo && (
+                                        <p className="text-[10px] text-slate-400 mt-1">
+                                            A conclusão do aditivo (fase "Parcerias") e a extinção têm fluxo próprio no
+                                            Kanban e não aparecem nesta lista.
+                                        </p>
+                                    )}
                                 </div>
                             </TabsContent>
 
@@ -1062,13 +1396,19 @@ export default function EditParceriaDialog({
                                                 min="0"
                                                 value={formData.renewal_notice_period || ''}
                                                 disabled={isLocked}
-                                                onChange={(e) => setFormData({ ...formData, renewal_notice_period: e.target.value })}
+                                                onChange={(e) => {
+                                                    setRenewalNoticeTouched(false);
+                                                    setFormData({ ...formData, renewal_notice_period: e.target.value });
+                                                }}
                                                 placeholder="Ex.: 30"
                                                 className="mt-1"
                                             />
                                             <Select
                                                 value={formData.renewal_notice_period_unit || 'dias'}
-                                                onValueChange={(val) => setFormData({ ...formData, renewal_notice_period_unit: val })}
+                                                onValueChange={(val) => {
+                                                    setRenewalNoticeTouched(false);
+                                                    setFormData({ ...formData, renewal_notice_period_unit: val });
+                                                }}
                                                 disabled={isLocked}
                                             >
                                                 <SelectTrigger className="mt-1">
@@ -1082,14 +1422,27 @@ export default function EditParceriaDialog({
                                             </Select>
                                         </div>
                                         <div>
-                                            <Label className="text-xs text-slate-500">Data do Aviso (calculada automaticamente a partir do Termo Final)</Label>
+                                            <Label className="text-xs text-slate-500">Data do Aviso (calculada automaticamente: Termo Final menos o período acima)</Label>
                                             <Input
                                                 type="date"
                                                 value={formData.renewal_notice_date || ''}
                                                 disabled={isLocked}
-                                                onChange={(e) => setFormData({ ...formData, renewal_notice_date: e.target.value })}
+                                                onChange={(e) => {
+                                                    setRenewalNoticeTouched(true);
+                                                    setFormData({ ...formData, renewal_notice_date: e.target.value });
+                                                }}
                                                 className="mt-1"
                                             />
+                                            {Number(formData.renewal_notice_period) > 0 && !formData.end_date && (
+                                                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                                    Informe o Termo Final (ou a Vigência) para a data do aviso ser calculada.
+                                                </p>
+                                            )}
+                                            {renewalNoticeTouched && (
+                                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                                    Data editada manualmente — o cálculo automático não vai sobrescrevê-la.
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1109,13 +1462,19 @@ export default function EditParceriaDialog({
                                                 min="0"
                                                 value={formData.review_notice_period || ''}
                                                 disabled={isLocked}
-                                                onChange={(e) => setFormData({ ...formData, review_notice_period: e.target.value })}
+                                                onChange={(e) => {
+                                                    setReviewNoticeTouched(false);
+                                                    setFormData({ ...formData, review_notice_period: e.target.value });
+                                                }}
                                                 placeholder="Ex.: 12"
                                                 className="mt-1"
                                             />
                                             <Select
                                                 value={formData.review_notice_period_unit || 'meses'}
-                                                onValueChange={(val) => setFormData({ ...formData, review_notice_period_unit: val })}
+                                                onValueChange={(val) => {
+                                                    setReviewNoticeTouched(false);
+                                                    setFormData({ ...formData, review_notice_period_unit: val });
+                                                }}
                                                 disabled={isLocked}
                                             >
                                                 <SelectTrigger className="mt-1">
@@ -1134,7 +1493,10 @@ export default function EditParceriaDialog({
                                                 type="date"
                                                 value={formData.review_notice_date || ''}
                                                 disabled={isLocked}
-                                                onChange={(e) => setFormData({ ...formData, review_notice_date: e.target.value })}
+                                                onChange={(e) => {
+                                                    setReviewNoticeTouched(true);
+                                                    setFormData({ ...formData, review_notice_date: e.target.value });
+                                                }}
                                                 className="mt-1"
                                             />
                                         </div>
@@ -1159,39 +1521,57 @@ export default function EditParceriaDialog({
 
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div>
+                                        <Label>Início da Revisão</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.review_start_date || ''}
+                                            disabled={phaseFieldsDisabled}
+                                            onChange={(e) => setFormData({ ...formData, review_start_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Exigida para a fase "Em revisão".</p>
+                                    </div>
+                                    <div>
                                         <Label>Remessa para Revisão</Label>
                                         <Input
                                             type="date"
                                             value={formData.review_submission_date || ''}
+                                            disabled={phaseFieldsDisabled}
                                             onChange={(e) => setFormData({ ...formData, review_submission_date: e.target.value })}
-                                            className="mt-1"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label>Revisão Concluída</Label>
-                                        <Input
-                                            type="date"
-                                            value={formData.reviewed_date || ''}
-                                            onChange={(e) => setFormData({ ...formData, reviewed_date: e.target.value })}
                                             className="mt-1"
                                         />
                                     </div>
                                 </div>
 
-                                <div>
-                                    <Label>Data de Arquivamento</Label>
-                                    <Input
-                                        type="date"
-                                        value={formData.archived_date || ''}
-                                        onChange={(e) => setFormData({ ...formData, archived_date: e.target.value })}
-                                        className="mt-1"
-                                    />
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Revisão Concluída</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.reviewed_date || ''}
+                                            disabled={phaseFieldsDisabled}
+                                            onChange={(e) => setFormData({ ...formData, reviewed_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Exigida para a fase "Revisadas".</p>
+                                    </div>
+                                    <div>
+                                        <Label>Data de Arquivamento</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.archived_date || ''}
+                                            disabled={phaseFieldsDisabled}
+                                            onChange={(e) => setFormData({ ...formData, archived_date: e.target.value })}
+                                            className="mt-1"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div>
                                     <Label>Pasta na Rede</Label>
                                     <Input
                                         value={formData.network_folder || ''}
+                                        disabled={phaseFieldsDisabled}
                                         onChange={(e) => setFormData({ ...formData, network_folder: e.target.value })}
                                         placeholder="Caminho da pasta na rede..."
                                         className="mt-1"
@@ -1287,9 +1667,9 @@ export default function EditParceriaDialog({
                                     type="submit"
                                     className="bg-primary"
                                     /* Quando a Parceria está congelada (tem aditivos), o botão
-                                       continua salvando as abas de aditivo — habilita se houver
-                                       alterações pendentes em alguma aba. */
-                                    disabled={isSaving || isDeleting || (isLocked && !anyAditivoDirty)}
+                                       continua salvando as abas de aditivo — e a fase da própria
+                                       Parceria, quando não há aditivo corrente. */
+                                    disabled={isSaving || isDeleting || (isLocked && !anyAditivoDirty && !lockedPhaseChanged)}
                                 >
                                     {isSaving ? (
                                         <>
@@ -1430,11 +1810,8 @@ function AditivoEditablePanel({
         || aditivo.demp
         || aditivo.prazo_valor
         || aditivo.objeto_aditivo;
-    // Opções de status: fases pré-conclusão. Se o aditivo já está numa fase
-    // fora da lista (ex.: "Concluído"), acrescenta como item histórico.
-    const statusOptions = ADITIVO_STATUSES.includes(formData.status)
-        ? ADITIVO_STATUSES
-        : [...ADITIVO_STATUSES, formData.status];
+    // Opções de status: fases pré-conclusão (+ fase atual, se for histórica).
+    const statusOptions = aditivoStatusOptions(formData.status);
 
     return (
         <div className="space-y-5">

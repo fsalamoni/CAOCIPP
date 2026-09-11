@@ -113,8 +113,12 @@ function fmtISO(dt) {
  * Espelha functions-v2/src/parcerias/concludeAditivo.addDurationToDate:
  * para meses/anos faz "clamp" no último dia do mês-alvo (31/01 + 1 mês → 28/02).
  *
+ * Aceita valores NEGATIVOS (subtrai da data base) — é assim que a Data do
+ * Aviso de Renovação é obtida (termo final MENOS o período de aviso).
+ * Zero e valores não numéricos devolvem null (nada a calcular).
+ *
  * @param {string|Date} dateStr data base
- * @param {number} valor quantidade
+ * @param {number} valor quantidade (negativo = para trás)
  * @param {string} unidade 'dias' | 'meses' | 'anos'
  * @returns {string|null} data resultante em 'yyyy-MM-dd' ou null
  */
@@ -122,7 +126,7 @@ export function addDurationToDate(dateStr, valor, unidade) {
     const base = parseLocalDate(dateStr);
     if (isNaN(base.getTime())) return null;
     const n = Number(valor);
-    if (!Number.isFinite(n) || n <= 0) return null;
+    if (!Number.isFinite(n) || n === 0) return null;
 
     const y = base.getFullYear();
     const mo = base.getMonth();

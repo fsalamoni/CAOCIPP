@@ -122,7 +122,9 @@ export const updateParceria = onCall<UpdateParceriaRequest>(
             );
             const endDate = (changes.end_date ?? parceriaData.end_date) as string | null;
             if (Number.isFinite(period) && period > 0 && ['dias','meses','anos'].includes(unit) && endDate) {
-                const computed = addDurationToDate(endDate, period, unit);
+                // O aviso é ANTES do termo final: termo final MENOS o período.
+                // (mesma fórmula de calculateRenewalNoticeDate no frontend.)
+                const computed = addDurationToDate(endDate, -period, unit);
                 if (computed) changes.renewal_notice_date = computed;
                 else delete changes.renewal_notice_date;
             } else {

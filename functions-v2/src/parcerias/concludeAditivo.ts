@@ -206,7 +206,8 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
                 const rUnit = String(parceria.renewal_notice_period_unit || '');
                 const prevRenewal = (parceria.renewal_notice_date as string) || null;
                 if (newEndDate && Number.isFinite(rPeriod) && rPeriod > 0 && UNIDADES.has(rUnit)) {
-                    const r = addDurationToDate(newEndDate, rPeriod, rUnit);
+                    // Aviso ANTES do novo termo final (termo final − período).
+                    const r = addDurationToDate(newEndDate, -rPeriod, rUnit);
                     if (r) {
                         newRenewalNoticeDate = r;
                         parentUpdate.renewal_notice_date = r;
