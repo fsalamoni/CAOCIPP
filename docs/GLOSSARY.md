@@ -432,7 +432,7 @@ Notes and important points recorded during analysis.
 ## Módulo Parcerias (v1.16.0)
 
 ### Parceria
-Convênio, Termo de Cooperação ou Termo de Fomento firmado entre o MP/RS e outro ente. Entidade de primeiro nível na coleção `parcerias/`. Tem 6 fases: Pendentes, Em Análise, Revisão, Aguarda Terceiros, Parcerias, Extintos.
+Convênio, Termo de Cooperação ou Termo de Fomento firmado entre o MP/RS e outro ente. Entidade de primeiro nível na coleção `parcerias/`. Tem 7 fases (ordem canônica em `PARCERIA_VALID_STATUSES`): Pendente, Em análise, Em revisão, Revisadas, Aguarda Terceiros, Parcerias, Extintos.
 
 ### PGEA
 Número do "Procedimento de Gestão Estratégica e Administrativa" — identificador único da Parceria no órgão. Equivalente ao número de processo das Consultas. Pode ser gerado automaticamente pelo MP (formato livre).
@@ -458,7 +458,7 @@ Período de validade da Parceria (ex.: "12 meses", "2 anos"). Campo texto livre;
 Data de encerramento da Parceria. Quando a data atual passa do termo final e a Parceria não foi extinta, o sistema recomenda a criação de um aditivo (renovação).
 
 ### Aviso de Renovação
-Data sugerida para início do processo de renovação. Usado para alertas de prazo no calendário de vencimentos.
+Data sugerida para início do processo de renovação. Usado para alertas de prazo no calendário de vencimentos. É calculada automaticamente a partir do **Termo Final MENOS o período de aviso** (`renewal_notice_period` + unidade) — o aviso acontece *antes* do fim da vigência. O cálculo é feito no modal de edição (`calculateRenewalNoticeDate`) e espelhado no backend (`updateParceria`, `concludeAditivo`, `checkPartnershipNoticeDeadlines`). Editar a data à mão desliga o recálculo automático até que o período mude.
 
 ### Aditivo
 Documento complementar à Parceria original. Pode ser **Renovação/Prorrogação** (estende a vigência) ou **Qualitativo (Objeto)** (altera o objeto sem mudar prazo). Vive em subcoleção `parcerias/{id}/aditivos/{addId}`. Cada Parceria pode ter N aditivos.
@@ -477,6 +477,8 @@ O aditivo que está sendo processado no momento (`parceria.current_additive_id`)
 
 ### Lock de campos
 Quando uma Parceria tem 1+ aditivos, os campos do documento original (PGEA, assunto, objeto, partes, partnership_type, partnership_number, signature_date, validity_period, end_date, renewal_notice_date) ficam **read-only**. Edições subsequentes vão para o aditivo corrente. O backend (Cloud Function `updateParceria`) recusa mudanças nesses campos quando `aditivo_count > 0`.
+
+O lock vale para a *substância* da Parceria, não para a **fase**: com um aditivo em andamento (`current_additive_id` preenchido), o seletor de status do modal move o **aditivo corrente** (o backend espelha a fase de volta na Parceria pai); sem aditivo em andamento (o último já concluído), o modal move a própria Parceria enviando apenas os campos de fase (`PHASE_ONLY_FIELDS` em `EditParceriaDialog`).
 
 ---
 
