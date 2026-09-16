@@ -42,6 +42,18 @@ export { deleteAditivo } from './parcerias/deleteAditivo';
 export { extinguishParceria } from './parcerias/extinguish';
 export { importParceriasFromExcel } from './import/fromExcelParcerias';
 
+// ========== JURIMETRIA (base de júris do órgão — flag: jurimetria_enabled) ==========
+// Módulo de jurimetria: base própria de júris por órgão, com importação
+// idempotente de planilha (pré-visualização + confirmação), CRUD, atualização
+// em massa e exclusão. As listas oficiais, a tabela de pontuação e as colunas
+// personalizadas ficam em `organization.jurimetriaSettings` (ver
+// shared/jurimetria.ts), gravadas por updateOrganization.
+export { createJuri } from './juris/create';
+export { updateJuri } from './juris/update';
+export { deleteJuris } from './juris/delete';
+export { bulkUpdateJuris } from './juris/bulkUpdate';
+export { importJurisFromExcel } from './import/fromExcelJuris';
+
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
 export { getPlatformOverview } from './platform/overview';
 export { getFeatureFlags, setFeatureFlag } from './platform/featureFlags';

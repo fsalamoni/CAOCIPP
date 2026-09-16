@@ -252,6 +252,27 @@ service cloud.firestore {
       }
     }
 
+    // ========== JURIMETRIA (base de júris — flag: jurimetria_enabled) ==========
+    // Coleção de primeiro nível `juris/{juriId}`. Diferente de processes/
+    // expedientes/parcerias, aqui NENHUMA escrita do cliente é permitida: todo
+    // o CRUD passa por Cloud Functions (createJuri/updateJuri/deleteJuris/
+    // bulkUpdateJuris/importJurisFromExcel), que são as únicas que aplicam a
+    // normalização das listas oficiais, a checagem de duplicidade pelo número
+    // do processo e a permissão `delete_records`. Escrita direta permitiria
+    // gravar um júri fora das listas do órgão ou duplicar a chave natural.
+    match /juris/{juriId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      allow write: if false;
+
+      // Histórico do júri (espelho do activity_log). Leitura para membros do
+      // órgão do júri pai; escrita exclusiva de Cloud Functions (Admin SDK).
+      match /history/{entryId} {
+        allow read: if isAuthenticated() &&
+          isMemberOf(get(/databases/$(database)/documents/juris/$(juriId)).data.organization_id);
+        allow write: if false;
+      }
+    }
+
     // ========== PÁGINAS/PROCESSOS PERSONALIZADOS (flag: custom_entities) ==========
     // Definições dos tipos de entidade. Leitura para membros do órgão; toda
     // escrita passa por Cloud Functions (validação/sanitização no servidor).

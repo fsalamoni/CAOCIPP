@@ -27,6 +27,7 @@ import {
     Sparkles,
     Settings,
     CalendarDays,
+    Scale,
 } from 'lucide-react';
 
 // Chaves de módulo built-in (cada módulo pode gerar 1+ abas).
@@ -34,6 +35,7 @@ export const BUILTIN_MODULES = {
     PROCESSES: 'processes',
     EXPEDIENTES: 'expedientes',
     PARCERIAS: 'parcerias',
+    JURIMETRIA: 'jurimetria',
     SUMMARY: 'summary',
 };
 
@@ -58,6 +60,12 @@ export const BUILTIN_MODULE_META = [
         icon: Handshake,
     },
     {
+        key: BUILTIN_MODULES.JURIMETRIA,
+        label: 'Jurimetria',
+        description: 'Base de júris do órgão: importação de planilha, cadastro e edição de júris, relatórios estáticos e dinâmicos, exportação em Excel, PDF, Word, Markdown, CSV e JSON.',
+        icon: Scale,
+    },
+    {
         key: BUILTIN_MODULES.SUMMARY,
         label: 'Resumos Inteligentes',
         description: 'Indicadores e gráficos consolidados do órgão.',
@@ -74,12 +82,13 @@ export function resolveBuiltinModules(organization) {
     const cfg = organization?.moduleConfig;
     // Legado: sem config => tudo ligado (comportamento atual, nada some).
     if (!cfg || typeof cfg !== 'object') {
-        return { processes: true, expedientes: true, parcerias: true, summary: true };
+        return { processes: true, expedientes: true, parcerias: true, jurimetria: true, summary: true };
     }
     return {
         processes: cfg.processes?.enabled === true,
         expedientes: cfg.expedientes?.enabled === true,
         parcerias: cfg.parcerias?.enabled === true,
+        jurimetria: cfg.jurimetria?.enabled === true,
         summary: cfg.summary?.enabled === true,
     };
 }
@@ -95,10 +104,19 @@ export function resolveBuiltinModules(organization) {
  * @param {boolean} [opts.parceriasOn=false]  Estado da flag PARCERIAS (Módulo de Parcerias).
  *   Quando DESLIGADA, as abas de Parcerias nunca aparecem, mesmo com
  *   `moduleConfig.parcerias.enabled = true` no órgão (defesa em profundidade).
+ * @param {boolean} [opts.jurimetriaOn=false]  Estado da flag JURIMETRIA.
+ *   Mesma defesa em profundidade das Parcerias: com a flag global desligada, a
+ *   aba de Jurimetria nunca aparece, mesmo que o órgão a tenha ligada.
  * @returns {Array<{key:string,label:string,icon:Function,creatorOnly?:boolean,module?:string,custom?:boolean,typeId?:string}>}
  */
 export function getOrganizationTabs(organization, opts = {}) {
-    const { customEntitiesOn = false, customTypes = [], deadlineCalendarOn = false, parceriasOn = false } = opts;
+    const {
+        customEntitiesOn = false,
+        customTypes = [],
+        deadlineCalendarOn = false,
+        parceriasOn = false,
+        jurimetriaOn = false,
+    } = opts;
     const enabled = resolveBuiltinModules(organization);
 
     // Quando a flag está DESLIGADA, todos os built-ins aparecem (idêntico a hoje).
@@ -107,6 +125,7 @@ export function getOrganizationTabs(organization, opts = {}) {
     const showProcesses = !customEntitiesOn || enabled.processes;
     const showExpedientes = !customEntitiesOn || enabled.expedientes;
     const showParcerias = parceriasOn && (!customEntitiesOn || enabled.parcerias);
+    const showJurimetria = jurimetriaOn && (!customEntitiesOn || enabled.jurimetria);
     const showSummary = !customEntitiesOn || enabled.summary;
 
     const tabs = [];
@@ -127,6 +146,10 @@ export function getOrganizationTabs(organization, opts = {}) {
     if (showParcerias) {
         tabs.push({ key: 'kanban-parcerias', label: 'Painel de Parcerias', icon: LayoutDashboard, module: BUILTIN_MODULES.PARCERIAS });
         tabs.push({ key: 'parcerias', label: 'Parcerias', icon: Handshake, module: BUILTIN_MODULES.PARCERIAS });
+    }
+
+    if (showJurimetria) {
+        tabs.push({ key: 'jurimetria', label: 'Jurimetria', icon: Scale, module: BUILTIN_MODULES.JURIMETRIA });
     }
 
     if (showSummary) {
@@ -167,6 +190,7 @@ export const BUILTIN_TAB_KEYS = [
     'expedientes',
     'kanban-parcerias',
     'parcerias',
+    'jurimetria',
     'summary',
     'calendar',
     'admin',

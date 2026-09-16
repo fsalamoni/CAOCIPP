@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer, Scale } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { hasOrgPermission, hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -11,6 +11,7 @@ import MemberManagement from './MemberManagement';
 import MatterConfiguration from './MatterConfiguration';
 import ExpedienteConfiguration from './ExpedienteConfiguration';
 import ParceriaConfiguration from './ParceriaConfiguration';
+import JurimetriaConfiguration from './JurimetriaConfiguration';
 import AISettings from './AISettings';
 import DangerZone from './DangerZone';
 import BulkReplaceTool from './BulkReplaceTool';
@@ -32,6 +33,14 @@ export default function AdminManagement({ organization, members, userRole, userM
     const isWebhooksOn = useFlag(FEATURE_FLAGS.OUTBOUND_WEBHOOKS.key);
     const showSecurityTab = isAccessAuditLogOn || isRetentionOn || isWebhooksOn;
     const isStageTimeOn = useFlag(FEATURE_FLAGS.STAGE_TIME_INDICATOR.key);
+    // Aba de Jurimetria: só aparece com a flag global ligada E com o módulo
+    // ativado para este órgão em Páginas e Módulos (defesa em profundidade,
+    // igual à de Parcerias).
+    const isJurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
+    const jurimetriaEnabledForOrg = organization?.moduleConfig
+        ? organization.moduleConfig?.jurimetria?.enabled === true
+        : true;
+    const showJurimetriaTab = isJurimetriaOn && (!customEntitiesOn || jurimetriaEnabledForOrg);
 
     const isCreator = userRole === 'creator';
 
@@ -44,6 +53,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         metrics: isCreator || hasOrgPermission(userMembership, 'manage_metrics'),
         expedientes: isCreator || hasOrgPermission(userMembership, 'configure_expedientes'),
         parcerias: isCreator || hasOrgPermission(userMembership, 'configure_parcerias'),
+        jurimetria: isCreator || hasOrgPermission(userMembership, 'configure_jurimetria'),
         padronizacao: isCreator || hasOrgPermission(userMembership, 'bulk_standardize'),
     }), [userMembership, isCreator]);
 
@@ -66,6 +76,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         || (can.metrics && 'metrics')
         || (can.expedientes && 'expedientes')
         || (can.parcerias && 'parcerias')
+        || (showJurimetriaTab && can.jurimetria && 'jurimetria')
         || (can.padronizacao && 'padronizacao')
         || 'details';
 
@@ -128,6 +139,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                         <TabsTrigger value="parcerias" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Handshake className="w-4 h-4" />
                             Parcerias
+                        </TabsTrigger>
+                    )}
+                    {showJurimetriaTab && can.jurimetria && (
+                        <TabsTrigger value="jurimetria" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
+                            <Scale className="w-4 h-4" />
+                            Jurimetria
                         </TabsTrigger>
                     )}
                     {can.padronizacao && (
@@ -213,6 +230,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                 {can.parcerias && (
                     <TabsContent value="parcerias">
                         <ParceriaConfiguration organization={organization} />
+                    </TabsContent>
+                )}
+
+                {showJurimetriaTab && can.jurimetria && (
+                    <TabsContent value="jurimetria">
+                        <JurimetriaConfiguration organization={organization} />
                     </TabsContent>
                 )}
 

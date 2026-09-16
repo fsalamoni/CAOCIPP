@@ -39,7 +39,7 @@ import { getExpedienteField } from '@/utils/expedienteUtils';
 
 
 
-export default function GeneralInfo({ organization, members, processes = [], expedientes = [], parcerias = [], userRole, userId, membersLoading, membersError, processesLoading, parceriasLoading, userNameMap = {} }) {
+export default function GeneralInfo({ organization, members, processes = [], expedientes = [], parcerias = [], juris = [], userRole, userId, membersLoading, membersError, processesLoading, parceriasLoading, userNameMap = {} }) {
   const [isRemoving, setIsRemoving] = useState(false);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -47,15 +47,17 @@ export default function GeneralInfo({ organization, members, processes = [], exp
   const [customYears, setCustomYears] = useState([]);
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
   const parceriasOn = useFlag(FEATURE_FLAGS.PARCERIAS.key);
+  const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
 
   // Available years for filter (dados ordinários + páginas custom + ano atual)
   const years = React.useMemo(() => {
     const yearsSet = new Set([currentYear]);
     processes.forEach(p => { const y = parseYear(p.entry_date); if (y) yearsSet.add(y); });
     expedientes.forEach(e => { const y = parseYear(getExpedienteField(e, 'entry_date')); if (y) yearsSet.add(y); });
+    juris.forEach(j => { const y = parseYear(j.data_juri); if (y) yearsSet.add(y); });
     (customYears || []).forEach(y => { if (y) yearsSet.add(y); });
     return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [processes, expedientes, customYears, currentYear]);
+  }, [processes, expedientes, juris, customYears, currentYear]);
 
   const copyInviteCode = () => {
     navigator.clipboard.writeText(organization.invite_code);
@@ -118,9 +120,11 @@ export default function GeneralInfo({ organization, members, processes = [], exp
         processes={processes}
         expedientes={expedientes}
         parcerias={parcerias}
+        juris={juris}
         selectedYear={selectedYear}
         customEntitiesOn={customEntitiesOn}
         parceriasOn={parceriasOn}
+        jurimetriaOn={jurimetriaOn}
         onCustomYears={setCustomYears}
       />
 

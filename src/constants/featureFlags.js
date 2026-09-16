@@ -361,6 +361,17 @@ export const FEATURE_FLAGS = {
         risk: 'high',
         default: false,
     },
+
+    // --- Módulo Jurimetria (processos de Júri) ---
+    JURIMETRIA: {
+        key: 'jurimetria_enabled',
+        label: 'Módulo de Jurimetria (Júris)',
+        description:
+            'Habilita a página de Jurimetria: base de júris própria do órgão (importação de planilha, cadastro, edição e exclusão), relatórios estáticos, relatórios dinâmicos (tabela dinâmica multi-nível e relatório descritivo) e exportação em Excel, PDF, Word, Markdown, CSV e JSON. Com a flag DESLIGADA, nada aparece na interface — comportamento idêntico ao atual. Com a flag ligada, cada órgão ainda precisa ativar "Jurimetria" em Gerenciar Páginas e Módulos.',
+        category: 'Funcionalidades',
+        risk: 'high',
+        default: false,
+    },
 };
 
 // Lista plana das flags para iteração em UI.
@@ -380,6 +391,10 @@ export const OPTIONAL_FLAG_KEYS = new Set([
     'assessor_goals',
     'two_factor_auth',
     'onboarding_tour',
+    // Módulo novo: entra DESLIGADO e o super-admin liga quando quiser expor a
+    // Jurimetria aos órgãos. Enquanto estiver aqui, o default é OFF e nada da
+    // Jurimetria aparece em lugar nenhum da plataforma.
+    'jurimetria_enabled',
 ]);
 
 // Uma flag é "integrada" (permanente/on por padrão) se NÃO está no conjunto

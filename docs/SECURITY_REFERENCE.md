@@ -817,6 +817,49 @@ Default OFF (zero impacto em produção). O painel "Administração & Custos" do
 
 **Defesa em profundidade**: a flag global é checada também em `getOrganizationTabs` e `getActiveDataPages` — mesmo que `moduleConfig.parcerias.enabled = true` no órgão, se a flag global estiver OFF, as abas e métricas de Parcerias não aparecem. Configurado no frontend em `src/lib/organizationModules.js` e `src/lib/dashboardMetrics.js`.
 
+## Módulo Jurimetria — Decisões de Segurança Específicas
+
+### Coleção `juris/` — escrita 100% servidor
+
+Diferente de `processes`, `expedientes` e `parcerias` (que permitem escrita direta do cliente sob condições), `juris/{juriId}` tem `allow write: if false`. Leitura segue o padrão: `isMemberOf(resource.data.organization_id)`.
+
+Razão: só as Cloud Functions aplicam a normalização contra as listas oficiais do órgão, a checagem de duplicidade por `numero_processo_norm` e a permissão de exclusão. Escrita direta permitiria gravar um júri fora das listas do órgão, duplicar a chave natural ou apagar registros sem a permissão `delete_records`.
+
+A subcoleção `juris/{id}/history` também é leitura-para-membros e escrita-só-servidor.
+
+### Permissão `configure_jurimetria`
+
+Nova chave delegável em `OrgPermissionKey` (`functions-v2/src/shared/permissions.ts` e `src/constants/orgPermissions.js`). Membro com essa permissão pode editar todo o objeto `jurimetriaSettings` (listas de comarcas/matérias/espécies, tabela de pontuação, colunas do órgão, política e rigor de importação, exigência de responsável). O criador sempre tem. Membro sem ela não altera a configuração do módulo, mesmo sendo admin do órgão.
+
+A exclusão de júris reusa `delete_records` (a mesma de Consultas/Expedientes/Parcerias), verificada no servidor em `deleteJuris`.
+
+### IDOR e tetos por chamada
+
+Toda função do módulo confere o `organization_id` do documento contra o `organizationId` da requisição antes de alterar ou apagar — inclusive nas operações em massa, que **ignoram silenciosamente** ids de outros órgãos e reportam a contagem em `skipped`.
+
+Tetos: 500 júris por `deleteJuris`/`bulkUpdateJuris`, 20.000 linhas por importação, 10 MB por arquivo.
+
+### Feature flag `jurimetria_enabled`
+
+Default OFF (zero impacto em produção). O painel "Administração & Custos" liga/desliga globalmente. Com a flag ligada e `custom_entities` também ligada, cada órgão ativa o módulo em *Páginas e Módulos* (`moduleConfig.jurimetria.enabled`).
+
+**Defesa em profundidade**: a flag global é checada em `getOrganizationTabs`, `getActiveDataPages`, `AdminManagement`, `ModulesManager`, `Organization.jsx` (guarda de aba e assinatura de dados) e no `CommandPalette` — mesmo com `moduleConfig.jurimetria.enabled = true`, a flag global OFF esconde tudo e **nenhuma leitura** da coleção `juris` é feita.
+
+### Exclusão do órgão
+
+`juris` foi acrescentada a `ORG_SCOPED_COLLECTIONS` em `functions-v2/src/organizations/delete.ts`: a base e os históricos são removidos recursivamente junto com o órgão, sem deixar documentos órfãos com dados de processos.
+
+### Exportação
+
+Todos os seis formatos são gerados no navegador — nenhum dado de júri trafega para serviço externo. Os valores de texto passam por `sanitizeCellValue` (prefixo `'` em células iniciadas por `=`, `+`, `-`, `@`), mitigando injeção de fórmulas em planilhas (OWASP CSV Injection).
+
+### Leitura de `.docx` no cliente
+
+O arquivo é descompactado com a API nativa `DecompressionStream` e interpretado com `DOMParser` em modo `application/xml` — sem `innerHTML`, sem execução de script e sem biblioteca de terceiros. Apenas `word/document.xml` é lido; o restante do pacote é ignorado.
+
+---
+
 For implementation details, see:
 - Architecture → `ARCHITECTURE_REFERENCE.md`
 - Features → `FEATURES_REFERENCE.md`
+- Jurimetria → `JURIMETRIA.md`
