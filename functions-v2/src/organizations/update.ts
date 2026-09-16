@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { hasOrgPermission, MembershipLike, OrgPermissionKey } from '../shared/permissions';
+import { sanitizeJurimetriaSettings } from '../shared/jurimetria';
 
 interface UpdateOrganizationRequest {
     organizationId: string;
@@ -37,6 +38,13 @@ interface UpdateOrganizationRequest {
         // Lista de terceiros do painel de Parcerias (independente das listas
         // de Consultas/Expedientes; mesmo padrão).
         thirdPartiesSettingsParcerias?: string[];
+        // Configuração do módulo de Jurimetria (flag `jurimetria_enabled`):
+        // listas oficiais (comarcas, matérias, espécies de resultado), tabela
+        // de pontuação de aproveitamento, colunas personalizadas da base de
+        // júris e política de importação. Sanitizada em shared/jurimetria.ts,
+        // que também aplica os defaults — um órgão que nunca configurou o
+        // módulo continua funcionando com as listas padrão do CAOJúri.
+        jurimetriaSettings?: Record<string, unknown>;
         // Liga/desliga a fase "Aguarda retorno de terceiros" — apenas para o
         // painel de Consultas (Expedientes sempre a tem disponível). Ausente/
         // undefined equivale a habilitada (comportamento atual preservado
@@ -104,6 +112,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             matterSettings: 'manage_matters',
             expedienteSettings: 'configure_expedientes',
             parceriaSettings: 'configure_parcerias',
+            jurimetriaSettings: 'configure_jurimetria',
             thirdPartiesSettingsConsultas: 'manage_matters',
             thirdPartiesSettingsExpedientes: 'configure_expedientes',
             thirdPartiesSettingsParcerias: 'configure_parcerias',
@@ -141,6 +150,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.thirdPartiesSettingsConsultas !== undefined) updates.thirdPartiesSettingsConsultas = sanitizeThirdParties(data.thirdPartiesSettingsConsultas);
         if (data.thirdPartiesSettingsExpedientes !== undefined) updates.thirdPartiesSettingsExpedientes = sanitizeThirdParties(data.thirdPartiesSettingsExpedientes);
         if (data.thirdPartiesSettingsParcerias !== undefined) updates.thirdPartiesSettingsParcerias = sanitizeThirdParties(data.thirdPartiesSettingsParcerias);
+        if (data.jurimetriaSettings !== undefined) updates.jurimetriaSettings = sanitizeJurimetriaSettings(data.jurimetriaSettings);
         if (data.thirdPartyPhaseEnabledConsultas !== undefined) updates.thirdPartyPhaseEnabledConsultas = data.thirdPartyPhaseEnabledConsultas === true;
         if (data.moduleConfig !== undefined) updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
         if (data.dashboardConfig !== undefined) updates.dashboardConfig = sanitizeDashboardConfig(data.dashboardConfig);
@@ -306,7 +316,7 @@ function sanitizeThirdParties(input: unknown): string[] {
 function sanitizeModuleConfig(
     input: Record<string, { enabled: boolean; order?: number }>
 ): Record<string, { enabled: boolean; order?: number }> {
-    const allowed = ['processes', 'expedientes', 'parcerias', 'summary'];
+    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'summary'];
     const out: Record<string, { enabled: boolean; order?: number }> = {};
     for (const key of allowed) {
         const entry = input?.[key];

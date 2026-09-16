@@ -570,6 +570,45 @@ This glossary provides definitions for **150+ terms** across 8 categories:
 - UI/UX (15 terms)
 - Business Domain (25 terms)
 
+## Módulo Jurimetria (flag `jurimetria_enabled`)
+
+Documentação completa em `JURIMETRIA.md`.
+
+### Júri
+Sessão do Tribunal do Júri registrada na base do órgão. Entidade de primeiro nível na coleção `juris/`. Diferente de Consultas/Expedientes/Parcerias, **não tem fases de fluxo**: o eixo natural de análise é a espécie de resultado.
+
+### Número do processo (chave natural)
+O número CNJ do júri é a chave do registro dentro do órgão. É guardado duas vezes: `numero_processo` (como digitado) e `numero_processo_norm` (só os dígitos). A comparação é sempre pelo normalizado — é o que torna a importação idempotente e impede cadastro duplicado.
+
+### Espécie de resultado
+Desfecho do julgamento (PROCEDÊNCIA, IMPROCEDÊNCIA, DESCLASSIFICAÇÃO, DISSOLUÇÃO etc.). Lista configurável por órgão em `jurimetriaSettings.resultados`; 9 espécies canônicas por padrão.
+
+### Matéria / Tipo de júri
+Classificação do caso, gravada pela **sigla** (CM, CP, D, F, FC, PP, T por padrão). A importação reconhece a sigla, a descrição ou as duas juntas ("FC — FATOS DO COTIDIANO").
+
+### Dissolução
+Sessão desfeita sem julgamento de mérito (conselho dissolvido). **Conta no total** de júris do período, mas **fica fora** do cálculo de espécies, matérias e aproveitamento. Quais espécies são tratadas assim é configurável (`dissolucaoResultados`); marcá-las fixa o peso em 0.
+
+### Júris efetivos
+Total de júris menos os dissolvidos. É o denominador de todos os percentuais de espécie e do aproveitamento.
+
+### Aproveitamento (ponderado)
+`Σ peso[resultado] / nº de júris efetivos`. Cada espécie tem um peso de 0 a 1 na tabela de pontuação do órgão (`jurimetriaSettings.pontuacao`). Sem efetivos, o resultado é `null` (exibido como "—"), que é diferente de 0%.
+
+### Tabela de pontuação
+Mapa espécie → peso (0 a 1), editável em *Painel Administrativo → Jurimetria → Pontuação*. Alterá-la recalcula todos os relatórios na hora, sem tocar em nenhum júri gravado.
+
+### Colunas do órgão (Jurimetria)
+Campos próprios criados pelo admin além dos nativos (`jurimetriaSettings.customFields`). Os valores ficam em `juris/{id}.values`. Aparecem no cadastro, na tabela, nas exportações, como dimensão nos relatórios dinâmicos, e a importação passa a reconhecer colunas da planilha com o mesmo nome.
+
+### Política de importação
+O que fazer quando o mesmo processo chega com dados divergentes: `preserve` (padrão — o banco vence, a divergência só é listada) ou `update` (a planilha vence, campo a campo, com registro no histórico). Célula vazia na planilha nunca apaga dado gravado.
+
+### Rigor da correção automática (`fuzzyThreshold`)
+Similaridade mínima (0,4 a 1) para a importação corrigir um valor para a lista oficial do órgão — ex.: "PORTO ALEGRE" → "Porto Alegre (0001)". Em 1, só a grafia exata é aceita.
+
+---
+
 Use this as a quick reference when:
 - ✅ Onboarding new developers
 - ✅ Understanding codebase terminology

@@ -37,6 +37,11 @@ export const ORG_PERMISSIONS = [
         description: 'Gerenciar os tipos de parceria e a lista de terceiros do módulo de Parcerias.',
     },
     {
+        key: 'configure_jurimetria',
+        label: 'Configurar jurimetria',
+        description: 'Gerenciar as listas oficiais, a tabela de pontuação e as colunas da base de júris (módulo de Jurimetria).',
+    },
+    {
         key: 'manage_metrics',
         label: 'Gerenciar métricas',
         description: 'Criar, editar e excluir as métricas do painel.',
@@ -53,8 +58,8 @@ export const ORG_PERMISSIONS = [
     },
     {
         key: 'delete_records',
-        label: 'Excluir consultas e expedientes',
-        description: 'Excluir consultas (processos) e expedientes.',
+        label: 'Excluir registros',
+        description: 'Excluir consultas (processos), expedientes, parcerias e júris.',
     },
 ];
 
@@ -71,6 +76,7 @@ export const ADMIN_TAB_PERMISSION = {
     matters: 'manage_matters',
     expedientes: 'configure_expedientes',
     parcerias: 'configure_parcerias',
+    jurimetria: 'configure_jurimetria',
     metrics: 'manage_metrics',
     modules: 'manage_modules',
     padronizacao: 'bulk_standardize',

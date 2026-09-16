@@ -6,6 +6,7 @@ import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { isTabVisible, getOrganizationTabs } from '@/lib/organizationModules';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
+import { useJuris } from '@/hooks/useJuris';
 import { hasAnyAdminPermission } from '@/constants/orgPermissions';
 import { OrganizationPermissionsProvider } from '@/lib/OrganizationPermissionsContext';
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,6 +19,7 @@ import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
 import ExpedienteControl from '../components/organization/ExpedienteControl';
 import ParceriaControl from '../components/organization/ParceriaControl';
+import JurimetriaControl from '../components/organization/JurimetriaControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
 import DeadlineCalendar from '../components/organization/DeadlineCalendar';
 import OnboardingTour from '../components/organization/OnboardingTour';
@@ -90,6 +92,9 @@ export default function Organization() {
   // de Parcerias não aparecem em nenhum órgão, mesmo que o órgão tenha a
   // chave `moduleConfig.parcerias.enabled = true` (defesa em profundidade).
   const parceriasOn = useFlag(FEATURE_FLAGS.PARCERIAS.key);
+  // Mesma defesa em profundidade da flag de Parcerias: com `jurimetria_enabled`
+  // desligada, a aba de Jurimetria não aparece em nenhum órgão.
+  const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
 
   // Tipos de entidade personalizados (apenas quando a flag está ligada).
   const { entityTypes: customTypes } = useEntityTypes(customEntitiesOn ? selectedOrgId : null);
@@ -106,12 +111,19 @@ export default function Organization() {
   const TABS_NEEDING_PROCESSES = ['info', 'kanban', 'processes', 'summary', 'calendar'];
   const TABS_NEEDING_EXPEDIENTES = ['info', 'kanban-expedientes', 'expedientes', 'summary', 'calendar'];
   const TABS_NEEDING_PARCERIAS = ['info', 'kanban-parcerias', 'parcerias', 'summary', 'calendar'];
+  // 'info' também precisa dos júris: as métricas do painel do órgão podem
+  // incluir cartões da página de Jurimetria (ver dashboardMetrics).
+  const TABS_NEEDING_JURIS = ['info', 'jurimetria'];
   const wantProcesses = !perTabLoading || TABS_NEEDING_PROCESSES.includes(activeTab);
   const wantExpedientes = !perTabLoading || TABS_NEEDING_EXPEDIENTES.includes(activeTab);
   const wantParcerias = !perTabLoading || TABS_NEEDING_PARCERIAS.includes(activeTab);
+  // Júris só são assinados quando a flag global está ligada — com ela
+  // desligada, o módulo não existe e não há leitura nenhuma no Firestore.
+  const wantJuris = jurimetriaOn && (!perTabLoading || TABS_NEEDING_JURIS.includes(activeTab));
   const processesOrgId = wantProcesses ? selectedOrgId : null;
   const expedientesOrgId = wantExpedientes ? selectedOrgId : null;
   const parceriasOrgId = wantParcerias ? selectedOrgId : null;
+  const jurisOrgId = wantJuris ? selectedOrgId : null;
 
   // Paginação no banco (flag): quando ligado, as ABAS DE LISTA (processos /
   // expedientes / parcerias) carregam apenas os N mais recentes, com um botão
@@ -146,6 +158,10 @@ export default function Organization() {
   // Fetch parcerias
   const { parcerias, isLoading: parceriasLoading, error: parceriasError, hasMore: parceriasHasMore } = useParcerias(parceriasOrgId, { limitTo: parceriasLimit });
 
+  // Fetch júris (módulo de Jurimetria). Sem paginação: relatórios e a tabela
+  // dinâmica precisam do conjunto completo do órgão para os totais fecharem.
+  const { juris, isLoading: jurisLoading, error: jurisError } = useJuris(jurisOrgId);
+
   // Filter active members for general views and process management
   const activeMembers = React.useMemo(() => {
     return members.filter(m => m.active !== false);
@@ -159,17 +175,17 @@ export default function Organization() {
   // V2) — mesma fonte e mesmo filtro de permissão usados no sub-menu da sidebar.
   const orgTabs = React.useMemo(() => {
     if (!isV2 || !organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn })
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, userRole, userMembership]);
+  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, userRole, userMembership]);
 
   // Abas para o tour de onboarding (flag `onboarding_tour`): independente do
   // design V2, já que a navegação existe (via sidebar) em qualquer um deles.
   const tourTabs = React.useMemo(() => {
     if (!organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn })
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, userRole, userMembership]);
+  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, userRole, userMembership]);
 
   // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
   // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible
@@ -178,12 +194,12 @@ export default function Organization() {
   // usuário de uma aba de Parceria para Informações Gerais.
   useEffect(() => {
     if (!customEntitiesOn || !organization) return;
-    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn });
+    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn });
     // 'admin' depende do papel; mantém o comportamento atual (só creator vê).
     if (!visible && activeTab !== 'admin') {
       navigate(`/Organization?id=${selectedOrgId}&tab=info`, { replace: true });
     }
-  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes, deadlineCalendarOn, parceriasOn]);
+  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn]);
 
   // Loading state
   if (isLoadingAuth || orgsLoading || orgLoading) {
@@ -292,6 +308,7 @@ export default function Organization() {
               processes={processes}
               expedientes={expedientes}
               parcerias={parcerias}
+              juris={juris}
               userRole={userRole}
               userId={user?.uid}
               membersLoading={membersLoading}
@@ -414,6 +431,18 @@ export default function Organization() {
                 initialFilter={searchParams.get('filter')}
               />
             </>
+          )}
+
+          {activeTab === 'jurimetria' && jurimetriaOn && (
+            <JurimetriaControl
+              organization={organization}
+              members={activeMembers}
+              userRole={userRole}
+              juris={juris}
+              jurisLoading={jurisLoading}
+              jurisError={jurisError}
+              onGoToAdmin={() => navigate(`/Organization?id=${selectedOrgId}&tab=admin`)}
+            />
           )}
 
           {activeTab === 'summary' && (

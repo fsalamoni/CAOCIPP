@@ -1,5 +1,5 @@
 // ============================================================================
-// globalSearch — busca por número de Consulta/Expediente/Parceria ou
+// globalSearch — busca por número de Consulta/Expediente/Parceria/Júri ou
 // consulente/assunto/partes em TODOS os órgãos do usuário (flag `global_search`).
 // ----------------------------------------------------------------------------
 // Reaproveita exatamente a mesma consulta (organization_id + orderBy
@@ -27,15 +27,19 @@ const PER_ORG_LIMIT = 500;
 const MAX_RESULTS = 20;
 const CACHE_TTL_MS = 60000;
 
-const orgDataCache = new Map(); // orgId -> { processes, expedientes, parcerias, fetchedAt }
+// O cache guarda também SE os júris foram incluídos: ligar o módulo de
+// Jurimetria invalida naturalmente uma entrada montada sem eles.
+const orgDataCache = new Map(); // orgId -> { processes, expedientes, parcerias, juris, includeJuris, fetchedAt }
 
 function matches(value, needle) {
     return typeof value === 'string' && value.toLowerCase().includes(needle);
 }
 
-async function getOrgData(orgId) {
+async function getOrgData(orgId, { includeJuris = false } = {}) {
     const cached = orgDataCache.get(orgId);
-    if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
+    if (cached
+        && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS
+        && cached.includeJuris === includeJuris) {
         return cached;
     }
 
@@ -57,21 +61,43 @@ async function getOrgData(orgId) {
         orderBy('updated_at', 'desc'),
         limit(PER_ORG_LIMIT)
     );
-    const [processesSnap, expedientesSnap, parceriasSnap] = await Promise.all([
-        getDocs(processesQ), getDocs(expedientesQ), getDocs(parceriasQ),
+    // A coleção de júris só é consultada quando o módulo de Jurimetria está
+    // ligado na plataforma — assim quem não usa o módulo não paga leitura.
+    const jurisQ = includeJuris
+        ? query(
+            collection(db, 'juris'),
+            where('organization_id', '==', orgId),
+            orderBy('updated_at', 'desc'),
+            limit(PER_ORG_LIMIT)
+        )
+        : null;
+
+    const [processesSnap, expedientesSnap, parceriasSnap, jurisSnap] = await Promise.all([
+        getDocs(processesQ),
+        getDocs(expedientesQ),
+        getDocs(parceriasQ),
+        jurisQ ? getDocs(jurisQ) : Promise.resolve(null),
     ]);
 
     const data = {
         processes: processesSnap.docs.map((d) => ({ id: d.id, data: d.data() })),
         expedientes: expedientesSnap.docs.map((d) => ({ id: d.id, data: d.data() })),
         parcerias: parceriasSnap.docs.map((d) => ({ id: d.id, data: d.data() })),
+        juris: jurisSnap ? jurisSnap.docs.map((d) => ({ id: d.id, data: d.data() })) : [],
+        includeJuris,
         fetchedAt: Date.now(),
     };
     orgDataCache.set(orgId, data);
     return data;
 }
 
-export async function searchAcrossOrganizations(organizations, searchText) {
+/**
+ * @param {Array} organizations Órgãos do usuário.
+ * @param {string} searchText
+ * @param {object} [opts] { includeJuris?: boolean } — ligado pela flag do módulo.
+ */
+export async function searchAcrossOrganizations(organizations, searchText, opts = {}) {
+    const { includeJuris = false } = opts;
     const needle = (searchText || '').trim().toLowerCase();
     if (needle.length < 2 || !Array.isArray(organizations) || organizations.length === 0) {
         return [];
@@ -80,7 +106,7 @@ export async function searchAcrossOrganizations(organizations, searchText) {
     const perOrgResults = await Promise.all(organizations.map(async (org) => {
         const found = [];
         try {
-            const { processes, expedientes, parcerias } = await getOrgData(org.id);
+            const { processes, expedientes, parcerias, juris } = await getOrgData(org.id, { includeJuris });
 
             processes.forEach(({ id, data }) => {
                 // Usa os mesmos resolvedores de alias da tabela (getProcessField):
@@ -135,6 +161,21 @@ export async function searchAcrossOrganizations(organizations, searchText) {
                         number: pgea || partnershipNumber,
                         subtitle: subject || parties || '',
                         status: data.status,
+                    });
+                }
+            });
+            (juris || []).forEach(({ id, data }) => {
+                if (matches(data.numero_processo, needle)
+                    || matches(data.comarca, needle)
+                    || matches(data.promotor, needle)) {
+                    found.push({
+                        kind: 'juri',
+                        id,
+                        orgId: org.id,
+                        orgName: org.name,
+                        number: data.numero_processo,
+                        subtitle: [data.comarca, data.promotor].filter(Boolean).join(' — '),
+                        status: data.resultado,
                     });
                 }
             });

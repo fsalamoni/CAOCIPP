@@ -36,6 +36,7 @@ function isTypingTarget(el) {
 export default function CommandPalette() {
     const enabled = useFlag(FEATURE_FLAGS.COMMAND_PALETTE.key);
     const isGlobalSearchOn = useFlag(FEATURE_FLAGS.GLOBAL_SEARCH.key);
+    const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
     const navigate = useNavigate();
     const { organizations } = useOrganizations();
     const { isPlatformAdmin } = usePlatformAdmin();
@@ -59,14 +60,14 @@ export default function CommandPalette() {
         setSearching(true);
         const requestId = ++searchRequestId.current;
         const timer = setTimeout(async () => {
-            const results = await searchAcrossOrganizations(organizations, term);
+            const results = await searchAcrossOrganizations(organizations, term, { includeJuris: jurimetriaOn });
             if (searchRequestId.current === requestId) {
                 setSearchResults(results);
                 setSearching(false);
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [searchValue, enabled, isGlobalSearchOn, open, organizations]);
+    }, [searchValue, enabled, isGlobalSearchOn, open, organizations, jurimetriaOn]);
 
     useEffect(() => {
         if (!open) {
@@ -107,6 +108,8 @@ export default function CommandPalette() {
         } else if (result.kind === 'parceria') {
             localStorage.setItem('parceriaSearchTerm', result.number || '');
             goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=parcerias`);
+        } else if (result.kind === 'juri') {
+            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=jurimetria`);
         } else {
             localStorage.setItem('expedienteSearchTerm', result.number || '');
             goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=expedientes`);

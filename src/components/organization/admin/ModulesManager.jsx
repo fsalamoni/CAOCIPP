@@ -6,7 +6,9 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { updateOrganization } from '@/services/functionsService';
-import { BUILTIN_MODULE_META, resolveBuiltinModules } from '@/lib/organizationModules';
+import { BUILTIN_MODULE_META, BUILTIN_MODULES, resolveBuiltinModules } from '@/lib/organizationModules';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { logger } from '@/utils/logger';
 import EntityTypesManager from './EntityTypesManager';
 
@@ -17,15 +19,27 @@ export default function ModulesManager({ organization }) {
     const [enabled, setEnabled] = useState(initial);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Módulos que dependem de uma flag global da plataforma: enquanto a flag
+    // estiver desligada, o módulo não aparece em órgão nenhum, então também
+    // não faz sentido oferecer o interruptor aqui. O VALOR salvo do órgão é
+    // preservado (ver handleSave): religar a flag traz a escolha de volta.
+    const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
+    const visibleModules = useMemo(
+        () => BUILTIN_MODULE_META.filter(
+            (mod) => mod.key !== BUILTIN_MODULES.JURIMETRIA || jurimetriaOn
+        ),
+        [jurimetriaOn]
+    );
+
     // Compara módulo a módulo com o estado original, para garantir que QUALQUER
     // toggle (incluindo Parcerias) marque o formulário como "sujo" e habilite
     // o botão Salvar. Omitir parcerias aqui era o bug que impedia o admin de
     // persistir a ativação do módulo no órgão.
     const dirty = useMemo(() => {
-        return BUILTIN_MODULE_META.some(
+        return visibleModules.some(
             (mod) => enabled[mod.key] !== initial[mod.key]
         );
-    }, [enabled, initial]);
+    }, [enabled, initial, visibleModules]);
 
     const toggle = (key) => {
         setEnabled((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -72,7 +86,7 @@ export default function ModulesManager({ organization }) {
             </Alert>
 
             <div className="space-y-3">
-                {BUILTIN_MODULE_META.map((mod) => {
+                {visibleModules.map((mod) => {
                     const ModIcon = mod.icon;
                     return (
                         <Card key={mod.key} className="border-slate-200 dark:border-slate-700">

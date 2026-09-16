@@ -68,11 +68,12 @@ function describeMetric(schema, m) {
 export default function MetricsManager({ organization }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
     const parceriasOn = useFlag(FEATURE_FLAGS.PARCERIAS.key);
+    const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
     const { entityTypes, isLoading: typesLoading } = useEntityTypes(customEntitiesOn ? organization?.id : null);
 
     const pages = useMemo(
-        () => getActiveDataPages(organization, { customEntitiesOn, entityTypes, parceriasOn }),
-        [organization, customEntitiesOn, entityTypes, parceriasOn]
+        () => getActiveDataPages(organization, { customEntitiesOn, entityTypes, parceriasOn, jurimetriaOn }),
+        [organization, customEntitiesOn, entityTypes, parceriasOn, jurimetriaOn]
     );
 
     const [selectedKey, setSelectedKey] = useState(null);

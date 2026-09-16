@@ -20,6 +20,7 @@ import { statusConfig } from '@/config/processStatus';
 import { isProcessUrgent } from '@/utils/processUtils';
 import { getExpedienteField, calculateExpedienteDerivedStatus, isExpedienteUrgent } from '@/utils/expedienteUtils';
 import { getParceriaField, calculateParceriaDerivedStatus } from '@/utils/parceriaUtils';
+import { resolveJurimetriaSettings, getJurimetriaFields, getJuriFieldValue } from '@/constants/jurimetria';
 import { PHASE_FIELD_KEY } from '@/lib/metricsEngine';
 
 // ----------------------------------------------------------------------------
@@ -210,6 +211,34 @@ const PARCERIA_FIELDS = [
     { key: 'aditivo_count', label: 'Qtd. de Aditivos', type: 'number' },
 ];
 
+const JURI_FIELD_TYPES = {
+    numero_processo: 'text',
+    data_juri: 'date',
+    comarca: 'text',
+    tipo: 'text',
+    resultado: 'text',
+    promotor: 'text',
+    horario: 'text',
+    vara: 'text',
+    observacoes: 'text',
+    responsible_user_name: 'text',
+    source: 'text',
+};
+
+const JURI_FIELDS = [
+    { key: 'numero_processo', label: 'Número do processo', type: 'text' },
+    { key: 'data_juri', label: 'Data do júri', type: 'date' },
+    { key: 'comarca', label: 'Comarca', type: 'text' },
+    { key: 'tipo', label: 'Matéria / Tipo', type: 'text' },
+    { key: 'resultado', label: 'Espécie de resultado', type: 'text' },
+    { key: 'promotor', label: 'Promotor(a)', type: 'text' },
+    { key: 'horario', label: 'Horário', type: 'text' },
+    { key: 'vara', label: 'Vara / Órgão julgador', type: 'text' },
+    { key: 'observacoes', label: 'Observações', type: 'text' },
+    { key: 'responsible_user_name', label: 'Responsável no órgão', type: 'text' },
+    { key: 'source', label: 'Origem do registro', type: 'text' },
+];
+
 /** Fases/situações dos processos e expedientes (derivadas de statusConfig). */
 function builtinPhases() {
     return Object.keys(statusConfig).map((key, idx) => ({
@@ -259,6 +288,38 @@ export function getParceriasPageSchema() {
             { key: 'Parcerias',          label: 'Parcerias',           color: 'emerald' },
             { key: 'Extintos',           label: 'Extintos',            color: 'slate',  is_final: true },
         ],
+    };
+}
+
+/**
+ * Esquema da página de Jurimetria. Diferente dos demais módulos, os júris não
+ * têm fases de fluxo — o eixo natural de agrupamento é a ESPÉCIE DE RESULTADO,
+ * que é justamente o que o órgão configura. Por isso ela ocupa o lugar de
+ * "fase" no construtor de métricas, e as colunas próprias do órgão entram como
+ * campos adicionais.
+ */
+export function getJurisPageSchema(organization) {
+    const settings = resolveJurimetriaSettings(organization);
+    const custom = getJurimetriaFields(settings)
+        .filter((f) => f.custom)
+        .map((f) => ({
+            key: f.key,
+            label: f.label,
+            type: f.type === 'select' ? 'text' : f.type,
+            options: f.options?.length ? f.options : undefined,
+        }));
+
+    return {
+        key: 'juris',
+        label: 'Jurimetria (Júris)',
+        kind: 'juris',
+        phaseLabel: 'Espécie de resultado',
+        fields: [...JURI_FIELDS, ...custom],
+        phases: settings.resultados.map((especie) => ({
+            key: especie,
+            label: especie,
+            color: settings.dissolucaoResultados.includes(especie) ? 'amber' : 'indigo',
+        })),
     };
 }
 
@@ -342,6 +403,15 @@ export function buildPageContext(kind, schema) {
             getFieldType: (key) => types[key] || 'text',
         };
     }
+    if (kind === 'juris') {
+        const types = { ...JURI_FIELD_TYPES, ...fieldTypeMap(schema) };
+        return {
+            // A espécie de resultado faz as vezes de "fase" (ver getJurisPageSchema).
+            getField: (j, key) => getJuriFieldValue(j, key),
+            getPhase: (j) => j?.resultado || '',
+            getFieldType: (key) => types[key] || 'text',
+        };
+    }
     // custom
     const types = fieldTypeMap(schema);
     return {
@@ -355,6 +425,8 @@ export function buildPageContext(kind, schema) {
 export function getRecordYear(record, kind) {
     if (kind === 'processes') return parseYear(record?.entry_date);
     if (kind === 'expedientes') return parseYear(getExpedienteField(record, 'entry_date'));
+    // O ano de um júri é sempre o da sessão de julgamento.
+    if (kind === 'juris') return parseYear(record?.data_juri) ?? parseYear(record?.created_at);
     if (kind === 'parcerias') {
         // Preferência: data de assinatura (mais fiel à "existência" da Parceria).
         // Fallback: data de criação (PGEA não tem mais data própria).
@@ -388,6 +460,12 @@ export const DEFAULT_METRICS = {
         { id: 'p_active', label: 'Parcerias ativas', agg: 'count', filters: [{ field: PHASE_FIELD_KEY, op: 'neq', value: 'Extintos' }], icon: 'Activity', color: 'emerald', size: 1 },
         { id: 'p_extinct', label: 'Parcerias extintas', agg: 'count', filters: [{ field: PHASE_FIELD_KEY, op: 'eq', value: 'Extintos' }], icon: 'Archive', color: 'slate', size: 1 },
         { id: 'p_with_additive', label: 'Com aditivo(s)', agg: 'count', filters: [{ field: 'aditivo_count', op: 'gt', value: 0 }], icon: 'Layers', color: 'amber', size: 1 },
+    ],
+    juris: [
+        { id: 'j_total', label: 'Total de júris', agg: 'count', filters: [], icon: 'Scale', color: 'indigo', size: 1 },
+        { id: 'j_efetivos', label: 'Júris julgados', agg: 'count', filters: [{ field: 'resultado', op: 'filled' }], icon: 'CheckCircle2', color: 'emerald', size: 1 },
+        { id: 'j_comarcas', label: 'Com comarca definida', agg: 'count', filters: [{ field: 'comarca', op: 'filled' }], icon: 'MapPin', color: 'blue', size: 1 },
+        { id: 'j_sem_resultado', label: 'Sem resultado lançado', agg: 'count', filters: [{ field: 'resultado', op: 'empty' }], icon: 'AlertTriangle', color: 'amber', size: 1 },
     ],
 };
 
@@ -424,16 +502,23 @@ export function getDefaultCustomMetrics(entityType) {
  * Parcerias se a flag global estiver OFF.
  */
 export function getActiveDataPages(organization, opts = {}) {
-    const { customEntitiesOn = false, entityTypes = [], parceriasOn = false } = opts;
+    const {
+        customEntitiesOn = false,
+        entityTypes = [],
+        parceriasOn = false,
+        jurimetriaOn = false,
+    } = opts;
     const builtin = resolveBuiltinModules(organization);
     const showProcesses = !customEntitiesOn || builtin.processes;
     const showExpedientes = !customEntitiesOn || builtin.expedientes;
     const showParcerias = parceriasOn && (!customEntitiesOn || builtin.parcerias);
+    const showJurimetria = jurimetriaOn && (!customEntitiesOn || builtin.jurimetria);
 
     const pages = [];
     if (showProcesses) pages.push(getProcessesPageSchema());
     if (showExpedientes) pages.push(getExpedientesPageSchema());
     if (showParcerias) pages.push(getParceriasPageSchema());
+    if (showJurimetria) pages.push(getJurisPageSchema(organization));
 
     if (customEntitiesOn && Array.isArray(entityTypes)) {
         entityTypes
