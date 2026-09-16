@@ -7,13 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
     Pencil, Trash2, Scale, CalendarDays, MapPin, Gavel, User, Clock,
-    Building2, FileText, History, Loader2, UserCheck, Upload,
+    Building2, FileText, History, Loader2, UserCheck, Upload, CalendarClock,
 } from 'lucide-react';
 import { useJuriHistory } from '@/hooks/useJuris';
-import { getJurimetriaFields, getJuriFieldValue } from '@/constants/jurimetria';
+import { getJurimetriaFields, getJuriFieldValue, realizacaoMeta } from '@/constants/jurimetria';
 import {
-    formatDateBR, tipoLabel, isDissolucao, pesoDoResultado,
+    formatDateBR, tipoLabel, isDissolucao, pesoDoResultado, getRealizacao,
 } from '@/lib/jurimetriaEngine';
+import JuriDateHistory from './JuriDateHistory';
 
 function Row({ icon: Icon, label, value, mono = false }) {
     if (value === null || value === undefined || value === '') return null;
@@ -55,6 +56,9 @@ export default function JuriDetailSheet({
 
     const dissolvido = isDissolucao(juri, settings);
     const peso = pesoDoResultado(juri.resultado, settings);
+    const realizacao = getRealizacao(juri);
+    const realizacaoInfo = realizacaoMeta(realizacao);
+    const dateHistory = Array.isArray(juri.date_history) ? juri.date_history : [];
 
     return (
         <Sheet open={open} onOpenChange={onClose}>
@@ -66,7 +70,7 @@ export default function JuriDetailSheet({
                                 {juri.numero_processo || 'Sem número'}
                             </SheetTitle>
                             <SheetDescription className="mt-1">
-                                {formatDateBR(juri.data_juri)}
+                                {juri.data_juri ? formatDateBR(juri.data_juri) : 'Sem data'}
                                 {juri.comarca ? ` — ${juri.comarca}` : ''}
                             </SheetDescription>
                         </div>
@@ -91,6 +95,9 @@ export default function JuriDetailSheet({
                     </div>
 
                     <div className="flex flex-wrap gap-2 pt-2">
+                        <Badge className={`${realizacaoInfo.badge} border-0 font-medium`}>
+                            {realizacaoInfo.label}
+                        </Badge>
                         {juri.resultado && (
                             <Badge variant={dissolvido ? 'outline' : 'secondary'} className="font-medium">
                                 {juri.resultado}
@@ -119,8 +126,33 @@ export default function JuriDetailSheet({
                         </div>
                     )}
 
+                    {realizacao !== 'realizado' && (
+                        <div className={`rounded-lg border p-3 mb-3 ${realizacao === 'cancelado'
+                            ? 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/40'
+                            : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40'}`}
+                        >
+                            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                                Sessão {realizacaoInfo.label.toLowerCase()}
+                            </p>
+                            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                                {realizacaoInfo.description} Por padrão, fica de fora dos gráficos e
+                                relatórios, que contam apenas as sessões realizadas.
+                            </p>
+                            {juri.realizacao_justificativa && (
+                                <p className="text-xs text-slate-700 dark:text-slate-200 mt-2">
+                                    <strong>Justificativa:</strong> {juri.realizacao_justificativa}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     <Row icon={Scale} label="Número do processo" value={juri.numero_processo} mono />
-                    <Row icon={CalendarDays} label="Data do júri" value={formatDateBR(juri.data_juri)} />
+                    <Row
+                        icon={CalendarDays}
+                        label="Data do júri"
+                        value={juri.data_juri ? formatDateBR(juri.data_juri) : 'Sem data (júri cancelado)'}
+                    />
+                    <Row icon={CalendarClock} label="Realização" value={realizacaoInfo.label} />
                     <Row icon={Clock} label="Horário" value={juri.horario} />
                     <Row icon={MapPin} label="Comarca" value={juri.comarca} />
                     <Row icon={Building2} label="Vara / Órgão julgador" value={juri.vara} />
@@ -159,6 +191,22 @@ export default function JuriDetailSheet({
                         </>
                     )}
                 </div>
+
+                {dateHistory.length > 0 && (
+                    <>
+                        <Separator />
+                        <div className="px-6 py-4">
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2 mb-3">
+                                <CalendarClock className="w-4 h-4 text-slate-400" />
+                                Histórico de datas
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">
+                                    {dateHistory.length}
+                                </Badge>
+                            </h4>
+                            <JuriDateHistory entries={dateHistory} emptyHint={false} />
+                        </div>
+                    </>
+                )}
 
                 <Separator />
 

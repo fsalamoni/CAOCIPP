@@ -29,7 +29,7 @@ const FIELD_LABELS = {
  * entrada de histórico.
  */
 exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', timeoutSeconds: 300 }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -114,6 +114,10 @@ exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', ti
     }
     const now = new Date();
     const userName = request.auth.token.name || 'Usuário desconhecido';
+    // Correção de data em massa continua sendo uma mudança de data: cada
+    // júri afetado recebe sua própria entrada no histórico de datas, com a
+    // justificativa informada (se houver).
+    const bulkJustificativa = String((_d = incoming.justificativa) !== null && _d !== void 0 ? _d : '').trim().slice(0, 1000);
     const logEntry = {
         date: now.toISOString().split('T')[0],
         time: now.toTimeString().split(' ')[0],
@@ -145,6 +149,19 @@ exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', ti
             }
             if (Object.keys(customUpdates).length > 0) {
                 update.values = Object.assign(Object.assign({}, (current.values || {})), customUpdates);
+            }
+            const novaData = coreUpdates.data_juri;
+            if (novaData !== undefined && novaData !== (current.data_juri || '')) {
+                const dateEntry = {
+                    from: String(current.data_juri || ''),
+                    to: novaData,
+                    realizacao: String(current.realizacao || 'realizado'),
+                    justificativa: bulkJustificativa || 'Correção de data em massa',
+                    user_id: userId,
+                    user_name: userName,
+                    changed_at: now.toISOString(),
+                };
+                update.date_history = admin.firestore.FieldValue.arrayUnion(dateEntry);
             }
             update.updated_at = admin.firestore.FieldValue.serverTimestamp();
             update.updated_by = userId;

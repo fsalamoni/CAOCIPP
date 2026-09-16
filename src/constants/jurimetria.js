@@ -272,6 +272,57 @@ export const JURIMETRIA_APROVEITAMENTO_FAIXAS = [
 ];
 
 // ----------------------------------------------------------------------------
+// Realização da sessão
+// ----------------------------------------------------------------------------
+// Responde "a sessão aconteceu?", que é diferente de "qual foi o resultado?".
+// Um júri redesignado ou cancelado não tem julgamento de mérito, então fica
+// fora das análises por padrão — é o equivalente, no plano da sessão, do que a
+// dissolução é no plano do resultado.
+//
+// Registros antigos não têm o campo. Ausente é lido como "realizado", que era
+// o comportamento até aqui — nenhum dado já gravado muda de significado.
+
+export const JURIMETRIA_REALIZACAO_PADRAO = 'realizado';
+
+export const JURIMETRIA_REALIZACOES = [
+    {
+        value: 'realizado',
+        label: 'Realizado',
+        description: 'A sessão ocorreu e produziu um resultado.',
+        badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+        dot: 'bg-emerald-500',
+        chart: '#10b981',
+    },
+    {
+        value: 'redesignado',
+        label: 'Redesignado',
+        description: 'A sessão não ocorreu na data prevista e foi remarcada para uma nova data.',
+        badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+        dot: 'bg-amber-500',
+        chart: '#f59e0b',
+    },
+    {
+        value: 'cancelado',
+        label: 'Cancelado',
+        description: 'A sessão foi cancelada e não tem nova data marcada.',
+        badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+        dot: 'bg-rose-500',
+        chart: '#f43f5e',
+    },
+];
+
+export const JURIMETRIA_REALIZACAO_VALUES = JURIMETRIA_REALIZACOES.map((r) => r.value);
+
+/** Metadados de uma realização (aceita o valor ausente dos registros antigos). */
+export function realizacaoMeta(value) {
+    const alvo = value || JURIMETRIA_REALIZACAO_PADRAO;
+    return JURIMETRIA_REALIZACOES.find((r) => r.value === alvo) || JURIMETRIA_REALIZACOES[0];
+}
+
+/** Realizações que exigem justificativa e movem a data para o histórico. */
+export const JURIMETRIA_REALIZACOES_COM_JUSTIFICATIVA = ['redesignado', 'cancelado'];
+
+// ----------------------------------------------------------------------------
 // Campos fixos do registro de Júri
 // ----------------------------------------------------------------------------
 // São as colunas nativas do módulo. O administrador do órgão pode:
@@ -284,6 +335,7 @@ export const JURIMETRIA_APROVEITAMENTO_FAIXAS = [
 export const JURIMETRIA_CORE_FIELDS = [
     { key: 'numero_processo', label: 'Número do processo (CNJ)', type: 'text', required: true, locked: true },
     { key: 'data_juri', label: 'Data do júri', type: 'date', required: true, locked: true },
+    { key: 'realizacao', label: 'Realização', type: 'list', list: 'realizacoes', required: false, locked: true },
     { key: 'comarca', label: 'Comarca', type: 'list', list: 'comarcas', required: false },
     { key: 'tipo', label: 'Matéria / Tipo de júri', type: 'list', list: 'tipos', required: false },
     { key: 'resultado', label: 'Espécie de resultado', type: 'list', list: 'resultados', required: false },
@@ -319,12 +371,12 @@ export const JURIMETRIA_IMPORT_POLICIES = [
     {
         value: 'preserve',
         label: 'Preservar o banco (recomendado)',
-        description: 'Registros divergentes são listados como conflito e os dados já gravados permanecem intactos.',
+        description: 'Registros divergentes são listados como conflito e os dados já gravados permanecem intactos. Campos vazios no banco são completados com o que a planilha traz.',
     },
     {
         value: 'update',
         label: 'Atualizar com a planilha',
-        description: 'Registros divergentes são sobrescritos pelos dados da planilha, com registro no histórico.',
+        description: 'Registros divergentes são sobrescritos pelos dados da planilha, com registro no histórico. Campos vazios no banco também são completados.',
     },
 ];
 
@@ -334,6 +386,7 @@ export const JURIMETRIA_PIVOT_DIMENSIONS = [
     { key: 'promotor', label: 'Promotor(a)' },
     { key: 'tipo', label: 'Matéria / Tipo' },
     { key: 'resultado', label: 'Espécie de resultado' },
+    { key: 'realizacao', label: 'Realização (realizado/redesignado/cancelado)' },
     { key: 'mes', label: 'Mês' },
     { key: 'ano', label: 'Ano' },
     { key: 'vara', label: 'Vara / Órgão julgador' },
@@ -355,6 +408,23 @@ export const JURIMETRIA_PIVOT_SHOW_AS = [
     { key: 'coluna', label: '% da coluna' },
     { key: 'total', label: '% do total geral' },
 ];
+
+// ----------------------------------------------------------------------------
+// Opções de análise
+// ----------------------------------------------------------------------------
+// Diferente dos FILTROS (que recortam quais júris entram), estas opções dizem
+// COMO contar os júris do recorte. Valem para o Painel, os Relatórios e os
+// Relatórios dinâmicos — nunca para a tabela de Júris, que é a base de dados e
+// mostra tudo o que está gravado.
+
+export const JURIMETRIA_DEFAULT_ANALYSIS = {
+    // Em regra, a análise olha só as sessões que aconteceram: redesignadas e
+    // canceladas não produziram julgamento. Desligar inclui todas.
+    somenteRealizados: true,
+    // Remove dos agrupamentos os grupos "(não informado)" — útil quando a base
+    // ainda tem lacunas e elas poluem rankings e gráficos.
+    excluirNaoInformados: false,
+};
 
 /** Seções do relatório descritivo. */
 export const JURIMETRIA_DESCRITIVO_SECOES = [

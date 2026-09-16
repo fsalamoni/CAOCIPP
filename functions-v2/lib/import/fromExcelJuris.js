@@ -6,6 +6,18 @@ const https_1 = require("firebase-functions/v2/https");
 const XLSX = require("xlsx");
 const history_1 = require("../shared/history");
 const jurimetria_1 = require("../shared/jurimetria");
+/** Rótulos dos campos, para os registros de atividade ficarem legíveis. */
+const FIELD_LABELS = {
+    data_juri: 'Data do júri',
+    realizacao: 'Realização',
+    comarca: 'Comarca',
+    tipo: 'Matéria / Tipo',
+    resultado: 'Espécie de resultado',
+    promotor: 'Promotor(a)',
+    horario: 'Horário',
+    vara: 'Vara / Órgão julgador',
+    observacoes: 'Observações',
+};
 const MAX_ROWS = 20000;
 const SAMPLE_LIMIT = 300;
 const LOOKUP_CHUNK = 30;
@@ -24,6 +36,11 @@ const COLUMN_SYNONYMS = {
     data_juri: [
         'data', 'data do juri', 'data do júri', 'data juri', 'data da sessao',
         'data da sessão', 'data sessao', 'dt', 'data_juri', 'date',
+    ],
+    realizacao: [
+        'realizacao', 'realização', 'situacao', 'situação', 'status',
+        'situacao da sessao', 'situação da sessão', 'sessao', 'sessão',
+        'realizado', 'status do juri', 'status do júri',
     ],
     comarca: ['comarca', 'comarca (codigo)', 'municipio', 'município', 'foro'],
     tipo: [
@@ -157,9 +174,13 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
             success: true,
             mode,
             total: 0,
-            counts: { novo: 0, sem_mudanca: 0, conflito: 0, invalido: 0 },
+            counts: {
+                novo: 0, sem_mudanca: 0, atualizacao: 0, conflito: 0, invalido: 0,
+            },
             message: 'Arquivo vazio — nenhum júri encontrado.',
-            samples: { novo: [], sem_mudanca: [], conflito: [], invalido: [] },
+            samples: {
+                novo: [], sem_mudanca: [], atualizacao: [], conflito: [], invalido: [],
+            },
             corrections: [],
             unmappedHeaders: [],
         };
@@ -188,7 +209,7 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         corrections.push({ row: rowNum, field, from, to });
     };
     rawRows.forEach((raw, index) => {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         const rowNum = index + 2; // linha 1 é o cabeçalho
         const pick = (key) => {
             for (const [header, target] of Object.entries(columnMap)) {
@@ -225,7 +246,10 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         seenInFile.set(numeroNorm, rowNum);
         const dataOriginal = pick('data_juri');
         const dataJuri = (0, jurimetria_1.parseJuriDate)(dataOriginal);
-        if (!dataJuri) {
+        // Um júri cancelado não tem data — exigi-la rejeitaria linhas
+        // legítimas. Nos demais casos a data continua obrigatória.
+        const realizacaoBruta = (0, jurimetria_1.normalizeRealizacao)(pick('realizacao'));
+        if (!dataJuri && realizacaoBruta !== 'cancelado') {
             parsed.push({
                 row: rowNum, status: 'invalido', numero_processo: numeroOriginal,
                 numero_processo_norm: numeroNorm, core: {}, values: {},
@@ -235,28 +259,37 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
             });
             return;
         }
-        const comarcaOriginal = String((_b = pick('comarca')) !== null && _b !== void 0 ? _b : '').trim();
+        // Realização: coluna opcional. Ausente ou irreconhecível vira
+        // "realizado", que é o que a base sempre significou até aqui.
+        const realizacaoOriginal = String((_b = pick('realizacao')) !== null && _b !== void 0 ? _b : '').trim();
+        const realizacao = realizacaoBruta;
+        if (realizacaoOriginal && (0, jurimetria_1.normalizeText)(realizacaoOriginal) !== realizacao) {
+            noteCorrection(rowNum, 'Realização', realizacaoOriginal, realizacao);
+        }
+        const comarcaOriginal = String((_c = pick('comarca')) !== null && _c !== void 0 ? _c : '').trim();
         const comarcaMatch = (0, jurimetria_1.fuzzyMatchFromList)(comarcaOriginal, settings.comarcas, threshold);
         if (comarcaMatch.matched)
             noteCorrection(rowNum, 'Comarca', comarcaOriginal, comarcaMatch.value);
-        const tipoOriginal = String((_c = pick('tipo')) !== null && _c !== void 0 ? _c : '').trim();
+        const tipoOriginal = String((_d = pick('tipo')) !== null && _d !== void 0 ? _d : '').trim();
         const tipoMatch = (0, jurimetria_1.normalizeTipo)(tipoOriginal, settings.tipos, threshold);
         if (tipoMatch.matched)
             noteCorrection(rowNum, 'Matéria / Tipo', tipoOriginal, tipoMatch.value);
-        const resultadoOriginal = String((_d = pick('resultado')) !== null && _d !== void 0 ? _d : '').trim();
+        const resultadoOriginal = String((_e = pick('resultado')) !== null && _e !== void 0 ? _e : '').trim();
         const resultadoMatch = (0, jurimetria_1.normalizeResultado)(resultadoOriginal, settings.resultados, threshold);
         if (resultadoMatch.matched)
             noteCorrection(rowNum, 'Espécie', resultadoOriginal, resultadoMatch.value);
         const core = {
             numero_processo: numeroOriginal.slice(0, 60),
-            data_juri: dataJuri,
+            data_juri: dataJuri || '',
+            realizacao,
+            realizacao_justificativa: '',
             comarca: comarcaMatch.value.slice(0, 160),
             tipo: tipoMatch.value.slice(0, 40),
             resultado: resultadoMatch.value.slice(0, 80),
-            promotor: String((_e = pick('promotor')) !== null && _e !== void 0 ? _e : '').trim().slice(0, 160),
+            promotor: String((_f = pick('promotor')) !== null && _f !== void 0 ? _f : '').trim().slice(0, 160),
             horario: (0, jurimetria_1.normalizeHorario)(pick('horario')),
-            vara: String((_f = pick('vara')) !== null && _f !== void 0 ? _f : '').trim().slice(0, 160),
-            observacoes: String((_g = pick('observacoes')) !== null && _g !== void 0 ? _g : '').trim().slice(0, 2000),
+            vara: String((_g = pick('vara')) !== null && _g !== void 0 ? _g : '').trim().slice(0, 160),
+            observacoes: String((_h = pick('observacoes')) !== null && _h !== void 0 ? _h : '').trim().slice(0, 2000),
         };
         // Colunas personalizadas do órgão presentes na planilha.
         const values = {};
@@ -318,32 +351,60 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         const existing = existingByNorm.get(item.numero_processo_norm);
         if (!existing)
             continue;
+        // Duas situações MUITO diferentes se escondem em "o processo já
+        // existe", e tratá-las igual é o que fazia uma reimportação mais
+        // completa parecer um monte de conflito:
+        //
+        //   fills → o campo está VAZIO no banco e a planilha traz valor.
+        //           É ganho puro de informação: nada se perde ao aplicar.
+        //   diffs → o campo TEM valor no banco e a planilha traz outro.
+        //           Aí sim é divergência, e quem decide é a política do órgão.
         const diffs = [];
-        for (const field of jurimetria_1.JURI_COMPARABLE_FIELDS) {
-            const current = String((_a = existing.data[field]) !== null && _a !== void 0 ? _a : '').trim();
-            const incoming = String((_b = item.core[field]) !== null && _b !== void 0 ? _b : '').trim();
-            // Célula vazia na planilha não "apaga" o que já existe no banco.
+        const fills = [];
+        const classify = (field, current, incoming) => {
+            // Célula vazia na planilha nunca apaga o que já está gravado.
             if (!incoming)
-                continue;
-            if (current !== incoming)
+                return;
+            if (!current)
+                fills.push({ field, current, incoming });
+            else if (current !== incoming)
                 diffs.push({ field, current, incoming });
+        };
+        for (const field of jurimetria_1.JURI_COMPARABLE_FIELDS) {
+            // `realizacao` ausente no banco significa "realizado" (registros
+            // anteriores ao campo). Comparar contra '' marcaria toda a base
+            // antiga como preenchível, gerando ruído sem informação nova.
+            const raw = existing.data[field];
+            const current = field === 'realizacao'
+                ? String(raw !== null && raw !== void 0 ? raw : 'realizado').trim()
+                : String(raw !== null && raw !== void 0 ? raw : '').trim();
+            classify(field, current, String((_a = item.core[field]) !== null && _a !== void 0 ? _a : '').trim());
         }
         for (const field of settings.customFields) {
-            const current = String((_d = (_c = existing.data.values) === null || _c === void 0 ? void 0 : _c[field.key]) !== null && _d !== void 0 ? _d : '').trim();
-            const incoming = String((_e = item.values[field.key]) !== null && _e !== void 0 ? _e : '').trim();
-            if (!incoming)
-                continue;
-            if (current !== incoming)
-                diffs.push({ field: field.key, current, incoming });
+            classify(field.key, String((_c = (_b = existing.data.values) === null || _b === void 0 ? void 0 : _b[field.key]) !== null && _c !== void 0 ? _c : '').trim(), String((_d = item.values[field.key]) !== null && _d !== void 0 ? _d : '').trim());
         }
         item.existingId = existing.id;
-        item.status = diffs.length === 0 ? 'sem_mudanca' : 'conflito';
-        if (diffs.length > 0)
+        item.currentDate = String((_e = existing.data.data_juri) !== null && _e !== void 0 ? _e : '').trim();
+        if (diffs.length > 0) {
+            item.status = 'conflito';
             item.diffs = diffs.slice(0, 12);
+            // Um conflito pode trazer lacunas junto; elas são aplicadas
+            // quando a linha for gravada.
+            if (fills.length > 0)
+                item.fills = fills.slice(0, 12);
+        }
+        else if (fills.length > 0) {
+            item.status = 'atualizacao';
+            item.fills = fills.slice(0, 12);
+        }
+        else {
+            item.status = 'sem_mudanca';
+        }
     }
     const counts = {
         novo: parsed.filter((p) => p.status === 'novo').length,
         sem_mudanca: parsed.filter((p) => p.status === 'sem_mudanca').length,
+        atualizacao: parsed.filter((p) => p.status === 'atualizacao').length,
         conflito: parsed.filter((p) => p.status === 'conflito').length,
         invalido: parsed.filter((p) => p.status === 'invalido').length,
     };
@@ -358,7 +419,9 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         tipo: p.core.tipo || '',
         resultado: p.core.resultado || '',
         promotor: p.core.promotor || '',
+        realizacao: p.core.realizacao || '',
         diffs: p.diffs || [],
+        fills: p.fills || [],
         error: p.error || '',
     }));
     const report = {
@@ -371,6 +434,7 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         samples: {
             novo: sampleOf('novo'),
             sem_mudanca: sampleOf('sem_mudanca'),
+            atualizacao: sampleOf('atualizacao'),
             conflito: sampleOf('conflito'),
             invalido: sampleOf('invalido'),
         },
@@ -392,16 +456,23 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         date: logDate, time: logTime, user_id: userId, user_name: userName,
         action: `Júri importado de "${sourceLabel}"`, timestamp: now.toISOString(),
     };
-    const updateEntry = {
+    const logEntryFor = (action) => ({
         date: logDate, time: logTime, user_id: userId, user_name: userName,
-        action: `Júri atualizado pela importação de "${sourceLabel}"`, timestamp: now.toISOString(),
-    };
+        action, timestamp: now.toISOString(),
+    });
     const toCreate = parsed.filter((p) => p.status === 'novo');
-    const toUpdate = effectivePolicy === 'update'
+    // Enriquecimento (preencher campos VAZIOS) é sempre aplicado: não
+    // sobrescreve nada e a alternativa seria descartar informação que a
+    // planilha tem e o banco não. Já SOBRESCREVER valor existente continua
+    // dependendo da política do órgão.
+    const toEnrich = parsed.filter((p) => p.status === 'atualizacao');
+    const toOverwrite = effectivePolicy === 'update'
         ? parsed.filter((p) => p.status === 'conflito')
         : [];
+    const toUpdate = [...toEnrich, ...toOverwrite];
     let created = 0;
     let updated = 0;
+    let enriched = 0;
     const historyTargets = [];
     let batch = db.batch();
     let opCount = 0;
@@ -425,24 +496,51 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         if (!item.existingId)
             continue;
         const ref = db.collection('juris').doc(item.existingId);
+        // Um conflito aplicado também aproveita as lacunas da mesma linha.
+        const aplicados = item.status === 'conflito'
+            ? [...(item.diffs || []), ...(item.fills || [])]
+            : (item.fills || []);
+        if (aplicados.length === 0)
+            continue;
+        const rotulos = aplicados.map((d) => FIELD_LABELS[d.field] || d.field);
+        const acao = item.status === 'atualizacao'
+            ? `Dados complementados pela importação de "${sourceLabel}": ${rotulos.join(', ')}`
+            : `Dados atualizados pela importação de "${sourceLabel}": ${rotulos.join(', ')}`;
+        const entry = logEntryFor(acao);
         const update = {
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_by: userId,
             imported_from: sourceLabel,
-            activity_log: admin.firestore.FieldValue.arrayUnion(updateEntry),
+            activity_log: admin.firestore.FieldValue.arrayUnion(entry),
         };
-        // Só sobrescreve os campos que vieram preenchidos na planilha.
-        for (const diff of item.diffs || []) {
-            if (jurimetria_1.JURI_COMPARABLE_FIELDS.includes(diff.field)) {
-                update[diff.field] = item.core[diff.field];
+        for (const campo of aplicados) {
+            if (jurimetria_1.JURI_COMPARABLE_FIELDS.includes(campo.field)) {
+                update[campo.field] = item.core[campo.field];
             }
             else {
-                update[`values.${diff.field}`] = item.values[diff.field];
+                update[`values.${campo.field}`] = item.values[campo.field];
             }
         }
+        // Mudança de data pela importação também entra no histórico de
+        // datas — a promessa é que nenhuma data se perca, venha ela do
+        // formulário ou de uma planilha.
+        const novaData = aplicados.find((d) => d.field === 'data_juri');
+        if (novaData) {
+            update.date_history = admin.firestore.FieldValue.arrayUnion({
+                from: item.currentDate || '',
+                to: item.core.data_juri || '',
+                realizacao: item.core.realizacao || 'realizado',
+                justificativa: `Importação de "${sourceLabel}"`,
+                changed_at: now.toISOString(),
+                user_id: userId,
+                user_name: userName,
+            });
+        }
         batch.update(ref, update);
-        historyTargets.push({ ref, entry: updateEntry });
+        historyTargets.push({ ref, entry });
         updated += 1;
+        if (item.status === 'atualizacao')
+            enriched += 1;
         opCount += 1;
         if (opCount >= WRITE_BATCH)
             await flush();
@@ -476,6 +574,7 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
             policy: effectivePolicy,
             created,
             updated,
+            enriched,
             unchanged: counts.sem_mudanca,
             conflicts: counts.conflito,
             invalid: counts.invalido,
@@ -483,6 +582,6 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         },
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
-    return Object.assign(Object.assign({}, report), { created, updated });
+    return Object.assign(Object.assign({}, report), { created, updated, enriched });
 });
 //# sourceMappingURL=fromExcelJuris.js.map

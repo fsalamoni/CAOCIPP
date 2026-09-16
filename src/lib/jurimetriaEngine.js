@@ -15,10 +15,13 @@
 import {
     JURIMETRIA_MESES,
     JURIMETRIA_APROVEITAMENTO_FAIXAS,
+    JURIMETRIA_REALIZACAO_PADRAO,
+    JURIMETRIA_DEFAULT_ANALYSIS,
+    realizacaoMeta,
     getJuriFieldValue,
 } from '@/constants/jurimetria';
 
-const SEM_VALOR = '(não informado)';
+export const SEM_VALOR = '(não informado)';
 
 // ----------------------------------------------------------------------------
 // Utilidades básicas
@@ -32,6 +35,59 @@ export function normalizeText(value) {
         .toLowerCase()
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+/**
+ * Realização da sessão. Registros gravados antes do campo existir não têm o
+ * dado: são lidos como "realizado", que era o comportamento anterior — nenhum
+ * júri já cadastrado muda de significado ao entrar esta versão.
+ */
+export function getRealizacao(juri) {
+    const valor = String(juri?.realizacao || '').trim();
+    return valor || JURIMETRIA_REALIZACAO_PADRAO;
+}
+
+/** A sessão aconteceu? (redesignada e cancelada não aconteceram) */
+export function isRealizado(juri) {
+    return getRealizacao(juri) === JURIMETRIA_REALIZACAO_PADRAO;
+}
+
+/** Rótulo da realização, pronto para exibição. */
+export function realizacaoLabel(juri) {
+    return realizacaoMeta(getRealizacao(juri)).label;
+}
+
+/**
+ * Normaliza as opções de análise, aplicando os defaults. Todas as funções de
+ * agregação aceitam este objeto como último argumento.
+ */
+export function resolveAnalysis(analysis) {
+    return { ...JURIMETRIA_DEFAULT_ANALYSIS, ...(analysis || {}) };
+}
+
+/**
+ * Aplica as OPÇÕES DE ANÁLISE ao conjunto: por padrão mantém apenas as sessões
+ * realizadas. Não confundir com `filtrarJuris`, que aplica os filtros do
+ * usuário — este passo é sobre COMO contar, não sobre O QUE entra no recorte.
+ */
+export function aplicarAnalise(juris, analysis) {
+    const opts = resolveAnalysis(analysis);
+    if (!opts.somenteRealizados) return juris || [];
+    return (juris || []).filter(isRealizado);
+}
+
+/** Separa o conjunto por realização (para os totais do painel). */
+export function splitRealizacao(juris) {
+    const realizados = [];
+    const redesignados = [];
+    const cancelados = [];
+    for (const juri of juris || []) {
+        const r = getRealizacao(juri);
+        if (r === 'redesignado') redesignados.push(juri);
+        else if (r === 'cancelado') cancelados.push(juri);
+        else realizados.push(juri);
+    }
+    return { realizados, redesignados, cancelados };
 }
 
 /** Indica se o júri foi dissolvido, conforme a lista configurada pelo órgão. */
@@ -144,6 +200,7 @@ export function dimensionValue(juri, dimension, settings) {
         case 'promotor': return juri.promotor || SEM_VALOR;
         case 'tipo': return tipoLabel(juri.tipo, settings);
         case 'resultado': return juri.resultado || SEM_VALOR;
+        case 'realizacao': return realizacaoLabel(juri);
         case 'vara': return juri.vara || SEM_VALOR;
         case 'responsavel': return juri.responsible_user_name || SEM_VALOR;
         case 'mes': {
@@ -213,6 +270,7 @@ export function filtrarJuris(juris, filtros = {}, settings = {}) {
         comarcas = [],
         tipos = [],
         resultados = [],
+        realizacoes = [],
         promotor = '',
         responsaveis = [],
         dataDe = '',
@@ -225,6 +283,7 @@ export function filtrarJuris(juris, filtros = {}, settings = {}) {
     const comarcaSet = new Set(comarcas);
     const tipoSet = new Set(tipos);
     const resultadoSet = new Set(resultados);
+    const realizacaoSet = new Set(realizacoes);
     const responsavelSet = new Set(responsaveis);
 
     return (juris || []).filter((juri) => {
@@ -233,6 +292,7 @@ export function filtrarJuris(juris, filtros = {}, settings = {}) {
         if (comarcaSet.size > 0 && !comarcaSet.has(juri.comarca || '')) return false;
         if (tipoSet.size > 0 && !tipoSet.has(juri.tipo || '')) return false;
         if (resultadoSet.size > 0 && !resultadoSet.has(juri.resultado || '')) return false;
+        if (realizacaoSet.size > 0 && !realizacaoSet.has(getRealizacao(juri))) return false;
         if (responsavelSet.size > 0 && !responsavelSet.has(juri.responsible_user_id || '')) return false;
 
         if (promotorNorm && !normalizeText(juri.promotor).includes(promotorNorm)) return false;
@@ -258,12 +318,24 @@ export function filtrarJuris(juris, filtros = {}, settings = {}) {
 // Relatórios estáticos
 // ----------------------------------------------------------------------------
 
-/** Totais do período: total, dissolvidos, efetivos e seus percentuais. */
-export function computeTotais(juris, settings) {
-    const total = (juris || []).length;
-    const { efetivos, dissolvidos } = splitEfetivos(juris, settings);
-    const aproveitamento = calcAproveitamento(juris, settings);
+/**
+ * Totais do período. Devolve DOIS planos de leitura:
+ *   - o plano da SESSÃO (realizados / redesignados / cancelados), sempre sobre
+ *     o recorte inteiro, para o painel mostrar o que aconteceu com as pautas;
+ *   - o plano do RESULTADO (efetivos / dissolvidos / aproveitamento), sobre o
+ *     conjunto que as opções de análise mandaram considerar.
+ */
+export function computeTotais(juris, settings, analysis) {
+    const base = juris || [];
+    const { realizados, redesignados, cancelados } = splitRealizacao(base);
+    const considerados = aplicarAnalise(base, analysis);
+
+    const total = considerados.length;
+    const { efetivos, dissolvidos } = splitEfetivos(considerados, settings);
+    const aproveitamento = calcAproveitamento(considerados, settings);
+
     return {
+        // Plano do resultado (base das demais seções).
         total,
         efetivos: efetivos.length,
         dissolvidos: dissolvidos.length,
@@ -271,6 +343,14 @@ export function computeTotais(juris, settings) {
         pctDissolvidos: total ? dissolvidos.length / total : null,
         aproveitamento: aproveitamento.ratio,
         pontos: aproveitamento.pontos,
+        // Plano da sessão (recorte inteiro, independente das opções).
+        totalBruto: base.length,
+        realizados: realizados.length,
+        redesignados: redesignados.length,
+        cancelados: cancelados.length,
+        pctRealizados: base.length ? realizados.length / base.length : null,
+        pctRedesignados: base.length ? redesignados.length / base.length : null,
+        pctCancelados: base.length ? cancelados.length / base.length : null,
     };
 }
 
@@ -278,8 +358,10 @@ export function computeTotais(juris, settings) {
  * Distribuição por espécie de resultado. Os dissolvidos são reportados à
  * parte (`dissolucoes`) e NÃO entram no denominador dos percentuais.
  */
-export function computeEspecies(juris, settings) {
-    const { efetivos, dissolvidos } = splitEfetivos(juris, settings);
+export function computeEspecies(juris, settings, analysis) {
+    const considerados = aplicarAnalise(juris, analysis);
+    const opts = resolveAnalysis(analysis);
+    const { efetivos, dissolvidos } = splitEfetivos(considerados, settings);
     const total = efetivos.length;
 
     const counts = new Map();
@@ -293,6 +375,7 @@ export function computeEspecies(juris, settings) {
     }
 
     const linhas = [...counts.entries()]
+        .filter(([especie]) => !(opts.excluirNaoInformados && especie === SEM_VALOR))
         .map(([especie, quantidade]) => ({
             especie,
             quantidade,
@@ -305,17 +388,19 @@ export function computeEspecies(juris, settings) {
         linhas,
         totalEfetivos: total,
         dissolucoes: dissolvidos.length,
-        totalGeral: (juris || []).length,
+        totalGeral: considerados.length,
     };
 }
 
 /** Distribuição por matéria/tipo de júri, com sub-contagem por espécie. */
-export function computeMaterias(juris, settings) {
-    const { efetivos } = splitEfetivos(juris, settings);
+export function computeMaterias(juris, settings, analysis) {
+    const opts = resolveAnalysis(analysis);
+    const { efetivos } = splitEfetivos(aplicarAnalise(juris, analysis), settings);
     const grupos = new Map();
 
     for (const juri of efetivos) {
         const chave = juri.tipo || SEM_VALOR;
+        if (opts.excluirNaoInformados && chave === SEM_VALOR) continue;
         if (!grupos.has(chave)) grupos.set(chave, []);
         grupos.get(chave).push(juri);
     }
@@ -348,10 +433,12 @@ export function computeMaterias(juris, settings) {
  * distribuição por espécie e o aproveitamento ponderado de cada grupo.
  * É a base tanto do "Ranking de Comarcas" quanto da "Atuação por Promotor".
  */
-export function computeRanking(juris, dimension, settings) {
+export function computeRanking(juris, dimension, settings, analysis) {
+    const opts = resolveAnalysis(analysis);
     const grupos = new Map();
-    for (const juri of juris || []) {
+    for (const juri of aplicarAnalise(juris, analysis)) {
         const chave = dimensionValue(juri, dimension, settings);
+        if (opts.excluirNaoInformados && chave === SEM_VALOR) continue;
         if (!grupos.has(chave)) grupos.set(chave, []);
         grupos.get(chave).push(juri);
     }
@@ -385,9 +472,9 @@ export function computeRanking(juris, dimension, settings) {
 }
 
 /** Série temporal por mês (ordenada cronologicamente). */
-export function computeSerieMensal(juris, settings) {
+export function computeSerieMensal(juris, settings, analysis) {
     const grupos = new Map();
-    for (const juri of juris || []) {
+    for (const juri of aplicarAnalise(juris, analysis)) {
         const chave = mesSortKey(juri);
         if (!chave) continue;
         if (!grupos.has(chave)) grupos.set(chave, []);
@@ -413,13 +500,16 @@ export function computeSerieMensal(juris, settings) {
 }
 
 /** Distribuição por faixa de horário. */
-export function computeHorarios(juris) {
+export function computeHorarios(juris, analysis) {
+    const opts = resolveAnalysis(analysis);
+    const considerados = aplicarAnalise(juris, analysis);
     const grupos = new Map();
-    for (const juri of juris || []) {
+    for (const juri of considerados) {
         const faixa = faixaHorario(juri);
+        if (opts.excluirNaoInformados && faixa === SEM_VALOR) continue;
         grupos.set(faixa, (grupos.get(faixa) || 0) + 1);
     }
-    const total = (juris || []).length;
+    const total = considerados.length;
     const ordem = ['Manhã (00h–11h59)', 'Tarde (12h–17h59)', 'Noite (18h–23h59)', SEM_VALOR];
     return [...grupos.entries()]
         .map(([faixa, quantidade]) => ({
@@ -434,7 +524,7 @@ export function computeHorarios(juris) {
 // Tabela dinâmica (pivot multi-nível)
 // ----------------------------------------------------------------------------
 
-const PATH_SEP = ' ';
+const PATH_SEP = '\u0000';
 
 /** Agrega as estatísticas de um conjunto de júris numa célula da pivot. */
 function statsOf(juris, settings) {
@@ -535,7 +625,8 @@ function collectNodes(node, acc = []) {
  *   values: string[], showAs: string, subtotais: string
  * }}
  */
-export function buildPivot(juris, config, settings) {
+export function buildPivot(juris, config, settings, analysis) {
+    const opts = resolveAnalysis(analysis);
     const rowDims = (config?.rowDims || []).filter(Boolean).slice(0, 3);
     const colDims = (config?.colDims || []).filter(Boolean).slice(0, 3);
     const values = (config?.values || ['quantidade']).filter(Boolean).slice(0, 2);
@@ -547,9 +638,14 @@ export function buildPivot(juris, config, settings) {
     const rowPaths = new Set();
     const colPaths = new Set();
 
-    for (const juri of juris || []) {
+    for (const juri of aplicarAnalise(juris, analysis)) {
         const rowPath = rowDims.map((d) => dimensionValue(juri, d, settings));
         const colPath = colDims.map((d) => dimensionValue(juri, d, settings));
+        // Com a opção ligada, um júri sem valor em QUALQUER dimensão do
+        // cruzamento sai da tabela: mantê-lo criaria uma linha ou coluna
+        // "(não informado)" exatamente onde ela foi dispensada.
+        if (opts.excluirNaoInformados
+            && [...rowPath, ...colPath].some((v) => v === SEM_VALOR)) continue;
         const rowKey = rowPath.join(PATH_SEP);
         const colKey = colPath.join(PATH_SEP);
         if (rowDims.length) rowPaths.add(rowPath);
@@ -709,7 +805,8 @@ export function measureLabel(measure) {
  * @param {object} settings
  * @returns {string} Markdown pronto para exibir, copiar ou exportar.
  */
-export function buildDescritivo(juris, config, settings) {
+export function buildDescritivo(juris, config, settings, analysis) {
+    const opts = resolveAnalysis(analysis);
     const {
         agrupador = 'comarca',
         secoes = ['quantitativo', 'especies', 'materias', 'aproveitamento'],
@@ -729,8 +826,19 @@ export function buildDescritivo(juris, config, settings) {
         : 'Período: base completa.';
     linhas.push(`${periodoTexto} Documento gerado em ${new Date().toLocaleString('pt-BR')}.`);
     linhas.push('');
+    // Torna explícito o critério de contagem: sem isto, dois relatórios do
+    // mesmo período poderiam divergir sem que o leitor soubesse por quê.
+    const notas = [];
+    if (opts.somenteRealizados) {
+        notas.push('consideradas apenas as sessões **realizadas** (redesignadas e canceladas ficam de fora)');
+    } else {
+        notas.push('consideradas **todas** as sessões, inclusive redesignadas e canceladas');
+    }
+    if (opts.excluirNaoInformados) notas.push('grupos sem valor informado foram excluídos');
+    linhas.push(`Critério de contagem: ${notas.join('; ')}.`);
+    linhas.push('');
 
-    const totais = computeTotais(juris, settings);
+    const totais = computeTotais(juris, settings, analysis);
 
     if (ativo.has('quantitativo')) {
         linhas.push('## Quantitativo geral');
@@ -755,7 +863,7 @@ export function buildDescritivo(juris, config, settings) {
     }
 
     // Agrupamento principal escolhido pelo usuário.
-    const ranking = computeRanking(juris, agrupador, settings);
+    const ranking = computeRanking(juris, agrupador, settings, analysis);
     if (ranking.linhas.length > 0) {
         const dimLabel = {
             comarca: 'comarca', promotor: 'promotor(a)', tipo: 'matéria',
@@ -784,7 +892,7 @@ export function buildDescritivo(juris, config, settings) {
     }
 
     if (ativo.has('meses')) {
-        const serie = computeSerieMensal(juris, settings);
+        const serie = computeSerieMensal(juris, settings, analysis);
         if (serie.length > 0) {
             linhas.push('## Júris por mês');
             linhas.push('');
@@ -801,7 +909,7 @@ export function buildDescritivo(juris, config, settings) {
     }
 
     if (ativo.has('especies')) {
-        const especies = computeEspecies(juris, settings);
+        const especies = computeEspecies(juris, settings, analysis);
         linhas.push('## Espécies de resultado');
         linhas.push('');
         linhas.push(
@@ -819,7 +927,7 @@ export function buildDescritivo(juris, config, settings) {
     }
 
     if (ativo.has('materias')) {
-        const materias = computeMaterias(juris, settings);
+        const materias = computeMaterias(juris, settings, analysis);
         if (materias.linhas.length > 0) {
             linhas.push('## Matérias / Tipos de júri');
             linhas.push('');
@@ -839,7 +947,7 @@ export function buildDescritivo(juris, config, settings) {
     }
 
     if (ativo.has('promotores')) {
-        const promotores = computeRanking(juris, 'promotor', settings);
+        const promotores = computeRanking(juris, 'promotor', settings, analysis);
         if (promotores.linhas.length > 0) {
             linhas.push('## Promotores(as) relacionados');
             linhas.push('');
@@ -876,7 +984,7 @@ export function buildDescritivo(juris, config, settings) {
     }
 
     if (ativo.has('horarios')) {
-        const horarios = computeHorarios(juris);
+        const horarios = computeHorarios(juris, analysis);
         if (horarios.length > 0) {
             linhas.push('## Faixas de horário');
             linhas.push('');
@@ -891,7 +999,7 @@ export function buildDescritivo(juris, config, settings) {
     }
 
     if (ativo.has('dissolucoes')) {
-        const { dissolvidos } = splitEfetivos(juris, settings);
+        const { dissolvidos } = splitEfetivos(aplicarAnalise(juris, analysis), settings);
         linhas.push('## Dissoluções');
         linhas.push('');
         if (dissolvidos.length === 0) {

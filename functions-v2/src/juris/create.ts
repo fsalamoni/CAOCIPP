@@ -5,6 +5,7 @@ import {
     resolveJurimetriaSettings,
     sanitizeJuriInput,
     normalizeProcessNumber,
+    resolveRealizacaoChange,
 } from '../shared/jurimetria';
 
 interface CreateJuriRequest {
@@ -49,8 +50,22 @@ export const createJuri = onCall<CreateJuriRequest>(
         if (!core.numero_processo) {
             throw new HttpsError('invalid-argument', 'O número do processo é obrigatório');
         }
-        if (!core.data_juri) {
-            throw new HttpsError('invalid-argument', 'A data do júri é obrigatória e deve ser válida');
+
+        // Realização decide se a data é obrigatória: um júri cadastrado já como
+        // cancelado não tem data. A validação da data vive dentro desta regra.
+        const userNameForLog = request.auth.token.name || 'Usuário desconhecido';
+        const transicao = resolveRealizacaoChange({
+            currentRealizacao: 'realizado',
+            currentDate: '',
+            nextRealizacao: core.realizacao,
+            nextDate: core.data_juri,
+            justificativa: core.realizacao_justificativa,
+            userId,
+            userName: userNameForLog,
+            isCreate: true,
+        });
+        if (transicao.error) {
+            throw new HttpsError('invalid-argument', transicao.error);
         }
 
         const numeroNorm = normalizeProcessNumber(core.numero_processo);
@@ -96,7 +111,7 @@ export const createJuri = onCall<CreateJuriRequest>(
         const now = new Date();
         const logDate = now.toISOString().split('T')[0];
         const logTime = now.toTimeString().split(' ')[0];
-        const userName = request.auth.token.name || 'Usuário desconhecido';
+        const userName = userNameForLog;
 
         const logEntry = {
             date: logDate,
@@ -111,6 +126,12 @@ export const createJuri = onCall<CreateJuriRequest>(
             id: juriRef.id,
             organization_id: organizationId,
             ...core,
+            // A regra de realização tem a última palavra sobre data e
+            // justificativa (ex.: cancelado entra sem data).
+            realizacao: transicao.realizacao,
+            data_juri: transicao.dataJuri,
+            realizacao_justificativa: transicao.justificativa,
+            date_history: [],
             numero_processo_norm: numeroNorm,
             values,
             responsible_user_id: responsibleUserId,

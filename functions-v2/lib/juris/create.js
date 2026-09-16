@@ -35,8 +35,21 @@ exports.createJuri = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     if (!core.numero_processo) {
         throw new https_1.HttpsError('invalid-argument', 'O número do processo é obrigatório');
     }
-    if (!core.data_juri) {
-        throw new https_1.HttpsError('invalid-argument', 'A data do júri é obrigatória e deve ser válida');
+    // Realização decide se a data é obrigatória: um júri cadastrado já como
+    // cancelado não tem data. A validação da data vive dentro desta regra.
+    const userNameForLog = request.auth.token.name || 'Usuário desconhecido';
+    const transicao = (0, jurimetria_1.resolveRealizacaoChange)({
+        currentRealizacao: 'realizado',
+        currentDate: '',
+        nextRealizacao: core.realizacao,
+        nextDate: core.data_juri,
+        justificativa: core.realizacao_justificativa,
+        userId,
+        userName: userNameForLog,
+        isCreate: true,
+    });
+    if (transicao.error) {
+        throw new https_1.HttpsError('invalid-argument', transicao.error);
     }
     const numeroNorm = (0, jurimetria_1.normalizeProcessNumber)(core.numero_processo);
     // 4. Duplicidade: o número do processo é a chave natural dentro do órgão.
@@ -73,7 +86,7 @@ exports.createJuri = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     const now = new Date();
     const logDate = now.toISOString().split('T')[0];
     const logTime = now.toTimeString().split(' ')[0];
-    const userName = request.auth.token.name || 'Usuário desconhecido';
+    const userName = userNameForLog;
     const logEntry = {
         date: logDate,
         time: logTime,
@@ -82,7 +95,10 @@ exports.createJuri = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
         action: 'Júri cadastrado manualmente',
         timestamp: now.toISOString(),
     };
-    await juriRef.set(Object.assign(Object.assign({ id: juriRef.id, organization_id: organizationId }, core), { numero_processo_norm: numeroNorm, values, responsible_user_id: responsibleUserId, responsible_user_name: responsibleUserName, source: 'manual', imported_from: null, created_by: userId, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, activity_log: [logEntry] }));
+    await juriRef.set(Object.assign(Object.assign({ id: juriRef.id, organization_id: organizationId }, core), { 
+        // A regra de realização tem a última palavra sobre data e
+        // justificativa (ex.: cancelado entra sem data).
+        realizacao: transicao.realizacao, data_juri: transicao.dataJuri, realizacao_justificativa: transicao.justificativa, date_history: [], numero_processo_norm: numeroNorm, values, responsible_user_id: responsibleUserId, responsible_user_name: responsibleUserName, source: 'manual', imported_from: null, created_by: userId, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, activity_log: [logEntry] }));
     // Espelho do log na subcoleção `history` (best-effort, idempotente).
     try {
         await juriRef.collection('history').doc((0, history_1.historyEntryId)(logEntry)).set(Object.assign(Object.assign({}, logEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));

@@ -18,8 +18,10 @@ import {
     ArrowUpDown, ArrowUp, ArrowDown, Columns3, MoreHorizontal, Pencil, Trash2,
     Eye, SearchX, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { formatDateBR, tipoLabel, isDissolucao } from '@/lib/jurimetriaEngine';
-import { getJurimetriaFields, getJuriFieldValue } from '@/constants/jurimetria';
+import { formatDateBR, tipoLabel, isDissolucao, getRealizacao } from '@/lib/jurimetriaEngine';
+import {
+    getJurimetriaFields, getJuriFieldValue, realizacaoMeta,
+} from '@/constants/jurimetria';
 
 const PAGE_SIZES = [20, 50, 100, 200];
 const STORAGE_KEY = 'caocipp_jurimetria_columns';
@@ -36,12 +38,18 @@ export function buildJuriColumns(settings) {
         label: field.label,
         custom: field.custom,
         type: field.type,
+        // Colunas estruturais da ferramenta (número, data, realização): não
+        // podem ser escondidas pelo admin e reaparecem para quem já tinha uma
+        // preferência salva de antes de elas existirem.
+        locked: field.locked === true,
         defaultVisible: !['vara', 'observacoes'].includes(field.key),
         // Valor textual — usado na ordenação e em TODAS as exportações.
         text: (juri) => {
             const raw = getJuriFieldValue(juri, field.key);
             if (field.key === 'data_juri') return formatDateBR(raw);
             if (field.key === 'tipo') return raw ? tipoLabel(raw, settings) : '';
+            // Júri anterior à coluna de realização: vale como realizado.
+            if (field.key === 'realizacao') return realizacaoMeta(getRealizacao(juri)).label;
             if (field.type === 'date') return raw ? formatDateBR(raw) : '';
             if (raw === true) return 'Sim';
             if (raw === false) return 'Não';
@@ -51,6 +59,7 @@ export function buildJuriColumns(settings) {
         sortValue: (juri) => {
             const raw = getJuriFieldValue(juri, field.key);
             if (field.key === 'data_juri' || field.type === 'date') return String(raw || '');
+            if (field.key === 'realizacao') return getRealizacao(juri);
             if (field.type === 'number') return Number(raw) || 0;
             return String(raw ?? '').toLowerCase();
         },
@@ -67,14 +76,45 @@ export function buildJuriColumns(settings) {
     return columns;
 }
 
+/**
+ * Colunas visíveis.
+ *
+ * Além da escolha do usuário, guardamos quais colunas EXISTIAM quando ele
+ * escolheu. Assim, quando uma coluna nova entra na ferramenta (ou o admin cria
+ * uma), ela aparece para quem já tinha uma preferência salva, em vez de ficar
+ * invisível justamente para quem mais usa a tela — sem desfazer o que a pessoa
+ * tinha ocultado de propósito.
+ *
+ * No formato antigo (array puro) não dá para separar "ocultei" de "não
+ * existia", então só as colunas estruturais entram — é o mínimo necessário
+ * para a ferramenta fazer sentido, sem reabrir o que a pessoa fechou.
+ */
 function loadVisible(columns) {
+    const todas = columns.map((c) => c.key);
     const fallback = columns.filter((c) => c.defaultVisible).map((c) => c.key);
     try {
         const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || 'null');
-        if (Array.isArray(stored) && stored.length > 0) {
-            const known = stored.filter((key) => columns.some((c) => c.key === key));
-            if (known.length > 0) return known;
-        }
+
+        // Formato antigo (array puro): não sabemos o que era oferecido na
+        // época, então tratamos as colunas de então como as guardadas.
+        const visible = Array.isArray(stored) ? stored : stored?.visible;
+        const known = Array.isArray(stored) ? stored : stored?.known;
+        if (!Array.isArray(visible) || visible.length === 0) return fallback;
+
+        const legado = Array.isArray(stored);
+        const conhecidas = new Set(Array.isArray(known) ? known : visible);
+        const estruturais = new Set(columns.filter((c) => c.locked).map((c) => c.key));
+        const novas = todas.filter((key) => (
+            !conhecidas.has(key)
+            && fallback.includes(key)
+            && (!legado || estruturais.has(key))
+        ));
+        const mantidas = visible.filter((key) => todas.includes(key));
+        if (mantidas.length === 0 && novas.length === 0) return fallback;
+
+        // Preserva a ordem oficial das colunas.
+        const escolhidas = new Set([...mantidas, ...novas]);
+        return todas.filter((key) => escolhidas.has(key));
     } catch {
         /* localStorage indisponível (modo privado etc.) — usa o padrão */
     }
@@ -113,11 +153,14 @@ export default function JuriTable({
 
     useEffect(() => {
         try {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleKeys));
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                visible: visibleKeys,
+                known: columns.map((c) => c.key),
+            }));
         } catch {
             /* sem localStorage: a preferência vale só para esta sessão */
         }
-    }, [visibleKeys]);
+    }, [visibleKeys, columns]);
 
     // Sai de uma página que deixou de existir depois de um filtro mais restritivo.
     useEffect(() => { setPage(1); }, [juris.length, pageSize]);
@@ -318,6 +361,16 @@ export default function JuriTable({
                                                             )}
                                                             {text || '—'}
                                                         </span>
+                                                    </TableCell>
+                                                );
+                                            }
+                                            if (column.key === 'realizacao') {
+                                                const meta = realizacaoMeta(getRealizacao(juri));
+                                                return (
+                                                    <TableCell key={column.key}>
+                                                        <Badge className={`${meta.badge} border-0 text-[11px] font-medium whitespace-nowrap`}>
+                                                            {meta.label}
+                                                        </Badge>
                                                     </TableCell>
                                                 );
                                             }

@@ -14,12 +14,13 @@ import {
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
-import { resolveJurimetriaSettings } from '@/constants/jurimetria';
+import { resolveJurimetriaSettings, JURIMETRIA_DEFAULT_ANALYSIS } from '@/constants/jurimetria';
 import { filtrarJuris, formatNumber } from '@/lib/jurimetriaEngine';
+import { useJurimetriaPref } from '@/hooks/useJurimetriaPrefs';
 import { deleteJuri, deleteJuris } from '@/services/jurimetriaService';
 
 import JurimetriaFilters, {
-    EMPTY_JURIMETRIA_FILTERS, describeFilters,
+    EMPTY_JURIMETRIA_FILTERS, describeFilters, describeAnalysis,
 } from './jurimetria/JurimetriaFilters';
 import JurimetriaDashboard from './jurimetria/JurimetriaDashboard';
 import JuriTable, { buildJuriColumns } from './jurimetria/JuriTable';
@@ -57,6 +58,13 @@ export default function JurimetriaControl({
 
     const [filters, setFilters] = useState(EMPTY_JURIMETRIA_FILTERS);
     const [selectedIds, setSelectedIds] = useState([]);
+
+    // Opções de ANÁLISE (como o recorte é contado) — diferentes dos filtros
+    // (o que entra no recorte). Ficam gravadas por órgão: quem trabalha
+    // contando só as sessões realizadas não quer reconfigurar isso toda vez.
+    const [analysis, setAnalysis] = useJurimetriaPref(
+        'analise', organization?.id, JURIMETRIA_DEFAULT_ANALYSIS
+    );
 
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState(null);
@@ -105,6 +113,14 @@ export default function JurimetriaControl({
     );
 
     const subtitle = useMemo(() => describeFilters(filters, settings), [filters, settings]);
+
+    // Legenda impressa nos relatórios e nos documentos exportados: o leitor
+    // precisa saber qual recorte E qual critério de contagem gerou o número.
+    const criterio = useMemo(() => describeAnalysis(analysis), [analysis]);
+    const reportSubtitle = useMemo(
+        () => [subtitle, criterio].filter(Boolean).join(' · '),
+        [subtitle, criterio]
+    );
 
     const tableColumns = useMemo(
         () => buildJuriColumns(settings).map((c) => ({ label: c.label, value: c.text })),
@@ -222,6 +238,8 @@ export default function JurimetriaControl({
                 members={members}
                 availableComarcas={availableComarcas}
                 availablePromotores={availablePromotores}
+                analysis={analysis}
+                onAnalysisChange={setAnalysis}
             />
 
             <Tabs defaultValue="painel" className="space-y-4">
@@ -252,7 +270,7 @@ export default function JurimetriaControl({
                 </TabsList>
 
                 <TabsContent value="painel" className="mt-0">
-                    <JurimetriaDashboard juris={filtered} settings={settings} />
+                    <JurimetriaDashboard juris={filtered} settings={settings} analysis={analysis} />
                 </TabsContent>
 
                 <TabsContent value="juris" className="mt-0 space-y-3">
@@ -307,11 +325,23 @@ export default function JurimetriaControl({
                 </TabsContent>
 
                 <TabsContent value="relatorios" className="mt-0">
-                    <JurimetriaReports juris={filtered} settings={settings} subtitle={subtitle} />
+                    <JurimetriaReports
+                        juris={filtered}
+                        settings={settings}
+                        subtitle={reportSubtitle}
+                        analysis={analysis}
+                        organizationId={organization?.id}
+                    />
                 </TabsContent>
 
                 <TabsContent value="dinamicos" className="mt-0">
-                    <JurimetriaDynamicReports juris={filtered} settings={settings} subtitle={subtitle} />
+                    <JurimetriaDynamicReports
+                        juris={filtered}
+                        settings={settings}
+                        subtitle={reportSubtitle}
+                        analysis={analysis}
+                        organizationId={organization?.id}
+                    />
                 </TabsContent>
             </Tabs>
 

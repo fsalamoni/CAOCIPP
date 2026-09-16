@@ -11,12 +11,17 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Save, Info } from 'lucide-react';
+import { Loader2, Save, Info, CalendarClock, History, Ban } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import { createJuri, updateJuri } from '@/services/jurimetriaService';
-import { getJurimetriaFields, getJuriFieldValue } from '@/constants/jurimetria';
+import {
+    getJurimetriaFields, getJuriFieldValue,
+    JURIMETRIA_REALIZACOES, JURIMETRIA_REALIZACAO_PADRAO, realizacaoMeta,
+} from '@/constants/jurimetria';
+import { formatDateBR } from '@/lib/jurimetriaEngine';
+import JuriDateHistory from './JuriDateHistory';
 
 // Valor sentinela do Select para "nenhum": o Radix Select não aceita item com
 // value="" (string vazia é usada internamente para "sem seleção").
@@ -26,6 +31,8 @@ function emptyFormFor(fields) {
     const form = {
         numero_processo: '',
         data_juri: '',
+        realizacao: JURIMETRIA_REALIZACAO_PADRAO,
+        realizacao_justificativa: '',
         comarca: '',
         tipo: '',
         resultado: '',
@@ -66,6 +73,44 @@ export default function JuriFormDialog({
     const [form, setForm] = useState(() => emptyFormFor(fields));
     const [saving, setSaving] = useState(false);
 
+    // Data que estava gravada ao abrir o modal. Serve de referência visual na
+    // redesignação ("de 10/03 para ...") e não muda enquanto o modal está aberto.
+    const dataAnterior = isEdit ? (juri?.data_juri || '') : '';
+    const realizacaoAnterior = isEdit
+        ? (juri?.realizacao || JURIMETRIA_REALIZACAO_PADRAO)
+        : JURIMETRIA_REALIZACAO_PADRAO;
+
+    const realizacao = form.realizacao || JURIMETRIA_REALIZACAO_PADRAO;
+    const meta = realizacaoMeta(realizacao);
+    const mudouRealizacao = realizacao !== realizacaoAnterior;
+    const exigeJustificativa = ['redesignado', 'cancelado'].includes(realizacao);
+
+    /**
+     * Trocar a realização mexe na data, então o ajuste acontece aqui (e não num
+     * efeito): ao redesignar, o campo de data é esvaziado para o usuário digitar
+     * a NOVA data — a anterior continua visível como referência e vai para o
+     * histórico ao salvar. Ao cancelar, a data deixa de existir.
+     */
+    const handleRealizacaoChange = (proxima) => {
+        setForm((prev) => {
+            const next = { ...prev, realizacao: proxima };
+            if (proxima === 'cancelado') {
+                next.data_juri = '';
+            } else if (proxima === 'redesignado' && proxima !== realizacaoAnterior) {
+                next.data_juri = '';
+            } else if (proxima === 'realizado' && realizacaoAnterior === 'cancelado') {
+                next.data_juri = '';
+            } else if (proxima === realizacaoAnterior) {
+                // Voltou ao estado original: restaura a data gravada.
+                next.data_juri = dataAnterior;
+            }
+            if (!['redesignado', 'cancelado'].includes(proxima)) {
+                next.realizacao_justificativa = '';
+            }
+            return next;
+        });
+    };
+
     useEffect(() => {
         if (!open) return;
         if (isEdit) {
@@ -74,6 +119,8 @@ export default function JuriFormDialog({
                 if (key === 'values') continue;
                 base[key] = juri[key] ?? '';
             }
+            // Júri anterior à coluna "realização" conta como realizado.
+            base.realizacao = base.realizacao || JURIMETRIA_REALIZACAO_PADRAO;
             for (const field of customFields) {
                 base.values[field.key] = getJuriFieldValue(juri, field.key)
                     ?? (field.type === 'boolean' ? false : '');
@@ -117,8 +164,21 @@ export default function JuriFormDialog({
             toast.error('Informe o número do processo.');
             return;
         }
-        if (!form.data_juri) {
-            toast.error('Informe a data do júri.');
+        if (realizacao !== 'cancelado' && !form.data_juri) {
+            toast.error(realizacao === 'redesignado'
+                ? 'Informe a nova data do júri.'
+                : 'Informe a data do júri.');
+            return;
+        }
+        if (exigeJustificativa && mudouRealizacao && !form.realizacao_justificativa.trim()) {
+            toast.error(realizacao === 'cancelado'
+                ? 'Informe a justificativa do cancelamento.'
+                : 'Informe a justificativa da redesignação.');
+            return;
+        }
+        if (realizacao === 'redesignado' && mudouRealizacao
+            && dataAnterior && form.data_juri === dataAnterior) {
+            toast.error('A nova data da redesignação deve ser diferente da anterior.');
             return;
         }
         for (const field of customFields) {
@@ -135,6 +195,8 @@ export default function JuriFormDialog({
             const payload = {
                 numero_processo: form.numero_processo.trim(),
                 data_juri: form.data_juri,
+                realizacao,
+                realizacao_justificativa: form.realizacao_justificativa.trim(),
                 comarca: form.comarca,
                 tipo: form.tipo,
                 resultado: form.resultado,
@@ -258,6 +320,72 @@ export default function JuriFormDialog({
                                     />
                                 </div>
                                 <div className="space-y-1.5">
+                                    <Label>{labelOf('realizacao', 'Realização')} *</Label>
+                                    <Select value={realizacao} onValueChange={handleRealizacaoChange}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {JURIMETRIA_REALIZACOES.map((r) => (
+                                                <SelectItem key={r.value} value={r.value}>
+                                                    <span className="flex items-center gap-2">
+                                                        <span className={`w-2 h-2 rounded-full ${r.dot}`} />
+                                                        {r.label}
+                                                    </span>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-[11px] text-slate-400">{meta.description}</p>
+                                </div>
+                            </div>
+
+                            {/* Bloco da data — muda conforme o desfecho da sessão. */}
+                            {realizacao === 'cancelado' ? (
+                                <div className="rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-950/30 p-3 space-y-3">
+                                    <p className="text-sm font-medium text-rose-800 dark:text-rose-200 flex items-center gap-2">
+                                        <Ban className="w-4 h-4" />
+                                        Júri cancelado — sem data
+                                    </p>
+                                    {dataAnterior && (
+                                        <p className="text-xs text-rose-700 dark:text-rose-300">
+                                            A data <strong>{formatDateBR(dataAnterior)}</strong> será removida do
+                                            júri e guardada no histórico de datas, com a justificativa abaixo.
+                                        </p>
+                                    )}
+                                </div>
+                            ) : realizacao === 'redesignado' ? (
+                                <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/30 p-3 space-y-3">
+                                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                                        <CalendarClock className="w-4 h-4" />
+                                        Júri redesignado
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">Data anterior</Label>
+                                            <Input
+                                                value={dataAnterior ? formatDateBR(dataAnterior) : '—'}
+                                                readOnly
+                                                disabled
+                                                className="bg-white/60 dark:bg-slate-900/60"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="juri-data" className="text-xs">Nova data do júri *</Label>
+                                            <Input
+                                                id="juri-data"
+                                                type="date"
+                                                value={form.data_juri}
+                                                onChange={(e) => set({ data_juri: e.target.value })}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                                        A nova data passa a ser a data do júri. A anterior é guardada no
+                                        histórico de datas, com a justificativa abaixo.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-1.5">
                                     <Label htmlFor="juri-data">{labelOf('data_juri', 'Data do júri')} *</Label>
                                     <Input
                                         id="juri-data"
@@ -266,8 +394,39 @@ export default function JuriFormDialog({
                                         onChange={(e) => set({ data_juri: e.target.value })}
                                         required
                                     />
+                                    {realizacaoAnterior === 'cancelado' && (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                                            Este júri estava cancelado: informe a data em que ele passa a ser
+                                            considerado realizado.
+                                        </p>
+                                    )}
                                 </div>
-                            </div>
+                            )}
+
+                            {/* Justificativa — obrigatória ao entrar em redesignado/cancelado. */}
+                            {exigeJustificativa && (
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="juri-justificativa">
+                                        {realizacao === 'cancelado'
+                                            ? 'Justificativa do cancelamento'
+                                            : 'Justificativa da redesignação'}
+                                        {mudouRealizacao ? ' *' : ''}
+                                    </Label>
+                                    <Textarea
+                                        id="juri-justificativa"
+                                        value={form.realizacao_justificativa}
+                                        onChange={(e) => set({ realizacao_justificativa: e.target.value })}
+                                        rows={2}
+                                        placeholder={realizacao === 'cancelado'
+                                            ? 'Ex.: óbito do réu; extinção da punibilidade'
+                                            : 'Ex.: réu não intimado; ausência de testemunha essencial'}
+                                        required={mudouRealizacao}
+                                    />
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        Fica registrada no histórico do júri junto com a mudança de data.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {visibleCore.has('comarca') && (
@@ -433,6 +592,18 @@ export default function JuriFormDialog({
                                             </div>
                                         ))}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Histórico de datas: quem vai redesignar precisa ver quantas
+                                vezes este júri já foi adiado antes de adiar de novo. */}
+                            {isEdit && (juri?.date_history?.length || 0) > 0 && (
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
+                                        <History className="w-3.5 h-3.5" />
+                                        Histórico de datas ({juri.date_history.length})
+                                    </p>
+                                    <JuriDateHistory entries={juri.date_history} compact emptyHint={false} />
                                 </div>
                             )}
 
