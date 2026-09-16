@@ -13,6 +13,9 @@ const ORG_SCOPED_COLLECTIONS = [
     'expedientes',
     'customRecords',
     'entityTypes',
+    // Base de júris do módulo de Jurimetria (flag `jurimetria_enabled`), com
+    // a subcoleção `history` de cada júri.
+    'juris',
     'userOrganizations',
     // Notificações (menções, escalonamento) também têm organization_id e
     // ficavam órfãs indefinidamente após a exclusão do órgão.

@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteEntityType = exports.upsertEntityType = exports.getSetupStatus = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importParceriasFromExcel = exports.extinguishParceria = exports.deleteAditivo = exports.concludeAditivo = exports.updateAditivo = exports.addAditivo = exports.deleteParceria = exports.updateParceria = exports.createParceria = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.migrateMemberFunctions = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
-exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.checkPartnershipNoticeDeadlines = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = void 0;
+exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = exports.getFeatureFlags = exports.getPlatformOverview = exports.importJurisFromExcel = exports.bulkUpdateJuris = exports.deleteJuris = exports.updateJuri = exports.createJuri = exports.importParceriasFromExcel = exports.extinguishParceria = exports.deleteAditivo = exports.concludeAditivo = exports.updateAditivo = exports.addAditivo = exports.deleteParceria = exports.updateParceria = exports.createParceria = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.migrateMemberFunctions = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
+exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.checkPartnershipNoticeDeadlines = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.getSetupStatus = exports.backfillHistory = exports.recalcOrgStats = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Export function modules
@@ -68,6 +68,22 @@ var extinguish_1 = require("./parcerias/extinguish");
 Object.defineProperty(exports, "extinguishParceria", { enumerable: true, get: function () { return extinguish_1.extinguishParceria; } });
 var fromExcelParcerias_1 = require("./import/fromExcelParcerias");
 Object.defineProperty(exports, "importParceriasFromExcel", { enumerable: true, get: function () { return fromExcelParcerias_1.importParceriasFromExcel; } });
+// ========== JURIMETRIA (base de júris do órgão — flag: jurimetria_enabled) ==========
+// Módulo de jurimetria: base própria de júris por órgão, com importação
+// idempotente de planilha (pré-visualização + confirmação), CRUD, atualização
+// em massa e exclusão. As listas oficiais, a tabela de pontuação e as colunas
+// personalizadas ficam em `organization.jurimetriaSettings` (ver
+// shared/jurimetria.ts), gravadas por updateOrganization.
+var create_5 = require("./juris/create");
+Object.defineProperty(exports, "createJuri", { enumerable: true, get: function () { return create_5.createJuri; } });
+var update_5 = require("./juris/update");
+Object.defineProperty(exports, "updateJuri", { enumerable: true, get: function () { return update_5.updateJuri; } });
+var delete_5 = require("./juris/delete");
+Object.defineProperty(exports, "deleteJuris", { enumerable: true, get: function () { return delete_5.deleteJuris; } });
+var bulkUpdate_1 = require("./juris/bulkUpdate");
+Object.defineProperty(exports, "bulkUpdateJuris", { enumerable: true, get: function () { return bulkUpdate_1.bulkUpdateJuris; } });
+var fromExcelJuris_1 = require("./import/fromExcelJuris");
+Object.defineProperty(exports, "importJurisFromExcel", { enumerable: true, get: function () { return fromExcelJuris_1.importJurisFromExcel; } });
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
 var overview_1 = require("./platform/overview");
 Object.defineProperty(exports, "getPlatformOverview", { enumerable: true, get: function () { return overview_1.getPlatformOverview; } });

@@ -18,6 +18,7 @@ exports.ORG_PERMISSION_KEYS = [
     'manage_matters',
     'configure_expedientes',
     'configure_parcerias',
+    'configure_jurimetria',
     'manage_metrics',
     'manage_modules',
     'bulk_standardize',

@@ -180,6 +180,10 @@ async function createAutoAditivo(db, parceria, reason) {
 /**
  * Recalcula renewal_notice_date se o usuário mudou o período.
  * Chamado quando o admin atualiza renewal_notice_period/unit.
+ *
+ * O aviso acontece ANTES do termo final (é um aviso de renovação), então a
+ * data é o termo final MENOS o período configurado — mesma fórmula de
+ * calculateRenewalNoticeDate em src/lib/dateUtils.js.
  */
 function computeRenewalNoticeDate(endDate, period, unit) {
     if (!endDate || !period || !unit)
@@ -188,7 +192,7 @@ function computeRenewalNoticeDate(endDate, period, unit) {
         return null;
     if (Number(period) <= 0)
         return null;
-    return addDurationToDate(endDate, Number(period), unit);
+    return addDurationToDate(endDate, -Number(period), unit);
 }
 /**
  * Recalcula review_notice_date se o usuário mudou o período.

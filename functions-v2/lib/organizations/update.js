@@ -4,6 +4,7 @@ exports.updateOrganization = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
+const jurimetria_1 = require("../shared/jurimetria");
 exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
@@ -34,6 +35,7 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         matterSettings: 'manage_matters',
         expedienteSettings: 'configure_expedientes',
         parceriaSettings: 'configure_parcerias',
+        jurimetriaSettings: 'configure_jurimetria',
         thirdPartiesSettingsConsultas: 'manage_matters',
         thirdPartiesSettingsExpedientes: 'configure_expedientes',
         thirdPartiesSettingsParcerias: 'configure_parcerias',
@@ -79,6 +81,8 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.thirdPartiesSettingsExpedientes = sanitizeThirdParties(data.thirdPartiesSettingsExpedientes);
     if (data.thirdPartiesSettingsParcerias !== undefined)
         updates.thirdPartiesSettingsParcerias = sanitizeThirdParties(data.thirdPartiesSettingsParcerias);
+    if (data.jurimetriaSettings !== undefined)
+        updates.jurimetriaSettings = (0, jurimetria_1.sanitizeJurimetriaSettings)(data.jurimetriaSettings);
     if (data.thirdPartyPhaseEnabledConsultas !== undefined)
         updates.thirdPartyPhaseEnabledConsultas = data.thirdPartyPhaseEnabledConsultas === true;
     if (data.moduleConfig !== undefined)
@@ -223,7 +227,7 @@ function sanitizeThirdParties(input) {
 }
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.
 function sanitizeModuleConfig(input) {
-    const allowed = ['processes', 'expedientes', 'parcerias', 'summary'];
+    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'summary'];
     const out = {};
     for (const key of allowed) {
         const entry = input === null || input === void 0 ? void 0 : input[key];

@@ -25,6 +25,7 @@ const AVG_DOC_BYTES = {
     processes: 3000,
     expedientes: 2500,
     parcerias: 2800,
+    juris: 1200,
     userOrganizations: 600,
     auditLogs: 800,
     notifications: 600,
@@ -36,12 +37,13 @@ const AVG_DOC_BYTES = {
 exports.getPlatformOverview = (0, https_1.onCall)({ region: helpers_1.REGION }, async (request) => {
     await (0, helpers_1.assertPlatformAdmin)(request);
     const db = admin.firestore();
-    const [organizations, users, processes, expedientes, parcerias, memberships, auditLogs, notifications,] = await Promise.all([
+    const [organizations, users, processes, expedientes, parcerias, juris, memberships, auditLogs, notifications,] = await Promise.all([
         countCollection(db, 'organizations'),
         countCollection(db, 'users'),
         countCollection(db, 'processes'),
         countCollection(db, 'expedientes'),
         countCollection(db, 'parcerias'),
+        countCollection(db, 'juris'),
         countCollection(db, 'userOrganizations'),
         countCollection(db, 'auditLogs'),
         countCollection(db, 'notifications'),
@@ -52,6 +54,7 @@ exports.getPlatformOverview = (0, https_1.onCall)({ region: helpers_1.REGION }, 
         processes,
         expedientes,
         parcerias,
+        juris,
         userOrganizations: memberships,
         auditLogs,
         notifications,
@@ -71,6 +74,7 @@ exports.getPlatformOverview = (0, https_1.onCall)({ region: helpers_1.REGION }, 
             processes,
             expedientes,
             parcerias,
+            juris,
             memberships,
             auditLogs,
             notifications,
