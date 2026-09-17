@@ -70,3 +70,19 @@ export const commitJurisImport = ({ organizationId, fileData, fileName, policy }
         { organizationId, fileData, fileName, policy, mode: 'commit' },
         { timeout: 540000 }
     );
+
+// ---------------------------------------------------------------------------
+// Modelos de relatório dinâmico (compartilhados no órgão)
+// ---------------------------------------------------------------------------
+
+/** Salva um novo modelo de tabela dinâmica ou de relatório descritivo. */
+export const createJurimetriaTemplate = ({ organizationId, nome, tipo, config }) =>
+    call('manageJurimetriaTemplate', { organizationId, action: 'create', nome, tipo, config });
+
+/** Atualiza um modelo existente (só o autor ou quem administra o módulo). */
+export const updateJurimetriaTemplate = ({ organizationId, id, nome, tipo, config }) =>
+    call('manageJurimetriaTemplate', { organizationId, action: 'update', id, nome, tipo, config });
+
+/** Exclui um modelo (só o autor ou quem administra o módulo). */
+export const deleteJurimetriaTemplate = ({ organizationId, id }) =>
+    call('manageJurimetriaTemplate', { organizationId, action: 'delete', id });

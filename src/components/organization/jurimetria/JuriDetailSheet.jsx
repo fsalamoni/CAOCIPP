@@ -8,13 +8,18 @@ import { Separator } from '@/components/ui/separator';
 import {
     Pencil, Trash2, Scale, CalendarDays, MapPin, Gavel, User, Clock,
     Building2, FileText, History, Loader2, UserCheck, Upload, CalendarClock,
+    Hourglass, Briefcase,
 } from 'lucide-react';
 import { useJuriHistory } from '@/hooks/useJuris';
-import { getJurimetriaFields, getJuriFieldValue, realizacaoMeta } from '@/constants/jurimetria';
+import {
+    getJurimetriaFields, getJuriFieldValue, realizacaoMeta, expedienteMeta,
+} from '@/constants/jurimetria';
 import {
     formatDateBR, tipoLabel, isDissolucao, pesoDoResultado, getRealizacao,
+    duracaoEmMinutos, formatDuracao, situacaoExpediente,
 } from '@/lib/jurimetriaEngine';
 import JuriDateHistory from './JuriDateHistory';
+import ResultadoBadge from './ResultadoBadge';
 
 function Row({ icon: Icon, label, value, mono = false }) {
     if (value === null || value === undefined || value === '') return null;
@@ -59,6 +64,8 @@ export default function JuriDetailSheet({
     const realizacao = getRealizacao(juri);
     const realizacaoInfo = realizacaoMeta(realizacao);
     const dateHistory = Array.isArray(juri.date_history) ? juri.date_history : [];
+    const duracao = duracaoEmMinutos(juri);
+    const expediente = expedienteMeta(situacaoExpediente(juri, settings?.expediente));
 
     return (
         <Sheet open={open} onOpenChange={onClose}>
@@ -99,9 +106,11 @@ export default function JuriDetailSheet({
                             {realizacaoInfo.label}
                         </Badge>
                         {juri.resultado && (
-                            <Badge variant={dissolvido ? 'outline' : 'secondary'} className="font-medium">
-                                {juri.resultado}
-                            </Badge>
+                            <ResultadoBadge
+                                resultado={juri.resultado}
+                                settings={settings}
+                                className="text-xs"
+                            />
                         )}
                         {juri.tipo && <Badge variant="outline">{tipoLabel(juri.tipo, settings)}</Badge>}
                         {juri.source === 'import' && (
@@ -153,7 +162,14 @@ export default function JuriDetailSheet({
                         value={juri.data_juri ? formatDateBR(juri.data_juri) : 'Sem data (júri cancelado)'}
                     />
                     <Row icon={CalendarClock} label="Realização" value={realizacaoInfo.label} />
-                    <Row icon={Clock} label="Horário" value={juri.horario} />
+                    <Row icon={Clock} label="Horário de início" value={juri.horario_inicio} />
+                    <Row icon={Clock} label="Horário de conclusão" value={juri.horario} />
+                    <Row
+                        icon={Hourglass}
+                        label="Duração da sessão"
+                        value={duracao === null ? '' : formatDuracao(duracao)}
+                    />
+                    <Row icon={Briefcase} label="Expediente" value={expediente.label} />
                     <Row icon={MapPin} label="Comarca" value={juri.comarca} />
                     <Row icon={Building2} label="Vara / Órgão julgador" value={juri.vara} />
                     <Row icon={Gavel} label="Matéria / Tipo" value={juri.tipo ? tipoLabel(juri.tipo, settings) : ''} />

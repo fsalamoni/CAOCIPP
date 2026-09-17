@@ -9,7 +9,7 @@
 // Mantenha as chaves e os defaults em sincronia entre os dois arquivos.
 // ============================================================================
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.JURI_COMPARABLE_FIELDS = exports.JURIMETRIA_DEFAULT_SETTINGS = exports.JURIMETRIA_CUSTOM_FIELD_TYPES = exports.JURIMETRIA_LOCKED_FIELD_KEYS = exports.JURIMETRIA_CORE_FIELD_KEYS = exports.JURIMETRIA_REALIZACOES_COM_JUSTIFICATIVA = exports.JURIMETRIA_REALIZACAO_VALUES = exports.JURIMETRIA_REALIZACAO_PADRAO = exports.JURIMETRIA_COMARCAS = exports.JURIMETRIA_DISSOLUCAO_RESULTADOS = exports.JURIMETRIA_PONTUACAO_PADRAO = exports.JURIMETRIA_TIPOS = exports.JURIMETRIA_RESULTADO_ALIASES = exports.JURIMETRIA_RESULTADOS = void 0;
+exports.JURI_COMPARABLE_FIELDS = exports.JURIMETRIA_DEFAULT_SETTINGS = exports.JURIMETRIA_EXPEDIENTE_PADRAO = exports.JURIMETRIA_RESULTADO_CORES_PADRAO = exports.JURIMETRIA_CUSTOM_FIELD_TYPES = exports.JURIMETRIA_LOCKED_FIELD_KEYS = exports.JURIMETRIA_CORE_FIELD_KEYS = exports.JURIMETRIA_REALIZACOES_COM_JUSTIFICATIVA = exports.JURIMETRIA_REALIZACAO_VALUES = exports.JURIMETRIA_REALIZACAO_PADRAO = exports.JURIMETRIA_COMARCAS = exports.JURIMETRIA_DISSOLUCAO_RESULTADOS = exports.JURIMETRIA_PONTUACAO_PADRAO = exports.JURIMETRIA_TIPOS = exports.JURIMETRIA_RESULTADO_ALIASES = exports.JURIMETRIA_RESULTADOS = void 0;
 exports.normalizeRealizacao = normalizeRealizacao;
 exports.resolveRealizacaoChange = resolveRealizacaoChange;
 exports.normalizeText = normalizeText;
@@ -281,6 +281,7 @@ exports.JURIMETRIA_CORE_FIELD_KEYS = [
     'tipo',
     'resultado',
     'promotor',
+    'horario_inicio',
     'horario',
     'vara',
     'observacoes',
@@ -292,6 +293,28 @@ exports.JURIMETRIA_LOCKED_FIELD_KEYS = [
 exports.JURIMETRIA_CUSTOM_FIELD_TYPES = new Set([
     'text', 'textarea', 'number', 'date', 'boolean', 'select',
 ]);
+/**
+ * Cor de fundo da etiqueta de cada espécie de resultado.
+ * Espelha `JURIMETRIA_RESULTADO_CORES_PADRAO` em src/constants/jurimetria.js.
+ */
+exports.JURIMETRIA_RESULTADO_CORES_PADRAO = {
+    'PROCEDÊNCIA': '#93FFC4',
+    'PARCIAL PROCEDÊNCIA (QUALIFICADORA)': '#41BFF1',
+    'PARCIAL PROCEDÊNCIA (OUTROS)': '#A9DBF1',
+    'PARCIAL PROCEDÊNCIA – MP': '#DFF4FD',
+    'IMPROCEDÊNCIA': '#FFA3A3',
+    'IMPROCEDÊNCIA-MP': '#FFDDDD',
+    'DESCLASSIFICAÇÃO': '#F7C7AC',
+    'DESCLASSIFICAÇÃO-MP': '#FAE2D6',
+    'DISSOLUÇÃO': '#E2E8F0',
+};
+exports.JURIMETRIA_EXPEDIENTE_PADRAO = {
+    inicio: '12:00',
+    fim: '19:00',
+    dias: [1, 2, 3, 4, 5],
+    feriadosNacionais: true,
+    feriados: [],
+};
 exports.JURIMETRIA_DEFAULT_SETTINGS = {
     comarcas: exports.JURIMETRIA_COMARCAS,
     tipos: exports.JURIMETRIA_TIPOS,
@@ -304,6 +327,8 @@ exports.JURIMETRIA_DEFAULT_SETTINGS = {
     importPolicy: 'preserve',
     fuzzyThreshold: 0.7,
     requireResponsible: false,
+    resultadoCores: exports.JURIMETRIA_RESULTADO_CORES_PADRAO,
+    expediente: exports.JURIMETRIA_EXPEDIENTE_PADRAO,
 };
 // ----------------------------------------------------------------------------
 // Normalização de texto e correspondência aproximada
@@ -621,6 +646,54 @@ function sanitizePontuacao(input, resultados) {
  * devolve o objeto completo (com defaults onde o admin não configurou), de
  * modo que nenhuma chave desapareça de um salvamento para o outro.
  */
+/** `#rgb`/`#rrggbb` -> `#rrggbb` minúsculo; `null` quando não é cor válida. */
+function sanitizeHexColor(value) {
+    const raw = String(value !== null && value !== void 0 ? value : '').trim().replace(/^#/, '');
+    const hex = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+    if (!/^[0-9a-fA-F]{6}$/.test(hex))
+        return null;
+    return `#${hex.toLowerCase()}`;
+}
+/**
+ * Cores das espécies. Só entram chaves que são espécies do órgão — assim o
+ * mapa não vira depósito de chaves arbitrárias vindas do cliente.
+ */
+function sanitizeResultadoCores(value, resultados) {
+    const out = {};
+    for (const especie of resultados) {
+        const padrao = exports.JURIMETRIA_RESULTADO_CORES_PADRAO[especie];
+        if (padrao)
+            out[especie] = padrao.toLowerCase();
+    }
+    const raw = (value && typeof value === 'object' ? value : {});
+    for (const especie of resultados) {
+        const cor = sanitizeHexColor(raw[especie]);
+        if (cor)
+            out[especie] = cor;
+    }
+    return out;
+}
+/** Janela de expediente, com os defaults onde o admin não mexeu. */
+function sanitizeExpediente(value) {
+    const base = exports.JURIMETRIA_EXPEDIENTE_PADRAO;
+    const cfg = (value && typeof value === 'object' ? value : {});
+    const hora = (v, fallback) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v !== null && v !== void 0 ? v : '')) ? String(v) : fallback);
+    const dias = Array.isArray(cfg.dias)
+        ? [...new Set(cfg.dias.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+        : base.dias;
+    const feriados = Array.isArray(cfg.feriados)
+        ? [...new Set(cfg.feriados
+                .map((d) => String(d !== null && d !== void 0 ? d : '').trim())
+                .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(0, 400)
+        : [];
+    return {
+        inicio: hora(cfg.inicio, base.inicio),
+        fim: hora(cfg.fim, base.fim),
+        dias: dias.length > 0 ? dias : base.dias,
+        feriadosNacionais: cfg.feriadosNacionais !== false,
+        feriados,
+    };
+}
 function sanitizeJurimetriaSettings(input) {
     var _a;
     const cfg = (input && typeof input === 'object' ? input : {});
@@ -665,6 +738,8 @@ function sanitizeJurimetriaSettings(input) {
             ? Math.min(1, Math.max(0.4, Math.round(fuzzyRaw * 100) / 100))
             : 0.7,
         requireResponsible: cfg.requireResponsible === true,
+        resultadoCores: sanitizeResultadoCores(cfg.resultadoCores, resultados),
+        expediente: sanitizeExpediente(cfg.expediente),
     };
 }
 /**
@@ -707,6 +782,7 @@ function sanitizeJuriInput(input, settings, opts = {}) {
         tipo,
         resultado,
         promotor: text(input.promotor, 160),
+        horario_inicio: normalizeHorario(input.horario_inicio),
         horario: normalizeHorario(input.horario),
         vara: text(input.vara, 160),
         observacoes: text(input.observacoes, 2000),
@@ -754,6 +830,6 @@ function sanitizeJuriInput(input, settings, opts = {}) {
 /** Campos comparados para decidir se um registro importado diverge do banco. */
 exports.JURI_COMPARABLE_FIELDS = [
     'data_juri', 'realizacao', 'comarca', 'tipo', 'resultado',
-    'promotor', 'horario', 'vara', 'observacoes',
+    'promotor', 'horario_inicio', 'horario', 'vara', 'observacoes',
 ];
 //# sourceMappingURL=jurimetria.js.map

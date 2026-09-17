@@ -141,3 +141,47 @@ export function useJuri(juriId) {
 
     return { juri, isLoading };
 }
+
+/**
+ * Modelos de relatório dinâmico do órgão, em tempo real.
+ *
+ * Todos os membros leem todos os modelos — o cruzamento que alguém desenhou
+ * serve a quem vier depois. Quem pode EDITAR é decidido no servidor; aqui só
+ * se lê.
+ */
+export function useJurimetriaTemplates(organizationId) {
+    const [templates, setTemplates] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!organizationId) {
+            setTemplates([]);
+            setIsLoading(false);
+            return;
+        }
+        setTemplates([]);
+        setIsLoading(true);
+
+        const q = query(
+            collection(db, 'jurimetriaTemplates'),
+            where('organization_id', '==', organizationId)
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs
+                .map((d) => ({ id: d.id, ...d.data() }))
+                // Ordenação no cliente: a lista é curta (teto de 300 por órgão)
+                // e assim um índice ausente nunca esvazia a tela.
+                .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+            setTemplates(data);
+            setIsLoading(false);
+        }, (err) => {
+            logger.error('Error listening to jurimetria templates:', err);
+            setTemplates([]);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [organizationId]);
+
+    return { templates, isLoading };
+}

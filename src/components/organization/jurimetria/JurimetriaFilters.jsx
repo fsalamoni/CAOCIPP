@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,9 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Filter, FilterX, ChevronDown, X, SlidersHorizontal, Info } from 'lucide-react';
-import { tipoLabel } from '@/lib/jurimetriaEngine';
+import { tipoLabel, formatDuracao } from '@/lib/jurimetriaEngine';
 import {
     JURIMETRIA_REALIZACOES, JURIMETRIA_DEFAULT_ANALYSIS,
+    JURIMETRIA_EXPEDIENTE_SITUACOES, expedienteMeta,
 } from '@/constants/jurimetria';
 
 /** Estado inicial dos filtros — compartilhado por todas as abas da Jurimetria. */
@@ -28,7 +29,31 @@ export const EMPTY_JURIMETRIA_FILTERS = {
     dataDe: '',
     dataAte: '',
     somenteEfetivos: false,
+    // Situação de expediente (dentro / prolongou / antecipou / sem expediente).
+    expedientes: [],
+    // Duração da sessão, em MINUTOS. Vazio = sem limite.
+    duracaoMin: '',
+    duracaoMax: '',
 };
+
+/**
+ * A duração é guardada em minutos (a unidade dos cálculos), mas ninguém pensa
+ * a duração de um júri em minutos — o campo fala em horas e converte aqui.
+ */
+function horasDe(minutos) {
+    if (minutos === '' || minutos === undefined || minutos === null) return '';
+    const n = Number(minutos);
+    if (!Number.isFinite(n)) return '';
+    return String(Math.round((n / 60) * 100) / 100);
+}
+
+function minutosDe(horas) {
+    const texto = String(horas ?? '').trim();
+    if (!texto) return '';
+    const n = Number(texto);
+    if (!Number.isFinite(n) || n < 0) return '';
+    return String(Math.round(n * 60));
+}
 
 /** Quantos filtros estão ativos (para o selo do botão). */
 export function countActiveFilters(filters) {
@@ -43,6 +68,9 @@ export function countActiveFilters(filters) {
     count += (filters.resultados?.length || 0) > 0 ? 1 : 0;
     count += (filters.realizacoes?.length || 0) > 0 ? 1 : 0;
     count += (filters.responsaveis?.length || 0) > 0 ? 1 : 0;
+    count += (filters.expedientes?.length || 0) > 0 ? 1 : 0;
+    if (filters.duracaoMin !== '' && filters.duracaoMin !== undefined) count += 1;
+    if (filters.duracaoMax !== '' && filters.duracaoMax !== undefined) count += 1;
     return count;
 }
 
@@ -67,6 +95,16 @@ export function describeFilters(filters, settings) {
     }
     if (filters.promotor) partes.push(`promotor contém "${filters.promotor}"`);
     if (filters.responsaveis?.length) partes.push(`${filters.responsaveis.length} responsável(is)`);
+    if (filters.expedientes?.length) {
+        const rotulos = filters.expedientes.map((v) => expedienteMeta(v).label);
+        partes.push(`expediente: ${rotulos.join(', ')}`);
+    }
+    if (filters.duracaoMin !== '' && filters.duracaoMin !== undefined) {
+        partes.push(`duração a partir de ${formatDuracao(Number(filters.duracaoMin))}`);
+    }
+    if (filters.duracaoMax !== '' && filters.duracaoMax !== undefined) {
+        partes.push(`duração até ${formatDuracao(Number(filters.duracaoMax))}`);
+    }
     if (filters.somenteEfetivos) partes.push('somente júris efetivos');
     if (filters.busca) partes.push(`busca "${filters.busca}"`);
     return partes.length ? `Filtros: ${partes.join('; ')}` : 'Sem filtros aplicados';
@@ -86,6 +124,47 @@ export function describeAnalysis(analysis) {
     ];
     if (opts.excluirNaoInformados) partes.push('sem os grupos não informados');
     return `Critério: ${partes.join('; ')}`;
+}
+
+/**
+ * Campo de duração em horas.
+ *
+ * O filtro é guardado em minutos, mas converter a cada tecla apagaria o que a
+ * pessoa está digitando: em "2.5", o passo intermediário "2." não é número, e
+ * o campo se esvaziaria no meio da digitação. O texto digitado vive aqui; o
+ * valor em minutos só sobe quando o que está escrito é um número.
+ */
+function DuracaoInput({ minutos, onChange, placeholder, ...rest }) {
+    const [texto, setTexto] = useState(() => horasDe(minutos));
+    const [focado, setFocado] = useState(false);
+
+    // Enquanto o campo não está em edição, ele segue o filtro (que pode ter
+    // sido limpo pelo botão "Limpar filtros", por exemplo).
+    useEffect(() => {
+        if (!focado) setTexto(horasDe(minutos));
+    }, [minutos, focado]);
+
+    return (
+        <Input
+            type="number"
+            min={0}
+            step={0.5}
+            value={texto}
+            onFocus={() => setFocado(true)}
+            onBlur={() => { setFocado(false); setTexto(horasDe(minutos)); }}
+            onChange={(e) => {
+                const valor = e.target.value;
+                setTexto(valor);
+                const convertido = minutosDe(valor);
+                // Campo vazio limpa o filtro; texto incompleto ("2.") apenas
+                // não altera nada até virar número.
+                if (valor.trim() === '' || convertido !== '') onChange(convertido);
+            }}
+            placeholder={placeholder}
+            className="h-9"
+            {...rest}
+        />
+    );
 }
 
 /** Seletor de múltipla escolha com busca interna. */
@@ -218,6 +297,11 @@ export default function JurimetriaFilters({
         []
     );
 
+    const expedienteOptions = useMemo(
+        () => JURIMETRIA_EXPEDIENTE_SITUACOES.map((e) => ({ value: e.value, label: e.label })),
+        []
+    );
+
     const responsavelOptions = useMemo(
         () => members
             .filter((m) => m.active !== false)
@@ -303,6 +387,38 @@ export default function JurimetriaFilters({
                             onChange={(realizacoes) => set({ realizacoes })}
                             placeholder="Todas as sessões"
                         />
+
+                        <MultiSelect
+                            label="Expediente"
+                            options={expedienteOptions}
+                            selected={filters.expedientes || []}
+                            onChange={(expedientes) => set({ expedientes })}
+                            placeholder="Qualquer situação"
+                        />
+
+                        <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-500 dark:text-slate-400">
+                                Duração da sessão (horas)
+                            </Label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <DuracaoInput
+                                    minutos={filters.duracaoMin}
+                                    onChange={(duracaoMin) => set({ duracaoMin })}
+                                    placeholder="mínimo"
+                                    aria-label="Duração mínima em horas"
+                                />
+                                <DuracaoInput
+                                    minutos={filters.duracaoMax}
+                                    onChange={(duracaoMax) => set({ duracaoMax })}
+                                    placeholder="máximo"
+                                    aria-label="Duração máxima em horas"
+                                />
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                                Filtrar por duração deixa de fora os júris sem horário de início ou de
+                                conclusão — não há como afirmar nada sobre um tempo que não se conhece.
+                            </p>
+                        </div>
 
                         {!compact && responsavelOptions.length > 0 && (
                             <MultiSelect

@@ -20,7 +20,7 @@ import {
     getJurimetriaFields, getJuriFieldValue,
     JURIMETRIA_REALIZACOES, JURIMETRIA_REALIZACAO_PADRAO, realizacaoMeta,
 } from '@/constants/jurimetria';
-import { formatDateBR } from '@/lib/jurimetriaEngine';
+import { formatDateBR, duracaoEmMinutos, formatDuracao } from '@/lib/jurimetriaEngine';
 import JuriDateHistory from './JuriDateHistory';
 
 // Valor sentinela do Select para "nenhum": o Radix Select não aceita item com
@@ -37,6 +37,7 @@ function emptyFormFor(fields) {
         tipo: '',
         resultado: '',
         promotor: '',
+        horario_inicio: '',
         horario: '',
         vara: '',
         observacoes: '',
@@ -84,6 +85,13 @@ export default function JuriFormDialog({
     const meta = realizacaoMeta(realizacao);
     const mudouRealizacao = realizacao !== realizacaoAnterior;
     const exigeJustificativa = ['redesignado', 'cancelado'].includes(realizacao);
+
+    // Duração mostrada enquanto se digita: erro de horário aparece aqui, antes
+    // de virar uma média errada no relatório.
+    const duracaoPrevia = duracaoEmMinutos({
+        horario_inicio: form.horario_inicio,
+        horario: form.horario,
+    });
 
     /**
      * Trocar a realização mexe na data, então o ajuste acontece aqui (e não num
@@ -201,6 +209,7 @@ export default function JuriFormDialog({
                 tipo: form.tipo,
                 resultado: form.resultado,
                 promotor: form.promotor.trim(),
+                horario_inicio: form.horario_inicio.trim(),
                 horario: form.horario.trim(),
                 vara: form.vara.trim(),
                 observacoes: form.observacoes.trim(),
@@ -504,18 +513,45 @@ export default function JuriFormDialog({
                                         />
                                     </div>
                                 )}
-                                {visibleCore.has('horario') && (
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="juri-horario">{labelOf('horario', 'Horário')}</Label>
-                                        <Input
-                                            id="juri-horario"
-                                            value={form.horario}
-                                            onChange={(e) => set({ horario: e.target.value })}
-                                            placeholder="14h30"
-                                        />
-                                    </div>
-                                )}
                             </div>
+
+                            {/* Horários da sessão — a duração sai da diferença entre os dois. */}
+                            {(visibleCore.has('horario_inicio') || visibleCore.has('horario')) && (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                                    {visibleCore.has('horario_inicio') && (
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="juri-horario-inicio">
+                                                {labelOf('horario_inicio', 'Horário de início')}
+                                            </Label>
+                                            <Input
+                                                id="juri-horario-inicio"
+                                                value={form.horario_inicio}
+                                                onChange={(e) => set({ horario_inicio: e.target.value })}
+                                                placeholder="13h00"
+                                            />
+                                        </div>
+                                    )}
+                                    {visibleCore.has('horario') && (
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="juri-horario">
+                                                {labelOf('horario', 'Horário de conclusão')}
+                                            </Label>
+                                            <Input
+                                                id="juri-horario"
+                                                value={form.horario}
+                                                onChange={(e) => set({ horario: e.target.value })}
+                                                placeholder="18h30"
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs text-slate-400">Duração</Label>
+                                        <div className="h-9 flex items-center px-3 rounded-md border border-dashed border-slate-200 dark:border-slate-700 text-sm tabular-nums text-slate-600 dark:text-slate-300">
+                                            {duracaoPrevia === null ? '—' : formatDuracao(duracaoPrevia)}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {visibleCore.has('vara') && (
                                 <div className="space-y-1.5">

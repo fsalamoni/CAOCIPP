@@ -52,6 +52,9 @@ export { createJuri } from './juris/create';
 export { updateJuri } from './juris/update';
 export { deleteJuris } from './juris/delete';
 export { bulkUpdateJuris } from './juris/bulkUpdate';
+// Modelos de relatório dinâmico, compartilhados dentro do órgão: todos usam,
+// só o autor e quem administra o módulo editam ou excluem.
+export { manageJurimetriaTemplate } from './jurimetriaTemplates/manage';
 export { importJurisFromExcel } from './import/fromExcelJuris';
 
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========

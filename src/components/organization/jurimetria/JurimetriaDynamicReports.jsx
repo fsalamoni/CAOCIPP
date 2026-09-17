@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,10 +16,15 @@ import {
 } from '@/components/ui/table';
 import {
     Grid3x3, FileText, Save, Trash2, Play, AlertTriangle, Copy, Download, Layers, RotateCcw,
+    Loader2, Pencil, BookmarkPlus, User, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import { useJurimetriaPref } from '@/hooks/useJurimetriaPrefs';
+import { useJurimetriaTemplates } from '@/hooks/useJuris';
+import {
+    createJurimetriaTemplate, updateJurimetriaTemplate, deleteJurimetriaTemplate,
+} from '@/services/jurimetriaService';
 import JurimetriaPagination, { usePagedRows } from './JurimetriaPagination';
 import {
     JURIMETRIA_PIVOT_DIMENSIONS, JURIMETRIA_PIVOT_VALUES, JURIMETRIA_PIVOT_SHOW_AS,
@@ -53,20 +58,35 @@ const DEFAULT_DESCRITIVO = {
     titulo: 'Relatório de jurimetria',
 };
 
-function loadTemplates() {
+/**
+ * Modelos que ficaram no navegador antes de a coleção compartilhada existir.
+ * São lidos uma única vez para oferecer a migração — depois disso a chave é
+ * apagada, e não há caminho de volta para o localStorage.
+ */
+function loadLegacyTemplates() {
     try {
         const stored = JSON.parse(window.localStorage.getItem(TEMPLATES_KEY) || '[]');
-        return Array.isArray(stored) ? stored : [];
+        return Array.isArray(stored) ? stored.filter((t) => t && t.name) : [];
     } catch {
         return [];
     }
 }
 
-function saveTemplates(list) {
+function discardLegacyTemplates() {
     try {
-        window.localStorage.setItem(TEMPLATES_KEY, JSON.stringify(list.slice(0, 40)));
+        window.localStorage.removeItem(TEMPLATES_KEY);
     } catch {
-        /* sem localStorage: o modelo vale só para esta sessão */
+        /* sem localStorage: nada a limpar */
+    }
+}
+
+/** Regrava o que ainda não migrou, para uma nova tentativa retomar daí. */
+function persistLegacyTemplates(lista) {
+    try {
+        if (!lista || lista.length === 0) window.localStorage.removeItem(TEMPLATES_KEY);
+        else window.localStorage.setItem(TEMPLATES_KEY, JSON.stringify(lista));
+    } catch {
+        /* sem localStorage: nada a regravar */
     }
 }
 
@@ -100,6 +120,7 @@ function DimensionSelect({ label, value, onChange, options, disabledValues }) {
  */
 export default function JurimetriaDynamicReports({
     juris, settings, subtitle = '', analysis, organizationId,
+    currentUserId = '', isOrgAdmin = false,
 }) {
     // O desenho do relatório é trabalho do usuário — ele fica gravado no
     // navegador, por órgão, e volta pronto no próximo acesso ou ao atualizar a
@@ -110,8 +131,19 @@ export default function JurimetriaDynamicReports({
     const [descConfig, setDescConfig, resetDescConfig] = useJurimetriaPref(
         'dinamicos_descritivo', organizationId, DEFAULT_DESCRITIVO
     );
-    const [templates, setTemplates] = useState(loadTemplates);
+    const { templates, isLoading: templatesLoading } = useJurimetriaTemplates(organizationId);
     const [templateName, setTemplateName] = useState('');
+    const [savingTemplate, setSavingTemplate] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState(null);
+    const [legacyTemplates, setLegacyTemplates] = useState(loadLegacyTemplates);
+    const [migrating, setMigrating] = useState(false);
+
+    // Configurações efetivamente GERADAS. A configuração dos cartões é o
+    // rascunho; só o botão Gerar promove o rascunho a relatório — sem isso,
+    // mexer numa dimensão recalculava uma pivot de milhares de células a cada
+    // tecla, e o usuário nunca via o recorte que pediu, só o intermediário.
+    const [pivotGerado, setPivotGerado] = useState(null);
+    const [descGerado, setDescGerado] = useState(null);
 
     // As colunas personalizadas do órgão também servem como dimensão de análise.
     const dimensions = useMemo(() => {
@@ -156,50 +188,204 @@ export default function JurimetriaDynamicReports({
         return null;
     }, [rowDims, colDims, pivotConfig.values, dimensions]);
 
+    // A pivot é calculada a partir da configuração GERADA, não da que está nos
+    // cartões. Os filtros e as opções de análise, porém, continuam refluindo
+    // na hora: eles dizem QUAIS júris entram, e um relatório que ignorasse o
+    // filtro em vigor estaria simplesmente errado.
     const pivot = useMemo(() => {
-        if (validationError) return null;
-        return buildPivot(juris, { ...pivotConfig, rowDims, colDims }, settings, analysis);
-    }, [juris, pivotConfig, rowDims, colDims, settings, validationError, analysis]);
+        if (!pivotGerado) return null;
+        const linhas = pivotGerado.rowDims.filter(Boolean);
+        const colunas = pivotGerado.colDims.filter(Boolean);
+        return buildPivot(
+            juris, { ...pivotGerado, rowDims: linhas, colDims: colunas }, settings, analysis
+        );
+    }, [juris, pivotGerado, settings, analysis]);
 
     const markdown = useMemo(
-        () => buildDescritivo(juris, descConfig, settings, analysis),
-        [juris, descConfig, settings, analysis]
+        () => (descGerado ? buildDescritivo(juris, descGerado, settings, analysis) : ''),
+        [juris, descGerado, settings, analysis]
     );
 
-    // ---- Modelos salvos -----------------------------------------------------
-    const handleSaveTemplate = () => {
-        const name = templateName.trim();
-        if (!name) {
+    // Assinatura da configuração: é o que permite dizer "há mudanças ainda não
+    // geradas" sem comparar objeto a objeto em todo render.
+    const pivotDesatualizado = useMemo(
+        () => Boolean(pivotGerado)
+            && JSON.stringify({ ...pivotConfig, rowDims, colDims })
+                !== JSON.stringify({ ...pivotGerado, rowDims: pivotGerado.rowDims.filter(Boolean), colDims: pivotGerado.colDims.filter(Boolean) }),
+        [pivotConfig, rowDims, colDims, pivotGerado]
+    );
+    const descDesatualizado = useMemo(
+        () => Boolean(descGerado) && JSON.stringify(descConfig) !== JSON.stringify(descGerado),
+        [descConfig, descGerado]
+    );
+
+    const gerarPivot = () => {
+        if (validationError) {
+            toast.error(validationError);
+            return;
+        }
+        setPivotGerado({ ...pivotConfig, rowDims: [...rowDims], colDims: [...colDims] });
+    };
+
+    const gerarDescritivo = () => setDescGerado({ ...descConfig });
+
+    // Dimensões válidas mudaram (o admin removeu uma coluna do órgão): a
+    // tabela já gerada passaria a mostrar um eixo que não existe mais.
+    useEffect(() => {
+        if (!pivotGerado) return;
+        const validas = new Set(dimensions.map((d) => d.key));
+        const usadas = [...pivotGerado.rowDims, ...pivotGerado.colDims].filter(Boolean);
+        if (usadas.some((d) => !validas.has(d))) setPivotGerado(null);
+    }, [dimensions, pivotGerado]);
+
+    // ---- Modelos compartilhados no órgão ------------------------------------
+    //
+    // Quem pode editar/excluir é decidido no SERVIDOR; aqui a checagem só
+    // esconde o botão que iria falhar, para não oferecer o que não se pode fazer.
+    const podeEditar = (template) => (
+        template.created_by === currentUserId || isOrgAdmin
+    );
+
+    const modelosPivot = useMemo(() => templates.filter((t) => t.tipo === 'pivot'), [templates]);
+    const modelosDescritivo = useMemo(() => templates.filter((t) => t.tipo === 'descritivo'), [templates]);
+
+    const salvarModelo = async (tipo) => {
+        const nome = templateName.trim();
+        if (!nome) {
             toast.error('Dê um nome ao modelo.');
             return;
         }
-        const next = [
-            { name, schema: 1, pivot: { ...pivotConfig }, descritivo: { ...descConfig } },
-            ...templates.filter((t) => t.name !== name),
-        ];
-        setTemplates(next);
-        saveTemplates(next);
-        setTemplateName('');
-        toast.success(`Modelo "${name}" salvo neste navegador.`);
+        if (tipo === 'pivot' && validationError) {
+            toast.error(`Corrija o cruzamento antes de salvar: ${validationError}`);
+            return;
+        }
+        const config = tipo === 'pivot'
+            ? { ...pivotConfig, rowDims: [...rowDims], colDims: [...colDims] }
+            : { ...descConfig };
+
+        // Só é "atualizar" quando o modelo em edição é DESTE tipo: com um
+        // descritivo em edição, "Salvar como modelo" na aba da tabela dinâmica
+        // tem de criar um modelo novo, não tentar reescrever o descritivo.
+        const editandoEsteTipo = editingTemplate?.tipo === tipo ? editingTemplate : null;
+
+        setSavingTemplate(true);
+        try {
+            if (editandoEsteTipo) {
+                await updateJurimetriaTemplate({
+                    organizationId, id: editandoEsteTipo.id, nome, tipo, config,
+                });
+                toast.success(`Modelo "${nome}" atualizado.`);
+            } else {
+                await createJurimetriaTemplate({ organizationId, nome, tipo, config });
+                toast.success(`Modelo "${nome}" salvo e disponível para todo o órgão.`);
+            }
+            setTemplateName('');
+            if (editandoEsteTipo) setEditingTemplate(null);
+        } catch (error) {
+            logger.error('[jurimetria] erro ao salvar modelo:', error);
+            toast.error(error?.message || 'Não foi possível salvar o modelo.');
+        } finally {
+            setSavingTemplate(false);
+        }
     };
 
-    const handleLoadTemplate = (template) => {
-        if (template.pivot) setPivotConfig({ ...DEFAULT_PIVOT, ...template.pivot });
-        if (template.descritivo) setDescConfig({ ...DEFAULT_DESCRITIVO, ...template.descritivo });
-        toast.success(`Modelo "${template.name}" aplicado.`);
+    const aplicarModelo = (template, gerar = true) => {
+        if (!template?.config) return;
+        if (template.tipo === 'pivot') {
+            const config = { ...DEFAULT_PIVOT, ...template.config };
+            setPivotConfig(config);
+            if (gerar) {
+                setPivotGerado({
+                    ...config,
+                    rowDims: (config.rowDims || []).filter(Boolean),
+                    colDims: (config.colDims || []).filter(Boolean),
+                });
+            }
+        } else {
+            const config = { ...DEFAULT_DESCRITIVO, ...template.config };
+            setDescConfig(config);
+            if (gerar) setDescGerado(config);
+        }
+        toast.success(`Modelo "${template.nome}" aplicado.`);
     };
 
-    const handleDeleteTemplate = (name) => {
-        const next = templates.filter((t) => t.name !== name);
-        setTemplates(next);
-        saveTemplates(next);
+    const editarModelo = (template) => {
+        aplicarModelo(template, false);
+        setEditingTemplate(template);
+        setTemplateName(template.nome || '');
+        toast.info('Ajuste a configuração e clique em "Atualizar modelo".');
+    };
+
+    const excluirModelo = async (template) => {
+        try {
+            await deleteJurimetriaTemplate({ organizationId, id: template.id });
+            if (editingTemplate?.id === template.id) {
+                setEditingTemplate(null);
+                setTemplateName('');
+            }
+            toast.success(`Modelo "${template.nome}" excluído.`);
+        } catch (error) {
+            logger.error('[jurimetria] erro ao excluir modelo:', error);
+            toast.error(error?.message || 'Não foi possível excluir o modelo.');
+        }
+    };
+
+    /** Sobe para o órgão os modelos que ficaram presos neste navegador. */
+    const migrarModelosLocais = async () => {
+        setMigrating(true);
+        let migrados = 0;
+        // Cada modelo sai da lista local assim que sobe. Se a rede cair no
+        // meio, tentar de novo retoma de onde parou, em vez de duplicar tudo
+        // o que já tinha subido.
+        let restantes = [...legacyTemplates];
+        try {
+            for (const legado of legacyTemplates) {
+                // Um modelo antigo guardava os DOIS lados; vira um modelo de
+                // cada tipo, que é como a coleção compartilhada os organiza.
+                if (legado.pivot) {
+                    await createJurimetriaTemplate({
+                        organizationId,
+                        nome: `${legado.name} (tabela)`.slice(0, 120),
+                        tipo: 'pivot',
+                        config: { ...DEFAULT_PIVOT, ...legado.pivot },
+                    });
+                    migrados += 1;
+                }
+                if (legado.descritivo) {
+                    await createJurimetriaTemplate({
+                        organizationId,
+                        nome: `${legado.name} (descritivo)`.slice(0, 120),
+                        tipo: 'descritivo',
+                        config: { ...DEFAULT_DESCRITIVO, ...legado.descritivo },
+                    });
+                    migrados += 1;
+                }
+                restantes = restantes.filter((t) => t !== legado);
+                persistLegacyTemplates(restantes);
+            }
+            setLegacyTemplates([]);
+            toast.success(`${migrados} modelo(s) enviados para o órgão.`);
+        } catch (error) {
+            logger.error('[jurimetria] erro ao migrar modelos locais:', error);
+            setLegacyTemplates(restantes);
+            toast.error(
+                `${migrados} modelo(s) enviados. `
+                + (error?.message || 'O restante não subiu — tente novamente.')
+            );
+        } finally {
+            setMigrating(false);
+        }
     };
 
     // ---- Exportação da pivot ------------------------------------------------
     /** Converte a pivot renderizada em linhas planas, para qualquer formato. */
     const pivotToRows = () => {
-        if (!pivot) return { rows: [], columns: [] };
+        if (!pivot || !pivotGerado) return { rows: [], columns: [] };
         const measures = pivot.values.filter(Boolean);
+        // Eixos da tabela GERADA: exportar com os eixos do rascunho produziria
+        // um arquivo com cabeçalhos que não correspondem aos dados.
+        const rowDims = pivotGerado.rowDims.filter(Boolean);
+        const colDims = pivotGerado.colDims.filter(Boolean);
 
         const columns = [
             ...rowDims.map((dim, level) => ({
@@ -491,8 +677,91 @@ export default function JurimetriaDynamicReports({
                                 <AlertDescription>{validationError}</AlertDescription>
                             </Alert>
                         )}
+
+                        {/* Barra de ação: nada é gerado até aqui. */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button onClick={gerarPivot} disabled={Boolean(validationError)} className="gap-2">
+                                    <Play className="w-4 h-4" />
+                                    {pivotGerado ? 'Gerar novamente' : 'Gerar tabela dinâmica'}
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => salvarModelo('pivot')}
+                                    disabled={savingTemplate || Boolean(validationError)}
+                                    className="gap-2"
+                                >
+                                    {savingTemplate
+                                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                                        : <BookmarkPlus className="w-4 h-4" />}
+                                    {editingTemplate?.tipo === 'pivot' ? 'Atualizar modelo' : 'Salvar como modelo'}
+                                </Button>
+                                <Input
+                                    value={templateName}
+                                    onChange={(e) => setTemplateName(e.target.value)}
+                                    placeholder="Nome do modelo"
+                                    className="h-9 w-[220px]"
+                                />
+                            </div>
+                            {modelosPivot.length > 0 && (
+                                <div className="flex items-center gap-2 sm:ml-auto">
+                                    <Label className="text-xs text-slate-500 whitespace-nowrap">Modelo salvo</Label>
+                                    <Select
+                                        value=""
+                                        onValueChange={(id) => {
+                                            const modelo = modelosPivot.find((t) => t.id === id);
+                                            if (modelo) aplicarModelo(modelo);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-9 w-[240px]">
+                                            <SelectValue placeholder="Aplicar um modelo…" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {modelosPivot.map((t) => (
+                                                <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                        </div>
+
+                        {editingTemplate?.tipo === 'pivot' && (
+                            <Alert>
+                                <Pencil className="w-4 h-4" />
+                                <AlertDescription className="text-xs flex items-center justify-between gap-3">
+                                    <span>
+                                        Editando o modelo <strong>{editingTemplate.nome}</strong>. Ajuste a
+                                        configuração acima e clique em “Atualizar modelo”.
+                                    </span>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => { setEditingTemplate(null); setTemplateName(''); }}
+                                    >
+                                        Cancelar edição
+                                    </Button>
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {pivotDesatualizado && (
+                            <Alert>
+                                <RefreshCw className="w-4 h-4" />
+                                <AlertDescription className="text-xs">
+                                    A configuração mudou desde a última geração. A tabela abaixo ainda reflete o
+                                    cruzamento anterior — clique em <strong>Gerar novamente</strong> para atualizá-la.
+                                </AlertDescription>
+                            </Alert>
+                        )}
                     </CardContent>
                 </Card>
+
+                {!pivot && !validationError && (
+                    <p className="text-sm text-slate-400 text-center py-10 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
+                        Escolha o cruzamento acima e clique em <strong>Gerar tabela dinâmica</strong>.
+                    </p>
+                )}
 
                 {pivot && (
                     <Card className="border-slate-200 dark:border-slate-700">
@@ -529,8 +798,8 @@ export default function JurimetriaDynamicReports({
                         <CardContent>
                             <PivotTable
                                 pivot={pivot}
-                                rowDims={rowDims}
-                                colDims={colDims}
+                                rowDims={pivotGerado.rowDims.filter(Boolean)}
+                                colDims={pivotGerado.colDims.filter(Boolean)}
                                 dimensions={dimensions}
                                 organizationId={organizationId}
                             />
@@ -591,6 +860,9 @@ export default function JurimetriaDynamicReports({
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                                    {JURIMETRIA_DESCRITIVO_ESTILOS.find((e) => e.key === descConfig.estilo)?.description}
+                                </p>
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs text-slate-500 dark:text-slate-400">Título do documento</Label>
@@ -620,14 +892,97 @@ export default function JurimetriaDynamicReports({
                                 ))}
                             </div>
                         </div>
+
+                        {/* Barra de ação do descritivo. */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button onClick={gerarDescritivo} className="gap-2">
+                                    <Play className="w-4 h-4" />
+                                    {descGerado ? 'Gerar novamente' : 'Gerar relatório descritivo'}
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => salvarModelo('descritivo')}
+                                    disabled={savingTemplate}
+                                    className="gap-2"
+                                >
+                                    {savingTemplate
+                                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                                        : <BookmarkPlus className="w-4 h-4" />}
+                                    {editingTemplate?.tipo === 'descritivo' ? 'Atualizar modelo' : 'Salvar como modelo'}
+                                </Button>
+                                <Input
+                                    value={templateName}
+                                    onChange={(e) => setTemplateName(e.target.value)}
+                                    placeholder="Nome do modelo"
+                                    className="h-9 w-[220px]"
+                                />
+                            </div>
+                            {modelosDescritivo.length > 0 && (
+                                <div className="flex items-center gap-2 sm:ml-auto">
+                                    <Label className="text-xs text-slate-500 whitespace-nowrap">Modelo salvo</Label>
+                                    <Select
+                                        value=""
+                                        onValueChange={(id) => {
+                                            const modelo = modelosDescritivo.find((t) => t.id === id);
+                                            if (modelo) aplicarModelo(modelo);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-9 w-[240px]">
+                                            <SelectValue placeholder="Aplicar um modelo…" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {modelosDescritivo.map((t) => (
+                                                <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                        </div>
+
+                        {editingTemplate?.tipo === 'descritivo' && (
+                            <Alert>
+                                <Pencil className="w-4 h-4" />
+                                <AlertDescription className="text-xs flex items-center justify-between gap-3">
+                                    <span>
+                                        Editando o modelo <strong>{editingTemplate.nome}</strong>.
+                                    </span>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => { setEditingTemplate(null); setTemplateName(''); }}
+                                    >
+                                        Cancelar edição
+                                    </Button>
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {descDesatualizado && (
+                            <Alert>
+                                <RefreshCw className="w-4 h-4" />
+                                <AlertDescription className="text-xs">
+                                    A configuração mudou desde a última geração. O texto abaixo ainda é o anterior —
+                                    clique em <strong>Gerar novamente</strong> para atualizá-lo.
+                                </AlertDescription>
+                            </Alert>
+                        )}
                     </CardContent>
                 </Card>
 
+                {!descGerado && (
+                    <p className="text-sm text-slate-400 text-center py-10 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
+                        Escolha as opções acima e clique em <strong>Gerar relatório descritivo</strong>.
+                    </p>
+                )}
+
+                {descGerado && (
                 <Card className="border-slate-200 dark:border-slate-700">
                     <CardHeader className="pb-3">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
-                                <CardTitle className="text-base">Pré-visualização</CardTitle>
+                                <CardTitle className="text-base">Relatório gerado</CardTitle>
                                 <CardDescription>
                                     Gerado sobre {formatNumber(juris.length)} júri(s) no recorte atual.
                                 </CardDescription>
@@ -665,79 +1020,128 @@ export default function JurimetriaDynamicReports({
                         </ScrollArea>
                     </CardContent>
                 </Card>
+                )}
             </TabsContent>
 
             {/* ---------------- Modelos ---------------- */}
             <TabsContent value="modelos" className="space-y-4 mt-0">
                 <Card className="border-slate-200 dark:border-slate-700">
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Salvar a configuração atual</CardTitle>
+                        <CardTitle className="text-base">Modelos do órgão</CardTitle>
                         <CardDescription>
-                            Guarda o cruzamento da tabela dinâmica e as opções do relatório descritivo para reaplicar
-                            com um clique. Os modelos ficam salvos neste navegador.
+                            Um modelo guarda o desenho de um relatório — o cruzamento da tabela dinâmica ou
+                            as opções do descritivo — para reaplicar com um clique. Os modelos são do
+                            <strong> órgão</strong>: qualquer membro usa qualquer modelo, mas só quem criou,
+                            ou quem administra a Jurimetria, pode editar ou excluir. Para criar um, monte a
+                            configuração nas abas <em>Tabela dinâmica</em> ou <em>Relatório descritivo</em> e
+                            use “Salvar como modelo”.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                            <Input
-                                value={templateName}
-                                onChange={(e) => setTemplateName(e.target.value)}
-                                placeholder="Ex.: Relatório mensal por comarca"
-                                className="flex-1 h-9"
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTemplate(); }}
-                            />
-                            <Button onClick={handleSaveTemplate} className="gap-2">
-                                <Save className="w-4 h-4" />
-                                Salvar modelo
-                            </Button>
-                        </div>
-                    </CardContent>
                 </Card>
 
-                {templates.length === 0 ? (
+                {legacyTemplates.length > 0 && (
+                    <Alert>
+                        <AlertTriangle className="w-4 h-4" />
+                        <AlertDescription className="text-sm flex flex-col sm:flex-row sm:items-center gap-3">
+                            <span className="flex-1">
+                                Há <strong>{legacyTemplates.length}</strong> modelo(s) salvos apenas neste
+                                navegador, de antes de os modelos serem compartilhados. Envie-os para o órgão
+                                para que não se percam e fiquem disponíveis a todos.
+                            </span>
+                            <div className="flex gap-2 shrink-0">
+                                <Button size="sm" onClick={migrarModelosLocais} disabled={migrating} className="gap-2">
+                                    {migrating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                    Enviar ao órgão
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => { discardLegacyTemplates(); setLegacyTemplates([]); }}
+                                    disabled={migrating}
+                                >
+                                    Descartar
+                                </Button>
+                            </div>
+                        </AlertDescription>
+                    </Alert>
+                )}
+
+                {templatesLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-400 py-8 justify-center">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Carregando modelos do órgão...
+                    </div>
+                ) : templates.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-8 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
-                        Nenhum modelo salvo ainda.
+                        Nenhum modelo salvo neste órgão ainda.
                     </p>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {templates.map((template) => (
-                            <Card key={template.name} className="border-slate-200 dark:border-slate-700">
-                                <CardContent className="p-4 flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-semibold truncate">{template.name}</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                            Linhas: {(template.pivot?.rowDims || []).filter(Boolean)
-                                                .map((d) => dimensions.find((x) => x.key === d)?.label || d)
-                                                .join(' › ') || '—'}
-                                        </p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            Colunas: {(template.pivot?.colDims || []).filter(Boolean)
-                                                .map((d) => dimensions.find((x) => x.key === d)?.label || d)
-                                                .join(' › ') || '—'}
-                                        </p>
-                                    </div>
-                                    <div className="flex gap-1 shrink-0">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8"
-                                            onClick={() => handleLoadTemplate(template)}
-                                            title="Aplicar modelo"
-                                        >
-                                            <Play className="w-4 h-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-rose-600 hover:text-rose-700"
-                                            onClick={() => handleDeleteTemplate(template.name)}
-                                            title="Excluir modelo"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                    <div className="space-y-5">
+                        {[
+                            { tipo: 'pivot', titulo: 'Tabelas dinâmicas', lista: modelosPivot, icon: Grid3x3 },
+                            { tipo: 'descritivo', titulo: 'Relatórios descritivos', lista: modelosDescritivo, icon: FileText },
+                        ].filter((g) => g.lista.length > 0).map(({ tipo, titulo, lista, icon: Icon }) => (
+                            <div key={tipo} className="space-y-3">
+                                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                    <Icon className="w-4 h-4 text-slate-400" />
+                                    {titulo}
+                                    <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">{lista.length}</Badge>
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {lista.map((template) => (
+                                        <Card key={template.id} className="border-slate-200 dark:border-slate-700">
+                                            <CardContent className="p-4 flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold truncate" title={template.nome}>
+                                                        {template.nome}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                        {descreverModelo(template, dimensions)}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+                                                        <User className="w-3 h-3" />
+                                                        {template.created_by_name || 'Autor desconhecido'}
+                                                        {template.created_by === currentUserId && ' (você)'}
+                                                    </p>
+                                                </div>
+                                                <div className="flex gap-1 shrink-0">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8"
+                                                        onClick={() => aplicarModelo(template)}
+                                                        title="Aplicar e gerar"
+                                                    >
+                                                        <Play className="w-4 h-4" />
+                                                    </Button>
+                                                    {podeEditar(template) && (
+                                                        <>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8"
+                                                                onClick={() => editarModelo(template)}
+                                                                title="Editar este modelo"
+                                                            >
+                                                                <Pencil className="w-4 h-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-rose-600 hover:text-rose-700"
+                                                                onClick={() => excluirModelo(template)}
+                                                                title="Excluir este modelo"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </div>
                         ))}
                     </div>
                 )}
@@ -911,4 +1315,18 @@ function PivotTable({ pivot, rowDims, colDims, dimensions, organizationId }) {
             <JurimetriaPagination pager={pager} label="linhas" />
         </div>
     );
+}
+
+/** Resumo de uma linha do modelo, para o cartão da lista. */
+function descreverModelo(template, dimensions) {
+    const rotulo = (key) => dimensions.find((d) => d.key === key)?.label || key;
+    const cfg = template?.config || {};
+    if (template?.tipo === 'pivot') {
+        const linhas = (cfg.rowDims || []).filter(Boolean).map(rotulo).join(' › ') || '—';
+        const colunas = (cfg.colDims || []).filter(Boolean).map(rotulo).join(' › ') || '—';
+        return `Linhas: ${linhas} · Colunas: ${colunas}`;
+    }
+    const estilo = JURIMETRIA_DESCRITIVO_ESTILOS.find((e) => e.key === cfg.estilo)?.label || cfg.estilo || '—';
+    const secoes = (cfg.secoes || []).length;
+    return `Estilo: ${estilo} · ${secoes} seção(ões) · agrupado por ${rotulo(cfg.agrupador || 'comarca')}`;
 }

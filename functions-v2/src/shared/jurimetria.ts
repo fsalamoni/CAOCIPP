@@ -330,6 +330,7 @@ export const JURIMETRIA_CORE_FIELD_KEYS = [
     'tipo',
     'resultado',
     'promotor',
+    'horario_inicio',
     'horario',
     'vara',
     'observacoes',
@@ -354,6 +355,39 @@ export interface JurimetriaCustomField {
     required: boolean;
 }
 
+/**
+ * Cor de fundo da etiqueta de cada espécie de resultado.
+ * Espelha `JURIMETRIA_RESULTADO_CORES_PADRAO` em src/constants/jurimetria.js.
+ */
+export const JURIMETRIA_RESULTADO_CORES_PADRAO: Record<string, string> = {
+    'PROCEDÊNCIA': '#93FFC4',
+    'PARCIAL PROCEDÊNCIA (QUALIFICADORA)': '#41BFF1',
+    'PARCIAL PROCEDÊNCIA (OUTROS)': '#A9DBF1',
+    'PARCIAL PROCEDÊNCIA – MP': '#DFF4FD',
+    'IMPROCEDÊNCIA': '#FFA3A3',
+    'IMPROCEDÊNCIA-MP': '#FFDDDD',
+    'DESCLASSIFICAÇÃO': '#F7C7AC',
+    'DESCLASSIFICAÇÃO-MP': '#FAE2D6',
+    'DISSOLUÇÃO': '#E2E8F0',
+};
+
+/** Janela de expediente forense. Espelha JURIMETRIA_EXPEDIENTE_PADRAO. */
+export interface JurimetriaExpediente {
+    inicio: string;
+    fim: string;
+    dias: number[];
+    feriadosNacionais: boolean;
+    feriados: string[];
+}
+
+export const JURIMETRIA_EXPEDIENTE_PADRAO: JurimetriaExpediente = {
+    inicio: '12:00',
+    fim: '19:00',
+    dias: [1, 2, 3, 4, 5],
+    feriadosNacionais: true,
+    feriados: [],
+};
+
 export interface JurimetriaSettings {
     comarcas: string[];
     tipos: JurimetriaTipo[];
@@ -366,6 +400,8 @@ export interface JurimetriaSettings {
     importPolicy: 'preserve' | 'update';
     fuzzyThreshold: number;
     requireResponsible: boolean;
+    resultadoCores: Record<string, string>;
+    expediente: JurimetriaExpediente;
 }
 
 export const JURIMETRIA_DEFAULT_SETTINGS: JurimetriaSettings = {
@@ -380,6 +416,8 @@ export const JURIMETRIA_DEFAULT_SETTINGS: JurimetriaSettings = {
     importPolicy: 'preserve',
     fuzzyThreshold: 0.7,
     requireResponsible: false,
+    resultadoCores: JURIMETRIA_RESULTADO_CORES_PADRAO,
+    expediente: JURIMETRIA_EXPEDIENTE_PADRAO,
 };
 
 // ----------------------------------------------------------------------------
@@ -714,6 +752,56 @@ function sanitizePontuacao(input: unknown, resultados: string[]): Record<string,
  * devolve o objeto completo (com defaults onde o admin não configurou), de
  * modo que nenhuma chave desapareça de um salvamento para o outro.
  */
+/** `#rgb`/`#rrggbb` -> `#rrggbb` minúsculo; `null` quando não é cor válida. */
+function sanitizeHexColor(value: unknown): string | null {
+    const raw = String(value ?? '').trim().replace(/^#/, '');
+    const hex = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+    return `#${hex.toLowerCase()}`;
+}
+
+/**
+ * Cores das espécies. Só entram chaves que são espécies do órgão — assim o
+ * mapa não vira depósito de chaves arbitrárias vindas do cliente.
+ */
+function sanitizeResultadoCores(value: unknown, resultados: string[]): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const especie of resultados) {
+        const padrao = JURIMETRIA_RESULTADO_CORES_PADRAO[especie];
+        if (padrao) out[especie] = padrao.toLowerCase();
+    }
+    const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+    for (const especie of resultados) {
+        const cor = sanitizeHexColor(raw[especie]);
+        if (cor) out[especie] = cor;
+    }
+    return out;
+}
+
+/** Janela de expediente, com os defaults onde o admin não mexeu. */
+function sanitizeExpediente(value: unknown): JurimetriaExpediente {
+    const base = JURIMETRIA_EXPEDIENTE_PADRAO;
+    const cfg = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+    const hora = (v: unknown, fallback: string) => (
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v ?? '')) ? String(v) : fallback
+    );
+    const dias = Array.isArray(cfg.dias)
+        ? [...new Set(cfg.dias.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+        : base.dias;
+    const feriados = Array.isArray(cfg.feriados)
+        ? [...new Set(cfg.feriados
+            .map((d) => String(d ?? '').trim())
+            .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(0, 400)
+        : [];
+    return {
+        inicio: hora(cfg.inicio, base.inicio),
+        fim: hora(cfg.fim, base.fim),
+        dias: dias.length > 0 ? dias : base.dias,
+        feriadosNacionais: cfg.feriadosNacionais !== false,
+        feriados,
+    };
+}
+
 export function sanitizeJurimetriaSettings(input: unknown): JurimetriaSettings {
     const cfg = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
 
@@ -763,6 +851,8 @@ export function sanitizeJurimetriaSettings(input: unknown): JurimetriaSettings {
             ? Math.min(1, Math.max(0.4, Math.round(fuzzyRaw * 100) / 100))
             : 0.7,
         requireResponsible: cfg.requireResponsible === true,
+        resultadoCores: sanitizeResultadoCores(cfg.resultadoCores, resultados),
+        expediente: sanitizeExpediente(cfg.expediente),
     };
 }
 
@@ -826,6 +916,7 @@ export function sanitizeJuriInput(
         tipo,
         resultado,
         promotor: text(input.promotor, 160),
+        horario_inicio: normalizeHorario(input.horario_inicio),
         horario: normalizeHorario(input.horario),
         vara: text(input.vara, 160),
         observacoes: text(input.observacoes, 2000),
@@ -877,5 +968,5 @@ export function sanitizeJuriInput(
 /** Campos comparados para decidir se um registro importado diverge do banco. */
 export const JURI_COMPARABLE_FIELDS: string[] = [
     'data_juri', 'realizacao', 'comarca', 'tipo', 'resultado',
-    'promotor', 'horario', 'vara', 'observacoes',
+    'promotor', 'horario_inicio', 'horario', 'vara', 'observacoes',
 ];

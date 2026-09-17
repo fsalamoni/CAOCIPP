@@ -66,7 +66,8 @@ esteja `true` no órgão.
 | `tipo` | string | **Sigla** da matéria (CM, CP, D, F, FC, PP, T…) |
 | `resultado` | string | Espécie de resultado (lista oficial do órgão) |
 | `promotor` | string | Texto livre |
-| `horario` | string | Normalizado para `HHhMM` quando reconhecível |
+| `horario_inicio` | string | Início da sessão, normalizado para `HHhMM` |
+| `horario` | string | **Conclusão** da sessão, `HHhMM`. Sempre foi isso — ver seção 6 |
 | `vara` | string | Vara / órgão julgador |
 | `observacoes` | string | Até 2000 caracteres |
 | `values` | map | Valores das **colunas do órgão** |
@@ -189,7 +190,75 @@ exportado declara o critério usado.
 
 ---
 
-## 6. Importação
+## 6. Horários, duração e expediente
+
+### Os dois horários
+
+O campo `horario` sempre significou o horário em que a sessão **terminou** — é o
+que as planilhas do CAOJúri registravam. O rótulo agora diz isso ("Horário de
+conclusão") e o início entra como campo próprio, `horario_inicio`.
+
+Nenhum dado gravado foi tocado: quem já tinha `horario` continua tendo a
+conclusão, e a duração só passa a existir quando alguém preencher o início.
+
+### Duração
+
+```
+duração = horario − horario_inicio
+```
+
+Devolve `null` — nunca zero — quando falta um dos dois: "durou 0 minuto" e "não
+sabemos quanto durou" são coisas diferentes, e só a primeira pode entrar numa
+média. Todos os relatórios dizem sobre quantos júris a média foi calculada.
+
+Uma sessão que termina de madrugada (conclusão anterior ao início no relógio) é
+lida como tendo virado o dia.
+
+### Expediente
+
+Configurável em *Painel Administrativo → Jurimetria → Expediente*: janela
+(padrão 12h–19h), dias da semana, feriados nacionais (ligáveis, incluindo os
+móveis derivados da Páscoa — Carnaval, Sexta-feira Santa e Corpus Christi) e
+uma lista de datas próprias do órgão.
+
+| Situação | Quando |
+|---|---|
+| `dentro` | Começou e terminou dentro da janela |
+| `prolongou` | Terminou depois do fim da janela |
+| `antecipou` | Começou antes do início da janela |
+| `sem_expediente` | Fim de semana, feriado ou data marcada pelo órgão |
+| `sem_horario` | Falta início ou conclusão para classificar |
+
+Só cabe **um** rótulo por sessão, e `antecipou` tem precedência. Mas o tempo que
+uma sessão avançou além do encerramento é contado à parte
+(`minutosAlemDoExpediente`), inclusive para as rotuladas `antecipou` — o rótulo
+é um só, o tempo excedido não deixa de existir.
+
+Os júris `sem_horario` ficam **fora do denominador** dos percentuais: incluí-los
+faria o índice de "dentro do expediente" cair por um problema de preenchimento,
+não de pauta.
+
+---
+
+## 7. Cores das espécies de resultado
+
+Cada espécie tem uma cor de etiqueta, editável por órgão em *Painel
+Administrativo → Jurimetria → Cores*. Ela vale na tabela de júris, na ficha do
+processo, nos relatórios e nas fatias do gráfico de espécies — o leitor não
+reaprende a legenda ao mudar de aba.
+
+O administrador escolhe **uma** cor; texto, borda e a variante de tema escuro
+saem dela por cálculo (`resultadoTheme`), de modo que qualquer cor continue
+legível. As nove cores padrão ficam entre 7,9:1 e 15,7:1 de contraste nos dois
+temas, bem acima do mínimo AA.
+
+Uma cor inválida nunca chega ao CSS: `normalizeHexColor` só aceita
+`#rgb`/`#rrggbb` e cai no cinza neutro em qualquer outro caso, no cliente e no
+servidor.
+
+---
+
+## 8. Importação
 
 Duas etapas, sempre — nada é gravado sem confirmação:
 
@@ -249,15 +318,19 @@ Toda correção aparece na aba *Correções* do relatório, antes da confirmaç�
 
 ---
 
-## 7. Abas da página
+## 9. Abas da página
 
 | Aba | O que faz |
 |---|---|
 | **Painel** | KPIs, evolução mensal, espécies, realização das sessões, comarcas e promotores |
 | **Júris** | Tabela com ordenação, seleção de colunas, paginação, CRUD e ações em massa |
 | **Importação** | Assistente de duas etapas descrito acima |
-| **Relatórios** | Totais/dissoluções, espécies, matérias, ranking de comarcas, atuação por promotor e série mensal |
-| **Relatórios dinâmicos** | Tabela dinâmica multi-nível, relatório descritivo e modelos salvos |
+| **Relatórios** | Totais/dissoluções, espécies, matérias, ranking de comarcas, atuação por promotor, série mensal, **duração das sessões** e **expediente** |
+| **Relatórios dinâmicos** | Tabela dinâmica multi-nível, relatório descritivo e modelos do órgão |
+
+Os relatórios de **duração** e de **expediente** são reagrupáveis pelo usuário —
+comarca, promotor, espécie, matéria, mês, ano, vara ou responsável —, porque a
+mesma base lida por ângulos diferentes conta histórias diferentes.
 
 Os **filtros do topo valem para todas as abas** — inclusive para o que é
 exportado, de modo que o arquivo gerado é sempre igual ao que está na tela.
@@ -277,10 +350,42 @@ apenas a página aberta.
 - Até **2 medidas lado a lado**: quantidade, aproveitamento, pontos, dissoluções
 - **Mostrar como**: valor, % da linha, % da coluna, % do total geral
 - **Subtotais**: automático / só linhas / só total geral / nenhum
-- Dimensões incluem a **realização** e as **colunas do órgão**
-- O desenho do relatório (linhas, colunas, medidas, subtotais, seções do
-  descritivo) fica **gravado por órgão** no navegador e volta pronto no próximo
-  acesso; "Restaurar padrão" desfaz
+- Dimensões incluem **realização**, **expediente**, **faixa de duração**, **hora
+  de início**, **turno** e as **colunas do órgão**
+- Medidas incluem **duração média** e **tempo total de sessão**
+- O desenho do relatório fica **gravado por órgão** no navegador e volta pronto
+  no próximo acesso; "Restaurar padrão" desfaz
+- A tabela e o descritivo são gerados **sob demanda**, no botão *Gerar*: mexer
+  numa dimensão recalculava uma pivot de milhares de células a cada clique, e o
+  usuário via o recorte intermediário em vez do que pediu. Quando a configuração
+  muda depois da geração, um aviso diz que o que está na tela é o anterior.
+  Filtros e opções de análise continuam refluindo na hora — eles dizem QUAIS
+  júris entram, e um relatório que ignorasse o filtro em vigor estaria errado.
+
+### Modelos
+
+Um modelo guarda o desenho de um relatório (o cruzamento da tabela dinâmica ou
+as opções do descritivo) para reaplicar com um clique. Vivem no Firestore, por
+órgão: **qualquer membro usa qualquer modelo**, mas só quem criou — ou quem tem
+`configure_jurimetria` — pode editar ou excluir. A checagem é do servidor; a
+interface apenas esconde o botão que iria falhar.
+
+Modelos que ficaram no `localStorage` de antes desta mudança são detectados e
+oferecidos para migração, um a um, de modo que uma falha no meio não duplique o
+que já subiu.
+
+### Estilos do relatório descritivo
+
+Três leitores diferentes, três documentos diferentes — não é só o tamanho:
+
+| Estilo | Para quem | O que produz |
+|---|---|---|
+| **Formal e objetivo** | quem vai citar o relatório num expediente | prosa em registro formal, frases completas, uma tabela por seção onde ela substitui o parágrafo |
+| **Executivo (resumido)** | quem tem trinta segundos | abre com a síntese numérica e entrega tabelas por todos os ângulos, partindo das comarcas |
+| **Analítico (detalhado)** | quem vai investigar | cruza as dimensões entre si (comarca × espécie, comarca × matéria, matéria × espécie, promotor × espécie, promotor × matéria, comarca × matéria × espécie e outros) e comenta concentração, dispersão e casos extremos |
+
+Sobre a mesma base de teste, os três produzem respectivamente 752 / 1.055 /
+2.057 palavras e 7 / 14 / 19 tabelas.
 
 O cálculo (`buildPivot`) contabiliza cada grupo **uma vez** e propaga para os
 prefixos de linha e coluna, então os subtotais de todos os níveis saem sem
@@ -304,7 +409,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 8. Permissões
+## 10. Permissões
 
 | Ação | Quem pode |
 |---|---|
@@ -319,7 +424,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 9. Segurança
+## 11. Segurança
 
 - **Nenhuma escrita direta do cliente.** `firestore.rules` permite apenas
   leitura de `juris/{id}` para membros do órgão; `allow write: if false`. Todo
@@ -335,7 +440,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 10. Integração com o resto da plataforma
+## 12. Integração com o resto da plataforma
 
 - **Informações Gerais** — a página de Jurimetria vira uma fonte de métricas
   (`getJurisPageSchema`), com a espécie de resultado no lugar da "fase". O
@@ -350,7 +455,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 11. Mapa dos arquivos
+## 13. Mapa dos arquivos
 
 ### Frontend
 
@@ -366,7 +471,9 @@ src/services/jurimetriaService.js                       chamadas às Cloud Funct
 src/components/organization/JurimetriaControl.jsx       página (abas + filtros)
 src/components/organization/jurimetria/…                dashboard, tabela, diálogos,
                                                         importação, relatórios,
-                                                        paginação, histórico de datas
+                                                        paginação, histórico de datas,
+                                                        duração, expediente,
+                                                        etiqueta de espécie
 src/components/organization/admin/JurimetriaConfiguration.jsx  configuração do órgão
 ```
 
@@ -379,18 +486,24 @@ juris/update.ts             edição parcial com histórico
 juris/delete.ts             exclusão individual e em massa
 juris/bulkUpdate.ts         atribuição/padronização em massa
 import/fromExcelJuris.ts    importação (preview + commit)
+jurimetriaTemplates/manage.ts  modelos de relatório compartilhados no órgão
 ```
 
 ---
 
-## 12. Limites conhecidos
+## 14. Limites conhecidos
 
 - A leitura carrega **todos** os júris do órgão (sem paginação): os relatórios
   e a tabela dinâmica precisam do conjunto completo para os totais fecharem.
   Acima de ~20.000 júris por órgão vale reavaliar.
-- Os **modelos** de relatório dinâmico e as **preferências de exibição**
-  (análise, tamanho de página, último desenho do relatório) ficam no
-  `localStorage` do navegador, como no aplicativo de origem — não são
-  compartilhados entre usuários nem entre dispositivos.
+- As **preferências de exibição** (opções de análise, tamanho de página, último
+  desenho do relatório) ficam no `localStorage` do navegador — não são
+  compartilhadas entre usuários nem entre dispositivos. Os **modelos**, ao
+  contrário, vivem no banco e são do órgão.
+- A **duração** e o **expediente** dependem dos dois horários preenchidos. Numa
+  base importada de planilha antiga só existe a conclusão, então esses
+  relatórios só ganham densidade à medida que os inícios forem informados — o
+  que cada relatório declara abertamente, em vez de fingir uma média sobre três
+  registros.
 - A leitura de `.docx` depende de `DecompressionStream` (Chrome/Edge 103+,
   Firefox 113+). Safari mais antigo cai no aviso da interface.

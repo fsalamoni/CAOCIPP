@@ -20,7 +20,8 @@ import {
 } from '@/components/ui/dialog';
 import {
     Save, Loader2, Plus, Trash2, RotateCcw, Scale, ListChecks, Columns3,
-    Percent, Upload, Info, AlertTriangle, Pencil, GripVertical,
+    Percent, Upload, Info, AlertTriangle, Pencil, GripVertical, Palette, Clock,
+    CalendarOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
@@ -36,7 +37,16 @@ import {
     JURIMETRIA_LOCKED_FIELD_KEYS,
     JURIMETRIA_CUSTOM_FIELD_TYPES,
     JURIMETRIA_IMPORT_POLICIES,
+    JURIMETRIA_RESULTADO_CORES_PADRAO,
+    JURIMETRIA_EXPEDIENTE_PADRAO,
+    normalizeHexColor,
+    corDoResultado,
 } from '@/constants/jurimetria';
+import ResultadoBadge from '../jurimetria/ResultadoBadge';
+import { formatDateBR, feriadosNacionais } from '@/lib/jurimetriaEngine';
+
+/** Dias da semana, na ordem em que aparecem na configuração de expediente. */
+const DIAS_DA_SEMANA = [[0, 'Domingo'], [1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado']];
 
 /** Chave estável a partir de um rótulo (espelha `sanitizeFieldKey` do servidor). */
 function slugKey(label) {
@@ -167,6 +177,7 @@ export default function JurimetriaConfiguration({ organization }) {
     const [fieldDialogOpen, setFieldDialogOpen] = useState(false);
     const [fieldDraft, setFieldDraft] = useState(null);
     const [fieldOptionInput, setFieldOptionInput] = useState('');
+    const [novoFeriado, setNovoFeriado] = useState('');
 
     // Não sobrescreve o rascunho enquanto uma gravação está em curso (o
     // onSnapshot do órgão pode chegar com o valor antigo e desfazer a edição).
@@ -199,6 +210,70 @@ export default function JurimetriaConfiguration({ organization }) {
             setSaving(false);
         }
     };
+
+    // ---- Cores das espécies -------------------------------------------------
+    //
+    // O campo de texto precisa aceitar o estado intermediário: digitando
+    // "#93FFC4" caractere a caractere, todo valor até o sexto dígito é
+    // inválido. O rascunho fica aqui; só a cor completa desce para a
+    // configuração, e o campo volta ao valor gravado ao perder o foco.
+    const [corDigitada, setCorDigitada] = useState({});
+
+    const setCor = (especie, valor) => {
+        const cor = normalizeHexColor(valor);
+        if (!cor) return;
+        set({ resultadoCores: { ...draft.resultadoCores, [especie]: cor } });
+    };
+
+    const digitarCor = (especie, texto) => {
+        setCorDigitada((prev) => ({ ...prev, [especie]: texto }));
+        const cor = normalizeHexColor(texto);
+        if (cor) set({ resultadoCores: { ...draft.resultadoCores, [especie]: cor } });
+    };
+
+    const encerrarEdicaoDeCor = (especie) => {
+        setCorDigitada((prev) => {
+            const next = { ...prev };
+            delete next[especie];
+            return next;
+        });
+    };
+
+    // ---- Expediente ---------------------------------------------------------
+    const expediente = draft.expediente || JURIMETRIA_EXPEDIENTE_PADRAO;
+    const setExpediente = (patch) => set({ expediente: { ...expediente, ...patch } });
+
+    const toggleDiaExpediente = (dia, ativo) => {
+        const atual = new Set(expediente.dias || []);
+        if (ativo) atual.add(dia); else atual.delete(dia);
+        setExpediente({ dias: [...atual].sort((a, b) => a - b) });
+    };
+
+    const addFeriado = () => {
+        const data = novoFeriado.trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+            toast.error('Informe uma data válida.');
+            return;
+        }
+        if ((expediente.feriados || []).includes(data)) {
+            toast.error('Esta data já está na lista.');
+            return;
+        }
+        setExpediente({ feriados: [...(expediente.feriados || []), data].sort() });
+        setNovoFeriado('');
+    };
+
+    const removeFeriado = (data) => {
+        setExpediente({ feriados: (expediente.feriados || []).filter((d) => d !== data) });
+    };
+
+    // Feriados nacionais do ano corrente e do seguinte: o admin precisa VER o
+    // que já é calculado antes de sair digitando data por data.
+    const feriadosCalculados = useMemo(() => {
+        if (!expediente.feriadosNacionais) return [];
+        const ano = new Date().getFullYear();
+        return [...feriadosNacionais(ano), ...feriadosNacionais(ano + 1)];
+    }, [expediente.feriadosNacionais]);
 
     // ---- Pontuação ----------------------------------------------------------
     const setPeso = (especie, value) => {
@@ -365,6 +440,14 @@ export default function JurimetriaConfiguration({ organization }) {
                     <TabsTrigger value="listas" className="gap-2">
                         <ListChecks className="w-4 h-4" />
                         Listas oficiais
+                    </TabsTrigger>
+                    <TabsTrigger value="cores" className="gap-2">
+                        <Palette className="w-4 h-4" />
+                        Cores
+                    </TabsTrigger>
+                    <TabsTrigger value="expediente" className="gap-2">
+                        <Clock className="w-4 h-4" />
+                        Expediente
                     </TabsTrigger>
                     <TabsTrigger value="colunas" className="gap-2">
                         <Columns3 className="w-4 h-4" />
@@ -558,6 +641,248 @@ export default function JurimetriaConfiguration({ organization }) {
                             >
                                 <RotateCcw className="w-3.5 h-3.5" />
                                 Restaurar matérias padrão
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* ---------------- Cores das espécies ---------------- */}
+                <TabsContent value="cores" className="space-y-4 mt-0">
+                    <Card className="border-slate-200 dark:border-slate-700">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-base">Cor de cada espécie de resultado</CardTitle>
+                            <CardDescription>
+                                Numa tabela de centenas de júris, a espécie é o que o olho procura primeiro —
+                                a cor responde antes da leitura. Estas cores valem na tabela de júris, na ficha
+                                do processo, nos relatórios e nos gráficos deste órgão. O texto e a borda da
+                                etiqueta são calculados a partir da cor escolhida, então qualquer cor continua
+                                legível, inclusive no tema escuro.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Espécie de resultado</TableHead>
+                                        <TableHead className="w-48">Cor</TableHead>
+                                        <TableHead className="w-64">Como fica</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {draft.resultados.map((especie) => {
+                                        const cor = corDoResultado(especie, draft);
+                                        const padrao = JURIMETRIA_RESULTADO_CORES_PADRAO[especie];
+                                        return (
+                                            <TableRow key={especie}>
+                                                <TableCell className="text-sm">{especie}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="color"
+                                                            value={cor}
+                                                            onChange={(e) => setCor(especie, e.target.value)}
+                                                            className="w-10 h-8 rounded border border-slate-200 dark:border-slate-700 bg-transparent cursor-pointer p-0.5"
+                                                            aria-label={`Cor de ${especie}`}
+                                                        />
+                                                        <Input
+                                                            value={corDigitada[especie] ?? cor}
+                                                            onChange={(e) => digitarCor(especie, e.target.value)}
+                                                            onBlur={() => encerrarEdicaoDeCor(especie)}
+                                                            className="w-28 h-8 text-xs font-mono uppercase"
+                                                            maxLength={7}
+                                                            spellCheck={false}
+                                                        />
+                                                        {padrao && cor.toLowerCase() !== padrao.toLowerCase() && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-slate-400"
+                                                                title="Voltar à cor padrão desta espécie"
+                                                                onClick={() => setCor(especie, padrao)}
+                                                            >
+                                                                <RotateCcw className="w-3.5 h-3.5" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <ResultadoBadge resultado={especie} settings={draft} />
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+
+                            <Alert>
+                                <Info className="w-4 h-4" />
+                                <AlertDescription className="text-xs">
+                                    Cores claras funcionam melhor: a etiqueta precisa se destacar sem transformar a
+                                    tabela num mosaico. A <strong>dissolução</strong> vem em cinza de propósito — ela
+                                    não é desfecho de mérito e não deve disputar atenção com as demais espécies.
+                                </AlertDescription>
+                            </Alert>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => set({ resultadoCores: { ...JURIMETRIA_RESULTADO_CORES_PADRAO } })}
+                            >
+                                <RotateCcw className="w-4 h-4" />
+                                Restaurar cores padrão
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* ---------------- Expediente ---------------- */}
+                <TabsContent value="expediente" className="space-y-4 mt-0">
+                    <Card className="border-slate-200 dark:border-slate-700">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-base">Janela de expediente</CardTitle>
+                            <CardDescription>
+                                Define o que conta como sessão dentro do expediente, sessão que o extrapolou e
+                                sessão iniciada antes da abertura. É o que alimenta o relatório de expediente —
+                                informação de gestão (escala, sobreaviso, carga do plenário), não de mérito.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="exp-inicio">Início do expediente</Label>
+                                    <Input
+                                        id="exp-inicio"
+                                        type="time"
+                                        value={expediente.inicio}
+                                        onChange={(e) => setExpediente({ inicio: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="exp-fim">Fim do expediente</Label>
+                                    <Input
+                                        id="exp-fim"
+                                        type="time"
+                                        value={expediente.fim}
+                                        onChange={(e) => setExpediente({ fim: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Dias com expediente</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {DIAS_DA_SEMANA.map(([dia, nome]) => {
+                                        const ativo = (expediente.dias || []).includes(dia);
+                                        return (
+                                            <button
+                                                key={dia}
+                                                type="button"
+                                                onClick={() => toggleDiaExpediente(dia, !ativo)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${ativo
+                                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300'
+                                                    : 'bg-white border-slate-200 text-slate-400 dark:bg-slate-900 dark:border-slate-700'}`}
+                                                aria-pressed={ativo}
+                                            >
+                                                {nome}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Um júri realizado fora destes dias entra no relatório como
+                                    <strong> dia sem expediente</strong>, qualquer que tenha sido o horário.
+                                </p>
+                            </div>
+
+                            <div className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                                        Considerar os feriados nacionais
+                                    </p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Inclui os fixos e também os móveis — Carnaval, Sexta-feira Santa e Corpus
+                                        Christi —, que são justamente os que uma lista digitada à mão esquece.
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={expediente.feriadosNacionais !== false}
+                                    onCheckedChange={(v) => setExpediente({ feriadosNacionais: v })}
+                                    aria-label="Considerar feriados nacionais"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Datas sem expediente do órgão</Label>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Feriados municipais, pontos facultativos e recesso. Os nacionais já entram
+                                    automaticamente acima.
+                                </p>
+                                <div className="flex gap-2 max-w-sm">
+                                    <Input
+                                        type="date"
+                                        value={novoFeriado}
+                                        onChange={(e) => setNovoFeriado(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') { e.preventDefault(); addFeriado(); }
+                                        }}
+                                    />
+                                    <Button type="button" variant="outline" onClick={addFeriado} className="gap-1.5 shrink-0">
+                                        <Plus className="w-4 h-4" />
+                                        Acrescentar
+                                    </Button>
+                                </div>
+
+                                {(expediente.feriados || []).length > 0 ? (
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {expediente.feriados.map((data) => (
+                                            <Badge key={data} variant="secondary" className="gap-1.5 pr-1">
+                                                <CalendarOff className="w-3 h-3" />
+                                                {formatDateBR(data)}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeFeriado(data)}
+                                                    className="ml-0.5 rounded hover:bg-slate-300/60 dark:hover:bg-slate-600 p-0.5"
+                                                    aria-label={`Remover ${formatDateBR(data)}`}
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-400 pt-1">
+                                        Nenhuma data específica deste órgão.
+                                    </p>
+                                )}
+                            </div>
+
+                            {feriadosCalculados.length > 0 && (
+                                <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                                    <summary className="text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
+                                        Feriados nacionais já considerados ({feriadosCalculados.length})
+                                    </summary>
+                                    <div className="flex flex-wrap gap-1.5 pt-3">
+                                        {feriadosCalculados.map((data) => (
+                                            <Badge key={data} variant="outline" className="text-[11px] font-normal">
+                                                {formatDateBR(data)}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </details>
+                            )}
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => set({ expediente: { ...JURIMETRIA_EXPEDIENTE_PADRAO } })}
+                            >
+                                <RotateCcw className="w-4 h-4" />
+                                Restaurar expediente padrão (12h–19h, seg. a sex.)
                             </Button>
                         </CardContent>
                     </Card>
