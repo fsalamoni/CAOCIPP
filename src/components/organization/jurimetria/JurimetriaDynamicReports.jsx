@@ -15,10 +15,12 @@ import {
     Table as UiTable, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-    Grid3x3, FileText, Save, Trash2, Play, AlertTriangle, Copy, Download, Layers,
+    Grid3x3, FileText, Save, Trash2, Play, AlertTriangle, Copy, Download, Layers, RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
+import { useJurimetriaPref } from '@/hooks/useJurimetriaPrefs';
+import JurimetriaPagination, { usePagedRows } from './JurimetriaPagination';
 import {
     JURIMETRIA_PIVOT_DIMENSIONS, JURIMETRIA_PIVOT_VALUES, JURIMETRIA_PIVOT_SHOW_AS,
     JURIMETRIA_DESCRITIVO_SECOES, JURIMETRIA_DESCRITIVO_ESTILOS,
@@ -96,9 +98,18 @@ function DimensionSelect({ label, value, onChange, options, disabledValues }) {
  * Relatórios dinâmicos: tabela dinâmica multi-nível (até 3 dimensões em linhas,
  * 3 em colunas e 2 medidas lado a lado) e relatório descritivo em texto.
  */
-export default function JurimetriaDynamicReports({ juris, settings, subtitle = '' }) {
-    const [pivotConfig, setPivotConfig] = useState(DEFAULT_PIVOT);
-    const [descConfig, setDescConfig] = useState(DEFAULT_DESCRITIVO);
+export default function JurimetriaDynamicReports({
+    juris, settings, subtitle = '', analysis, organizationId,
+}) {
+    // O desenho do relatório é trabalho do usuário — ele fica gravado no
+    // navegador, por órgão, e volta pronto no próximo acesso ou ao atualizar a
+    // página. Redefinir devolve o padrão de fábrica.
+    const [pivotConfig, setPivotConfig, resetPivotConfig] = useJurimetriaPref(
+        'dinamicos_pivot', organizationId, DEFAULT_PIVOT
+    );
+    const [descConfig, setDescConfig, resetDescConfig] = useJurimetriaPref(
+        'dinamicos_descritivo', organizationId, DEFAULT_DESCRITIVO
+    );
     const [templates, setTemplates] = useState(loadTemplates);
     const [templateName, setTemplateName] = useState('');
 
@@ -147,12 +158,12 @@ export default function JurimetriaDynamicReports({ juris, settings, subtitle = '
 
     const pivot = useMemo(() => {
         if (validationError) return null;
-        return buildPivot(juris, { ...pivotConfig, rowDims, colDims }, settings);
-    }, [juris, pivotConfig, rowDims, colDims, settings, validationError]);
+        return buildPivot(juris, { ...pivotConfig, rowDims, colDims }, settings, analysis);
+    }, [juris, pivotConfig, rowDims, colDims, settings, validationError, analysis]);
 
     const markdown = useMemo(
-        () => buildDescritivo(juris, descConfig, settings),
-        [juris, descConfig, settings]
+        () => buildDescritivo(juris, descConfig, settings, analysis),
+        [juris, descConfig, settings, analysis]
     );
 
     // ---- Modelos salvos -----------------------------------------------------
@@ -348,11 +359,25 @@ export default function JurimetriaDynamicReports({ juris, settings, subtitle = '
             <TabsContent value="pivot" className="space-y-4 mt-0">
                 <Card className="border-slate-200 dark:border-slate-700">
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Como cruzar os dados</CardTitle>
-                        <CardDescription>
-                            Escolha até 3 dimensões em Linhas e 3 em Colunas, e até 2 medidas lado a lado.
-                            A tabela é recalculada automaticamente sobre os júris filtrados.
-                        </CardDescription>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <CardTitle className="text-base">Como cruzar os dados</CardTitle>
+                                <CardDescription>
+                                    Escolha até 3 dimensões em Linhas e 3 em Colunas, e até 2 medidas lado a lado.
+                                    A tabela é recalculada automaticamente sobre os júris filtrados.
+                                    Suas escolhas ficam gravadas neste navegador e voltam prontas no próximo acesso.
+                                </CardDescription>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { resetPivotConfig(); toast.success('Cruzamento restaurado ao padrão.'); }}
+                                className="gap-1.5 shrink-0 text-slate-500"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                Restaurar padrão
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -507,6 +532,7 @@ export default function JurimetriaDynamicReports({ juris, settings, subtitle = '
                                 rowDims={rowDims}
                                 colDims={colDims}
                                 dimensions={dimensions}
+                                organizationId={organizationId}
                             />
                         </CardContent>
                     </Card>
@@ -517,11 +543,24 @@ export default function JurimetriaDynamicReports({ juris, settings, subtitle = '
             <TabsContent value="descritivo" className="space-y-4 mt-0">
                 <Card className="border-slate-200 dark:border-slate-700">
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Como redigir o relatório</CardTitle>
-                        <CardDescription>
-                            O texto é gerado a partir dos júris filtrados e pode ser copiado ou baixado em Word,
-                            PDF, Markdown ou texto puro.
-                        </CardDescription>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <CardTitle className="text-base">Como redigir o relatório</CardTitle>
+                                <CardDescription>
+                                    O texto é gerado a partir dos júris filtrados e pode ser copiado ou baixado em Word,
+                                    PDF, Markdown ou texto puro. As escolhas ficam gravadas para o próximo acesso.
+                                </CardDescription>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { resetDescConfig(); toast.success('Descritivo restaurado ao padrão.'); }}
+                                className="gap-1.5 shrink-0 text-slate-500"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                Restaurar padrão
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -708,10 +747,21 @@ export default function JurimetriaDynamicReports({ juris, settings, subtitle = '
 }
 
 /** Renderiza a pivot com cabeçalho multi-nível e recuo hierárquico nas linhas. */
-function PivotTable({ pivot, rowDims, colDims, dimensions }) {
+function PivotTable({ pivot, rowDims, colDims, dimensions, organizationId }) {
     const measures = pivot.values.filter(Boolean);
     const showRowSubtotals = ['auto', 'linha'].includes(pivot.subtotais);
     const showGrandTotal = ['auto', 'linha', 'coluna'].includes(pivot.subtotais);
+
+    // Linhas que de fato aparecem (sem subtotais, quando desligados). Um
+    // cruzamento por comarca × mês passa de 160 linhas: a paginação é o que
+    // torna a tabela legível. O TOTAL GERAL fica fora e repete em toda página.
+    const visibleNodes = useMemo(
+        () => pivot.rowNodes.filter(
+            (node) => !(node.children.length > 0 && !showRowSubtotals && rowDims.length > 1)
+        ),
+        [pivot.rowNodes, showRowSubtotals, rowDims.length]
+    );
+    const pager = usePagedRows(visibleNodes, { scope: 'dinamicos_pivot', organizationId });
 
     const divisorFor = (rowKey, colKey) => {
         if (pivot.showAs === 'linha') return pivot.rowTotals.get(rowKey);
@@ -789,13 +839,8 @@ function PivotTable({ pivot, rowDims, colDims, dimensions }) {
                 </TableHeader>
 
                 <TableBody>
-                    {pivot.rowNodes.map((node) => {
-                        const isLeaf = node.children.length === 0;
-                        const isSubtotal = !isLeaf;
-                        if (isSubtotal && !showRowSubtotals && rowDims.length > 1) {
-                            // Sem subtotais: mostra apenas as folhas.
-                            return null;
-                        }
+                    {pager.pageRows.map((node) => {
+                        const isSubtotal = node.children.length > 0;
                         return (
                             <TableRow
                                 key={node.key || 'root'}
@@ -863,6 +908,7 @@ function PivotTable({ pivot, rowDims, colDims, dimensions }) {
                     )}
                 </TableBody>
             </UiTable>
+            <JurimetriaPagination pager={pager} label="linhas" />
         </div>
     );
 }

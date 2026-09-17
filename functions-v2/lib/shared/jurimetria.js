@@ -9,7 +9,9 @@
 // Mantenha as chaves e os defaults em sincronia entre os dois arquivos.
 // ============================================================================
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.JURI_COMPARABLE_FIELDS = exports.JURIMETRIA_DEFAULT_SETTINGS = exports.JURIMETRIA_CUSTOM_FIELD_TYPES = exports.JURIMETRIA_LOCKED_FIELD_KEYS = exports.JURIMETRIA_CORE_FIELD_KEYS = exports.JURIMETRIA_COMARCAS = exports.JURIMETRIA_DISSOLUCAO_RESULTADOS = exports.JURIMETRIA_PONTUACAO_PADRAO = exports.JURIMETRIA_TIPOS = exports.JURIMETRIA_RESULTADO_ALIASES = exports.JURIMETRIA_RESULTADOS = void 0;
+exports.JURI_COMPARABLE_FIELDS = exports.JURIMETRIA_DEFAULT_SETTINGS = exports.JURIMETRIA_CUSTOM_FIELD_TYPES = exports.JURIMETRIA_LOCKED_FIELD_KEYS = exports.JURIMETRIA_CORE_FIELD_KEYS = exports.JURIMETRIA_REALIZACOES_COM_JUSTIFICATIVA = exports.JURIMETRIA_REALIZACAO_VALUES = exports.JURIMETRIA_REALIZACAO_PADRAO = exports.JURIMETRIA_COMARCAS = exports.JURIMETRIA_DISSOLUCAO_RESULTADOS = exports.JURIMETRIA_PONTUACAO_PADRAO = exports.JURIMETRIA_TIPOS = exports.JURIMETRIA_RESULTADO_ALIASES = exports.JURIMETRIA_RESULTADOS = void 0;
+exports.normalizeRealizacao = normalizeRealizacao;
+exports.resolveRealizacaoChange = resolveRealizacaoChange;
 exports.normalizeText = normalizeText;
 exports.similarity = similarity;
 exports.fuzzyMatchFromList = fuzzyMatchFromList;
@@ -144,12 +146,137 @@ exports.JURIMETRIA_COMARCAS = [
     'Viamão (0039)',
 ];
 // ----------------------------------------------------------------------------
+// Realização da sessão
+// ----------------------------------------------------------------------------
+// Espelha JURIMETRIA_REALIZACOES no frontend. Ausente = 'realizado', que era o
+// comportamento antes do campo existir: nenhum júri já gravado muda de sentido.
+exports.JURIMETRIA_REALIZACAO_PADRAO = 'realizado';
+exports.JURIMETRIA_REALIZACAO_VALUES = [
+    'realizado', 'redesignado', 'cancelado',
+];
+/** Realizações em que a sessão NÃO aconteceu na data prevista. */
+exports.JURIMETRIA_REALIZACOES_COM_JUSTIFICATIVA = [
+    'redesignado', 'cancelado',
+];
+/** Normaliza o valor recebido; qualquer coisa fora da lista vira o padrão. */
+function normalizeRealizacao(raw) {
+    const norm = normalizeText(raw);
+    const direto = exports.JURIMETRIA_REALIZACAO_VALUES.find((v) => v === norm);
+    if (direto)
+        return direto;
+    // Variações comuns de planilha.
+    if (['realizada', 'realizado', 'sim', 'ok', 'concluido', 'concluida', 'julgado'].includes(norm)) {
+        return 'realizado';
+    }
+    if (['redesignada', 'redesignado', 'remarcado', 'remarcada', 'adiado', 'adiada'].includes(norm)) {
+        return 'redesignado';
+    }
+    if (['cancelada', 'cancelado', 'nao realizado', 'nao realizada', 'desmarcado', 'desmarcada'].includes(norm)) {
+        return 'cancelado';
+    }
+    return exports.JURIMETRIA_REALIZACAO_PADRAO;
+}
+/**
+ * Regra central do campo Realização.
+ *
+ * A sessão tem três desfechos possíveis e cada um trata a DATA de um jeito:
+ *   - realizado   → a data é a data em que a sessão ocorreu;
+ *   - redesignado → a sessão não ocorreu e foi remarcada: a data passa a ser a
+ *                   NOVA data, e a anterior vai para o histórico;
+ *   - cancelado   → a sessão não ocorreu e não tem nova data: a data fica
+ *                   VAZIA e a anterior vai para o histórico.
+ *
+ * Em redesignação e cancelamento a justificativa é obrigatória — é o que
+ * explica, meses depois, por que aquela pauta não virou julgamento.
+ *
+ * TODA mudança de data gera entrada no histórico, inclusive a simples correção
+ * de uma data digitada errada: o histórico é o registro do que foi alterado.
+ */
+function resolveRealizacaoChange(params) {
+    var _a, _b, _c;
+    const currentRealizacao = normalizeRealizacao((_a = params.currentRealizacao) !== null && _a !== void 0 ? _a : exports.JURIMETRIA_REALIZACAO_PADRAO);
+    const currentDate = parseJuriDate(params.currentDate) || '';
+    const realizacao = normalizeRealizacao((_b = params.nextRealizacao) !== null && _b !== void 0 ? _b : currentRealizacao);
+    const nextDate = parseJuriDate(params.nextDate) || '';
+    const justificativa = String((_c = params.justificativa) !== null && _c !== void 0 ? _c : '').trim().slice(0, 1000);
+    const exigeJustificativa = exports.JURIMETRIA_REALIZACOES_COM_JUSTIFICATIVA.includes(realizacao);
+    const mudouRealizacao = realizacao !== currentRealizacao;
+    const fail = (error) => ({
+        error, realizacao, dataJuri: currentDate, justificativa, historyEntry: null, logAction: '',
+    });
+    // A justificativa é cobrada ao ENTRAR no estado. Quem já estava redesignado
+    // e só edita a comarca não precisa redigitá-la.
+    if (exigeJustificativa && mudouRealizacao && !justificativa) {
+        return fail(realizacao === 'cancelado'
+            ? 'Informe a justificativa do cancelamento.'
+            : 'Informe a justificativa da redesignação.');
+    }
+    let dataJuri;
+    if (realizacao === 'cancelado') {
+        // Cancelado não tem data: a sessão não vai acontecer.
+        dataJuri = '';
+    }
+    else if (realizacao === 'redesignado') {
+        if (!nextDate)
+            return fail('Informe a nova data do júri para a redesignação.');
+        if (!params.isCreate && mudouRealizacao && nextDate === currentDate) {
+            return fail('A nova data da redesignação deve ser diferente da data anterior.');
+        }
+        dataJuri = nextDate;
+    }
+    else {
+        if (!nextDate)
+            return fail('A data do júri é obrigatória e deve ser válida.');
+        dataJuri = nextDate;
+    }
+    const mudouData = dataJuri !== currentDate;
+    const historyEntry = (mudouData && !params.isCreate)
+        ? {
+            from: currentDate,
+            to: dataJuri,
+            realizacao,
+            justificativa,
+            changed_at: new Date().toISOString(),
+            user_id: params.userId,
+            user_name: params.userName,
+        }
+        : null;
+    const fmt = (iso) => (iso ? iso.split('-').reverse().join('/') : 'sem data');
+    let logAction = '';
+    if (mudouRealizacao && realizacao === 'redesignado') {
+        logAction = `Júri redesignado de ${fmt(currentDate)} para ${fmt(dataJuri)}`;
+    }
+    else if (mudouRealizacao && realizacao === 'cancelado') {
+        logAction = `Júri cancelado (data anterior: ${fmt(currentDate)})`;
+    }
+    else if (mudouRealizacao && realizacao === 'realizado') {
+        logAction = `Júri marcado como realizado em ${fmt(dataJuri)}`;
+    }
+    else if (mudouData) {
+        logAction = `Data do júri alterada de ${fmt(currentDate)} para ${fmt(dataJuri)}`;
+    }
+    if (logAction && justificativa)
+        logAction += ` — ${justificativa}`;
+    return {
+        realizacao,
+        dataJuri,
+        // A justificativa só faz sentido enquanto a sessão está redesignada ou
+        // cancelada; ao voltar para realizado ela sai do documento (o histórico
+        // preserva o texto de cada mudança).
+        justificativa: exigeJustificativa ? justificativa : '',
+        historyEntry,
+        logAction,
+    };
+}
+// ----------------------------------------------------------------------------
 // Campos
 // ----------------------------------------------------------------------------
 /** Campos fixos gravados na raiz do documento `juris/{id}`. */
 exports.JURIMETRIA_CORE_FIELD_KEYS = [
     'numero_processo',
     'data_juri',
+    'realizacao',
+    'realizacao_justificativa',
     'comarca',
     'tipo',
     'resultado',
@@ -159,7 +286,9 @@ exports.JURIMETRIA_CORE_FIELD_KEYS = [
     'observacoes',
 ];
 /** Campos obrigatórios que o admin nunca pode ocultar. */
-exports.JURIMETRIA_LOCKED_FIELD_KEYS = ['numero_processo', 'data_juri'];
+exports.JURIMETRIA_LOCKED_FIELD_KEYS = [
+    'numero_processo', 'data_juri', 'realizacao', 'realizacao_justificativa',
+];
 exports.JURIMETRIA_CUSTOM_FIELD_TYPES = new Set([
     'text', 'textarea', 'number', 'date', 'boolean', 'select',
 ]);
@@ -572,6 +701,8 @@ function sanitizeJuriInput(input, settings, opts = {}) {
     const core = {
         numero_processo: text(input.numero_processo, 60),
         data_juri: parseJuriDate(input.data_juri) || '',
+        realizacao: normalizeRealizacao(input.realizacao),
+        realizacao_justificativa: text(input.realizacao_justificativa, 1000),
         comarca,
         tipo,
         resultado,
@@ -622,6 +753,7 @@ function sanitizeJuriInput(input, settings, opts = {}) {
 }
 /** Campos comparados para decidir se um registro importado diverge do banco. */
 exports.JURI_COMPARABLE_FIELDS = [
-    'data_juri', 'comarca', 'tipo', 'resultado', 'promotor', 'horario', 'vara', 'observacoes',
+    'data_juri', 'realizacao', 'comarca', 'tipo', 'resultado',
+    'promotor', 'horario', 'vara', 'observacoes',
 ];
 //# sourceMappingURL=jurimetria.js.map

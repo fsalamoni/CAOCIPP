@@ -13,6 +13,10 @@ const ORG_SCOPED_COLLECTIONS = [
     'expedientes',
     'customRecords',
     'entityTypes',
+    // Parcerias (e suas subcoleções aditivos/ e history/). Estavam de fora
+    // desde a criação do módulo: excluir um órgão deixava as parcerias órfãs
+    // no Firestore, com dados de convênios acessíveis por consulta direta.
+    'parcerias',
     // Base de júris do módulo de Jurimetria (flag `jurimetria_enabled`), com
     // a subcoleção `history` de cada júri.
     'juris',

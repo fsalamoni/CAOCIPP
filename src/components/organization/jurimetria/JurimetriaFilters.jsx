@@ -7,14 +7,21 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Filter, FilterX, ChevronDown, X } from 'lucide-react';
+import { Search, Filter, FilterX, ChevronDown, X, SlidersHorizontal, Info } from 'lucide-react';
 import { tipoLabel } from '@/lib/jurimetriaEngine';
+import {
+    JURIMETRIA_REALIZACOES, JURIMETRIA_DEFAULT_ANALYSIS,
+} from '@/constants/jurimetria';
 
 /** Estado inicial dos filtros — compartilhado por todas as abas da Jurimetria. */
 export const EMPTY_JURIMETRIA_FILTERS = {
     busca: '',
     comarcas: [],
     tipos: [],
+    // Realização vazia = todas. A tabela de Júris é a base de dados e mostra
+    // tudo; quem restringe a ANÁLISE às sessões realizadas é a opção de
+    // análise `somenteRealizados`, não este filtro.
+    realizacoes: [],
     resultados: [],
     promotor: '',
     responsaveis: [],
@@ -34,6 +41,7 @@ export function countActiveFilters(filters) {
     count += (filters.comarcas?.length || 0) > 0 ? 1 : 0;
     count += (filters.tipos?.length || 0) > 0 ? 1 : 0;
     count += (filters.resultados?.length || 0) > 0 ? 1 : 0;
+    count += (filters.realizacoes?.length || 0) > 0 ? 1 : 0;
     count += (filters.responsaveis?.length || 0) > 0 ? 1 : 0;
     return count;
 }
@@ -51,11 +59,33 @@ export function describeFilters(filters, settings) {
         partes.push(`matéria(s): ${filters.tipos.map((t) => tipoLabel(t, settings)).join(', ')}`);
     }
     if (filters.resultados?.length) partes.push(`espécie(s): ${filters.resultados.join(', ')}`);
+    if (filters.realizacoes?.length) {
+        const rotulos = filters.realizacoes.map(
+            (v) => JURIMETRIA_REALIZACOES.find((r) => r.value === v)?.label || v
+        );
+        partes.push(`realização: ${rotulos.join(', ')}`);
+    }
     if (filters.promotor) partes.push(`promotor contém "${filters.promotor}"`);
     if (filters.responsaveis?.length) partes.push(`${filters.responsaveis.length} responsável(is)`);
     if (filters.somenteEfetivos) partes.push('somente júris efetivos');
     if (filters.busca) partes.push(`busca "${filters.busca}"`);
     return partes.length ? `Filtros: ${partes.join('; ')}` : 'Sem filtros aplicados';
+}
+
+/**
+ * Descrição textual das opções de análise. Vai no cabeçalho dos documentos
+ * exportados: dois relatórios do mesmo período podem divergir legitimamente, e
+ * o leitor precisa saber qual critério gerou cada um.
+ */
+export function describeAnalysis(analysis) {
+    const opts = { ...JURIMETRIA_DEFAULT_ANALYSIS, ...(analysis || {}) };
+    const partes = [
+        opts.somenteRealizados
+            ? 'apenas sessões realizadas'
+            : 'todas as sessões (inclusive redesignadas e canceladas)',
+    ];
+    if (opts.excluirNaoInformados) partes.push('sem os grupos não informados');
+    return `Critério: ${partes.join('; ')}`;
 }
 
 /** Seletor de múltipla escolha com busca interna. */
@@ -150,11 +180,19 @@ export default function JurimetriaFilters({
     members = [],
     availableComarcas = [],
     availablePromotores = [],
+    analysis,
+    onAnalysisChange,
     className = '',
     compact = false,
 }) {
     const [open, setOpen] = useState(false);
+    const [analysisOpen, setAnalysisOpen] = useState(false);
     const active = countActiveFilters(filters);
+    const opts = { ...JURIMETRIA_DEFAULT_ANALYSIS, ...(analysis || {}) };
+    const setAnalysis = (patch) => onAnalysisChange?.({ ...opts, ...patch });
+    // Quantas opções estão fora do padrão (para sinalizar no botão).
+    const analysisChanged = Object.keys(JURIMETRIA_DEFAULT_ANALYSIS)
+        .filter((k) => opts[k] !== JURIMETRIA_DEFAULT_ANALYSIS[k]).length;
 
     const set = (patch) => onChange({ ...filters, ...patch });
 
@@ -173,6 +211,11 @@ export default function JurimetriaFilters({
     const resultadoOptions = useMemo(
         () => (settings?.resultados || []).map((r) => ({ value: r, label: r })),
         [settings]
+    );
+
+    const realizacaoOptions = useMemo(
+        () => JURIMETRIA_REALIZACOES.map((r) => ({ value: r.value, label: r.label })),
+        []
     );
 
     const responsavelOptions = useMemo(
@@ -253,6 +296,14 @@ export default function JurimetriaFilters({
                             placeholder="Todas as espécies"
                         />
 
+                        <MultiSelect
+                            label="Realização da sessão"
+                            options={realizacaoOptions}
+                            selected={filters.realizacoes || []}
+                            onChange={(realizacoes) => set({ realizacoes })}
+                            placeholder="Todas as sessões"
+                        />
+
                         {!compact && responsavelOptions.length > 0 && (
                             <MultiSelect
                                 label="Responsável no órgão"
@@ -307,6 +358,83 @@ export default function JurimetriaFilters({
                         </div>
                     </PopoverContent>
                 </Popover>
+
+                {onAnalysisChange && (
+                    <Popover open={analysisOpen} onOpenChange={setAnalysisOpen}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-2 h-9">
+                                <SlidersHorizontal className="w-4 h-4" />
+                                <span className="hidden sm:inline">Análise</span>
+                                {analysisChanged > 0 && (
+                                    <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-[11px]">
+                                        {analysisChanged}
+                                    </Badge>
+                                )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[min(92vw,24rem)] p-4 space-y-3" align="end">
+                            <div>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                    Opções de análise
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Definem COMO os júris do recorte são contados no Painel, nos
+                                    Relatórios e nos Relatórios dinâmicos. A aba Júris continua
+                                    mostrando tudo o que está gravado.
+                                </p>
+                            </div>
+
+                            <label className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 cursor-pointer">
+                                <span className="min-w-0">
+                                    <span className="block text-sm font-medium">
+                                        Somente sessões realizadas
+                                    </span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                        Deixa de fora as redesignadas e as canceladas, que não
+                                        produziram julgamento.
+                                    </span>
+                                </span>
+                                <Switch
+                                    checked={opts.somenteRealizados}
+                                    onCheckedChange={(somenteRealizados) => setAnalysis({ somenteRealizados })}
+                                />
+                            </label>
+
+                            <label className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 cursor-pointer">
+                                <span className="min-w-0">
+                                    <span className="block text-sm font-medium">
+                                        Ignorar “(não informado)”
+                                    </span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                        Remove dos gráficos, rankings e cruzamentos os grupos sem
+                                        valor preenchido.
+                                    </span>
+                                </span>
+                                <Switch
+                                    checked={opts.excluirNaoInformados}
+                                    onCheckedChange={(excluirNaoInformados) => setAnalysis({ excluirNaoInformados })}
+                                />
+                            </label>
+
+                            <p className="text-[11px] text-slate-400 flex items-start gap-1.5">
+                                <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                                O critério escolhido aparece no cabeçalho de todo documento exportado.
+                            </p>
+
+                            {analysisChanged > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full h-8 text-xs gap-2"
+                                    onClick={() => onAnalysisChange({ ...JURIMETRIA_DEFAULT_ANALYSIS })}
+                                >
+                                    <FilterX className="w-3.5 h-3.5" />
+                                    Voltar ao padrão
+                                </Button>
+                            )}
+                        </PopoverContent>
+                    </Popover>
+                )}
 
                 {active > 0 && (
                     <Button

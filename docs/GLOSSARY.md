@@ -586,6 +586,18 @@ Desfecho do julgamento (PROCEDÊNCIA, IMPROCEDÊNCIA, DESCLASSIFICAÇÃO, DISSOL
 ### Matéria / Tipo de júri
 Classificação do caso, gravada pela **sigla** (CM, CP, D, F, FC, PP, T por padrão). A importação reconhece a sigla, a descrição ou as duas juntas ("FC — FATOS DO COTIDIANO").
 
+### Realização (da sessão)
+Se a sessão **aconteceu**: `realizado`, `redesignado` (remarcada para nova data) ou `cancelado` (sem nova data). É um plano anterior ao da espécie de resultado, que diz o que o julgamento produziu. Por padrão, painel e relatórios contam **apenas as realizadas** — os demais continuam na base e na tabela. Júri gravado antes do campo é lido como `realizado`.
+
+### Histórico de datas (`date_history`)
+Registro, dentro do próprio júri, de toda alteração da data da sessão: data anterior, nova data, realização que a motivou, justificativa, autor e momento. Gerado por qualquer caminho que mude a data (edição, redesignação, cancelamento, correção em massa, importação). Visível na ficha do júri e no modal de edição.
+
+### Opções de análise
+Como o recorte é **contado**, em oposição aos filtros, que definem o que **entra** no recorte: "somente sessões realizadas" (ligada por padrão) e "ignorar (não informado)". Valem no Painel, nos Relatórios e nos Relatórios dinâmicos; nunca escondem um registro da tabela de júris. Ficam gravadas por órgão no navegador e a legenda dos documentos exportados declara o critério usado.
+
+### Atualização (importação)
+Linha cujo processo **já existe** no órgão e cuja planilha preenche campos que estavam **vazios** no banco. É ganho puro de informação: aplica-se sob qualquer política, ao contrário do *conflito*, em que a planilha traz valor diferente de um já gravado.
+
 ### Dissolução
 Sessão desfeita sem julgamento de mérito (conselho dissolvido). **Conta no total** de júris do período, mas **fica fora** do cálculo de espécies, matérias e aproveitamento. Quais espécies são tratadas assim é configurável (`dissolucaoResultados`); marcá-las fixa o peso em 0.
 
@@ -602,7 +614,7 @@ Mapa espécie → peso (0 a 1), editável em *Painel Administrativo → Jurimetr
 Campos próprios criados pelo admin além dos nativos (`jurimetriaSettings.customFields`). Os valores ficam em `juris/{id}.values`. Aparecem no cadastro, na tabela, nas exportações, como dimensão nos relatórios dinâmicos, e a importação passa a reconhecer colunas da planilha com o mesmo nome.
 
 ### Política de importação
-O que fazer quando o mesmo processo chega com dados divergentes: `preserve` (padrão — o banco vence, a divergência só é listada) ou `update` (a planilha vence, campo a campo, com registro no histórico). Célula vazia na planilha nunca apaga dado gravado.
+O que fazer quando o mesmo processo chega com dados **divergentes**: `preserve` (padrão — o banco vence, a divergência só é listada) ou `update` (a planilha vence, campo a campo, com registro no histórico). Não se aplica às *atualizações* (lacunas preenchidas), que valem em qualquer política. Célula vazia na planilha nunca apaga dado gravado.
 
 ### Rigor da correção automática (`fuzzyThreshold`)
 Similaridade mínima (0,4 a 1) para a importação corrigir um valor para a lista oficial do órgão — ex.: "PORTO ALEGRE" → "Porto Alegre (0001)". Em 1, só a grafia exata é aceita.

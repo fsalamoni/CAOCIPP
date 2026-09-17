@@ -7,9 +7,10 @@ import {
 import EmptyState from '@/components/ui/EmptyState';
 import { Scale, Gavel, MapPin, Users, CalendarRange } from 'lucide-react';
 import JurimetriaExportMenu from './JurimetriaExportMenu';
+import JurimetriaPagination, { usePagedRows } from './JurimetriaPagination';
 import {
     computeTotais, computeEspecies, computeMaterias, computeRanking,
-    computeSerieMensal, formatNumber, formatPercent, faixaAproveitamento,
+    computeSerieMensal, formatNumber, formatPercent, faixaAproveitamento, resolveAnalysis,
 } from '@/lib/jurimetriaEngine';
 
 /** Abrevia o nome de uma espécie para caber no cabeçalho das tabelas largas. */
@@ -65,13 +66,26 @@ function ReportSection({ icon: Icon, title, description, rows, columns, filename
  * dissoluções, espécies de resultado, matérias e rankings por comarca e por
  * promotor —, cada uma exportável em seis formatos.
  */
-export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
-    const totais = useMemo(() => computeTotais(juris, settings), [juris, settings]);
-    const especies = useMemo(() => computeEspecies(juris, settings), [juris, settings]);
-    const materias = useMemo(() => computeMaterias(juris, settings), [juris, settings]);
-    const comarcas = useMemo(() => computeRanking(juris, 'comarca', settings), [juris, settings]);
-    const promotores = useMemo(() => computeRanking(juris, 'promotor', settings), [juris, settings]);
-    const serie = useMemo(() => computeSerieMensal(juris, settings), [juris, settings]);
+export default function JurimetriaReports({
+    juris, settings, subtitle = '', analysis, organizationId,
+}) {
+    const totais = useMemo(() => computeTotais(juris, settings, analysis), [juris, settings, analysis]);
+    const especies = useMemo(() => computeEspecies(juris, settings, analysis), [juris, settings, analysis]);
+    const materias = useMemo(() => computeMaterias(juris, settings, analysis), [juris, settings, analysis]);
+    const comarcas = useMemo(
+        () => computeRanking(juris, 'comarca', settings, analysis),
+        [juris, settings, analysis]
+    );
+    const promotores = useMemo(
+        () => computeRanking(juris, 'promotor', settings, analysis),
+        [juris, settings, analysis]
+    );
+    const serie = useMemo(() => computeSerieMensal(juris, settings, analysis), [juris, settings, analysis]);
+    const opts = resolveAnalysis(analysis);
+
+    const especiesPager = usePagedRows(especies.linhas, { scope: 'rel_especies', organizationId });
+    const materiasPager = usePagedRows(materias.linhas, { scope: 'rel_materias', organizationId });
+    const seriePager = usePagedRows(serie, { scope: 'rel_mensal', organizationId });
 
     // Colunas para exportação — sempre texto puro, nunca JSX.
     const especiesColumns = [
@@ -132,6 +146,12 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                     <CardDescription>
                         Base de todos os demais relatórios. Os júris dissolvidos entram no total, mas são
                         excluídos do cálculo de espécies, matérias e aproveitamento.
+                        {opts.somenteRealizados && totais.totalBruto !== totais.total && (
+                            <>
+                                {' '}Estão sendo contadas apenas as {formatNumber(totais.total)} sessões
+                                realizadas, de {formatNumber(totais.totalBruto)} no recorte.
+                            </>
+                        )}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -156,6 +176,27 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                             <p className="text-xs text-slate-400">{formatNumber(totais.pontos, 2)} pontos</p>
                         </div>
                     </div>
+
+                    {/* Desfecho das sessões — anterior ao resultado do julgamento. */}
+                    {(totais.redesignados > 0 || totais.cancelados > 0) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Sessões realizadas</p>
+                                <p className="text-xl font-bold">{formatNumber(totais.realizados)}</p>
+                                <p className="text-xs text-slate-400">{formatPercent(totais.pctRealizados)} do recorte</p>
+                            </div>
+                            <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30 p-3">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Redesignadas</p>
+                                <p className="text-xl font-bold">{formatNumber(totais.redesignados)}</p>
+                                <p className="text-xs text-slate-400">{formatPercent(totais.pctRedesignados)} do recorte</p>
+                            </div>
+                            <div className="rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/30 p-3">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Canceladas</p>
+                                <p className="text-xl font-bold">{formatNumber(totais.cancelados)}</p>
+                                <p className="text-xs text-slate-400">{formatPercent(totais.pctCancelados)} do recorte</p>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -179,7 +220,7 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {especies.linhas.map((linha) => (
+                        {especiesPager.pageRows.map((linha) => (
                             <TableRow key={linha.especie}>
                                 <TableCell className="text-sm">{linha.especie}</TableCell>
                                 <TableCell className="text-right tabular-nums font-medium">
@@ -209,6 +250,7 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                         </TableRow>
                     </TableBody>
                 </Table>
+                <JurimetriaPagination pager={especiesPager} label="espécies" />
             </ReportSection>
 
             {/* Matérias */}
@@ -222,7 +264,7 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                 subtitle={subtitle}
             >
                 <div className="space-y-3">
-                    {materias.linhas.map((linha) => (
+                    {materiasPager.pageRows.map((linha) => (
                         <div
                             key={linha.sigla}
                             className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"
@@ -252,6 +294,7 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                         </div>
                     ))}
                 </div>
+                <JurimetriaPagination pager={materiasPager} label="matérias" />
             </ReportSection>
 
             {/* Ranking de comarcas */}
@@ -264,7 +307,12 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                 filenameBase="jurimetria-comarcas"
                 subtitle={subtitle}
             >
-                <RankingTable ranking={comarcas} dimLabel="Comarca" />
+                <RankingTable
+                    ranking={comarcas}
+                    dimLabel="Comarca"
+                    scope="rel_comarcas"
+                    organizationId={organizationId}
+                />
             </ReportSection>
 
             {/* Atuação por promotor */}
@@ -277,7 +325,12 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                 filenameBase="jurimetria-promotores"
                 subtitle={subtitle}
             >
-                <RankingTable ranking={promotores} dimLabel="Promotor(a)" />
+                <RankingTable
+                    ranking={promotores}
+                    dimLabel="Promotor(a)"
+                    scope="rel_promotores"
+                    organizationId={organizationId}
+                />
             </ReportSection>
 
             {/* Série mensal */}
@@ -301,7 +354,7 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {serie.map((mes) => (
+                        {seriePager.pageRows.map((mes) => (
                             <TableRow key={mes.chave}>
                                 <TableCell className="text-sm">{mes.labelCompleto}</TableCell>
                                 <TableCell className="text-right tabular-nums font-medium">{formatNumber(mes.total)}</TableCell>
@@ -312,13 +365,16 @@ export default function JurimetriaReports({ juris, settings, subtitle = '' }) {
                         ))}
                     </TableBody>
                 </Table>
+                <JurimetriaPagination pager={seriePager} label="meses" />
             </ReportSection>
         </div>
     );
 }
 
-function RankingTable({ ranking, dimLabel }) {
+function RankingTable({ ranking, dimLabel, scope, organizationId }) {
+    const pager = usePagedRows(ranking.linhas, { scope, organizationId });
     return (
+        <>
         <div className="overflow-x-auto">
             <Table>
                 <TableHeader>
@@ -336,7 +392,7 @@ function RankingTable({ ranking, dimLabel }) {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {ranking.linhas.map((linha) => (
+                    {pager.pageRows.map((linha) => (
                         <TableRow key={linha.chave}>
                             <TableCell className="text-sm">
                                 <span className="block max-w-[260px] truncate" title={linha.chave}>{linha.chave}</span>
@@ -355,5 +411,7 @@ function RankingTable({ ranking, dimLabel }) {
                 </TableBody>
             </Table>
         </div>
+        <JurimetriaPagination pager={pager} label={dimLabel.toLowerCase()} />
+        </>
     );
 }

@@ -5,6 +5,7 @@ import {
     resolveJurimetriaSettings,
     sanitizeJuriInput,
     JurimetriaSettings,
+    JuriDateHistoryEntry,
 } from '../shared/jurimetria';
 
 interface BulkUpdateJurisRequest {
@@ -145,6 +146,10 @@ export const bulkUpdateJuris = onCall<BulkUpdateJurisRequest>(
 
         const now = new Date();
         const userName = request.auth.token.name || 'Usuário desconhecido';
+        // Correção de data em massa continua sendo uma mudança de data: cada
+        // júri afetado recebe sua própria entrada no histórico de datas, com a
+        // justificativa informada (se houver).
+        const bulkJustificativa = String(incoming.justificativa ?? '').trim().slice(0, 1000);
         const logEntry = {
             date: now.toISOString().split('T')[0],
             time: now.toTimeString().split(' ')[0],
@@ -180,6 +185,20 @@ export const bulkUpdateJuris = onCall<BulkUpdateJurisRequest>(
                 }
                 if (Object.keys(customUpdates).length > 0) {
                     update.values = { ...(current.values || {}), ...customUpdates };
+                }
+
+                const novaData = coreUpdates.data_juri as string | undefined;
+                if (novaData !== undefined && novaData !== (current.data_juri || '')) {
+                    const dateEntry: JuriDateHistoryEntry = {
+                        from: String(current.data_juri || ''),
+                        to: novaData,
+                        realizacao: String(current.realizacao || 'realizado') as JuriDateHistoryEntry['realizacao'],
+                        justificativa: bulkJustificativa || 'Correção de data em massa',
+                        user_id: userId,
+                        user_name: userName,
+                        changed_at: now.toISOString(),
+                    };
+                    update.date_history = admin.firestore.FieldValue.arrayUnion(dateEntry);
                 }
 
                 update.updated_at = admin.firestore.FieldValue.serverTimestamp();

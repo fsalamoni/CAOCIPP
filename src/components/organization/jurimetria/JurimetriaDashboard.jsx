@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import EmptyState from '@/components/ui/EmptyState';
 import {
-    Scale, Gavel, Percent, CalendarDays, MapPin, TrendingUp, Users,
+    Scale, Gavel, Percent, CalendarDays, MapPin, TrendingUp, Users, CalendarClock,
 } from 'lucide-react';
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -11,8 +11,9 @@ import {
 } from 'recharts';
 import {
     computeTotais, computeEspecies, computeSerieMensal, computeRanking,
-    formatNumber, formatPercent, faixaAproveitamento,
+    formatNumber, formatPercent, faixaAproveitamento, resolveAnalysis,
 } from '@/lib/jurimetriaEngine';
+import { JURIMETRIA_REALIZACOES } from '@/constants/jurimetria';
 
 // Paleta alinhada aos gráficos já existentes na plataforma (ProcessChart).
 const CHART_COLORS = [
@@ -25,6 +26,7 @@ function KpiCard({ icon: Icon, label, value, hint, accent = 'indigo' }) {
         indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300',
         emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300',
         amber: 'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-300',
+        rose: 'bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-300',
         slate: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
     };
     return (
@@ -66,12 +68,30 @@ function ChartTooltip({ active, payload, label, suffix = '' }) {
  * Painel da Jurimetria: leitura rápida do conjunto filtrado — totais,
  * aproveitamento, evolução mensal, espécies, comarcas e promotores.
  */
-export default function JurimetriaDashboard({ juris, settings }) {
-    const totais = useMemo(() => computeTotais(juris, settings), [juris, settings]);
-    const especies = useMemo(() => computeEspecies(juris, settings), [juris, settings]);
-    const serie = useMemo(() => computeSerieMensal(juris, settings), [juris, settings]);
-    const comarcas = useMemo(() => computeRanking(juris, 'comarca', settings), [juris, settings]);
-    const promotores = useMemo(() => computeRanking(juris, 'promotor', settings), [juris, settings]);
+export default function JurimetriaDashboard({ juris, settings, analysis }) {
+    const totais = useMemo(() => computeTotais(juris, settings, analysis), [juris, settings, analysis]);
+    const especies = useMemo(() => computeEspecies(juris, settings, analysis), [juris, settings, analysis]);
+    const serie = useMemo(() => computeSerieMensal(juris, settings, analysis), [juris, settings, analysis]);
+    const comarcas = useMemo(
+        () => computeRanking(juris, 'comarca', settings, analysis),
+        [juris, settings, analysis]
+    );
+    const promotores = useMemo(
+        () => computeRanking(juris, 'promotor', settings, analysis),
+        [juris, settings, analysis]
+    );
+    const opts = resolveAnalysis(analysis);
+
+    // Desfecho da sessão (realizado / redesignado / cancelado): é o plano do
+    // "aconteceu?", anterior ao plano do "deu em quê?". Vale sobre o recorte
+    // inteiro, mesmo quando os gráficos contam só os realizados.
+    const realizacaoChart = useMemo(() => JURIMETRIA_REALIZACOES.map((r) => ({
+        name: r.label,
+        value: r.value === 'realizado'
+            ? totais.realizados
+            : r.value === 'redesignado' ? totais.redesignados : totais.cancelados,
+        fill: r.chart,
+    })).filter((d) => d.value > 0), [totais]);
 
     const faixa = faixaAproveitamento(totais.aproveitamento);
 
@@ -118,9 +138,11 @@ export default function JurimetriaDashboard({ juris, settings }) {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <KpiCard
                     icon={Scale}
-                    label="Júris no recorte"
+                    label={opts.somenteRealizados ? 'Júris realizados' : 'Júris no recorte'}
                     value={formatNumber(totais.total)}
-                    hint={`${formatNumber(serie.length)} mês(es) com sessões`}
+                    hint={opts.somenteRealizados && totais.totalBruto !== totais.total
+                        ? `de ${formatNumber(totais.totalBruto)} no recorte`
+                        : `${formatNumber(serie.length)} mês(es) com sessões`}
                 />
                 <KpiCard
                     icon={Gavel}
@@ -144,6 +166,33 @@ export default function JurimetriaDashboard({ juris, settings }) {
                     accent="slate"
                 />
             </div>
+
+            {/* Desfecho das sessões: o "aconteceu?" antes do "deu em quê?". */}
+            {(totais.redesignados > 0 || totais.cancelados > 0) && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <KpiCard
+                        icon={CalendarClock}
+                        label="Sessões realizadas"
+                        value={formatNumber(totais.realizados)}
+                        hint={`${formatPercent(totais.pctRealizados)} do recorte`}
+                        accent="emerald"
+                    />
+                    <KpiCard
+                        icon={CalendarClock}
+                        label="Redesignadas"
+                        value={formatNumber(totais.redesignados)}
+                        hint={`${formatPercent(totais.pctRedesignados)} do recorte`}
+                        accent="amber"
+                    />
+                    <KpiCard
+                        icon={CalendarClock}
+                        label="Canceladas"
+                        value={formatNumber(totais.cancelados)}
+                        hint={`${formatPercent(totais.pctCancelados)} do recorte`}
+                        accent="rose"
+                    />
+                </div>
+            )}
 
             {faixa && (
                 <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
@@ -243,6 +292,46 @@ export default function JurimetriaDashboard({ juris, settings }) {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Realização das sessões */}
+                {realizacaoChart.length > 1 && (
+                    <Card className="border-slate-200 dark:border-slate-700">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <CalendarClock className="w-4 h-4 text-slate-400" />
+                                Realização das sessões
+                            </CardTitle>
+                            <CardDescription>
+                                Dos {formatNumber(totais.totalBruto)} júris do recorte, quantos de fato
+                                foram a júri na data da pauta.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-72">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={realizacaoChart}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={55}
+                                            outerRadius={88}
+                                            paddingAngle={2}
+                                            dataKey="value"
+                                            nameKey="name"
+                                        >
+                                            {realizacaoChart.map((entry) => (
+                                                <Cell key={entry.name} fill={entry.fill} />
+                                            ))}
+                                        </Pie>
+                                        <RechartsTooltip content={<ChartTooltip />} />
+                                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Top comarcas */}
                 <Card className="border-slate-200 dark:border-slate-700">

@@ -5,6 +5,7 @@ import {
     resolveJurimetriaSettings,
     sanitizeJuriInput,
     normalizeProcessNumber,
+    resolveRealizacaoChange,
     JURIMETRIA_CORE_FIELD_KEYS,
 } from '../shared/jurimetria';
 
@@ -18,6 +19,8 @@ interface UpdateJuriRequest {
 const FIELD_LABELS: Record<string, string> = {
     numero_processo: 'Número do processo',
     data_juri: 'Data do júri',
+    realizacao: 'Realização',
+    realizacao_justificativa: 'Justificativa',
     comarca: 'Comarca',
     tipo: 'Matéria / Tipo',
     resultado: 'Espécie de resultado',
@@ -78,8 +81,62 @@ export const updateJuri = onCall<UpdateJuriRequest>(
 
         const changes: Record<string, unknown> = {};
         const changedLabels: string[] = [];
+        const userName = request.auth.token.name || 'Usuário desconhecido';
 
+        // ------------------------------------------------------------------
+        // Realização e data do júri
+        // ------------------------------------------------------------------
+        // Estes dois campos andam juntos (redesignar muda a data, cancelar a
+        // apaga), então saem do laço genérico e passam por uma regra própria,
+        // que também produz a entrada do histórico de datas.
+        const tocouRealizacao = Object.prototype.hasOwnProperty.call(incoming, 'realizacao');
+        const tocouData = Object.prototype.hasOwnProperty.call(incoming, 'data_juri');
+        const tocouJustificativa = Object.prototype.hasOwnProperty.call(
+            incoming, 'realizacao_justificativa'
+        );
+
+        let historyEntry: ReturnType<typeof resolveRealizacaoChange>['historyEntry'] = null;
+        let realizacaoLog = '';
+
+        if (tocouRealizacao || tocouData || tocouJustificativa) {
+            const transicao = resolveRealizacaoChange({
+                currentRealizacao: juriData.realizacao,
+                currentDate: juriData.data_juri,
+                nextRealizacao: tocouRealizacao ? core.realizacao : juriData.realizacao,
+                nextDate: tocouData ? core.data_juri : juriData.data_juri,
+                justificativa: tocouJustificativa
+                    ? core.realizacao_justificativa
+                    : juriData.realizacao_justificativa,
+                userId,
+                userName,
+            });
+            if (transicao.error) {
+                throw new HttpsError('invalid-argument', transicao.error);
+            }
+
+            if (transicao.realizacao !== (juriData.realizacao || 'realizado')) {
+                changes.realizacao = transicao.realizacao;
+                changedLabels.push(FIELD_LABELS.realizacao);
+            }
+            if (transicao.dataJuri !== (juriData.data_juri || '')) {
+                changes.data_juri = transicao.dataJuri;
+                changedLabels.push(FIELD_LABELS.data_juri);
+            }
+            if (transicao.justificativa !== (juriData.realizacao_justificativa || '')) {
+                changes.realizacao_justificativa = transicao.justificativa;
+                // Precisa entrar em changedLabels: sem isto, uma edição que
+                // altera SÓ a justificativa cairia no retorno antecipado de
+                // "nenhuma alteração" e o texto seria descartado em silêncio.
+                changedLabels.push(FIELD_LABELS.realizacao_justificativa);
+            }
+
+            historyEntry = transicao.historyEntry;
+            realizacaoLog = transicao.logAction;
+        }
+
+        // Demais campos fixos (a data e a realização já foram resolvidas acima).
         for (const key of JURIMETRIA_CORE_FIELD_KEYS) {
+            if (key === 'data_juri' || key === 'realizacao' || key === 'realizacao_justificativa') continue;
             if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
             if (core[key] === juriData[key]) continue;
             changes[key] = core[key];
@@ -107,10 +164,6 @@ export const updateJuri = onCall<UpdateJuriRequest>(
                 }
             }
             changes.numero_processo_norm = numeroNorm;
-        }
-
-        if (Object.prototype.hasOwnProperty.call(incoming, 'data_juri') && !core.data_juri) {
-            throw new HttpsError('invalid-argument', 'A data do júri é obrigatória e deve ser válida');
         }
 
         // Colunas personalizadas: grava o mapa inteiro já mesclado.
@@ -156,18 +209,34 @@ export const updateJuri = onCall<UpdateJuriRequest>(
         }
 
         const now = new Date();
+        const outrosCampos = [...new Set(changedLabels)].filter(
+            (label) => label !== FIELD_LABELS.realizacao && label !== FIELD_LABELS.data_juri
+        );
+
+        // Uma redesignação é um fato do processo, não "campos atualizados":
+        // o registro precisa dizer o que aconteceu e por quê.
+        const partes: string[] = [];
+        if (realizacaoLog) partes.push(realizacaoLog);
+        if (outrosCampos.length > 0) partes.push(`Campos atualizados: ${outrosCampos.join(', ')}`);
+
         const logEntry = {
             date: now.toISOString().split('T')[0],
             time: now.toTimeString().split(' ')[0],
             user_id: userId,
-            user_name: request.auth.token.name || 'Usuário desconhecido',
-            action: `Campos atualizados: ${[...new Set(changedLabels)].join(', ')}`,
+            user_name: userName,
+            action: partes.length > 0
+                ? partes.join(' · ')
+                : `Campos atualizados: ${[...new Set(changedLabels)].join(', ')}`,
             timestamp: now.toISOString(),
         };
 
         changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
         changes.updated_by = userId;
         changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
+        // Histórico de datas: a data anterior nunca se perde.
+        if (historyEntry) {
+            changes.date_history = admin.firestore.FieldValue.arrayUnion(historyEntry);
+        }
 
         await juriRef.update(changes);
 
@@ -183,7 +252,7 @@ export const updateJuri = onCall<UpdateJuriRequest>(
         await db.collection('auditLogs').add({
             organization_id: organizationId,
             user_id: userId,
-            user_name: logEntry.user_name,
+            user_name: userName,
             action: 'UPDATE_JURI',
             details: { juri_id: id, changes: Object.keys(changes).filter((k) => k !== 'activity_log') },
             timestamp: admin.firestore.FieldValue.serverTimestamp(),

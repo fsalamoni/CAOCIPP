@@ -845,9 +845,19 @@ Default OFF (zero impacto em produção). O painel "Administração & Custos" li
 
 **Defesa em profundidade**: a flag global é checada em `getOrganizationTabs`, `getActiveDataPages`, `AdminManagement`, `ModulesManager`, `Organization.jsx` (guarda de aba e assinatura de dados) e no `CommandPalette` — mesmo com `moduleConfig.jurimetria.enabled = true`, a flag global OFF esconde tudo e **nenhuma leitura** da coleção `juris` é feita.
 
+### Trilha das alterações de data (`date_history`)
+
+Toda mudança da data de um júri — redesignação, cancelamento, correção manual ou em massa, e alteração vinda de importação — grava uma entrada imutável em `date_history` (data anterior, nova data, realização, justificativa, autor, momento) **e** uma linha no `activity_log`/`history`. A regra vive numa única função de servidor (`resolveRealizacaoChange`), usada pelos três caminhos de escrita, para que nenhum deles possa gravar uma data nova sem deixar rastro. A justificativa é exigida pelo servidor ao entrar em `redesignado` ou `cancelado` — a validação da interface é conveniência, não a garantia.
+
+`date_history` só é escrito por Admin SDK: como toda a coleção `juris/` tem `allow write: if false`, não há caminho de cliente que reescreva ou apague o histórico.
+
 ### Exclusão do órgão
 
-`juris` foi acrescentada a `ORG_SCOPED_COLLECTIONS` em `functions-v2/src/organizations/delete.ts`: a base e os históricos são removidos recursivamente junto com o órgão, sem deixar documentos órfãos com dados de processos.
+`juris` foi acrescentada a `ORG_SCOPED_COLLECTIONS` em `functions-v2/src/organizations/delete.ts`: a base e os históricos são removidos recursivamente junto com o órgão, sem deixar documentos órfãos com dados de processos. Na mesma revisão, `parcerias` (com as subcoleções `aditivos/` e `history/`) foi acrescentada à mesma lista — estava de fora desde a criação daquele módulo, o que deixava convênios órfãos acessíveis por consulta direta após a exclusão do órgão.
+
+### Preferências de exibição no `localStorage`
+
+As opções de análise, o tamanho de página das tabelas e o desenho dos relatórios dinâmicos ficam no `localStorage`, **chaveados por órgão** (`caocipp_jurimetria_<escopo>_<orgId>`), de modo que o recorte montado num órgão não vaze para outro no mesmo navegador. São preferências de apresentação: nenhum dado de júri é guardado ali, toda leitura é embrulhada em `try/catch` (modo privado, armazenamento bloqueado) e o padrão de fábrica sempre funciona sem elas.
 
 ### Exportação
 

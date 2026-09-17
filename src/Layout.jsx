@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/FirebaseAuthContext';
-import { useOrganizations } from '@/hooks/useFirestore';
+import { useOrganizations, useOrganizationRealtime } from '@/hooks/useFirestore';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
@@ -40,6 +40,17 @@ import NotificationBell from '@/lib/NotificationBell';
 import { useLocation } from 'react-router-dom';
 
 const publicPages = ['Landing', 'Help', 'Terms'];
+
+/* Campos do documento do órgão que decidem quais abas aparecem. São os únicos
+   que o documento em tempo real sobrepõe ao objeto vindo do vínculo — tudo o
+   mais (papel do usuário, permissões, nome exibido) continua vindo do vínculo. */
+function pickOrgConfig(liveOrg) {
+  if (!liveOrg) return {};
+  const out = {};
+  if (liveOrg.moduleConfig !== undefined) out.moduleConfig = liveOrg.moduleConfig;
+  if (liveOrg.name !== undefined) out.name = liveOrg.name;
+  return out;
+}
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'caocipp_sidebar_collapsed';
 
 export default function Layout({ children, currentPageName }) {
@@ -69,7 +80,26 @@ export default function Layout({ children, currentPageName }) {
   };
 
   // Fetch user organizations
-  const { organizations } = useOrganizations(user?.uid);
+  const { organizations: membershipOrgs } = useOrganizations(user?.uid);
+
+  /* Documento do órgão ABERTO, em tempo real.
+     `useOrganizations` lê cada órgão uma única vez (getDoc), e só relê quando a
+     consulta de VÍNCULOS dispara — o que não acontece ao mudar o documento do
+     órgão. Resultado: ligar/desligar uma página em "Páginas e Módulos" mudava a
+     área central (que já assina o órgão) mas deixava o sub-menu da barra
+     lateral com o `moduleConfig` antigo. Como o sub-menu só é desenhado para o
+     órgão ativo, basta sobrepor esse documento aqui. */
+  const { organization: activeOrgLive } = useOrganizationRealtime(activeOrgId);
+
+  const organizations = React.useMemo(() => (
+    membershipOrgs.map((org) => (
+      org.id === activeOrgLive?.id
+        // O documento em tempo real não traz os campos derivados do vínculo
+        // (papel, permissões), então ele entra por baixo, nunca por cima.
+        ? { ...activeOrgLive, ...org, ...pickOrgConfig(activeOrgLive) }
+        : org
+    ))
+  ), [membershipOrgs, activeOrgLive]);
 
   /* Super-admin de plataforma (controla a página Administração & Custos) */
   const { isPlatformAdmin } = usePlatformAdmin();

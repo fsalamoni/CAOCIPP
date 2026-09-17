@@ -58,7 +58,10 @@ esteja `true` no órgão.
 | `organization_id` | string | Órgão dono do registro |
 | `numero_processo` | string | Número CNJ, como digitado/importado |
 | `numero_processo_norm` | string | Só os dígitos — **chave natural** do órgão |
-| `data_juri` | string | `YYYY-MM-DD` |
+| `data_juri` | string | `YYYY-MM-DD`. Fica **vazio** quando a sessão é cancelada |
+| `realizacao` | string | `realizado` \| `redesignado` \| `cancelado`. Ausente = `realizado` |
+| `realizacao_justificativa` | string | Motivo da redesignação/cancelamento (até 1000 caracteres) |
+| `date_history` | array | Histórico de datas — ver seção 5 |
 | `comarca` | string | Lista oficial do órgão |
 | `tipo` | string | **Sigla** da matéria (CM, CP, D, F, FC, PP, T…) |
 | `resultado` | string | Espécie de resultado (lista oficial do órgão) |
@@ -121,7 +124,72 @@ Quais espécies contam como dissolução é **configurável** por órgão
 
 ---
 
-## 5. Importação
+## 5. Realização da sessão (`realizacao`)
+
+A dissolução responde *"o julgamento deu em quê?"*. A **realização** responde a
+pergunta anterior: *"a sessão aconteceu?"*. São dois planos independentes, e
+confundi-los distorce todo indicador.
+
+| Valor | Significado | Data do júri |
+|---|---|---|
+| `realizado` (padrão) | A sessão ocorreu e produziu um resultado | obrigatória |
+| `redesignado` | Não ocorreu na data prevista; foi remarcada | a **nova** data |
+| `cancelado` | Foi cancelada e não tem nova data | fica **vazia** |
+
+**Compatibilidade:** um júri gravado antes deste campo não tem `realizacao`, e
+é lido como `realizado` em todo lugar (`getRealizacao`). Nenhum número muda
+por causa da migração, e nenhuma migração de dados é necessária.
+
+### Regra de transição
+
+Toda a lógica vive numa função só — `resolveRealizacaoChange`
+(`functions-v2/src/shared/jurimetria.ts`) — usada pelo cadastro, pela edição e
+pela importação, para que os três caminhos não divirjam:
+
+- entrar em `redesignado` exige uma **nova data**, diferente da anterior, e uma
+  **justificativa**;
+- entrar em `cancelado` esvazia a data e exige uma **justificativa**;
+- voltar para `realizado` exige uma data e limpa a justificativa;
+- **toda** alteração de data — por qualquer caminho, inclusive correção simples
+  e atualização em massa — gera uma entrada em `date_history` e uma linha no
+  `activity_log`/`history` do júri.
+
+### `date_history[]`
+
+```js
+{
+  from: '2026-03-10',        // data anterior ('' quando não havia)
+  to: '2026-04-15',          // nova data ('' quando cancelado)
+  realizacao: 'redesignado', // desfecho que motivou a mudança
+  justificativa: 'Réu não intimado',
+  user_id: 'uid', user_name: 'Promotor X',
+  changed_at: '2026-03-01T12:00:00.000Z',
+}
+```
+
+Aparece para o usuário na ficha do júri e dentro do modal de edição — quem está
+prestes a redesignar vê quantas vezes aquele processo já foi adiado.
+
+### Efeito nos números
+
+O painel, os relatórios e os relatórios dinâmicos contam, **por padrão, apenas
+as sessões realizadas** ("em regra, o que importa são os Júris que contam com
+realizado"). Isso é uma *opção de análise*, não um filtro: os júris
+redesignados e cancelados continuam visíveis na aba Júris e exportáveis.
+
+Duas opções ficam no botão **Análise**, ao lado dos filtros:
+
+| Opção | Padrão | O que faz |
+|---|---|---|
+| Somente sessões realizadas | ligada | Exclui redesignados e cancelados dos cálculos |
+| Ignorar "(não informado)" | desligada | Remove dos gráficos e tabelas os grupos sem valor |
+
+As duas ficam gravadas por órgão no navegador e a legenda de cada relatório
+exportado declara o critério usado.
+
+---
+
+## 6. Importação
 
 Duas etapas, sempre — nada é gravado sem confirmação:
 
@@ -131,19 +199,31 @@ Duas etapas, sempre — nada é gravado sem confirmação:
 
 ### Classificação de cada linha
 
+O reconhecimento é feito pelo **número do processo normalizado** (só os
+dígitos), de modo que a mesma sessão importada de novo — com ou sem pontuação —
+nunca vira um segundo registro.
+
 | Situação | Resultado |
 |---|---|
 | Número novo no órgão | **novo** — será adicionado |
 | Número existente, dados idênticos | **sem mudança** — nada é feito |
-| Número existente, dados divergentes | **conflito** — depende da política |
-| Número vazio, sem dígitos, repetido no arquivo, ou data inválida | **inválido** |
+| Número existente, a planilha preenche campos **vazios** no banco | **atualização** — o registro é completado |
+| Número existente, a planilha traz valor **diferente** do gravado | **conflito** — depende da política |
+| Número vazio, sem dígitos, repetido no arquivo, ou data inválida (salvo cancelados) | **inválido** |
+
+A distinção entre **atualização** e **conflito** é o que permite reimportar uma
+planilha mais completa sem transformar todo o arquivo em conflito: preencher
+uma lacuna é ganho puro de informação e acontece sob qualquer política;
+substituir um valor existente é divergência e só acontece sob `update`.
 
 **Política de conflito** (`importPolicy`, sobreponível a cada importação):
 
-- `preserve` (padrão) — o banco vence; a divergência é apenas listada.
+- `preserve` (padrão) — o banco vence na **divergência**; lacunas continuam
+  sendo preenchidas.
 - `update` — a planilha vence, campo a campo, com registro no histórico.
 
-Em ambos os casos, **célula vazia na planilha nunca apaga** um dado já gravado.
+Em ambos os casos, **célula vazia na planilha nunca apaga** um dado já gravado,
+e uma data alterada pela importação também entra no `date_history`.
 
 ### Formatos aceitos
 
@@ -169,11 +249,11 @@ Toda correção aparece na aba *Correções* do relatório, antes da confirmaç�
 
 ---
 
-## 6. Abas da página
+## 7. Abas da página
 
 | Aba | O que faz |
 |---|---|
-| **Painel** | KPIs, evolução mensal, espécies, comarcas e promotores |
+| **Painel** | KPIs, evolução mensal, espécies, realização das sessões, comarcas e promotores |
 | **Júris** | Tabela com ordenação, seleção de colunas, paginação, CRUD e ações em massa |
 | **Importação** | Assistente de duas etapas descrito acima |
 | **Relatórios** | Totais/dissoluções, espécies, matérias, ranking de comarcas, atuação por promotor e série mensal |
@@ -182,13 +262,25 @@ Toda correção aparece na aba *Correções* do relatório, antes da confirmaç�
 Os **filtros do topo valem para todas as abas** — inclusive para o que é
 exportado, de modo que o arquivo gerado é sempre igual ao que está na tela.
 
+Ao lado deles fica o botão **Análise**, com as opções da seção 5. A diferença
+importa: *filtro* é o que entra no recorte (vale em todas as abas, inclusive na
+tabela de júris); *análise* é como o recorte é contado (vale no Painel, nos
+Relatórios e nos Relatórios dinâmicos, sem esconder registro nenhum).
+
+Todas as tabelas de relatório são paginadas em **20, 50 ou 100 linhas**, com
+navegação entre páginas; a exportação sempre leva o recorte **inteiro**, não
+apenas a página aberta.
+
 ### Tabela dinâmica
 
 - Até **3 dimensões em Linhas** e **3 em Colunas**, aninhadas
 - Até **2 medidas lado a lado**: quantidade, aproveitamento, pontos, dissoluções
 - **Mostrar como**: valor, % da linha, % da coluna, % do total geral
 - **Subtotais**: automático / só linhas / só total geral / nenhum
-- Dimensões incluem as **colunas do órgão**
+- Dimensões incluem a **realização** e as **colunas do órgão**
+- O desenho do relatório (linhas, colunas, medidas, subtotais, seções do
+  descritivo) fica **gravado por órgão** no navegador e volta pronto no próximo
+  acesso; "Restaurar padrão" desfaz
 
 O cálculo (`buildPivot`) contabiliza cada grupo **uma vez** e propaga para os
 prefixos de linha e coluna, então os subtotais de todos os níveis saem sem
@@ -212,7 +304,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 7. Permissões
+## 8. Permissões
 
 | Ação | Quem pode |
 |---|---|
@@ -227,7 +319,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 8. Segurança
+## 9. Segurança
 
 - **Nenhuma escrita direta do cliente.** `firestore.rules` permite apenas
   leitura de `juris/{id}` para membros do órgão; `allow write: if false`. Todo
@@ -243,7 +335,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 9. Integração com o resto da plataforma
+## 10. Integração com o resto da plataforma
 
 - **Informações Gerais** — a página de Jurimetria vira uma fonte de métricas
   (`getJurisPageSchema`), com a espécie de resultado no lugar da "fase". O
@@ -258,7 +350,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 ---
 
-## 10. Mapa dos arquivos
+## 11. Mapa dos arquivos
 
 ### Frontend
 
@@ -268,10 +360,13 @@ src/lib/jurimetriaEngine.js                             cálculos (funções pur
 src/lib/jurimetriaExport.js                             geração dos 6 formatos
 src/lib/jurimetriaFile.js                               base64 + leitura de .docx
 src/hooks/useJuris.js                                   leitura em tempo real
+src/hooks/useJurimetriaPrefs.js                         preferências por órgão (análise,
+                                                        paginação, relatórios dinâmicos)
 src/services/jurimetriaService.js                       chamadas às Cloud Functions
 src/components/organization/JurimetriaControl.jsx       página (abas + filtros)
 src/components/organization/jurimetria/…                dashboard, tabela, diálogos,
-                                                        importação, relatórios
+                                                        importação, relatórios,
+                                                        paginação, histórico de datas
 src/components/organization/admin/JurimetriaConfiguration.jsx  configuração do órgão
 ```
 
@@ -288,12 +383,14 @@ import/fromExcelJuris.ts    importação (preview + commit)
 
 ---
 
-## 11. Limites conhecidos
+## 12. Limites conhecidos
 
 - A leitura carrega **todos** os júris do órgão (sem paginação): os relatórios
   e a tabela dinâmica precisam do conjunto completo para os totais fecharem.
   Acima de ~20.000 júris por órgão vale reavaliar.
-- Os **modelos** de relatório dinâmico ficam no `localStorage` do navegador,
-  como no aplicativo de origem — não são compartilhados entre usuários.
+- Os **modelos** de relatório dinâmico e as **preferências de exibição**
+  (análise, tamanho de página, último desenho do relatório) ficam no
+  `localStorage` do navegador, como no aplicativo de origem — não são
+  compartilhados entre usuários nem entre dispositivos.
 - A leitura de `.docx` depende de `DecompressionStream` (Chrome/Edge 103+,
   Firefox 113+). Safari mais antigo cai no aviso da interface.

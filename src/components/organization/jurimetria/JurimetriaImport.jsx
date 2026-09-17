@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 import {
     Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, XCircle,
-    RefreshCw, Info, ShieldCheck, ArrowRight, RotateCcw,
+    RefreshCw, Info, ShieldCheck, ArrowRight, RotateCcw, ArrowUpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
@@ -36,6 +36,11 @@ const STATUS_META = {
         label: 'Sem mudança', icon: RefreshCw, tone: 'text-slate-500 dark:text-slate-400',
         card: 'border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30',
         hint: 'Já estão na base, idênticos. Nada será feito.',
+    },
+    atualizacao: {
+        label: 'Atualizações', icon: ArrowUpCircle, tone: 'text-sky-600 dark:text-sky-400',
+        card: 'border-sky-200 dark:border-sky-900 bg-sky-50/60 dark:bg-sky-950/30',
+        hint: 'Já estão na base e a planilha traz dados que faltavam. Serão completados.',
     },
     conflito: {
         label: 'Conflitos', icon: AlertTriangle, tone: 'text-amber-600 dark:text-amber-400',
@@ -58,6 +63,7 @@ const FIELD_LABELS = {
     horario: 'Horário',
     vara: 'Vara',
     observacoes: 'Observações',
+    realizacao: 'Realização',
 };
 
 /**
@@ -153,6 +159,7 @@ export default function JurimetriaImport({ organization, settings, onImported })
             setResult(response);
             toast.success(
                 `Importação concluída: ${response.created || 0} novo(s)`
+                + (response.enriched ? `, ${response.enriched} complementado(s)` : '')
                 + (response.updated ? `, ${response.updated} atualizado(s)` : '') + '.'
             );
             if (onImported) onImported();
@@ -164,8 +171,13 @@ export default function JurimetriaImport({ organization, settings, onImported })
         }
     };
 
-    const counts = report?.counts || { novo: 0, sem_mudanca: 0, conflito: 0, invalido: 0 };
-    const seraoGravados = counts.novo + (policy === 'update' ? counts.conflito : 0);
+    const counts = report?.counts
+        || { novo: 0, sem_mudanca: 0, atualizacao: 0, conflito: 0, invalido: 0 };
+    // Enriquecer é ganho puro (preenche o que estava vazio) e acontece com
+    // qualquer política; sobrescrever um valor divergente depende da política.
+    const seraoGravados = counts.novo
+        + (counts.atualizacao || 0)
+        + (policy === 'update' ? counts.conflito : 0);
     const busy = analyzing || committing;
 
     return (
@@ -214,6 +226,8 @@ export default function JurimetriaImport({ organization, settings, onImported })
 
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                         {JURIMETRIA_IMPORT_POLICIES.find((p) => p.value === policy)?.description}
+                        {' '}O reconhecimento é feito pelo número do processo, ignorando pontuação — por isso
+                        reimportar o mesmo arquivo nunca duplica nada.
                     </p>
 
                     {!supportsDocx() && (
@@ -264,7 +278,7 @@ export default function JurimetriaImport({ organization, settings, onImported })
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                                 {Object.entries(STATUS_META).map(([key, meta]) => {
                                     const Icon = meta.icon;
                                     return (
@@ -385,8 +399,13 @@ export default function JurimetriaImport({ organization, settings, onImported })
                                     {seraoGravados > 0 ? (
                                         <>
                                             <strong>{formatNumber(counts.novo)}</strong> júri(s) novo(s) serão adicionados
+                                            {counts.atualizacao > 0 && (
+                                                <>, <strong>{formatNumber(counts.atualizacao)}</strong> serão
+                                                complementados com os dados que faltavam</>
+                                            )}
                                             {policy === 'update' && counts.conflito > 0 && (
-                                                <> e <strong>{formatNumber(counts.conflito)}</strong> serão atualizados</>
+                                                <> e <strong>{formatNumber(counts.conflito)}</strong> terão os valores
+                                                divergentes substituídos</>
                                             )}
                                             . Os demais permanecem como estão.
                                         </>
@@ -419,8 +438,9 @@ export default function JurimetriaImport({ organization, settings, onImported })
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
                             <Stat label="Adicionados" value={result.created || 0} />
+                            <Stat label="Complementados" value={result.enriched || 0} />
                             <Stat label="Atualizados" value={result.updated || 0} />
                             <Stat label="Sem mudança" value={counts.sem_mudanca || 0} />
                             <Stat label="Não importados" value={(counts.invalido || 0) + (policy === 'preserve' ? (counts.conflito || 0) : 0)} />
@@ -470,6 +490,8 @@ function SampleTable({ rows, status, total }) {
                                 <TableHead>Motivo</TableHead>
                             ) : status === 'conflito' ? (
                                 <TableHead>Divergências</TableHead>
+                            ) : status === 'atualizacao' ? (
+                                <TableHead>Dados que serão completados</TableHead>
                             ) : (
                                 <>
                                     <TableHead>Data</TableHead>
@@ -495,6 +517,25 @@ function SampleTable({ rows, status, total }) {
                                                     <span className="line-through text-slate-400">{d.current || '(vazio)'}</span>
                                                     {' → '}
                                                     <span className="font-medium">{d.incoming}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        {(row.fills || []).length > 0 && (
+                                            <p className="text-[11px] text-sky-600 dark:text-sky-400 mt-1">
+                                                + {row.fills.length} campo(s) vazio(s) que serão preenchidos de
+                                                qualquer forma.
+                                            </p>
+                                        )}
+                                    </TableCell>
+                                ) : status === 'atualizacao' ? (
+                                    <TableCell className="text-xs">
+                                        <ul className="space-y-0.5">
+                                            {(row.fills || []).map((f, i) => (
+                                                <li key={`${f.field}-${i}`}>
+                                                    <span className="text-slate-500">{FIELD_LABELS[f.field] || f.field}:</span>{' '}
+                                                    <span className="text-slate-400">(vazio)</span>
+                                                    {' → '}
+                                                    <span className="font-medium text-sky-700 dark:text-sky-300">{f.incoming}</span>
                                                 </li>
                                             ))}
                                         </ul>
