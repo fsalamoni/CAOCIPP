@@ -18,10 +18,14 @@ import {
     ArrowUpDown, ArrowUp, ArrowDown, Columns3, MoreHorizontal, Pencil, Trash2,
     Eye, SearchX, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { formatDateBR, tipoLabel, isDissolucao, getRealizacao } from '@/lib/jurimetriaEngine';
 import {
-    getJurimetriaFields, getJuriFieldValue, realizacaoMeta,
+    formatDateBR, tipoLabel, isDissolucao, getRealizacao,
+    duracaoEmMinutos, formatDuracao, situacaoExpediente,
+} from '@/lib/jurimetriaEngine';
+import {
+    getJurimetriaFields, getJuriFieldValue, realizacaoMeta, expedienteMeta,
 } from '@/constants/jurimetria';
+import ResultadoBadge from './ResultadoBadge';
 
 const PAGE_SIZES = [20, 50, 100, 200];
 const STORAGE_KEY = 'caocipp_jurimetria_columns';
@@ -71,6 +75,30 @@ export function buildJuriColumns(settings) {
         defaultVisible: true,
         text: (juri) => juri.responsible_user_name || '',
         sortValue: (juri) => String(juri.responsible_user_name || '').toLowerCase(),
+    });
+
+    // Colunas calculadas: não existem no documento, saem dos horários e da
+    // janela de expediente do órgão. Entram aqui para valerem também na
+    // ordenação e em todas as exportações.
+    columns.push({
+        key: 'duracao',
+        label: 'Duração',
+        defaultVisible: true,
+        computed: true,
+        text: (juri) => {
+            const minutos = duracaoEmMinutos(juri);
+            return minutos === null ? '' : formatDuracao(minutos);
+        },
+        sortValue: (juri) => duracaoEmMinutos(juri),
+    });
+
+    columns.push({
+        key: 'expediente',
+        label: 'Expediente',
+        defaultVisible: false,
+        computed: true,
+        text: (juri) => expedienteMeta(situacaoExpediente(juri, settings?.expediente)).label,
+        sortValue: (juri) => situacaoExpediente(juri, settings?.expediente),
     });
 
     return columns;
@@ -177,6 +205,14 @@ export default function JuriTable({
         return [...juris].sort((a, b) => {
             const va = column.sortValue(a);
             const vb = column.sortValue(b);
+            // Valor ausente (duração de um júri sem horário, p. ex.) vai para o
+            // fim nos DOIS sentidos: ele não é "o menor", é desconhecido, e
+            // ocupar o topo da lista esconderia justamente o que se ordenou para ver.
+            const aVazio = va === null || va === undefined;
+            const bVazio = vb === null || vb === undefined;
+            if (aVazio && bVazio) return 0;
+            if (aVazio) return 1;
+            if (bVazio) return -1;
             if (va === vb) return 0;
             if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * factor;
             return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * factor;
@@ -364,6 +400,25 @@ export default function JuriTable({
                                                     </TableCell>
                                                 );
                                             }
+                                            if (column.key === 'expediente') {
+                                                const meta = expedienteMeta(
+                                                    situacaoExpediente(juri, settings?.expediente)
+                                                );
+                                                return (
+                                                    <TableCell key={column.key}>
+                                                        <Badge className={`${meta.badge} border-0 text-[11px] font-medium whitespace-nowrap`}>
+                                                            {meta.label}
+                                                        </Badge>
+                                                    </TableCell>
+                                                );
+                                            }
+                                            if (column.key === 'duracao') {
+                                                return (
+                                                    <TableCell key={column.key} className="text-[13px] tabular-nums text-slate-600 dark:text-slate-300">
+                                                        {text || '—'}
+                                                    </TableCell>
+                                                );
+                                            }
                                             if (column.key === 'realizacao') {
                                                 const meta = realizacaoMeta(getRealizacao(juri));
                                                 return (
@@ -377,14 +432,11 @@ export default function JuriTable({
                                             if (column.key === 'resultado') {
                                                 return (
                                                     <TableCell key={column.key}>
-                                                        {text ? (
-                                                            <Badge
-                                                                variant={dissolvido ? 'outline' : 'secondary'}
-                                                                className="text-[11px] font-medium whitespace-nowrap"
-                                                            >
-                                                                {text}
-                                                            </Badge>
-                                                        ) : '—'}
+                                                        <ResultadoBadge
+                                                            resultado={text}
+                                                            settings={settings}
+                                                            className="max-w-[240px]"
+                                                        />
                                                     </TableCell>
                                                 );
                                             }

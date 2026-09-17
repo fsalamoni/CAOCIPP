@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
+import { useAuth } from '@/lib/FirebaseAuthContext';
 import { resolveJurimetriaSettings, JURIMETRIA_DEFAULT_ANALYSIS } from '@/constants/jurimetria';
 import { filtrarJuris, formatNumber } from '@/lib/jurimetriaEngine';
 import { useJurimetriaPref } from '@/hooks/useJurimetriaPrefs';
@@ -53,6 +54,10 @@ export default function JurimetriaControl({
     onGoToAdmin,
 }) {
     const settings = useMemo(() => resolveJurimetriaSettings(organization), [organization]);
+    // Identidade do usuário: é ela que decide quais modelos de relatório ele
+    // pode editar ou excluir (a checagem definitiva é do servidor).
+    const { user } = useAuth();
+    const currentUserId = user?.uid || '';
     const canDelete = useOrgPermission('delete_records');
     const canConfigure = useOrgPermission('configure_jurimetria') || userRole === 'creator';
 
@@ -270,7 +275,11 @@ export default function JurimetriaControl({
                 </TabsList>
 
                 <TabsContent value="painel" className="mt-0">
-                    <JurimetriaDashboard juris={filtered} settings={settings} analysis={analysis} />
+                    <JurimetriaDashboard
+                        juris={filtered}
+                        settings={settings}
+                        analysis={analysis}
+                    />
                 </TabsContent>
 
                 <TabsContent value="juris" className="mt-0 space-y-3">
@@ -331,6 +340,8 @@ export default function JurimetriaControl({
                         subtitle={reportSubtitle}
                         analysis={analysis}
                         organizationId={organization?.id}
+                        currentUserId={currentUserId}
+                        isOrgAdmin={canConfigure}
                     />
                 </TabsContent>
 

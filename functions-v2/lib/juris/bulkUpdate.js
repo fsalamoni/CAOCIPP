@@ -9,7 +9,8 @@ const MAX_BULK_UPDATE = 500;
 const BATCH_SIZE = 200;
 /** Campos fixos que podem ser aplicados em massa. */
 const BULK_ALLOWED_CORE = [
-    'data_juri', 'comarca', 'tipo', 'resultado', 'promotor', 'horario', 'vara', 'observacoes',
+    'data_juri', 'comarca', 'tipo', 'resultado', 'promotor',
+    'horario_inicio', 'horario', 'vara', 'observacoes',
 ];
 const FIELD_LABELS = {
     data_juri: 'Data do júri',
@@ -17,7 +18,8 @@ const FIELD_LABELS = {
     tipo: 'Matéria / Tipo',
     resultado: 'Espécie de resultado',
     promotor: 'Promotor(a)',
-    horario: 'Horário',
+    horario_inicio: 'Horário de início',
+    horario: 'Horário de conclusão',
     vara: 'Vara / Órgão julgador',
     observacoes: 'Observações',
     responsible_user_id: 'Responsável',

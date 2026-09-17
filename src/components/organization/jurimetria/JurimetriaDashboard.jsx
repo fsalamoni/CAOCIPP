@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import EmptyState from '@/components/ui/EmptyState';
 import {
     Scale, Gavel, Percent, CalendarDays, MapPin, TrendingUp, Users, CalendarClock,
+    Hourglass, Timer, Briefcase, AlarmClock,
 } from 'lucide-react';
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -11,15 +12,10 @@ import {
 } from 'recharts';
 import {
     computeTotais, computeEspecies, computeSerieMensal, computeRanking,
+    computeDuracoes, computeExpediente, formatDuracao,
     formatNumber, formatPercent, faixaAproveitamento, resolveAnalysis,
 } from '@/lib/jurimetriaEngine';
-import { JURIMETRIA_REALIZACOES } from '@/constants/jurimetria';
-
-// Paleta alinhada aos gráficos já existentes na plataforma (ProcessChart).
-const CHART_COLORS = [
-    '#1e3a5f', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6',
-    '#f97316', '#06b6d4', '#ec4899', '#64748b',
-];
+import { JURIMETRIA_REALIZACOES, corDoResultado } from '@/constants/jurimetria';
 
 function KpiCard({ icon: Icon, label, value, hint, accent = 'indigo' }) {
     const accents = {
@@ -81,6 +77,14 @@ export default function JurimetriaDashboard({ juris, settings, analysis }) {
         [juris, settings, analysis]
     );
     const opts = resolveAnalysis(analysis);
+    const duracao = useMemo(
+        () => computeDuracoes(juris, 'comarca', settings, analysis),
+        [juris, settings, analysis]
+    );
+    const expediente = useMemo(
+        () => computeExpediente(juris, null, settings, analysis),
+        [juris, settings, analysis]
+    );
 
     // Desfecho da sessão (realizado / redesignado / cancelado): é o plano do
     // "aconteceu?", anterior ao plano do "deu em quê?". Vale sobre o recorte
@@ -95,13 +99,16 @@ export default function JurimetriaDashboard({ juris, settings, analysis }) {
 
     const faixa = faixaAproveitamento(totais.aproveitamento);
 
+    // A fatia do gráfico usa a MESMA cor da etiqueta na tabela: o leitor não
+    // precisa reaprender a legenda ao mudar de aba.
     const especiesChart = useMemo(
         () => especies.linhas.filter((l) => l.quantidade > 0).slice(0, 9).map((l) => ({
             name: l.especie.length > 26 ? `${l.especie.slice(0, 24)}…` : l.especie,
             fullName: l.especie,
             value: l.quantidade,
+            fill: corDoResultado(l.especie, settings),
         })),
-        [especies]
+        [especies, settings]
     );
 
     const serieChart = useMemo(
@@ -205,6 +212,41 @@ export default function JurimetriaDashboard({ juris, settings, analysis }) {
                 </div>
             )}
 
+            {/* Tempo de plenário — só aparece quando há horário para medir. */}
+            {duracao.comDuracao > 0 && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <KpiCard
+                        icon={Hourglass}
+                        label="Duração média"
+                        value={formatDuracao(duracao.media)}
+                        hint={`aferida em ${formatNumber(duracao.comDuracao)} de ${formatNumber(duracao.total)} júris`}
+                    />
+                    <KpiCard
+                        icon={Timer}
+                        label="Sessão mais longa"
+                        value={formatDuracao(duracao.maior?.minutos)}
+                        hint={duracao.maior?.numero_processo || ''}
+                        accent="amber"
+                    />
+                    <KpiCard
+                        icon={Briefcase}
+                        label="Dentro do expediente"
+                        value={formatPercent(expediente.pctDentro)}
+                        hint={`${formatNumber(expediente.dentro)} de ${formatNumber(expediente.classificados)} classificadas`}
+                        accent="emerald"
+                    />
+                    <KpiCard
+                        icon={AlarmClock}
+                        label="Prolongaram o expediente"
+                        value={formatNumber(expediente.prolongou)}
+                        hint={expediente.minutosExcedentes > 0
+                            ? `${formatDuracao(expediente.minutosExcedentes)} além do horário`
+                            : `${formatPercent(expediente.pctProlongou)} das classificadas`}
+                        accent="rose"
+                    />
+                </div>
+            )}
+
             {/* Evolução mensal */}
             <Card className="border-slate-200 dark:border-slate-700">
                 <CardHeader className="pb-2">
@@ -276,8 +318,12 @@ export default function JurimetriaDashboard({ juris, settings, analysis }) {
                                         dataKey="value"
                                         nameKey="fullName"
                                     >
-                                        {especiesChart.map((entry, index) => (
-                                            <Cell key={entry.fullName} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                        {especiesChart.map((entry) => (
+                                            <Cell
+                                                key={entry.fullName}
+                                                fill={entry.fill}
+                                                stroke="rgba(15,23,42,0.18)"
+                                            />
                                         ))}
                                     </Pie>
                                     <RechartsTooltip content={<ChartTooltip />} />

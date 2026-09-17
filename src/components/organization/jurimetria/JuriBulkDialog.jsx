@@ -228,7 +228,8 @@ export default function JuriBulkDialog({
                                 <SelectItem value="resultado">Espécie de resultado</SelectItem>
                                 <SelectItem value="promotor">Promotor(a)</SelectItem>
                                 <SelectItem value="vara">Vara / Órgão julgador</SelectItem>
-                                <SelectItem value="horario">Horário</SelectItem>
+                                <SelectItem value="horario_inicio">Horário de início</SelectItem>
+                                <SelectItem value="horario">Horário de conclusão</SelectItem>
                                 <SelectItem value="observacoes">Observações</SelectItem>
                                 {customFields.map((field) => (
                                     <SelectItem key={field.key} value={field.key}>{field.label}</SelectItem>

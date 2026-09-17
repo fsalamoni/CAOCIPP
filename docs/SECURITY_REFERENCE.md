@@ -855,6 +855,16 @@ Toda mudança da data de um júri — redesignação, cancelamento, correção m
 
 `juris` foi acrescentada a `ORG_SCOPED_COLLECTIONS` em `functions-v2/src/organizations/delete.ts`: a base e os históricos são removidos recursivamente junto com o órgão, sem deixar documentos órfãos com dados de processos. Na mesma revisão, `parcerias` (com as subcoleções `aditivos/` e `history/`) foi acrescentada à mesma lista — estava de fora desde a criação daquele módulo, o que deixava convênios órfãos acessíveis por consulta direta após a exclusão do órgão.
 
+### Modelos de relatório compartilhados (`jurimetriaTemplates/`)
+
+Coleção de primeiro nível com `allow write: if false`, como `juris/`: leitura para membros do órgão dono do documento, toda escrita pela Cloud Function `manageJurimetriaTemplate`. É lá que a autoria é verificada — só `created_by === uid` ou quem tem `configure_jurimetria` edita ou exclui —, além da checagem de IDOR (o `organization_id` do documento é comparado ao da requisição antes de qualquer alteração, e um id de outro órgão devolve `not-found`). Escrita direta permitiria sobrescrever ou apagar o modelo de outro membro.
+
+A configuração do modelo é **opaca** para o servidor — quem a interpreta é a engine no cliente, e ela muda a cada evolução do módulo. O que o servidor garante é que não vira depósito: objeto serializável, reserializado a partir do texto (o que derruba `undefined`, funções e protótipos exóticos), com teto de 20 KB por modelo e 300 modelos por órgão.
+
+### Cores configuráveis e injeção em CSS
+
+A cor de cada espécie é escolhida pelo administrador do órgão e chega ao DOM como variável CSS no `style` do elemento (é o único jeito de uma cor dinâmica ainda responder ao tema escuro). Por isso ela é validada nas duas pontas contra `^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$` — `normalizeHexColor` no cliente, `sanitizeHexColor` no servidor — e qualquer outro valor cai no cinza neutro. Texto, borda e a variante escura são **derivados por cálculo** da cor validada, não recebidos do cliente, de modo que nenhuma string arbitrária alcança a folha de estilo. O mapa de cores também só aceita chaves que sejam espécies do próprio órgão, para não virar depósito de chaves arbitrárias.
+
 ### Preferências de exibição no `localStorage`
 
 As opções de análise, o tamanho de página das tabelas e o desenho dos relatórios dinâmicos ficam no `localStorage`, **chaveados por órgão** (`caocipp_jurimetria_<escopo>_<orgId>`), de modo que o recorte montado num órgão não vaze para outro no mesmo navegador. São preferências de apresentação: nenhum dado de júri é guardado ali, toda leitura é embrulhada em `try/catch` (modo privado, armazenamento bloqueado) e o padrão de fábrica sempre funciona sem elas.

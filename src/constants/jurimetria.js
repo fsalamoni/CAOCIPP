@@ -257,6 +257,111 @@ export const JURIMETRIA_PONTUACAO_PADRAO = {
 };
 
 /**
+ * Cor de fundo da etiqueta de cada espécie de resultado.
+ *
+ * Numa tabela de centenas de júris, a espécie é o que o olho procura primeiro.
+ * A cor resolve isso antes da leitura: verde para procedência, azuis para as
+ * parciais (do mais forte ao mais fraco), vermelhos para as improcedências,
+ * laranjas para as desclassificações e cinza para a dissolução — que não é
+ * desfecho de mérito e por isso não disputa atenção com as demais.
+ *
+ * São tons claros de propósito: a etiqueta se destaca sem transformar a tabela
+ * num mosaico. O texto e a borda saem daqui por cálculo (ver `resultadoTheme`),
+ * então o administrador pode trocar qualquer cor sem quebrar o contraste.
+ */
+export const JURIMETRIA_RESULTADO_CORES_PADRAO = {
+    'PROCEDÊNCIA': '#93FFC4',
+    'PARCIAL PROCEDÊNCIA (QUALIFICADORA)': '#41BFF1',
+    'PARCIAL PROCEDÊNCIA (OUTROS)': '#A9DBF1',
+    'PARCIAL PROCEDÊNCIA – MP': '#DFF4FD',
+    'IMPROCEDÊNCIA': '#FFA3A3',
+    'IMPROCEDÊNCIA-MP': '#FFDDDD',
+    'DESCLASSIFICAÇÃO': '#F7C7AC',
+    'DESCLASSIFICAÇÃO-MP': '#FAE2D6',
+    'DISSOLUÇÃO': '#E2E8F0',
+};
+
+/**
+ * Janela de expediente forense padrão do órgão.
+ *
+ * Serve para separar a sessão que coube no expediente da que o extrapolou —
+ * informação de gestão (escala, diárias, sobreaviso), não de mérito. Cada
+ * órgão ajusta no painel administrativo.
+ */
+export const JURIMETRIA_EXPEDIENTE_PADRAO = {
+    inicio: '12:00',
+    fim: '19:00',
+    // 0 = domingo … 6 = sábado. Fora destes dias, a sessão é "dia sem expediente".
+    dias: [1, 2, 3, 4, 5],
+    // Feriados nacionais (inclusive os móveis, derivados da Páscoa) entram
+    // automaticamente; o órgão acrescenta os locais na lista abaixo.
+    feriadosNacionais: true,
+    // Datas extras sem expediente, em ISO (`YYYY-MM-DD`) — feriados municipais,
+    // pontos facultativos, recesso.
+    feriados: [],
+};
+
+/** Situações possíveis de uma sessão em relação ao expediente. */
+export const JURIMETRIA_EXPEDIENTE_SITUACOES = [
+    {
+        value: 'dentro',
+        label: 'Dentro do expediente',
+        description: 'Começou e terminou dentro da janela de expediente.',
+        badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+        chart: '#10b981',
+    },
+    {
+        value: 'prolongou',
+        label: 'Prolongou após o expediente',
+        description: 'Terminou depois do fim da janela de expediente.',
+        badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+        chart: '#f59e0b',
+    },
+    {
+        value: 'antecipou',
+        label: 'Iniciou antes do expediente',
+        description: 'Começou antes do início da janela de expediente.',
+        badge: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+        chart: '#0ea5e9',
+    },
+    {
+        value: 'sem_expediente',
+        label: 'Dia sem expediente',
+        description: 'Ocorreu em fim de semana, feriado ou outro dia sem expediente.',
+        badge: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+        chart: '#8b5cf6',
+    },
+    {
+        value: 'sem_horario',
+        label: 'Horário não informado',
+        description: 'Falta o horário de início ou de conclusão para classificar.',
+        badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+        chart: '#94a3b8',
+    },
+];
+
+/** Metadados de uma situação de expediente. */
+export function expedienteMeta(value) {
+    return JURIMETRIA_EXPEDIENTE_SITUACOES.find((s) => s.value === value)
+        || JURIMETRIA_EXPEDIENTE_SITUACOES[JURIMETRIA_EXPEDIENTE_SITUACOES.length - 1];
+}
+
+/**
+ * Faixas de duração usadas como dimensão de análise. Uma sessão de júri
+ * raramente passa de um dia; as faixas acompanham a rotina do plenário.
+ */
+export const JURIMETRIA_FAIXAS_DURACAO = [
+    { value: 'ate_2h', label: 'Até 2h', max: 120 },
+    { value: '2_4h', label: 'De 2h a 4h', max: 240 },
+    { value: '4_6h', label: 'De 4h a 6h', max: 360 },
+    { value: '6_8h', label: 'De 6h a 8h', max: 480 },
+    { value: 'mais_8h', label: 'Mais de 8h', max: Infinity },
+];
+
+/** Cor de uma espécie sem cor definida (mesmo cinza neutro da interface). */
+export const JURIMETRIA_RESULTADO_COR_NEUTRA = '#e2e8f0';
+
+/**
  * Espécies tratadas como "dissolução": a sessão foi desfeita sem julgamento,
  * então não entram no cálculo de espécies, matérias nem aproveitamento —
  * aparecem apenas nos totais, em destaque próprio.
@@ -340,7 +445,11 @@ export const JURIMETRIA_CORE_FIELDS = [
     { key: 'tipo', label: 'Matéria / Tipo de júri', type: 'list', list: 'tipos', required: false },
     { key: 'resultado', label: 'Espécie de resultado', type: 'list', list: 'resultados', required: false },
     { key: 'promotor', label: 'Promotor(a)', type: 'text', required: false },
-    { key: 'horario', label: 'Horário', type: 'text', required: false },
+    // `horario` sempre significou o horário em que a sessão TERMINOU — é o que
+    // as planilhas do CAOJúri registravam. O rótulo agora diz isso, e o horário
+    // de início entra como campo próprio, sem tocar em nada já gravado.
+    { key: 'horario_inicio', label: 'Horário de início', type: 'text', required: false },
+    { key: 'horario', label: 'Horário de conclusão', type: 'text', required: false },
     { key: 'vara', label: 'Vara / Órgão julgador', type: 'text', required: false },
     { key: 'observacoes', label: 'Observações', type: 'textarea', required: false },
 ];
@@ -380,6 +489,22 @@ export const JURIMETRIA_IMPORT_POLICIES = [
     },
 ];
 
+/**
+ * Eixos pelos quais os relatórios de duração e de expediente podem ser
+ * reagrupados. É a mesma base lida de ângulos diferentes — por comarca conta
+ * uma história, por promotor conta outra.
+ */
+export const JURIMETRIA_AGRUPADORES_DURACAO = [
+    { key: 'comarca', label: 'Comarca' },
+    { key: 'promotor', label: 'Promotor(a)' },
+    { key: 'resultado', label: 'Espécie de resultado' },
+    { key: 'tipo', label: 'Matéria / Tipo' },
+    { key: 'mes', label: 'Mês' },
+    { key: 'ano', label: 'Ano' },
+    { key: 'vara', label: 'Vara / Órgão julgador' },
+    { key: 'responsavel', label: 'Responsável no órgão' },
+];
+
 /** Dimensões disponíveis nos relatórios dinâmicos (linhas e colunas). */
 export const JURIMETRIA_PIVOT_DIMENSIONS = [
     { key: 'comarca', label: 'Comarca' },
@@ -391,6 +516,10 @@ export const JURIMETRIA_PIVOT_DIMENSIONS = [
     { key: 'ano', label: 'Ano' },
     { key: 'vara', label: 'Vara / Órgão julgador' },
     { key: 'responsavel', label: 'Responsável (membro do órgão)' },
+    { key: 'expediente', label: 'Expediente (dentro / prolongou / antes / sem expediente)' },
+    { key: 'faixa_duracao', label: 'Faixa de duração da sessão' },
+    { key: 'hora_inicio', label: 'Hora de início da sessão' },
+    { key: 'faixa_horario', label: 'Turno (manhã / tarde / noite)' },
 ];
 
 /** Medidas disponíveis nos relatórios dinâmicos. */
@@ -399,6 +528,8 @@ export const JURIMETRIA_PIVOT_VALUES = [
     { key: 'aproveitamento', label: 'Aproveitamento (%)' },
     { key: 'pontos', label: 'Soma de pontos' },
     { key: 'dissolucoes', label: 'Dissoluções' },
+    { key: 'duracao_media', label: 'Duração média da sessão' },
+    { key: 'duracao_total', label: 'Tempo total de sessão' },
 ];
 
 /** Modos de exibição do valor na tabela dinâmica. */
@@ -435,14 +566,32 @@ export const JURIMETRIA_DESCRITIVO_SECOES = [
     { key: 'promotores', label: 'Promotores relacionados' },
     { key: 'aproveitamento', label: 'Aproveitamento ponderado' },
     { key: 'horarios', label: 'Faixas de horário' },
+    { key: 'duracao', label: 'Duração das sessões' },
+    { key: 'expediente', label: 'Expediente (dentro / fora)' },
     { key: 'dissolucoes', label: 'Dissoluções' },
 ];
 
 /** Estilos de redação do relatório descritivo. */
 export const JURIMETRIA_DESCRITIVO_ESTILOS = [
-    { key: 'formal', label: 'Formal e objetivo' },
-    { key: 'executivo', label: 'Executivo (resumido)' },
-    { key: 'analitico', label: 'Analítico (detalhado)' },
+    {
+        key: 'formal',
+        label: 'Formal e objetivo',
+        description: 'Texto corrido em registro de expediente, frases completas, '
+            + 'com uma tabela por seção onde ela substitui o parágrafo. Para citar num expediente.',
+    },
+    {
+        key: 'executivo',
+        label: 'Executivo (resumido)',
+        description: 'Abre com a síntese numérica e entrega tabelas por todos os ângulos, '
+            + 'partindo das comarcas. Pouco texto, muito quadro. Para quem tem trinta segundos.',
+    },
+    {
+        key: 'analitico',
+        label: 'Analítico (detalhado)',
+        description: 'Cruza as dimensões entre si (comarca × espécie, matéria × espécie, '
+            + 'promotor × matéria, comarca × matéria × espécie…) e comenta concentração, '
+            + 'dispersão e casos extremos. Para investigar.',
+    },
 ];
 
 // ----------------------------------------------------------------------------
@@ -465,7 +614,101 @@ export const JURIMETRIA_DEFAULT_SETTINGS = {
     importPolicy: 'preserve',
     fuzzyThreshold: 0.7,
     requireResponsible: false,
+    resultadoCores: JURIMETRIA_RESULTADO_CORES_PADRAO,
+    expediente: JURIMETRIA_EXPEDIENTE_PADRAO,
 };
+
+
+// ============================================================================
+// Cores das espécies — derivação de contraste
+// ----------------------------------------------------------------------------
+// O administrador escolhe UMA cor por espécie. Texto, borda e a variante de
+// tema escuro saem dela por cálculo, para que nenhuma escolha produza uma
+// etiqueta ilegível — inclusive as cores que ele inventar depois.
+// ============================================================================
+
+/** `#rgb` ou `#rrggbb` -> `{r,g,b}`; `null` quando não é uma cor válida. */
+export function parseHexColor(value) {
+    const raw = String(value || '').trim().replace(/^#/, '');
+    const hex = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+    return {
+        r: parseInt(hex.slice(0, 2), 16),
+        g: parseInt(hex.slice(2, 4), 16),
+        b: parseInt(hex.slice(4, 6), 16),
+    };
+}
+
+/** Normaliza para `#rrggbb` minúsculo, ou `null` se inválida. */
+export function normalizeHexColor(value) {
+    const rgb = parseHexColor(value);
+    if (!rgb) return null;
+    const hex = (n) => n.toString(16).padStart(2, '0');
+    return `#${hex(rgb.r)}${hex(rgb.g)}${hex(rgb.b)}`;
+}
+
+/** Luminância relativa (WCAG 2.1), de 0 (preto) a 1 (branco). */
+export function relativeLuminance(value) {
+    const rgb = parseHexColor(value);
+    if (!rgb) return 1;
+    const canal = (n) => {
+        const c = n / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * canal(rgb.r) + 0.7152 * canal(rgb.g) + 0.0722 * canal(rgb.b);
+}
+
+/** Mistura duas cores; `peso` = quanto da segunda entra (0 a 1). */
+function mixHex(base, alvo, peso) {
+    const a = parseHexColor(base);
+    const b = parseHexColor(alvo);
+    if (!a || !b) return base;
+    const canal = (x, y) => Math.round(x + (y - x) * peso);
+    const hex = (n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0');
+    return `#${hex(canal(a.r, b.r))}${hex(canal(a.g, b.g))}${hex(canal(a.b, b.b))}`;
+}
+
+const TINTA_ESCURA = '#0f172a'; // slate-900
+const TINTA_CLARA = '#ffffff';
+
+/**
+ * Conjunto de cores de uma etiqueta de espécie, nos dois temas.
+ *
+ * Tema claro: fundo na cor escolhida, texto escuro ou claro conforme a
+ * luminância, borda um pouco mais escura que o fundo para o chip não "sangrar"
+ * na linha da tabela.
+ *
+ * Tema escuro: o mesmo tom pastel aceso no fundo escuro viraria um borrão —
+ * então o fundo é a cor rebaixada contra o slate-950 e o texto é a própria
+ * cor clareada, que é como o resto da plataforma trata badges coloridos.
+ */
+export function resultadoTheme(cor) {
+    const base = normalizeHexColor(cor) || JURIMETRIA_RESULTADO_COR_NEUTRA;
+    const lum = relativeLuminance(base);
+    return {
+        base,
+        bg: base,
+        text: lum > 0.42 ? TINTA_ESCURA : TINTA_CLARA,
+        border: mixHex(base, TINTA_ESCURA, 0.18),
+        darkBg: mixHex(base, '#020617', 0.82),
+        darkText: lum > 0.42 ? mixHex(base, TINTA_CLARA, 0.12) : mixHex(base, TINTA_CLARA, 0.45),
+        darkBorder: mixHex(base, '#020617', 0.6),
+    };
+}
+
+/** Cor configurada para uma espécie (com o padrão como rede de segurança). */
+export function corDoResultado(resultado, settings) {
+    if (!resultado) return JURIMETRIA_RESULTADO_COR_NEUTRA;
+    const mapa = settings?.resultadoCores || JURIMETRIA_RESULTADO_CORES_PADRAO;
+    return normalizeHexColor(mapa[resultado])
+        || normalizeHexColor(JURIMETRIA_RESULTADO_CORES_PADRAO[resultado])
+        || JURIMETRIA_RESULTADO_COR_NEUTRA;
+}
+
+/** Atalho: tema completo da etiqueta de uma espécie. */
+export function temaDoResultado(resultado, settings) {
+    return resultadoTheme(corDoResultado(resultado, settings));
+}
 
 /**
  * Resolve a configuração efetiva do módulo para um órgão, aplicando os
@@ -494,6 +737,36 @@ export function resolveJurimetriaSettings(organization) {
             ? Math.min(1, Math.max(0.4, Number(cfg.fuzzyThreshold)))
             : 0.7,
         requireResponsible: cfg.requireResponsible === true,
+        // Cores: o padrão entra por baixo, então uma espécie criada pelo órgão
+        // sem cor definida não fica sem etiqueta.
+        resultadoCores: {
+            ...JURIMETRIA_RESULTADO_CORES_PADRAO,
+            ...((cfg.resultadoCores && typeof cfg.resultadoCores === 'object') ? cfg.resultadoCores : {}),
+        },
+        expediente: resolveExpediente(cfg.expediente),
+    };
+}
+
+/** Janela de expediente efetiva, com os defaults onde o admin não mexeu. */
+export function resolveExpediente(cfg) {
+    const base = JURIMETRIA_EXPEDIENTE_PADRAO;
+    if (!cfg || typeof cfg !== 'object') return { ...base };
+    const hora = (valor, fallback) => (
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(String(valor || '')) ? String(valor) : fallback
+    );
+    const dias = Array.isArray(cfg.dias)
+        ? [...new Set(cfg.dias.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+        : base.dias;
+    return {
+        inicio: hora(cfg.inicio, base.inicio),
+        fim: hora(cfg.fim, base.fim),
+        dias: dias.length > 0 ? dias : base.dias,
+        feriadosNacionais: cfg.feriadosNacionais !== false,
+        feriados: Array.isArray(cfg.feriados)
+            ? [...new Set(cfg.feriados
+                .map((d) => String(d || '').trim())
+                .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort()
+            : [],
     };
 }
 

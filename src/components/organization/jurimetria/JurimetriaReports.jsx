@@ -8,6 +8,9 @@ import EmptyState from '@/components/ui/EmptyState';
 import { Scale, Gavel, MapPin, Users, CalendarRange } from 'lucide-react';
 import JurimetriaExportMenu from './JurimetriaExportMenu';
 import JurimetriaPagination, { usePagedRows } from './JurimetriaPagination';
+import ResultadoBadge, { ResultadoDot } from './ResultadoBadge';
+import JurimetriaDuracaoReport from './JurimetriaDuracaoReport';
+import JurimetriaExpedienteReport from './JurimetriaExpedienteReport';
 import {
     computeTotais, computeEspecies, computeMaterias, computeRanking,
     computeSerieMensal, formatNumber, formatPercent, faixaAproveitamento, resolveAnalysis,
@@ -222,7 +225,9 @@ export default function JurimetriaReports({
                     <TableBody>
                         {especiesPager.pageRows.map((linha) => (
                             <TableRow key={linha.especie}>
-                                <TableCell className="text-sm">{linha.especie}</TableCell>
+                                <TableCell className="text-sm">
+                                    <ResultadoBadge resultado={linha.especie} settings={settings} />
+                                </TableCell>
                                 <TableCell className="text-right tabular-nums font-medium">
                                     {formatNumber(linha.quantidade)}
                                 </TableCell>
@@ -282,13 +287,14 @@ export default function JurimetriaReports({
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                                 {linha.porEspecie.map((especie) => (
-                                    <Badge
+                                    <ResultadoBadge
                                         key={especie.especie}
-                                        variant="outline"
-                                        className="text-[11px] font-normal"
+                                        resultado={especie.especie}
+                                        settings={settings}
+                                        title={`${especie.especie}: ${especie.quantidade}`}
                                     >
                                         {abbreviate(especie.especie)}: <strong className="ml-1">{especie.quantidade}</strong>
-                                    </Badge>
+                                    </ResultadoBadge>
                                 ))}
                             </div>
                         </div>
@@ -312,6 +318,7 @@ export default function JurimetriaReports({
                     dimLabel="Comarca"
                     scope="rel_comarcas"
                     organizationId={organizationId}
+                    settings={settings}
                 />
             </ReportSection>
 
@@ -330,6 +337,7 @@ export default function JurimetriaReports({
                     dimLabel="Promotor(a)"
                     scope="rel_promotores"
                     organizationId={organizationId}
+                    settings={settings}
                 />
             </ReportSection>
 
@@ -367,11 +375,29 @@ export default function JurimetriaReports({
                 </Table>
                 <JurimetriaPagination pager={seriePager} label="meses" />
             </ReportSection>
+
+            {/* Duração — quanto tempo o plenário ficou ocupado */}
+            <JurimetriaDuracaoReport
+                juris={juris}
+                settings={settings}
+                analysis={analysis}
+                subtitle={subtitle}
+                organizationId={organizationId}
+            />
+
+            {/* Expediente — quando as sessões aconteceram */}
+            <JurimetriaExpedienteReport
+                juris={juris}
+                settings={settings}
+                analysis={analysis}
+                subtitle={subtitle}
+                organizationId={organizationId}
+            />
         </div>
     );
 }
 
-function RankingTable({ ranking, dimLabel, scope, organizationId }) {
+function RankingTable({ ranking, dimLabel, scope, organizationId, settings }) {
     const pager = usePagedRows(ranking.linhas, { scope, organizationId });
     return (
         <>
@@ -385,7 +411,10 @@ function RankingTable({ ranking, dimLabel, scope, organizationId }) {
                         <TableHead className="text-right w-20">Diss.</TableHead>
                         {ranking.especies.map((especie) => (
                             <TableHead key={especie} className="text-right whitespace-nowrap text-[11px]" title={especie}>
-                                {abbreviate(especie)}
+                                <span className="inline-flex items-center gap-1.5">
+                                    <ResultadoDot resultado={especie} settings={settings} />
+                                    {abbreviate(especie)}
+                                </span>
                             </TableHead>
                         ))}
                         <TableHead className="text-right w-32">Aproveitamento</TableHead>

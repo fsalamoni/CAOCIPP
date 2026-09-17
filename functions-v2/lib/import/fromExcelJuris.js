@@ -14,7 +14,8 @@ const FIELD_LABELS = {
     tipo: 'Matéria / Tipo',
     resultado: 'Espécie de resultado',
     promotor: 'Promotor(a)',
-    horario: 'Horário',
+    horario_inicio: 'Horário de início',
+    horario: 'Horário de conclusão',
     vara: 'Vara / Órgão julgador',
     observacoes: 'Observações',
 };
@@ -56,7 +57,22 @@ const COLUMN_SYNONYMS = {
         'promotor', 'promotora', 'promotor(a)', 'promotor de justica',
         'promotor de justiça', 'promotoria', 'responsavel mp', 'membro',
     ],
-    horario: ['horario', 'horário', 'hora', 'hr', 'horario da sessao', 'horário da sessão'],
+    // O `horario` das planilhas do CAOJúri sempre foi o de ENCERRAMENTO da
+    // sessão; os sinônimos genéricos continuam apontando para ele, para que
+    // uma planilha antiga importe exatamente como antes.
+    horario_inicio: [
+        'horario de inicio', 'horário de início', 'hora de inicio', 'hora de início',
+        'inicio', 'início', 'horario inicial', 'horário inicial', 'hora inicial',
+        'abertura', 'horario de abertura', 'horário de abertura', 'inicio da sessao',
+        'início da sessão',
+    ],
+    horario: [
+        'horario', 'horário', 'hora', 'hr', 'horario da sessao', 'horário da sessão',
+        'horario de conclusao', 'horário de conclusão', 'hora de conclusao',
+        'hora de conclusão', 'horario final', 'horário final', 'hora final',
+        'encerramento', 'termino', 'término', 'horario de termino', 'horário de término',
+        'fim', 'fim da sessao', 'fim da sessão',
+    ],
     vara: [
         'vara', 'orgao', 'órgão', 'orgao julgador', 'órgão julgador', 'juizo',
         'juízo', 'vara criminal', 'unidade',
@@ -287,6 +303,7 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
             tipo: tipoMatch.value.slice(0, 40),
             resultado: resultadoMatch.value.slice(0, 80),
             promotor: String((_f = pick('promotor')) !== null && _f !== void 0 ? _f : '').trim().slice(0, 160),
+            horario_inicio: (0, jurimetria_1.normalizeHorario)(pick('horario_inicio')),
             horario: (0, jurimetria_1.normalizeHorario)(pick('horario')),
             vara: String((_g = pick('vara')) !== null && _g !== void 0 ? _g : '').trim().slice(0, 160),
             observacoes: String((_h = pick('observacoes')) !== null && _h !== void 0 ? _h : '').trim().slice(0, 2000),

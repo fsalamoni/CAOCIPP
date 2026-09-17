@@ -586,6 +586,21 @@ Desfecho do julgamento (PROCEDÊNCIA, IMPROCEDÊNCIA, DESCLASSIFICAÇÃO, DISSOL
 ### Matéria / Tipo de júri
 Classificação do caso, gravada pela **sigla** (CM, CP, D, F, FC, PP, T por padrão). A importação reconhece a sigla, a descrição ou as duas juntas ("FC — FATOS DO COTIDIANO").
 
+### Horário de início e de conclusão
+Dois campos: `horario_inicio` e `horario`. O `horario` sempre significou o horário em que a sessão **terminou** — é o que as planilhas do CAOJúri registravam —, e o rótulo passou a dizer isso. A diferença entre os dois é a **duração**.
+
+### Duração da sessão
+`horario − horario_inicio`, em minutos. Vale `null` — nunca zero — quando falta um dos dois: "durou 0 minuto" e "não sabemos quanto durou" são coisas diferentes, e só a primeira entra numa média. Os relatórios sempre dizem sobre quantos júris a média foi calculada. Uma sessão que termina de madrugada é lida como tendo virado o dia.
+
+### Expediente (janela do órgão)
+Faixa de horário (padrão 12h às 19h), dias da semana e feriados que definem quando o órgão funciona, configuráveis em *Painel Administrativo → Jurimetria → Expediente*. Os feriados nacionais entram automaticamente, inclusive os móveis derivados da Páscoa (Carnaval, Sexta-feira Santa, Corpus Christi). Classifica cada sessão em: dentro, prolongou, antecipou, dia sem expediente ou horário não informado. É informação de gestão — escala, sobreaviso, carga do plenário —, não de mérito.
+
+### Cor da espécie de resultado
+Cor de fundo da etiqueta de cada espécie, editável por órgão. Vale na tabela, na ficha, nos relatórios e no gráfico de espécies. O administrador escolhe uma cor; texto, borda e a variante de tema escuro são calculados a partir dela, de modo que qualquer escolha continue legível.
+
+### Modelo de relatório dinâmico
+Desenho salvo de uma tabela dinâmica ou de um relatório descritivo (`jurimetriaTemplates`). É do **órgão**: qualquer membro aplica qualquer modelo, mas só quem criou — ou quem tem `configure_jurimetria` — pode editar ou excluir. Antes ficava no `localStorage` de cada navegador.
+
 ### Realização (da sessão)
 Se a sessão **aconteceu**: `realizado`, `redesignado` (remarcada para nova data) ou `cancelado` (sem nova data). É um plano anterior ao da espécie de resultado, que diz o que o julgamento produziu. Por padrão, painel e relatórios contam **apenas as realizadas** — os demais continuam na base e na tabela. Júri gravado antes do campo é lido como `realizado`.
 

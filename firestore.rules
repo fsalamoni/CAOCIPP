@@ -273,6 +273,16 @@ service cloud.firestore {
       }
     }
 
+    // Modelos de relatório dinâmico da Jurimetria, compartilhados no órgão.
+    // Leitura para qualquer membro (o modelo de um serve a todos); escrita
+    // exclusiva de Cloud Function, que é onde a autoria é verificada — só quem
+    // criou o modelo, ou quem tem `configure_jurimetria`, pode alterá-lo ou
+    // excluí-lo. Escrita direta permitiria sobrescrever o modelo de outro.
+    match /jurimetriaTemplates/{templateId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      allow write: if false;
+    }
+
     // ========== PÁGINAS/PROCESSOS PERSONALIZADOS (flag: custom_entities) ==========
     // Definições dos tipos de entidade. Leitura para membros do órgão; toda
     // escrita passa por Cloud Functions (validação/sanitização no servidor).
