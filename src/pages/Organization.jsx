@@ -20,6 +20,7 @@ import ProcessControl from '../components/organization/ProcessControl';
 import ExpedienteControl from '../components/organization/ExpedienteControl';
 import ParceriaControl from '../components/organization/ParceriaControl';
 import JurimetriaControl from '../components/organization/JurimetriaControl';
+import PanoramaControl from '@/components/organization/PanoramaControl';
 import IntelligentSummary from '../components/organization/IntelligentSummary';
 import DeadlineCalendar from '../components/organization/DeadlineCalendar';
 import OnboardingTour from '../components/organization/OnboardingTour';
@@ -95,6 +96,7 @@ export default function Organization() {
   // Mesma defesa em profundidade da flag de Parcerias: com `jurimetria_enabled`
   // desligada, a aba de Jurimetria não aparece em nenhum órgão.
   const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
+  const panoramaOn = useFlag(FEATURE_FLAGS.PANORAMA.key);
 
   // Tipos de entidade personalizados (apenas quando a flag está ligada).
   const { entityTypes: customTypes } = useEntityTypes(customEntitiesOn ? selectedOrgId : null);
@@ -175,17 +177,17 @@ export default function Organization() {
   // V2) — mesma fonte e mesmo filtro de permissão usados no sub-menu da sidebar.
   const orgTabs = React.useMemo(() => {
     if (!isV2 || !organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn })
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, userRole, userMembership]);
+  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn, userRole, userMembership]);
 
   // Abas para o tour de onboarding (flag `onboarding_tour`): independente do
   // design V2, já que a navegação existe (via sidebar) em qualquer um deles.
   const tourTabs = React.useMemo(() => {
     if (!organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn })
+    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, userRole, userMembership]);
+  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn, userRole, userMembership]);
 
   // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
   // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible
@@ -194,12 +196,12 @@ export default function Organization() {
   // usuário de uma aba de Parceria para Informações Gerais.
   useEffect(() => {
     if (!customEntitiesOn || !organization) return;
-    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn });
+    const visible = isTabVisible(activeTab, organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn });
     // 'admin' depende do papel; mantém o comportamento atual (só creator vê).
     if (!visible && activeTab !== 'admin') {
       navigate(`/Organization?id=${selectedOrgId}&tab=info`, { replace: true });
     }
-  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn]);
+  }, [customEntitiesOn, organization, activeTab, selectedOrgId, navigate, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn]);
 
   // Loading state
   if (isLoadingAuth || orgsLoading || orgLoading) {
@@ -441,6 +443,14 @@ export default function Organization() {
               juris={juris}
               jurisLoading={jurisLoading}
               jurisError={jurisError}
+              onGoToAdmin={() => navigate(`/Organization?id=${selectedOrgId}&tab=admin`)}
+            />
+          )}
+
+          {activeTab === 'panorama' && panoramaOn && (
+            <PanoramaControl
+              organization={organization}
+              userRole={userRole}
               onGoToAdmin={() => navigate(`/Organization?id=${selectedOrgId}&tab=admin`)}
             />
           )}

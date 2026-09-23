@@ -55,6 +55,17 @@ export { bulkUpdateJuris } from './juris/bulkUpdate';
 // Modelos de relatório dinâmico, compartilhados dentro do órgão: todos usam,
 // só o autor e quem administra o módulo editam ou excluem.
 export { manageJurimetriaTemplate } from './jurimetriaTemplates/manage';
+
+// ========== PANORAMA (bases analíticas do órgão — flag: panorama_enabled) ==========
+// Módulo coringa: o ESQUEMA de cada base vem da planilha importada, não do
+// código. A importação detecta as colunas, mede cada uma e propõe o papel
+// semântico (identificador, data, unidade, responsável, assunto, desfecho,
+// situação, valor, prazo); a partir daí a maquinaria analítica funciona sobre
+// qualquer área de atuação do MP. Ver shared/panorama.ts.
+export { managePanoramaBase } from './panorama/bases';
+export { managePanoramaRegistro } from './panorama/registros';
+export { importPanorama } from './panorama/importar';
+export { managePanoramaTemplate } from './panorama/templates';
 export { importJurisFromExcel } from './import/fromExcelJuris';
 
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========

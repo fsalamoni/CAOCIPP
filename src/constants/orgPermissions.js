@@ -42,6 +42,11 @@ export const ORG_PERMISSIONS = [
         description: 'Gerenciar as listas oficiais, a tabela de pontuação e as colunas da base de júris (módulo de Jurimetria).',
     },
     {
+        key: 'configure_panorama',
+        label: 'Configurar Panorama',
+        description: 'Criar e configurar as bases analíticas do módulo Panorama: colunas, papéis, desfechos, regiões e regras de prescrição.',
+    },
+    {
         key: 'manage_metrics',
         label: 'Gerenciar métricas',
         description: 'Criar, editar e excluir as métricas do painel.',
@@ -59,7 +64,7 @@ export const ORG_PERMISSIONS = [
     {
         key: 'delete_records',
         label: 'Excluir registros',
-        description: 'Excluir consultas (processos), expedientes, parcerias e júris.',
+        description: 'Excluir consultas (processos), expedientes, parcerias, júris e registros do Panorama.',
     },
 ];
 
@@ -77,6 +82,7 @@ export const ADMIN_TAB_PERMISSION = {
     expedientes: 'configure_expedientes',
     parcerias: 'configure_parcerias',
     jurimetria: 'configure_jurimetria',
+    panorama: 'configure_panorama',
     metrics: 'manage_metrics',
     modules: 'manage_modules',
     padronizacao: 'bulk_standardize',

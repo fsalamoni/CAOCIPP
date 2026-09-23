@@ -316,7 +316,7 @@ function sanitizeThirdParties(input: unknown): string[] {
 function sanitizeModuleConfig(
     input: Record<string, { enabled: boolean; order?: number }>
 ): Record<string, { enabled: boolean; order?: number }> {
-    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'summary'];
+    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'panorama', 'summary'];
     const out: Record<string, { enabled: boolean; order?: number }> = {};
     for (const key of allowed) {
         const entry = input?.[key];

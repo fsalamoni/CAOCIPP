@@ -879,7 +879,109 @@ O arquivo é descompactado com a API nativa `DecompressionStream` e interpretado
 
 ---
 
+## Módulo Panorama — Decisões de Segurança Específicas
+
+O Panorama guarda **dados de processo definidos pelo próprio órgão**: o esquema
+de cada base vem da planilha importada, e não do código. Isso muda o que precisa
+ser validado — não há lista fixa de campos para conferir —, mas não muda o
+perímetro: as três coleções são fechadas para escrita direta e tudo passa por
+Cloud Function.
+
+### Permissão `configure_panorama`
+
+Nova chave delegável em `OrgPermissionKey` (`functions-v2/src/shared/permissions.ts`
+e `src/constants/orgPermissions.js`). Quem a tem cria e configura bases: colunas,
+papéis, pesos e cores dos desfechos, regiões, regra de prescrição, política de
+importação e rigor da correção automática. O criador sempre tem. Um membro sem
+ela usa o módulo e cadastra registros, mas não altera a definição da base — e,
+como a definição é a **lente** sobre todos os números do órgão, alterá-la muda
+todo relatório sem tocar em nenhum dado.
+
+### Feature flag `panorama_enabled`
+
+Default OFF. Defesa em profundidade idêntica à da Jurimetria: com a flag global
+desligada, nenhuma leitura das coleções `panorama*` é feita, mesmo que
+`moduleConfig.panorama.enabled` seja `true` em algum órgão.
+
+### Coleções fechadas para escrita
+
+`panoramaBases/`, `panoramaRegistros/` e `panoramaTemplates/` são
+`allow write: if false` em `firestore.rules`. Leitura apenas para membros do
+órgão dono do documento. Toda escrita passa por `managePanoramaBase`,
+`managePanoramaRegistro`, `importPanorama` ou `managePanoramaTemplate`.
+
+### Guardas de IDOR
+
+Toda função compara o `organization_id` do documento com o da requisição antes de
+qualquer operação, e devolve `not-found` (não `permission-denied`) para id de
+outro órgão — que não confirma a existência do documento. Nos registros, o
+`base_id` é conferido junto: um registro de outra base do mesmo órgão não pode
+ser editado a partir da base errada.
+
+### Exclusão de base
+
+Apagar uma base apaga todos os seus registros em cascata. Por isso a função exige
+`delete_records` **e** o nome exato da base digitado pelo usuário (`confirmName`),
+validado no servidor — não só na tela.
+
+### Escrita em massa contida
+
+A edição em massa recusa alterar a coluna marcada como **identificador**:
+reescrevê-la em lote fundiria registros distintos sob a mesma chave, e a
+importação seguinte trataria o resultado como atualização legítima. A importação
+grava em lotes de 400 e a exclusão em cascata também.
+
+### Sanitização de um esquema que o órgão define
+
+Como as colunas vêm da planilha, `sanitizeBaseDef` e `sanitizeRecordValues`
+(`functions-v2/src/shared/panorama.ts`) limitam o que pode entrar: no máximo 120
+colunas, rótulos de até 120 caracteres, chaves de até 60, listas de até 2000
+valores, e apenas os tipos e papéis conhecidos. Papel único é respeitado no
+servidor — o primeiro a reivindicar fica com ele.
+
+### O esquema da importação não vem do cliente
+
+As colunas efetivas de uma importação não decidem só o que será gravado na
+definição da base: decidem a **conversão de cada valor** (pelo tipo), **qual
+coluna é o identificador** — e portanto a chave natural e o casamento com o que
+já existe — e **quais campos o patch toca**. Aceitar o mapeamento de qualquer
+membro deixaria um membro comum remapear o papel de identificador para outra
+coluna e, por essa via, sobrescrever o número do processo de registros
+existentes: exatamente o que `managePanoramaRegistro` recusa ("O identificador
+não pode ser alterado em massa").
+
+Por isso, para quem **não** tem `configure_panorama` e importa numa base já
+existente, o tipo, o papel e o rótulo de cada coluna vêm da definição gravada, e
+coluna que a base não conhece fica de fora. A planilha alimenta o esquema que o
+órgão definiu; estendê-lo exige a permissão. A tela de mapeamento entra em modo
+somente-leitura nesse caso, com a explicação do porquê.
+
+### Chave de coluna como caminho de campo
+
+A chave de cada coluna vira **caminho de campo no Firestore** (`values.${key}`
+no patch da importação) e **índice de objeto** nos valores do registro. Por isso
+ela não pode ser o que o cliente mandar: `sanitizeColumns` só aceita a forma que
+`slugColumnKey` produz (`^[a-z0-9_]{1,60}$`) e recusa `__proto__`,
+`constructor` e `prototype`; qualquer outra coisa é reescrita a partir do
+rótulo. Sem isso, uma chave com ponto criaria um mapa aninhado no lugar do
+campo, e `__proto__` mexeria no protótipo em vez de criar um valor.
+
+### Modelos de relatório compartilhados (`panoramaTemplates/`)
+
+Mesma regra dos modelos da Jurimetria: só `created_by === uid` ou quem tem
+`configure_panorama` edita ou exclui, verificado na Cloud Function.
+
+### Volume e limite client-side
+
+O cálculo roda no navegador, com teto prático de 20 mil registros por base. O
+hook avisa ao se aproximar. Não é controle de segurança, é limite de recurso —
+mas está documentado aqui porque é o ponto em que uma base grande degrada a
+experiência em vez de falhar visivelmente.
+
+---
+
 For implementation details, see:
 - Architecture → `ARCHITECTURE_REFERENCE.md`
 - Features → `FEATURES_REFERENCE.md`
 - Jurimetria → `JURIMETRIA.md`
+- Panorama → `PANORAMA.md`

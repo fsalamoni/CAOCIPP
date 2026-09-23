@@ -634,6 +634,40 @@ O que fazer quando o mesmo processo chega com dados **divergentes**: `preserve` 
 ### Rigor da correção automática (`fuzzyThreshold`)
 Similaridade mínima (0,4 a 1) para a importação corrigir um valor para a lista oficial do órgão — ex.: "PORTO ALEGRE" → "Porto Alegre (0001)". Em 1, só a grafia exata é aceita.
 
+## Módulo Panorama (flag `panorama_enabled`)
+
+Documentação completa em `PANORAMA.md`.
+
+### Base (Panorama)
+Conjunto analítico de um órgão, em `panoramaBases/`. Diferente de todos os outros módulos, **o esquema não é fixo**: as colunas da base vêm da planilha importada. Um órgão tem quantas bases quiser, cada uma com suas colunas, seus pesos e sua regra de prescrição.
+
+### Papel semântico
+O significado que o órgão atribui a uma coluna sua. É a ideia central do módulo: a Jurimetria pergunta "qual é a comarca?" e por isso só serve ao júri; o Panorama pergunta "qual coluna faz o **papel** de unidade territorial?" — e aí serve a qualquer matéria. São dez: `identificador`, `data_principal`, `data_referencia`, `unidade`, `responsavel`, `assunto`, `desfecho`, `situacao`, `valor`, `prazo`. Nenhum é obrigatório; cada um destrava um conjunto de análises, e o que não foi mapeado simplesmente não aparece na tela.
+
+### Inferência de colunas
+Leitura automática da planilha que mede cada coluna (tipo, quantos distintos, quantos vazios, amostra) e propõe um papel combinando **nome** e **conteúdo**. É proposta, não decisão: a tela de mapeamento existe para o órgão corrigir. Mora em `functions-v2/src/shared/panorama.ts`.
+
+### Dimensão derivada
+Eixo de análise que não é coluna: `__mes`, `__ano`, `__trimestre` (existem quando há data principal), `__regiao` (quando há regiões definidas) e `__prescricao` (quando a prescrição está ligada).
+
+### Desfecho sem mérito (`desfechos.neutros`)
+Desfecho que o órgão marcou como não sendo solução de mérito — declínio de atribuição, arquivamento por ilegitimidade. Conta no total de casos e fica **fora** do cálculo de efetividade. É o análogo genérico da dissolução na Jurimetria, mas definido por cada órgão, não pelo código.
+
+### Região (Panorama)
+Agrupamento nomeado de unidades territoriais (`base.regioes`), montado pelo órgão no painel administrativo. Uma unidade pertence a uma única região. Qual comarca está em qual região é decisão do órgão — não há como deduzir do dado.
+
+### Prescrição (Panorama)
+Três modos: `desligado`; `coluna` (a planilha já traz a data-limite); ou `prazo` (calculada a partir de um prazo em anos, com prazo padrão e prazos por assunto, contando da data principal ou da data de referência). As faixas de alerta em dias definem o que é crítico, em alerta e atenção. Os prazos são definição jurídica do órgão, não dado inferível.
+
+### Gargalo (Panorama)
+Acúmulo de registros na mesma `situacao`, com idade média, mediana e o mais antigo. Responde ao que o painel não mostra sozinho: não "quantos casos existem", e sim "quantos estão parados na mesma etapa, e há quanto tempo".
+
+### Concentração (Panorama)
+Quanto do volume está nas primeiras posições de uma dimensão: top 3, top 10 e quantos grupos são precisos para chegar à metade. É a leitura que separa "força-tarefa em três comarcas resolve" de "o problema é estrutural e está espalhado".
+
+### Modelo de relatório (Panorama)
+Desenho salvo de tabela dinâmica ou de relatório descritivo (`panoramaTemplates`), por base. Todo o órgão usa os modelos de todos; só o autor e quem tem `configure_panorama` edita ou exclui — verificado no servidor.
+
 ---
 
 Use this as a quick reference when:
@@ -646,3 +680,5 @@ For context on how terms are used:
 - Architecture → `ARCHITECTURE_REFERENCE.md`
 - Security → `SECURITY_REFERENCE.md`
 - Features → `FEATURES_REFERENCE.md`
+- Jurimetria → `JURIMETRIA.md`
+- Panorama → `PANORAMA.md`
