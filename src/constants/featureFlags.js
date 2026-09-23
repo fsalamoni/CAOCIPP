@@ -372,6 +372,15 @@ export const FEATURE_FLAGS = {
         risk: 'high',
         default: false,
     },
+    PANORAMA: {
+        key: 'panorama_enabled',
+        label: 'Módulo Panorama (análise de dados do órgão)',
+        description:
+            'Habilita a página Panorama: bases analíticas próprias de cada órgão, com o ESQUEMA definido pela planilha importada (não há colunas fixas). A plataforma detecta as colunas, propõe o papel de cada uma (identificador, data, unidade territorial, responsável, assunto, desfecho, situação, valor, prazo) e a partir daí entrega painel, relatórios, relatórios dinâmicos, prescrição, agrupamento por região e exportação em seis formatos. Serve a qualquer área de atuação — improbidade, infância, consumidor, ambiental, criminal. Com a flag DESLIGADA, nada aparece na interface. Com a flag ligada, cada órgão ainda precisa ativar "Panorama" em Gerenciar Páginas e Módulos.',
+        category: 'Funcionalidades',
+        risk: 'high',
+        default: false,
+    },
 };
 
 // Lista plana das flags para iteração em UI.
@@ -395,6 +404,9 @@ export const OPTIONAL_FLAG_KEYS = new Set([
     // Jurimetria aos órgãos. Enquanto estiver aqui, o default é OFF e nada da
     // Jurimetria aparece em lugar nenhum da plataforma.
     'jurimetria_enabled',
+    // Módulo novo: entra DESLIGADO. Enquanto estiver aqui, o default é OFF e
+    // nada do Panorama aparece em lugar nenhum da plataforma.
+    'panorama_enabled',
 ]);
 
 // Uma flag é "integrada" (permanente/on por padrão) se NÃO está no conjunto

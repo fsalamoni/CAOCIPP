@@ -21,6 +21,12 @@ const ORG_SCOPED_COLLECTIONS = [
     // desde a criação do módulo: excluir um órgão deixava as parcerias órfãs
     // no Firestore, com dados de convênios acessíveis por consulta direta.
     'parcerias',
+    // Panorama: bases, registros e modelos. Sem isto, excluir um órgão deixaria
+    // bases inteiras órfãs no Firestore, com os dados ainda legíveis por
+    // consulta direta.
+    'panoramaBases',
+    'panoramaRegistros',
+    'panoramaTemplates',
     // Base de júris do módulo de Jurimetria (flag `jurimetria_enabled`), com
     // a subcoleção `history` de cada júri.
     'juris',

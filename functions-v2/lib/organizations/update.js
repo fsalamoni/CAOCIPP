@@ -227,7 +227,7 @@ function sanitizeThirdParties(input) {
 }
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.
 function sanitizeModuleConfig(input) {
-    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'summary'];
+    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'panorama', 'summary'];
     const out = {};
     for (const key of allowed) {
         const entry = input === null || input === void 0 ? void 0 : input[key];

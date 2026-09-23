@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer, Scale } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer, Scale, Telescope } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { hasOrgPermission, hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -12,6 +12,7 @@ import MatterConfiguration from './MatterConfiguration';
 import ExpedienteConfiguration from './ExpedienteConfiguration';
 import ParceriaConfiguration from './ParceriaConfiguration';
 import JurimetriaConfiguration from './JurimetriaConfiguration';
+import PanoramaConfiguration from './PanoramaConfiguration';
 import AISettings from './AISettings';
 import DangerZone from './DangerZone';
 import BulkReplaceTool from './BulkReplaceTool';
@@ -42,6 +43,14 @@ export default function AdminManagement({ organization, members, userRole, userM
         : true;
     const showJurimetriaTab = isJurimetriaOn && (!customEntitiesOn || jurimetriaEnabledForOrg);
 
+    // Aba do Panorama: mesma defesa em profundidade da Jurimetria — flag global
+    // ligada E módulo habilitado para este órgão em Páginas e Módulos.
+    const isPanoramaOn = useFlag(FEATURE_FLAGS.PANORAMA.key);
+    const panoramaEnabledForOrg = organization?.moduleConfig
+        ? organization.moduleConfig?.panorama?.enabled === true
+        : true;
+    const showPanoramaTab = isPanoramaOn && (!customEntitiesOn || panoramaEnabledForOrg);
+
     const isCreator = userRole === 'creator';
 
     // Permissões efetivas do usuário atual. O criador possui todas; membros
@@ -54,6 +63,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         expedientes: isCreator || hasOrgPermission(userMembership, 'configure_expedientes'),
         parcerias: isCreator || hasOrgPermission(userMembership, 'configure_parcerias'),
         jurimetria: isCreator || hasOrgPermission(userMembership, 'configure_jurimetria'),
+        panorama: isCreator || hasOrgPermission(userMembership, 'configure_panorama'),
         padronizacao: isCreator || hasOrgPermission(userMembership, 'bulk_standardize'),
     }), [userMembership, isCreator]);
 
@@ -77,6 +87,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         || (can.expedientes && 'expedientes')
         || (can.parcerias && 'parcerias')
         || (showJurimetriaTab && can.jurimetria && 'jurimetria')
+        || (showPanoramaTab && can.panorama && 'panorama')
         || (can.padronizacao && 'padronizacao')
         || 'details';
 
@@ -145,6 +156,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                         <TabsTrigger value="jurimetria" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Scale className="w-4 h-4" />
                             Jurimetria
+                        </TabsTrigger>
+                    )}
+                    {showPanoramaTab && can.panorama && (
+                        <TabsTrigger value="panorama" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
+                            <Telescope className="w-4 h-4" />
+                            Panorama
                         </TabsTrigger>
                     )}
                     {can.padronizacao && (
@@ -236,6 +253,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                 {showJurimetriaTab && can.jurimetria && (
                     <TabsContent value="jurimetria">
                         <JurimetriaConfiguration organization={organization} />
+                    </TabsContent>
+                )}
+
+                {showPanoramaTab && can.panorama && (
+                    <TabsContent value="panorama">
+                        <PanoramaConfiguration organization={organization} />
                     </TabsContent>
                 )}
 

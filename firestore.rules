@@ -283,6 +283,34 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ========== PANORAMA (flag: panorama_enabled) ==========
+    // Bases analíticas do órgão. A DEFINIÇÃO da base (colunas, papéis, pesos,
+    // regiões, prescrição) decide o significado de todos os números do módulo,
+    // então a escrita é exclusiva de Cloud Function — que é onde a permissão
+    // `configure_panorama` é verificada. Escrita direta permitiria a um membro
+    // comum trocar o papel de uma coluna e mudar todo relatório do órgão.
+    match /panoramaBases/{baseId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      allow write: if false;
+    }
+
+    // Registros das bases. Mesma postura de `juris/`: nenhuma escrita do
+    // cliente. Só a função aplica a normalização por tipo de coluna, a chave
+    // natural e a checagem de duplicidade — escrita direta permitiria gravar
+    // um valor que nenhum relatório saberia interpretar, ou duplicar a chave.
+    match /panoramaRegistros/{registroId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      allow write: if false;
+    }
+
+    // Modelos de relatório do Panorama, compartilhados no órgão: todos os
+    // membros leem; a autoria de quem pode editar/excluir é verificada na
+    // função, como nos modelos da Jurimetria.
+    match /panoramaTemplates/{templateId} {
+      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      allow write: if false;
+    }
+
     // ========== PÁGINAS/PROCESSOS PERSONALIZADOS (flag: custom_entities) ==========
     // Definições dos tipos de entidade. Leitura para membros do órgão; toda
     // escrita passa por Cloud Functions (validação/sanitização no servidor).

@@ -24,12 +24,14 @@ export default function ModulesManager({ organization }) {
     // não faz sentido oferecer o interruptor aqui. O VALOR salvo do órgão é
     // preservado (ver handleSave): religar a flag traz a escolha de volta.
     const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
-    const visibleModules = useMemo(
-        () => BUILTIN_MODULE_META.filter(
-            (mod) => mod.key !== BUILTIN_MODULES.JURIMETRIA || jurimetriaOn
-        ),
-        [jurimetriaOn]
-    );
+    const panoramaOn = useFlag(FEATURE_FLAGS.PANORAMA.key);
+    const visibleModules = useMemo(() => {
+        const flagDoModulo = {
+            [BUILTIN_MODULES.JURIMETRIA]: jurimetriaOn,
+            [BUILTIN_MODULES.PANORAMA]: panoramaOn,
+        };
+        return BUILTIN_MODULE_META.filter((mod) => flagDoModulo[mod.key] !== false);
+    }, [jurimetriaOn, panoramaOn]);
 
     // Compara módulo a módulo com o estado original, para garantir que QUALQUER
     // toggle (incluindo Parcerias) marque o formulário como "sujo" e habilite

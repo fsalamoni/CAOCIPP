@@ -28,6 +28,7 @@ import {
     Settings,
     CalendarDays,
     Scale,
+    Telescope,
 } from 'lucide-react';
 
 // Chaves de módulo built-in (cada módulo pode gerar 1+ abas).
@@ -36,6 +37,7 @@ export const BUILTIN_MODULES = {
     EXPEDIENTES: 'expedientes',
     PARCERIAS: 'parcerias',
     JURIMETRIA: 'jurimetria',
+    PANORAMA: 'panorama',
     SUMMARY: 'summary',
 };
 
@@ -66,6 +68,12 @@ export const BUILTIN_MODULE_META = [
         icon: Scale,
     },
     {
+        key: BUILTIN_MODULES.PANORAMA,
+        label: 'Panorama',
+        description: 'Bases analíticas do órgão, com as colunas definidas pela planilha importada — serve a qualquer área de atuação. A plataforma detecta as colunas e propõe o papel de cada uma; a partir daí entrega painel, relatórios, relatórios dinâmicos, prescrição e agrupamento por região.',
+        icon: Telescope,
+    },
+    {
         key: BUILTIN_MODULES.SUMMARY,
         label: 'Resumos Inteligentes',
         description: 'Indicadores e gráficos consolidados do órgão.',
@@ -82,13 +90,17 @@ export function resolveBuiltinModules(organization) {
     const cfg = organization?.moduleConfig;
     // Legado: sem config => tudo ligado (comportamento atual, nada some).
     if (!cfg || typeof cfg !== 'object') {
-        return { processes: true, expedientes: true, parcerias: true, jurimetria: true, summary: true };
+        return {
+            processes: true, expedientes: true, parcerias: true,
+            jurimetria: true, panorama: true, summary: true,
+        };
     }
     return {
         processes: cfg.processes?.enabled === true,
         expedientes: cfg.expedientes?.enabled === true,
         parcerias: cfg.parcerias?.enabled === true,
         jurimetria: cfg.jurimetria?.enabled === true,
+        panorama: cfg.panorama?.enabled === true,
         summary: cfg.summary?.enabled === true,
     };
 }
@@ -116,6 +128,7 @@ export function getOrganizationTabs(organization, opts = {}) {
         deadlineCalendarOn = false,
         parceriasOn = false,
         jurimetriaOn = false,
+        panoramaOn = false,
     } = opts;
     const enabled = resolveBuiltinModules(organization);
 
@@ -126,6 +139,7 @@ export function getOrganizationTabs(organization, opts = {}) {
     const showExpedientes = !customEntitiesOn || enabled.expedientes;
     const showParcerias = parceriasOn && (!customEntitiesOn || enabled.parcerias);
     const showJurimetria = jurimetriaOn && (!customEntitiesOn || enabled.jurimetria);
+    const showPanorama = panoramaOn && (!customEntitiesOn || enabled.panorama);
     const showSummary = !customEntitiesOn || enabled.summary;
 
     const tabs = [];
@@ -150,6 +164,10 @@ export function getOrganizationTabs(organization, opts = {}) {
 
     if (showJurimetria) {
         tabs.push({ key: 'jurimetria', label: 'Jurimetria', icon: Scale, module: BUILTIN_MODULES.JURIMETRIA });
+    }
+
+    if (showPanorama) {
+        tabs.push({ key: 'panorama', label: 'Panorama', icon: Telescope, module: BUILTIN_MODULES.PANORAMA });
     }
 
     if (showSummary) {
@@ -191,6 +209,7 @@ export const BUILTIN_TAB_KEYS = [
     'kanban-parcerias',
     'parcerias',
     'jurimetria',
+    'panorama',
     'summary',
     'calendar',
     'admin',
