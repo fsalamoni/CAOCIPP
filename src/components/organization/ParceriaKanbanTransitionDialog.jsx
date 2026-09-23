@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatValidityPeriod, VIGENCIA_UNITS, calculateEndDate } from '@/lib/dateUtils';
+import { getParceriaField } from '@/utils/parceriaUtils';
 import {
     Dialog,
     DialogContent,
@@ -43,7 +44,12 @@ export default function ParceriaKanbanTransitionDialog({
     onConfirm,
 }) {
     const [selectedAssessor, setSelectedAssessor] = useState(defaultAssessor);
-    const [observations, setObservations] = useState('');
+    // Mostra as observações que a Parceria já tem, como os diálogos de Consultas
+    // e Expedientes. Começar vazio fazia qualquer texto digitado SUBSTITUIR as
+    // observações salvas sem que o usuário as visse. O board monta este
+    // diálogo a cada abertura, então o valor inicial é sempre o da Parceria atual.
+    const observacoesSalvas = parceria ? String(getParceriaField(parceria, 'observations') || '') : '';
+    const [observations, setObservations] = useState(observacoesSalvas);
     const [networkFolder, setNetworkFolder] = useState('');
     const [thirdParty, setThirdParty] = useState('');
     const [signatureDate, setSignatureDate] = useState(new Date().toISOString().split('T')[0]);
@@ -99,10 +105,12 @@ export default function ParceriaKanbanTransitionDialog({
                     responsibility_date: new Date().toISOString().split('T')[0],
                 });
             } else if (mode === 'review') {
-                await onConfirm({
-                    observations: observations.trim(),
-                    network_folder: networkFolder.trim(),
-                });
+                // Observações são opcionais: só vão no payload quando o usuário
+                // de fato as alterou (o campo já vem com o texto salvo).
+                const payload = { network_folder: networkFolder.trim() };
+                const obs = observations.trim();
+                if (obs !== observacoesSalvas.trim()) payload.observations = obs;
+                await onConfirm(payload);
             } else if (mode === 'third_party') {
                 await onConfirm({
                     third_party: thirdParty,
@@ -153,7 +161,7 @@ export default function ParceriaKanbanTransitionDialog({
 
     const isValid = () => {
         if (mode === 'assign') return !!selectedAssessor;
-        if (mode === 'review') return observations.trim().length > 0 && networkFolder.trim().length > 0;
+        if (mode === 'review') return networkFolder.trim().length > 0;
         if (mode === 'third_party') return !!thirdParty;
         if (mode === 'formalize') {
             return (
@@ -236,7 +244,7 @@ export default function ParceriaKanbanTransitionDialog({
                                 />
                             </div>
                             <div>
-                                <Label>Observações <span className="text-rose-500">*</span></Label>
+                                <Label>Observações <span className="text-xs font-normal text-slate-400">(opcional)</span></Label>
                                 <Textarea
                                     value={observations}
                                     onChange={(e) => setObservations(e.target.value)}

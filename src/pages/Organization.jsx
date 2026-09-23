@@ -465,7 +465,11 @@ export default function Organization() {
             />
           )}
 
-          {activeTab === 'calendar' && deadlineCalendarOn && (
+          {/* Mesma regra de visibilidade da aba (flag + Páginas e Módulos): sem
+              isto, um link salvo para o calendário desligado o montaria por um
+              instante antes do redirecionamento para Informações Gerais. */}
+          {activeTab === 'calendar' && deadlineCalendarOn
+            && isTabVisible('calendar', organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn }) && (
             <DeadlineCalendar
               organization={organization}
               processes={processes}

@@ -85,8 +85,18 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.jurimetriaSettings = (0, jurimetria_1.sanitizeJurimetriaSettings)(data.jurimetriaSettings);
     if (data.thirdPartyPhaseEnabledConsultas !== undefined)
         updates.thirdPartyPhaseEnabledConsultas = data.thirdPartyPhaseEnabledConsultas === true;
-    if (data.moduleConfig !== undefined)
-        updates.moduleConfig = sanitizeModuleConfig(data.moduleConfig);
+    if (data.moduleConfig !== undefined) {
+        // Grava módulo a módulo (caminho pontuado), nunca o mapa inteiro.
+        // Substituir o mapa apagava todo módulo que não viesse no payload —
+        // e um admin com o site antigo em cache (que não conhece o Calendário
+        // ou o Panorama) religaria ou desligaria esses módulos sem saber.
+        // Assim, o que não foi enviado fica exatamente como estava. As chaves
+        // vêm da lista fixa de sanitizeModuleConfig, então o caminho é seguro.
+        const sanitizado = sanitizeModuleConfig(data.moduleConfig);
+        for (const [modulo, valor] of Object.entries(sanitizado)) {
+            updates[`moduleConfig.${modulo}`] = valor;
+        }
+    }
     if (data.dashboardConfig !== undefined)
         updates.dashboardConfig = sanitizeDashboardConfig(data.dashboardConfig);
     if (data.goalsConfig !== undefined)
@@ -227,7 +237,7 @@ function sanitizeThirdParties(input) {
 }
 // Aceita apenas módulos built-in conhecidos, com booleano enabled e order numérico.
 function sanitizeModuleConfig(input) {
-    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'panorama', 'summary'];
+    const allowed = ['processes', 'expedientes', 'parcerias', 'jurimetria', 'panorama', 'summary', 'calendar'];
     const out = {};
     for (const key of allowed) {
         const entry = input === null || input === void 0 ? void 0 : input[key];

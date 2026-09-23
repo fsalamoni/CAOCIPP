@@ -25,13 +25,15 @@ export default function ModulesManager({ organization }) {
     // preservado (ver handleSave): religar a flag traz a escolha de volta.
     const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
     const panoramaOn = useFlag(FEATURE_FLAGS.PANORAMA.key);
+    const calendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
     const visibleModules = useMemo(() => {
         const flagDoModulo = {
             [BUILTIN_MODULES.JURIMETRIA]: jurimetriaOn,
             [BUILTIN_MODULES.PANORAMA]: panoramaOn,
+            [BUILTIN_MODULES.CALENDAR]: calendarOn,
         };
         return BUILTIN_MODULE_META.filter((mod) => flagDoModulo[mod.key] !== false);
-    }, [jurimetriaOn, panoramaOn]);
+    }, [jurimetriaOn, panoramaOn, calendarOn]);
 
     // Compara módulo a módulo com o estado original, para garantir que QUALQUER
     // toggle (incluindo Parcerias) marque o formulário como "sujo" e habilite

@@ -116,7 +116,8 @@ function pickPhaseFields(changes) {
 // posteriores — mesma lógica aplicada à Parceria original.
 const ADITIVO_PHASE_MARKER_FIELDS = {
     'Em análise': { responsible_user_id: '', responsible_user_name: '', responsibility_date: '', distribution_date: '' },
-    'Em revisão': { review_start_date: '', network_folder: '', observations: '' },
+    // Observações NÃO entram: são conteúdo, não marcador da fase.
+    'Em revisão': { review_start_date: '', network_folder: '' },
     'Revisadas': { reviewed_date: '', review_conclusion_date: '' },
     'Aguarda Terceiros': { third_party_referral_date: '', third_party: '' },
 };
@@ -485,7 +486,8 @@ export default function EditParceriaDialog({
     // rollback do Kanban (ParceriaKanbanBoard.PHASE_MARKER_FIELDS).
     const PHASE_MARKER_FIELDS = {
         'Em análise': { responsible_user_id: null, responsible_user_name: null, responsibility_date: null, distribution_date: null },
-        'Em revisão': { review_start_date: null, network_folder: '', observations: '' },
+        // Observações NÃO entram: são conteúdo, não marcador da fase (ver `object`).
+        'Em revisão': { review_start_date: null, network_folder: '' },
         'Revisadas': { reviewed_date: null, review_conclusion_date: null },
         'Aguarda Terceiros': { third_party_referral_date: null, third_party: null },
         'Parcerias': {

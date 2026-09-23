@@ -49,6 +49,7 @@ import ExtinguishConfirmDialog from './ExtinguishConfirmDialog';
 import EditParceriaDialog from './EditParceriaDialog';
 import EmptyState from '../ui/EmptyState';
 import CreateParceriaDialog from './CreateParceriaDialog';
+import { archivedSortRules, ARCHIVED_TIEBREAK_KEY, momentoEmMs } from '@/lib/archivedSort';
 
 const KANBAN_COLUMNS_BASE = [
     {
@@ -384,6 +385,7 @@ export default function ParceriaKanbanBoard({
     }, [viewFilters, effectiveSortRules, isPrefsInitialized, updatePreferences, filtersKey, sortRulesKey]);
 
     const getComparableValue = useCallback((parceria, key) => {
+        if (key === ARCHIVED_TIEBREAK_KEY) return momentoEmMs(parceria?.updated_at);
         if (key === 'urgency_request') {
             return isUrgencyMarked(getParceriaField(parceria, 'urgency_request')) ? 1 : 0;
         }
@@ -392,15 +394,15 @@ export default function ParceriaKanbanBoard({
         }
         const rawValue = getParceriaField(parceria, key);
         if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') return null;
-        if (['signature_date', 'end_date', 'renewal_notice_date'].includes(key)) {
+        if (['signature_date', 'end_date', 'renewal_notice_date', 'archived_date'].includes(key)) {
             const d = safeParseDate(rawValue);
             return d ? d.getTime() : null;
         }
         return String(rawValue);
     }, []);
 
-    const compareParcerias = useCallback((a, b) => {
-        for (const rule of effectiveSortRules) {
+    const compareParcerias = useCallback((a, b, rules = effectiveSortRules) => {
+        for (const rule of rules) {
             const valueA = getComparableValue(a, rule.key);
             const valueB = getComparableValue(b, rule.key);
             if (valueA === null && valueB === null) continue;
@@ -413,6 +415,14 @@ export default function ParceriaKanbanBoard({
         }
         return 0;
     }, [effectiveSortRules, getComparableValue]);
+
+    // Coluna de arquivados ("Extintos"): a urgência não pesa e, no padrão,
+    // vale a data de arquivamento, do mais recente para o mais antigo. A ordem
+    // personalizada do usuário continua valendo (ver lib/archivedSort.js).
+    const regrasArquivados = useMemo(
+        () => archivedSortRules(effectiveSortRules, buildDefaultParceriaSortRules()),
+        [effectiveSortRules]
+    );
 
     const filteredParcerias = useMemo(() => {
         return parcerias.filter((p) => {
@@ -460,16 +470,17 @@ export default function ParceriaKanbanBoard({
         });
         // Sort dentro de cada coluna.
         Object.keys(grouped).forEach((statusKey) => {
+            const regras = statusKey === 'Extintos' ? regrasArquivados : effectiveSortRules;
             grouped[statusKey] = grouped[statusKey]
                 .map((item, index) => ({ item, index }))
                 .sort((a, b) => {
-                    const c = compareParcerias(a.item, b.item);
+                    const c = compareParcerias(a.item, b.item, regras);
                     return c !== 0 ? c : a.index - b.index;
                 })
                 .map(({ item }) => item);
         });
         return grouped;
-    }, [filteredParcerias, columns_list, compareParcerias]);
+    }, [filteredParcerias, columns_list, compareParcerias, regrasArquivados, effectiveSortRules]);
 
     const activeParceria = useMemo(() => {
         if (!activeId) return null;
@@ -583,7 +594,8 @@ export default function ParceriaKanbanBoard({
     // fases posteriores ao voltar). NÃO inclui `object` (conteúdo, não fase).
     const PHASE_MARKER_FIELDS = {
         'Em análise': { responsible_user_id: null, responsible_user_name: null, responsibility_date: null, distribution_date: null },
-        'Em revisão': { review_start_date: null, network_folder: '', observations: '' },
+        // Observações NÃO entram: são conteúdo, não marcador da fase (ver `object`).
+        'Em revisão': { review_start_date: null, network_folder: '' },
         'Revisadas': { reviewed_date: null, review_conclusion_date: null },
         'Aguarda Terceiros': { third_party_referral_date: null, third_party: null },
         'Parcerias': {
@@ -738,12 +750,14 @@ export default function ParceriaKanbanBoard({
                 status: 'Em análise',
             };
         } else if (dialogMode === 'review') {
-            // (3.3) Em revisão: pasta na rede + observações (início auto no backend).
+            // (3.3) Em revisão: pasta na rede; observações opcionais (início auto
+            // no backend). Só entram quando o diálogo as enviou, isto é, quando
+            // o usuário as alterou — inclusive para apagá-las de propósito.
             changes = {
                 network_folder: data.network_folder || '',
-                observations: data.observations || '',
                 status: 'Em revisão',
             };
+            if (data.observations !== undefined) changes.observations = data.observations;
         } else if (dialogMode === 'third_party') {
             // (3.5) Aguarda Terceiros: "Remetido para" (remessa auto no backend).
             changes = {
@@ -965,6 +979,12 @@ export default function ParceriaKanbanBoard({
                                         </Button>
                                     </div>
                                 ))}
+
+                                <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400 pt-1">
+                                    Na coluna <strong>Extintos</strong>, a urgência não altera a ordem: no padrão, os
+                                    mais recentemente arquivados aparecem primeiro; com uma ordem sua, ela vale e a
+                                    data de arquivamento desempata.
+                                </p>
 
                                 <div className="flex justify-end pt-1">
                                     <Button variant="ghost" size="sm" onClick={resetSortRules} className="h-8 text-xs text-slate-600 dark:text-slate-300">

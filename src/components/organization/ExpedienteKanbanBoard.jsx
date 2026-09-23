@@ -35,6 +35,7 @@ import EditExpedienteDialog from './EditExpedienteDialog';
 import CreateExpedienteDialog from './CreateExpedienteDialog';
 import EmptyState from '../ui/EmptyState';
 import { useUserPreferences } from '@/hooks/useFirestore';
+import { archivedSortRules, ARCHIVED_TIEBREAK_KEY, momentoEmMs } from '@/lib/archivedSort';
 
 // === Column Definitions ===
 const KANBAN_COLUMNS = [
@@ -316,6 +317,7 @@ export default function ExpedienteKanbanBoard({
     }, [viewFilters, effectiveSortRules, isPrefsInitialized, updatePreferences, filtersKey, sortRulesKey]);
 
     const getComparableValue = useCallback((expediente, key) => {
+        if (key === ARCHIVED_TIEBREAK_KEY) return momentoEmMs(expediente?.updated_at);
         if (key === 'urgency_request') {
             return isUrgencyMarked(getExpedienteField(expediente, 'urgency_request')) ? 1 : 0;
         }
@@ -333,8 +335,8 @@ export default function ExpedienteKanbanBoard({
         return String(rawValue);
     }, []);
 
-    const compareExpedientes = useCallback((a, b) => {
-        for (const rule of effectiveSortRules) {
+    const compareExpedientes = useCallback((a, b, rules = effectiveSortRules) => {
+        for (const rule of rules) {
             const valueA = getComparableValue(a, rule.key);
             const valueB = getComparableValue(b, rule.key);
 
@@ -359,6 +361,14 @@ export default function ExpedienteKanbanBoard({
 
         return 0;
     }, [effectiveSortRules, getComparableValue]);
+
+    // Coluna de arquivados ("Na pasta"): a urgência não pesa e, no padrão,
+    // vale a data de arquivamento, do mais recente para o mais antigo. A ordem
+    // personalizada do usuário continua valendo (ver lib/archivedSort.js).
+    const regrasArquivados = useMemo(
+        () => archivedSortRules(effectiveSortRules, buildDefaultExpedienteSortRules()),
+        [effectiveSortRules]
+    );
 
     const filteredExpedientes = useMemo(() => {
         return expedientes.filter(p => {
@@ -427,10 +437,11 @@ export default function ExpedienteKanbanBoard({
         });
 
         Object.keys(grouped).forEach(statusKey => {
+            const regras = statusKey === 'Na pasta' ? regrasArquivados : effectiveSortRules;
             grouped[statusKey] = grouped[statusKey]
                 .map((item, index) => ({ item, index }))
                 .sort((a, b) => {
-                    const ruleComparison = compareExpedientes(a.item, b.item);
+                    const ruleComparison = compareExpedientes(a.item, b.item, regras);
                     if (ruleComparison !== 0) {
                         return ruleComparison;
                     }
@@ -440,7 +451,7 @@ export default function ExpedienteKanbanBoard({
         });
 
         return grouped;
-    }, [filteredExpedientes, compareExpedientes]);
+    }, [filteredExpedientes, compareExpedientes, regrasArquivados, effectiveSortRules]);
 
     const activeExpediente = useMemo(() => {
         if (!activeId) return null;
@@ -716,10 +727,11 @@ export default function ExpedienteKanbanBoard({
         } else if (dialogMode === 'review') {
             changes = {
                 review_submission_date: today,
-                observations: data.observations,
                 network_folder: data.network_folder,
                 status: 'Em revisão',
             };
+            // Observações são opcionais: só entram quando o diálogo as enviou.
+            if (data.observations !== undefined) changes.observations = data.observations;
         } else if (dialogMode === 'review_complete') {
             changes = {
                 reviewed_date: data.reviewed_date || today,
@@ -924,6 +936,12 @@ export default function ExpedienteKanbanBoard({
                                         </Button>
                                     </div>
                                 ))}
+
+                                <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400 pt-1">
+                                    Na coluna <strong>Arquivados</strong>, a urgência não altera a ordem: no padrão, os
+                                    mais recentemente arquivados aparecem primeiro; com uma ordem sua, ela vale e a
+                                    data de arquivamento desempata.
+                                </p>
 
                                 <div className="flex justify-end pt-1">
                                     <Button variant="ghost" size="sm" onClick={resetSortRules} className="h-8 text-xs text-slate-600 dark:text-slate-300">

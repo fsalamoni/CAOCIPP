@@ -28,7 +28,7 @@ import { getProcessField } from '@/utils/processUtils';
  * Modes:
  *  - "assign"          : Pendente → Análise (Secretary/Decisor chooses an assessor)
  *  - "third_party"      : Análise → Aguarda retorno de terceiros (data da remessa + destinatário obrigatórios)
- *  - "review"          : Análise/Aguarda terceiros → Revisão (observations + network folder required)
+ *  - "review"          : Análise/Aguarda terceiros → Revisão (network folder required; observations optional)
  *  - "review_complete" : Revisão → Revisadas (confirm review completion date)
  *  - "archive"         : Revisadas → Concluído (simple confirmation)
  */
@@ -85,10 +85,15 @@ export default function KanbanTransitionDialog({
                     third_party_recipient: thirdPartyRecipient,
                 });
             } else if (mode === 'review') {
-                await onConfirm({
-                    observations: observations.trim(),
-                    network_folder: networkFolder.trim(),
-                });
+                // Observações são opcionais: só vão no payload quando o usuário
+                // de fato as alterou. Mandar sempre gravaria um campo vazio e
+                // registraria "Observações" no histórico sem mudança nenhuma.
+                const payload = { network_folder: networkFolder.trim() };
+                const obs = observations.trim();
+                if (obs !== String(getProcessField(process, 'observations') || '').trim()) {
+                    payload.observations = obs;
+                }
+                await onConfirm(payload);
             } else if (mode === 'review_complete') {
                 await onConfirm({
                     reviewed_date: reviewedDate
@@ -121,7 +126,7 @@ export default function KanbanTransitionDialog({
     const isValid = () => {
         if (mode === 'assign') return !!selectedAssessor;
         if (mode === 'third_party') return !!thirdPartyReferralDate && !!thirdPartyRecipient;
-        if (mode === 'review') return observations.trim().length > 0 && networkFolder.trim().length > 0;
+        if (mode === 'review') return networkFolder.trim().length > 0;
         if (mode === 'review_complete') return !!reviewedDate;
         if (mode === 'archive') return !!reviewReturnDate;
         return true;
@@ -232,12 +237,12 @@ export default function KanbanTransitionDialog({
                         </>
                     )}
 
-                    {/* MODE: Review (Observations + Network Folder) */}
+                    {/* MODE: Review (Network Folder; Observations opcional) */}
                     {mode === 'review' && (
                         <>
                             <div className="space-y-2">
                                 <Label htmlFor="observations">
-                                    Observações <span className="text-rose-500">*</span>
+                                    Observações <span className="text-xs font-normal text-slate-400">(opcional)</span>
                                 </Label>
                                 <Textarea
                                     id="observations"

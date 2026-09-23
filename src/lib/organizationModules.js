@@ -39,6 +39,7 @@ export const BUILTIN_MODULES = {
     JURIMETRIA: 'jurimetria',
     PANORAMA: 'panorama',
     SUMMARY: 'summary',
+    CALENDAR: 'calendar',
 };
 
 // Metadados dos módulos built-in para a UI de administração (liga/desliga).
@@ -79,6 +80,12 @@ export const BUILTIN_MODULE_META = [
         description: 'Indicadores e gráficos consolidados do órgão.',
         icon: Sparkles,
     },
+    {
+        key: BUILTIN_MODULES.CALENDAR,
+        label: 'Calendário de Vencimentos',
+        description: 'Prazos de Consultas, Expedientes e Parcerias num calendário. Aparece quando ao menos um desses três módulos estiver ativo.',
+        icon: CalendarDays,
+    },
 ];
 
 /**
@@ -92,7 +99,7 @@ export function resolveBuiltinModules(organization) {
     if (!cfg || typeof cfg !== 'object') {
         return {
             processes: true, expedientes: true, parcerias: true,
-            jurimetria: true, panorama: true, summary: true,
+            jurimetria: true, panorama: true, summary: true, calendar: true,
         };
     }
     return {
@@ -102,6 +109,12 @@ export function resolveBuiltinModules(organization) {
         jurimetria: cfg.jurimetria?.enabled === true,
         panorama: cfg.panorama?.enabled === true,
         summary: cfg.summary?.enabled === true,
+        // O calendário existia ANTES de poder ser desligado, e nenhum órgão tem
+        // a chave `calendar` gravada. Ausente, portanto, significa LIGADO — a
+        // regra dos demais (ausente = desligado) faria o calendário sumir de
+        // todos os órgãos no dia do deploy. Só um `false` explícito, gravado
+        // pelo admin em Páginas e Módulos, o esconde.
+        calendar: cfg.calendar?.enabled !== false,
     };
 }
 
@@ -141,6 +154,7 @@ export function getOrganizationTabs(organization, opts = {}) {
     const showJurimetria = jurimetriaOn && (!customEntitiesOn || enabled.jurimetria);
     const showPanorama = panoramaOn && (!customEntitiesOn || enabled.panorama);
     const showSummary = !customEntitiesOn || enabled.summary;
+    const showCalendar = !customEntitiesOn || enabled.calendar;
 
     const tabs = [];
 
@@ -175,8 +189,9 @@ export function getOrganizationTabs(organization, opts = {}) {
     }
 
     // Calendário de vencimentos (flag `deadline_calendar`): só faz sentido se
-    // houver ao menos um módulo de Consultas/Expedientes/Parcerias ativo no órgão.
-    if (deadlineCalendarOn && (showProcesses || showExpedientes || showParcerias)) {
+    // houver ao menos um módulo de Consultas/Expedientes/Parcerias ativo no órgão,
+    // e o admin do órgão pode ocultá-lo em Páginas e Módulos.
+    if (deadlineCalendarOn && showCalendar && (showProcesses || showExpedientes || showParcerias)) {
         tabs.push({ key: 'calendar', label: 'Calendário de Vencimentos', icon: CalendarDays, module: 'core' });
     }
 

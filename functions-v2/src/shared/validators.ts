@@ -16,7 +16,9 @@ import { getSmartField } from './fields';
 const PARCERIA_PHASE_REQUIREMENTS: Record<string, string[]> = {
     'Pendente': ['pgea', 'subject', 'parties'],
     'Em análise': ['responsible_user_id', 'responsibility_date'],
-    'Em revisão': ['review_start_date', 'network_folder', 'observations'],
+    // Observações são OPCIONAIS ao enviar para revisão (o que se exige é a pasta
+    // na rede). A data de início é preenchida automaticamente (phaseDates.ts).
+    'Em revisão': ['review_start_date', 'network_folder'],
     'Revisadas': ['reviewed_date'],
     'Aguarda Terceiros': ['third_party_referral_date', 'third_party'],
     'Parcerias': [
