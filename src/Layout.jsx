@@ -89,7 +89,7 @@ export default function Layout({ children, currentPageName }) {
      área central (que já assina o órgão) mas deixava o sub-menu da barra
      lateral com o `moduleConfig` antigo. Como o sub-menu só é desenhado para o
      órgão ativo, basta sobrepor esse documento aqui. */
-  const { organization: activeOrgLive } = useOrganizationRealtime(activeOrgId);
+  const { organization: activeOrgLive, resolvedId: activeOrgResolvedId } = useOrganizationRealtime(activeOrgId);
 
   const organizations = React.useMemo(() => (
     membershipOrgs.map((org) => (
@@ -230,7 +230,15 @@ export default function Layout({ children, currentPageName }) {
                           {/* Sub-navigation for active organization (oculta quando colapsada, como no protótipo) */}
                           {isOrgActive && !isCollapsed && (
                             <div className="mt-1 ml-4 pl-4 border-l border-slate-200 dark:border-slate-700 space-y-1">
-                              {getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [], deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
+                              {/* As páginas só são listadas quando o documento AO VIVO deste
+                                  órgão chegou. A cópia da lista de órgãos é lida uma vez no
+                                  início da sessão e pode estar desatualizada: usá-la enquanto
+                                  o documento não chega mostrava por um instante páginas que o
+                                  admin já tinha desligado. Até lá, um esqueleto discreto. Se a
+                                  leitura ao vivo falhar, vale a cópia — melhor que menu nenhum. */}
+                              {activeOrgResolvedId !== org.id ? (
+                                <SubNavSkeleton />
+                              ) : getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [], deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
                                 .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
                                 .map((tab) => {
                                   const TabIcon = tab.icon;
@@ -408,6 +416,22 @@ function NavItem({ to, params = '', icon: Icon, label, active, badge, onClick, c
       <TooltipTrigger asChild>{link}</TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/* Placeholder do sub-menu enquanto o documento ao vivo do órgão não chega:
+   mesmas dimensões de um SubNavItem, para o menu não "pular" quando as abas
+   aparecem. */
+function SubNavSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Carregando páginas do órgão" className="space-y-1">
+      {[64, 48, 56].map((largura) => (
+        <div key={largura} className="flex items-center gap-2.5 px-3 py-1.5">
+          <div className="w-3.5 h-3.5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse shrink-0" />
+          <div className="h-3 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" style={{ width: `${largura}%` }} />
+        </div>
+      ))}
+    </div>
   );
 }
 

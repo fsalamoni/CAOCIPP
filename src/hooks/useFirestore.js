@@ -242,11 +242,18 @@ export function useOrganizationRealtime(organizationId) {
     const [organization, setOrganization] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    // A qual órgão o estado acima corresponde. No primeiro render depois de
+    // trocar de órgão, `organization`/`isLoading` ainda são os do ANTERIOR (o
+    // efeito que os limpa só roda depois). Quem precisa de certeza — a barra
+    // lateral, que não pode mostrar páginas desligadas nem por um instante —
+    // compara `resolvedId` com o órgão que está desenhando.
+    const [resolvedId, setResolvedId] = useState(null);
 
     useEffect(() => {
         if (!organizationId) {
             setOrganization(null);
             setIsLoading(false);
+            setResolvedId(null);
             return;
         }
 
@@ -254,6 +261,7 @@ export function useOrganizationRealtime(organizationId) {
         // órgão enquanto a nova consulta ainda não resolveu.
         setOrganization(null);
         setIsLoading(true);
+        setResolvedId(null);
 
         const orgRef = doc(db, 'organizations', organizationId);
 
@@ -271,18 +279,20 @@ export function useOrganizationRealtime(organizationId) {
                     setError('Organization not found');
                 }
                 setIsLoading(false);
+                setResolvedId(organizationId);
             },
             (err) => {
                 logger.error('Error listening to organization:', err);
                 setError(err.message);
                 setIsLoading(false);
+                setResolvedId(organizationId);
             }
         );
 
         return () => unsubscribe();
     }, [organizationId]);
 
-    return { organization, isLoading, error };
+    return { organization, isLoading, error, resolvedId };
 }
 
 /**

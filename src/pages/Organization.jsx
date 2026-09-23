@@ -176,10 +176,13 @@ export default function Organization() {
   // Abas internas do órgão para a barra de navegação em página (Novo design
   // V2) — mesma fonte e mesmo filtro de permissão usados no sub-menu da sidebar.
   const orgTabs = React.useMemo(() => {
-    if (!isV2 || !organization) return [];
+    // Só com o documento ao vivo DESTE órgão: logo após trocar de órgão, o
+    // estado ainda guarda o anterior por um render, e as páginas dele (que
+    // podem estar desligadas aqui) apareceriam por um instante.
+    if (!isV2 || !organization || organization.id !== selectedOrgId) return [];
     return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
       .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [isV2, organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn, userRole, userMembership]);
+  }, [isV2, organization, selectedOrgId, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn, userRole, userMembership]);
 
   // Abas para o tour de onboarding (flag `onboarding_tour`): independente do
   // design V2, já que a navegação existe (via sidebar) em qualquer um deles.
