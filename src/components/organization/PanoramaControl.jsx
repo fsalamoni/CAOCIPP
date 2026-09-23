@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { usePanoramaBases, usePanoramaRegistros, PANORAMA_TETO_REGISTROS } from '@/hooks/usePanorama';
 import { deletePanoramaRegistros } from '@/services/panoramaService';

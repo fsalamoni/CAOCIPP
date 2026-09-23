@@ -52,7 +52,6 @@ import PanoramaBadge from '../panorama/PanoramaBadge';
 export default function PanoramaConfiguration({ organization }) {
     const { bases, isLoading } = usePanoramaBases(organization?.id);
     const [baseId, setBaseId] = useState('');
-    const [draft, setDraft] = useState(null);
     const [saving, setSaving] = useState(false);
     const [excluindo, setExcluindo] = useState(false);
     const [confirmName, setConfirmName] = useState('');
@@ -63,6 +62,11 @@ export default function PanoramaConfiguration({ organization }) {
         [bases, baseId]
     );
     const remote = useMemo(() => (baseAtual ? resolveBase(baseAtual) : null), [baseAtual]);
+
+    // Nasce já com a base carregada, quando ela está disponível: começar em
+    // `null` e preencher num efeito deixava a tela em branco no primeiro quadro.
+    // O efeito abaixo continua sincronizando nas trocas de base.
+    const [draft, setDraft] = useState(() => (remote ? { ...remote } : null));
 
     // Registros da base: é deles que saem os valores reais de cada coluna, que
     // é o que o admin precisa ver para dar peso e cor a cada desfecho.
