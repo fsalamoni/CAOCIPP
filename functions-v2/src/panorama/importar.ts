@@ -284,15 +284,50 @@ export const importPanorama = onCall<ImportRequest>(
         // No preview, a plataforma DETECTA. No commit, vale o que o usuário
         // confirmou na tela (sanitizado), e a detecção serve só de fallback.
         const detectadas = detectarColunas(linhas, baseDef);
-        const colunas: PanoramaColumn[] = mode === 'commit' && payload.columns
+        const semSugestoes = detectadas.map((d) => ({
+            key: d.key, label: d.label, type: d.type, role: d.role,
+            lista: d.lista, cardinalidade: d.cardinalidade, amostra: d.amostra,
+            vazios: d.vazios, visivel: d.visivel, ordem: d.ordem, origem: d.origem,
+        }));
+        const confirmadas = mode === 'commit' && payload.columns
             ? sanitizeBaseDef({ nome: 'x', columns: payload.columns }).columns
-            // No preview, a coluna efetiva é a detectada sem os campos de
-            // sugestão, que existem só para a tela de mapeamento.
-            : detectadas.map((d) => ({
-                key: d.key, label: d.label, type: d.type, role: d.role,
-                lista: d.lista, cardinalidade: d.cardinalidade, amostra: d.amostra,
-                vazios: d.vazios, visivel: d.visivel, ordem: d.ordem, origem: d.origem,
-            }));
+            : null;
+
+        // Quem NÃO pode configurar não redefine o esquema por meio da
+        // importação.
+        //
+        // As colunas efetivas não decidem só o que será gravado na definição da
+        // base: decidem a conversão de cada valor (`coerceValue` pelo tipo),
+        // QUAL coluna é o identificador — e portanto a chave natural e o
+        // casamento com o que já existe — e quais campos o patch toca. Aceitar
+        // o mapeamento de qualquer membro deixaria um membro comum remapear o
+        // papel de identificador para outra coluna e, com isso, sobrescrever o
+        // número do processo dos registros existentes: exatamente o que
+        // `managePanoramaRegistro` recusa ("O identificador não pode ser
+        // alterado em massa"). Para esse membro, o tipo, o papel e o rótulo vêm
+        // da base gravada, e coluna que a base não conhece fica de fora — a
+        // planilha alimenta o esquema que o órgão definiu, estendê-lo exige a
+        // permissão.
+        let colunas: PanoramaColumn[];
+        if (!confirmadas) {
+            colunas = semSugestoes;
+        } else if (podeConfigurar || !baseDef) {
+            colunas = confirmadas;
+        } else {
+            const gravadas = new Map(baseDef.columns.map((c) => [c.key, c]));
+            colunas = confirmadas
+                .filter((c) => gravadas.has(c.key))
+                .map((c) => {
+                    const gravada = gravadas.get(c.key)!;
+                    return {
+                        ...c,
+                        label: gravada.label,
+                        type: gravada.type,
+                        role: gravada.role,
+                        lista: gravada.lista ?? c.lista,
+                    };
+                });
+        }
 
         if (colunas.length === 0) {
             throw new HttpsError('invalid-argument', 'Nenhuma coluna reconhecida na planilha.');

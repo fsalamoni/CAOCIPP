@@ -939,6 +939,23 @@ colunas, rótulos de até 120 caracteres, chaves de até 60, listas de até 2000
 valores, e apenas os tipos e papéis conhecidos. Papel único é respeitado no
 servidor — o primeiro a reivindicar fica com ele.
 
+### O esquema da importação não vem do cliente
+
+As colunas efetivas de uma importação não decidem só o que será gravado na
+definição da base: decidem a **conversão de cada valor** (pelo tipo), **qual
+coluna é o identificador** — e portanto a chave natural e o casamento com o que
+já existe — e **quais campos o patch toca**. Aceitar o mapeamento de qualquer
+membro deixaria um membro comum remapear o papel de identificador para outra
+coluna e, por essa via, sobrescrever o número do processo de registros
+existentes: exatamente o que `managePanoramaRegistro` recusa ("O identificador
+não pode ser alterado em massa").
+
+Por isso, para quem **não** tem `configure_panorama` e importa numa base já
+existente, o tipo, o papel e o rótulo de cada coluna vêm da definição gravada, e
+coluna que a base não conhece fica de fora. A planilha alimenta o esquema que o
+órgão definiu; estendê-lo exige a permissão. A tela de mapeamento entra em modo
+somente-leitura nesse caso, com a explicação do porquê.
+
 ### Chave de coluna como caminho de campo
 
 A chave de cada coluna vira **caminho de campo no Firestore** (`values.${key}`

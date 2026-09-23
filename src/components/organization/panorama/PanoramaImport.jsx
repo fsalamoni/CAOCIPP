@@ -299,6 +299,7 @@ export default function PanoramaImport({
                                 columns={columns}
                                 onChange={setColumns}
                                 compacto={!baseNova}
+                                somenteLeitura={!podeConfigurar && !baseNova}
                             />
                         </CardContent>
                     </Card>

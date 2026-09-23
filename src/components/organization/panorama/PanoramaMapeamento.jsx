@@ -10,7 +10,7 @@ import {
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Sparkles, Info, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Info, AlertTriangle, CheckCircle2, Lock } from 'lucide-react';
 import {
     PANORAMA_ROLES,
     PANORAMA_COLUMN_TYPES,
@@ -33,7 +33,9 @@ const NENHUM = '__nenhum__';
  * coluna e o CONTEÚDO dela. O motivo da proposta aparece na própria linha,
  * para que o usuário possa discordar com conhecimento de causa.
  */
-export default function PanoramaMapeamento({ columns, onChange, compacto = false }) {
+export default function PanoramaMapeamento({
+    columns, onChange, compacto = false, somenteLeitura = false,
+}) {
     const setColuna = (key, patch) => {
         onChange((columns || []).map((c) => (c.key === key ? { ...c, ...patch } : c)));
     };
@@ -80,7 +82,18 @@ export default function PanoramaMapeamento({ columns, onChange, compacto = false
 
     return (
         <div className="space-y-4">
-            {!compacto && (
+            {somenteLeitura && (
+                <Alert>
+                    <Lock className="w-4 h-4" />
+                    <AlertDescription className="text-sm">
+                        Você está vendo como a base está configurada hoje. Alterar o tipo ou o
+                        papel de uma coluna muda o significado de todos os números do órgão, e por
+                        isso exige a permissão <strong>Configurar Panorama</strong>. A importação
+                        segue normalmente: os dados da planilha entram no esquema já definido.
+                    </AlertDescription>
+                </Alert>
+            )}
+            {!compacto && !somenteLeitura && (
                 <Alert>
                     <Sparkles className="w-4 h-4" />
                     <AlertDescription className="text-sm">
@@ -128,6 +141,7 @@ export default function PanoramaMapeamento({ columns, onChange, compacto = false
                                     <TableCell>
                                         <Input
                                             value={col.label}
+                                            disabled={somenteLeitura}
                                             onChange={(e) => setColuna(col.key, { label: e.target.value })}
                                             className="h-8 text-sm font-medium"
                                         />
@@ -141,6 +155,7 @@ export default function PanoramaMapeamento({ columns, onChange, compacto = false
                                     <TableCell>
                                         <Select
                                             value={col.type}
+                                            disabled={somenteLeitura}
                                             onValueChange={(type) => setTipo(col.key, type)}
                                         >
                                             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -158,6 +173,7 @@ export default function PanoramaMapeamento({ columns, onChange, compacto = false
                                     <TableCell>
                                         <Select
                                             value={col.role || NENHUM}
+                                            disabled={somenteLeitura}
                                             onValueChange={(role) => setPapel(col.key, role)}
                                         >
                                             <SelectTrigger className="h-8 text-xs">

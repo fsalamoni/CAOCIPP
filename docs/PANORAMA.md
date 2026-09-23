@@ -376,6 +376,15 @@ Configurações salvas de tabela dinâmica ou de relatório descritivo. Todo o �
 enxerga e usa os modelos de todos; **editar e excluir, só o autor e o
 administrador do órgão** — e essa regra é verificada no servidor, não só na tela.
 
+**Sou membro do órgão mas não tenho a permissão de configurar. Posso importar?**
+Sim, e a planilha entra normalmente. O que você não pode é **redefinir o
+esquema** por essa via: numa base que já existe, o tipo e o papel de cada coluna
+vêm da configuração gravada, e uma coluna que a base ainda não conhece fica de
+fora da importação. A tela de mapeamento aparece em modo de leitura, explicando
+isso. O motivo é que o papel de uma coluna decide o significado de todos os
+números do órgão — e qual coluna é o identificador decide quais registros são
+atualizados.
+
 **Qual o tamanho máximo de uma base?**
 O cálculo é feito no navegador, e o limite prático é de **20 mil registros por
 base**. A página avisa ao se aproximar disso. Acima, o caminho é dividir por
@@ -604,3 +613,10 @@ panorama/templates.ts       managePanoramaTemplate
 - **Sem importação automática**: não há integração com sistemas externos; os
   dados chegam por planilha enviada por uma pessoa.
 - **Uma unidade pertence a uma única região.**
+- **Estender o esquema exige `configure_panorama`.** Sem essa permissão, a
+  importação alimenta as colunas que a base já tem; colunas novas da planilha
+  são ignoradas até que alguém com a permissão as acrescente.
+- **Trocar a coluna identificadora de uma base com dados** faz os registros
+  antigos deixarem de casar com as importações seguintes (a chave natural deles
+  foi calculada com a coluna anterior). Se precisar trocar, o caminho seguro é
+  reimportar a base.
