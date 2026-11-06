@@ -1,9 +1,10 @@
 # 🎨 SIGO - Design System V2 (Minimalista)
 
-**Version:** 1.1.0
-**Last Updated:** 2026-07-09
-**Status:** Opt-in (feature flag `frontend_v2`, default OFF)
-**Purpose:** Padrão visual oficial para novas telas e evolução da plataforma
+**Status:** padrão em produção. A flag `frontend_v2` foi **integrada** em
+agosto de 2026: fica ligada para todos e saiu da tela de Funcionalidades. Só um
+`false` explícito em `platformConfig/featureFlags` (válvula de emergência)
+volta a exibir o visual V1.
+**Propósito:** padrão visual oficial para todas as telas da plataforma
 
 ---
 
@@ -15,14 +16,12 @@ gradientes. É o resultado da proposta de redesign entregue em
 `Proposta de redesign frontend minimalista.zip` (protótipo `.dc.html`),
 convertido em tokens de design reais e aplicado à plataforma.
 
-**Ele é 100% opt-in.** Nada muda para ninguém até que um administrador de
-plataforma ligue a chave **"Novo design (V2)"** em
-**Administração da Plataforma → Funcionalidades → Aparência**. Desligada,
-o sistema é pixel-a-pixel idêntico ao que já existe hoje.
+Ele nasceu como opção (opt-in) e hoje é o visual que todos veem. Com a
+flag desligada, o sistema volta ao visual V1, descrito em
+[DESIGN_SYSTEM_REFERENCE.md](./DESIGN_SYSTEM_REFERENCE.md).
 
-Esse é também o **padrão a ser seguido em todas as novas telas, modais e
-funcionalidades daqui em diante** — mesmo enquanto o V2 estiver desligado
-por padrão. Ver [Como construir novas telas](#como-construir-novas-telas-compatíveis-com-o-v2)
+Esse é o **padrão a ser seguido em todas as novas telas, modais e
+funcionalidades**. Ver [Como construir novas telas](#como-construir-novas-telas-compatíveis-com-o-v2)
 abaixo.
 
 ---
@@ -41,9 +40,9 @@ src/styles/theme-v2.css         → todo o tema: variáveis + overrides, só tem
 src/index.css                   → importa theme-v2.css
 ```
 
-1. `FeatureFlagsPanel` (Admin → Funcionalidades) lê/grava a flag em
-   `platformConfig/featureFlags` no Firestore, exatamente como qualquer
-   outra flag do catálogo (`src/constants/featureFlags.js`).
+1. A flag vive em `platformConfig/featureFlags` no Firestore, como as demais
+   do catálogo (`src/constants/featureFlags.js`). Por ser integrada, vale
+   `true` mesmo sem valor gravado e não aparece mais no `FeatureFlagsPanel`.
 2. `ThemeV2Effect` (montado uma vez em `App.jsx`, dentro do
    `FeatureFlagsProvider`) escuta `useFlag('frontend_v2')` e:
    - Adiciona/remove a classe `theme-v2` em `document.documentElement`.
@@ -296,24 +295,20 @@ Ao introduzir uma nova classe de cor fixa que ainda não está coberta:
 
 ## Como testar localmente
 
-Sem alterar a flag em produção, dá para visualizar o V2 no navegador:
+Como a flag é integrada, o V2 já aparece em `npm run dev`. Para comparar com o
+V1 sem mexer na flag, remova a classe no console do navegador:
 
 ```js
-// Console do navegador, com o app já carregado:
-document.documentElement.classList.add('theme-v2');
+document.documentElement.classList.remove('theme-v2');
 ```
-
-Isso ativa todo o CSS do tema instantaneamente (as fontes IBM Plex não
-serão carregadas por esse atalho manual — para isso, ligue a flag de
-verdade em Admin → Funcionalidades, que já cuida de injetar as fontes).
 
 **Checklist de QA ao mexer em `theme-v2.css`:**
 
 - [ ] `npm run lint` e `npm run build` sem erros.
-- [ ] Com a flag desligada (padrão), a tela está pixel-a-pixel igual à
-      versão atual (nenhuma classe `theme-v2` presente).
-- [ ] Com a flag ligada: sidebar, topo, kanban, tabelas, modais e o
-      próprio painel de Funcionalidades exibem o navy/paleta neutra.
+- [ ] Sidebar, topo, kanban, tabelas e modais exibem o navy/paleta neutra,
+      nos temas claro e escuro.
+- [ ] Sem a classe `theme-v2`, a tela continua utilizável no visual V1
+      (é o que aparece se a válvula de emergência for acionada).
 - [ ] Textos brancos sobre fundo navy (nav ativo, botões primários,
       badges) continuam legíveis — este é o ponto que mais quebra
       silenciosamente (ver nota de `@layer`).

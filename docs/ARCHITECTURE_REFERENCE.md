@@ -1,836 +1,207 @@
-# 🏗️ SIGO - Architecture Reference
+# Arquitetura do SIGO
 
-**Version:** 1.14.2 - Expedientes Administrativos  
-**Last Updated:** 2026-03-31  
-**Purpose:** Complete architectural documentation for the CAOCIPP platform
-
----
-
-## Table of Contents
-
-1. [System Overview](#system-overview)
-2. [Technology Stack](#technology-stack)
-3. [Project Structure](#project-structure)
-4. [Data Architecture](#data-architecture)
-5. [Component Architecture](#component-architecture)
-6. [Authentication Flow](#authentication-flow)
-7. [Data Flow](#data-flow)
-8. [State Management](#state-management)
-9. [API Integration](#api-integration)
-10. [Performance Optimization](#performance-optimization)
+Como o sistema é montado: tecnologias, estrutura do repositório, fluxo de
+dados, coleções do Firestore e implantação.
 
 ---
 
-## System Overview
-
-### High-Level Architecture
+## 1. Visão de conjunto
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         FRONTEND                             │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐            │
-│  │   React    │  │  Tailwind  │  │  Radix UI  │            │
-│  │   18.3.1   │  │    CSS     │  │    v1.0    │            │
-│  └────────────┘  └────────────┘  └────────────┘            │
-│         │                │                │                  │
-│         └────────────────┴────────────────┘                  │
-│                         │                                    │
-│         ┌───────────────┴───────────────┐                   │
-│         │   Firebase SDK 10.14.1        │                   │
-│         └───────────────┬───────────────┘                   │
-└─────────────────────────┼───────────────────────────────────┘
-                          │
-┌─────────────────────────┼───────────────────────────────────┐
-│                    FIREBASE BACKEND                          │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐            │
-│  │   Auth     │  │ Firestore  │  │  Hosting   │            │
-│  │  (Google)  │  │  Database  │  │    CDN     │            │
-│  └────────────┘  └────────────┘  └────────────┘            │
-└─────────────────────────────────────────────────────────────┘
+Navegador (React SPA)
+ ├─ Leitura ──────► Firestore (onSnapshot, em tempo real)   ◄── regras: firestore.rules
+ ├─ Escrita ──────► Cloud Functions v2 (onCall)  ──────────► Firestore (Admin SDK)
+ │                    região southamerica-east1 (São Paulo)
+ └─ Login ────────► Firebase Authentication (Google)
+
+Firebase Hosting
+ ├─ site "sigo-caocipp" → dist/           (a aplicação)
+ └─ site "consultascao" → 301 para sigo-caocipp.web.app
 ```
 
-### System Characteristics
+Princípios que se repetem em todo o código:
 
-- **Type:** Single Page Application (SPA)
-- **Rendering:** Client-Side Rendering (CSR)
-- **Architecture Pattern:** Component-Based Architecture
-- **Data Layer:** Firebase Firestore (NoSQL)
-- **Authentication:** Firebase Authentication (OAuth 2.0)
-- **Hosting:** Firebase Hosting (CDN)
-- **State Management:** React Context + Custom Hooks
+1. **O cliente lê direto do Firestore e escreve por Cloud Function.** As
+   leituras usam ouvintes em tempo real (`src/hooks/useFirestore.js`,
+   `useJuris.js`, `usePanorama.js`, `useCustomEntities.js`). Todas as gravações
+   do app passam por funções `onCall` (`src/services/functionsService.js`),
+   onde ficam validação, autorização, histórico e auditoria.
+2. **Fase derivada de dados.** O status de Consultas e Expedientes é calculado a
+   partir das datas preenchidas; o de Parcerias é validado contra os campos
+   exigidos de cada fase. A mesma regra existe no servidor
+   (`functions-v2/src/shared/`) e no cliente (`src/utils/`), e os comentários de
+   cada arquivo apontam o espelho.
+3. **Cálculo analítico no navegador.** Métricas, Resumos, relatórios da
+   Jurimetria e do Panorama são calculados no cliente sobre os registros já
+   carregados (`src/lib/metricsEngine.js`, `dashboardMetrics.js`,
+   `jurimetriaEngine.js`, `panoramaEngine.js`). Exportações (PDF, Excel, Word,
+   CSV, JSON, Markdown) também são geradas no navegador.
+4. **Isolamento por órgão.** Todo documento de dados tem `organization_id`; as
+   regras e as funções conferem o vínculo `userOrganizations/{uid}_{orgId}`.
 
 ---
 
-## Technology Stack
+## 2. Tecnologias
 
-### Core Technologies
+| Camada | Tecnologia |
+|---|---|
+| Interface | React 18, Vite 6, React Router 6, TanStack Query 5 |
+| Componentes e estilo | Tailwind CSS 3, shadcn/ui (Radix UI), lucide-react, framer-motion |
+| Gráficos | Recharts |
+| Planilhas e documentos | SheetJS (`xlsx`), jsPDF + autotable |
+| Arrastar e soltar | `@dnd-kit` |
+| Backend | Firebase Cloud Functions v2 (Node 22, TypeScript), `firebase-admin` 13 |
+| Banco | Cloud Firestore |
+| Autenticação | Firebase Authentication (provedor Google) |
+| Hospedagem | Firebase Hosting (dois sites) |
+| E-mail | Resend (opcional; chave `EMAIL_API_KEY`) |
+| Custos | Export do Cloud Billing para BigQuery (opcional) |
 
-| Technology | Version | Purpose | Documentation |
-|------------|---------|---------|---------------|
-| **React** | 18.3.1 | UI Framework | [React Docs](https://react.dev) |
-| **Vite** | 6.0.5 | Build Tool | [Vite Docs](https://vitejs.dev) |
-| **Firebase** | 10.14.1 | Backend Services | [Firebase Docs](https://firebase.google.com/docs) |
-| **Tailwind CSS** | 3.4.17 | Styling | [Tailwind Docs](https://tailwindcss.com) |
-| **Radix UI** | Various | UI Primitives | [Radix Docs](https://radix-ui.com) |
-
-### Key Dependencies
-
-```json
-{
-  "react": "^18.3.1",
-  "react-dom": "^18.3.1",
-  "react-router-dom": "^7.1.3",
-  "firebase": "^10.14.1",
-  "date-fns": "^4.1.0",
-  "recharts": "^2.15.0",
-  "lucide-react": "^0.468.0",
-  "sonner": "^1.7.1",
-  "@radix-ui/react-*": "Various"
-}
-```
-
-### Development Tools
-
-- **Package Manager:** npm
-- **Linter:** ESLint
-- **Code Formatter:** (configured in ESLint)
-- **Git:** Version control
-- **Firebase CLI:** Deployment
+O `package.json` ainda lista dependências sem uso no código atual, herdadas do
+protótipo original na plataforma Base44 (`@base44/sdk`, Stripe, `three`,
+`react-leaflet`, `html2canvas`, `@hello-pangea/dnd`, entre outras). O
+`@base44/vite-plugin` continua carregado em `vite.config.js`, mas o app não
+usa o SDK da Base44 para dados.
 
 ---
 
-## Project Structure
-
-### Directory Tree
+## 3. Estrutura do repositório
 
 ```
 CAOCIPP/
-├── .agent/                      # AI agent configurations
-│   ├── skills/                  # AI development skills
-│   └── workflows/               # Development workflows
-├── docs/                        # Documentation (THIS FOLDER)
-│   ├── ARCHITECTURE_REFERENCE.md
-│   ├── SECURITY_REFERENCE.md
-│   ├── FEATURES_REFERENCE.md
-│   ├── DESIGN_SYSTEM_REFERENCE.md
-│   ├── GLOSSARY.md
-│   └── DEVELOPMENT_GUIDE.md
-├── functions/                   # Cloud Functions (placeholder)
-│   └── index.js
-├── public/                      # Static assets
-│   └── logo.svg
-├── src/                         # Source code
-│   ├── api/                     # API clients (SIGO - legacy)
-│   │   └── consultasCaoClient.js
-│   ├── components/              # React components
-│   │   ├── organization/        # Organization-specific components
-│   │   │   ├── CreateProcessButton.jsx
-│   │   │   ├── CreateProcessDialog.jsx
-│   │   │   ├── CreateExpedienteDialog.jsx
-│   │   │   ├── EditProcessDialog.jsx
-│   │   │   ├── EditExpedienteDialog.jsx
-│   │   │   ├── ExpedienteControl.jsx
-│   │   │   ├── ExpedienteTable.jsx
-│   │   │   ├── ExpedienteDetailSheet.jsx
-│   │   │   ├── ExpedienteKanbanBoard.jsx
-│   │   │   ├── GeneralInfo.jsx
-│   │   │   ├── IntelligentSummary.jsx
-│   │   │   ├── ProcessControl.jsx
-│   │   │   ├── ProcessForm.jsx
-│   │   │   └── ProcessStatusBadge.jsx
-│   │   ├── ui/                  # Reusable UI components (Radix)
-│   │   │   ├── alert.jsx
-│   │   │   ├── avatar.jsx
-│   │   │   ├── badge.jsx
-│   │   │   ├── button.jsx
-│   │   │   ├── card.jsx
-│   │   │   ├── dialog.jsx
-│   │   │   ├── dropdown-menu.jsx
-│   │   │   ├── input.jsx
-│   │   │   ├── label.jsx
-│   │   │   ├── select.jsx
-│   │   │   ├── switch.jsx
-│   │   │   ├── table.jsx
-│   │   │   ├── tabs.jsx
-│   │   │   └── textarea.jsx
-│   │   └── ErrorBoundary.jsx    # Global error handler
-│   ├── config/                  # Configuration
-│   │   └── firebase.js          # Firebase initialization
-│   ├── hooks/                   # Custom React hooks
-│   │   └── useFirestore.js      # Firestore data hooks
-│   ├── lib/                     # Libraries and contexts
-│   │   └── FirebaseAuthContext.jsx
-│   ├── pages/                   # Application pages
-│   │   ├── Dashboard.jsx
-│   │   ├── Landing.jsx
-│   │   ├── Organization.jsx
-│   │   └── Profile.jsx
-│   ├── services/                # Business logic services
-│   │   └── firestoreService.js
-│   ├── utils/                   # Utility functions
-│   │   ├── cn.js                # Class name merger
-│   │   └── logger.js            # Logging utility
-│   ├── App.jsx                  # Root component
-│   ├── index.css                # Global styles
-│   └── main.jsx                 # Entry point
-├── .env                         # Environment variables (NOT in git)
-├── .env.example                 # Environment template
-├── .firebaserc                  # Firebase project reference
-├── .gitignore                   # Git ignore rules
-├── components.json              # Shadcn UI config
-├── eslint.config.js             # ESLint configuration
-├── firebase.json                # Firebase configuration
-├── firestore.indexes.json       # Firestore indexes
-├── firestore.rules              # Firestore security rules
-├── index.html                   # HTML template
-├── jsconfig.json                # JavaScript config
-├── package.json                 # Dependencies
-├── postcss.config.js            # PostCSS config
-├── tailwind.config.js           # Tailwind configuration
-└── vite.config.js               # Vite configuration
+├── src/                      Aplicação React
+│   ├── pages/                Páginas (Landing, Dashboard, Organization, Profile, Admin, Help, Terms)
+│   ├── pages.config.js       Registro das páginas e página inicial
+│   ├── Layout.jsx            Barra lateral, cabeçalho e navegação por órgão
+│   ├── components/
+│   │   ├── organization/     Módulos do órgão (Consultas, Expedientes, Parcerias…)
+│   │   │   ├── admin/        Abas do Painel Administrativo
+│   │   │   ├── custom/       Páginas personalizadas (componentes genéricos)
+│   │   │   ├── jurimetria/   Módulo Jurimetria
+│   │   │   └── panorama/     Módulo Panorama
+│   │   ├── admin/            Administração da plataforma (super-admin)
+│   │   └── ui/               Componentes shadcn/ui
+│   ├── constants/            Flags, permissões, listas da Jurimetria e do Panorama
+│   ├── hooks/                Leitura em tempo real do Firestore
+│   ├── lib/                  Contextos (auth, flags, tema), motores de cálculo, utilitários
+│   ├── services/             Chamadas às Cloud Functions e leituras pontuais
+│   ├── utils/                Regras de domínio no cliente (status, aliases de campos)
+│   └── config/firebase.js    Inicialização do Firebase
+├── functions-v2/             Cloud Functions (TypeScript)
+│   ├── src/                  Código-fonte (um diretório por domínio)
+│   ├── lib/                  JavaScript compilado (versionado)
+│   └── scripts/              Scripts administrativos (bootstrap de super-admin, backfill)
+├── firestore.rules           Regras de segurança
+├── firestore.indexes.json    Índices compostos
+├── firebase.json             Hosting (dois sites), Functions e Firestore
+├── .github/workflows/        CI (ci.yml) e deploy (deploy.yml)
+├── public/                   Ícones, manifest e service worker (PWA)
+├── dist-redirect/            Página do site de redirecionamento
+└── docs/                     Esta documentação
 ```
 
-### Module Organization
+### Pastas legadas
 
-#### Pages (Route Components)
-- **Purpose:** Top-level route components
-- **Location:** `src/pages/`
-- **Naming:** PascalCase, e.g., `Dashboard.jsx`
-- **Responsibilities:**
-  - Route rendering
-  - Data fetching via hooks
-  - Layout composition
-  - Props passing to components
+Mantidas apenas por histórico; **não fazem parte do build nem do deploy**:
 
-#### Components (UI Components)
-- **Purpose:** Reusable UI elements
-- **Location:** `src/components/`
-- **Naming:** PascalCase, e.g., `ProcessControl.jsx`
-- **Types:**
-  - **Container Components:** Manage state, fetch data
-  - **Presentational Components:** Pure UI, receive props
-  - **UI Primitives:** `src/components/ui/` (Radix-based)
-
-#### Hooks (Custom React Hooks)
-- **Purpose:** Reusable stateful logic
-- **Location:** `src/hooks/`
-- **Naming:** camelCase with 'use' prefix, e.g., `useFirestore.js`
-- **Pattern:**
-  ```javascript
-  export function useCustomHook(params) {
-    const [state, setState] = useState();
-    // ... logic
-    return { data, isLoading, error };
-  }
-  ```
-
-#### Services (Business Logic)
-- **Purpose:** CRUD operations, business rules
-- **Location:** `src/services/`
-- **Naming:** camelCase with 'Service' suffix
-- **Pattern:**
-  ```javascript
-  export async function createEntity(data, userId) {
-    // Validation
-    // Firestore operations
-    // Return result
-  }
-  ```
+| Pasta | O que é |
+|---|---|
+| `functions/` | Funções Deno da versão Base44 (`npm:@base44/sdk`). Substituídas por `functions-v2/`. |
+| `Repositório original/` | Cópia de segurança da versão anterior do repositório. |
+| `.agent/` | Kit de agentes, skills e workflows usados no desenvolvimento assistido. |
+| `Proposta de redesign frontend minimalista.zip` | Protótipo que originou o design V2. |
+| `Municípios do RS.*` | Fonte da lista de municípios em `src/utils/cities.js`. |
 
 ---
 
-## Data Architecture
+## 4. Cloud Functions
 
-### Firestore Collections
+Todas exportadas em `functions-v2/src/index.ts`, região `southamerica-east1`.
 
-#### 1. `users`
-**Purpose:** User profiles and preferences
+| Domínio | Funções |
+|---|---|
+| Órgãos e membros (`organizations/`) | `createOrganization`, `getUserOrganizations`, `joinOrganization`, `updateMember`, `removeMember`, `updateOrganization`, `bulkReplaceFieldValues`, `clearOrganizationData`, `deleteOrganization` |
+| Consultas (`processes/`, `import/fromExcel.ts`) | `createProcess`, `updateProcess`, `deleteProcess`, `calculateProcessStatus`, `backfillProcessLogs`, `importProcessesFromExcel` |
+| Expedientes | `createExpediente`, `updateExpediente`, `deleteExpediente`, `importExpedientesFromExcel` |
+| Parcerias | `createParceria`, `updateParceria`, `deleteParceria`, `addAditivo`, `updateAditivo`, `concludeAditivo`, `deleteAditivo`, `extinguishParceria`, `importParceriasFromExcel` |
+| Jurimetria | `createJuri`, `updateJuri`, `deleteJuris`, `bulkUpdateJuris`, `importJurisFromExcel`, `manageJurimetriaTemplate` |
+| Panorama | `managePanoramaBase`, `managePanoramaRegistro`, `importPanorama`, `managePanoramaTemplate` |
+| Páginas personalizadas | `upsertEntityType`, `deleteEntityType`, `createRecord`, `updateRecord`, `deleteRecord`, `importRecords` |
+| Usuário | `updateProfile`, `migrateMemberFunctions` |
+| Colaboração | `addComment` |
+| Segurança | `logAccess`, `getOrgAccessLog`, `previewAnonymization`, `runAnonymization`, `sendLoginOtp`, `verifyLoginOtp`, `testOrgWebhook` |
+| Plataforma (super-admin) | ver [FEATURES_REFERENCE.md §8](./FEATURES_REFERENCE.md#8-administração-da-plataforma-super-admin) |
+| Agendadas | `checkPartnershipNoticeDeadlines` (ativa). `autoEscalateStalledUrgent`, `sendDailyUrgentSummary` e `sendWeeklyOrgReport` estão comentadas. |
 
-```javascript
-{
-  // Document ID: Firebase Auth UID
-  email: string,                    // From Firebase Auth
-  full_name: string,                // User's full name
-  photo_url: string,                // Profile photo URL
-  platform_name: string,            // Display name in app
-  function: string,                 // User function/role
-  notification_email: string,       // Optional notification email
-  created_at: Timestamp,            // Document creation
-  updated_at: Timestamp             // Last update
-}
-```
-
-**Indexes:** None (primary key only)  
-**Security:** User can only read/write their own document
-
-#### 2. `organizations`
-**Purpose:** Organization entities
-
-```javascript
-{
-  // Document ID: Auto-generated
-  name: string,                     // Organization name
-  description: string,              // Organization description
-  invite_code: string,              // 8-char invite code (UPPERCASE)
-  created_by: string,               // Creator user_id (reference)
-  created_at: Timestamp,            // Creation timestamp
-  updated_at: Timestamp,            // Last update timestamp
-  stats: {
-    members_count: number,          // Total members
-    processes_count: number,        // Total processes
-    active_processes: number        // Non-archived processes
-  }
-}
-```
-
-**Indexes:**
-- `invite_code` (single field, ascending)
-- `created_by` (for user's organizations query)
-
-**Security:** Read by members, write by creator
-
-#### 3. `userOrganizations`
-**Purpose:** User-Organization membership (junction table)
-
-```javascript
-{
-  // Document ID: Composite "{user_id}_{organization_id}"
-  id: string,                       // Composite key
-  user_id: string,                  // Reference to users
-  organization_id: string,          // Reference to organizations
-  user_email: string,               // Denormalized from users
-  user_name: string,                // Denormalized from users
-  user_photo: string,               // Denormalized from users
-  role: string,                     // 'creator' | 'admin' | 'member'
-  function: string,                 // User's function in org
-  joined_at: Timestamp,             // Membership creation
-  updated_at: Timestamp             // Last update
-}
-```
-
-**Indexes:**
-- `user_id` + `organization_id` (composite)
-- `organization_id` + `role` (composite)
-- `organization_id` + `joined_at` (composite)
-
-**Security:** Read by org members, write by creator
-
-#### 4. `processes`
-**Purpose:** Legal process tracking
-
-```javascript
-{
-  // Document ID: Auto-generated
-  organization_id: string,          // Reference to organizations
-  process_number: string,           // Process identifier
-  consultant: string,               // Consultant name
-  location: string,                 // City/location
-  entry_date: string,               // YYYY-MM-DD format
-  matter_object: string,            // Process subject/matter
-  status: string,                   // Process status
-  urgency_request: boolean,         // Urgent flag
-  responsible_user_id: string,      // Assigned user ID
-  responsible_user_name: string,    // Denormalized user name
-  distribution_date: string,        // Distribution date
-  analysis_start_date: string,      // Analysis start
-  review_submission_date: string,   // Sent to review
-  review_return_date: string,       // Returned from review
-  archived_date: string,            // Archived date
-  observations: string,             // Notes
-  decision: string,                 // Final decision
-  access_restriction: boolean,      // Access restriction flag
-  network_folder: string,           // Network path
-  created_by: string,               // Creator user_id
-  created_at: Timestamp,            // Creation timestamp
-  updated_at: Timestamp,            // Last update
-  updated_by: string,               // Last updater user_id
-  last_imported_at: Timestamp,      // Last spreadsheet import (if any)
-  activity_log: Array<{             // Per-process audit trail
-    date: string,                   // YYYY-MM-DD
-    time: string,                   // HH:MM:SS
-    user_id: string,                // Who performed the action
-    user_name: string,              // Human-readable name
-    action: string,                 // Description of what changed
-    timestamp: string               // ISO 8601 full timestamp
-  }>
-}
-```
-
-**Indexes:**
-- `organization_id` + `created_at` (composite, descending)
-- `organization_id` + `status` (composite)
-- `organization_id` + `responsible_user_id` (composite)
-- `organization_id` + `urgency_request` (composite)
-- `organization_id` + `entry_date` (composite, descending)
-- `organization_id` + `process_number` (composite)
-
-**Security:** Read/write by org members, delete by creator/admin
-
-#### 5. `expedientes`
-**Purpose:** Administrative expedient tracking
-
-```javascript
-{
-  // Document ID: Auto-generated
-  organization_id: string,          // Reference to organizations
-  expediente_number: string,        // Expediente identifier
-  origin: string,                   // Origin/Source (SIM, GAB-PGJ, etc.)
-  system: string,                   // System identifier
-  entry_date: string,               // YYYY-MM-DD format
-  matter: string,                   // Subject/Matter
-  status: string,                   // Current status
-  urgency_request: boolean,         // Urgent flag
-  responsible_user_id: string,      // Assigned user ID
-  responsible_user_name: string,    // Denormalized user name
-  distribution_date: string,        // Distribution date
-  analysis_start_date: string,      // Analysis start
-  review_submission_date: string,   // Sent to review
-  review_return_date: string,       // Returned from review
-  archived_date: string,            // Archived date
-  observations: string,             // Notes
-  network_folder: string,           // Network path
-  created_by: string,               // Creator user_id
-  created_at: Timestamp,            // Creation timestamp
-  updated_at: Timestamp,            // Last update
-  updated_by: string,               // Last updater user_id
-  activity_log: Array<{             // Per-expediente audit trail
-    // (Same format as processes)
-  }>
-}
-```
-
-**Indexes:**
-- `organization_id` + `created_at` (composite, descending)
-- `organization_id` + `status` (composite)
-- `organization_id` + `entry_date` (composite, descending)
-- `organization_id` + `expediente_number` (composite)
-
-**Security:** Read/write by org members, delete by creator/admin
-
-#### 6. `notifications` (Optional - Placeholder)
-**Purpose:** User notifications
-
-```javascript
-{
-  user_id: string,
-  organization_id: string,
-  type: string,
-  message: string,
-  read: boolean,
-  created_at: Timestamp
-}
-```
+Módulos compartilhados em `functions-v2/src/shared/`: `status.ts` (cálculo de
+fase), `validators.ts` (requisitos de fase das Parcerias), `permissions.ts`
+(atribuições), `fields.ts` (aliases de campos), `phaseDates.ts`, `history.ts`,
+`normalization.ts`, `webhooks.ts`, `email.ts`, `jurimetria.ts`, `panorama.ts`.
 
 ---
 
-## Component Architecture
+## 5. Coleções do Firestore
 
-### Component Hierarchy
+| Coleção | Conteúdo |
+|---|---|
+| `users/{uid}` | Perfil do usuário |
+| `userPreferences/{uid}` | Preferências de interface |
+| `organizations/{orgId}` | Órgão: nome, código de convite, `moduleConfig`, configurações de cada módulo, `dashboardConfig`, configurações de automação e segurança, `stats` |
+| `userOrganizations/{uid}_{orgId}` | Vínculo usuário ↔ órgão: `role`, `function`, `permissions` |
+| `processes/{id}` (+ `history`, `comments`) | Consultas |
+| `expedientes/{id}` (+ `history`, `comments`) | Expedientes |
+| `parcerias/{id}` (+ `aditivos/{id}/history`, `history`, `comments`) | Parcerias e aditivos |
+| `juris/{id}` (+ `history`), `jurimetriaTemplates/{id}` | Jurimetria |
+| `panoramaBases/{id}`, `panoramaRegistros/{id}`, `panoramaTemplates/{id}` | Panorama |
+| `entityTypes/{id}`, `customRecords/{id}` (+ `history`) | Páginas personalizadas |
+| `auditLogs/{id}` | Auditoria (ações administrativas, acessos e exportações) |
+| `notifications/{id}` | Notificações por usuário |
+| `presence/{id}` | Presença em tempo real |
+| `otpCodes/{uid}` | Códigos de 2FA (hash), inacessíveis ao cliente |
+| `platformConfig/{doc}` | Feature flags e configuração global |
+| `platformAdmins/{uid}`, `platformStats/{doc}` | Super-admins e estatísticas da plataforma |
 
-```
-App
-├── FirebaseAuthProvider (Context)
-│   ├── ErrorBoundary
-│   │   └── Router
-│   │       ├── Landing (Public Route)
-│   │       └── Private Routes (authenticated)
-│   │           ├── Dashboard
-│   │           │   ├── Header
-│   │           │   ├── OrgSelector (if multiple orgs)
-│   │           │   ├── KPI Cards
-│   │           │   ├── Charts (Recharts)
-│   │           │   └── ActivityList
-│   │           ├── Profile
-│   │           │   ├── ProfileForm
-│   │           │   ├── OrganizationList
-│   │           │   ├── CreateOrgDialog
-│   │           │   └── JoinOrgDialog
-│   │           └── Organization
-│   │               ├── OrgSelector
-│   │               ├── Tabs
-│   │               │   ├── Tab: Informações
-│   │               │   │   └── GeneralInfo
-│   │               │   │       ├── OrgInfoCard
-│   │               │   │       └── MembersTable
-│   │               │   ├── Tab: Processos
-│   │               │   │   └── ProcessControl
-│   │               │   │       ├── CreateProcessButton
-│   │               │   │       ├── Filters
-│   │               │   │       ├── ProcessTable
-│   │               │   │       ├── ProcessDetailSheet
-│   │               │   │       ├── EditProcessDialog
-│   │               │   │       │   └── ProcessLogDialog (admin only)
-│   │               │   │       └── KanbanBoard
-│   │               │   │           ├── KanbanCard (eye icon → ProcessDetailSheet)
-│   │               │   │           └── KanbanTransitionDialog
-│   │               │   ├── Tab: Expedientes
-│   │               │   │   └── ExpedienteControl
-│   │               │   │       ├── CreateExpedienteDialog
-│   │               │   │       ├── ExpedienteTable
-│   │               │   │       ├── ExpedienteDetailSheet
-│   │               │   │       ├── EditExpedienteDialog
-│   │               │   │       └── ExpedienteKanbanBoard
-│   │               │   │           │   ├── ExpedienteKanbanCard (eye icon → ExpedienteDetailSheet)
-│   │               │   │           │   └── (Transition Logic similar to processes)
-│   │               │   └── Tab: Resumos
-│   │               │       └── IntelligentSummary
-│   │               │           ├── KPI Cards
-│   │               │           └── Charts
-```
-
-### Component Communication Patterns
-
-#### 1. Props Drilling (Parent → Child)
-```javascript
-// Parent
-<ProcessControl 
-  organization={organization}
-  members={members}
-  processes={processes}
-/>
-
-// Child receives and uses
-function ProcessControl({ organization, members, processes }) {
-  // Use props
-}
-```
-
-#### 2. Context API (Global State)
-```javascript
-// Provider (in App.jsx)
-<FirebaseAuthProvider>
-  {children}
-</FirebaseAuthProvider>
-
-// Consumer (anywhere in tree)
-const { user, signIn, signOut, isLoading } = useAuth();
-```
-
-#### 3. Custom Hooks (Data Fetching)
-```javascript
-// In component
-const { organizations, isLoading, error } = useOrganizations();
-const { processes } = useProcesses(organizationId);
-```
-
-#### 4. Callback Props (Child → Parent)
-```javascript
-// Parent defines callback
-const handleProcessCreated = () => {
-  // Refresh or update
-};
-
-// Pass to child
-<CreateProcessDialog onSuccess={handleProcessCreated} />
-
-// Child calls it
-onSubmit={(data) => {
-  createProcess(data);
-  onSuccess(); // Notify parent
-}}
-```
+As regras de cada coleção estão em [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md#2-regras-do-firestore).
 
 ---
 
-## Authentication Flow
+## 6. Frontend: inicialização e navegação
 
-### Initial Load
+`src/main.jsx` → `src/App.jsx`, que monta, nesta ordem: `ErrorBoundary`,
+`FirebaseAuthProvider` (`src/lib/FirebaseAuthContext.jsx`),
+`FeatureFlagsProvider`, tema V2 e alternância de tema, `QueryClientProvider`,
+roteador, `NavigationTracker` e `TwoFactorGate`.
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant App
-    participant FirebaseAuth
-    participant Firestore
-    
-    User->>App: Visit site
-    App->>FirebaseAuth: onAuthStateChanged listener
-    FirebaseAuth-->>App: User state (logged in/out)
-    
-    alt User is logged in
-        App->>Firestore: Fetch user profile
-        Firestore-->>App: User data
-        App->>User: Redirect to /Dashboard
-    else User is logged out
-        App->>User: Show /Landing
-    end
-```
+As rotas são geradas de `src/pages.config.js` (uma rota `/<NomeDaPágina>` por
+página). Dentro do órgão, a aba ativa vive em `?tab=`, o que permite
+compartilhar links e recarregar sem perder o lugar. A lista de abas vem de
+`getOrganizationTabs` (`src/lib/organizationModules.js`).
 
-### Login Process
+> Use sempre `useAuth` de `@/lib/FirebaseAuthContext`. O arquivo
+> `src/lib/AuthContext.jsx` é um resto da versão Base44 e seu provider não é
+> montado pelo App.
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Landing
-    participant FirebaseAuth
-    participant Google
-    participant Firestore
-    participant Dashboard
-    
-    User->>Landing: Click "Sign in with Google"
-    Landing->>FirebaseAuth: signInWithPopup()
-    FirebaseAuth->>Google: OAuth flow
-    Google-->>FirebaseAuth: User credentials
-    FirebaseAuth-->>Landing: User object
-    Landing->>Firestore: createOrUpdate /users/{uid}
-    Firestore-->>Landing: Success
-    Landing->>Dashboard: Navigate to /Dashboard
-```
+### Configuração do Firebase no cliente
 
-### Protected Routes
-
-```javascript
-// In App.jsx
-{user ? (
-  <Route path="/Dashboard" element={<Dashboard />} />
-) : (
-  <Route path="*" element={<Navigate to="/" />} />
-)}
-```
+`src/config/firebase.js` lê as variáveis `VITE_FIREBASE_*`. Se estiverem
+ausentes ou com valores de exemplo, usa a **configuração do projeto de
+produção** embutida no arquivo. Ou seja: `npm run dev` sem `.env` conecta à
+base real. Para trabalhar isolado, use os emuladores
+(`VITE_USE_EMULATORS=true`; ver [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)).
 
 ---
 
-## Data Flow
+## 7. Implantação
 
-### Read Operations (Query Pattern)
-
-```mermaid
-graph LR
-    A[Component Mount] --> B[useFirestore Hook]
-    B --> C[Firestore Query]
-    C --> D[Cache Check]
-    D -->|Cache Hit| E[Return Cached]
-    D -->|Cache Miss| F[Fetch from Server]
-    F --> G[Update Cache]
-    G --> H[Return Data]
-    E --> I[Component Render]
-    H --> I
-```
-
-### Write Operations (Mutation Pattern)
-
-```mermaid
-graph LR
-    A[User Action] --> B[Component Handler]
-    B --> C[Firestore Service]
-    C --> D[Security Rules Check]
-    D -->|Allowed| E[Write to Firestore]
-    D -->|Denied| F[Return Error]
-    E --> G[Update Local State]
-    G --> H[Re-render Component]
-    F --> I[Show Error Toast]
-```
-
-### Example: Creating a Process
-
-```javascript
-// 1. User clicks "Create Process"
-<CreateProcessDialog onSuccess={refetch} />
-
-// 2. Dialog submits data
-const handleSubmit = async (formData) => {
-  await createProcess({
-    ...formData,
-    organization_id: currentOrg.id
-  }, user.uid);
-};
-
-// 3. Service performs operation
-export async function createProcess(data, creatorUid) {
-  const processRef = await addDoc(collection(db, 'processes'), {
-    ...data,
-    created_by: creatorUid,
-    created_at: serverTimestamp()
-  });
-  
-  // Update organization stats
-  await updateDoc(doc(db, 'organizations', data.organization_id), {
-    'stats.processes_count': increment(1)
-  });
-  
-  return processRef.id;
-}
-
-// 4. Hook refreshes automatically
-const { processes } = useProcesses(orgId);
-// Processes list updates with new item
-```
-
----
-
-## State Management
-
-### Context-Based State
-
-**FirebaseAuthContext:**
-- **Scope:** Global
-- **Purpose:** Authentication state
-- **Data:**
-  ```javascript
-  {
-    user: User | null,
-    isLoading: boolean,
-    signInWithGoogle: () => Promise,
-    signInWithGoogleRedirect: () => Promise,
-    signOut: () => Promise
-  }
-  ```
-
-### Local Component State
-
-**useState Pattern:**
-```javascript
-const [formData, setFormData] = useState(initialState);
-const [isOpen, setIsOpen] = useState(false);
-const [selectedItem, setSelectedItem] = useState(null);
-```
-
-### Server State (via Hooks)
-
-**useFirestore Hooks:**
-```javascript
-const { organizations, isLoading, error } = useOrganizations();
-const { processes } = useProcesses(orgId, filters);
-const { members } = useOrganizationMembers(orgId);
-```
-
-**Pattern:**
-```javascript
-export function useCustomData(params) {
-  const [data, setData] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  useEffect(() => {
-    // Fetch logic
-  }, [params]);
-  
-  return { data, isLoading, error };
-}
-```
-
----
-
-## API Integration
-
-### Firebase SDK Usage
-
-#### Authentication
-```javascript
-import { auth } from '@/config/firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-
-const provider = new GoogleAuthProvider();
-const result = await signInWithPopup(auth, provider);
-```
-
-#### Firestore Queries
-```javascript
-import { db } from '@/config/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-
-const q = query(
-  collection(db, 'processes'),
-  where('organization_id', '==', orgId)
-);
-const snapshot = await getDocs(q);
-```
-
-#### Real-time Listeners
-```javascript
-import { onSnapshot } from 'firebase/firestore';
-
-useEffect(() => {
-  const unsubscribe = onSnapshot(
-    doc(db, 'organizations', orgId),
-    (doc) => {
-      setOrganization(doc.data());
-    }
-  );
-  return () => unsubscribe();
-}, [orgId]);
-```
-
----
-
-## Performance Optimization
-
-### Implemented Optimizations
-
-1. **Firestore Indexes:**
-   - 9 composite indexes for common queries
-   - Prevents full collection scans
-
-2. **Data Denormalization:**
-   - `user_name` in memberships (avoid joins)
-   - `responsible_user_name` in processes
-
-3. **Lazy Loading:**
-   - Components loaded only when needed
-   - React Router code splitting ready
-
-4. **Local State Management:**
-   - Filtering/searching done client-side
-   - Reduces server calls
-
-5. **Memoization Opportunities:**
-   - Calculated values can use `useMemo`
-   - Callbacks can use `useCallback`
-
-### Future Optimizations
-
-- [ ] Implement pagination for large datasets
-- [ ] Add React.lazy() for code splitting
-- [ ] Cache frequently accessed data
-- [ ] Implement optimistic UI updates
-- [ ] Add service worker for offline support
-
----
-
-## Deployment Architecture
-
-### Development Environment
-```
-Local Machine
-├── npm run dev → Vite Dev Server (http://localhost:5173)
-└── Firebase Emulators (optional)
-    ├── Auth Emulator
-    ├── Firestore Emulator
-    └── Functions Emulator
-```
-
-### Production Environment
-```
-Firebase Platform
-├── Firebase Hosting → CDN Distribution
-├── Firebase Authentication → User Management
-├── Firestore → Database
-└── Cloud Functions v2 → Backend Logic
-    ├── createProcess → Process creation + activity_log init
-    ├── updateProcess → Process updates + activity_log append
-    ├── deleteProcess → Process deletion
-    ├── importProcessesFromExcel → Spreadsheet import + field-level diff log
-    ├── createExpediente → Expediente creation + activity_log init
-    ├── updateExpediente → Expediente updates + activity_log append
-    ├── deleteExpediente → Expediente deletion
-    ├── importExpedientesFromExcel → Expediente spreadsheet import
-    ├── backfillProcessLogs → One-time retroactive log generation
-    ├── calculateProcessStatus → Status calculation
-    └── calculateExpedienteStatus → Status calculation for expedientes
-```
-
----
-
-## Conclusion
-
-This architecture provides:
-- ✅ **Scalability:** Firebase serverless infrastructure
-- ✅ **Security:** Granular Firestore rules
-- ✅ **Performance:** Optimized indexes and denormalization
-- ✅ **Maintainability:** Clear separation of concerns
-- ✅ **Developer Experience:** Modern React patterns
-
-For specific implementation details, see other reference documents:
-- Security → `SECURITY_REFERENCE.md`
-- Features → `FEATURES_REFERENCE.md`
-- Design → `DESIGN_SYSTEM_REFERENCE.md`
+- **CI** (`.github/workflows/ci.yml`): em push para `main`/`development` e em
+  todo pull request — instala dependências, `npm run lint`, `npm run
+  typecheck`, compila as functions e faz o build do frontend.
+- **Deploy** (`.github/workflows/deploy.yml`): a cada push em `main` (ou
+  manualmente) publica hosting, functions, regras e índices no projeto Firebase
+  `protagonista-rpg`. O `firebase.json` declara o site `sigo`; como esse ID é
+  reservado globalmente, o workflow usa o primeiro disponível de uma lista
+  (hoje `sigo-caocipp`) e reescreve o `firebase.json` durante o deploy. Sem os
+  segredos de deploy, o job termina verde sem publicar.
+- Os segredos e a configuração do Cloud Scheduler estão em
+  [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md#6-deploy) e
+  [CI-DEPLOY-PERMISSIONS.md](./CI-DEPLOY-PERMISSIONS.md).

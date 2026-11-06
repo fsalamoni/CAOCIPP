@@ -1,793 +1,157 @@
-# 🔒 SIGO - Security Reference
+# Segurança, privacidade e LGPD
 
-**Version:** 1.2.0 - Final (Precision Rebranding)  
-**Last Updated:** 2026-02-12  
-**Purpose:** Complete security documentation for the SIGO platform
-
----
-
-## Table of Contents
-
-1. [Security Overview](#security-overview)
-2. [Authentication Security](#authentication-security)
-3. [Firestore Security Rules](#firestore-security-rules)
-4. [Authorization Patterns](#authorization-patterns)
-5. [Data Protection](#data-protection)
-6. [Client-Side Security](#client-side-security)
-7. [Security Best Practices](#security-best-practices)
-8. [Threat Model](#threat-model)
-9. [Security Checklist](#security-checklist)
+Como o SIGO autentica, autoriza e protege os dados — e quais limites existem
+hoje. Este documento descreve o que o código faz; quando algo é só convenção
+de interface, isso é dito.
 
 ---
 
-## Security Overview
+## 1. Modelo em camadas
 
-### Security Principles
+| Camada | Onde | O que garante |
+|---|---|---|
+| Autenticação | Firebase Authentication (Google) | Toda leitura e escrita exige usuário autenticado. |
+| Regras do Firestore | `firestore.rules` | Leitura só para membros do órgão dono do documento; coleções sensíveis fechadas para escrita do cliente. |
+| Cloud Functions | `functions-v2/src/**` | Validação de dados, papel, atribuições, fase, IDOR (o `organization_id` do documento é comparado ao da requisição) e auditoria. |
+| Interface | `src/**` | Esconde o que o usuário não pode fazer. **Nunca é a garantia** — o servidor confere de novo. |
 
-1. **Authentication Required:** All operations require user to be logged in
-2. **Role-Based Access Control (RBAC):** Permissions based on user role in organization
-3. **Data Isolation:** Organizations are completely isolated from each other
-4. **Least Privilege:** Users can only access data they need
-5. **Defense in Depth:** Multiple layers of security (client + server)
-
-### Security Layers
-
-```
-┌─────────────────────────────────────────────────────┐
-│ Layer 1: Firebase Authentication (OAuth 2.0)        │
-│ - Google Sign-In only                               │
-│ - JWT tokens                                        │
-│ - Session management                                │
-└─────────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────────┐
-│ Layer 2: Firestore Security Rules                   │
-│ - Server-side validation                            │
-│ - Role-based permissions                            │
-│ - Data validation                                   │
-└─────────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────────┐
-│ Layer 3: Client-Side Validation                     │
-│ - Input sanitization                                │
-│ - UI-based restrictions                             │
-│ - Form validation                                   │
-└─────────────────────────────────────────────────────┘
-```
+Regra geral do projeto: *a interface avisa, o servidor exige.*
 
 ---
 
-## Authentication Security
+## 2. Regras do Firestore
 
-### Firebase Authentication
+Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
+`userOrganizations/{uid}_{orgId}`), `hasRole(orgId, roles)` e
+`isPlatformAdmin()` (claim `platformAdmin`).
 
-#### Configuration
+| Coleção | Leitura | Escrita pelo cliente |
+|---|---|---|
+| `users/{uid}` | Qualquer autenticado (para exibir nomes e fotos) | Só o próprio usuário |
+| `userPreferences/{uid}` | Só o próprio | Só o próprio |
+| `organizations/{id}` | Membros | **Nenhuma** (só Functions) |
+| `userOrganizations/{id}` | O próprio vínculo ou membros do mesmo órgão | **Nenhuma** |
+| `processes`, `expedientes`, `parcerias` | Membros do órgão | Criar: membro. Editar: criador/admin ou o responsável, sem trocar `organization_id`. Excluir: criador/admin. Subcoleções `history`, `aditivos`, `comments`: nenhuma. |
+| `juris`, `jurimetriaTemplates`, `panoramaBases`, `panoramaRegistros`, `panoramaTemplates`, `entityTypes`, `customRecords` | Membros do órgão | **Nenhuma** |
+| `auditLogs` | Membros do órgão | **Nenhuma** |
+| `notifications` | Só o destinatário | Só marcar como lida (`read`, `read_at`) |
+| `presence` | Membros do órgão | Só o próprio heartbeat |
+| `otpCodes` | **Nenhuma** | **Nenhuma** |
+| `platformConfig` | Qualquer autenticado | **Nenhuma** |
+| `platformAdmins` | O próprio registro ou super-admin | **Nenhuma** |
+| `platformStats` | Só super-admin | **Nenhuma** |
 
-```javascript
-// src/config/firebase.js
-const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY,
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-  // ... other config
-};
-```
-
-**Security Notes:**
-- ✅ API keys are public (by design in Firebase)
-- ✅ Security is enforced by Firestore rules
-- ✅ Environment variables prevent accidental commits
-- ✅ Auth domain restricts valid redirect URIs
-
-#### Supported Authentication Methods
-
-**Current:**
-- ✅ Google Sign-In (OAuth 2.0)
-
-**Future Considerations:**
-- Email/Password (with email verification)
-- Microsoft/Azure AD (for government integration)
-- SAML (for enterprise SSO)
-
-#### Authentication Flow Security
-
-```javascript
-// FirebaseAuthContext.jsx
-const signInWithGoogle = async () => {
-  try {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({
-      prompt: 'select_account' // Force account selection
-    });
-    const result = await signInWithPopup(auth, provider);
-    
-    // User is now authenticated
-    // Firestore rules will enforce authorization
-  } catch (error) {
-    // Handle errors securely (no sensitive data in logs)
-    logger.error('Auth error', { code: error.code });
-  }
-};
-```
-
-**Security Features:**
-- ✅ HTTPS enforced
-- ✅ Cross-Site Request Forgery (CSRF) protection (Firebase handles)
-- ✅ Session hijacking protection (short-lived tokens)
-- ✅ Account selection required (no auto-login)
-
-#### Token Management
-
-**ID Tokens:**
-- **Lifetime:** 1 hour
-- **Refresh:** Automatic (Firebase SDK)
-- **Storage:** Browser memory + localStorage (encrypted)
-- **Validation:** Server-side by Firebase
-
-```javascript
-// Getting current user token
-const user = auth.currentUser;
-const token = await user.getIdToken();
-
-// Token is automatically sent with Firestore requests
-```
+Consultas, Expedientes e Parcerias ainda aceitam escrita direta nas condições
+acima, embora o app grave tudo por Cloud Function. Os módulos mais novos já
+nasceram fechados (`allow write: if false`).
 
 ---
 
-## Firestore Security Rules
+## 3. LGPD e proteção de dados
 
-### Rule Structure
+### Que dados pessoais o sistema guarda
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isUser(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    
-    // Collection rules
-    match /users/{userId} {
-      // Rules here
-    }
-  }
-}
-```
+- **Usuários:** nome, e-mail e foto da conta Google, função, e-mail de
+  notificação.
+- **Registros:** nomes de consulentes, partes de parcerias, responsáveis,
+  descrições de objeto e observações; no Panorama e na Jurimetria, o que vier
+  nas planilhas importadas pelo órgão (números de processo, réus, vítimas,
+  comarcas etc., conforme a base).
+- **Trilhas:** histórico de cada registro, `auditLogs` (quem fez o quê e
+  quando), presença em tempo real.
 
-### Collection-Specific Rules
+### Controles existentes
 
-#### 1. `/users/{userId}`
+| Controle | Como funciona |
+|---|---|
+| **Isolamento por órgão** | Nenhum membro lê dados de órgão do qual não participa (regras + Functions). |
+| **Mínimo privilégio na administração** | Configurações sensíveis exigem atribuição específica; retenção, webhooks, automação e IA são exclusivas do criador. |
+| **Restrição de acesso** (`access_restriction` nas Consultas) | Marca o registro como sigiloso na interface e, ao abri-lo, grava um evento de acesso. |
+| **Log de acesso e exportação** (`access_audit_log`, integrado) | `logAccess` registra aberturas de registros restritos e exportações de tabela em `auditLogs`; `getOrgAccessLog` permite ao criador ou a admins consultar e exportar o histórico. |
+| **Retenção e anonimização** (`data_retention_policy`, integrado) | Duas etapas, sempre manuais e só pelo criador: `previewAnonymization` lista as Consultas arquivadas há mais de `retentionConfig.anonymizeAfterDays` (padrão 365 dias); `runAnonymization` anonimiza apenas os IDs confirmados (até 300 por vez), revalidando a elegibilidade no servidor. Substitui o campo **consulente** por "Consulente anonimizado (LGPD)" e registra em `auditLogs`. |
+| **Exportações no navegador** | PDF, Excel, CSV, Word, JSON e Markdown são gerados localmente; nenhum dado vai a serviço externo. Valores de célula iniciados por `=`, `+`, `-`, `@` recebem `'` (proteção contra injeção de fórmulas). |
+| **Preferências locais** | `localStorage` guarda só preferências de exibição (chaveadas por órgão), nunca dados de registros. |
+| **Cabeçalhos HTTP** | `firebase.json`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`. |
+| **Localização do processamento** | Cloud Functions em `southamerica-east1` (São Paulo). A localização do banco Firestore é definida no projeto Firebase e não consta do repositório. |
 
-**Purpose:** User profile documents
+### Limites conhecidos (importantes para a avaliação de conformidade)
 
-```javascript
-match /users/{userId} {
-  allow read: if isAuthenticated() && isUser(userId);
-  
-  allow create: if isAuthenticated() 
-    && isUser(userId)
-    && request.resource.data.keys().hasAll([
-      'email', 'full_name', 'created_at'
-    ])
-    && request.resource.data.email == request.auth.token.email;
-  
-  allow update: if isAuthenticated()
-    && isUser(userId)
-    && !request.resource.data.diff(resource.data).affectedKeys()
-      .hasAny(['created_at', 'email']);
-  
-  allow delete: if false; // Users cannot delete their own profile
-}
-```
-
-**Security Guarantees:**
-- ✅ Users can only access their own profile
-- ✅ Email must match authenticated email
-- ✅ Cannot modify creation date or email after creation
-- ✅ Cannot delete profile (data retention)
-
-#### 2. `/organizations/{orgId}`
-
-**Purpose:** Organization documents
-
-```javascript
-match /organizations/{orgId} {
-  allow create: if isAuthenticated()
-    && request.resource.data.created_by == request.auth.uid
-    && request.resource.data.keys().hasAll([
-      'name', 'invite_code', 'created_by', 'created_at'
-    ]);
-  
-  allow read: if isAuthenticated() && isMemberOf(orgId);
-  
-  allow update: if isAuthenticated()
-    && hasRole(orgId, ['creator'])
-    && !request.resource.data.diff(resource.data).affectedKeys()
-      .hasAny(['created_by', 'created_at', 'invite_code']);
-  
-  allow delete: if isAuthenticated() && hasRole(orgId, ['creator']);
-}
-```
-
-**Helper Functions:**
-
-```javascript
-function isMemberOf(orgId) {
-  return exists(/databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId));
-}
-
-function getMembership(orgId) {
-  return get(/databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId));
-}
-
-function hasRole(orgId, roles) {
-  return isMemberOf(orgId) 
-    && getMembership(orgId).data.role in roles;
-}
-```
-
-**Security Guarantees:**
-- ✅ Only organization members can read
-- ✅ Only creator can modify/delete
-- ✅ Cannot change creator or invite code after creation
-- ✅ Stats can only be updated by server (not in allowed keys)
-
-#### 3. `/userOrganizations/{membershipId}`
-
-**Purpose:** Membership documents
-
-```javascript
-match /userOrganizations/{membershipId} {
-  allow create: if isAuthenticated()
-    && (
-      // Scenario 1: Creating own membership when creating org
-      (request.resource.data.user_id == request.auth.uid
-        && request.resource.data.role == 'creator')
-      ||
-      // Scenario 2: Joining via invite code
-      (request.resource.data.user_id == request.auth.uid
-        && request.resource.data.role == 'member'
-        && validateInviteCode(request.resource.data.organization_id))
-    );
-  
-  allow read: if isAuthenticated()
-    && (
-      request.resource.data.user_id == request.auth.uid
-      || isMemberOf(request.resource.data.organization_id)
-    );
-  
-  allow update: if isAuthenticated()
-    && hasRole(request.resource.data.organization_id, ['creator'])
-    && !request.resource.data.diff(resource.data).affectedKeys()
-      .hasAny(['user_id', 'organization_id', 'role', 'joined_at']);
-  
-  allow delete: if isAuthenticated()
-    && hasRole(resource.data.organization_id, ['creator'])
-    && resource.data.role != 'creator'; // Cannot remove creator
-}
-```
-
-**Helper for Invite Code:**
-
-```javascript
-function validateInviteCode(orgId) {
-  let org = get(/databases/$(database)/documents/organizations/$(orgId));
-  return org.data.invite_code != null;
-}
-```
-
-**Security Guarantees:**
-- ✅ Users can only create their own memberships
-- ✅ Creator role can only be assigned during org creation
-- ✅ Joining requires organization to exist (validated by invite code check)
-- ✅ Only creator can modify memberships
-- ✅ Cannot change user_id, org_id, or role after creation
-- ✅ Creator cannot be removed
-
-#### 4. `/processes/{processId}`
-
-**Purpose:** Process tracking documents
-
-```javascript
-match /processes/{processId} {
-  allow create: if isAuthenticated()
-    && isMemberOf(request.resource.data.organization_id)
-    && request.resource.data.created_by == request.auth.uid
-    && request.resource.data.keys().hasAll([
-      'organization_id', 'process_number', 'consultant',
-      'location', 'entry_date', 'matter_object'
-    ]);
-  
-  allow read: if isAuthenticated()
-    && isMemberOf(resource.data.organization_id)
-    && (!resource.data.access_restriction
-        || hasRole(resource.data.organization_id, ['creator', 'admin'])
-        || isOwner(resource.data.responsible_user_id));
-  
-  allow update: if isAuthenticated()
-    && isMemberOf(resource.data.organization_id)
-    && (hasRole(resource.data.organization_id, ['creator', 'admin'])
-        || isOwner(resource.data.responsible_user_id))
-    && request.resource.data.organization_id == resource.data.organization_id;
-  
-  allow delete: if isAuthenticated()
-    && isMemberOf(resource.data.organization_id)
-    && hasRole(resource.data.organization_id, ['creator', 'admin']);
-}
-```
-
-**Helper Functions:**
-
-```javascript
-function isOwner(userId) {
-  return request.auth.uid == userId;
-}
-```
-
-**Security Guarantees:**
-- ✅ Only organization members can create processes
-- ✅ Required fields enforced at creation
-- ✅ Access restriction limits visibility to admins/assigned user
-- ✅ Update allowed for admins or assigned user
-- ✅ Delete restricted to creator/admin
-- ✅ Cannot change organization_id after creation
-
-#### 5. `/notifications/{notificationId}`
-
-**Purpose:** User notifications (optional)
-
-```javascript
-match /notifications/{notificationId} {
-  allow create: if isAuthenticated(); // Any authenticated user
-  
-  allow read: if isAuthenticated()
-    && request.auth.uid == resource.data.user_id;
-  
-  allow update: if isAuthenticated()
-    && isUser(resource.data.user_id)
-    && request.resource.data.diff(resource.data).affectedKeys()
-      .hasOnly(['read']);
-  
-  allow delete: if isAuthenticated()
-    && isUser(resource.data.user_id);
-}
-```
-
-**Security Guarantees:**
-- ✅ Users can only read their own notifications
-- ✅ Can only mark as read (no other modifications)
-- ✅ Can delete own notifications
+1. **Hospedagem e identidade não institucionais.** O sistema roda num projeto
+   Firebase mantido pela equipe, com contas Google, fora da infraestrutura e do
+   login do MPRS, e não passou por homologação da TI institucional.
+2. **"Restrição de acesso" não restringe leitura.** Todo membro do órgão lê
+   todos os registros do órgão, inclusive os marcados como restritos. A
+   marcação serve para sinalizar e auditar, não para bloquear.
+3. **`auditLogs` é legível por qualquer membro** pelas regras do Firestore. A
+   tela de log de acesso é limitada a criador e admins na Cloud Function, mas
+   uma leitura direta da coleção não passa por essa checagem.
+4. **Anonimização parcial.** Só o campo consulente das Consultas é
+   substituído. Objeto, observações, histórico e os demais módulos não são
+   anonimizados.
+5. **Sem criptografia em nível de campo** além da criptografia em repouso
+   padrão do Google Cloud.
+6. **Terceiros:** e-mails (código de 2FA e, quando reativados, relatórios)
+   passam pelo provedor Resend; webhooks enviam dados do evento para a URL
+   configurada pelo criador.
 
 ---
 
-## Authorization Patterns
+## 4. Autenticação
 
-### Role Hierarchy
-
-```
-Creator (Organization Owner)
-  ├── Full control over organization
-  ├── Can add/remove members
-  ├── Can delete processes
-  ├── Can view restricted processes
-  └── Cannot be removed
-  
-Admin (Optional - not yet implemented)
-  ├── Can manage processes
-  ├── Can view restricted processes
-  └── Can be removed by creator
-  
-Member (Default)
-  ├── Can create processes
-  ├── Can edit assigned processes
-  ├── Cannot delete processes
-  └── Cannot view restricted processes (unless assigned)
-```
-
-### Permission Matrix
-
-| Action | Creator | Admin | Member | Non-Member |
-|--------|---------|-------|--------|------------|
-| **Organizations** |
-| Read org info | ✅ | ✅ | ✅ | ❌ |
-| Update org | ✅ | ❌ | ❌ | ❌ |
-| Delete org | ✅ | ❌ | ❌ | ❌ |
-| **Members** |
-| View members | ✅ | ✅ | ✅ | ❌ |
-| Add members (via invite) | ✅ | ✅ | ✅ | ❌ |
-| Remove members | ✅ | ❌ | ❌ | ❌ |
-| Edit member function | ✅ | ❌ | ❌ | ❌ |
-| **Processes** |
-| Create process | ✅ | ✅ | ✅ | ❌ |
-| Read all processes | ✅ | ✅ | ✅ | ❌ |
-| Read restricted process | ✅ | ✅ | ⚠️ (if assigned) | ❌ |
-| Update any process | ✅ | ✅ | ❌ | ❌ |
-| Update assigned process | ✅ | ✅ | ✅ | ❌ |
-| Delete process | ✅ | ✅ | ❌ | ❌ |
-
-**Legend:** ✅ Allowed | ❌ Denied | ⚠️ Conditional
+- **Google Sign-In** (`src/lib/FirebaseAuthContext.jsx`), com seleção de conta
+  sempre exibida.
+- **2FA por e-mail** (flag opcional `two_factor_auth`): não é o MFA nativo do
+  Firebase. Código de 6 dígitos, válido por 5 minutos, guardado com hash em
+  `otpCodes/{uid}` (inacessível ao cliente), com intervalo mínimo entre envios.
+  **Falha aberta:** se o e-mail não puder ser enviado (provedor ausente),
+  `TwoFactorGate` libera o acesso, para não trancar o usuário fora da conta.
+- **Super-admin:** custom claim `platformAdmin`, documento ativo em
+  `platformAdmins/{uid}` ou e-mail em `PLATFORM_ADMIN_EMAILS` (bootstrap).
+  Concessão por `grantPlatformAdmin` ou pelo script
+  `functions-v2/scripts/bootstrap-platform-admin.js`.
 
 ---
 
-## Data Protection
+## 5. Autorização dentro do órgão
 
-### Sensitive Data Handling
+| Papel | Poderes |
+|---|---|
+| `creator` | Todos, implicitamente. Atribuído só em `createOrganization`; não pode ser removido nem rebaixado. |
+| `admin` | Muda papel/função de membros, remove membros, consulta o log de acesso, testa webhooks, gerencia páginas personalizadas. Pelas regras, também edita e exclui Consultas/Expedientes/Parcerias diretamente. |
+| `member` | Lê tudo do órgão; cria e edita registros pelas Cloud Functions. |
 
-#### Personal Identifiable Information (PII)
+**Atribuições delegáveis** (só o criador concede; chaves sincronizadas entre
+`src/constants/orgPermissions.js` e `functions-v2/src/shared/permissions.ts`):
+`edit_details`, `manage_matters`, `configure_expedientes`,
+`configure_parcerias`, `configure_jurimetria`, `configure_panorama`,
+`manage_metrics`, `manage_modules`, `bulk_standardize`, `delete_records`.
+Chaves desconhecidas são descartadas e qualquer valor diferente de `true` vira
+`false` (`sanitizePermissions`).
 
-**Collected PII:**
-- Email address (from Google Auth)
-- Full name (from Google Auth)
-- Profile photo URL (from Google Auth)
-
-**Storage:**
-- `/users/{userId}` collection
-- Encrypted in transit (HTTPS)
-- Encrypted at rest (Firebase default)
-
-**Access Control:**
-- User can only access own PII
-- Not shared with other users (except in memberships)
-
-#### Process Data
-
-**Sensitivity Levels:**
-
-1. **Public (within org):** All processes by default
-2. **Restricted:** `access_restriction: true`
-   - Only visible to:
-     - Creator
-     - Admins
-     - Assigned user (`responsible_user_id`)
-
-**Implementation:**
-
-```javascript
-// In Firestore rules
-allow read: if isAuthenticated()
-  && isMemberOf(resource.data.organization_id)
-  && (!resource.data.access_restriction
-      || hasRole(resource.data.organization_id, ['creator', 'admin'])
-      || isOwner(resource.data.responsible_user_id));
-```
-
-### Data Encryption
-
-**In Transit:**
-- ✅ HTTPS enforced (Firebase default)
-- ✅ TLS 1.2+ (modern browsers)
-- ✅ Certificate pinning (Firebase handles)
-
-**At Rest:**
-- ✅ AES-256 encryption (Firebase default)
-- ✅ Encrypted backups
-- ✅ Key rotation (Firebase handles)
-
-### Data Retention
-
-**User Data:**
-- Retained while account is active
-- Manual deletion not implemented (by design)
-- Future: Implement GDPR-compliant deletion
-
-**Organization Data:**
-- Retained indefinitely
-- Deleted when organization is deleted (cascade)
-
-**Process Data:**
-- Retained indefinitely
-- `archived_date` for soft deletion
-- Future: Implement retention policies
+`updateOrganization` exige, para cada campo enviado, a atribuição
+correspondente (mapa `FIELD_PERMISSION`); campos de automação, segurança e IA
+são só do criador. A exclusão de registros em todos os módulos exige
+`delete_records`.
 
 ---
 
-## Client-Side Security
+## 6. Proteções específicas
 
-### Input Validation
-
-**Form Validation:**
-
-```javascript
-// Example: Process number validation
-const validateProcessNumber = (value) => {
-  const pattern = /^\d{5}\.\d{3}\.\d{3}\/\d{4}$/;
-  return pattern.test(value);
-};
-
-// Date validation
-const validateDate = (value) => {
-  const date = new Date(value);
-  return date instanceof Date && !isNaN(date);
-};
-```
-
-**Sanitization:**
-
-```javascript
-// HTML escaping (React does this by default)
-<p>{userInput}</p> // Automatically escaped
-
-// URL validation
-const isValidUrl = (string) => {
-  try {
-    new URL(string);
-    return true;
-  } catch (_) {
-    return false;  
-  }
-};
-```
-
-### XSS Protection
-
-**React's Built-in Protection:**
-- ✅ Auto-escapes all variables in JSX
-- ✅ `dangerouslySetInnerHTML` NOT used
-- ✅ No `eval()` or `Function()` constructor used
-
-**Content Security Policy (CSP):**
-
-Future implementation in Firebase Hosting:
-```json
-{
-  "headers": [{
-    "source": "**",
-    "headers": [{
-      "key": "Content-Security-Policy",
-      "value": "default-src 'self'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com"
-    }]
-  }]
-}
-```
-
-### CSRF Protection
-
-**Firebase Handles:**
-- ✅ CSRF tokens in authentication
-- ✅ SameSite cookies
-- ✅ Origin checking
-
-**Client Implementation:**
-- No special handling needed (Firebase SDK handles)
+- **Webhooks:** bloqueio de SSRF (endereços internos e de metadados do GCP),
+  timeout curto e falha silenciosa — um destino fora do ar não derruba a
+  operação que o disparou (`functions-v2/src/shared/webhooks.ts`).
+- **Exclusão do órgão:** exige o nome exato do órgão, verificado no servidor, e
+  apaga em cascata as coleções do órgão (`ORG_SCOPED_COLLECTIONS` em
+  `organizations/delete.ts`).
+- **`logAccess`:** limita o tamanho do campo livre `details`.
+- **Segredos:** `.env`, `functions-v2/.env` e chaves de conta de serviço são
+  ignorados pelo git. No deploy, os segredos vêm do GitHub Actions. A
+  configuração web do Firebase embutida em `src/config/firebase.js` é pública
+  por natureza (identifica o projeto, não concede acesso).
 
 ---
 
-## Security Best Practices
-
-### For Developers
-
-#### 1. Never Trust Client Input
-
-```javascript
-// ❌ BAD
-const createProcess = (data) => {
-  // Directly save user input
-  await addDoc(collection(db, 'processes'), data);
-};
-
-// ✅ GOOD
-const createProcess = (data, userId) => {
-  // Validate and sanitize
-  const validatedData = {
-    process_number: validateProcessNumber(data.process_number),
-    consultant: sanitizeString(data.consultant),
-    created_by: userId, // From auth, not client
-    created_at: serverTimestamp() // Server time, not client
-  };
-  await addDoc(collection(db, 'processes'), validatedData);
-};
-```
-
-#### 2. Use Server Timestamps
-
-```javascript
-// ❌ BAD
-created_at: new Date().toISOString() // Client time can be manipulated
-
-// ✅ GOOD
-created_at: serverTimestamp() // Server time, cannot be faked
-```
-
-#### 3. Validate in Rules
-
-```javascript
-// Firestore rules
-allow create: if request.resource.data.keys().hasAll([
-  'required_field_1', 'required_field_2'
-]);
-```
-
-#### 4. Never Expose Secrets
-
-```javascript
-// ❌ BAD
-const apiKey = "sk_live_abc123"; // Hardcoded secret
-
-// ✅ GOOD
-const apiKey = process.env.VITE_API_KEY; // Environment variable
-```
-
-#### 5. Implement Proper Error Handling
-
-```javascript
-// ❌ BAD
-} catch (error) {
-  console.log(error); // Exposes stack trace
-  alert(error.message); // Shows internal error to user
-}
-
-// ✅ GOOD
-} catch (error) {
-  logger.error('Error creating process', { code: error.code });
-  toast.error('Não foi possível criar o processo. Tente novamente.');
-}
-```
-
-### For Users
-
-#### Education Points
-
-1. **Strong Passwords:** (if implementing email/password)
-2. **Account Security:** Use Google's 2FA
-3. **Invite Code Security:** Don't share publicly
-4. **Access Restriction:** Use for sensitive processes
-5. **Logout:** Always logout on shared devices
-
----
-
-## Threat Model
-
-### Identified Threats
-
-#### 1. Unauthorized Data Access
-
-**Threat:** User trying to access another organization's data
-
-**Mitigation:**
-- ✅ Firestore rules check membership
-- ✅ Client-side checks (defense in depth)
-- ✅ No direct ID exposure in URLs (future: use slugs)
-
-**Risk Level:** LOW (well mitigated)
-
-#### 2. Privilege Escalation
-
-**Threat:** Member trying to perform admin actions
-
-**Mitigation:**
-- ✅ Role-based rules in Firestore
-- ✅ UI hides unauthorized actions
-- ✅ Creator role immutable
-
-**Risk Level:** LOW (well mitigated)
-
-#### 3. Data Injection
-
-**Threat:** Malicious data submitted via forms
-
-**Mitigation:**
-- ✅ React auto-escapes JSX
-- ✅ Server-side validation in rules
-- ✅ Input sanitization
-
-**Risk Level:** LOW (well mitigated)
-
-#### 4. Session Hijacking
-
-**Threat:** Attacker stealing user session
-
-**Mitigation:**
-- ✅ HTTPS only
-- ✅ Short-lived tokens (1 hour)
-- ✅ SameSite cookies
-- ⚠️ No explicit logout on inactivity (future)
-
-**Risk Level:** MEDIUM (partially mitigated)
-
-#### 5. Denial of Service (DoS)
-
-**Threat:** Flooding with requests
-
-**Mitigation:**
-- ✅ Firebase quotas and rate limiting
-- ⚠️ No app-level rate limiting (future)
-- ⚠️ No CAPTCHA on forms (future)
-
-**Risk Level:** MEDIUM (partially mitigated)
-
-#### 6. Invite Code Guessing
-
-**Threat:** Brute-force guessing invite codes
-
-**Mitigation:**
-- ✅ 8-character codes = 208 billion combinations
-- ✅ Firebase rate limiting
-- ⚠️ No lockout after failed attempts (future)
-
-**Risk Level:** LOW (acceptable)
-
-### Future Security Enhancements
-
-- [ ] Implement login attempt monitoring
-- [ ] Add session timeout (auto-logout after inactivity)
-- [ ] Implement audit logging
-- [ ] Add CAPTCHA on invite code entry
-- [ ] Implement API rate limiting
-- [ ] Add data export (GDPR compliance)
-- [ ] Implement right-to-delete (GDPR compliance)
-
----
-
-## Security Checklist
-
-### Pre-Deployment
-
-- [x] Firestore rules deployed
-- [x] Environment variables configured
-- [x] HTTPS enforced
-- [ ] Security audit performed
-- [ ] Penetration testing completed
-- [ ] Authorized domains configured
-- [ ] Production Firebase project created
-
-### Post-Deployment
-
-- [ ] Monitor error logs daily
-- [ ] Review access logs weekly
-- [ ] Update dependencies monthly
-- [ ] Security audit quarterly
-- [ ] Review Firestore rules quarterly
-- [ ] Test restore from backup monthly
-
-### Incident Response
-
-**If security breach detected:**
-
-1. **Immediate:**
-   - Disable affected accounts
-   - Block malicious IPs (Firebase Console)
-   - Alert users
-
-2. **Investigation:**
-   - Review audit logs
-   - Identify attack vector
-   - Assess data exposure
-
-3. **Remediation:**
-   - Patch vulnerabilities
-   - Reset compromised credentials
-   - Update security rules
-
-4. **Post-Mortem:**
-   - Document incident
-   - Update security procedures
-   - Implement preventive measures
-
----
-
-## Conclusion
-
-The SIGO platform implements **defense in depth** with multiple security layers:
-
-1. ✅ **Authentication:** Firebase OAuth 2.0
-2. ✅ **Authorization:** Role-based Firestore rules
-3. ✅ **Data Protection:** Encryption + access control
-4. ✅ **Client Security:** Input validation + XSS protection
-5. ✅ **Network:** HTTPS + Firebase infrastructure
-
-**Current Security Posture:** STRONG  
-**Remaining Risks:** Acceptable for current use case  
-**Recommendations:** Implement future enhancements before scaling
-
----
-
-## Módulo Parcerias (v1.16.0) — Decisões de Segurança Específicas
+## 7. Parcerias — decisões de segurança
 
 ### Lock de campos quando a Parceria tem aditivos
 
@@ -813,11 +177,11 @@ Nova chave delegável no `OrgPermissionKey` (em `functions-v2/src/shared/permiss
 
 ### Flag `parcerias_enabled`
 
-Default OFF (zero impacto em produção). O painel "Administração & Custos" do super-admin liga/desliga a flag globalmente. Quando a flag `custom_entities` também está ligada, cada órgão pode ligar/desligar Parcerias individualmente via `moduleConfig.parcerias.enabled` (toggle em Páginas e Módulos).
+Integrada ao produto (ligada por padrão, fora da tela de flags). Cada órgão liga ou desliga Parcerias em *Páginas e Módulos* (`moduleConfig.parcerias.enabled`).
 
-**Defesa em profundidade**: a flag global é checada também em `getOrganizationTabs` e `getActiveDataPages` — mesmo que `moduleConfig.parcerias.enabled = true` no órgão, se a flag global estiver OFF, as abas e métricas de Parcerias não aparecem. Configurado no frontend em `src/lib/organizationModules.js` e `src/lib/dashboardMetrics.js`.
+**Defesa em profundidade**: a flag global continua sendo checada em `getOrganizationTabs` e `getActiveDataPages` — se for desligada como válvula de emergência (`false` explícito em `platformConfig/featureFlags`), as abas e métricas de Parcerias somem mesmo com `moduleConfig.parcerias.enabled = true`. Ver `src/lib/organizationModules.js` e `src/lib/dashboardMetrics.js`.
 
-## Módulo Jurimetria — Decisões de Segurança Específicas
+## 8. Jurimetria — decisões de segurança
 
 ### Coleção `juris/` — escrita 100% servidor
 
@@ -879,7 +243,7 @@ O arquivo é descompactado com a API nativa `DecompressionStream` e interpretado
 
 ---
 
-## Módulo Panorama — Decisões de Segurança Específicas
+## 9. Panorama — decisões de segurança
 
 O Panorama guarda **dados de processo definidos pelo próprio órgão**: o esquema
 de cada base vem da planilha importada, e não do código. Isso muda o que precisa
@@ -978,10 +342,3 @@ hook avisa ao se aproximar. Não é controle de segurança, é limite de recurso
 mas está documentado aqui porque é o ponto em que uma base grande degrada a
 experiência em vez de falhar visivelmente.
 
----
-
-For implementation details, see:
-- Architecture → `ARCHITECTURE_REFERENCE.md`
-- Features → `FEATURES_REFERENCE.md`
-- Jurimetria → `JURIMETRIA.md`
-- Panorama → `PANORAMA.md`

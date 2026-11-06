@@ -1,339 +1,109 @@
-# SIGO (Version 1.16.0)
-
-Sistema de gestão de processos para o Centro de Apoio Operacional.
-
-**Last Updated:** 04/08/2026
-
-## 🚀 Tecnologias
-
-- **Frontend**: React 18 + Vite
-- **UI**: shadcn/ui + Tailwind CSS
-- **Backend**: Firebase (Auth + Firestore + Cloud Functions v2)
-- **Deploy**: Firebase Hosting → [sigo-caocipp.web.app](https://sigo-caocipp.web.app) (site principal) e [consultascao.web.app](https://consultascao.web.app) (redirect 301 → sigo-caocipp.web.app)
-
-> **Nota sobre `sigo.web.app`**: o domínio `sigo.web.app` **não pode** ser custom domain de outro site Firebase porque `*.web.app` é reservado para projetos Firebase. O site `sigo-caocipp` é o site ID do nosso projeto. Para usar `sigo.web.app` como URL visível, seria preciso comprar um domínio customizado (ex: `sigo.mp.rs.gov.br`) e configurá-lo como custom domain do site `sigo-caocipp`.
-
-## 📋 Funcionalidades
-
-- ✅ Autenticação com Google (Firebase Auth)
-- ✅ Gerenciamento de organizações
-- ✅ Sistema de membros com roles
-- ✅ Tracking de processos
-- ✅ Importação de processos via Excel/CSV/JSON
-- ✅ Dashboard com estatísticas
-- ✅ Sistema de status automatizado
-- ✅ Auditoria de Paridade de Dados (100% visibilidade DB ↔ UI)
-- ✅ Tratamento resiliente de dados históricos e assessores legados
-- ✅ Sincronização em tempo real (onSnapshot)
-- ✅ Hover inteligente e uniforme em colunas fixas
-- ✅ Módulo Dedicado de Expedientes Administrativos
-- ✅ **Módulo de Parcerias (Convênio, Termo de Cooperação, Termo de Fomento)** com 6 fases, Kanban próprio, aditivos e configuração de terceiros
-- ✅ Quadro Kanban com drag-and-drop bidirecional (Consultas, Expedientes e Parcerias)
-- ✅ Log de atividades estruturado (auditoria completa)
-- ✅ Backfill retroativo de logs para processos existentes
-- ✅ Auto-distribuição e fluxo inteligente para assessores
-- ✅ Arquivamento com data de devolução manual
-- ✅ UI Refinada (abas reorganizadas, metadados ocultos)
-
-## 🛠️ Setup Local
-
-### Pré-requisitos
-
-- Node.js 22+ 
-- npm ou yarn
-- Conta Firebase
-
-### Instalação
-
-```bash
-# 1. Clone o repositório
-git clone https://github.com/fsalamoni/CAOCIPP.git
-cd CAOCIPP
-
-# 2. Instale dependências do frontend
-npm install
-
-# 3. Instale dependências das Cloud Functions
-cd functions-v2
-npm install
-cd ..
-
-# 4. Configure variáveis de ambiente
-# Crie .env na raiz com suas credenciais Firebase
-cp .env.example .env
-# Edite .env com suas configurações
-
-# 5. Inicie o servidor de desenvolvimento
-npm run dev
-```
-
-### Variáveis de Ambiente
-
-Crie um arquivo `.env` na raiz do projeto:
-
-```env
-VITE_FIREBASE_API_KEY=sua_api_key
-VITE_FIREBASE_AUTH_DOMAIN=seu_auth_domain
-VITE_FIREBASE_PROJECT_ID=seu_project_id
-VITE_FIREBASE_STORAGE_BUCKET=seu_storage_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=seu_sender_id
-VITE_FIREBASE_APP_ID=seu_app_id
-```
-
-## 🔥 Firebase Setup
-
-1. Crie um projeto no [Firebase Console](https://console.firebase.google.com/)
-2. Ative Authentication (Google provider)
-3. Crie banco Firestore (modo production)
-4. Deploy dos índices:
-   ```bash
-   npx firebase deploy --only firestore:indexes
-   ```
-5. Deploy das Cloud Functions:
-   ```bash
-   cd functions-v2
-   npm run build
-   npx firebase deploy --only functions
-   ```
-
-## 📦 Scripts Disponíveis
-
-```bash
-npm run dev          # Inicia servidor de desenvolvimento
-npm run build        # Build para produção
-npm run preview      # Preview do build
-npm run lint         # Lint do código
-```
-
-## 🌿 Workflow de Branches
-
-```
-main           ← Produção (código estável)
-development    ← Desenvolvimento ativo
-feature/*      ← Features específicas
-```
-
-**Fluxo de trabalho**:
-1. Trabalhe no branch `development`
-2. Teste completamente
-3. Merge para `main` quando estável
-4. Deploy a partir de `main`
-
-## 🌐 Sites Firebase Hosting
-
-Este projeto usa **multi-hosting** no Firebase. Existem dois sites configurados em `firebase.json`:
-
-- **`sigo-caocipp` (site principal)**: serve a aplicação completa em [sigo-caocipp.web.app](https://sigo-caocipp.web.app) — público `dist/`
-- **`consultascao` (legacy)**: redireciona TUDO (301) para `https://sigo-caocipp.web.app` — público `dist-redirect/`
-
-### Por que `sigo-caocipp` e não `sigo`?
-
-O nome `sigo` está **reservado por outro projeto Firebase no mundo** (os site IDs são globais, não por projeto). O CI/CD detecta isso e cria automaticamente o `sigo-caocipp` (primeiro da lista de fallback). O `firebase.json` é atualizado dinamicamente para usar o ID real.
-
-### Por que não `sigo.web.app` como custom domain?
-
-O Firebase **NÃO permite** adicionar `xxx.web.app` como custom domain de outro site porque `*.web.app` é reservado para projetos Firebase. Para usar `sigo.web.app` como URL, seria preciso comprar um domínio customizado (ex: `sigo.mp.rs.gov.br`, `sigo.caocipp.com.br`) e configurá-lo como custom domain do site `sigo-caocipp`.
-
-### Setup do site `sigo-caocipp` (primeira vez)
-
-O site `sigo-caocipp` foi criado automaticamente em 11/08/2026 pelo CI/CD. Para referência, a ordem de tentativa é:
-1. `sigo` → preferido, mas geralmente está reservado
-2. `sigo-caocipp` → fallback 1 (criado em 11/08/2026)
-3. `sigo-mp-rs` → fallback 2
-4. `sigo-protagonista` → fallback 3
-
-Se o site foi criado por outro motivo e precisa recriar manualmente:
-
-```bash
-firebase login
-firebase use protagonista-rpg
-firebase hosting:sites:create sigo-caocipp
-```
-
-**Verificação dos domínios**:
-
-| Domínio | Status | O que serve |
-|---|---|---|
-| `consultascao.web.app` | ✅ 301 → `sigo-caocipp.web.app` | Redirect legado (configurado em `firebase.json`) |
-| `sigo-caocipp.web.app` | ✅ 200 OK | App real (site ID do Firebase) |
-
-**Adicionar domínio autorizado no Firebase Auth:**
-
-1. Acesse [Firebase Console → Authentication → Settings → Authorized domains](https://console.firebase.google.com/project/protagonista-rpg/authentication/settings)
-2. Confirme que tem na lista:
-   - `protagonista-rpg.firebaseapp.com` (default)
-   - `protagonista-rpg.web.app` (default)
-   - `sigo-caocipp.web.app` ← IMPORTANTE (você adicionou)
-   - `sigo.web.app` ← adicione também (mesmo que ainda dê 404, fica pronto para o custom domain)
-
-**Adicionar o site no OAuth Consent Screen (Google):**
-
-1. Acesse [Google Cloud Console → APIs & Services → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
-2. Atualize o nome do app para "SIGO - Sistema Interno de Gestão Operacional"
-3. Adicione `sigo-caocipp.web.app` nos **Authorized domains**
-
-**Adicionar JavaScript origins (Google):**
-
-1. Acesse [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
-2. Encontre o **OAuth 2.0 Client ID** do projeto protagonista-rpg
-3. Em **Authorized JavaScript origins**, adicione:
-   - `https://sigo-caocipp.web.app` ← IMPORTANTE
-   - `https://sigo.web.app` ← IMPORTANTE
-
-### Como o redirect funciona
-
-`firebase.json` configura o site `consultascao` com:
-
-```json
-"redirects": [
-  {
-    "source": "**",
-    "destination": "https://sigo-caocipp.web.app",
-    "type": 301
-  }
-]
-```
-
-Qualquer requisição a `consultascao.web.app/qualquer-coisa` retorna **HTTP 301** com `Location: https://sigo-caocipp.web.app`. O navegador segue o redirect automaticamente.
-
-## 📁 Estrutura do Projeto
-
-```
-SIGO/
-├── src/
-│   ├── components/     # Componentes React
-│   │   ├── organization/  # Componentes de organização
-│   │   └── ui/            # Componentes UI (shadcn)
-│   ├── pages/          # Páginas principais
-│   ├── hooks/          # Custom hooks
-│   ├── services/       # Serviços (Firestore, Functions)
-│   ├── config/         # Configurações
-│   └── lib/            # Utilidades
-├── functions-v2/       # Cloud Functions (TypeScript)
-│   └── src/
-│       ├── organizations/  # Funções de organização
-│       ├── processes/      # Funções de processos
-│       └── import/         # Importação de dados
-├── firebase.json       # Config Firebase
-├── firestore.rules     # Regras de segurança
-└── firestore.indexes.json  # Índices Firestore
-```
-
-## 🔐 Segurança
-
-- Nunca commite arquivos `.env`
-- Nunca commite `serviceAccountKey.json`
-- Revise `firestore.rules` regularmente
-- Use roles de membros para controlar acessos
-
-## 🐛 Troubleshooting
-
-### Membros não aparecem
-- Aguarde 2-3 minutos após deploy dos índices
-- Verifique se índices foram criados: `npx firebase firestore:indexes`
-
-### ImportarProcessos falha
-- Limite de 5MB por arquivo
-- Formatos aceitos: .xlsx, .xls, .csv, .json
-- Verifique colunas: Número, Consulente, Local, Data Entrada, Objeto
-
-## 📝 Atualizações Recentes
-
-### 04/08/2026 - Módulo Parcerias (v1.16.0)
-- **Novo módulo Parcerias** (Convênio, Termo de Cooperação, Termo de Fomento) com 6 fases próprias: Pendentes, Em Análise, Revisão, Aguarda Terceiros, Parcerias, Extintos.
-- **Painel Kanban + Lista de Parcerias**, com drag-and-drop e todas as obrigatoriedades por fase validadas no servidor.
-- **Aditivos**: cada Parceria pode ter N aditivos (renovação/prorrogação ou qualitativo) sem limite. Ao incluir um aditivo, a Parceria original é congelada (campos read-only) e o aditivo segue o fluxo. Toggle "Original / Aditivo #N" no DetailSheet.
-- **Importação por planilha** (Excel/CSV/JSON): colunas PGEA, TIPO DE PARCERIA, NÚMERO, DATA DA ASSINATURA, VIGÊNCIA, TERMO FINAL, ASSUNTO, OBJETO, PARTES, ASSESSOR RESPONSÁVEL. UPSERT por PGEA + data de assinatura.
-- **Lista de terceiros dedicada** (`thirdPartiesSettingsParcerias`) editável em Painel Administrativo → Parcerias.
-- **Permissão `configure_parcerias`** delegável pelo Criador, em paralelo a `configure_expedientes`.
-- **Flag `parcerias_enabled`** (default OFF) — liga/desliga o módulo em todos os órgãos via Administração & Custos.
-- **Convive com `custom_entities`**: o admin pode ligar/desligar Parcerias por órgão via Páginas e Módulos (`moduleConfig.parcerias.enabled`).
-- **Métricas default** no GeneralInfo (Total, Ativas, Extintas, Com aditivo) — editáveis como todas as outras.
-- **Webhooks** `parceria_created` e `parceria_extinguished` (com `outbound_webhooks`).
-
-### 05/06/2026 - Métricas Configuráveis por Página (v1.15.0)
-- **Painel de Métricas (no-code)**: Nova aba **Métricas** no Painel Administrativo permite ao admin criar, editar, reordenar, redimensionar e excluir indicadores (KPIs) para **cada página habilitada** — Consultas, Expedientes ou páginas personalizadas — usando as **colunas e fases** de cada uma.
-- **Informações Gerais dinâmico**: As métricas exibidas em *Informações Gerais* passam a respeitar as páginas habilitadas. Ao **desligar Consultas ou Expedientes**, suas métricas também somem; **páginas criadas pelo admin** exibem suas métricas automaticamente, conforme as definições do admin.
-- **Motor de cálculo flexível**: Contagem, soma, média, mínimo, máximo e percentual, com filtros por coluna/fase (E lógico), além de ícone, cor e tamanho (redimensionável) por card.
-- **Persistência por organização**: Tudo é salvo em `organization.dashboardConfig`, saneado no servidor pela Cloud Function `updateOrganization`. Com a flag *Páginas e processos personalizados* **desligada**, o comportamento permanece **idêntico ao atual** (zero quebra).
-
-### 11/03/2026 - Módulo de Expedientes Administrativos (v1.14.0)
-- **Novo Controle de Expedientes**: Criação de fluxos independentes de Consultas, com tela de visualização, formulários e banco de dados próprios.
-- **Dois Kanbans**: A visualização em Kanban agora engloba um painel para as Consultas e um painel apartado para os Expedientes.
-- **Métricas Duplas**: Integração de KPIs analíticos dedicados aos Expedientes dentro do `GeneralInfo` e do `IntelligentSummary`.
-- **Importação Anti-lixo**: Nova verificação nas Cloud Functions de importação do Excel para ignorar linhas integralmente vazias nas planilhas.
-
-### 20/02/2026 - Refinamento de Rótulos (v1.13.1)
-- **Nomenclatura Formal**: Ajuste dos nomes das guias no sidebar global para nomes descritivos completos: "Informações Gerais", "Painel de Controle", "Resumos Inteligentes" e "Painel Administrativo".
-
-### 20/02/2026 - Navegação Unificada & UI/UX Pro Max (v1.13.0)
-- **Sidebar Global Contextual**: Migração da navegação interna dos órgãos para o sidebar principal da plataforma. Sub-itens (Info, Kanban, Consultas, IA, Admin) agora aparecem de forma subordinada ao órgão ativo.
-- **Sincronização via URL**: Estado da página (tabs) agora é totalmente controlado por `searchParams` (`?tab=...`), permitindo compartilhamento de links e persistência ao recarregar.
-- **Layouts Aderentes (Sticky)**: Cabeçalhos de tabela e barras de paginação fixados no topo/base da tela para navegação sem perda de contexto em listas longas.
-- **Feedback Visual de Validação**: Implementação de sinais de validação inline (ícones de check verde) em formulários de edição para campos obrigatórios preenchidos.
-- **Humanização de Estados Vazios**: Substituição de telas em branco por ilustrações e mensagens contextuais para buscas sem resultado e colunas de Kanban vazias.
-
-### 13/02/2026 - Solução Definitiva de Temporalidade (v1.11.6)
-- **Coorte Unificada**: O quadro de Temporalidade agora utiliza uma amostra sincronizada de processos (Entry, Dist, Sub, Return), garantindo que a hierarquia logica (Total >= Etapas) seja mantida em 100% dos casos.
-- **Capitalização Rigorosa**: Padronização de "Devolução após Revisão" (Capital R) em toda a interface e lógica de sistema.
-
-### 13/02/2026 - Hierarquia e Padronização de Termos (v1.11.2)
-- **Sincronização de Métricas**: As médias agora são calculadas exclusivamente sobre o conjunto de processos finalizados (com Devolução), garantindo que o **Tempo Total** seja logicamente superior ou igual às fases parciais (Análise e Revisão).
-- **Padronização Global**: Termino "Devolução após Revisão" (Capital R) aplicado de forma rigorosa em toda a interface, timeline e motor de importação.
-- **Precisão Operacional**: Descritivos ajustados para refletir exatamente os marcos solicitados na imagem de auditoria do fluxo.
-
-### 13/02/2026 - Correção de Lógica Temporal (v1.11.1)
-- **Ajuste de Marcos Temporais**: A métrica de análise agora é calculada corretamente a partir da **Distribuição** até a **Remessa**.
-- **Descritivos Exatos**: Atualização dos subtextos das métricas para as definições operacionais precisas solicitadas (Entrada->Devolução, Distribuição->Remessa, Remessa->Devolução).
-
-### 13/02/2026 - Precisão Temporal (Dias Úteis) (v1.11.0)
-- **Cálculo de Dias Úteis**: As médias de temporalidade agora consideram apenas dias úteis (segunda a sexta), proporcionando uma visão mais realista do desempenho.
-- **Arredondamento Conservador**: Todas as médias são agora arredondadas para cima (Math.ceil), garantindo que tempos parciais sejam contabilizados como dias inteiros de trabalho.
-- **Identificação Visual**: Título do quadro atualizado para "Temporalidade das Consultas (dias úteis)".
-
-### 13/02/2026 - Métricas de Temporalidade & Terminology Fix (v1.10.0)
-
-### 13/02/2026 - Métricas de Temporalidade & Terminology Fix (v1.10.0)
-- **Quadro de Temporalidade**: Novo componente modular na aba de Resumos Inteligentes exibindo médias de:
-    - Tempo total (Entrada → Devolução)
-    - Tempo de Análise (Início → Remessa)
-    - Tempo de Revisão (Remessa → Devolução)
-- **Padronização de Termos**: Substituição global de "Retorno da Revisão" por **"Devolução após revisão"** para alinhamento com os fluxos originais de trabalho.
-- **Importação Robusta**: Mapeador de Excel atualizado para detectar automaticamente variações do novo termo ("DEVOLUÇÃO APÓS REVISÃO", "RETORNO DA REVISÃO", etc).
-
-### 12/02/2026 - Persistência, Real-time & UI Premium (v1.8.9)
-- **Correção de Persistência**: Alinhamento definitivo de campos (snake_case/camelCase) entre Frontend e Cloud Functions.
-- **Real-time Synchronization**: Listagem de processos agora utiliza `onSnapshot` para atualizações instantâneas.
-- **UI Hover Consistente**: Refinamento visual com `group-hover` estático para garantir destaque uniforme em colunas fixas.
-- **Service Layer Robustness**: Padronização dos serviços de Deletar e Arquivar com contexto organizacional.
-
-### 12/02/2026 - Dashboard User-Centric & Multi-Filter (v1.5.0)
-- **Dashboard v2**: Interface per-organ automatizada, exibindo apenas o que é relevante para sua função atual.
-- **Lógica de Roles**: Assessoria, Secretaria e Decisória agora possuem KPIs e feeds de atividade distintos.
-- **Filtro Avançado**: Implementado seletor de Ano e Mês nos Resumos Inteligentes para análise histórica precisa.
-- **Filtro de Ano por Órgão**: Controle temporal individualizado para cada card do Dashboard.
-- **Rebranding Final**: Nome oficial consolidado em todo o ecossistema como **SIGO** (Sistema Interno de Gestão Operacional).
-
-### 12/02/2026 - UX Pro Max & Zero Problems (v1.4.0)
-- **Zero Problems (IDE)**: Otimização total do ambiente de desenvolvimento (jsconfig.json) para eliminar falsos-positivos de tipos.
-- **Filtros Dinâmicos**: O filtro de "Responsável" agora é extraído automaticamente dos dados da planilha.
-- **UX Improvements**: Implementação de Loading Skeletons modernos e estados vazios interativos.
-- **Limpeza de Build**: Resolução de 100% dos avisos de ESLint e erros de parsing.
-
-### 12/02/2026 - Persistência Definitiva & Novo Domínio (v1.3.0)
-- **Novo URL**: Aplicação migrada para [consultascao.web.app](https://consultascao.web.app) (atualmente redirecionando para [sigo.web.app](https://sigo.web.app) — ver rebranding 11/08/2026)
-- **Persistência Bulletproof**: Itens por página e ordenação agora usam localStorage como cache instantâneo + Firestore como backup.
-- **Ordenação Type-Aware**: Registro de tipos por coluna com parser universal de datas.
-
-## 📝 Licença
-
-Este projeto é proprietário do SIGO.
-
-## 👤 Autor
-
-**Flávio Salamoni** (@fsalamoni)
+# SIGO — Sistema Interno de Gestão Operacional
+
+Plataforma web de gestão de processos, procedimentos e dados para unidades do
+**Ministério Público do Estado do Rio Grande do Sul (MPRS)**. Criada no
+CAOCIPP para substituir as planilhas individuais de controle por uma gestão
+integrada: cada demanda com fases, responsável, prazos, histórico e métricas,
+visível para toda a unidade.
+
+**Aplicação:** <https://sigo-caocipp.web.app> (o endereço antigo
+`consultascao.web.app` redireciona para lá).
 
 ---
 
-**Status do Projeto**: ✅ Estável /# CAOCIPP v1.14.0 - Expedientes Administrativos
- — 11/03/2026
+## O que a plataforma oferece
+
+Cada unidade cria um **órgão** no SIGO, convida seus membros e liga os módulos
+de que precisa:
+
+| Módulo | Para quê |
+|---|---|
+| **Consultas** | Consultas jurídicas: entrada, distribuição, análise, revisão e arquivamento, com classificação por matéria. |
+| **Expedientes** | Expedientes administrativos, com fluxo e listas próprios. |
+| **Parcerias** | Convênios, Termos de Cooperação e de Fomento, com aditivos e avisos automáticos de renovação. |
+| **Jurimetria** *(opcional)* | Base de júris com relatórios e exportações, incorporada do aplicativo do CAOJúri. |
+| **Panorama** *(opcional)* | Transforma qualquer planilha em painel e relatórios, sem programação. |
+| **Resumos, métricas e calendário** | Indicadores configuráveis, temporalidade em dias úteis, calendário de vencimentos. |
+| **Páginas personalizadas** | O órgão cria seus próprios tipos de registro, com campos e fases. |
+
+As fases são **derivadas dos dados preenchidos** e todos os cálculos são regras
+auditáveis no código: **nenhuma funcionalidade usa inteligência artificial**.
+
+---
+
+## Documentação
+
+Tudo está em [`docs/`](./docs/README.md). Para começar:
+
+- [Visão geral](./docs/VISAO_GERAL.md) — o que é, para quem, módulos e limites atuais
+- [Funcionalidades](./docs/FEATURES_REFERENCE.md) — órgãos, membros, administração, métricas, automação
+- Módulos: [Consultas](./docs/CONSULTAS.md) · [Expedientes](./docs/EXPEDIENTES.md) · [Parcerias](./docs/PARCERIAS.md) · [Jurimetria](./docs/JURIMETRIA.md) · [Panorama](./docs/PANORAMA.md)
+- [Arquitetura](./docs/ARCHITECTURE_REFERENCE.md) · [Segurança e LGPD](./docs/SECURITY_REFERENCE.md) · [Guia de desenvolvimento](./docs/DEVELOPMENT_GUIDE.md)
+- [Glossário](./docs/GLOSSARY.md) · [Histórico de mudanças](./docs/CHANGELOG.md)
+
+---
+
+## Tecnologias
+
+React 18 + Vite · Tailwind CSS + shadcn/ui · Firebase Authentication (Google)
+· Cloud Firestore · Cloud Functions v2 (Node 22, TypeScript, região São Paulo)
+· Firebase Hosting · GitHub Actions.
+
+---
+
+## Rodando localmente
+
+Requer Node.js 22.
+
+```bash
+git clone https://github.com/fsalamoni/CAOCIPP.git
+cd CAOCIPP
+npm install
+npm --prefix functions-v2 install
+npm run dev
+```
+
+> Sem um `.env` próprio, o app se conecta ao **projeto de produção**. Para
+> trabalhar com uma base isolada, use os emuladores do Firebase — passo a passo
+> no [Guia de desenvolvimento](./docs/DEVELOPMENT_GUIDE.md).
+
+Antes de abrir um pull request, rode o mesmo que o CI:
+
+```bash
+npm run lint && npm run typecheck && npm --prefix functions-v2 run build:local && npm run build
+```
+
+---
+
+## Publicação
+
+Pull requests para `main` passam pelo CI (lint, verificação de tipos e build).
+O merge em `main` publica automaticamente hosting, Cloud Functions, regras e
+índices do Firestore no projeto Firebase. Detalhes, segredos e permissões em
+[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md#6-deploy).
+
+---
+
+## Estrutura
+
+```
+src/            Aplicação React (páginas, módulos, motores de cálculo)
+functions-v2/   Cloud Functions (src/ em TypeScript, lib/ compilado)
+firestore.rules Regras de segurança do banco
+docs/           Documentação
+```
+
+Pastas como `functions/`, `Repositório original/` e `.agent/` são legado ou
+ferramentas de desenvolvimento e não entram no deploy (ver
+[Arquitetura](./docs/ARCHITECTURE_REFERENCE.md#pastas-legadas)).
+
+---
+
+## Situação
+
+Em produção, num projeto Firebase mantido pela equipe do CAOCIPP, com login
+por conta Google. Ainda não é um sistema homologado pela TI do MPRS. Os limites
+conhecidos estão na [Visão geral](./docs/VISAO_GERAL.md#6-situação-atual-e-limites-conhecidos).
+
+Mantenedor: **Flávio Salomone** ([@fsalamoni](https://github.com/fsalamoni)).
+Projeto proprietário, sem licença de uso aberta.

@@ -1,979 +1,185 @@
-# ⚙️ SIGO - Features Reference
+# Funcionalidades da plataforma
 
-**Version:** 1.14.2 (Expedientes Administrativos)  
-**Last Updated:** 2026-03-31  
-**Purpose:** Complete features documentation with implementation details
-
----
-
-## Table of Contents
-
-1. [Feature Overview](#feature-overview)
-2. [Authentication Features](#authentication-features)
-3. [Organization Management](#organization-management)
-4. [Process Management](#process-management)
-5. [Dashboard & Analytics](#dashboard--analytics)
-6. [User Profile](#user-profile)
-7. [UI/UX Features](#uiux-features)
-8. [Future Features](#future-features)
+Referência das funcionalidades **comuns a todos os módulos**: órgãos, membros,
+painéis, métricas, páginas personalizadas, colaboração, automação e a
+administração da plataforma. Cada módulo de dados tem documento próprio:
+[Consultas](./CONSULTAS.md), [Expedientes](./EXPEDIENTES.md),
+[Parcerias](./PARCERIAS.md), [Jurimetria](./JURIMETRIA.md) e
+[Panorama](./PANORAMA.md).
 
 ---
 
-## Feature Overview
+## 1. Acesso e conta
 
-### Implemented Features Matrix
-
-| Category | Feature | Status | Priority | Complexity |
-|----------|---------|--------|----------|------------|
-| **Authentication** | Google Sign-In | ✅ LIVE | P0 | Low |
-| **Authentication** | Logout | ✅ LIVE | P0 | Low |
-| **Authentication** | Session Persistence | ✅ LIVE | P0 | Low |
-| **Organizations** | Create Organization | ✅ LIVE | P0 | Medium |
-| **Organizations** | Join via Invite Code | ✅ LIVE | P0 | Medium |
-| **Organizations** | View Members | ✅ LIVE | P1 | Low |
-| **Organizations** | Edit Member Function | ✅ LIVE | P1 | Low |
-| **Organizations** | Remove Member | ✅ LIVE | P1 | Low |
-| **Processes** | Create Process | ✅ LIVE | P0 | Medium |
-| **Processes** | Edit Process | ✅ LIVE | P0 | Medium |
-| **Processes** | Delete Process | ✅ LIVE | P0 | Low |
-| **Processes** | Filter Processes (Status/Search) | ✅ LIVE | P0 | Low |
-| **Processes** | Advanced Period Filters (De/Até) | ✅ LIVE | P1 | Medium |
-| **Processes** | Sorting (Natural/Date) | ✅ LIVE | P1 | Low |
-| **Processes** | Per-User View Persistence | ✅ LIVE | P1 | Medium |
-| **Processes** | Search Processes | ✅ LIVE | P0 | Low |
-| **Processes** | Mark Urgent | ✅ LIVE | P1 | Low |
-| **Processes** | Assign Responsible | ✅ LIVE | P1 | Low |
-| **Processes** | Access Restriction | ✅ LIVE | P2 | Low |
-| **Processes** | Workflow Tracking | ✅ LIVE | P1 | Medium |
-| **Analytics** | KPIs Dashboard | ✅ LIVE | P1 | Medium |
-| **Analytics** | Charts (Status, Location) | ✅ LIVE | P2 | Medium |
-| **Analytics** | Performance Metrics | ✅ LIVE | P2 | Medium |
-| **Profile** | Edit Display Name | ✅ LIVE | P1 | Low |
-| **Profile** | Edit Function | ✅ LIVE | P1 | Low |
-| **Profile** | Edit Notification Email | ✅ LIVE | P2 | Low |
-| **Import** | Excel/CSV Import | ✅ LIVE | P2 | High |
-| **Kanban** | Kanban Board (drag & drop) | ✅ LIVE | P1 | High |
-| **Kanban** | Backward Column Movement | ✅ LIVE | P1 | Medium |
-| **Kanban** | Eye Icon (Process Detail View) | ✅ LIVE | P1 | Low |
-| **Expedientes** | Criar Expediente | ✅ LIVE | P0 | Medium |
-| **Expedientes** | Editar Expediente | ✅ LIVE | P0 | Medium |
-| **Expedientes** | Excluir Expediente | ✅ LIVE | P0 | Low |
-| **Expedientes** | Kanban de Expedientes | ✅ LIVE | P1 | High |
-| **Expedientes** | Importar via Excel | ✅ LIVE | P2 | High |
-| **Expedientes** | Dashboard de Expedientes | ✅ LIVE | P1 | Medium |
-| **Expedientes** | Painel Lateral de Detalhes | ✅ LIVE | P1 | Medium |
-| **Audit Log** | Per-Process Activity Log | ✅ LIVE | P1 | High |
-| **Audit Log** | Per-Expediente Activity Log | ✅ LIVE | P1 | High |
-| **Audit Log** | Retroactive Log Backfill | ✅ LIVE | P2 | Medium |
-| **Audit Log** | Detailed Import Change Log | ✅ LIVE | P2 | Medium |
-| **Notifications** | In-App Notifications | ⏸️ PAUSED | P2 | Medium |
-| **Notifications** | Email Notifications | ⏸️ PAUSED | P3 | High |
-
-**Legend:**
-- **P0:** Critical (MVP)
-- **P1:** High Priority
-- **P2:** Medium Priority
-- **P3:** Low Priority / Future
+- **Login com Google** (Firebase Authentication, popup ou redirecionamento) na
+  página inicial. Não há login por senha nem o login institucional do MPRS.
+- **Perfil** (`/Profile`, coleção `users/{uid}`): nome, função, e-mail para
+  notificações (`notification_email`) e preferências. As preferências de
+  tabela (ordenação, colunas, densidade, filtros salvos) ficam em
+  `userPreferences/{uid}`, com cópia no `localStorage`.
+- **Verificação em duas etapas por e-mail** (flag opcional `two_factor_auth`,
+  componente `TwoFactorGate`): código de 6 dígitos válido por 5 minutos. Ver
+  [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md).
 
 ---
 
-## Authentication Features
+## 2. Órgãos e membros
 
-### 1. Google Sign-In
+| Ação | Como funciona | Quem pode |
+|---|---|---|
+| Criar órgão | `createOrganization`. Gera um **código de convite** de 8 caracteres. Opção de começar "mínimo" (só Informações Gerais e Painel Administrativo). | Qualquer usuário autenticado |
+| Entrar num órgão | `joinOrganization` com o código de convite; entra como `member`. | Qualquer usuário com o código |
+| Mudar papel ou função de um membro | `updateMember` (`admin` ↔ `member`; função em texto livre). O papel `creator` nunca é atribuído por aqui. | Criador ou admin |
+| Delegar atribuições | `updateMember` com `permissions`. | Somente o criador |
+| Remover membro | `removeMember`. O criador não pode ser removido. | Criador ou admin |
+| Apagar todos os dados | `clearOrganizationData` (*Zona de Perigo*). | Somente o criador |
+| Excluir o órgão | `deleteOrganization`, exige digitar o nome exato do órgão; apaga em cascata as coleções do órgão. | Criador ou super-admin |
 
-**Description:** Users authenticate using their Google account via OAuth 2.0
-
-**Implementation:**
-
-**File:** `src/pages/Landing.jsx`
-
-```javascript
-const handleGoogleSignIn = async () => {
-  setIsLoading(true);
-  try {
-    await signInWithGoogle(); // From FirebaseAuthContext
-    navigate('/Dashboard');
-  } catch (error) {
-    setError(error.message);
-  } finally {
-    setIsLoading(false);
-  }
-};
-```
-
-**Flow:**
-1. User clicks "Continuar com Google"
-2. Firebase opens Google OAuth popup
-3. User selects Google account
-4. Firebase receives credentials
-5. User document created/updated in Firestore
-6. Redirect to `/Dashboard`
-
-**Technical Details:**
-- **Provider:** `GoogleAuthProvider`
-- **Method:** `signInWithPopup` (primary) / `signInWithRedirect` (fallback)
-- **Token:** JWT with 1-hour expiration
-- **Session:** Persisted in localStorage
-
-**Error Handling:**
-- Popup blocked → Fallback to redirect
-- Network error → Show retry button
-- Auth cancelled → Silent (return to landing)
-
-### 2. Session Persistence
-
-**Description:** User stays logged in across browser sessions
-
-**Implementation:**
-
-**File:** `src/lib/FirebaseAuthContext.jsx`
-
-```javascript
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-    if (firebaseUser) {
-      setUser(firebaseUser);
-      // Optionally fetch additional user data from Firestore
-    } else {
-      setUser(null);
-    }
-    setIsLoading(false);
-  });
-  return () => unsubscribe();
-}, []);
-```
-
-**Behavior:**
-- On app load, Firebase checks for existing session
-- If valid token exists, user is auto-logged in
-- If expired, user sees login screen
-
-### 3. Logout
-
-**Description:** User can manually end their session
-
-**Implementation:**
-
-```javascript
-const signOut = async () => {
-  try {
-    await firebaseSignOut(auth);
-    navigate('/');
-  } catch (error) {
-    logger.error('Logout error', error);
-  }
-};
-```
-
-**Flow:**
-1. User clicks "Sair" button (in Profile)
-2. Firebase clears tokens and session
-3. `onAuthStateChanged` fires with `null`
-4. Redirect to Landing page
+Toda alteração dessas grava uma linha em `auditLogs`.
 
 ---
 
-## Organization Management
+## 3. A página do órgão
 
-### 1. Create Organization
+As abas visíveis são calculadas em `getOrganizationTabs`
+(`src/lib/organizationModules.js`) a partir dos módulos ligados e das flags:
 
-**Description:** Users can create new organizations to manage processes
+| Aba | Conteúdo |
+|---|---|
+| **Informações Gerais** (`info`) | Dados do órgão e cartões de métricas configuráveis. Sempre presente. |
+| Painel / lista de **Consultas**, **Expedientes**, **Parcerias** | Ver documentos dos módulos. |
+| **Jurimetria**, **Panorama** | Só com a flag global ligada e o módulo ativo no órgão. |
+| **Resumos Inteligentes** (`summary`) | Indicadores por período de Consultas e Expedientes (taxa de conclusão, tempo médio, urgentes, localidade, status, temporalidade em dias úteis, comparação com o período anterior). |
+| **Calendário de Vencimentos** (`calendar`) | Prazos dos três módulos de fluxo. Aparece se ao menos um deles estiver ativo. |
+| Páginas personalizadas (`cpanel:`/`clist:`) | Ver seção 5. |
+| **Painel Administrativo** (`admin`) | Configuração do órgão (seção 4). |
 
-**Implementation:**
-
-**File:** `src/pages/Profile.jsx` (dialog)  
-**Service:** `src/services/firestoreService.js` (`createOrganization`)
-
-```javascript
-export async function createOrganization(data, creatorUid) {
-  // 1. Generate unique invite code
-  const inviteCode = generateInviteCode();
-  
-  // 2. Create organization document
-  const orgRef = await addDoc(collection(db, 'organizations'), {
-    name: data.name,
-    description: data.description,
-    invite_code: inviteCode,
-    created_by: creatorUid,
-    created_at: serverTimestamp(),
-    updated_at: serverTimestamp(),
-    stats: {
-      members_count: 1,
-      processes_count: 0,
-      active_processes: 0
-    }
-  });
-  
-  // 3. Create creator membership
-  await createMembership({
-    user_id: creatorUid,
-    organization_id: orgRef.id,
-    role: 'creator',
-    // ... user data
-  });
-  
-  return orgRef.id;
-}
-```
-
-**Form Fields:**
-- **Name:** Required, string, max 100 chars
-- **Description:** Optional, string, max 500 chars
-
-**Business Rules:**
-- Invite code is 8 random uppercase letters/numbers
-- Creator automatically becomes member with 'creator' role
--stats initialized to zeros
-- `created_by` tied to authentic ated user (cannot be faked)
-
-### 2. Join Organization via Invite Code
-
-**Description:** Users can join existing organizations using an invite code
-
-**Implementation:**
-
-**File:** `src/pages/Profile.jsx` (dialog)  
-**Service:** `firestoreService.js` (`joinOrganizationByInvite`)
-
-```javascript
-export async function joinOrganizationByInvite(inviteCode, userId) {
-  // 1. Find organization by invite code
-  const q = query(
-    collection(db, 'organizations'),
-    where('invite_code', '==', inviteCode.toUpperCase())
-  );
-  const snapshot = await getDocs(q);
-  
-  if (snapshot.empty) {
-    throw new Error('Código de convite inválido');
-  }
-  
-  const org = snapshot.docs[0];
-  
-  // 2. Check if already a member
-  const membershipId = `${userId}_${org.id}`;
-  const membershipDoc = await getDoc(doc(db, 'userOrganizations', membershipId));
-  
-  if (membershipDoc.exists()) {
-    throw new Error('Você já é membro desta organização');
-  }
-  
-  // 3. Create membership
-  await createMembership({
-    user_id: userId,
-    organization_id: org.id,
-    role: 'member',
-    // ... user data
-  });
-  
-  // 4. Update org stats
-  await updateDoc(doc(db, 'organizations', org.id), {
-    'stats.members_count': increment(1)
-  });
-  
-  return org.id;
-}
-```
-
-**Flow:**
-1. User enters 8-character code
-2. System searches for matching organization
-3. If found, creates membership with 'member' role
-4. organization stats updated
-5. User can now access organization
-
-**Validation:**
-- Code converted to uppercase (case-insensitive)
-- Duplicate membership prevented
-- Invalid code shows user-friendly error
-
-### 3. Member Management
-
-**Description:** Organization creators can manage members
-
-**Features:**
-
-#### 3.1 View Members
-
-**File:** `src/components/organization/GeneralInfo.jsx`
-
-**Hook:** `useOrganizationMembers(orgId)`
-
-**Display:**
-- Name, email, function, role, join date
-- Sorted by role (creator first), then join date
-
-#### 3.2 Edit Member Function
-
-**Permissions:** Creator only
-
-**Implementation:**
-
-```javascript
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  const membershipRef = doc(db, 'userOrganizations', member.id);
-  await updateDoc(membershipRef, {
-    function: functionValue
-  });
-  toast.success('Função atualizada');
-};
-```
-
-**UI:** Click on function name → dialog → edit → save
-
-#### 3.3 Remove Member
-
-**Permissions:** Creator only
-
-**Restrictions:** Cannot remove creator
-
-**Implementation:**
-
-```javascript
-export async function removeMember(userId, organizationId) {
-  const membershipId = `${userId}_${organizationId}`;
-  
-  // Get membership to check role
-  const membershipDoc = await getDoc(doc(db, 'userOrganizations', membershipId));
-  
-  if (membershipDoc.data().role === 'creator') {
-    throw new Error('Não é possível remover o criador da organização');
-  }
-  
-  // Delete membership
-  await deleteDoc(doc(db, 'userOrganizations', membershipId));
-  
-  // Update org stats
-  await updateDoc(doc(db, 'organizations', organizationId), {
-    'stats.members_count': increment(-1)
-  });
-}
-```
-
-**Flow:**
-1. Creator clicks delete icon
-2. Confirmation dialog appears
-3. If confirmed, membership deleted
-4. Member loses access immediately
-5. Stats updated
+**Ligar e desligar módulos.** `organization.moduleConfig.<módulo>.enabled`.
+Órgão sem `moduleConfig` (legado) mostra todos os módulos; órgão com
+`moduleConfig` mostra apenas os marcados como `true`. Exceção: o calendário
+some só com `false` explícito. O servidor grava o `moduleConfig` módulo a
+módulo, para não apagar módulos que uma versão antiga do site desconheça.
 
 ---
 
-## Process Management
-
-### 1. Create Process
-
-**Description:** Members can create new processes for tracking
-
-**Implementation:**
-
-**File:** `src/components/organization/CreateProcessDialog.jsx`  
-**Service:** `firestoreService.js` (`createProcess`)
-
-```javascript
-export async function createProcess(data, creatorUid) {
-  const processRef = await addDoc(collection(db, 'processes'), {
-    ...data,
-    status: data.status || 'Em triagem',
-    created_by: creatorUid,
-    created_at: serverTimestamp(),
-    updated_at: serverTimestamp(),
-    updated_by: creatorUid
-  });
-  
-  // Update org stats
-  await updateDoc(doc(db, 'organizations', data.organization_id), {
-    'stats.processes_count': increment(1),
-    'stats.active_processes': increment(1)
-  });
-  
-  return processRef.id;
-}
-```
-
-**Required Fields:**
-- Process Number (format: `00000.000.000/0000`)
-- Consultant Name
-- Location (dropdown of RS cities)
-- Entry Date
-- Matter/Object (textarea)
-
-**Optional Fields:**
-- Urgency Request (boolean)
-- Distribution Date
-- Responsible User
-- All workflow fields (analysis dates, review dates, etc.)
-
-**Validation:**
-- Process number unique within organization (client-side warning)
-- Dates in ISO format (YYYY-MM-DD)
-- Location from predefined list
-
-**Default Values:**
-- `status`: "Em triagem"
-- `urgency_request`: false
-- `access_restriction`: false
-
-### 2. Edit Process
-
-**Description:** Authorized users can update process information
-
-**Permissions:**
-- Creator/Admin: Can edit any process
-- Member: Can edit if `responsible_user_id` matches their ID
-
-**Implementation:**
-
-**File:** `src/components/organization/EditProcessDialog.jsx`
-
-**UI Structure:** 3 tabs
-1. **Dados Básicos:** Process number, consultant, location, entry date, matter, urgency (read-only fields except urgency)
-2. **Fluxo de Trabalho:** Distribution, responsible, analysis dates, observations
-3. **Revisão e Arquivo:** Review dates, archive date, network folder, access restriction
-
-```javascript
-export async function updateProcess(processId, updates, updaterUid) {
-  await updateDoc(doc(db, 'processes', processId), {
-    ...updates,
-    updated_at: serverTimestamp(),
-    updated_by: updaterUid
-  });
-}
-```
-
-**Read-Only Fields (after creation):**
-- `process_number`
-- `consultant`
-- `location`
-- `entry_date`
-- `matter_object`
-
-**Rationale:** These are core identifiers and shouldn't change
-
-### 3. Delete Process
-
-**Description:** Creators/admins can permanently delete processes
-
-**Permissions:** Creator or Admin only
-
-**Implementation:**
-
-```javascript
-export async function deleteProcess(processId, organizationId) {
-  await deleteDoc(doc(db, 'processes', processId));
-  
-  // Update org stats
-  await updateDoc(doc(db, 'organizations', organizationId), {
-    'stats.processes_count': increment(-1),
-    'stats.active_processes': increment(-1)
-  });
-}
-```
-
-**UI:** Button in `EditProcessDialog` → Confirmation → Delete
-
-**Warning:** No soft delete implemented (permanent)
-
-### 4. Search, Filter & Persistence
-
-**Description:** Users can filter, search and have their view preferences persisted.
-
-**Implementation:**
-
-**File:** `src/components/organization/ProcessTable.jsx`  
-**Hook:** `useUserPreferences`
-
-**4.1 Persistence:**
-- Sort configuration and current page are saved to Firestore under `userPreferences/{user_id}`.
-- Data is restored on mount, ensuring a consistent experience across sessions.
-
-**4.2 Date Range Filtering (De/Até):**
-- Users can filter by period for all process dates.
-- Exact match: If only "De" is provided.
-- Range match: If "De" and "Até" are provided.
-
-**4.3 Natural Sorting:**
-- The `process_number` uses a natural numeric collator for logical ordering (SIM 1 before SIM 10).
-
-**4.4 Filter Options:**
-- **By Status:** Refined list (Pendente, Em elaboração, Em revisão, Para revisão, Na pasta).
-- **By Responsible:** All members.
-- **Search:** Process number, consultant, or location (case-insensitive).
-
-**Performance:** Client-side filtering for <1000 processes. For larger datasets, implement server-side pagination.
-
-### 5. Urgency Marking
-
-**Description:** Mark processes as urgent for priority handling
-
-**Implementation:**
-
-**Field:** `urgency_request: boolean`
-
-**UI Indicators:**
-- Red badge "SIM" in table
-- Separate count in Dashboard KPI
-- Filter option in ProcessControl
-
-**Use Case:** Processes requiring immediate attention
-
-### 6. Workflow Tracking
-
-**Description:** Track process through various stages
-
-Lifecycle Stages:**
-
-```
-Entry Date
-    ↓
-Distribution Date → Assigned to Responsible User
-    ↓
-Analysis Start Date → In Analysis
-    ↓
-Review Submission Date → Sent for Review
-    ↓
-Review Return Date → Review Complete
-    ↓
-Archived Date → Process Complete
-```
-
-**Tracked Dates:**
-- `entry_date`: Process received
-- `distribution_date`: Assigned to user
-- `analysis_start_date`: Analysis begun
-- `review_submission_date`: Sent to reviewer
-- `review_return_date`: Returned from review
-- `archived_date`: Finalized/archived
-
-**Status Field:**
-- Manually set by users
-- Common values: "Em triagem", "Pendente", "Em elaboração", "Em revisão", "Para revisão", "Na pasta"
-- Used for filtering and analytics
-
-### 7. Kanban Board
-
-**Description:** Visual drag-and-drop board for process workflow management
-
-**Implementation:**
-
-**Files:**
-- `src/components/organization/KanbanBoard.jsx` — Main board with columns and drag logic
-- `src/components/organization/KanbanCard.jsx` — Individual process cards
-- `src/components/organization/KanbanTransitionDialog.jsx` — Transition confirmation
-
-**Columns (Status):**
-1. **Pendente** — Processes awaiting action
-2. **Em elaboração** — Processes being worked on
-3. **Em revisão** — Processes under review
-4. **Na pasta (Arquivados)** — Archived/completed processes
-
-**Forward Movement:**
-- Drag card to the next adjacent column
-- System prompts for required fields (date, responsible user)
-- **Assessor Auto-Select:** If user has "assessoria" function, the assignment dialog pre-selects them but allows changing to another assessor.
-- **Auto-Distribution:** Assigning a responsible automatically sets the `distribution_date` to today.
-- Status and relevant dates are updated automatically
-
-**Backward Movement:**
-- Drag card to the previous adjacent column (enabled by `pointerWithin` collision detection)
-- Only changes `status` — no dates or data erased
-- Exception: "Na pasta" (archived) cannot be moved backward; must edit manually
-- **Archives:** Moving to "Arquivados" now prompts for a mandatory **Review Return Date** (Data de Devolução), defaulting to today but editable.
-
-**Eye Icon (Detail View):**
-- Each card has an eye icon (👁) in the bottom-right corner
-- Clicking opens the `ProcessDetailSheet` side panel
-- From the sheet, users can click "Editar" to open `EditProcessDialog`
-- `stopPropagation` prevents the click from initiating a drag operation
-
-**Library:** `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`
-
-### 8. Per-Process Audit Log (Activity Log)
-
-**Description:** Every process has a permanent audit trail recording all user actions
-
-**Implementation:**
-
-**Backend (Cloud Functions v2):**
-- `functions-v2/src/processes/update.ts` — Logs field-level changes on every update
-- `functions-v2/src/processes/create.ts` — Logs initial creation
-- `functions-v2/src/import/fromExcel.ts` — Logs imports with detailed field diff
-- `functions-v2/src/processes/backfillLogs.ts` — One-time backfill for existing processes
-
-**Log Entry Format:**
-```json
-{
-  "date": "2026-02-18",
-  "time": "16:30:00",
-  "user_id": "abc123",
-  "user_name": "João Silva",
-  "action": "Campos atualizados: Consulente, Status",
-  "timestamp": "2026-02-18T19:30:00.000Z"
-}
-```
-
-**Storage:** Array field `activity_log` within each process document in Firestore
-
-**Frontend:**
-- `src/components/organization/ProcessLogDialog.jsx` — Searchable table of log entries
-- "Verificar Log" button in `EditProcessDialog` — visible only to org creator (admin)
-
-**Import Log Detail:**
-- When re-importing a spreadsheet, the system compares old vs new data
-- Log entry lists exactly which fields were modified (e.g., "Dados atualizados via planilha: Consulente, Local dos Fatos")
-- Existing logs are never erased (uses `arrayUnion`)
-
-**Backfill:**
-- Admin button in GeneralInfo to generate retroactive logs for existing processes
-- Uses `created_at`, `created_by`, and `last_imported_at` metadata to determine origin
+## 4. Painel Administrativo do órgão
+
+`src/components/organization/admin/AdminManagement.jsx`. Cada aba exige uma
+atribuição; o criador vê todas. O servidor (`updateOrganization`) confere a
+mesma permissão campo a campo.
+
+| Aba | Permissão | Grava em `organizations/{id}` |
+|---|---|---|
+| Detalhes | `edit_details` | `name`, `description` |
+| Membros, Atribuições | só o criador | (memberships) |
+| Classificação (Matérias) | `manage_matters` | `matterSettings`, `thirdPartiesSettingsConsultas`, `thirdPartyPhaseEnabledConsultas` |
+| Páginas e Módulos | `manage_modules` | `moduleConfig`, tipos de página personalizada |
+| Métricas | `manage_metrics` | `dashboardConfig` |
+| Expedientes | `configure_expedientes` | `expedienteSettings`, `thirdPartiesSettingsExpedientes` |
+| Parcerias | `configure_parcerias` | `parceriaSettings`, `thirdPartiesSettingsParcerias` |
+| Jurimetria | `configure_jurimetria` | `jurimetriaSettings` |
+| Panorama | `configure_panorama` | coleção `panoramaBases` |
+| Padronização em Bloco | `bulk_standardize` | registros (troca de valores em lote) |
+| Automação | só o criador | `goalsConfig`, `escalationConfig`, `reportsConfig` |
+| Segurança | só o criador | `retentionConfig`, `webhookConfig`; consulta do log de acesso |
+| Indicador de Tempo | só o criador | `stageTimeConfig` |
+| Inteligência Artificial | só o criador | `summarySettings` (apenas preferências; nenhuma IA é chamada) |
+| Zona de Perigo | só o criador | apagar dados / excluir órgão |
 
 ---
 
-## Dashboard & Analytics
+## 5. Métricas e páginas personalizadas
 
-### 1. KPI Cards
+**Métricas configuráveis** (`dashboardConfig`, motor em
+`src/lib/metricsEngine.js` e `src/lib/dashboardMetrics.js`). Para cada página
+ativa, o admin cria indicadores sem código: contagem, soma, média, mínimo,
+máximo ou percentual, com filtros por coluna e fase (E lógico), ícone, cor e
+tamanho. Desligar um módulo esconde as métricas dele.
 
-**Description:** High-level metrics for quick overview
-
-**File:** `src/pages/Dashboard.jsx`
-
-**Metrics:**
-
-#### Total Processos
-**Calculation:** Count of all processes in selected organization
-
-```javascript
-const totalProcessos = processes.length;
-```
-
-#### Processos Urgentes
-**Calculation:** Count of  processes with `urgency_request === true` and not archived
-
-```javascript
-const processosUrgentes = processes.filter(
-  p => p.urgency_request && p.status !== 'Na pasta'
-).length;
-```
-
-#### Meus Processos
-**Calculation:** Count of processes assigned to current user
-
-```javascript
-const meusProcessos = processes.filter(
-  p => p.responsible_user_id === user.uid
-).length;
-```
-
-#### Membros
-**Calculation:** Count of organization members
-
-```javascript
-const membrosCount = organizations.find(
-  o => o.id === selectedOrgId
-)?.stats.members_count || 0;
-```
-
-**Visual Design:**
-- Gradient background (indigo to violet)
-- Icon for each metric
-- Large number display
-
-### 2. Charts
-
-**Description:** Visual analytics for process distribution
-
-**Library:** Recharts v2.15.0
-
-**Charts Implemented:**
-
-#### 2.1 Distribution by Status (Pie Chart)
-
-**File:** `src/pages/Dashboard.jsx`
-
-```javascript
-const statusData = [
-  { name: 'Em triagem', value: processes.filter(p => p.status === 'Em triagem').length },
-  { name: 'Em elaboração', value: processes.filter(p => p.status === 'Em elaboração').length },
-  { name: 'Em revisão', value: processes.filter(p => p.status === 'Em revisão').length },
-  { name: 'Na pasta', value: processes.filter(p => p.status === 'Na pasta').length },
-];
-```
-
-**Colors:** Distinct colors for each status
-
-#### 2.2 Volume by Location (Bar Chart)
-
-**File:** `src/components/organization/IntelligentSummary.jsx`
-
-```javascript
-const processesPerLocation = {};
-processes.forEach(p => {
-  const location = p.location || 'Não informado';
-  processesPerLocation[location] = (processesPerLocation[location] || 0) + 1;
-});
-const locationData = Object.entries(processesPerLocation)
-  .map(([name, count]) => ({ name, processos: count }))
-  .sort((a, b) => b.processos - a.processos)
-  .slice(0, 10); // Top 10
-```
-
-**Display:** Horizontal bar chart
-
-### 3. Performance Metrics
-
-**Description:** Analyze team/individual performance
-
-**File:** `src/components/organization/IntelligentSummary.jsx`
-
-**Metrics:**
-
-#### Completion Rate
-**Calculation:**
-
-```javascript
-const totalProcesses = processes.length;
-const finishedProcesses = processes.filter(p => p.status === 'Na pasta').length;
-const completionRate = totalProcesses > 0 
-  ? ((finishedProcesses / totalProcesses) * 100).toFixed(1) 
-  : 0;
-```
-
-#### Average Review Time
-**Calculation:** Average days from analysis start to review submission
-
-```javascript
-const reviewTimes = processes
-  .filter(p => p.analysis_start_date && p.review_submission_date)
-  .map(p => {
-    const start = new Date(p.analysis_start_date);
-    const submission = new Date(p.review_submission_date);
-    return Math.floor((submission - start) / (1000 * 60 * 60 * 24));
-  });
-  
-const avgReviewTime = reviewTimes.length > 0 
-  ? (reviewTimes.reduce((a, b) => a + b, 0) / reviewTimes.length).toFixed(1)
-  : 0;
-```
-
-#### Per-Responsible Performance
-**Display:** Progress bars showing completion rate for each assigned user
-
-```javascript
-const processesPerResponsible = {};
-const finishedPerResponsible = {};
-
-processes.forEach(p => {
-  const responsible = p.responsible_user_name || 'Não atribuído';
-  processesPerResponsible[responsible] = (processesPerResponsible[responsible] || 0) + 1;
-  if (p.status === 'Na pasta') {
-    finishedPerResponsible[responsible] = (finishedPerResponsible[responsible] || 0) + 1;
-  }
-});
-
-const responsiblePerformance = Object.entries(processesPerResponsible).map(([name, total]) => ({
-  name,
-  total,
-  concluídos: finishedPerResponsible[name] || 0,
-  taxa: total > 0 ? ((finishedPerResponsible[name] || 0) / total * 100).toFixed(1) : 0
-}));
-```
+**Páginas personalizadas** (flag integrada `custom_entities`, coleções
+`entityTypes` e `customRecords`). O órgão define um tipo de registro (nome,
+campos, fases) e ganha painel Kanban, lista, formulário, importação e resumo
+genéricos (`src/components/organization/custom/`). Tipos de campo: texto curto
+e longo, número, valor (R$), data, sim/não, lista de uma ou várias opções,
+pessoa (membro), município do RS e link. Toda escrita passa por Cloud
+Functions (`upsertEntityType`, `createRecord`, `updateRecord`,
+`deleteRecord`, `importRecords`), que validam contra o esquema do tipo.
 
 ---
 
-## User Profile
+## 6. Recursos de uso diário
 
-### 1. Edit Profile
+Todos integrados ao produto, salvo indicação:
 
-**Description:** Users can update their profile information
-
-**File:** `src/pages/Profile.jsx`
-
-**Editable Fields:**
-
-#### Platform Name
-**Field:** `platform_name`  
-**Purpose:** Display name used throughout the app  
-**Default:** From Google profile (`full_name`)
-
-#### Function
-** Field:** `function`  
-**Purpose:** User's role/position  
-**Options:** Dropdown (secretaria, assessoria, decisória, outro)  
-**Default:** Empty
-
-#### Notification Email   
-**Field:** `notification_email`  
-**Purpose:** Alternative email for notifications  
-**Default:** Same as login email
-
-**Implementation:**
-
-```javascript
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  const userRef = doc(db, 'users', user.uid);
-  await updateDoc(userRef, {
-    platform_name: formData.platform_name,
-    function: formData.function,
-    notification_email: formData.notification_email,
-    updated_at: serverTimestamp()
-  });
-  toast.success('Perfil atualizado');
-};
-```
-
-**Validation:**
-- Platform name required
-- Notification email must be valid email format (or empty)
+- **Kanban com arrastar e soltar** e **listas** com colunas fixas, ordenação
+  por tipo de dado, paginação e filtros salvos (visões nomeadas).
+- **Ações em massa**, **exportação para PDF e Excel**, **densidade de tabela**
+  ajustável, **copiar número ao clicar**.
+- **Paleta de comandos** (Ctrl/Cmd + K).
+- **Indicador de tempo na etapa atual** (dias úteis, limites em
+  `stageTimeConfig`).
+- **Comentários internos com @menção** (`addComment`); a menção gera uma
+  notificação na central de notificações (coleção `notifications`).
+- **Presença em tempo real** ("quem está vendo este registro", coleção
+  `presence`).
+- **Histórico** de cada registro (`activity_log` + subcoleção `history/`).
+- **Painel inicial** (`/Dashboard`) com KPIs e atividade dos órgãos do usuário,
+  ajustado à função (assessoria, secretaria, decisória).
+- **Tema claro/escuro** e **design V2** (ver
+  [DESIGN_SYSTEM_V2.md](./DESIGN_SYSTEM_V2.md)).
+- Opcionais (flag desligada por padrão): **busca global entre órgãos**
+  (`global_search`), **metas por assessor** (`assessor_goals`), **tour de
+  primeiro acesso** (`onboarding_tour`).
 
 ---
 
-## UI/UX Features
+## 7. Automação e integrações
 
-### 1. Responsive Design
+| Recurso | Estado |
+|---|---|
+| Avisos de renovação/revisão das Parcerias (`checkPartnershipNoticeDeadlines`, diária 03:00) | **Ativo** |
+| Escalonamento automático de urgentes parados (`autoEscalateStalledUrgent`) | Código pronto, **exportação comentada** em `functions-v2/src/index.ts` — não roda |
+| Resumo diário e relatório semanal por e-mail (`sendDailyUrgentSummary`, `sendWeeklyOrgReport`) | Código pronto, **exportação comentada** — não roda |
+| Webhooks de saída (`outbound_webhooks`) | Ativo. Eventos `urgent_created`, `archived`, `parceria_created`, `parceria_extinguished`; teste por `testOrgWebhook`. |
+| E-mail transacional (2FA) | Resend, com chave `EMAIL_API_KEY` ou configurada em *Administração & Custos → E-mail* |
 
-**Breakpoints:**
-- Mobile: `<768px`
-- Tablet: `768px - 1024px`
-- Desktop: `>1024px`
-
-**Implementation:** Tailwind CSS responsive classes
-
-```jsx
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-  {/* Mobile: 1 column, Tablet: 2 columns, Desktop: 4 columns */}
-</div>
-```
-
-### 2. Loading States
-
-**Pattern:** Show spinner while fetching data
-
-```javascript
-if (isLoading) {
-  return (
-    <div className="flex items-center justify-center py-12">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
-}
-```
-
-### 3. Error States
-
-**Pattern:** Show user-friendly error message
-
-```javascript
-if (error) {
-  return (
-    <Alert variant="destructive">
-      <AlertDescription>{error}</AlertDescription>
-    </Alert>
-  );
-}
-```
-
-### 4. Toast Notifications
-
-**Library:** Sonner
-
-**Usage:**
-
-```javascript
-import { toast } from 'sonner';
-
-// Success
-toast.success('Processo criado com sucesso!');
-
-// Error
-toast.error('Erro ao criar processo: ' + error.message);
-
-// Info
-toast.info('Código copiado para área de transferência');
-```
-
-### 5. Dialogs/Modals
-
-**Library:** Radix UI Dialog
-
-**Pattern:**
-
-```jsx
-<Dialog open={isOpen} onOpenChange={setIsOpen}>
-  <DialogTrigger asChild>
-    <Button>Open Dialog</Button>
-  </DialogTrigger>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Title</DialogTitle>
-    </DialogHeader>
-    {/* Content */}
-  </DialogContent>
-</Dialog>
-```
-
-### 6. Confirmation Dialogs
-
-**Pattern:** Native browser confirm for destructive actions
-
-```javascript
-const handleDelete = () => {
-  if (window.confirm('Tem certeza que deseja excluir?')) {
-    deleteProcess(processId);
-  }
-};
-```
+As configurações de automação continuam editáveis no Painel Administrativo,
+mas, enquanto as funções agendadas estiverem comentadas, não produzem efeito.
 
 ---
 
-## Future Features
+## 8. Administração da plataforma (super-admin)
 
-### Planned Enhancements
+Página `/Admin` (*Administração & Custos*), acessível a quem tem o custom claim
+`platformAdmin`, um documento ativo em `platformAdmins/{uid}` ou o e-mail
+listado na variável `PLATFORM_ADMIN_EMAILS` das Cloud Functions (usada para
+conceder o primeiro acesso).
 
-1. ~~**Excel/CSV Import**~~ → ✅ IMPLEMENTED (v1.4.0)
-
-2. **Real-Time Collaboration** (Priority: P2)
-   - Show who's viewing/editing a process
-   - Live updates without refresh
-   - **Requires:** Firestore real-time listeners optimization
-
-3. **Email Notifications** (Priority: P3)
-   - Notify on process assignment
-   - Daily digest of urgent processes
-   - **Requires:** Cloud Functions + SendGrid/similar
-
-4. **Advanced Search** (Priority: P2)
-   - Full-text search across all fields
-   - Saved searches
-   - **Requires:** Algolia or similar search service
-
-5. ~~**Audit Log**~~ → ✅ IMPLEMENTED (v1.4.0)
-
-6. **Custom Reports** (Priority: P3)
-   - Generate PDF reports
-   - Customizable templates
-   - **Requires:** Cloud Functions + PDF library
-
-7. **Mobile App** (Priority: P3)
-   - React Native app
-   - Offline support
-   - **Requires:** Significant development
+| Aba | Para quê | Function |
+|---|---|---|
+| Visão geral | Totais da plataforma | `getPlatformOverview` |
+| Configuração | Passo a passo dos segredos e integrações | `getSetupStatus` |
+| Custos | Custos reais via export do Cloud Billing no BigQuery | `getCostReport` |
+| Funcionalidades | Liga/desliga as flags opcionais | `getFeatureFlags`, `setFeatureFlag` |
+| Administradores | Concede/revoga super-admin | `grantPlatformAdmin`, `revokePlatformAdmin`, `listPlatformAdmins` |
+| E-mail | Provedor de e-mail | `getEmailProviderConfig`, `setEmailProviderConfig` |
+| Órgãos, Usuários, Movimentações, Armazenamento | Relatórios da plataforma | `getOrgsReport`, `listPlatformUsers`, `getActivityFeed`, `getStorageFootprint` |
+| Cotas, Saúde, Ferramentas de dados | Limites, saúde, auditoria de integridade, recálculo de estatísticas, backfill de histórico | `getPlatformQuotas`, `setPlatformQuota`, `getSystemHealth`, `runIntegrityAudit`, `recalcOrgStats`, `backfillHistory` |
 
 ---
 
-## Conclusion
+## 9. Feature flags
 
-The CAOCIPP platform provides comprehensive process management with:
-- ✅ **30+ implemented features** covering authentication, organizations, processes, Kanban, audit log, and analytics
-- ✅ **Secure, role-based access control**
-- ✅ **Kanban board with drag-and-drop and bidirectional movement**
-- ✅ **Per-process audit log with detailed change tracking**
-- ✅ **Excel import with field-level change descriptions**
-- ✅ **Real-time data updates**
-- ✅ **Responsive design**
+Catálogo em `src/constants/featureFlags.js`; valores em
+`platformConfig/featureFlags` (lidos em tempo real por
+`src/lib/FeatureFlagsContext.jsx`).
 
-For implementation details:
-- Architecture → `ARCHITECTURE_REFERENCE.md`
-- Security → `SECURITY_REFERENCE.md`
-- Design → `DESIGN_SYSTEM_REFERENCE.md`
+- **Integradas** (todas as que não estão em `OPTIONAL_FLAG_KEYS`): ligadas por
+  padrão e fora da tela de administração. Um `false` explícito gravado no
+  Firestore ainda as desliga, como válvula de emergência.
+- **Opcionais** (desligadas por padrão, ligadas pelo super-admin):
+  `global_search`, `assessor_goals`, `two_factor_auth`, `onboarding_tour`,
+  `jurimetria_enabled`, `panorama_enabled`.
+
+As flags são globais (valem para todos os órgãos). A ativação por órgão é
+feita pelo `moduleConfig`.

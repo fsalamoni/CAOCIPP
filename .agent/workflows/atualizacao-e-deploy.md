@@ -1,44 +1,42 @@
 ---
-description: Sincronização, atualização de documentos, commit e deploy total
+description: Sincronização, atualização de documentos, verificação, PR e deploy
 ---
 
 # Fluxo de Atualização e Deploy (SIGO)
 
-Este workflow automatiza a sequência final de sincronização do backup, atualização de memoriais e publicação do sistema.
+Sequência final de uma entrega: backup local, documentação, verificação e
+publicação. O processo completo está em `docs/DEVELOPMENT_GUIDE.md` (seção 6).
 
 ## Passos
 
 // turbo
-1. Sincronizar Backup (`Repositório original`)
+1. Sincronizar Backup (`Repositório original`) — opcional, só na máquina local do mantenedor
 ```powershell
 robocopy "c:\Users\Usuario\Desktop\CAOCIPP" "c:\Users\Usuario\Desktop\CAOCIPP\Repositório original" /MIR /XD .git node_modules "Repositório original" .gemini .agent /XF .env .DS_Store /R:0 /W:0
 ```
 
-2. Atualizar Documentos de Referência
-- Marcar versão final nos arquivos em `docs/`
-- Atualizar "Last Updated" em `README.md` e `MIGRATION_PROGRESS.md`
+2. Atualizar a documentação no mesmo PR
+- Ajustar em `docs/` os documentos afetados pela mudança (índice em `docs/README.md`).
+- Registrar entregas relevantes em `docs/CHANGELOG.md`.
 
 // turbo
-3. Build de Verificação
+3. Verificação (o mesmo que o CI roda)
 ```bash
-npm run build
+npm run lint && npm run typecheck && npm --prefix functions-v2 run build:local && npm run build
+```
+Inclua `functions-v2/lib/` no commit se `functions-v2/src` mudou.
+
+4. Commit e push num branch
+```bash
+git checkout -b <branch>
+git add <arquivos>
+git commit -m "<tipo>(<escopo>): <descrição>"
+git push -u origin <branch>
 ```
 
-4. Commit das Alterações
-```bash
-git add .
-git commit -m "chore: automatized update and sync"
-```
+5. Abrir pull request para `main` e aguardar o CI verde.
 
-// turbo
-5. Push para o Repositório
-```bash
-git push origin main
-```
-
-// turbo
-6. Deploy para Firebase
-```bash
-npx firebase deploy --only hosting
-```
-> Deploy agora vai para **consultascao.web.app** (domínio legado do Firebase Hosting, configurado em `firebase.json` com `"site": "consultascao"`). O nome visível ao usuário final é **SIGO**. Para renomear o domínio, criar um novo site no Firebase Console e migrar.
+6. Deploy
+O merge em `main` dispara `.github/workflows/deploy.yml`, que publica hosting,
+functions, regras e índices em <https://sigo-caocipp.web.app>. Não é preciso
+rodar `firebase deploy` à mão.
