@@ -79,6 +79,31 @@ test('derivados de pendências e prazos', () => {
     assert.deepEqual(d, { pendencias_abertas: 2, fase_suspensa: true, proximo_vencimento: '2026-11-20' });
 });
 
+test('rito com ramificações: próximas por id do cliente, orientação e validação', () => {
+    const r = s.sanitizeRito({ nome: 'R', fases: [
+        { id: 'tmp1', nome: 'Análise', orientacao: 'Conferir documentos', proximas: ['tmp3', 'tmp2'] },
+        { id: 'tmp2', nome: 'Diligência', proximas: ['tmp1'] },
+        { id: 'tmp3', nome: 'Decisão' },
+    ] });
+    assert.deepEqual(r.fases.map((f) => f.id), ['tmp1', 'tmp2', 'tmp3']);
+    assert.deepEqual(r.fases[0].proximas, ['tmp3', 'tmp2']);
+    assert.equal(r.fases[0].orientacao, 'Conferir documentos');
+    assert.deepEqual(s.fasesSeguintes(r.fases, 'tmp1').map((f) => f.nome), ['Decisão', 'Diligência']);
+    assert.deepEqual(s.fasesSeguintes(r.fases, 'tmp2').map((f) => f.nome), ['Análise']);
+    assert.deepEqual(s.fasesSeguintes(r.fases, 'tmp3'), []);
+    const r3 = s.sanitizeRito({ nome: 'R', fases: [{ id: 'a', nome: 'A', proximas: ['c', 'b'] }, { id: 'b', nome: 'B', final: true, proximas: ['c'] }, { id: 'c', nome: 'C' }] });
+    assert.equal(r3.fases[1].final, true);
+    assert.equal(r3.fases[1].proximas, undefined);
+    assert.deepEqual(s.fasesSeguintes(r3.fases, 'b'), []);
+    assert.equal(s.proximaFase(r, 'tmp1').nome, 'Decisão');
+    assert.throws(() => s.sanitizeRito({ nome: 'R', fases: [{ id: 'a', nome: 'A', proximas: ['zz'] }] }), /não existe/);
+    assert.throws(() => s.sanitizeRito({ nome: 'R', fases: [{ id: 'a', nome: 'A', proximas: ['a'] }] }), /ela mesma/);
+    // Ids com caracteres estranhos viram slug, e as referências acompanham.
+    const r2 = s.sanitizeRito({ nome: 'R', fases: [{ id: 'Nova Fase!', nome: 'A', proximas: ['X/Y'] }, { id: 'X/Y', nome: 'B' }] });
+    assert.deepEqual(r2.fases.map((f) => f.id), ['nova_fase', 'x_y']);
+    assert.deepEqual(r2.fases[0].proximas, ['x_y']);
+});
+
 test('número do processo', () => {
     assert.equal(s.numeroProcesso(2026, 42), '000042/2026');
 });

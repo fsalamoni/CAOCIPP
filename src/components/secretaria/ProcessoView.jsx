@@ -15,6 +15,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secDocumento, secExportarPdf, secProcesso, baixarBase64, arquivoParaBase64 } from '@/services/secretariaService';
 import { NativeSelect, STATUS_ROTULO, dataHora } from './comum';
+import FluxoRito from './FluxoRito';
+import { seguintes } from '@/lib/secretariaRito';
 
 const TOOLBAR = [[{ header: [1, 2, 3, false] }], ['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], [{ align: [] }], ['blockquote'], ['clean']];
 const FORMATOS = ['header', 'bold', 'italic', 'underline', 'list', 'bullet', 'align', 'blockquote', 'indent'];
@@ -96,6 +98,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     const minutas = documentos.filter((d) => d.status === 'minuta');
     const autos = documentos.filter((d) => d.status === 'juntado');
+    const iAtual = p.fases.findIndex((f) => f.id === p.fase_atual);
+    const faseAtual = p.fases[iAtual];
+    const proximasNomes = seguintes(p.fases, iAtual).map((id) => p.fases.find((f) => f.id === id)?.nome).join(' ou ');
 
     return (
         <div className="space-y-5">
@@ -127,6 +132,20 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </div>
             </div>
             {!posse && <p className="text-sm text-slate-500 dark:text-slate-400">Você consulta este processo. Só a unidade que está com ele pode movimentá-lo.</p>}
+
+            <details className="group rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" open={!!faseAtual?.orientacao}>
+                <summary className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-sm text-slate-500">Fase atual</span>
+                    <span className="font-medium">{p.fase_nome}</span>
+                    {proximasNomes && <span className="text-sm text-slate-500">· segue para {proximasNomes}</span>}
+                    <span className="ml-auto text-xs text-indigo-700 dark:text-indigo-300 group-open:hidden">Ver fluxo</span>
+                    <span className="ml-auto text-xs text-indigo-700 dark:text-indigo-300 hidden group-open:inline">Ocultar fluxo</span>
+                </summary>
+                <div className="px-4 pb-4 space-y-3">
+                    {faseAtual?.orientacao && <p className="text-sm rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-100 px-3 py-2"><b>Orientação:</b> {faseAtual.orientacao}</p>}
+                    <FluxoRito fases={p.fases} atual={p.fase_atual} />
+                </div>
+            </details>
 
             <div className="grid lg:grid-cols-5 gap-5">
                 <div className="lg:col-span-3 space-y-5">
@@ -250,7 +269,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     </ul>
                                 </div>
                             )}
-                            <p>Fases: {p.fases.map((f) => f.id === p.fase_atual ? `[${f.nome}]` : f.nome).join(' → ')}</p>
+                            {p.tipo_nome && <p>Tipo: {p.tipo_nome}</p>}
                         </CardContent>
                     </Card>
                 </div>
@@ -408,8 +427,33 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
         enviar = () => mov('tramitar', { unidade_destino: valor, motivo }, 'Processo remetido');
     } else if (tipo === 'fase') {
         titulo = 'Mudar a fase';
-        campo = <NativeSelect label="Fase" value={valor} onChange={setValor} options={[['', 'Próxima fase do rito'], ...p.fases.filter((f) => f.id !== p.fase_atual).map((f) => [f.id, f.nome])]} />;
-        enviar = () => mov('avancarFase', { fase_id: valor || undefined, motivo }, 'Fase alterada');
+        const noFluxo = seguintes(p.fases, p.fases.findIndex((f) => f.id === p.fase_atual));
+        const escolhida = valor || noFluxo[0] || '';
+        const fora = !!escolhida && !noFluxo.includes(escolhida);
+        const nomeFase = (id) => p.fases.find((f) => f.id === id)?.nome;
+        campo = (
+            <div className="space-y-3">
+                {noFluxo.length > 0 ? (
+                    <fieldset>
+                        <legend className="text-sm font-medium mb-2">Seguir o fluxo do rito</legend>
+                        <div className="grid gap-2">
+                            {noFluxo.map((id) => (
+                                <button key={id} type="button" onClick={() => setValor(id)} aria-pressed={escolhida === id}
+                                    className={`text-left rounded-md border px-3 py-2 text-sm ${escolhida === id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 dark:border-indigo-400' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
+                                    <span className="font-medium">{nomeFase(id)}</span>
+                                    {p.fases.find((f) => f.id === id)?.orientacao && <span className="block text-xs text-slate-500">{p.fases.find((f) => f.id === id).orientacao}</span>}
+                                </button>
+                            ))}
+                        </div>
+                    </fieldset>
+                ) : <p className="text-sm text-slate-600 dark:text-slate-300">Esta é a fase final do rito.</p>}
+                <NativeSelect id="fase-fora" label="Ou ir para outra fase (fora do fluxo, exige motivo)" value={fora ? escolhida : ''} onChange={(v) => setValor(v || '')}
+                    options={[['', '—'], ...p.fases.filter((f) => f.id !== p.fase_atual && !noFluxo.includes(f.id)).map((f) => [f.id, f.nome])]} />
+            </div>
+        );
+        if (fora) { exigeTexto = true; rotuloTexto = 'Motivo para sair do fluxo'; }
+        exigeValor = !escolhida;
+        enviar = () => mov('avancarFase', { fase_id: escolhida, motivo }, 'Fase alterada');
     } else if (tipo === 'atribuir') {
         titulo = 'Atribuir a uma pessoa da unidade';
         campo = <NativeSelect label="Responsável" value={valor} onChange={setValor} options={[['', 'Ninguém'], ...membros.map((m) => [m.uid, m.nome])]} />;

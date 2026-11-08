@@ -46,6 +46,8 @@ function resumo(id, d) {
         unidade_atual: d.unidade_atual,
         responsavel_uid: d.responsavel_uid || null,
         rito_nome: d.rito_nome,
+        tipo_id: d.tipo_id || null,
+        tipo_nome: d.tipo_nome || null,
         ultimo_movimento: d.ultimo_movimento || null,
         version: d.version,
         pendencias_abertas: d.pendencias_abertas || 0,
@@ -117,11 +119,19 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (!c.ctx.unidadeIds.includes(unidadeId)) {
             throw new https_1.HttpsError('permission-denied', 'Você só autua processos em unidade onde está lotado');
         }
-        const ritoSnap = await db.collection(context_1.COL.ritos).doc(String(p.rito_id || '_')).get();
+        // Tipo de processo: define o rito e o sigilo padrão.
+        let tipo = null;
+        if (p.tipo_id) {
+            tipo = (await db.collection(context_1.COL.tipos).doc(String(p.tipo_id)).get()).data() || null;
+            if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false)
+                throw new https_1.HttpsError('invalid-argument', 'Escolha um tipo de processo ativo');
+        }
+        const ritoSnap = await db.collection(context_1.COL.ritos).doc(String((tipo === null || tipo === void 0 ? void 0 : tipo.rito_id) || p.rito_id || '_')).get();
         const rito = ritoSnap.data();
         if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false) {
-            throw new https_1.HttpsError('invalid-argument', 'Escolha um rito ativo');
+            throw new https_1.HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
+        const sigilo = (p.sigilo || (tipo === null || tipo === void 0 ? void 0 : tipo.sigilo_padrao)) === 'restrito' ? 'restrito' : 'normal';
         const ano = new Date().getFullYear();
         const contadorRef = db.collection(context_1.COL.contadores).doc(`${orgId}_${ano}`);
         const procRef = db.collection(context_1.COL.processos).doc();
@@ -132,9 +142,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             tx.set(contadorRef, { organization_id: orgId, ano, seq }, { merge: true });
             const numero = (0, secretaria_1.numeroProcesso)(ano, seq);
             const fases = rito.fases;
-            const base = Object.assign({ organization_id: orgId, numero,
-                assunto, descricao: (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO), partes: sanitizePartes(p.partes), sigilo: p.sigilo === 'restrito' ? 'restrito' : 'normal', status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }, (0, secretaria_1.derivados)([], []));
-            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`, { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId });
+            const base = Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero,
+                assunto, descricao: (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO), partes: sanitizePartes(p.partes), sigilo }, (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`, { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId });
             tx.set(procRef, Object.assign(Object.assign({}, base), mov));
             return numero;
         });
@@ -186,8 +196,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (data.fase_suspensa === true) {
                 throw new https_1.HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
             }
+            // Sair do fluxo desenhado no rito é permitido, mas exige justificativa.
+            const foraDoFluxo = !(0, secretaria_1.fasesSeguintes)(fases, data.fase_atual).some((f) => f.id === alvo.id);
+            if (foraDoFluxo && !motivo)
+                throw new https_1.HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const de = ((_b = fases.find((f) => f.id === data.fase_atual)) === null || _b === void 0 ? void 0 : _b.nome) || data.fase_atual;
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}.${motivo ? ` ${motivo}` : ''}`, { de: data.fase_atual, para: alvo.id });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})));
             tx.update(ref, Object.assign(Object.assign({}, mov), { fase_atual: alvo.id }));
             return mov;
         }

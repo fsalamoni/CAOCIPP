@@ -15,6 +15,7 @@ import { useOrganizations } from '@/hooks/useFirestore';
 import { secConfig, secProcesso } from '@/services/secretariaService';
 import ProcessoView from '@/components/secretaria/ProcessoView';
 import SecretariaConfiguracao from '@/components/secretaria/SecretariaConfiguracao';
+import FluxoRito from '@/components/secretaria/FluxoRito';
 import { STATUS_ROTULO, NativeSelect } from '@/components/secretaria/comum';
 
 export default function Secretaria() {
@@ -103,6 +104,7 @@ export default function Secretaria() {
 function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     const [filtro, setFiltro] = useState('');
     const [situacao, setSituacao] = useState('todos');
+    const [tipoF, setTipoF] = useState('');
     const q = useQuery({
         queryKey: ['sec-processos', orgId, escopo],
         queryFn: () => secProcesso(orgId, 'listar', { escopo }),
@@ -112,7 +114,8 @@ function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     const termo = filtro.trim().toLowerCase();
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     const lista = (q.data?.processos || [])
-        .filter((p) => !termo || `${p.numero} ${p.assunto}`.toLowerCase().includes(termo))
+        .filter((p) => !termo || `${p.numero} ${p.assunto} ${p.tipo_nome || ''}`.toLowerCase().includes(termo))
+        .filter((p) => !tipoF || p.tipo_id === tipoF)
         .filter((p) => situacao === 'todos'
             || (situacao === 'pendencia' && p.pendencias_abertas > 0)
             || (situacao === 'vencido' && p.proximo_vencimento && p.proximo_vencimento < hoje)
@@ -130,6 +133,12 @@ function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     <option value="prazo">Com prazo aberto</option>
                     <option value="vencido">Com prazo vencido</option>
                 </select>
+                {(estado.tipos || []).length > 0 && (
+                    <select aria-label="Filtrar por tipo de processo" value={tipoF} onChange={(e) => setTipoF(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                        <option value="">Todos os tipos</option>
+                        {estado.tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                    </select>
+                )}
             </div>
             {lista.length === 0 ? (
                 <p className="py-8 text-slate-500 dark:text-slate-400">
@@ -140,7 +149,7 @@ function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     {lista.map((p) => (
                         <button key={p.id} onClick={() => onAbrir(p.id)} className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800 flex flex-wrap gap-x-6 gap-y-1 items-baseline">
                             <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300">{p.numero}</span>
-                            <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}</span>
+                            <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-500">{p.tipo_nome}</span>}</span>
                             <span className="text-sm text-slate-500 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}{p.responsavel_uid ? ` · ${nomeMembro(p.responsavel_uid) || ''}` : ''}</span>
                             <Badge variant={p.status === 'em_tramitacao' ? 'secondary' : 'outline'}>{STATUS_ROTULO[p.status]}</Badge>
                             {p.sigilo === 'restrito' && <Badge variant="outline">Restrito</Badge>}
@@ -163,9 +172,23 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     const [aberto, setAberto] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const ritosAtivos = estado.ritos.filter((r) => r.ativo);
-    const vazio = { assunto: '', descricao: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', partes: [] };
+    const tiposAtivos = (estado.tipos || []).filter((t) => t.ativo && ritosAtivos.some((r) => r.id === t.rito_id));
+    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', partes: [] };
     const [f, setF] = useState(vazio);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+    // Escolher o tipo preenche rito, sigilo e unidade sugerida (se a pessoa está lotada nela).
+    const escolherTipo = (id) => {
+        const t = tiposAtivos.find((x) => x.id === id);
+        setF((x) => ({
+            ...x, tipo_id: id,
+            ...(t ? {
+                rito_id: t.rito_id, sigilo: t.sigilo_padrao,
+                ...(t.unidade_inicial && estado.minhasUnidades.includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial } : {}),
+            } : {}),
+        }));
+    };
+    const tipoSel = tiposAtivos.find((t) => t.id === f.tipo_id);
+    const ritoSel = estado.ritos.find((r) => r.id === f.rito_id);
 
     if (estado.minhasUnidades.length === 0) return null; // só quem está lotado autua
 
@@ -191,30 +214,45 @@ function NovoProcesso({ orgId, estado, onCriado }) {
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Autuar processo</DialogTitle></DialogHeader>
                 <div className="space-y-4">
+                    {tiposAtivos.length > 0 && (
+                        <div>
+                            <NativeSelect id="sec-tipo" label="Tipo de processo" value={f.tipo_id} onChange={escolherTipo}
+                                options={[['', 'Sem tipo (escolher o rito)'], ...tiposAtivos.map((t) => [t.id, t.sigla ? `${t.nome} (${t.sigla})` : t.nome])]} />
+                            {tipoSel?.descricao && <p className="text-xs text-slate-500 mt-1">{tipoSel.descricao}</p>}
+                        </div>
+                    )}
                     <div><Label htmlFor="sec-assunto">Assunto</Label><Input id="sec-assunto" value={f.assunto} onChange={(e) => set('assunto', e.target.value)} maxLength={200} /></div>
                     <div><Label htmlFor="sec-desc">Descrição</Label><Textarea id="sec-desc" value={f.descricao} onChange={(e) => set('descricao', e.target.value)} rows={3} /></div>
                     <div className="grid sm:grid-cols-3 gap-3">
-                        <NativeSelect label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)}
-                            options={ritosAtivos.map((r) => [r.id, r.nome])} />
+                        {tipoSel
+                            ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>
+                            : <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)} options={ritosAtivos.map((r) => [r.id, r.nome])} />}
                         <NativeSelect label="Unidade" value={f.unidade_id} onChange={(v) => set('unidade_id', v)}
                             options={estado.minhasUnidades.map((id) => [id, estado.unidades.find((u) => u.id === id)?.nome])} />
                         <NativeSelect label="Sigilo" value={f.sigilo} onChange={(v) => set('sigilo', v)}
                             options={[['normal', 'Normal'], ['restrito', 'Restrito às unidades por onde passar']]} />
                     </div>
+                    {ritoSel && (
+                        <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+                            <summary className="text-sm cursor-pointer">Ver o fluxo do rito ({ritoSel.fases.length} fases)</summary>
+                            <FluxoRito fases={ritoSel.fases} className="mt-2" />
+                        </details>
+                    )}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
                             <Label>Partes e interessados</Label>
                             <Button type="button" size="sm" variant="outline" onClick={() => set('partes', [...f.partes, { nome: '', documento: '', polo: 'requerente' }])}>Adicionar</Button>
                         </div>
                         {f.partes.map((pa, i) => (
-                            <div key={i} className="grid grid-cols-12 gap-2 items-end">
-                                <Input className="col-span-5" placeholder="Nome" value={pa.nome} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))} />
-                                <Input className="col-span-3" placeholder="CPF/CNPJ" value={pa.documento} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, documento: e.target.value } : x))} />
-                                <select className="col-span-3 h-9 rounded-md border border-input bg-transparent px-2 text-sm" value={pa.polo} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, polo: e.target.value } : x))} aria-label="Polo">
+                            <div key={i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end rounded-md sm:rounded-none border sm:border-0 border-slate-200 dark:border-slate-700 p-2 sm:p-0">
+                                <Input className="col-span-2 sm:col-span-4" placeholder="Nome" aria-label="Nome da parte" value={pa.nome} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))} />
+                                <Input className="sm:col-span-2" placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ" value={pa.documento} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, documento: e.target.value } : x))} />
+                                <Input className="sm:col-span-3" type="email" placeholder="E-mail (convite)" aria-label="E-mail da parte" value={pa.email || ''} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, email: e.target.value } : x))} />
+                                <select className="sm:col-span-2 h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900" value={pa.polo} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, polo: e.target.value } : x))} aria-label="Polo">
                                     <option value="requerente">Requerente</option><option value="requerido">Requerido</option>
                                     <option value="interessado">Interessado</option><option value="terceiro">Terceiro</option>
                                 </select>
-                                <Button type="button" variant="ghost" size="sm" className="col-span-1" onClick={() => set('partes', f.partes.filter((_, j) => j !== i))} aria-label="Remover parte">×</Button>
+                                <Button type="button" variant="ghost" size="sm" className="sm:col-span-1" onClick={() => set('partes', f.partes.filter((_, j) => j !== i))} aria-label="Remover parte">×</Button>
                             </div>
                         ))}
                     </div>

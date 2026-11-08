@@ -21,6 +21,7 @@ exports.COL = {
     ritos: 'secRitos',
     contadores: 'secContadores',
     convites: 'secConvites',
+    tipos: 'secTipos',
 };
 function exigirAuth(request) {
     if (!request.auth)

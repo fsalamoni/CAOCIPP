@@ -19,7 +19,17 @@ export type TipoUnidade = 'secretaria' | 'gabinete';
 export type Sigilo = 'normal' | 'restrito';
 export type StatusProcesso = 'em_tramitacao' | 'sobrestado' | 'arquivado';
 
-export interface Fase { id: string; nome: string; prazo_dias?: number }
+export interface Fase {
+    id: string;
+    nome: string;
+    prazo_dias?: number;
+    /** Orientação para quem trabalha na fase. */
+    orientacao?: string;
+    /** Fases para onde o processo pode seguir. Ausente = a próxima da lista. */
+    proximas?: string[];
+    /** Fase terminal: o fluxo acaba nela, mesmo que não seja a última da lista. */
+    final?: boolean;
+}
 export interface Rito { nome: string; descricao: string; fases: Fase[] }
 
 export interface ContextoUsuario {
@@ -75,28 +85,60 @@ export function sanitizeRito(input: unknown): Rito {
     if (fasesIn.length === 0) throw new Error('O rito precisa de ao menos uma fase');
     if (fasesIn.length > MAX_FASES) throw new Error(`O rito aceita no máximo ${MAX_FASES} fases`);
     const vistos = new Set<string>();
-    const fases: Fase[] = fasesIn.map((f, i) => {
+    // O id que o cliente mandou (referenciado em `proximas`) vira o id final.
+    const ids = new Map<string, string>();
+    const brutas = fasesIn.map((f, i) => {
         const fo = (f && typeof f === 'object' ? f : {}) as Record<string, unknown>;
         const nomeFase = texto(fo.nome);
         if (!nomeFase) throw new Error(`A fase ${i + 1} está sem nome`);
-        let id = texto(fo.id, 40) || slug(nomeFase);
+        const original = texto(fo.id, 40);
+        let id = slug(original || nomeFase);
         while (vistos.has(id)) id = `${id}_${i}`;
         vistos.add(id);
+        if (original) ids.set(original, id);
+        return { fo, id, nomeFase };
+    });
+    const fases: Fase[] = brutas.map(({ fo, id, nomeFase }) => {
         const prazo = Number(fo.prazo_dias);
+        const orientacao = texto(fo.orientacao, MAX_TEXTO_LONGO);
+        const final = fo.final === true;
+        const proximas = !final && Array.isArray(fo.proximas)
+            ? [...new Set(fo.proximas.map((x) => {
+                const alvo = ids.get(String(x)) ?? (vistos.has(String(x)) ? String(x) : null);
+                if (!alvo) throw new Error(`A fase "${nomeFase}" aponta para uma fase que não existe`);
+                if (alvo === id) throw new Error(`A fase "${nomeFase}" não pode seguir para ela mesma`);
+                return alvo;
+            }))]
+            : [];
         return {
             id,
             nome: nomeFase,
             ...(Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {}),
+            ...(orientacao ? { orientacao } : {}),
+            ...(proximas.length ? { proximas } : {}),
+            ...(final ? { final: true } : {}),
         };
     });
     return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases };
 }
 
-/** Fase seguinte no rito, ou null se a atual é a última (ou não existe). */
+/**
+ * Fases para onde o processo segue a partir da atual: as `proximas` da fase,
+ * ou a seguinte da lista. Ir para outra fase é possível, mas fica registrado
+ * como fora do fluxo e exige justificativa.
+ */
+export function fasesSeguintes(fases: Fase[], atualId: string): Fase[] {
+    const i = fases.findIndex((f) => f.id === atualId);
+    if (i < 0) return [];
+    const atual = fases[i];
+    if (atual.final) return [];
+    if (atual.proximas?.length) return atual.proximas.map((id) => fases.find((f) => f.id === id)).filter((f): f is Fase => !!f);
+    return i < fases.length - 1 ? [fases[i + 1]] : [];
+}
+
+/** Fase seguinte no fluxo (a primeira, se houver ramificação), ou null. */
 export function proximaFase(rito: Rito, faseAtualId: string): Fase | null {
-    const i = rito.fases.findIndex((f) => f.id === faseAtualId);
-    if (i < 0 || i >= rito.fases.length - 1) return null;
-    return rito.fases[i + 1];
+    return fasesSeguintes(rito.fases, faseAtualId)[0] || null;
 }
 
 /** Quem tem o processo consigo: lotados na unidade que detém a posse. */

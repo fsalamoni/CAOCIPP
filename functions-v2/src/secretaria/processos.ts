@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     Contagem, Fase, MAX_ITENS, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
+    fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
 import {
@@ -41,6 +41,7 @@ interface ProcRequest {
     assunto?: string;
     descricao?: string;
     rito_id?: string;
+    tipo_id?: string;
     unidade_id?: string;
     sigilo?: string;
     partes?: unknown;
@@ -82,6 +83,8 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         unidade_atual: d.unidade_atual,
         responsavel_uid: d.responsavel_uid || null,
         rito_nome: d.rito_nome,
+        tipo_id: d.tipo_id || null,
+        tipo_nome: d.tipo_nome || null,
         ultimo_movimento: d.ultimo_movimento || null,
         version: d.version,
         pendencias_abertas: d.pendencias_abertas || 0,
@@ -161,11 +164,18 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         if (!c.ctx.unidadeIds.includes(unidadeId)) {
             throw new HttpsError('permission-denied', 'Você só autua processos em unidade onde está lotado');
         }
-        const ritoSnap = await db.collection(COL.ritos).doc(String(p.rito_id || '_')).get();
+        // Tipo de processo: define o rito e o sigilo padrão.
+        let tipo: admin.firestore.DocumentData | null = null;
+        if (p.tipo_id) {
+            tipo = (await db.collection(COL.tipos).doc(String(p.tipo_id)).get()).data() || null;
+            if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false) throw new HttpsError('invalid-argument', 'Escolha um tipo de processo ativo');
+        }
+        const ritoSnap = await db.collection(COL.ritos).doc(String(tipo?.rito_id || p.rito_id || '_')).get();
         const rito = ritoSnap.data();
         if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false) {
-            throw new HttpsError('invalid-argument', 'Escolha um rito ativo');
+            throw new HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
+        const sigilo = (p.sigilo || tipo?.sigilo_padrao) === 'restrito' ? 'restrito' : 'normal';
         const ano = new Date().getFullYear();
         const contadorRef = db.collection(COL.contadores).doc(`${orgId}_${ano}`);
         const procRef = db.collection(COL.processos).doc();
@@ -181,7 +191,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 assunto,
                 descricao: texto(p.descricao, MAX_TEXTO_LONGO),
                 partes: sanitizePartes(p.partes),
-                sigilo: p.sigilo === 'restrito' ? 'restrito' : 'normal',
+                sigilo,
+                ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {}),
                 status: 'em_tramitacao',
                 rito_id: ritoSnap.id,
                 rito_nome: rito.nome,
@@ -204,7 +215,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 ...derivados([], []),
             };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
-                `Processo autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`,
+                `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`,
                 { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId });
             tx.set(procRef, { ...base, ...mov });
             return numero;
@@ -264,9 +275,13 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (data.fase_suspensa === true) {
                 throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
             }
+            // Sair do fluxo desenhado no rito é permitido, mas exige justificativa.
+            const foraDoFluxo = !fasesSeguintes(fases, data.fase_atual).some((f) => f.id === alvo.id);
+            if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             const mov = registrarMovimento(tx, c, ref, data, 'fase',
-                `Fase alterada de ${de} para ${alvo.nome}.${motivo ? ` ${motivo}` : ''}`, { de: data.fase_atual, para: alvo.id });
+                `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${motivo ? ` ${motivo}` : ''}`,
+                { de: data.fase_atual, para: alvo.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}) });
             tx.update(ref, { ...mov, fase_atual: alvo.id });
             return mov;
         }

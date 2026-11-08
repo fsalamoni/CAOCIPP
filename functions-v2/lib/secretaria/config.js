@@ -24,7 +24,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId, { permitirInativa: true });
@@ -34,7 +34,10 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
     if (p.action === 'estado') {
         if (!enabled && !c.ctx.isAdmin)
             return { enabled: false, isAdmin: false };
-        const ritosSnap = await db.collection(context_1.COL.ritos).where('organization_id', '==', orgId).get();
+        const [ritosSnap, tiposSnap] = await Promise.all([
+            db.collection(context_1.COL.ritos).where('organization_id', '==', orgId).get(),
+            db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).get(),
+        ]);
         let membros = [];
         // Todo usuário lotado precisa ver os nomes de colegas para atribuir
         // processos; e-mail só para quem administra.
@@ -61,6 +64,13 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 const r = d.data();
                 return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false };
             }),
+            tipos: tiposSnap.docs.map((d) => {
+                const t = d.data();
+                return {
+                    id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
+                    sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
+                };
+            }).sort((a, b) => a.nome.localeCompare(b.nome)),
             membros,
         };
     }
@@ -159,6 +169,37 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             p.id = ref.id;
         }
         await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_RITO_SALVO', { rito_id: p.id, nome: rito.nome });
+        return { success: true, id: p.id };
+    }
+    if (p.action === 'salvarTipo') {
+        const t = (p.tipo && typeof p.tipo === 'object' ? p.tipo : {});
+        const nome = (0, secretaria_1.texto)(t.nome);
+        if (!nome)
+            throw new https_1.HttpsError('invalid-argument', 'Dê um nome ao tipo de processo');
+        const rito = (await db.collection(context_1.COL.ritos).doc(String(t.rito_id || '_')).get()).data();
+        if (!rito || rito.organization_id !== orgId)
+            throw new https_1.HttpsError('invalid-argument', 'Escolha o rito do tipo de processo');
+        const unidadeInicial = String(t.unidade_inicial || '');
+        if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial))
+            throw new https_1.HttpsError('invalid-argument', 'Unidade inicial inválida');
+        const dados = {
+            nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id),
+            sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: unidadeInicial || null,
+            ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
+        };
+        const col = db.collection(context_1.COL.tipos);
+        if (p.id) {
+            const ref = col.doc(p.id);
+            if (((_e = (await ref.get()).data()) === null || _e === void 0 ? void 0 : _e.organization_id) !== orgId)
+                throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
+            await ref.update(dados);
+        }
+        else {
+            if ((await col.where('organization_id', '==', orgId).get()).size >= MAX_RITOS)
+                throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido');
+            p.id = (await col.add(Object.assign(Object.assign({}, dados), { organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
+        }
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome });
         return { success: true, id: p.id };
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

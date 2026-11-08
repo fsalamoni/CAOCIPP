@@ -364,7 +364,7 @@ match /notifications/{notificationId} {
 - ✅ Can only mark as read (no other modifications)
 - ✅ Can delete own notifications
 
-#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secContadores`, `secConvites`) e Cloud Storage
+#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secTipos`, `secContadores`, `secConvites`) e Cloud Storage
 
 - Regras: `allow read, write: if false` em todas. As Cloud Functions `secretaria*`
   aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
