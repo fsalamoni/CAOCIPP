@@ -35,12 +35,20 @@ export const secExportarPdf = (organizationId, processoId) =>
 export const secPortal = (action, extra = {}) =>
     call('secretariaPortal', { action, ...extra }, { timeout: 120000 });
 
-/** Converte base64 em download no navegador. */
-export function baixarBase64(base64, nome, mime = 'application/pdf') {
+export const secPlataforma = (action, extra = {}) =>
+    call('secretariaPlataforma', { action, ...extra });
+
+/** base64 → URL de objeto (pré-visualização); revogue quando não precisar mais. */
+export function base64ParaUrl(base64, mime = 'application/pdf') {
     const bin = atob(base64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    return URL.createObjectURL(new Blob([bytes], { type: mime }));
+}
+
+/** Converte base64 em download no navegador. */
+export function baixarBase64(base64, nome, mime = 'application/pdf') {
+    const url = base64ParaUrl(base64, mime);
     const a = document.createElement('a');
     a.href = url;
     a.download = nome;

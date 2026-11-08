@@ -22,6 +22,8 @@ exports.COL = {
     contadores: 'secContadores',
     convites: 'secConvites',
     tipos: 'secTipos',
+    config: 'secConfig',
+    modelos: 'secModelos',
 };
 function exigirAuth(request) {
     if (!request.auth)
@@ -33,7 +35,7 @@ function exigirAuth(request) {
  * órgão e, salvo `permitirInativa`, a Secretaria ligada pelo admin do órgão.
  */
 async function carregarContexto(auth, orgId, opts = {}) {
-    var _a, _b;
+    var _a, _b, _c;
     if (typeof orgId !== 'string' || !orgId) {
         throw new https_1.HttpsError('invalid-argument', 'organizationId é obrigatório');
     }
@@ -53,6 +55,9 @@ async function carregarContexto(auth, orgId, opts = {}) {
     const isAdmin = mem.role === 'creator' || ((_a = mem.permissions) === null || _a === void 0 ? void 0 : _a.configure_secretaria) === true;
     if (!opts.permitirInativa && ((_b = org.secretariaConfig) === null || _b === void 0 ? void 0 : _b.enabled) !== true) {
         throw new https_1.HttpsError('failed-precondition', 'A Secretaria Processual não está ativa neste órgão');
+    }
+    if (!opts.permitirInativa && ((_c = org.secretariaConfig) === null || _c === void 0 ? void 0 : _c.suspensa_plataforma) === true) {
+        throw new https_1.HttpsError('failed-precondition', 'A Secretaria Processual deste órgão está suspensa pela administração da plataforma');
     }
     const unidades = unSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())));
     const unidadeIds = unidades

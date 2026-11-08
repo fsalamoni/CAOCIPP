@@ -1,0 +1,52 @@
+/* Folha do editor de documentos da Secretaria: aparência de página A4, com as
+   margens do PDF gerado na juntada (3 cm à esquerda, 2 cm à direita). */
+.doc-mesa { background: #e2e8f0; }
+.dark .doc-mesa { background: #0f172a; }
+.doc-folha {
+    background: #fff;
+    color: #0f172a;
+    width: 21cm;
+    min-height: 29.7cm;
+    padding: 2.5cm 2cm 2.5cm 3cm;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.15), 0 8px 24px rgb(15 23 42 / 0.08);
+    margin: 0 auto;
+}
+@media (max-width: 860px) {
+    .doc-folha { width: 100%; min-height: 60vh; padding: 1.25rem 1rem; }
+}
+.doc-folha .ProseMirror { outline: none; min-height: 20cm; word-wrap: break-word; }
+@media (max-width: 860px) { .doc-folha .ProseMirror { min-height: 50vh; } }
+.doc-folha .ProseMirror p { margin: 0 0 6pt; }
+.doc-folha .ProseMirror h1 { font-size: 18pt; font-weight: 700; margin: 8pt 0 6pt; }
+.doc-folha .ProseMirror h2 { font-size: 15pt; font-weight: 700; margin: 8pt 0 6pt; }
+.doc-folha .ProseMirror h3 { font-size: 13pt; font-weight: 700; margin: 8pt 0 6pt; }
+.doc-folha .ProseMirror h4 { font-size: 12pt; font-weight: 700; margin: 8pt 0 6pt; }
+.doc-folha .ProseMirror ul { list-style: disc; padding-left: 1.5em; margin: 0 0 6pt; }
+.doc-folha .ProseMirror ol { list-style: decimal; padding-left: 1.5em; margin: 0 0 6pt; }
+.doc-folha .ProseMirror li > p { margin: 0 0 2pt; }
+.doc-folha .ProseMirror blockquote { border-left: 2px solid #94a3b8; padding-left: 12px; margin: 0 0 8pt 12px; }
+.doc-folha .ProseMirror hr { border: 0; border-top: 1px solid #64748b; margin: 8pt 0 12pt; }
+.doc-folha .ProseMirror a { color: #1d4ed8; text-decoration: underline; }
+.doc-folha .ProseMirror code { font-family: 'Courier New', monospace; background: #f1f5f9; padding: 0 2px; border-radius: 2px; }
+.doc-folha .ProseMirror img { max-width: 100%; height: auto; display: block; margin: 4pt 0 8pt; }
+.doc-folha .ProseMirror img.ProseMirror-selectednode { outline: 2px solid #4f46e5; }
+.doc-folha .ProseMirror mark { padding: 0 1px; border-radius: 1px; }
+.doc-folha .ProseMirror table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 2pt 0 8pt; overflow: hidden; }
+.doc-folha .ProseMirror td, .doc-folha .ProseMirror th { border: 1px solid #94a3b8; padding: 3pt 5pt; vertical-align: top; position: relative; min-width: 2em; }
+.doc-folha .ProseMirror th { background: #f1f5f9; font-weight: 700; text-align: left; }
+.doc-folha .ProseMirror td p, .doc-folha .ProseMirror th p { margin: 0; }
+.doc-folha .ProseMirror .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgb(79 70 229 / 0.12); pointer-events: none; }
+.doc-folha .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: #6366f1; pointer-events: none; }
+.doc-folha .ProseMirror.resize-cursor { cursor: col-resize; }
+.doc-folha .ProseMirror .tableWrapper { overflow-x: auto; }
+.doc-folha .ProseMirror div[data-quebra-pagina] {
+    border-top: 1px dashed #94a3b8; margin: 14pt -1cm; height: 0; position: relative;
+}
+.doc-folha .ProseMirror div[data-quebra-pagina]::after {
+    content: 'Quebra de página'; position: absolute; left: 50%; top: -0.7em; transform: translateX(-50%);
+    background: #fff; color: #64748b; font: 11px system-ui, sans-serif; padding: 0 6px;
+}
+.doc-folha .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder); color: #94a3b8; float: left; height: 0; pointer-events: none;
+}
+.doc-folha .ProseMirror .achado { background: #fde68a; }

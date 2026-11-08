@@ -1,12 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaExportarPdf = void 0;
-const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const pdf_lib_1 = require("pdf-lib");
 const secretaria_1 = require("../shared/secretaria");
 const context_1 = require("./context");
 const config_1 = require("./config");
+const autos_1 = require("./autos");
 /**
  * Exporta os autos em um PDF único, em ordem cronológica: capa, índice de
  * movimentos (com hash), e cada documento juntado na ordem da juntada —
@@ -127,48 +127,50 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
         w.texto(String(m.descricao), { size: 9, espaco: 0 });
         w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
     }
-    // Documentos juntados
+    // Índice dos documentos, com as folhas que cada um ocupa.
+    const cfg = await (0, autos_1.lerConfigDocumento)(c.db, c.orgId);
     let bytesAnexos = 0;
+    const pecas = [];
     for (const d of docs) {
-        w.novaPagina();
-        w.texto(`Documento nº ${d.ordem} — ${d.titulo}`, { size: 13, bold: true });
-        w.texto(`${d.tipo} · ${d.origem === 'editor' ? 'redigido na plataforma' : `arquivo ${d.nome_arquivo}`} · juntado em ${new Date(d.juntado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} por ${d.juntado_por_nome}`, { size: 8, cor: [0.4, 0.4, 0.4], espaco: 0 });
-        for (const a of (d.assinaturas || [])) {
-            w.texto(`Assinado eletronicamente por ${a.nome} em ${new Date(a.em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} (assinatura simples)`, { size: 8, cor: [0.1, 0.4, 0.2], espaco: 0 });
+        let bytes;
+        if (d.origem === 'upload' && bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
+            bytes = await (0, autos_1.folhaSimples)(String(d.titulo), [
+                'Arquivo não incorporado: o PDF único dos autos passou do limite de tamanho.',
+                'Baixe o documento avulso na Secretaria; o hash abaixo permite conferir o original.',
+                `SHA-256 ${d.sha256}`,
+            ]);
         }
-        w.texto(`SHA-256 ${d.sha256}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 14 });
-        if (d.origem === 'editor') {
-            w.texto((0, secretaria_1.deltaParaTexto)((d.delta || [])), { size: 10 });
-            continue;
+        else {
+            bytes = await (0, autos_1.pdfDoDocumento)(d, cfg);
+            bytesAnexos += d.origem === 'upload' ? (d.tamanho || 0) : bytes.length;
         }
-        if (bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
-            w.texto('Arquivo não incorporado (limite do PDF único). Baixe o original na Secretaria; o hash acima permite conferir.', { cor: [0.6, 0.3, 0] });
-            continue;
-        }
-        try {
-            const [buf] = await admin.storage().bucket().file(d.storage_path).download();
-            bytesAnexos += buf.length;
-            if (d.mime === 'application/pdf') {
-                const src = await pdf_lib_1.PDFDocument.load(buf, { ignoreEncryption: true });
-                const paginas = await pdf.copyPages(src, src.getPageIndices());
-                paginas.forEach((pg) => pdf.addPage(pg));
-            }
-            else if (d.mime === 'image/png' || d.mime === 'image/jpeg') {
-                const img = d.mime === 'image/png' ? await pdf.embedPng(buf) : await pdf.embedJpg(buf);
-                const esc = img.scaleToFit(A4[0] - MARGEM * 2, w.y - MARGEM);
-                w.page.drawImage(img, { x: MARGEM, y: w.y - esc.height, width: esc.width, height: esc.height });
-            }
-            else if (d.mime === 'text/plain') {
-                w.texto(buf.toString('utf8'), { size: 9 });
-            }
-            else {
-                w.texto('Formato sem conversão para PDF nesta versão. O original está nos autos eletrônicos; o hash acima identifica o arquivo.', { cor: [0.4, 0.4, 0.4] });
-            }
-        }
-        catch (_d) {
-            w.texto('Não foi possível incorporar este arquivo (arquivo corrompido ou protegido). O original continua nos autos.', { cor: [0.7, 0.1, 0.1] });
-        }
+        pecas.push({ d, bytes });
     }
+    w.novaPagina();
+    w.texto('Documentos (folhas dos autos)', { size: 14, bold: true, espaco: 10 });
+    const fimIndice = pdf.getPageCount();
+    // Documentos juntados, em folhas contínuas e carimbadas.
+    let folha = 1;
+    const linhasIndice = [];
+    for (const { d, bytes } of pecas) {
+        const qtd = await (0, autos_1.anexarCarimbado)(pdf, bytes, {
+            processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo),
+            juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256,
+        });
+        linhasIndice.push(`Doc. nº ${d.ordem} — ${d.titulo} (${d.tipo}) — ${(0, autos_1.textoFolhas)(folha, qtd)}`);
+        folha += qtd;
+    }
+    // O índice é escrito depois de anexar, na página reservada antes dos documentos.
+    const paginaIndice = pdf.getPage(fimIndice - 1);
+    let y = paginaIndice.getHeight() - MARGEM - 30;
+    for (const l of linhasIndice) {
+        if (y < MARGEM)
+            break; // ponytail: índice de uma página (~45 documentos); paginar se passar disso
+        paginaIndice.drawText(seguro(l).slice(0, 110), { x: MARGEM, y, size: 9, font, color: (0, pdf_lib_1.rgb)(0.1, 0.1, 0.1) });
+        y -= 14;
+    }
+    if (linhasIndice.length > 45)
+        paginaIndice.drawText(seguro(`... e mais ${linhasIndice.length - 45} documentos (ver movimentos).`), { x: MARGEM, y: MARGEM - 10, size: 8, font });
     const bytes = await pdf.save();
     await (0, config_1.auditar)(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero });
     return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };

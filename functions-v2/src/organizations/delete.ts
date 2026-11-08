@@ -44,7 +44,7 @@ const ORG_SCOPED_COLLECTIONS = [
  * Verifica se o solicitante é super-admin da plataforma (claim, allowlist ou
  * bootstrap por e-mail). Não lança — apenas retorna boolean.
  */
-async function isPlatformAdmin(
+export async function isPlatformAdmin(
     request: CallableRequest<unknown>
 ): Promise<boolean> {
     if (!request.auth) return false;

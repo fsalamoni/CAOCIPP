@@ -116,7 +116,11 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const { ref, data } = await lerProcesso(c, p.id);
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
-            ref.collection('documentos').get(),
+            // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
+            ref.collection('documentos').select(
+                'titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem',
+                'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final',
+            ).get(),
         ]);
         const movimentos = movs.docs.map((d) => d.data());
         const posse = podeAgir(data as never, c.ctx);
@@ -131,6 +135,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
                 assinaturas: d.assinaturas || [],
                 peticao: d.peticao === true, visivel_partes: d.visivel_partes !== false,
+                paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null,
             }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {

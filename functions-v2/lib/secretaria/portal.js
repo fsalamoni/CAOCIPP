@@ -18,6 +18,8 @@ const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const context_1 = require("./context");
 const documentos_1 = require("./documentos");
+const autos_1 = require("./autos");
+const pdfDocumento_1 = require("./pdfDocumento");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -33,7 +35,7 @@ const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia'];
 const TIPOS_PETICAO = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg' };
 /** Processo em que o usuário é parte habilitada, com o órgão ainda com a Secretaria ativa. */
 async function lerComoParte(db, uid, id, tx) {
-    var _a;
+    var _a, _b;
     if (typeof id !== 'string' || !id)
         throw new https_1.HttpsError('invalid-argument', 'processoId é obrigatório');
     const ref = db.collection(context_1.COL.processos).doc(id);
@@ -42,8 +44,9 @@ async function lerComoParte(db, uid, id, tx) {
     if (!data || !(data.partes_uids || []).includes(uid))
         throw new https_1.HttpsError('not-found', 'Processo não encontrado');
     const org = (await db.collection('organizations').doc(data.organization_id).get()).data() || {};
-    if (((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== true)
+    if (((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== true || ((_b = org.secretariaConfig) === null || _b === void 0 ? void 0 : _b.suspensa_plataforma) === true) {
         throw new https_1.HttpsError('failed-precondition', 'A Secretaria deste órgão está desativada');
+    }
     return { ref, data, org };
 }
 function parteDoUsuario(proc, uid) {
@@ -113,7 +116,8 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const { ref, data, org } = await lerComoParte(db, uid, p.processoId);
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
-            ref.collection('documentos').where('status', '==', 'juntado').get(),
+            ref.collection('documentos').where('status', '==', 'juntado')
+                .select('ordem', 'titulo', 'tipo', 'juntado_em', 'origem', 'sha256', 'visivel_partes', 'folha_inicial', 'folha_final').get(),
         ]);
         const todos = movs.docs.map((d) => d.data());
         return {
@@ -137,17 +141,19 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             documentos: docs.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
                 .filter((d) => d.visivel_partes !== false)
                 .sort((a, b) => a.ordem - b.ordem)
-                .map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256 })),
+                .map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null })),
             cadeiaIntegra: (0, secretaria_1.verificarCadeia)(todos) === null,
         };
     }
-    if (p.action === 'baixar') {
-        const { ref } = await lerComoParte(db, uid, p.processoId);
+    if (p.action === 'baixar' || p.action === 'pdf') {
+        const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
         const d = (await ref.collection('documentos').doc(String(p.docId || '_')).get()).data();
         if (!d || d.status !== 'juntado' || d.visivel_partes === false)
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
+        if (p.action === 'pdf')
+            return { base64: await (0, autos_1.pdfCarimbado)(db, proc.organization_id, String(proc.numero), d), nome: `documento-${d.ordem}.pdf` };
         if (d.origem === 'editor')
-            return { origem: 'editor', titulo: d.titulo, delta: d.delta || [] };
+            return { origem: 'editor', titulo: d.titulo, conteudo: (0, autos_1.conteudoDoDocumento)(d) };
         const [buf] = await admin.storage().bucket().file(d.storage_path).download();
         return { origem: 'upload', titulo: d.titulo, mime: d.mime, nomeArquivo: d.nome_arquivo, base64: buf.toString('base64') };
     }
@@ -173,12 +179,27 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             path = (0, documentos_1.caminhoArquivo)(procAntes.organization_id, procRef.id, docRef.id);
             await admin.storage().bucket().file(path).save(buf, { contentType: String(p.mime), resumable: false });
         }
-        const delta = corpo ? [{ insert: `${corpo}\n` }] : [];
         const agora = new Date().toISOString();
+        // Petição escrita vira documento do editor, com PDF próprio (sem o
+        // cabeçalho do órgão) assinado pela parte; anexo conta as próprias páginas.
+        const conteudoDoc = !buf && corpo ? (0, pdfDocumento_1.textoParaDoc)(corpo) : null;
+        const hashConteudo = buf ? (0, secretaria_1.sha256)(buf) : (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudoDoc));
+        const parteAntes = parteDoUsuario(procAntes, uid);
+        let paginas = 1;
+        let pdf = null;
+        if (buf)
+            paginas = await (0, autos_1.paginasDeArquivo)(buf, String(p.mime));
+        else if (conteudoDoc) {
+            const rr = await (0, pdfDocumento_1.renderizarDocumento)(conteudoDoc, {}, { semCabecalho: true, sha256: hashConteudo, assinaturas: [{ nome: (parteAntes === null || parteAntes === void 0 ? void 0 : parteAntes.nome) || nomeConta, em: agora }] });
+            paginas = rr.paginas;
+            pdf = { path: (0, autos_1.caminhoPdf)((0, documentos_1.caminhoArquivo)(procAntes.organization_id, procRef.id, docRef.id)), sha256: (0, secretaria_1.sha256)(rr.buffer) };
+            await admin.storage().bucket().file(pdf.path).save(rr.buffer, { contentType: 'application/pdf', resumable: false });
+        }
         const r = await db.runTransaction(async (tx) => {
             var _a;
             const { data: proc, org } = await lerComoParte(db, uid, p.processoId, tx);
             const parte = parteDoUsuario(proc, uid);
+            const folha = (await (0, autos_1.folhasDoProcesso)(tx, procRef, proc)) + 1;
             const ordem = (Number(proc.doc_seq) || 0) + 1;
             // Tempestividade: compara com prazos abertos para esta parte (ou sem destinatário).
             const hoje = (0, secretaria_1.hojeBrasil)();
@@ -193,10 +214,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             };
             const pendencias = [...(proc.pendencias || []), pend];
             const c = contextoParte(db, proc, uid, `${parte.nome} (parte)`);
-            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, proc, 'peticao', `Petição protocolada por ${parte.nome} (${parte.polo}): ${titulo}. Juntada como documento nº ${ordem}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`, { documento_id: docRef.id, ordem });
-            const conteudo = buf ? (0, secretaria_1.sha256)(buf) : (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(delta));
-            tx.set(docRef, Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (buf ? { mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { delta })), (buf && corpo ? { observacao: corpo } : {})), { sha256: conteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.nome, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.nome} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.nome, em: agora, sha256: conteudo, nivel: 'simples' }] }));
-            tx.update(procRef, Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))));
+            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, proc, 'peticao', `Petição protocolada por ${parte.nome} (${parte.polo}): ${titulo}. Juntada como documento nº ${ordem}, ${(0, autos_1.textoFolhas)(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`, { documento_id: docRef.id, ordem, folha_inicial: folha, paginas });
+            tx.set(docRef, Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (buf ? { mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.nome, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.nome} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.nome, em: agora, sha256: hashConteudo, nivel: 'simples' }] }));
+            tx.update(procRef, Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))));
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora };
         });
         return Object.assign({ success: true }, r);

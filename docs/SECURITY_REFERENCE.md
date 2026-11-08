@@ -373,8 +373,19 @@ match /notifications/{notificationId} {
 - `storage.rules` (novo) nega todo acesso do navegador ao bucket; upload e
   download passam por `secretariaDocumento`, que valida tipo (lista fechada) e
   tamanho (5 MB) e grava o SHA-256.
-- Conteúdo redigido é guardado como Delta com formatos permitidos, não como
-  HTML, o que fecha XSS no editor e na visualização.
+- Conteúdo redigido é guardado como JSON do ProseMirror, não como HTML.
+  `sanitizeDoc` (`functions-v2/src/shared/documento.ts`) descarta nós, marcas e
+  atributos fora da lista fechada: link só `http(s)`/`mailto`, imagem só data
+  URL PNG/JPEG, cor e tamanho validados por padrão, limites de 4 MB por
+  documento e 1,5 MB por imagem. Isso fecha XSS no editor e na visualização.
+- `secConfig` e `secModelos` também são fechadas; só o admin do órgão grava
+  (brasão PNG/JPG até 300 KB); qualquer membro lê modelos via `obterModelo`.
+- A ação `pdf` usa a mesma checagem de acesso de `baixar`: minuta só para a
+  unidade de origem; documento juntado para quem vê o processo; no portal, só
+  documentos visíveis às partes.
+- `secretariaPlataforma` exige administrador da plataforma (claim,
+  `platformAdmins/{uid}.active` ou `PLATFORM_ADMIN_EMAILS`). A suspensão por
+  órgão bloqueia equipe e partes no servidor, sem apagar dados, e é auditada.
 - Movimentos encadeados por SHA-256: alteração direta no banco é detectada na
   consulta e na exportação. Detalhes em [SECRETARIA.md](./SECRETARIA.md).
 - Portal das partes (`secretariaPortal`, `secConvites` fechada): a parte é

@@ -5,19 +5,19 @@ import { toast } from 'sonner';
 import {
     createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile,
 } from 'firebase/auth';
-import { ArrowLeft, Download, FileText, Gavel, Loader2, LogOut, Send, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Download, Eye, Gavel, Loader2, LogOut, Send, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { auth } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secPortal, baixarBase64, arquivoParaBase64 } from '@/services/secretariaService';
 import { STATUS_ROTULO, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
+import { VisualizadorPdf } from '@/components/secretaria/RedacaoDocumento';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
 // conta própria, aceita o convite da secretaria e acompanha só os processos em
@@ -167,19 +167,23 @@ function MeusProcessos({ onAbrir }) {
 function ProcessoParte({ id, onVoltar }) {
     const qc = useQueryClient();
     const q = useQuery({ queryKey: ['portal-proc', id], queryFn: () => secPortal('obter', { processoId: id }) });
-    const [leitura, setLeitura] = useState(null); // {titulo, texto}
+    const [leitura, setLeitura] = useState(null); // {base64, nome, titulo}: PDF do documento como está nos autos
     const [ocupado, setOcupado] = useState(false);
 
     if (q.isLoading) return <Carregando texto="Carregando processo…" />;
     if (q.error) return <div className="text-red-600">{q.error.message} <Button variant="link" onClick={onVoltar}>Voltar</Button></div>;
     const { processo: p, movimentos, documentos, cadeiaIntegra, orgao } = q.data;
 
-    const baixar = async (d) => {
+    const baixar = async (d, original = false) => {
         setOcupado(true);
         try {
-            const r = await secPortal('baixar', { processoId: id, docId: d.id });
-            if (r.origem === 'editor') setLeitura({ titulo: r.titulo, texto: r.delta.map((o) => (typeof o.insert === 'string' ? o.insert : '')).join('') });
-            else baixarBase64(r.base64, r.nomeArquivo || r.titulo, r.mime);
+            if (original) {
+                const r = await secPortal('baixar', { processoId: id, docId: d.id });
+                baixarBase64(r.base64, r.nomeArquivo || r.titulo, r.mime);
+            } else {
+                const r = await secPortal('pdf', { processoId: id, docId: d.id });
+                setLeitura({ ...r, titulo: `Doc. nº ${d.ordem} · ${d.titulo}` });
+            }
         } catch (e) {
             toast.error(e?.message || 'Não foi possível abrir');
         } finally {
@@ -232,12 +236,11 @@ function ProcessoParte({ id, onVoltar }) {
                                 <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
                                     <span className="font-mono text-xs w-8 text-slate-500">{d.ordem}</span>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{d.titulo}</p>
-                                        <p className="text-xs text-slate-500">{d.tipo} · {dataHora(d.juntado_em)}</p>
+                                        <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" disabled={ocupado} onClick={() => baixar(d)}>{d.titulo}</button>
+                                        <p className="text-xs text-slate-500">{[d.tipo, d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null, dataHora(d.juntado_em)].filter(Boolean).join(' · ')}</p>
                                     </div>
-                                    <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixar(d)} aria-label={`Abrir ${d.titulo}`}>
-                                        {d.origem === 'editor' ? <FileText className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-                                    </Button>
+                                    <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixar(d)} aria-label={`Ver ${d.titulo}`} title="Ver o documento"><Eye className="w-4 h-4" /></Button>
+                                    {d.origem === 'upload' && <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixar(d, true)} aria-label={`Baixar o arquivo original de ${d.titulo}`} title="Baixar o original"><Download className="w-4 h-4" /></Button>}
                                 </div>
                             ))}
                         </CardContent>
@@ -259,12 +262,7 @@ function ProcessoParte({ id, onVoltar }) {
                 </Card>
             </div>
 
-            <Dialog open={!!leitura} onOpenChange={(o) => !o && setLeitura(null)}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader><DialogTitle>{leitura?.titulo}</DialogTitle></DialogHeader>
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">{leitura?.texto}</div>
-                </DialogContent>
-            </Dialog>
+            <VisualizadorPdf pdf={leitura} onFechar={() => setLeitura(null)} />
         </div>
     );
 }

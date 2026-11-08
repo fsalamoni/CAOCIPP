@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteOrganization = void 0;
+exports.isPlatformAdmin = isPlatformAdmin;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 /**

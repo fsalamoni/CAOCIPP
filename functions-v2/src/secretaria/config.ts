@@ -2,6 +2,31 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { MAX_TEXTO_LONGO, sanitizeRito, texto } from '../shared/secretaria';
+import { FONTES, sanitizeDoc } from '../shared/documento';
+
+const MAX_MODELOS = 200;
+const MAX_BRASAO = 300 * 1024;
+export const TIPOS_DOCUMENTO_PADRAO = [
+    'Despacho', 'Decisão', 'Informação', 'Certidão', 'Ofício', 'Memorando', 'Parecer', 'Termo', 'Ata', 'Relatório', 'Notificação', 'Documento',
+];
+
+/** Cabeçalho, rodapé, fonte e tipos de documento do órgão (lista fechada). */
+function sanitizeDocumentoConfig(v: unknown) {
+    const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    const brasao = typeof o.brasao === 'string' && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(o.brasao) ? o.brasao : null;
+    if (brasao && brasao.length * 0.75 > MAX_BRASAO) throw new Error('O brasão passa de 300 KB; use uma imagem menor');
+    const linhas = (Array.isArray(o.cabecalho_linhas) ? o.cabecalho_linhas : []).map((l) => texto(l, 120)).filter(Boolean).slice(0, 4);
+    const tipos = [...new Set((Array.isArray(o.tipos_documento) ? o.tipos_documento : []).map((t) => texto(t, 60)).filter(Boolean))].slice(0, 60);
+    const tamanho = Number(o.tamanho_padrao);
+    return {
+        cabecalho_linhas: linhas,
+        brasao,
+        rodape: texto(o.rodape, 200),
+        fonte_padrao: FONTES[String(o.fonte_padrao)] ? String(o.fonte_padrao) : 'serif',
+        tamanho_padrao: tamanho >= 9 && tamanho <= 16 ? tamanho : 12,
+        tipos_documento: tipos.length ? tipos : TIPOS_DOCUMENTO_PADRAO,
+    };
+}
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth } from './context';
 
 /**
@@ -26,7 +51,10 @@ const RITO_PADRAO = {
 
 interface ConfigRequest {
     organizationId: string;
-    action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo';
+    action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo'
+        | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo';
+    documento?: unknown;
+    modelo?: unknown;
     tipo?: unknown;
     peticao_interrompe?: boolean;
     enabled?: boolean;
@@ -46,9 +74,11 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
 
     if (p.action === 'estado') {
         if (!enabled && !c.ctx.isAdmin) return { enabled: false, isAdmin: false };
-        const [ritosSnap, tiposSnap] = await Promise.all([
+        const [ritosSnap, tiposSnap, cfgSnap, modelosSnap] = await Promise.all([
             db.collection(COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(COL.tipos).where('organization_id', '==', orgId).get(),
+            db.collection(COL.config).doc(orgId).get(),
+            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo').get(),
         ]);
         let membros: Array<{ uid: string; nome: string; email: string }> = [];
         // Todo usuário lotado precisa ver os nomes de colegas para atribuir
@@ -83,11 +113,59 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                     sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            documento: sanitizeDocumentoConfig(cfgSnap.data()?.documento),
+            modelos: modelosSnap.docs.map((d) => {
+                const m = d.data();
+                return { id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false };
+            }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            suspensa_plataforma: c.org.secretariaConfig?.suspensa_plataforma === true,
+            motivo_suspensao: c.org.secretariaConfig?.motivo_suspensao || '',
+            orgao: String(c.org.name || ''),
             membros,
         };
     }
 
+    if (p.action === 'obterModelo') {
+        if (!enabled) throw new HttpsError('failed-precondition', 'A Secretaria Processual não está ativa neste órgão');
+        const m = (await db.collection(COL.modelos).doc(String(p.id || '_')).get()).data();
+        if (!m || m.organization_id !== orgId) throw new HttpsError('not-found', 'Modelo não encontrado');
+        return { id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo, ativo: m.ativo !== false };
+    }
+
     exigirAdmin(c);
+
+    if (p.action === 'salvarDocumentoConfig') {
+        let documento;
+        try { documento = sanitizeDocumentoConfig(p.documento); } catch (e) { erroUsuario(e); }
+        await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, documento, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_DOCUMENTO_CONFIG', { linhas: documento!.cabecalho_linhas.length, brasao: !!documento!.brasao });
+        return { success: true };
+    }
+
+    if (p.action === 'salvarModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
+        const nome = texto(m.nome, 120);
+        if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao modelo');
+        let conteudo;
+        try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
+        const dados = {
+            nome, tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo,
+            ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
+        };
+        const col = db.collection(COL.modelos);
+        if (p.id) {
+            const ref = col.doc(p.id);
+            if ((await ref.get()).data()?.organization_id !== orgId) throw new HttpsError('not-found', 'Modelo não encontrado');
+            await ref.update(dados);
+        } else {
+            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+                throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
+            }
+            p.id = (await col.add({ ...dados, organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
+        }
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome });
+        return { success: true, id: p.id };
+    }
 
     if (p.action === 'ativar') {
         const ligar = p.enabled === true;

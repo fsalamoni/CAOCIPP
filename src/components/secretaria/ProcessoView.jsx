@@ -1,10 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
 import {
-    AlertCircle, ArrowLeft, CalendarClock, Download, FilePen, FileUp, FileDown, Loader2, PenLine, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2,
+    AlertCircle, ArrowLeft, CalendarClock, Download, Eye, FilePen, FileUp, FileDown, Loader2, PenLine, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,10 +15,10 @@ import { secDocumento, secExportarPdf, secProcesso, baixarBase64, arquivoParaBas
 import { NativeSelect, STATUS_ROTULO, dataHora } from './comum';
 import FluxoRito from './FluxoRito';
 import { seguintes } from '@/lib/secretariaRito';
+import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 
-const TOOLBAR = [[{ header: [1, 2, 3, false] }], ['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], [{ align: [] }], ['blockquote'], ['clean']];
-const FORMATOS = ['header', 'bold', 'italic', 'underline', 'list', 'bullet', 'align', 'blockquote', 'indent'];
 const MAX_MB = 5;
+const folhas = (d) => (d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null);
 
 export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const qc = useQueryClient();
@@ -28,12 +26,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [acao, setAcao] = useState(null); // {tipo, ...}
     const [ocupado, setOcupado] = useState(false);
     const [linkConvite, setLinkConvite] = useState(null); // {link, emailEnviado}
-    const [editor, setEditorRaw] = useState(null); // {docId?, titulo, tipo, delta}
-    const deltaRef = useRef(null);
-    const setEditor = (e) => {
-        if (!e || e.delta !== editor?.delta) deltaRef.current = null; // novo documento aberto
-        setEditorRaw(e);
-    };
+    const [editor, setEditor] = useState(null); // {docId?, titulo, tipo, conteudo, somenteLeitura}
+    const [pdf, setPdf] = useState(null); // {base64, nome, titulo}
 
     if (q.isLoading) return <div className="py-8 flex gap-2 items-center text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Carregando processo…</div>;
     if (q.error) return <div className="py-8 text-red-600">{q.error.message} <Button variant="link" onClick={onVoltar}>Voltar</Button></div>;
@@ -74,16 +68,30 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         baixarBase64(r.base64, r.nome);
     }, 'PDF gerado');
 
-    const baixar = (d) => executar(async () => {
+    /** Arquivo original como foi enviado. */
+    const baixarOriginal = (d) => executar(async () => {
         const r = await secDocumento(orgId, procId, 'baixar', { docId: d.id });
-        if (r.origem === 'editor') setEditor({ docId: d.id, titulo: r.titulo, tipo: d.tipo, delta: { ops: r.delta }, somenteLeitura: true });
-        else baixarBase64(r.base64, r.nomeArquivo, r.mime);
+        baixarBase64(r.base64, r.nomeArquivo, r.mime);
+    });
+
+    /** Peça dos autos como está no processo: PDF com folhas e carimbo. */
+    const verNosAutos = (d) => executar(async () => {
+        const r = await secDocumento(orgId, procId, 'pdf', { docId: d.id });
+        setPdf({ ...r, titulo: `Doc. nº ${d.ordem} · ${d.titulo}` });
     });
 
     const abrirMinuta = (d) => executar(async () => {
         const r = await secDocumento(orgId, procId, 'baixar', { docId: d.id });
-        setEditor({ docId: d.id, titulo: r.titulo, tipo: d.tipo, delta: { ops: r.delta }, somenteLeitura: (d.assinaturas || []).length > 0 });
+        setEditor({ docId: d.id, titulo: r.titulo, tipo: d.tipo, conteudo: r.conteudo, somenteLeitura: (d.assinaturas || []).length > 0 });
     });
+
+    const agora = new Date();
+    const valoresCampos = {
+        numero: p.numero, assunto: p.assunto, tipo_processo: p.tipo_nome || '', unidade: nomeUnidade(p.unidade_atual), fase: p.fase_nome,
+        partes: p.partes.map((x) => `${x.nome} (${x.polo})`).join('; '), orgao: estado.orgao || '',
+        usuario: estado.membros.find((m) => m.uid === estado.uid)?.nome || '',
+        data: agora.toLocaleDateString('pt-BR'), data_extenso: agora.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    };
 
     const enviarArquivo = async (e) => {
         const file = e.target.files?.[0];
@@ -157,12 +165,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
                                     <span className="font-mono text-xs w-8 text-slate-500">{d.ordem}</span>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{d.titulo}</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">{d.tipo} · {dataHora(d.juntado_em)} · {d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'}</p>
+                                        <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => verNosAutos(d)}>{d.titulo}</button>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
                                     </div>
                                     {d.peticao && <Badge variant="secondary">Petição da parte</Badge>}
                                     {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}
-                                    <Button variant="ghost" size="sm" onClick={() => baixar(d)} aria-label={`Abrir ${d.titulo}`}><Download className="w-4 h-4" /></Button>
+                                    <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => verNosAutos(d)} aria-label={`Ver ${d.titulo} nos autos`} title="Ver nos autos (PDF com folhas)"><Eye className="w-4 h-4" /></Button>
+                                    {d.origem === 'upload' && <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo original de ${d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
                                 </div>
                             ))}
                         </CardContent>
@@ -173,7 +182,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
                                 <CardTitle className="text-base">Minutas da unidade</CardTitle>
                                 <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer} onClick={() => setEditor({ titulo: '', tipo: 'Despacho', delta: { ops: [] } })}><FilePen className="w-4 h-4" /> Redigir</Button>
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer} onClick={() => setEditor({ titulo: '', tipo: estado.documento?.tipos_documento?.[0] || 'Despacho', conteudo: null })}><FilePen className="w-4 h-4" /> Redigir</Button>
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} asChild={podeMexer}>
                                         {podeMexer ? (
                                             <label className="cursor-pointer"><FileUp className="w-4 h-4" /> Enviar arquivo
@@ -195,8 +204,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">{d.tipo} · {d.origem === 'editor' ? 'redigido' : d.nome_arquivo} · {d.autor_nome}{d.assinaturas.length ? ` · assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : ''}</p>
                                             </div>
                                             {d.origem === 'editor'
-                                                ? <Button size="sm" variant="ghost" onClick={() => abrirMinuta(d)}>Abrir</Button>
-                                                : <Button size="sm" variant="ghost" onClick={() => baixar(d)} aria-label="Baixar"><Download className="w-4 h-4" /></Button>}
+                                                ? <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => abrirMinuta(d)}>{d.assinaturas.length ? 'Ler' : 'Editar'}</Button>
+                                                : <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label="Baixar"><Download className="w-4 h-4" /></Button>}
                                             <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
                                             <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d })}>Juntar</Button>
                                             <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída')} aria-label="Excluir minuta"><Trash2 className="w-4 h-4" /></Button>
@@ -307,46 +316,22 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!editor} onOpenChange={(o) => !o && setEditor(null)}>
-                <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
-                    <DialogHeader><DialogTitle>{editor?.somenteLeitura ? editor?.titulo : editor?.docId ? 'Editar minuta' : 'Nova minuta'}</DialogTitle></DialogHeader>
-                    {editor && (
-                        <div className="space-y-3">
-                            {!editor.somenteLeitura && (
-                                <div className="grid sm:grid-cols-3 gap-3">
-                                    <div className="sm:col-span-2"><Label htmlFor="min-tit">Título</Label><Input id="min-tit" value={editor.titulo} onChange={(e) => setEditor({ ...editor, titulo: e.target.value })} /></div>
-                                    <div><Label htmlFor="min-tipo">Tipo</Label><Input id="min-tipo" value={editor.tipo} onChange={(e) => setEditor({ ...editor, tipo: e.target.value })} list="sec-tipos" />
-                                        <datalist id="sec-tipos">{['Despacho', 'Decisão', 'Certidão', 'Ofício', 'Termo', 'Parecer', 'Petição', 'Ata'].map((t) => <option key={t} value={t} />)}</datalist>
-                                    </div>
-                                </div>
-                            )}
-                            <ReactQuill
-                                theme="snow"
-                                readOnly={editor.somenteLeitura}
-                                modules={{ toolbar: editor.somenteLeitura ? false : TOOLBAR }}
-                                formats={FORMATOS}
-                                defaultValue={editor.delta}
-                                key={editor.docId || 'nova'}
-                                onChange={(_html, _delta, _src, ed) => { deltaRef.current = ed.getContents(); }}
-                                className="bg-white dark:bg-slate-900 [&_.ql-editor]:min-h-[320px]"
-                            />
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditor(null)}>Fechar</Button>
-                        {editor && !editor.somenteLeitura && (
-                            <Button disabled={ocupado || !editor.titulo.trim()} onClick={() => executar(async () => {
-                                const delta = deltaRef.current || editor.delta;
-                                if (editor.docId) await secDocumento(orgId, procId, 'editarMinuta', { docId: editor.docId, titulo: editor.titulo, tipo: editor.tipo, delta });
-                                else await secDocumento(orgId, procId, 'criarMinuta', { titulo: editor.titulo, tipo: editor.tipo, delta });
-                                setEditor(null);
-                            }, 'Minuta salva')}>
-                                {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar minuta
-                            </Button>
-                        )}
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <RedacaoDocumento
+                aberto={!!editor}
+                inicial={editor}
+                estado={estado}
+                orgId={orgId}
+                valoresCampos={valoresCampos}
+                onSalvar={async ({ docId, titulo, tipo, conteudo }) => {
+                    if (docId) await secDocumento(orgId, procId, 'editarMinuta', { docId, titulo, tipo, conteudo });
+                    const r = docId ? { id: docId } : await secDocumento(orgId, procId, 'criarMinuta', { titulo, tipo, conteudo });
+                    atualizar();
+                    return r.id;
+                }}
+                onPdf={(docId) => secDocumento(orgId, procId, 'pdf', { docId })}
+                onFechar={() => setEditor(null)}
+            />
+            <VisualizadorPdf pdf={pdf} onFechar={() => setPdf(null)} />
         </div>
     );
 }

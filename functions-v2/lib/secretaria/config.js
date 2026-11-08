@@ -1,10 +1,34 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.secretariaConfig = void 0;
+exports.secretariaConfig = exports.TIPOS_DOCUMENTO_PADRAO = void 0;
 exports.auditar = auditar;
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const documento_1 = require("../shared/documento");
+const MAX_MODELOS = 200;
+const MAX_BRASAO = 300 * 1024;
+exports.TIPOS_DOCUMENTO_PADRAO = [
+    'Despacho', 'Decisão', 'Informação', 'Certidão', 'Ofício', 'Memorando', 'Parecer', 'Termo', 'Ata', 'Relatório', 'Notificação', 'Documento',
+];
+/** Cabeçalho, rodapé, fonte e tipos de documento do órgão (lista fechada). */
+function sanitizeDocumentoConfig(v) {
+    const o = (v && typeof v === 'object' ? v : {});
+    const brasao = typeof o.brasao === 'string' && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(o.brasao) ? o.brasao : null;
+    if (brasao && brasao.length * 0.75 > MAX_BRASAO)
+        throw new Error('O brasão passa de 300 KB; use uma imagem menor');
+    const linhas = (Array.isArray(o.cabecalho_linhas) ? o.cabecalho_linhas : []).map((l) => (0, secretaria_1.texto)(l, 120)).filter(Boolean).slice(0, 4);
+    const tipos = [...new Set((Array.isArray(o.tipos_documento) ? o.tipos_documento : []).map((t) => (0, secretaria_1.texto)(t, 60)).filter(Boolean))].slice(0, 60);
+    const tamanho = Number(o.tamanho_padrao);
+    return {
+        cabecalho_linhas: linhas,
+        brasao,
+        rodape: (0, secretaria_1.texto)(o.rodape, 200),
+        fonte_padrao: documento_1.FONTES[String(o.fonte_padrao)] ? String(o.fonte_padrao) : 'serif',
+        tamanho_padrao: tamanho >= 9 && tamanho <= 16 ? tamanho : 12,
+        tipos_documento: tipos.length ? tipos : exports.TIPOS_DOCUMENTO_PADRAO,
+    };
+}
 const context_1 = require("./context");
 /**
  * Configuração da Secretaria Processual do órgão: ativação (pelo admin do
@@ -24,7 +48,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId, { permitirInativa: true });
@@ -34,9 +58,11 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
     if (p.action === 'estado') {
         if (!enabled && !c.ctx.isAdmin)
             return { enabled: false, isAdmin: false };
-        const [ritosSnap, tiposSnap] = await Promise.all([
+        const [ritosSnap, tiposSnap, cfgSnap, modelosSnap] = await Promise.all([
             db.collection(context_1.COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).get(),
+            db.collection(context_1.COL.config).doc(orgId).get(),
+            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo').get(),
         ]);
         let membros = [];
         // Todo usuário lotado precisa ver os nomes de colegas para atribuir
@@ -71,10 +97,70 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                     sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            documento: sanitizeDocumentoConfig((_c = cfgSnap.data()) === null || _c === void 0 ? void 0 : _c.documento),
+            modelos: modelosSnap.docs.map((d) => {
+                const m = d.data();
+                return { id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false };
+            }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            suspensa_plataforma: ((_d = c.org.secretariaConfig) === null || _d === void 0 ? void 0 : _d.suspensa_plataforma) === true,
+            motivo_suspensao: ((_e = c.org.secretariaConfig) === null || _e === void 0 ? void 0 : _e.motivo_suspensao) || '',
+            orgao: String(c.org.name || ''),
             membros,
         };
     }
+    if (p.action === 'obterModelo') {
+        if (!enabled)
+            throw new https_1.HttpsError('failed-precondition', 'A Secretaria Processual não está ativa neste órgão');
+        const m = (await db.collection(context_1.COL.modelos).doc(String(p.id || '_')).get()).data();
+        if (!m || m.organization_id !== orgId)
+            throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
+        return { id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo, ativo: m.ativo !== false };
+    }
     (0, context_1.exigirAdmin)(c);
+    if (p.action === 'salvarDocumentoConfig') {
+        let documento;
+        try {
+            documento = sanitizeDocumentoConfig(p.documento);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, documento, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_DOCUMENTO_CONFIG', { linhas: documento.cabecalho_linhas.length, brasao: !!documento.brasao });
+        return { success: true };
+    }
+    if (p.action === 'salvarModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
+        const nome = (0, secretaria_1.texto)(m.nome, 120);
+        if (!nome)
+            throw new https_1.HttpsError('invalid-argument', 'Dê um nome ao modelo');
+        let conteudo;
+        try {
+            conteudo = (0, documento_1.sanitizeDoc)(m.conteudo);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        const dados = {
+            nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500), conteudo,
+            ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
+        };
+        const col = db.collection(context_1.COL.modelos);
+        if (p.id) {
+            const ref = col.doc(p.id);
+            if (((_f = (await ref.get()).data()) === null || _f === void 0 ? void 0 : _f.organization_id) !== orgId)
+                throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
+            await ref.update(dados);
+        }
+        else {
+            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+                throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
+            }
+            p.id = (await col.add(Object.assign(Object.assign({}, dados), { organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
+        }
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome });
+        return { success: true, id: p.id };
+    }
     if (p.action === 'ativar') {
         const ligar = p.enabled === true;
         await db.collection('organizations').doc(orgId).update({
@@ -155,11 +241,11 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_c = snap.data()) === null || _c === void 0 ? void 0 : _c.organization_id) !== orgId)
+            if (!snap.exists || ((_g = snap.data()) === null || _g === void 0 ? void 0 : _g.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos.
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_d = snap.data()) === null || _d === void 0 ? void 0 : _d.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_h = snap.data()) === null || _h === void 0 ? void 0 : _h.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).get()).size;
@@ -190,7 +276,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if (((_e = (await ref.get()).data()) === null || _e === void 0 ? void 0 : _e.organization_id) !== orgId)
+            if (((_j = (await ref.get()).data()) === null || _j === void 0 ? void 0 : _j.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
             await ref.update(dados);
         }

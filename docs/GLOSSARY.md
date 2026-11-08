@@ -397,6 +397,15 @@ Modelo de autuação definido pelo admin do órgão: nome, sigla, rito, sigilo p
 ### Fluxo do rito / Ramificação
 Ordem em que as fases se sucedem. Uma fase pode seguir para a próxima da lista, para uma de várias fases escolhidas (ramificação) ou encerrar o fluxo (fase final). Sair do fluxo exige motivo.
 
+### Folhas (fls.)
+Numeração contínua das páginas dos autos. Cada documento juntado recebe a faixa de folhas que ocupa (ex.: fls. 3 a 5), carimbada no PDF.
+
+### Papel timbrado
+Cabeçalho (linhas e brasão), rodapé, fonte e tamanho padrão definidos pelo admin do órgão e aplicados aos documentos redigidos na Secretaria.
+
+### Modelo de documento
+Texto pronto criado pelo admin do órgão, com campos como `{{numero}}` e `{{partes}}` que se preenchem com os dados do processo ao começar a redigir.
+
 ### Processo Administrativo
 Administrative process/inquiry requiring analysis and decision.
 

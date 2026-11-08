@@ -56,9 +56,11 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?}], versao, ativo` |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
-| `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, ultimo_hash, version` |
+| `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
-| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, delta` ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?` |
+| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?` |
+| `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado) |
+| `secModelos/{id}` | `organization_id, nome, tipo_documento, descricao, conteudo, ativo` |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
 
 No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
@@ -76,11 +78,12 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarTipo`, `salvarPreferencias` |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo`, `obterModelo` (qualquer membro) |
 | `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
-| `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `peticionar` |
-| `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar` |
+| `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar` |
+| `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
+| `secretariaPlataforma` | (só administração da plataforma) `resumo`, `suspender` |
 
 Regras comuns:
 
@@ -98,22 +101,48 @@ Regras comuns:
 - Todo documento nasce **minuta** da unidade que tem o processo, redigido no
   editor ou enviado (PDF, PNG, JPG, TXT, DOC, DOCX, ODT, XLSX; até 5 MB, limite
   do envio por function).
-- O editor grava o conteúdo como **Delta** (lista de operações de texto) com
-  uma lista fechada de formatos (negrito, itálico, sublinhado, títulos, listas,
-  alinhamento, citação, recuo). Nada de HTML, imagem embutida ou link: o
-  conteúdo nunca é interpretado como HTML.
+- O **editor** (TipTap) mostra uma folha A4 com o papel timbrado e tem as
+  ferramentas de um processador de texto: estilos (títulos, citação), fonte e
+  tamanho, negrito, itálico, sublinhado, tachado, sobrescrito, subscrito, cor
+  e realce, alinhamento, espaçamento entre linhas, recuo de primeira linha e
+  de parágrafo, listas, tabelas (mesclar, dividir, cabeçalho), imagem PNG/JPG,
+  link, linha horizontal, quebra de página (Ctrl+Enter), caracteres
+  especiais, localizar e substituir, limpar formatação, desfazer/refazer, zoom
+  e contagem de palavras. Ctrl+S salva.
+- O conteúdo é gravado como JSON do ProseMirror em `conteudo`. O servidor
+  (`shared/documento.ts`, `sanitizeDoc`) mantém só uma lista fechada de nós,
+  marcas e atributos: link só `http(s)`/`mailto`, imagem só data URL PNG/JPEG
+  (até 1,5 MB cada), documento até 4 MB. Nada é interpretado como HTML.
+  Minutas antigas em Delta continuam abrindo (`deltaParaDoc`).
+- **Modelos:** o admin cria textos prontos com campos (`{{numero}}`,
+  `{{partes}}`, `{{data_extenso}}` etc.) que se preenchem ao começar a redigir.
+- **Visualizar PDF:** a minuta pode ser vista como ficará nos autos, com a
+  marca d'água "MINUTA".
 - **Assinatura eletrônica simples** (Lei 14.063/2020, art. 4º, I): registra
   quem assinou, quando e o SHA-256 do conteúdo. Minuta assinada não se edita.
-- **Juntada:** a minuta entra nos autos com número de ordem e movimento
-  encadeado. Documento juntado não se edita nem se apaga.
+- **Juntada:** a minuta entra nos autos com número de ordem, **folhas** e
+  movimento encadeado ("Juntado o documento nº 2 … fls. 3 a 5"). Documento
+  juntado não se edita nem se apaga.
+- **Folhas:** cada processo numera as folhas em sequência (`folhas_seq`). Na
+  juntada de um texto redigido, o PDF é gerado antes da transação (cabeçalho
+  do órgão, rodapé "Página x de y", bloco de assinaturas com o SHA-256) e
+  guardado em `{storage_path}.pdf`; a transação confere que o hash e as
+  assinaturas não mudaram e grava `paginas`, `folha_inicial`, `folha_final`.
+  PDFs enviados contam as próprias páginas; imagens e demais arquivos, uma.
+  Petições das partes ganham folhas do mesmo jeito (texto vira PDF sem timbre).
+- **Ver nos autos:** cada documento abre como PDF carimbado: "Processo nº X ·
+  fls. N" no canto e, no pé, número do documento, título, data da juntada,
+  autor e hash. A parte vê o mesmo no portal.
 
 ## Exportação em PDF
 
-Gerada no servidor com `pdf-lib`: capa (dados, partes, integridade), índice de
-movimentos em ordem cronológica com hash, e cada documento juntado na ordem da
-juntada. Redigidos viram texto; PDFs enviados entram página a página; PNG/JPG
-entram como imagem; TXT como texto; Word/planilha aparecem como folha de
-referência com o hash (conversão fica para a fase 5). Minutas nunca entram.
+Gerada no servidor com `pdf-lib` e `pdfmake`: capa (dados, partes,
+integridade), movimentos em ordem cronológica com hash, índice "Documentos
+(folhas dos autos)" e cada documento juntado na ordem da juntada, carimbado
+com as folhas. Redigidos entram com o PDF guardado na juntada (ou renderizado
+de novo, se forem antigos); PDFs enviados entram página a página; PNG/JPG como
+imagem; TXT como texto; Word/planilha como folha de referência com o hash.
+Minutas nunca entram.
 A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
 
 ## Conclusão, pendências e prazos (fase 2)
@@ -209,6 +238,19 @@ fases previstas; ir para outra fase é permitido, mas exige motivo, e o
 movimento fica marcado "fora do fluxo do rito" (`dados.fora_do_fluxo`).
 O portal das partes mostra o diagrama sem as orientações internas.
 
+## Papel timbrado e controles (fase 5)
+
+- **Órgão:** Configuração → "Papel timbrado e tipos de documento" (até 4
+  linhas de cabeçalho, brasão PNG/JPG até 300 KB, rodapé, fonte e tamanho
+  padrão, com prévia da folha) e "Modelos de documento". Auditoria:
+  `SECRETARIA_DOCUMENTO_CONFIG`, `SECRETARIA_MODELO_SALVO`.
+- **Plataforma:** Administração → aba "Secretaria" lista os órgãos com o
+  módulo ligado e o volume de processos, e permite **suspender** com motivo
+  (`secretariaConfig.suspensa_plataforma`, `motivo_suspensao`). Suspenso, o
+  órgão (equipe e partes) não acessa os processos; nada é apagado. O admin do
+  órgão vê o motivo. Auditoria: `SECRETARIA_SUSPENSA_PLATAFORMA`,
+  `SECRETARIA_REATIVADA_PLATAFORMA`.
+
 ## Limites conhecidos
 
 - Partes não têm verificação em duas etapas nem exportam o PDF dos autos;
@@ -223,3 +265,9 @@ O portal das partes mostra o diagrama sem as orientações internas.
 - O PDF volta inteiro na resposta da function; anexos acima de ~18 MB somados
   viram folha de referência.
 - Documentos Word e planilhas não são convertidos para o PDF.
+- No PDF, as fontes Times e Courier só têm caracteres latinos (WinAnsi);
+  outros símbolos saem como "?". Arial (Roboto) cobre mais caracteres.
+- Localizar e substituir não acha texto que atravessa mudança de formatação.
+- O índice de documentos da exportação cabe numa página (~45 documentos).
+- Processos anteriores à fase 5 não tinham folhas; a contagem deles soma as
+  páginas conhecidas (1 quando não há).
