@@ -20,6 +20,7 @@ exports.COL = {
     unidades: 'secUnidades',
     ritos: 'secRitos',
     contadores: 'secContadores',
+    convites: 'secConvites',
 };
 function exigirAuth(request) {
     if (!request.auth)

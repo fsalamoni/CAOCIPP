@@ -1,10 +1,12 @@
 import * as admin from 'firebase-admin';
+import { randomBytes } from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     Contagem, Fase, MAX_ITENS, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, texto, verificarCadeia,
+    hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
+import { sendEmail } from '../shared/email';
 import {
     COL, REGION, carregarContexto, conferirVersao, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarMovimento,
@@ -19,7 +21,10 @@ import {
 interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
-        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo';
+        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte';
+    // portal das partes
+    parte_idx?: number;
+    email?: string;
     // pendências e prazos
     interrompe?: boolean;
     pendencia_id?: string;
@@ -47,7 +52,11 @@ interface ProcRequest {
     motivo?: string;
 }
 
-const POLOS = ['requerente', 'requerido', 'interessado', 'terceiro'];
+const CONVITE_DIAS = 7;
+const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
+const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+
+const POLOS =['requerente', 'requerido', 'interessado', 'terceiro'];
 const MAX_PARTES = 50;
 
 function sanitizePartes(input: unknown) {
@@ -118,13 +127,16 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem,
                 autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
                 assinaturas: d.assinaturas || [],
+                peticao: d.peticao === true, visivel_partes: d.visivel_partes !== false,
             }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
             processo: {
                 ...resumo(ref.id, data),
                 descricao: data.descricao,
-                partes: data.partes || [],
+                partes: (data.partes || []).map(({ convite_hash, uid, ...x }: Record<string, unknown>) => ({
+                    ...x, portal: uid ? 'ativo' : convite_hash ? 'convidado' : null,
+                })),
                 fases: data.fases || [],
                 unidades_historico: data.unidades_historico || [],
                 autuado_em: data.autuado_em,
@@ -202,6 +214,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
 
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = texto(p.motivo, MAX_TEXTO_LONGO);
+    const convite = { token: '', email: '', parte: '', numero: '' };
     const resultado = await db.runTransaction(async (tx) => {
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
@@ -346,7 +359,51 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             return mov;
         }
 
+        if (p.action === 'convidarParte' || p.action === 'revogarParte') {
+            const idx = Number(p.parte_idx);
+            const partes = [...(data.partes || [])];
+            const parte = partes[idx];
+            if (!Number.isInteger(idx) || !parte) throw new HttpsError('invalid-argument', 'Parte inválida');
+            // Convite anterior ainda não usado deixa de valer em qualquer dos dois casos.
+            if (parte.convite_hash) tx.set(db.collection(COL.convites).doc(parte.convite_hash), { revogado: true }, { merge: true });
+            if (p.action === 'revogarParte') {
+                const { uid: antigo, convite_hash: _c, ...resto } = parte;
+                partes[idx] = resto;
+                const mov = registrarMovimento(tx, c, ref, data, 'acesso_revogado',
+                    `Acesso de ${parte.nome} (${parte.polo}) ao portal das partes revogado.`, { parte_idx: idx });
+                tx.update(ref, { ...mov, partes, ...(antigo ? { partes_uids: FieldValue.arrayRemove(antigo) } : {}) });
+                return mov;
+            }
+            if (parte.uid) throw new HttpsError('failed-precondition', 'Esta parte já acompanha o processo. Revogue o acesso antes de convidar de novo.');
+            const email = texto(p.email, 120) || parte.email || '';
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpsError('invalid-argument', 'E-mail inválido');
+            convite.token = randomBytes(24).toString('base64url');
+            convite.email = email;
+            convite.parte = parte.nome;
+            convite.numero = data.numero;
+            const hash = sha256(convite.token);
+            tx.set(db.collection(COL.convites).doc(hash), {
+                organization_id: orgId, processo_id: ref.id, parte_idx: idx, parte_nome: parte.nome, email,
+                criado_por: c.ctx.uid, criado_em: new Date().toISOString(),
+                expira_em: new Date(Date.now() + CONVITE_DIAS * 86400000).toISOString(), usado_por: null, revogado: false,
+            });
+            partes[idx] = { ...parte, convite_hash: hash, ...(email ? { email } : {}) };
+            const mov = registrarMovimento(tx, c, ref, data, 'convite',
+                `${parte.nome} (${parte.polo}) convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}.`, { parte_idx: idx });
+            tx.update(ref, { ...mov, partes });
+            return mov;
+        }
+
         throw new HttpsError('invalid-argument', 'Ação desconhecida');
     });
+    if (convite.token) {
+        const link = `${APP_URL}/Portal?convite=${convite.token}`;
+        const enviado = convite.email ? await sendEmail({
+            to: convite.email,
+            subject: `Convite para acompanhar o processo ${convite.numero}`,
+            html: `<p>Olá, ${escapar(convite.parte)}.</p><p>Você foi habilitado a acompanhar o processo <b>${escapar(convite.numero)}</b> e a peticionar nele pelo portal das partes.</p><p><a href="${link}">Aceitar o convite</a> (vale por ${CONVITE_DIAS} dias).</p><p>Entre com sua conta Google ou crie uma senha. Se você não esperava este e-mail, ignore-o.</p>`,
+        }).catch(() => false) : false;
+        return { success: true, version: resultado.version, link, emailEnviado: enviado };
+    }
     return { success: true, version: resultado.version };
 });

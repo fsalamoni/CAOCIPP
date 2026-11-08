@@ -421,7 +421,7 @@ CAOCIPP/
 }
 ```
 
-#### Secretaria Processual (`secUnidades`, `secRitos`, `secContadores`, `secProcessos` + subcoleções `movimentos` e `documentos`)
+#### Secretaria Processual (`secUnidades`, `secRitos`, `secContadores`, `secConvites`, `secProcessos` + subcoleções `movimentos` e `documentos`)
 **Purpose:** Processo eletrônico do órgão. Fechadas ao cliente; tudo passa pelas
 functions `secretaria*`. Arquivos no Cloud Storage em
 `secretaria/{org}/{processo}/{documento}`. Modelo completo em

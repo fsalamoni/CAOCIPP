@@ -24,7 +24,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId, { permitirInativa: true });
@@ -49,6 +49,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         });
         return {
             enabled,
+            peticao_interrompe: ((_b = c.org.secretariaConfig) === null || _b === void 0 ? void 0 : _b.peticao_interrompe) === true,
             isAdmin: c.ctx.isAdmin,
             uid: c.ctx.uid,
             minhasUnidades: c.ctx.unidadeIds,
@@ -86,6 +87,16 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         }
         await auditar(db, orgId, auth.uid, c.userName, ligar ? 'SECRETARIA_ATIVADA' : 'SECRETARIA_DESATIVADA', {});
         return { success: true, enabled: ligar };
+    }
+    if (p.action === 'salvarPreferencias') {
+        const interrompe = p.peticao_interrompe === true;
+        await db.collection('organizations').doc(orgId).update({
+            'secretariaConfig.peticao_interrompe': interrompe,
+            'secretariaConfig.updated_at': agora,
+            'secretariaConfig.updated_by': auth.uid,
+        });
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe });
+        return { success: true };
     }
     if (p.action === 'salvarUnidade') {
         const u = p.unidade || {};
@@ -134,11 +145,11 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_b = snap.data()) === null || _b === void 0 ? void 0 : _b.organization_id) !== orgId)
+            if (!snap.exists || ((_c = snap.data()) === null || _c === void 0 ? void 0 : _c.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos.
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_c = snap.data()) === null || _c === void 0 ? void 0 : _c.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_d = snap.data()) === null || _d === void 0 ? void 0 : _d.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).get()).size;

@@ -13,6 +13,20 @@ import { secConfig } from '@/services/secretariaService';
 export default function SecretariaAtivacao({ organization }) {
     const [enabled, setEnabled] = useState(organization?.secretariaConfig?.enabled === true);
     const [saving, setSaving] = useState(false);
+    const [interrompe, setInterrompe] = useState(organization?.secretariaConfig?.peticao_interrompe === true);
+
+    const alternarInterrompe = async (valor) => {
+        setSaving(true);
+        try {
+            await secConfig(organization.id, 'salvarPreferencias', { peticao_interrompe: valor });
+            setInterrompe(valor);
+            toast.success('Preferência salva');
+        } catch (e) {
+            toast.error(e?.message || 'Não foi possível salvar');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const alternar = async (valor) => {
         setSaving(true);
@@ -54,6 +68,15 @@ export default function SecretariaAtivacao({ organization }) {
                     Unidades, lotações e ritos se ajustam na aba Configuração da própria Secretaria.
                 </p>
                 <p>Desativar esconde a página e bloqueia movimentações. Nenhum processo ou documento é apagado.</p>
+                {enabled && (
+                    <div className="flex items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
+                        <div>
+                            <p className="font-medium text-slate-800 dark:text-slate-100">Petição da parte interrompe a fase</p>
+                            <p>Quando ligado, cada petição protocolada pelo portal das partes suspende a fase até o gabinete apreciá-la. Desligado, a petição abre pendência e a fase segue.</p>
+                        </div>
+                        <Switch checked={interrompe} disabled={saving} onCheckedChange={alternarInterrompe} aria-label="Petição da parte interrompe a fase" />
+                    </div>
+                )}
                 {enabled && (
                     <Button asChild variant="outline" className="gap-2">
                         <Link to={`${createPageUrl('Secretaria')}?org=${organization.id}`}>

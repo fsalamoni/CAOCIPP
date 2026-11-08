@@ -415,6 +415,7 @@ service cloud.firestore {
     match /secUnidades/{id} { allow read, write: if false; }
     match /secRitos/{id} { allow read, write: if false; }
     match /secContadores/{id} { allow read, write: if false; }
+    match /secConvites/{id} { allow read, write: if false; }
 
     // ========== PLATAFORMA: ALLOWLIST DE SUPER-ADMINS ==========
 

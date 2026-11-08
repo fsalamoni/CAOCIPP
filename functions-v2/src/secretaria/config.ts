@@ -26,7 +26,8 @@ const RITO_PADRAO = {
 
 interface ConfigRequest {
     organizationId: string;
-    action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito';
+    action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias';
+    peticao_interrompe?: boolean;
     enabled?: boolean;
     id?: string;
     unidade?: { nome?: string; sigla?: string; tipo?: string; membros_uids?: unknown; ativa?: boolean };
@@ -59,6 +60,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         });
         return {
             enabled,
+            peticao_interrompe: c.org.secretariaConfig?.peticao_interrompe === true,
             isAdmin: c.ctx.isAdmin,
             uid: c.ctx.uid,
             minhasUnidades: c.ctx.unidadeIds,
@@ -100,6 +102,17 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         }
         await auditar(db, orgId, auth.uid, c.userName, ligar ? 'SECRETARIA_ATIVADA' : 'SECRETARIA_DESATIVADA', {});
         return { success: true, enabled: ligar };
+    }
+
+    if (p.action === 'salvarPreferencias') {
+        const interrompe = p.peticao_interrompe === true;
+        await db.collection('organizations').doc(orgId).update({
+            'secretariaConfig.peticao_interrompe': interrompe,
+            'secretariaConfig.updated_at': agora,
+            'secretariaConfig.updated_by': auth.uid,
+        });
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe });
+        return { success: true };
     }
 
     if (p.action === 'salvarUnidade') {

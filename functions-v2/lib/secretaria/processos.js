@@ -12,10 +12,15 @@ var __rest = (this && this.__rest) || function (s, e) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaProcesso = void 0;
+const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const email_1 = require("../shared/email");
 const context_1 = require("./context");
+const CONVITE_DIAS = 7;
+const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
+const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const POLOS = ['requerente', 'requerido', 'interessado', 'terceiro'];
 const MAX_PARTES = 50;
 function sanitizePartes(input) {
@@ -86,10 +91,14 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem,
             autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
             assinaturas: d.assinaturas || [],
+            peticao: d.peticao === true, visivel_partes: d.visivel_partes !== false,
         }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
-            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, partes: data.partes || [], fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [] }),
+            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, partes: (data.partes || []).map((_a) => {
+                    var { convite_hash, uid } = _a, x = __rest(_a, ["convite_hash", "uid"]);
+                    return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null }));
+                }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [] }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos,
             documentos,
@@ -133,8 +142,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     }
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
+    const convite = { token: '', email: '', parte: '', numero: '' };
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _c;
+        var _a, _b, _d;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -216,7 +226,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }
         if (p.action === 'resolverPendencia') {
             // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (((_c = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _c === void 0 ? void 0 : _c.tipo) !== 'gabinete') {
+            if (((_d = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _d === void 0 ? void 0 : _d.tipo) !== 'gabinete') {
                 throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
@@ -266,8 +276,53 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
             return mov;
         }
+        if (p.action === 'convidarParte' || p.action === 'revogarParte') {
+            const idx = Number(p.parte_idx);
+            const partes = [...(data.partes || [])];
+            const parte = partes[idx];
+            if (!Number.isInteger(idx) || !parte)
+                throw new https_1.HttpsError('invalid-argument', 'Parte inválida');
+            // Convite anterior ainda não usado deixa de valer em qualquer dos dois casos.
+            if (parte.convite_hash)
+                tx.set(db.collection(context_1.COL.convites).doc(parte.convite_hash), { revogado: true }, { merge: true });
+            if (p.action === 'revogarParte') {
+                const { uid: antigo, convite_hash: _c } = parte, resto = __rest(parte, ["uid", "convite_hash"]);
+                partes[idx] = resto;
+                const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acesso_revogado', `Acesso de ${parte.nome} (${parte.polo}) ao portal das partes revogado.`, { parte_idx: idx });
+                tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { partes }), (antigo ? { partes_uids: firestore_1.FieldValue.arrayRemove(antigo) } : {})));
+                return mov;
+            }
+            if (parte.uid)
+                throw new https_1.HttpsError('failed-precondition', 'Esta parte já acompanha o processo. Revogue o acesso antes de convidar de novo.');
+            const email = (0, secretaria_1.texto)(p.email, 120) || parte.email || '';
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+                throw new https_1.HttpsError('invalid-argument', 'E-mail inválido');
+            convite.token = (0, crypto_1.randomBytes)(24).toString('base64url');
+            convite.email = email;
+            convite.parte = parte.nome;
+            convite.numero = data.numero;
+            const hash = (0, secretaria_1.sha256)(convite.token);
+            tx.set(db.collection(context_1.COL.convites).doc(hash), {
+                organization_id: orgId, processo_id: ref.id, parte_idx: idx, parte_nome: parte.nome, email,
+                criado_por: c.ctx.uid, criado_em: new Date().toISOString(),
+                expira_em: new Date(Date.now() + CONVITE_DIAS * 86400000).toISOString(), usado_por: null, revogado: false,
+            });
+            partes[idx] = Object.assign(Object.assign(Object.assign({}, parte), { convite_hash: hash }), (email ? { email } : {}));
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'convite', `${parte.nome} (${parte.polo}) convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}.`, { parte_idx: idx });
+            tx.update(ref, Object.assign(Object.assign({}, mov), { partes }));
+            return mov;
+        }
         throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
     });
+    if (convite.token) {
+        const link = `${APP_URL}/Portal?convite=${convite.token}`;
+        const enviado = convite.email ? await (0, email_1.sendEmail)({
+            to: convite.email,
+            subject: `Convite para acompanhar o processo ${convite.numero}`,
+            html: `<p>Olá, ${escapar(convite.parte)}.</p><p>Você foi habilitado a acompanhar o processo <b>${escapar(convite.numero)}</b> e a peticionar nele pelo portal das partes.</p><p><a href="${link}">Aceitar o convite</a> (vale por ${CONVITE_DIAS} dias).</p><p>Entre com sua conta Google ou crie uma senha. Se você não esperava este e-mail, ignore-o.</p>`,
+        }).catch(() => false) : false;
+        return { success: true, version: resultado.version, link, emailEnviado: enviado };
+    }
     return { success: true, version: resultado.version };
 });
 //# sourceMappingURL=processos.js.map
