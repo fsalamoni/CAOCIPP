@@ -367,6 +367,24 @@ Placeholder mimicking final content's shape. NOT currently used in CAOCIPP.
 
 ## Business Domain Terms
 
+### Secretaria Processual
+Módulo de processo eletrônico do órgão (ver SECRETARIA.md).
+
+### Unidade (Secretaria Processual)
+Secretaria (movimenta e cumpre) ou gabinete (decide), com membros lotados.
+
+### Posse
+A unidade que está com o processo. Só quem está lotado nela o movimenta.
+
+### Rito
+Sequência de fases de um processo. Versionado; o processo guarda as fases com que foi autuado.
+
+### Minuta / Juntada
+Minuta é o documento em preparo, visível só à unidade que o redigiu. Juntada é a entrada nos autos, com número de ordem, sem volta.
+
+### Cadeia de hash
+Cada movimento leva o SHA-256 do anterior; alterar um movimento antigo quebra a cadeia e é detectado.
+
 ### Processo Administrativo
 Administrative process/inquiry requiring analysis and decision.
 

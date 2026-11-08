@@ -1,0 +1,173 @@
+import * as admin from 'firebase-admin';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import {
+    MAX_UPLOAD_BYTES, TIPOS_ARQUIVO_PERMITIDOS, jsonCanonico, sanitizeDelta, sha256, texto,
+} from '../shared/secretaria';
+import {
+    REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarMovimento,
+} from './context';
+
+/**
+ * Documentos do processo. Todo documento nasce como MINUTA da unidade que tem
+ * o processo (redigido no editor ou enviado por upload), pode ser assinado
+ * pelos lotados nessa unidade e, ao ser JUNTADO, entra nos autos com número
+ * de ordem e movimento encadeado. Documento juntado não se edita nem se apaga.
+ *
+ * Arquivos ficam no Cloud Storage em secretaria/{órgão}/{processo}/{doc}; o
+ * navegador nunca acessa o bucket direto (storage.rules nega tudo): envio e
+ * download passam por aqui, que confere a permissão.
+ */
+
+interface DocRequest {
+    organizationId: string;
+    processoId: string;
+    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'excluirMinuta' | 'baixar';
+    docId?: string;
+    version?: number;
+    titulo?: string;
+    tipo?: string;
+    delta?: unknown;
+    nomeArquivo?: string;
+    mime?: string;
+    base64?: string;
+}
+
+export function caminhoArquivo(orgId: string, procId: string, docId: string) {
+    return `secretaria/${orgId}/${procId}/${docId}`;
+}
+
+export const secretariaDocumento = onCall<DocRequest>(
+    { region: REGION, memory: '512MiB' },
+    async (request) => {
+        const auth = exigirAuth(request);
+        const p = request.data || ({} as DocRequest);
+        const c = await carregarContexto(auth, p.organizationId);
+        const { ref: procRef, data: proc } = await lerProcesso(c, p.processoId);
+        const docsCol = procRef.collection('documentos');
+        const agoraIso = new Date().toISOString();
+
+        const lerDoc = async (tx?: admin.firestore.Transaction) => {
+            if (!p.docId) throw new HttpsError('invalid-argument', 'docId é obrigatório');
+            const r = docsCol.doc(p.docId);
+            const s = tx ? await tx.get(r) : await r.get();
+            if (!s.exists) throw new HttpsError('not-found', 'Documento não encontrado');
+            return { ref: r, doc: s.data() as admin.firestore.DocumentData };
+        };
+        const exigirMinutaDaMinhaUnidade = (doc: admin.firestore.DocumentData) => {
+            if (doc.status !== 'minuta') throw new HttpsError('failed-precondition', 'Documento já juntado aos autos não pode ser alterado');
+            if (!c.ctx.unidadeIds.includes(doc.unidade_origem)) {
+                throw new HttpsError('permission-denied', 'A minuta pertence a outra unidade');
+            }
+        };
+
+        if (p.action === 'baixar') {
+            const { doc } = await lerDoc();
+            if (doc.status !== 'juntado' && !c.ctx.unidadeIds.includes(doc.unidade_origem)) {
+                throw new HttpsError('not-found', 'Documento não encontrado');
+            }
+            if (doc.origem === 'editor') return { origem: 'editor', titulo: doc.titulo, delta: doc.delta || [] };
+            const [buf] = await admin.storage().bucket().file(doc.storage_path).download();
+            return { origem: 'upload', titulo: doc.titulo, mime: doc.mime, nomeArquivo: doc.nome_arquivo, base64: buf.toString('base64') };
+        }
+
+        if (p.action === 'criarMinuta' || p.action === 'upload') {
+            exigirPosse(c, proc);
+            const titulo = texto(p.titulo) || (p.action === 'upload' ? texto(p.nomeArquivo) : '');
+            if (!titulo) throw new HttpsError('invalid-argument', 'Informe o título do documento');
+            const ref = docsCol.doc();
+            const base = {
+                titulo,
+                tipo: texto(p.tipo, 60) || 'Documento',
+                status: 'minuta',
+                unidade_origem: proc.unidade_atual,
+                autor_uid: auth.uid,
+                autor_nome: c.userName,
+                criado_em: agoraIso,
+                assinaturas: [],
+            };
+            if (p.action === 'criarMinuta') {
+                let delta;
+                try { delta = sanitizeDelta(p.delta); } catch (e) { erroUsuario(e); }
+                await ref.set({ ...base, origem: 'editor', delta, sha256: sha256(jsonCanonico(delta)) });
+                return { success: true, id: ref.id };
+            }
+            const mime = String(p.mime || '');
+            if (!TIPOS_ARQUIVO_PERMITIDOS[mime]) throw new HttpsError('invalid-argument', 'Tipo de arquivo não aceito');
+            const buf = Buffer.from(String(p.base64 || ''), 'base64');
+            if (!buf.length) throw new HttpsError('invalid-argument', 'Arquivo vazio');
+            if (buf.length > MAX_UPLOAD_BYTES) throw new HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
+            const path = caminhoArquivo(c.orgId, procRef.id, ref.id);
+            await admin.storage().bucket().file(path).save(buf, { contentType: mime, resumable: false });
+            await ref.set({
+                ...base, origem: 'upload', mime, nome_arquivo: texto(p.nomeArquivo) || titulo,
+                tamanho: buf.length, sha256: sha256(buf), storage_path: path,
+            });
+            return { success: true, id: ref.id };
+        }
+
+        if (p.action === 'editarMinuta') {
+            exigirPosse(c, proc);
+            const { ref, doc } = await lerDoc();
+            exigirMinutaDaMinhaUnidade(doc);
+            if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Arquivo enviado não se edita; exclua a minuta e envie outro');
+            if ((doc.assinaturas || []).length) throw new HttpsError('failed-precondition', 'Minuta já assinada não se edita');
+            let delta;
+            try { delta = sanitizeDelta(p.delta); } catch (e) { erroUsuario(e); }
+            await ref.update({
+                delta, sha256: sha256(jsonCanonico(delta)),
+                ...(texto(p.titulo) ? { titulo: texto(p.titulo) } : {}),
+                ...(texto(p.tipo, 60) ? { tipo: texto(p.tipo, 60) } : {}),
+                editado_em: agoraIso,
+            });
+            return { success: true };
+        }
+
+        if (p.action === 'excluirMinuta') {
+            const { ref, doc } = await lerDoc();
+            exigirMinutaDaMinhaUnidade(doc);
+            await ref.delete();
+            if (doc.storage_path) await admin.storage().bucket().file(doc.storage_path).delete({ ignoreNotFound: true });
+            return { success: true };
+        }
+
+        if (p.action === 'assinar') {
+            await c.db.runTransaction(async (tx) => {
+                const { ref, doc } = await lerDoc(tx);
+                exigirMinutaDaMinhaUnidade(doc);
+                const assinaturas = (doc.assinaturas || []) as Array<{ uid: string }>;
+                if (assinaturas.some((a) => a.uid === auth.uid)) throw new HttpsError('already-exists', 'Você já assinou este documento');
+                // Assinatura eletrônica simples (Lei 14.063/2020, art. 4º, I):
+                // identifica o signatário pela conta autenticada e amarra ao
+                // hash do conteúdo naquele instante.
+                tx.update(ref, {
+                    assinaturas: [...assinaturas, {
+                        uid: auth.uid, nome: c.userName, em: agoraIso, sha256: doc.sha256, nivel: 'simples',
+                    }],
+                });
+            });
+            return { success: true };
+        }
+
+        if (p.action === 'juntar') {
+            const r = await c.db.runTransaction(async (tx) => {
+                const { ref: pr, data: atual } = await lerProcesso(c, p.processoId, tx);
+                conferirVersao(atual, p.version);
+                exigirPosse(c, atual);
+                if (atual.status === 'arquivado') throw new HttpsError('failed-precondition', 'Processo arquivado');
+                const { ref, doc } = await lerDoc(tx);
+                exigirMinutaDaMinhaUnidade(doc);
+                const ordem = (Number(atual.doc_seq) || 0) + 1;
+                const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
+                const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
+                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`,
+                    { documento_id: ref.id, ordem, sha256: doc.sha256 });
+                tx.update(ref, { status: 'juntado', ordem, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName });
+                tx.update(pr, { ...mov, doc_seq: ordem });
+                return { ordem, version: mov.version };
+            });
+            return { success: true, ...r };
+        }
+
+        throw new HttpsError('invalid-argument', 'Ação desconhecida');
+    }
+);

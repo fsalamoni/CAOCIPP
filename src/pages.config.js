@@ -54,6 +54,7 @@ import Organization from './pages/Organization';
 import Profile from './pages/Profile';
 import Terms from './pages/Terms';
 import Admin from './pages/Admin';
+import Secretaria from './pages/Secretaria';
 import __Layout from './Layout.jsx';
 
 
@@ -65,6 +66,7 @@ export const PAGES = {
     "Profile": Profile,
     "Terms": Terms,
     "Admin": Admin,
+    "Secretaria": Secretaria,
 }
 
 export const pagesConfig = {

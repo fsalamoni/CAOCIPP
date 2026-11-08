@@ -47,6 +47,11 @@ export const ORG_PERMISSIONS = [
         description: 'Criar e configurar as bases analíticas do módulo Panorama: colunas, papéis, desfechos, regiões e regras de prescrição.',
     },
     {
+        key: 'configure_secretaria',
+        label: 'Configurar Secretaria Processual',
+        description: 'Ligar a Secretaria Processual, criar unidades (secretarias e gabinetes), lotar membros e definir os ritos. Quem tem esta permissão também consulta todos os processos do órgão.',
+    },
+    {
         key: 'manage_metrics',
         label: 'Gerenciar métricas',
         description: 'Criar, editar e excluir as métricas do painel.',

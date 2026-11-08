@@ -401,6 +401,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ========== SECRETARIA PROCESSUAL ==========
+    // Processos, movimentos, documentos, unidades, ritos e contadores ficam
+    // fechados ao cliente: leitura E escrita só pelas Cloud Functions
+    // secretaria*, que aplicam posse, lotação, sigilo e visibilidade de minutas
+    // (regras que as Security Rules não expressam sem vazar dados).
+    match /secProcessos/{id} {
+      allow read, write: if false;
+      match /{sub=**} {
+        allow read, write: if false;
+      }
+    }
+    match /secUnidades/{id} { allow read, write: if false; }
+    match /secRitos/{id} { allow read, write: if false; }
+    match /secContadores/{id} { allow read, write: if false; }
+
     // ========== PLATAFORMA: ALLOWLIST DE SUPER-ADMINS ==========
 
     match /platformAdmins/{uid} {

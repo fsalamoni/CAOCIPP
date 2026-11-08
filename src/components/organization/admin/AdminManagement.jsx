@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer, Scale, Telescope } from 'lucide-react';
+import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer, Scale, Telescope, Gavel } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { hasOrgPermission, hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -22,6 +22,7 @@ import PermissionsManager from './PermissionsManager';
 import AutomationSettings from './AutomationSettings';
 import SecuritySettings from './SecuritySettings';
 import StageTimeSettings from './StageTimeSettings';
+import SecretariaAtivacao from '@/components/secretaria/SecretariaAtivacao';
 
 export default function AdminManagement({ organization, members, userRole, userMembership }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
@@ -65,6 +66,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         jurimetria: isCreator || hasOrgPermission(userMembership, 'configure_jurimetria'),
         panorama: isCreator || hasOrgPermission(userMembership, 'configure_panorama'),
         padronizacao: isCreator || hasOrgPermission(userMembership, 'bulk_standardize'),
+        secretaria: isCreator || hasOrgPermission(userMembership, 'configure_secretaria'),
     }), [userMembership, isCreator]);
 
     // Bloqueia o acesso apenas para quem não é criador NEM possui qualquer
@@ -89,6 +91,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         || (showJurimetriaTab && can.jurimetria && 'jurimetria')
         || (showPanoramaTab && can.panorama && 'panorama')
         || (can.padronizacao && 'padronizacao')
+        || (can.secretaria && 'secretaria')
         || 'details';
 
     return (
@@ -168,6 +171,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                         <TabsTrigger value="padronizacao" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Database className="w-4 h-4" />
                             Padronização em Bloco
+                        </TabsTrigger>
+                    )}
+                    {can.secretaria && (
+                        <TabsTrigger value="secretaria" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
+                            <Gavel className="w-4 h-4" />
+                            Secretaria Processual
                         </TabsTrigger>
                     )}
                     {isCreator && showAutomationTab && (
@@ -265,6 +274,12 @@ export default function AdminManagement({ organization, members, userRole, userM
                 {can.padronizacao && (
                     <TabsContent value="padronizacao">
                         <BulkReplaceTool organization={organization} />
+                    </TabsContent>
+                )}
+
+                {can.secretaria && (
+                    <TabsContent value="secretaria">
+                        <SecretariaAtivacao organization={organization} />
                     </TabsContent>
                 )}
 

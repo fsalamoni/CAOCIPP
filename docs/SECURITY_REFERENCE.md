@@ -364,6 +364,20 @@ match /notifications/{notificationId} {
 - ✅ Can only mark as read (no other modifications)
 - ✅ Can delete own notifications
 
+#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secContadores`) e Cloud Storage
+
+- Regras: `allow read, write: if false` em todas. As Cloud Functions `secretaria*`
+  aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
+  que tem o processo movimenta), lotação, sigilo restrito e minutas visíveis só
+  à unidade de origem. Id de outro órgão responde "não encontrado".
+- `storage.rules` (novo) nega todo acesso do navegador ao bucket; upload e
+  download passam por `secretariaDocumento`, que valida tipo (lista fechada) e
+  tamanho (5 MB) e grava o SHA-256.
+- Conteúdo redigido é guardado como Delta com formatos permitidos, não como
+  HTML, o que fecha XSS no editor e na visualização.
+- Movimentos encadeados por SHA-256: alteração direta no banco é detectada na
+  consulta e na exportação. Detalhes em [SECRETARIA.md](./SECRETARIA.md).
+
 ---
 
 ## Authorization Patterns
