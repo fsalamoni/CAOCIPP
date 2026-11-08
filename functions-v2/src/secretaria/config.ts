@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { sanitizeRito, texto } from '../shared/secretaria';
+import { MAX_TEXTO_LONGO, sanitizeRito, texto } from '../shared/secretaria';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth } from './context';
 
 /**
@@ -26,7 +26,8 @@ const RITO_PADRAO = {
 
 interface ConfigRequest {
     organizationId: string;
-    action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias';
+    action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo';
+    tipo?: unknown;
     peticao_interrompe?: boolean;
     enabled?: boolean;
     id?: string;
@@ -45,7 +46,10 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
 
     if (p.action === 'estado') {
         if (!enabled && !c.ctx.isAdmin) return { enabled: false, isAdmin: false };
-        const ritosSnap = await db.collection(COL.ritos).where('organization_id', '==', orgId).get();
+        const [ritosSnap, tiposSnap] = await Promise.all([
+            db.collection(COL.ritos).where('organization_id', '==', orgId).get(),
+            db.collection(COL.tipos).where('organization_id', '==', orgId).get(),
+        ]);
         let membros: Array<{ uid: string; nome: string; email: string }> = [];
         // Todo usuário lotado precisa ver os nomes de colegas para atribuir
         // processos; e-mail só para quem administra.
@@ -72,6 +76,13 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 const r = d.data();
                 return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false };
             }),
+            tipos: tiposSnap.docs.map((d) => {
+                const t = d.data();
+                return {
+                    id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
+                    sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
+                };
+            }).sort((a, b) => a.nome.localeCompare(b.nome)),
             membros,
         };
     }
@@ -164,6 +175,32 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             p.id = ref.id;
         }
         await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_RITO_SALVO', { rito_id: p.id, nome: rito!.nome });
+        return { success: true, id: p.id };
+    }
+
+    if (p.action === 'salvarTipo') {
+        const t = (p.tipo && typeof p.tipo === 'object' ? p.tipo : {}) as Record<string, unknown>;
+        const nome = texto(t.nome);
+        if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao tipo de processo');
+        const rito = (await db.collection(COL.ritos).doc(String(t.rito_id || '_')).get()).data();
+        if (!rito || rito.organization_id !== orgId) throw new HttpsError('invalid-argument', 'Escolha o rito do tipo de processo');
+        const unidadeInicial = String(t.unidade_inicial || '');
+        if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial)) throw new HttpsError('invalid-argument', 'Unidade inicial inválida');
+        const dados = {
+            nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id),
+            sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: unidadeInicial || null,
+            ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
+        };
+        const col = db.collection(COL.tipos);
+        if (p.id) {
+            const ref = col.doc(p.id);
+            if ((await ref.get()).data()?.organization_id !== orgId) throw new HttpsError('not-found', 'Tipo não encontrado');
+            await ref.update(dados);
+        } else {
+            if ((await col.where('organization_id', '==', orgId).get()).size >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de tipos atingido');
+            p.id = (await col.add({ ...dados, organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
+        }
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome });
         return { success: true, id: p.id };
     }
 

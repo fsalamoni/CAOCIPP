@@ -391,6 +391,12 @@ Cada movimento leva o SHA-256 do anterior; alterar um movimento antigo quebra a 
 ### Portal das partes / Habilitação
 Página pública `/Portal` onde a parte, com conta própria, acompanha os processos em que foi habilitada e peticiona. Habilitação é o aceite do convite enviado pela secretaria; a parte nunca vira membro do órgão.
 
+### Tipo de processo (Secretaria Processual)
+Modelo de autuação definido pelo admin do órgão: nome, sigla, rito, sigilo padrão e unidade sugerida.
+
+### Fluxo do rito / Ramificação
+Ordem em que as fases se sucedem. Uma fase pode seguir para a próxima da lista, para uma de várias fases escolhidas (ramificação) ou encerrar o fluxo (fase final). Sair do fluxo exige motivo.
+
 ### Processo Administrativo
 Administrative process/inquiry requiring analysis and decision.
 

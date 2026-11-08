@@ -4,6 +4,7 @@ exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_DELTA_CHARS = exports.T
 exports.texto = texto;
 exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
+exports.fasesSeguintes = fasesSeguintes;
 exports.proximaFase = proximaFase;
 exports.podeAgir = podeAgir;
 exports.podeVer = podeVer;
@@ -59,26 +60,61 @@ function sanitizeRito(input) {
     if (fasesIn.length > exports.MAX_FASES)
         throw new Error(`O rito aceita no máximo ${exports.MAX_FASES} fases`);
     const vistos = new Set();
-    const fases = fasesIn.map((f, i) => {
+    // O id que o cliente mandou (referenciado em `proximas`) vira o id final.
+    const ids = new Map();
+    const brutas = fasesIn.map((f, i) => {
         const fo = (f && typeof f === 'object' ? f : {});
         const nomeFase = texto(fo.nome);
         if (!nomeFase)
             throw new Error(`A fase ${i + 1} está sem nome`);
-        let id = texto(fo.id, 40) || slug(nomeFase);
+        const original = texto(fo.id, 40);
+        let id = slug(original || nomeFase);
         while (vistos.has(id))
             id = `${id}_${i}`;
         vistos.add(id);
+        if (original)
+            ids.set(original, id);
+        return { fo, id, nomeFase };
+    });
+    const fases = brutas.map(({ fo, id, nomeFase }) => {
         const prazo = Number(fo.prazo_dias);
-        return Object.assign({ id, nome: nomeFase }, (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {}));
+        const orientacao = texto(fo.orientacao, exports.MAX_TEXTO_LONGO);
+        const final = fo.final === true;
+        const proximas = !final && Array.isArray(fo.proximas)
+            ? [...new Set(fo.proximas.map((x) => {
+                    var _a;
+                    const alvo = (_a = ids.get(String(x))) !== null && _a !== void 0 ? _a : (vistos.has(String(x)) ? String(x) : null);
+                    if (!alvo)
+                        throw new Error(`A fase "${nomeFase}" aponta para uma fase que não existe`);
+                    if (alvo === id)
+                        throw new Error(`A fase "${nomeFase}" não pode seguir para ela mesma`);
+                    return alvo;
+                }))]
+            : [];
+        return Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {}));
     });
     return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases };
 }
-/** Fase seguinte no rito, ou null se a atual é a última (ou não existe). */
+/**
+ * Fases para onde o processo segue a partir da atual: as `proximas` da fase,
+ * ou a seguinte da lista. Ir para outra fase é possível, mas fica registrado
+ * como fora do fluxo e exige justificativa.
+ */
+function fasesSeguintes(fases, atualId) {
+    var _a;
+    const i = fases.findIndex((f) => f.id === atualId);
+    if (i < 0)
+        return [];
+    const atual = fases[i];
+    if (atual.final)
+        return [];
+    if ((_a = atual.proximas) === null || _a === void 0 ? void 0 : _a.length)
+        return atual.proximas.map((id) => fases.find((f) => f.id === id)).filter((f) => !!f);
+    return i < fases.length - 1 ? [fases[i + 1]] : [];
+}
+/** Fase seguinte no fluxo (a primeira, se houver ramificação), ou null. */
 function proximaFase(rito, faseAtualId) {
-    const i = rito.fases.findIndex((f) => f.id === faseAtualId);
-    if (i < 0 || i >= rito.fases.length - 1)
-        return null;
-    return rito.fases[i + 1];
+    return fasesSeguintes(rito.fases, faseAtualId)[0] || null;
 }
 /** Quem tem o processo consigo: lotados na unidade que detém a posse. */
 function podeAgir(proc, ctx) {

@@ -8,7 +8,7 @@ O módulo é independente: serve a qualquer pessoa física ou jurídica, públic
 ou privada, que use o SIGO com sua equipe. Não substitui nenhum sistema
 processual externo e não altera os demais módulos do órgão.
 
-Este documento cobre as **fases 1, 2 e 3** (entregues). O projeto completo, com as cinco
+Este documento cobre as **fases 1 a 4** (entregues). O projeto completo, com as cinco
 fases e as decisões, está no documento de projeto (fora do repositório).
 
 ## Ativação
@@ -29,7 +29,7 @@ fases e as decisões, está no documento de projeto (fora do repositório).
 
 | Perfil | Quem é | O que faz |
 |---|---|---|
-| Organização | Admin do órgão (`configure_secretaria` ou criador) | Ativa, cria unidades, lota membros, define ritos, consulta todos os processos |
+| Organização | Admin do órgão (`configure_secretaria` ou criador) | Ativa, cria unidades, lota membros, define ritos e tipos de processo, consulta todos os processos |
 | Secretaria | Lotado em unidade do tipo `secretaria` | Autua, junta, tramita, muda fase, atribui, sobrestá e arquiva quando tem o processo |
 | Decisão | Lotado em unidade do tipo `gabinete` | Os mesmos atos quando o processo está no gabinete (ex.: minuta de decisão, assinatura, juntada, devolução) |
 | Partes | Externas, com conta própria, **nunca membros do órgão** | Pelo portal (`/Portal`): acompanham os processos em que foram habilitadas e peticionam a qualquer tempo |
@@ -53,9 +53,10 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | Coleção | Conteúdo |
 |---|---|
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete), membros_uids[], ativa` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?}], versao, ativo` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?}], versao, ativo` |
+| `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
-| `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, ultimo_hash, version` |
+| `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, ultimo_hash, version` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, delta` ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?` |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
@@ -75,7 +76,7 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarPreferencias` |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarTipo`, `salvarPreferencias` |
 | `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `peticionar` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar` |
@@ -162,6 +163,51 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   também com o processo sobrestado ou arquivado.
 - **Revogação:** Revogar tira a conta de `partes_uids`, invalida o convite e
   grava `acesso_revogado`. A parte deixa de ver o processo na hora.
+
+## Ritos e tipos de processo (fase 4)
+
+O admin do órgão configura tudo em Painel Administrativo → Secretaria
+Processual, sem sair da plataforma.
+
+**Rito.** Lista de fases. Cada fase tem nome, prazo em dias (opcional),
+orientação para a equipe (opcional, não aparece para as partes) e o que vem
+depois dela:
+
+- sem `proximas`: segue para a fase seguinte da lista;
+- `proximas: [ids]`: ramificação, a equipe escolhe entre elas;
+- `final: true`: encerra o fluxo, mesmo no meio da lista.
+
+O servidor (`sanitizeRito`) normaliza ids (`slug`), recusa próxima fase
+inexistente ou apontando para a própria fase e descarta `proximas` de fase
+final. `fasesSeguintes` aplica a regra acima.
+
+**Editor visual** (`RitoEditor.jsx`): fases em cartões (reordenar, remover,
+escolher o que vem depois, orientação) e o diagrama do fluxo
+(`FluxoRito.jsx`, SVG) atualizado ao vivo. Pontos de partida:
+
+- **Modelos prontos:** rito comum, requerimento simples, procedimento com
+  contraditório (com recurso) e atendimento ao cidadão.
+- **Planilha:** importa .xlsx, .xls, .ods ou .csv, ou texto colado do Excel.
+  Colunas Fase | Prazo | Próximas | Orientação, em qualquer ordem se houver
+  cabeçalho. Próximas por nome ou número da linha, separadas por `;`; "fim"
+  encerra. Há planilha de exemplo para baixar.
+- **Diagrama:** cola um fluxograma Mermaid (`flowchart TD`, `A[Nome] --> B`).
+  "Nome - 10 dias" no rótulo define o prazo.
+- **Exportar:** baixa o rito em .xlsx ou copia como Mermaid.
+
+Conversões em `src/lib/secretariaRito.js`, testadas em
+`src/lib/secretariaRito.test.js` (`npm run test:lib`).
+
+**Tipo de processo** (`secTipos`): nome, sigla, descrição, rito, sigilo padrão
+e unidade sugerida para autuar. Na autuação, escolher o tipo preenche rito,
+sigilo e unidade; o processo guarda `tipo_id` e `tipo_nome`. A lista filtra
+por tipo.
+
+**Mudança de fase guiada.** A tela do processo mostra a fase atual, sua
+orientação e o fluxo com a fase destacada. O diálogo oferece as próximas
+fases previstas; ir para outra fase é permitido, mas exige motivo, e o
+movimento fica marcado "fora do fluxo do rito" (`dados.fora_do_fluxo`).
+O portal das partes mostra o diagrama sem as orientações internas.
 
 ## Limites conhecidos
 

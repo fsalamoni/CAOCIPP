@@ -42,5 +42,8 @@ jobs:
       - name: Test functions
         run: npm --prefix functions-v2 test
 
+      - name: Test frontend lib
+        run: npm run test:lib
+
       - name: Build frontend
         run: npm run build

@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secPortal, baixarBase64, arquivoParaBase64 } from '@/services/secretariaService';
 import { STATUS_ROTULO, dataHora } from '@/components/secretaria/comum';
+import FluxoRito from '@/components/secretaria/FluxoRito';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
 // conta própria, aceita o convite da secretaria e acompanha só os processos em
@@ -202,6 +203,13 @@ function ProcessoParte({ id, onVoltar }) {
                     <p className="text-sm text-slate-500">{orgao} · fase {p.fase_nome} · você participa como {p.minha_parte?.nome} ({p.minha_parte?.polo})</p>
                 </div>
             </div>
+
+            {p.fases?.length > 1 && (
+                <details className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                    <summary className="cursor-pointer px-4 py-3 text-sm">Em que ponto está o processo: <b>{p.fase_nome}</b> <span className="text-indigo-700 dark:text-indigo-300">(ver o caminho completo)</span></summary>
+                    <div className="px-4 pb-4"><FluxoRito fases={p.fases} atual={p.fase_atual} /></div>
+                </details>
+            )}
 
             <div className="grid lg:grid-cols-5 gap-5">
                 <div className="lg:col-span-3 space-y-5">
