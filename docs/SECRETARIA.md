@@ -1,0 +1,122 @@
+# Secretaria Processual
+
+Processo eletrônico do órgão: autuação com rito, tramitação entre unidades,
+documentos redigidos na plataforma ou enviados, assinatura, juntada, linha do
+tempo com integridade por hash e exportação dos autos em PDF.
+
+O módulo é independente: serve a qualquer pessoa física ou jurídica, pública
+ou privada, que use o SIGO com sua equipe. Não substitui nenhum sistema
+processual externo e não altera os demais módulos do órgão.
+
+Este documento cobre a **fase 1** (entregue). O projeto completo, com as cinco
+fases e as decisões, está no documento de projeto (fora do repositório).
+
+## Ativação
+
+- Quem ativa: o **admin do órgão** (criador ou quem tem a permissão
+  `configure_secretaria`), em Painel Administrativo → aba Secretaria Processual.
+- Não depende de flag da plataforma. O estado fica em
+  `organizations/{id}.secretariaConfig.enabled`, gravado só pela function
+  `secretariaConfig` (ação `ativar`). Órgãos sem o campo ficam desligados.
+- Na primeira ativação, se o órgão não tiver unidade nem rito, a plataforma cria
+  a unidade "Secretaria" (com o admin lotado) e o "Rito comum" (Autuação →
+  Instrução → Decisão → Cumprimento → Encerramento).
+- Desativar esconde a página e bloqueia as functions. Nada é apagado.
+- Página: `/Secretaria?org=<id>`; processo aberto: `&p=<processoId>`. O link
+  aparece no submenu do órgão quando a Secretaria está ativa.
+
+## Perfis
+
+| Perfil | Quem é | O que faz |
+|---|---|---|
+| Organização | Admin do órgão (`configure_secretaria` ou criador) | Ativa, cria unidades, lota membros, define ritos, consulta todos os processos |
+| Secretaria | Lotado em unidade do tipo `secretaria` | Autua, junta, tramita, muda fase, atribui, sobrestá e arquiva quando tem o processo |
+| Decisão | Lotado em unidade do tipo `gabinete` | Os mesmos atos quando o processo está no gabinete (ex.: minuta de decisão, assinatura, juntada, devolução) |
+| Partes | Externas | **Fase 3.** Hoje as partes são só cadastradas no processo, sem acesso |
+
+O poder de movimentar vem da **posse**: o processo está sempre com uma unidade
+(`unidade_atual`) e só quem está lotado nela age sobre ele.
+
+## Visibilidade
+
+- **Sigilo normal:** qualquer membro lotado em alguma unidade do órgão lê.
+- **Sigilo restrito:** só unidades por onde o processo passou
+  (`unidades_historico`) e o admin.
+- **Minutas:** só a unidade que as redigiu, até a juntada.
+- Membro do órgão sem lotação não vê processo nenhum (salvo o admin).
+
+## Modelo de dados
+
+Todas as coleções são fechadas ao cliente (`allow read, write: if false`). Leitura
+e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas.
+
+| Coleção | Conteúdo |
+|---|---|
+| `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete), membros_uids[], ativa` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?}], versao, ativo` |
+| `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
+| `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, ultimo_hash, version` |
+| `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
+| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, delta` ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em` |
+
+O processo guarda a **cópia das fases** do rito com que foi autuado. Editar o
+rito incrementa `versao` e só vale para os próximos processos.
+
+Arquivos ficam no Cloud Storage em `secretaria/{org}/{processo}/{documento}`.
+`storage.rules` nega todo acesso do navegador; o Admin SDK das functions
+ignora as regras.
+
+## Functions
+
+| Function | Ações |
+|---|---|
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito` |
+| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus` |
+| `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar` |
+| `secretariaExportarPdf` | gera o PDF dos autos |
+
+Regras comuns:
+
+- Toda movimentação roda em transação, confere `version` (o cliente manda a
+  versão que viu; se outra pessoa movimentou antes, a resposta é `aborted`) e
+  grava um movimento encadeado.
+- **Cadeia de hash:** cada movimento leva `hash = SHA-256(JSON canônico do
+  movimento + hash_anterior)`. `obter` e a exportação reconferem a cadeia e
+  apontam o primeiro movimento adulterado.
+- Lógica pura em `functions-v2/src/shared/secretaria.ts`, testada em
+  `functions-v2/test/secretaria.test.js` (`npm --prefix functions-v2 test`).
+
+## Documentos
+
+- Todo documento nasce **minuta** da unidade que tem o processo, redigido no
+  editor ou enviado (PDF, PNG, JPG, TXT, DOC, DOCX, ODT, XLSX; até 5 MB, limite
+  do envio por function).
+- O editor grava o conteúdo como **Delta** (lista de operações de texto) com
+  uma lista fechada de formatos (negrito, itálico, sublinhado, títulos, listas,
+  alinhamento, citação, recuo). Nada de HTML, imagem embutida ou link: o
+  conteúdo nunca é interpretado como HTML.
+- **Assinatura eletrônica simples** (Lei 14.063/2020, art. 4º, I): registra
+  quem assinou, quando e o SHA-256 do conteúdo. Minuta assinada não se edita.
+- **Juntada:** a minuta entra nos autos com número de ordem e movimento
+  encadeado. Documento juntado não se edita nem se apaga.
+
+## Exportação em PDF
+
+Gerada no servidor com `pdf-lib`: capa (dados, partes, integridade), índice de
+movimentos em ordem cronológica com hash, e cada documento juntado na ordem da
+juntada. Redigidos viram texto; PDFs enviados entram página a página; PNG/JPG
+entram como imagem; TXT como texto; Word/planilha aparecem como folha de
+referência com o hash (conversão fica para a fase 5). Minutas nunca entram.
+A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
+
+## Limites conhecidos da fase 1
+
+- Partes não acessam o sistema (fase 3: portal externo, login próprio, petição a
+  qualquer tempo com pendência para o decisor).
+- Assinatura só no nível simples (gov.br e ICP-Brasil na fase 5).
+- Prazos das fases são informativos; não há contagem nem alerta (fase 4).
+- `listar` lê até 1000 processos do órgão e filtra em memória; paginar quando
+  passar disso.
+- O PDF volta inteiro na resposta da function; anexos acima de ~18 MB somados
+  viram folha de referência.
+- Documentos Word e planilhas não são convertidos para o PDF.

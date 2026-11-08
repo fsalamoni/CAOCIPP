@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// O navegador nunca acessa o Cloud Storage diretamente. Os arquivos da
+// Secretaria Processual (secretaria/{órgão}/{processo}/{documento}) são
+// enviados e baixados pelas Cloud Functions, que conferem posse, lotação e
+// sigilo antes de cada operação. O Admin SDK ignora estas regras.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

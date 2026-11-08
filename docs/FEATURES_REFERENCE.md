@@ -630,6 +630,18 @@ Archived Date → Process Complete
 
 ---
 
+## Secretaria Processual
+
+Módulo de processo eletrônico, ligado pelo admin do órgão (Painel
+Administrativo → Secretaria Processual). Fase 1: unidades (secretarias e
+gabinetes) com lotação, ritos versionados, autuação com numeração anual,
+tramitação por posse, atribuição, mudança de fase, sobrestamento e
+arquivamento, minutas redigidas no editor ou enviadas, assinatura eletrônica
+simples, juntada com número de ordem, linha do tempo com cadeia de hash e PDF
+dos autos em ordem cronológica. Ver [SECRETARIA.md](./SECRETARIA.md).
+
+---
+
 ## Dashboard & Analytics
 
 ### 1. KPI Cards

@@ -68,6 +68,15 @@ export { importPanorama } from './panorama/importar';
 export { managePanoramaTemplate } from './panorama/templates';
 export { importJurisFromExcel } from './import/fromExcelJuris';
 
+// ========== SECRETARIA PROCESSUAL (processo eletrônico; ligada pelo admin do órgão) ==========
+// Unidades, ritos, autuação, tramitação, documentos (editor e upload),
+// assinatura simples, juntada e exportação dos autos em PDF. Todas as leituras
+// e escritas passam por aqui; as coleções sec* são fechadas ao cliente.
+export { secretariaConfig } from './secretaria/config';
+export { secretariaProcesso } from './secretaria/processos';
+export { secretariaDocumento } from './secretaria/documentos';
+export { secretariaExportarPdf } from './secretaria/exportar';
+
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
 export { getPlatformOverview } from './platform/overview';
 export { getFeatureFlags, setFeatureFlag } from './platform/featureFlags';

@@ -19,6 +19,7 @@ Complete technical documentation for developers, maintainers, and AI agents.
 | 🖤 | [**DESIGN_SYSTEM_V2.md**](./DESIGN_SYSTEM_V2.md) | New minimalist design standard (opt-in via `frontend_v2` flag), tokens, how to build new screens | Building any new screen/modal, rolling out the visual redesign |
 | ⚖️ | [**JURIMETRIA.md**](./JURIMETRIA.md) | Módulo de Jurimetria: modelo de dados, importação, relatórios, permissões e flags | Trabalhar na base de júris, importação ou relatórios |
 | 🔭 | [**PANORAMA.md**](./PANORAMA.md) | Módulo Panorama: papéis semânticos, configuração de bases por órgão, inferência de colunas, prescrição e relatórios | Configurar uma base nova, entender os papéis ou trabalhar no módulo coringa |
+| 🏛️ | [**SECRETARIA.md**](./SECRETARIA.md) | Secretaria Processual: processo eletrônico com ritos, unidades, posse, documentos, assinatura, juntada, cadeia de hash e PDF dos autos | Ativar ou evoluir o módulo de processo eletrônico |
 | 📖 | [**GLOSSARY.md**](./GLOSSARY.md) | 150+ terms across 8 categories | Onboarding, understanding terminology |
 | 👨‍💻 | [**DEVELOPMENT_GUIDE.md**](./DEVELOPMENT_GUIDE.md) | Setup, workflow, common tasks, debugging | Setting up environment, daily development |
 

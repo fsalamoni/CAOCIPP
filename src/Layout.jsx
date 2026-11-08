@@ -23,7 +23,8 @@ import {
   X,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Gavel
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +50,7 @@ function pickOrgConfig(liveOrg) {
   const out = {};
   if (liveOrg.moduleConfig !== undefined) out.moduleConfig = liveOrg.moduleConfig;
   if (liveOrg.name !== undefined) out.name = liveOrg.name;
+  if (liveOrg.secretariaConfig !== undefined) out.secretariaConfig = liveOrg.secretariaConfig;
   return out;
 }
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'caocipp_sidebar_collapsed';
@@ -254,6 +256,16 @@ export default function Layout({ children, currentPageName }) {
                                     />
                                   );
                                 })}
+                              {activeOrgResolvedId === org.id && org.secretariaConfig?.enabled === true && (
+                                <SubNavItem
+                                  to="Secretaria"
+                                  params={`?org=${org.id}`}
+                                  icon={Gavel}
+                                  label="Secretaria Processual"
+                                  active={false}
+                                  onClick={() => setSidebarOpen(false)}
+                                />
+                              )}
                             </div>
                           )}
                         </div>

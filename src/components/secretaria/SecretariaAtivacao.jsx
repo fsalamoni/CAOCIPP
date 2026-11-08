@@ -1,0 +1,67 @@
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Gavel, ExternalLink, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { createPageUrl } from '@/utils';
+import { secConfig } from '@/services/secretariaService';
+
+// Painel do admin do órgão: liga ou desliga a Secretaria Processual. Desligar
+// só esconde a página e bloqueia movimentações; nenhum processo é apagado.
+export default function SecretariaAtivacao({ organization }) {
+    const [enabled, setEnabled] = useState(organization?.secretariaConfig?.enabled === true);
+    const [saving, setSaving] = useState(false);
+
+    const alternar = async (valor) => {
+        setSaving(true);
+        try {
+            await secConfig(organization.id, 'ativar', { enabled: valor });
+            setEnabled(valor);
+            toast.success(valor ? 'Secretaria Processual ativada' : 'Secretaria Processual desativada');
+        } catch (e) {
+            toast.error(e?.message || 'Não foi possível salvar');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                        <Gavel className="w-6 h-6 text-indigo-600 dark:text-indigo-400 mt-1" />
+                        <div>
+                            <CardTitle>Secretaria Processual</CardTitle>
+                            <CardDescription className="mt-1">
+                                Processo eletrônico do órgão: autuação com rito, tramitação entre secretarias e gabinetes,
+                                documentos redigidos ou enviados, assinatura, juntada, linha do tempo com integridade por
+                                hash e exportação dos autos em PDF.
+                            </CardDescription>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                        <Switch checked={enabled} disabled={saving} onCheckedChange={alternar} aria-label="Ativar Secretaria Processual" />
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                <p>
+                    Na primeira ativação, a plataforma cria uma unidade “Secretaria” com você lotado e um “Rito comum”.
+                    Unidades, lotações e ritos se ajustam na aba Configuração da própria Secretaria.
+                </p>
+                <p>Desativar esconde a página e bloqueia movimentações. Nenhum processo ou documento é apagado.</p>
+                {enabled && (
+                    <Button asChild variant="outline" className="gap-2">
+                        <Link to={`${createPageUrl('Secretaria')}?org=${organization.id}`}>
+                            Abrir a Secretaria <ExternalLink className="w-4 h-4" />
+                        </Link>
+                    </Button>
+                )}
+            </CardContent>
+        </Card>
+    );
+}

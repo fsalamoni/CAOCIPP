@@ -16,6 +16,7 @@ export type OrgPermissionKey =
     | 'configure_parcerias'
     | 'configure_jurimetria'
     | 'configure_panorama'
+    | 'configure_secretaria'
     | 'manage_metrics'
     | 'manage_modules'
     | 'bulk_standardize'
@@ -28,6 +29,7 @@ export const ORG_PERMISSION_KEYS: OrgPermissionKey[] = [
     'configure_parcerias',
     'configure_jurimetria',
     'configure_panorama',
+    'configure_secretaria',
     'manage_metrics',
     'manage_modules',
     'bulk_standardize',
