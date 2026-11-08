@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import {
-    ArrowLeft, Download, FilePen, FileUp, FileDown, Loader2, PenLine, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2,
+    AlertCircle, ArrowLeft, CalendarClock, Download, FilePen, FileUp, FileDown, Loader2, PenLine, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +35,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     if (q.isLoading) return <div className="py-8 flex gap-2 items-center text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Carregando processo…</div>;
     if (q.error) return <div className="py-8 text-red-600">{q.error.message} <Button variant="link" onClick={onVoltar}>Voltar</Button></div>;
 
-    const { processo: p, movimentos, documentos, cadeiaQuebradaEm, posse } = q.data;
+    const { processo: p, movimentos, documentos, cadeiaQuebradaEm, posse, hoje } = q.data;
+    const noGabinete = estado.unidades.find((u) => u.id === p.unidade_atual)?.tipo === 'gabinete';
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || id;
     const atualizar = () => {
         qc.invalidateQueries({ queryKey: ['sec-proc', orgId, procId] });
@@ -171,7 +172,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                 ? <Button size="sm" variant="ghost" onClick={() => abrirMinuta(d)}>Abrir</Button>
                                                 : <Button size="sm" variant="ghost" onClick={() => baixar(d)} aria-label="Baixar"><Download className="w-4 h-4" /></Button>}
                                             <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
-                                            <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => doc('juntar', { docId: d.id, version: p.version }, 'Documento juntado aos autos')}>Juntar</Button>
+                                            <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d })}>Juntar</Button>
                                             <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída')} aria-label="Excluir minuta"><Trash2 className="w-4 h-4" /></Button>
                                         </div>
                                     );
@@ -179,6 +180,47 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             </CardContent>
                         </Card>
                     )}
+
+                    <Card>
+                        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                            <CardTitle className="text-base">Pendências e prazos</CardTitle>
+                            {posse && (
+                                <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'pendencia' })}><AlertCircle className="w-4 h-4" /> Pendência</Button>
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'prazo' })}><CalendarClock className="w-4 h-4" /> Prazo</Button>
+                                </div>
+                            )}
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                            {p.fase_suspensa && <p className="text-amber-700 dark:text-amber-400 font-medium">Fase interrompida até o decisor apreciar a pendência.</p>}
+                            {p.pendencias.filter((x) => x.status === 'aberta').map((x) => (
+                                <div key={x.id} className="flex flex-wrap items-center gap-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
+                                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                                    <div className="flex-1 min-w-[10rem]">
+                                        <p>{x.descricao}</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Aberta em {dataHora(x.aberta_em)} por {x.aberta_por}{x.interrompe ? ' · interrompe a fase' : ''}</p>
+                                    </div>
+                                    {posse && noGabinete && <Button size="sm" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'resolver', pendencia: x })}>Apreciar</Button>}
+                                </div>
+                            ))}
+                            {p.prazos.filter((x) => x.status === 'aberto').map((x) => {
+                                const vencido = hoje > x.vence_em;
+                                return (
+                                    <div key={x.id} className="flex flex-wrap items-center gap-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
+                                        <CalendarClock className={`w-4 h-4 ${vencido ? 'text-red-600' : 'text-indigo-600'}`} />
+                                        <div className="flex-1 min-w-[10rem]">
+                                            <p>{x.descricao}{x.destinatario ? ` · ${x.destinatario}` : ''}</p>
+                                            <p className={`text-xs ${vencido ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                {x.dias} dias {x.contagem === 'uteis' ? 'úteis' : 'corridos'} · {vencido ? 'venceu' : 'vence'} em {x.vence_em.split('-').reverse().join('/')}
+                                            </p>
+                                        </div>
+                                        {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'encerrarPrazo', prazo: x })}>Encerrar</Button>}
+                                    </div>
+                                );
+                            })}
+                            {p.pendencias_abertas === 0 && !p.prazos.some((x) => x.status === 'aberto') && <p className="text-slate-500">Nenhuma pendência ou prazo aberto.</p>}
+                        </CardContent>
+                    </Card>
 
                     <Card>
                         <CardHeader className="pb-2"><CardTitle className="text-base">Dados do processo</CardTitle></CardHeader>
@@ -207,7 +249,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </Card>
             </div>
 
-            <AcaoDialog acao={acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} />
+            <AcaoDialog acao={acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} />
 
             <Dialog open={!!editor} onOpenChange={(o) => !o && setEditor(null)}>
                 <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
@@ -253,15 +295,60 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     );
 }
 
-function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov }) {
+function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc }) {
     const [valor, setValor] = useState('');
     const [motivo, setMotivo] = useState('');
+    const [dias, setDias] = useState('15');
+    const [contagem, setContagem] = useState('uteis');
+    const [destinatario, setDestinatario] = useState('');
     const tipo = acao?.tipo;
-    const reset = () => { setValor(''); setMotivo(''); onClose(); };
+    const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); onClose(); };
 
     let titulo = '';
     let campo = null;
     let enviar = () => {};
+    let rotuloTexto = 'Observação';
+    let exigeTexto = false;
+    let exigeValor = tipo === 'tramitar' || tipo === 'situacao';
+    if (tipo === 'pendencia') {
+        titulo = 'Abrir pendência para o decisor';
+        rotuloTexto = 'O que precisa ser apreciado';
+        exigeTexto = true;
+        campo = <NativeSelect label="Efeito na fase" value={valor} onChange={setValor} options={[['', 'Só registrar, a fase segue'], ['sim', 'Interromper a fase até a apreciação']]} />;
+        enviar = () => mov('abrirPendencia', { descricao: motivo, interrompe: valor === 'sim' }, 'Pendência aberta');
+    } else if (tipo === 'resolver') {
+        titulo = 'Apreciar pendência';
+        rotuloTexto = 'Decisão';
+        exigeTexto = true;
+        campo = <p className="text-sm text-slate-700 dark:text-slate-300">{acao.pendencia.descricao}</p>;
+        enviar = () => mov('resolverPendencia', { pendencia_id: acao.pendencia.id, resolucao: motivo }, 'Pendência apreciada');
+    } else if (tipo === 'prazo') {
+        titulo = 'Abrir prazo';
+        rotuloTexto = 'Para quê (ex.: manifestação sobre o laudo)';
+        exigeTexto = true;
+        campo = (
+            <div className="grid grid-cols-3 gap-3">
+                <div><Label htmlFor="prazo-dias">Dias</Label><Input id="prazo-dias" type="number" min={1} value={dias} onChange={(e) => setDias(e.target.value)} /></div>
+                <NativeSelect label="Contagem" value={contagem} onChange={setContagem} options={[['uteis', 'Dias úteis'], ['corridos', 'Dias corridos']]} />
+                <div><Label htmlFor="prazo-dest">Destinatário</Label><Input id="prazo-dest" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder="Opcional" /></div>
+            </div>
+        );
+        enviar = () => mov('abrirPrazo', { descricao: motivo, dias: Number(dias), contagem, destinatario }, 'Prazo aberto');
+    } else if (tipo === 'encerrarPrazo') {
+        titulo = 'Encerrar prazo';
+        exigeValor = true;
+        campo = (
+            <>
+                <p className="text-sm text-slate-700 dark:text-slate-300">{acao.prazo.descricao} · vence {acao.prazo.vence_em.split('-').reverse().join('/')}</p>
+                <NativeSelect label="Resultado" value={valor} onChange={setValor} options={[['', 'Escolha…'], ['cumprido', 'Cumprido'], ['cancelado', 'Cancelado']]} />
+            </>
+        );
+        enviar = () => mov('encerrarPrazo', { prazo_id: acao.prazo.id, resultado: valor, motivo }, 'Prazo encerrado');
+    } else if (tipo === 'juntar') {
+        titulo = `Juntar aos autos: ${acao.documento.titulo}`;
+        campo = <NativeSelect label="Pendência para o decisor" value={valor} onChange={setValor} options={[['', 'Não abrir'], ['sim', 'Abrir pendência, a fase segue'], ['interrompe', 'Abrir pendência e interromper a fase']]} />;
+        enviar = () => doc('juntar', { docId: acao.documento.id, version: p.version, pendencia: valor || 'nao' }, 'Documento juntado aos autos');
+    }
     if (tipo === 'tramitar') {
         titulo = 'Tramitar para outra unidade';
         const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== p.unidade_atual);
@@ -280,8 +367,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov }) {
         campo = <NativeSelect label="Situação" value={valor} onChange={setValor} options={[['', 'Escolha…'], ...Object.entries(STATUS_ROTULO).filter(([k]) => k !== p.status)]} />;
         enviar = () => mov('alterarStatus', { status: valor, motivo }, 'Situação alterada');
     }
-    const exigeValor = tipo === 'tramitar' || tipo === 'situacao';
-    const exigeMotivo = tipo === 'situacao';
+    if (tipo === 'situacao') { exigeTexto = true; rotuloTexto = 'Motivo'; }
+    const semTexto = tipo === 'atribuir' || tipo === 'juntar';
 
     return (
         <Dialog open={!!acao} onOpenChange={(o) => !o && reset()}>
@@ -289,14 +376,14 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov }) {
                 <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
                     {campo}
-                    {tipo !== 'atribuir' && (
-                        <div><Label htmlFor="acao-motivo">{exigeMotivo ? 'Motivo (obrigatório)' : 'Observação'}</Label><Textarea id="acao-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
+                    {!semTexto && (
+                        <div><Label htmlFor="acao-motivo">{rotuloTexto}{exigeTexto ? ' (obrigatório)' : ''}</Label><Textarea id="acao-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
                     )}
                     <p className="text-xs text-slate-500">Fica registrado na linha do tempo com seu nome, data e hora.</p>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
-                    <Button disabled={ocupado || (exigeValor && !valor) || (exigeMotivo && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); }}>
+                    <Button disabled={ocupado || (exigeValor && !valor) || (exigeTexto && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); setDestinatario(''); }}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Confirmar
                     </Button>
                 </DialogFooter>

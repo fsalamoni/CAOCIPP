@@ -2,7 +2,8 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    Fase, MAX_TEXTO_LONGO, numeroProcesso, podeAgir, podeVer, proximaFase, texto, verificarCadeia,
+    Contagem, Fase, MAX_ITENS, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
+    hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, texto, verificarCadeia,
 } from '../shared/secretaria';
 import {
     COL, REGION, carregarContexto, conferirVersao, exigirAuth, exigirPosse, lerProcesso,
@@ -17,7 +18,17 @@ import {
 
 interface ProcRequest {
     organizationId: string;
-    action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus';
+    action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
+        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo';
+    // pendências e prazos
+    interrompe?: boolean;
+    pendencia_id?: string;
+    resolucao?: string;
+    dias?: number;
+    contagem?: string;
+    destinatario?: string;
+    prazo_id?: string;
+    resultado?: string;
     id?: string;
     version?: number;
     escopo?: 'caixa' | 'todos';
@@ -64,6 +75,9 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         rito_nome: d.rito_nome,
         ultimo_movimento: d.ultimo_movimento || null,
         version: d.version,
+        pendencias_abertas: d.pendencias_abertas || 0,
+        fase_suspensa: d.fase_suspensa === true,
+        proximo_vencimento: d.proximo_vencimento || null,
     };
 }
 
@@ -115,7 +129,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 unidades_historico: data.unidades_historico || [],
                 autuado_em: data.autuado_em,
                 autuado_por: data.autuado_por_nome,
+                pendencias: data.pendencias || [],
+                prazos: data.prazos || [],
             },
+            hoje: hojeBrasil(),
             movimentos,
             documentos,
             cadeiaQuebradaEm: verificarCadeia(movimentos as never),
@@ -170,6 +187,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 doc_seq: 0,
                 ultimo_hash: '',
                 version: 0,
+                pendencias: [],
+                prazos: [],
+                ...derivados([], []),
             };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
                 `Processo autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`,
@@ -194,8 +214,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const destino = c.unidades.find((u) => u.id === p.unidade_destino && u.ativa !== false);
             if (!destino) throw new HttpsError('invalid-argument', 'Unidade de destino inválida');
             if (destino.id === data.unidade_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa unidade');
-            const mov = registrarMovimento(tx, c, ref, data, 'tramitacao',
-                `Remetido de ${nomeUnidade(c, data.unidade_atual)} para ${destino.nome}.${motivo ? ` Motivo: ${motivo}` : ''}`,
+            // Remessa a gabinete é conclusão: o processo vai para quem decide.
+            const conclusao = destino.tipo === 'gabinete';
+            const mov = registrarMovimento(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao',
+                `${conclusao ? 'Conclusos a' : 'Remetido de ' + nomeUnidade(c, data.unidade_atual) + ' para'} ${destino.nome}.${motivo ? ` Motivo: ${motivo}` : ''}`,
                 { de: data.unidade_atual, para: destino.id });
             tx.update(ref, {
                 ...mov,
@@ -226,6 +248,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 : proximaFase({ nome: '', descricao: '', fases }, data.fase_atual);
             if (!alvo) throw new HttpsError('invalid-argument', 'Não há fase seguinte; escolha uma fase do rito');
             if (alvo.id === data.fase_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa fase');
+            if (data.fase_suspensa === true) {
+                throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
+            }
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             const mov = registrarMovimento(tx, c, ref, data, 'fase',
                 `Fase alterada de ${de} para ${alvo.nome}.${motivo ? ` ${motivo}` : ''}`, { de: data.fase_atual, para: alvo.id });
@@ -243,6 +268,81 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const rotulo = { em_tramitacao: 'Reativado', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[status];
             const mov = registrarMovimento(tx, c, ref, data, 'situacao', `${rotulo}. Motivo: ${motivo}`, { de: data.status, para: status });
             tx.update(ref, { ...mov, status });
+            return mov;
+        }
+
+        // ---- Pendências: o que o decisor precisa apreciar --------------------
+        const pendencias = (data.pendencias || []) as Pendencia[];
+        const prazos = (data.prazos || []) as Prazo[];
+        const agora = new Date().toISOString();
+
+        if (p.action === 'abrirPendencia') {
+            const descricao = texto(p.descricao, MAX_TEXTO_LONGO);
+            if (!descricao) throw new HttpsError('invalid-argument', 'Descreva o que precisa ser apreciado');
+            if (pendencias.length >= MAX_ITENS) throw new HttpsError('resource-exhausted', 'Limite de pendências do processo');
+            const nova: Pendencia = {
+                id: ref.collection('_').doc().id, tipo: 'manual', descricao, interrompe: p.interrompe === true,
+                status: 'aberta', aberta_em: agora, aberta_por: c.userName,
+            };
+            const lista = [...pendencias, nova];
+            const mov = registrarMovimento(tx, c, ref, data, 'pendencia',
+                `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, { pendencia_id: nova.id, interrompe: nova.interrompe });
+            tx.update(ref, { ...mov, pendencias: lista, ...derivados(lista, prazos) });
+            return mov;
+        }
+
+        if (p.action === 'resolverPendencia') {
+            // Apreciar é ato de decisão: só o gabinete que tem o processo.
+            if (c.unidades.find((u) => u.id === data.unidade_atual)?.tipo !== 'gabinete') {
+                throw new HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
+            }
+            const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
+            if (!alvo) throw new HttpsError('not-found', 'Pendência aberta não encontrada');
+            const resolucao = texto(p.resolucao, MAX_TEXTO_LONGO);
+            if (!resolucao) throw new HttpsError('invalid-argument', 'Registre a decisão sobre a pendência');
+            const lista = pendencias.map((x) => (x.id === alvo.id
+                ? { ...x, status: 'resolvida' as const, resolvida_em: agora, resolvida_por: c.userName, resolucao }
+                : x));
+            const der = derivados(lista, prazos);
+            const mov = registrarMovimento(tx, c, ref, data, 'pendencia_resolvida',
+                `Pendência apreciada (${alvo.descricao}): ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`,
+                { pendencia_id: alvo.id });
+            tx.update(ref, { ...mov, pendencias: lista, ...der });
+            return mov;
+        }
+
+        // ---- Prazos -----------------------------------------------------------
+        if (p.action === 'abrirPrazo') {
+            const descricao = texto(p.descricao, MAX_TEXTO_LONGO);
+            const dias = Number(p.dias);
+            const contagem: Contagem = p.contagem === 'corridos' ? 'corridos' : 'uteis';
+            if (!descricao) throw new HttpsError('invalid-argument', 'Descreva o prazo');
+            if (!Number.isInteger(dias) || dias < 1 || dias > MAX_PRAZO_DIAS) throw new HttpsError('invalid-argument', 'Informe os dias do prazo');
+            if (prazos.length >= MAX_ITENS) throw new HttpsError('resource-exhausted', 'Limite de prazos do processo');
+            const inicio = hojeBrasil();
+            const novo: Prazo = {
+                id: ref.collection('_').doc().id, descricao, destinatario: texto(p.destinatario), dias, contagem,
+                inicio, vence_em: calcularVencimento(inicio, dias, contagem), status: 'aberto',
+                aberto_em: agora, aberto_por: c.userName,
+            };
+            const lista = [...prazos, novo];
+            const mov = registrarMovimento(tx, c, ref, data, 'prazo',
+                `Prazo de ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'} aberto: ${descricao}${novo.destinatario ? ` (${novo.destinatario})` : ''}. Vence em ${novo.vence_em.split('-').reverse().join('/')}.`,
+                { prazo_id: novo.id, vence_em: novo.vence_em });
+            tx.update(ref, { ...mov, prazos: lista, ...derivados(pendencias, lista) });
+            return mov;
+        }
+
+        if (p.action === 'encerrarPrazo') {
+            const alvo = prazos.find((x) => x.id === p.prazo_id && x.status === 'aberto');
+            if (!alvo) throw new HttpsError('not-found', 'Prazo aberto não encontrado');
+            const res = p.resultado === 'cancelado' ? 'cancelado' : 'cumprido';
+            const hoje = hojeBrasil();
+            const lista = prazos.map((x) => (x.id === alvo.id ? { ...x, status: res as Prazo['status'], encerrado_em: hoje, encerrado_por: c.userName } : x));
+            const quando = res === 'cumprido' ? (hoje <= alvo.vence_em ? ' no prazo' : ' fora do prazo') : '';
+            const mov = registrarMovimento(tx, c, ref, data, 'prazo_encerrado',
+                `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, { prazo_id: alvo.id, resultado: res });
+            tx.update(ref, { ...mov, prazos: lista, ...derivados(pendencias, lista) });
             return mov;
         }
 

@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    MAX_UPLOAD_BYTES, TIPOS_ARQUIVO_PERMITIDOS, jsonCanonico, sanitizeDelta, sha256, texto,
+    MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, sanitizeDelta, sha256, texto,
 } from '../shared/secretaria';
 import {
     REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarMovimento,
@@ -30,6 +30,8 @@ interface DocRequest {
     nomeArquivo?: string;
     mime?: string;
     base64?: string;
+    /** Juntada: 'nao' | 'sim' (abre pendência) | 'interrompe' (abre e suspende a fase). */
+    pendencia?: string;
 }
 
 export function caminhoArquivo(orgId: string, procId: string, docId: string) {
@@ -158,11 +160,22 @@ export const secretariaDocumento = onCall<DocRequest>(
                 exigirMinutaDaMinhaUnidade(doc);
                 const ordem = (Number(atual.doc_seq) || 0) + 1;
                 const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
+                // Opcional: a juntada já deixa o documento marcado para o
+                // decisor apreciar (ex.: petição recebida por outro meio).
+                const pend = (p.pendencia === 'sim' || p.pendencia === 'interrompe') ? [{
+                    id: pr.collection('_').doc().id, tipo: 'documento', interrompe: p.pendencia === 'interrompe',
+                    descricao: `Apreciar o documento nº ${ordem}: ${doc.titulo}`, documento_id: ref.id,
+                    status: 'aberta', aberta_em: agoraIso, aberta_por: c.userName,
+                } as Pendencia] : [];
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
-                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`,
+                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}`,
                     { documento_id: ref.id, ordem, sha256: doc.sha256 });
                 tx.update(ref, { status: 'juntado', ordem, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName });
-                tx.update(pr, { ...mov, doc_seq: ordem });
+                const pendencias = [...((atual.pendencias || []) as Pendencia[]), ...pend];
+                tx.update(pr, {
+                    ...mov, doc_seq: ordem,
+                    ...(pend.length ? { pendencias, ...derivados(pendencias, (atual.prazos || []) as Prazo[]) } : {}),
+                });
                 return { ordem, version: mov.version };
             });
             return { success: true, ...r };

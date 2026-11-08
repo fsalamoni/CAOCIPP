@@ -638,7 +638,10 @@ gabinetes) com lotação, ritos versionados, autuação com numeração anual,
 tramitação por posse, atribuição, mudança de fase, sobrestamento e
 arquivamento, minutas redigidas no editor ou enviadas, assinatura eletrônica
 simples, juntada com número de ordem, linha do tempo com cadeia de hash e PDF
-dos autos em ordem cronológica. Ver [SECRETARIA.md](./SECRETARIA.md).
+dos autos em ordem cronológica. Fase 2: conclusão ao gabinete, pendências
+para o decisor (com ou sem interrupção da fase) e prazos em dias úteis ou
+corridos com vencimento pelo CPC, com selos e filtros na lista. Ver
+[SECRETARIA.md](./SECRETARIA.md).
 
 ---
 
