@@ -18,6 +18,8 @@ export const COL = {
     contadores: 'secContadores',
     convites: 'secConvites',
     tipos: 'secTipos',
+    config: 'secConfig',
+    modelos: 'secModelos',
 } as const;
 
 export interface Contexto {
@@ -62,6 +64,9 @@ export async function carregarContexto(
     const isAdmin = mem.role === 'creator' || mem.permissions?.configure_secretaria === true;
     if (!opts.permitirInativa && org.secretariaConfig?.enabled !== true) {
         throw new HttpsError('failed-precondition', 'A Secretaria Processual não está ativa neste órgão');
+    }
+    if (!opts.permitirInativa && org.secretariaConfig?.suspensa_plataforma === true) {
+        throw new HttpsError('failed-precondition', 'A Secretaria Processual deste órgão está suspensa pela administração da plataforma');
     }
     const unidades = unSnap.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string } & admin.firestore.DocumentData));
     const unidadeIds = unidades

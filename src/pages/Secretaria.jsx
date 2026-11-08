@@ -48,6 +48,17 @@ export default function Secretaria() {
     if (estadoQ.error) {
         return <div className="p-8 text-red-600">{estadoQ.error.message}</div>;
     }
+    if (estado?.enabled && estado.suspensa_plataforma) {
+        return (
+            <div className="p-8 space-y-3 max-w-xl" role="alert">
+                <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Secretaria Processual suspensa</h1>
+                <p className="text-slate-600 dark:text-slate-300">
+                    A administração da plataforma suspendeu o módulo neste órgão. Nada foi apagado; os processos voltam a ficar disponíveis quando a suspensão for retirada.
+                </p>
+                {estado.motivo_suspensao && <p className="text-sm text-slate-600 dark:text-slate-300">Motivo informado: {estado.motivo_suspensao}</p>}
+            </div>
+        );
+    }
     if (!estado?.enabled) {
         return (
             <div className="p-8 space-y-3 max-w-xl">

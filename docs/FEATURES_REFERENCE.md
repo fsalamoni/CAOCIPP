@@ -647,7 +647,12 @@ petição a qualquer tempo, juntada na hora com pendência para o decisor. Fase 
 tipos de processo (rito, sigilo e unidade sugerida), ritos com ramificações,
 fase final e orientação por fase, editor visual com diagrama ao vivo, modelos
 prontos, importação e exportação por planilha (.xlsx/.csv) e diagrama Mermaid,
-e mudança de fase guiada pelo fluxo (fora do fluxo exige motivo). Ver
+e mudança de fase guiada pelo fluxo (fora do fluxo exige motivo). Fase 5:
+editor de documentos completo (folha A4, fontes, tabelas, imagens, quebra de
+página, localizar e substituir), papel timbrado do órgão, modelos com campos
+automáticos, prévia em PDF, juntada com numeração de folhas e PDF carimbado
+de cada documento (também no portal), índice de folhas nos autos e controle
+da Secretaria por órgão no painel da plataforma (suspensão com motivo). Ver
 [SECRETARIA.md](./SECRETARIA.md).
 
 ---

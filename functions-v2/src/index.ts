@@ -77,6 +77,7 @@ export { secretariaProcesso } from './secretaria/processos';
 export { secretariaDocumento } from './secretaria/documentos';
 export { secretariaExportarPdf } from './secretaria/exportar';
 export { secretariaPortal } from './secretaria/portal';
+export { secretariaPlataforma } from './secretaria/plataforma';
 
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
 export { getPlatformOverview } from './platform/overview';

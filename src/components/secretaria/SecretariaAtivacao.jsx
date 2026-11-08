@@ -65,8 +65,14 @@ export default function SecretariaAtivacao({ organization }) {
             <CardContent className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
                 <p>
                     Na primeira ativação, a plataforma cria uma unidade “Secretaria” com você lotado e um “Rito comum”.
-                    Unidades, lotações e ritos se ajustam na aba Configuração da própria Secretaria.
+                    Tipos de processo, ritos, unidades e lotações, papel timbrado, tipos de documento e modelos se ajustam
+                    na aba Configuração da própria Secretaria.
                 </p>
+                {organization.secretariaConfig?.suspensa_plataforma && (
+                    <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 text-amber-900 dark:text-amber-100 p-3">
+                        A administração da plataforma suspendeu o módulo neste órgão{organization.secretariaConfig?.motivo_suspensao ? `: ${organization.secretariaConfig.motivo_suspensao}` : ''}. Nada foi apagado.
+                    </p>
+                )}
                 <p>Desativar esconde a página e bloqueia movimentações. Nenhum processo ou documento é apagado.</p>
                 {enabled && (
                     <div className="flex items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
@@ -80,7 +86,7 @@ export default function SecretariaAtivacao({ organization }) {
                 {enabled && (
                     <Button asChild variant="outline" className="gap-2">
                         <Link to={`${createPageUrl('Secretaria')}?org=${organization.id}`}>
-                            Abrir a Secretaria <ExternalLink className="w-4 h-4" />
+                            Abrir a Secretaria e a configuração <ExternalLink className="w-4 h-4" />
                         </Link>
                     </Button>
                 )}

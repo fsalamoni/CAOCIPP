@@ -6,6 +6,8 @@ import {
 } from '../shared/secretaria';
 import { COL, Contexto, REGION, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
+import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, paginasDeArquivo, pdfCarimbado, textoFolhas } from './autos';
+import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -23,7 +25,7 @@ const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia'];
 const TIPOS_PETICAO: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg' };
 
 interface PortalRequest {
-    action: 'aceitarConvite' | 'meusProcessos' | 'obter' | 'baixar' | 'peticionar';
+    action: 'aceitarConvite' | 'meusProcessos' | 'obter' | 'baixar' | 'pdf' | 'peticionar';
     convite?: string;
     processoId?: string;
     docId?: string;
@@ -42,7 +44,9 @@ async function lerComoParte(db: admin.firestore.Firestore, uid: string, id: unkn
     const data = snap.data();
     if (!data || !(data.partes_uids || []).includes(uid)) throw new HttpsError('not-found', 'Processo não encontrado');
     const org = (await db.collection('organizations').doc(data.organization_id).get()).data() || {};
-    if (org.secretariaConfig?.enabled !== true) throw new HttpsError('failed-precondition', 'A Secretaria deste órgão está desativada');
+    if (org.secretariaConfig?.enabled !== true || org.secretariaConfig?.suspensa_plataforma === true) {
+        throw new HttpsError('failed-precondition', 'A Secretaria deste órgão está desativada');
+    }
     return { ref, data, org };
 }
 
@@ -107,7 +111,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const { ref, data, org } = await lerComoParte(db, uid, p.processoId);
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
-            ref.collection('documentos').where('status', '==', 'juntado').get(),
+            ref.collection('documentos').where('status', '==', 'juntado')
+                .select('ordem', 'titulo', 'tipo', 'juntado_em', 'origem', 'sha256', 'visivel_partes', 'folha_inicial', 'folha_final').get(),
         ]);
         const todos = movs.docs.map((d) => d.data());
         return {
@@ -128,16 +133,17 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             documentos: docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
                 .filter((d) => d.visivel_partes !== false)
                 .sort((a, b) => a.ordem - b.ordem)
-                .map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256 })),
+                .map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null })),
             cadeiaIntegra: verificarCadeia(todos as never) === null,
         };
     }
 
-    if (p.action === 'baixar') {
-        const { ref } = await lerComoParte(db, uid, p.processoId);
+    if (p.action === 'baixar' || p.action === 'pdf') {
+        const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
         const d = (await ref.collection('documentos').doc(String(p.docId || '_')).get()).data();
         if (!d || d.status !== 'juntado' || d.visivel_partes === false) throw new HttpsError('not-found', 'Documento não encontrado');
-        if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, delta: d.delta || [] };
+        if (p.action === 'pdf') return { base64: await pdfCarimbado(db, proc.organization_id, String(proc.numero), d), nome: `documento-${d.ordem}.pdf` };
+        if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, conteudo: conteudoDoDocumento(d) };
         const [buf] = await admin.storage().bucket().file(d.storage_path).download();
         return { origem: 'upload', titulo: d.titulo, mime: d.mime, nomeArquivo: d.nome_arquivo, base64: buf.toString('base64') };
     }
@@ -161,11 +167,25 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             path = caminhoArquivo(procAntes.organization_id, procRef.id, docRef.id);
             await admin.storage().bucket().file(path).save(buf, { contentType: String(p.mime), resumable: false });
         }
-        const delta = corpo ? [{ insert: `${corpo}\n` }] : [];
         const agora = new Date().toISOString();
+        // Petição escrita vira documento do editor, com PDF próprio (sem o
+        // cabeçalho do órgão) assinado pela parte; anexo conta as próprias páginas.
+        const conteudoDoc = !buf && corpo ? textoParaDoc(corpo) : null;
+        const hashConteudo = buf ? sha256(buf) : sha256(jsonCanonico(conteudoDoc));
+        const parteAntes = parteDoUsuario(procAntes, uid);
+        let paginas = 1;
+        let pdf: { path: string; sha256: string } | null = null;
+        if (buf) paginas = await paginasDeArquivo(buf, String(p.mime));
+        else if (conteudoDoc) {
+            const rr = await renderizarDocumento(conteudoDoc, {}, { semCabecalho: true, sha256: hashConteudo, assinaturas: [{ nome: parteAntes?.nome || nomeConta, em: agora }] });
+            paginas = rr.paginas;
+            pdf = { path: caminhoPdf(caminhoArquivo(procAntes.organization_id, procRef.id, docRef.id)), sha256: sha256(rr.buffer) };
+            await admin.storage().bucket().file(pdf.path).save(rr.buffer, { contentType: 'application/pdf', resumable: false });
+        }
         const r = await db.runTransaction(async (tx) => {
             const { data: proc, org } = await lerComoParte(db, uid, p.processoId, tx);
             const parte = parteDoUsuario(proc, uid)!;
+            const folha = (await folhasDoProcesso(tx, procRef, proc)) + 1;
             const ordem = (Number(proc.doc_seq) || 0) + 1;
             // Tempestividade: compara com prazos abertos para esta parte (ou sem destinatário).
             const hoje = hojeBrasil();
@@ -181,18 +201,19 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const pendencias = [...((proc.pendencias || []) as Pendencia[]), pend];
             const c = contextoParte(db, proc, uid, `${parte.nome} (parte)`);
             const mov = registrarMovimento(tx, c, procRef, proc, 'peticao',
-                `Petição protocolada por ${parte.nome} (${parte.polo}): ${titulo}. Juntada como documento nº ${ordem}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`,
-                { documento_id: docRef.id, ordem });
-            const conteudo = buf ? sha256(buf) : sha256(jsonCanonico(delta));
+                `Petição protocolada por ${parte.nome} (${parte.polo}): ${titulo}. Juntada como documento nº ${ordem}, ${textoFolhas(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`,
+                { documento_id: docRef.id, ordem, folha_inicial: folha, paginas });
             tx.set(docRef, {
                 titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem,
-                ...(buf ? { mime: p.mime, nome_arquivo: texto(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { delta }),
+                ...(buf ? { mime: p.mime, nome_arquivo: texto(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc }),
+                ...(pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}),
                 ...(buf && corpo ? { observacao: corpo } : {}),
-                sha256: conteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.nome, criado_em: agora,
+                paginas, folha_inicial: folha, folha_final: folha + paginas - 1,
+                sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.nome, criado_em: agora,
                 juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.nome} (parte)`, visivel_partes: true,
-                assinaturas: [{ uid, nome: parte.nome, em: agora, sha256: conteudo, nivel: 'simples' }],
+                assinaturas: [{ uid, nome: parte.nome, em: agora, sha256: hashConteudo, nivel: 'simples' }],
             });
-            tx.update(procRef, { ...mov, doc_seq: ordem, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]) });
+            tx.update(procRef, { ...mov, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]) });
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora };
         });
         return { success: true, ...r };

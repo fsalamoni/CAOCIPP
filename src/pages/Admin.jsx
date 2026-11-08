@@ -16,6 +16,7 @@ import {
     Wrench,
     Mail,
     Settings,
+    Gavel,
 } from 'lucide-react';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -33,6 +34,7 @@ import HealthPanel from '@/components/admin/HealthPanel';
 import DataToolsPanel from '@/components/admin/DataToolsPanel';
 import EmailProviderPanel from '@/components/admin/EmailProviderPanel';
 import SetupGuidePanel from '@/components/admin/SetupGuidePanel';
+import SecretariaPanel from '@/components/admin/SecretariaPanel';
 
 export default function Admin() {
     const { isPlatformAdmin, isLoading } = usePlatformAdmin();
@@ -94,6 +96,9 @@ export default function Admin() {
                     <TabsTrigger value="email" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                         <Mail className="w-4 h-4" /> E-mail
                     </TabsTrigger>
+                    <TabsTrigger value="secretaria" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
+                        <Gavel className="w-4 h-4" /> Secretaria
+                    </TabsTrigger>
                     {wave2 && (
                         <>
                             <TabsTrigger value="orgs" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
@@ -142,6 +147,9 @@ export default function Admin() {
                 </TabsContent>
                 <TabsContent value="email">
                     <EmailProviderPanel />
+                </TabsContent>
+                <TabsContent value="secretaria">
+                    <SecretariaPanel />
                 </TabsContent>
                 {wave2 && (
                     <>
