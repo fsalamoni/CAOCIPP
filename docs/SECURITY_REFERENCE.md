@@ -364,7 +364,7 @@ match /notifications/{notificationId} {
 - ✅ Can only mark as read (no other modifications)
 - ✅ Can delete own notifications
 
-#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secContadores`) e Cloud Storage
+#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secContadores`, `secConvites`) e Cloud Storage
 
 - Regras: `allow read, write: if false` em todas. As Cloud Functions `secretaria*`
   aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
@@ -377,6 +377,13 @@ match /notifications/{notificationId} {
   HTML, o que fecha XSS no editor e na visualização.
 - Movimentos encadeados por SHA-256: alteração direta no banco é detectada na
   consulta e na exportação. Detalhes em [SECRETARIA.md](./SECRETARIA.md).
+- Portal das partes (`secretariaPortal`, `secConvites` fechada): a parte é
+  usuário autenticado sem vínculo em `userOrganizations`; o acesso vem só de
+  `processo.partes_uids`, gravado no aceite do convite. O convite guarda apenas
+  o SHA-256 do token (24 bytes aleatórios), vale 7 dias, é aceito por uma única
+  conta e é invalidado na revogação ou em novo convite. A parte vê somente
+  documentos juntados marcados como visíveis e movimentos públicos; petição
+  aceita só PDF/PNG/JPG até 5 MB.
 
 ---
 

@@ -388,6 +388,9 @@ Conclusão é a remessa do processo ao gabinete para decidir. Pendência é algo
 ### Cadeia de hash
 Cada movimento leva o SHA-256 do anterior; alterar um movimento antigo quebra a cadeia e é detectado.
 
+### Portal das partes / Habilitação
+Página pública `/Portal` onde a parte, com conta própria, acompanha os processos em que foi habilitada e peticiona. Habilitação é o aceite do convite enviado pela secretaria; a parte nunca vira membro do órgão.
+
 ### Processo Administrativo
 Administrative process/inquiry requiring analysis and decision.
 

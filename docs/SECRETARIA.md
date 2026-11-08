@@ -8,7 +8,7 @@ O módulo é independente: serve a qualquer pessoa física ou jurídica, públic
 ou privada, que use o SIGO com sua equipe. Não substitui nenhum sistema
 processual externo e não altera os demais módulos do órgão.
 
-Este documento cobre as **fases 1 e 2** (entregues). O projeto completo, com as cinco
+Este documento cobre as **fases 1, 2 e 3** (entregues). O projeto completo, com as cinco
 fases e as decisões, está no documento de projeto (fora do repositório).
 
 ## Ativação
@@ -32,7 +32,7 @@ fases e as decisões, está no documento de projeto (fora do repositório).
 | Organização | Admin do órgão (`configure_secretaria` ou criador) | Ativa, cria unidades, lota membros, define ritos, consulta todos os processos |
 | Secretaria | Lotado em unidade do tipo `secretaria` | Autua, junta, tramita, muda fase, atribui, sobrestá e arquiva quando tem o processo |
 | Decisão | Lotado em unidade do tipo `gabinete` | Os mesmos atos quando o processo está no gabinete (ex.: minuta de decisão, assinatura, juntada, devolução) |
-| Partes | Externas | **Fase 3.** Hoje as partes são só cadastradas no processo, sem acesso |
+| Partes | Externas, com conta própria, **nunca membros do órgão** | Pelo portal (`/Portal`): acompanham os processos em que foram habilitadas e peticionam a qualquer tempo |
 
 O poder de movimentar vem da **posse**: o processo está sempre com uma unidade
 (`unidade_atual`) e só quem está lotado nela age sobre ele.
@@ -57,7 +57,12 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, ultimo_hash, version` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
-| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, delta` ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em` |
+| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, delta` ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?` |
+| `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
+
+No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
+`convite_hash` (último convite); `partes_uids[]` lista as contas habilitadas e
+é o que o portal consulta.
 
 O processo guarda a **cópia das fases** do rito com que foi autuado. Editar o
 rito incrementa `versao` e só vale para os próximos processos.
@@ -70,8 +75,9 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito` |
-| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo` |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarPreferencias` |
+| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
+| `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `peticionar` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar` |
 | `secretariaExportarPdf` | gera o PDF dos autos |
 
@@ -130,10 +136,39 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   `proximo_vencimento`, que a lista usa em selos e filtros (com pendência,
   com prazo, prazo vencido).
 
+## Portal das partes (fase 3)
+
+- **Convite:** a unidade que tem o processo clica em Convidar ao lado da parte.
+  A function gera um token aleatório (24 bytes), guarda só o SHA-256 em
+  `secConvites` e devolve o link `/Portal?convite=...`, que a equipe copia. Com
+  e-mail (o da parte ou outro informado), o link também segue por e-mail se o
+  envio estiver configurado. O convite vale 7 dias e só uma conta o aceita.
+  Novo convite para a mesma parte invalida o anterior.
+- **Aceite:** a parte entra com Google ou com e-mail e senha (cria a conta na
+  hora, com recuperação de senha) e aceita. O processo grava `uid` na parte,
+  `partes_uids` e o movimento `habilitacao`. Nenhum vínculo com o órgão é
+  criado: o resto do SIGO continua fechado para ela.
+- **O que a parte vê:** número, assunto, fase, situação, partes, prazos em
+  aberto, documentos juntados marcados como visíveis e a linha do tempo sem
+  atribuições internas, pendências e juntadas ocultas. Na juntada, a equipe
+  escolhe "Visível às partes" (padrão) ou "Só para a equipe". Minutas nunca
+  aparecem.
+- **Petição a qualquer tempo:** texto e/ou um anexo PDF, PNG ou JPG até 5 MB.
+  É juntada na hora com número de ordem e assinatura simples da parte, gera o
+  movimento `peticao` (com a tempestividade diante dos prazos abertos para ela
+  ou sem destinatário) e abre pendência para o decisor. Se o admin ligar
+  "Petição da parte interrompe a fase" (Painel Administrativo → Secretaria
+  Processual), a pendência suspende a fase até o gabinete apreciá-la. Vale
+  também com o processo sobrestado ou arquivado.
+- **Revogação:** Revogar tira a conta de `partes_uids`, invalida o convite e
+  grava `acesso_revogado`. A parte deixa de ver o processo na hora.
+
 ## Limites conhecidos
 
-- Partes não acessam o sistema (fase 3: portal externo, login próprio, petição a
-  qualquer tempo com pendência para o decisor).
+- Partes não têm verificação em duas etapas nem exportam o PDF dos autos;
+  baixam cada documento.
+- Se a gravação da petição falhar depois do envio do anexo ao Storage, o
+  arquivo fica órfão no bucket (sem referência nos autos).
 - Assinatura só no nível simples (gov.br e ICP-Brasil na fase 5).
 - Feriados locais e recesso não entram na contagem de prazos; não há alerta
   por e-mail de vencimento.

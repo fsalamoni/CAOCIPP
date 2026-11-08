@@ -640,7 +640,10 @@ arquivamento, minutas redigidas no editor ou enviadas, assinatura eletrônica
 simples, juntada com número de ordem, linha do tempo com cadeia de hash e PDF
 dos autos em ordem cronológica. Fase 2: conclusão ao gabinete, pendências
 para o decisor (com ou sem interrupção da fase) e prazos em dias úteis ou
-corridos com vencimento pelo CPC, com selos e filtros na lista. Ver
+corridos com vencimento pelo CPC, com selos e filtros na lista. Fase 3:
+portal das partes (`/Portal`), com convite por link ou e-mail, login próprio
+(Google ou e-mail e senha), consulta aos documentos visíveis às partes e
+petição a qualquer tempo, juntada na hora com pendência para o decisor. Ver
 [SECRETARIA.md](./SECRETARIA.md).
 
 ---

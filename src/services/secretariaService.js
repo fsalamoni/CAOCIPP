@@ -31,6 +31,10 @@ export const secDocumento = (organizationId, processoId, action, extra = {}) =>
 export const secExportarPdf = (organizationId, processoId) =>
     call('secretariaExportarPdf', { organizationId, processoId }, { timeout: 180000 });
 
+/** Portal das partes: sem organizationId; o servidor confere a habilitação. */
+export const secPortal = (action, extra = {}) =>
+    call('secretariaPortal', { action, ...extra }, { timeout: 120000 });
+
 /** Converte base64 em download no navegador. */
 export function baixarBase64(base64, nome, mime = 'application/pdf') {
     const bin = atob(base64);

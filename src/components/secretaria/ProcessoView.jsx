@@ -25,6 +25,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const q = useQuery({ queryKey: ['sec-proc', orgId, procId], queryFn: () => secProcesso(orgId, 'obter', { id: procId }) });
     const [acao, setAcao] = useState(null); // {tipo, ...}
     const [ocupado, setOcupado] = useState(false);
+    const [linkConvite, setLinkConvite] = useState(null); // {link, emailEnviado}
     const [editor, setEditorRaw] = useState(null); // {docId?, titulo, tipo, delta}
     const deltaRef = useRef(null);
     const setEditor = (e) => {
@@ -58,6 +59,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     };
     const mov = (action, extra, msg) => executar(() => secProcesso(orgId, action, { id: procId, version: p.version, ...extra }), msg);
     const doc = (action, extra, msg) => executar(() => secDocumento(orgId, procId, action, extra), msg);
+    const convidar = (parte_idx, email) => executar(async () => {
+        const r = await secProcesso(orgId, 'convidarParte', { id: procId, version: p.version, parte_idx, email });
+        setLinkConvite(r);
+    }, 'Convite gerado');
     const arquivado = p.status === 'arquivado';
     const podeMexer = posse && !arquivado;
     const membrosDaUnidade = estado.membros.filter((m) => estado.unidades.find((u) => u.id === p.unidade_atual)?.membros_uids.includes(m.uid));
@@ -136,6 +141,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                         <p className="font-medium truncate">{d.titulo}</p>
                                         <p className="text-xs text-slate-500 dark:text-slate-400">{d.tipo} · {dataHora(d.juntado_em)} · {d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'}</p>
                                     </div>
+                                    {d.peticao && <Badge variant="secondary">Petição da parte</Badge>}
+                                    {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}
                                     <Button variant="ghost" size="sm" onClick={() => baixar(d)} aria-label={`Abrir ${d.titulo}`}><Download className="w-4 h-4" /></Button>
                                 </div>
                             ))}
@@ -227,7 +234,22 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <CardContent className="text-sm space-y-1 text-slate-700 dark:text-slate-300">
                             <p>Rito: {p.rito_nome} · autuado em {dataHora(p.autuado_em)} por {p.autuado_por}</p>
                             {p.descricao && <p className="whitespace-pre-wrap">{p.descricao}</p>}
-                            {p.partes.length > 0 && <p>Partes: {p.partes.map((x) => `${x.nome} (${x.polo})`).join('; ')}</p>}
+                            {p.partes.length > 0 && (
+                                <div className="pt-1">
+                                    <p>Partes</p>
+                                    <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {p.partes.map((x, i) => (
+                                            <li key={i} className="flex flex-wrap items-center gap-2 py-1.5">
+                                                <span className="flex-1 min-w-[10rem]">{x.nome} ({x.polo}){x.email ? ` · ${x.email}` : ''}</span>
+                                                {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
+                                                {x.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
+                                                {x.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x })}>{x.portal ? 'Novo convite' : 'Convidar'}</Button>}
+                                                {x.portal && <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i }, 'Acesso revogado')}>Revogar</Button>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                             <p>Fases: {p.fases.map((f) => f.id === p.fase_atual ? `[${f.nome}]` : f.nome).join(' → ')}</p>
                         </CardContent>
                     </Card>
@@ -249,7 +271,22 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </Card>
             </div>
 
-            <AcaoDialog acao={acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} />
+            <AcaoDialog acao={acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} convidar={convidar} />
+
+            <Dialog open={!!linkConvite} onOpenChange={(o) => !o && setLinkConvite(null)}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Convite gerado</DialogTitle></DialogHeader>
+                    <div className="space-y-2 text-sm">
+                        <p>{linkConvite?.emailEnviado ? 'O convite foi enviado por e-mail. Você também pode copiar o link abaixo.' : 'Envie este link à parte pelo meio que preferir. Ele não será mostrado de novo.'}</p>
+                        <Input readOnly value={linkConvite?.link || ''} onFocus={(e) => e.target.select()} aria-label="Link do convite" />
+                        <p className="text-xs text-slate-500">Vale por 7 dias e só pode ser aceito por uma conta. Quem aceitar vê os documentos marcados como visíveis às partes e pode peticionar.</p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => navigator.clipboard?.writeText(linkConvite?.link || '').then(() => toast.success('Link copiado'))}>Copiar link</Button>
+                        <Button onClick={() => setLinkConvite(null)}>Fechar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={!!editor} onOpenChange={(o) => !o && setEditor(null)}>
                 <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
@@ -295,14 +332,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     );
 }
 
-function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc }) {
+function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, convidar }) {
     const [valor, setValor] = useState('');
+    const [visivel, setVisivel] = useState('sim');
     const [motivo, setMotivo] = useState('');
     const [dias, setDias] = useState('15');
     const [contagem, setContagem] = useState('uteis');
     const [destinatario, setDestinatario] = useState('');
     const tipo = acao?.tipo;
-    const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); onClose(); };
+    const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); onClose(); };
 
     let titulo = '';
     let campo = null;
@@ -346,8 +384,22 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc }) {
         enviar = () => mov('encerrarPrazo', { prazo_id: acao.prazo.id, resultado: valor, motivo }, 'Prazo encerrado');
     } else if (tipo === 'juntar') {
         titulo = `Juntar aos autos: ${acao.documento.titulo}`;
-        campo = <NativeSelect label="Pendência para o decisor" value={valor} onChange={setValor} options={[['', 'Não abrir'], ['sim', 'Abrir pendência, a fase segue'], ['interrompe', 'Abrir pendência e interromper a fase']]} />;
-        enviar = () => doc('juntar', { docId: acao.documento.id, version: p.version, pendencia: valor || 'nao' }, 'Documento juntado aos autos');
+        campo = (
+            <>
+                <NativeSelect label="Pendência para o decisor" value={valor} onChange={setValor} options={[['', 'Não abrir'], ['sim', 'Abrir pendência, a fase segue'], ['interrompe', 'Abrir pendência e interromper a fase']]} />
+                <NativeSelect label="Portal das partes" value={visivel} onChange={setVisivel} options={[['sim', 'Visível às partes'], ['nao', 'Só para a equipe']]} />
+            </>
+        );
+        enviar = () => doc('juntar', { docId: acao.documento.id, version: p.version, pendencia: valor || 'nao', visivel_partes: visivel === 'sim' }, 'Documento juntado aos autos');
+    } else if (tipo === 'convidar') {
+        titulo = `Convidar ${acao.parte.nome} para o portal das partes`;
+        campo = (
+            <div>
+                <Label htmlFor="conv-email">E-mail para envio do convite</Label>
+                <Input id="conv-email" type="email" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder={acao.parte.email || 'Opcional: sem e-mail, você copia o link'} />
+            </div>
+        );
+        enviar = () => convidar(acao.idx, destinatario.trim() || acao.parte.email || '');
     }
     if (tipo === 'tramitar') {
         titulo = 'Tramitar para outra unidade';
@@ -368,7 +420,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc }) {
         enviar = () => mov('alterarStatus', { status: valor, motivo }, 'Situação alterada');
     }
     if (tipo === 'situacao') { exigeTexto = true; rotuloTexto = 'Motivo'; }
-    const semTexto = tipo === 'atribuir' || tipo === 'juntar';
+    const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'convidar';
 
     return (
         <Dialog open={!!acao} onOpenChange={(o) => !o && reset()}>
@@ -383,7 +435,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc }) {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
-                    <Button disabled={ocupado || (exigeValor && !valor) || (exigeTexto && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); setDestinatario(''); }}>
+                    <Button disabled={ocupado || (exigeValor && !valor) || (exigeTexto && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); }}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Confirmar
                     </Button>
                 </DialogFooter>

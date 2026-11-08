@@ -32,6 +32,8 @@ interface DocRequest {
     base64?: string;
     /** Juntada: 'nao' | 'sim' (abre pendência) | 'interrompe' (abre e suspende a fase). */
     pendencia?: string;
+    /** Juntada: false deixa o documento fora do portal das partes. */
+    visivel_partes?: boolean;
 }
 
 export function caminhoArquivo(orgId: string, procId: string, docId: string) {
@@ -159,6 +161,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const { ref, doc } = await lerDoc(tx);
                 exigirMinutaDaMinhaUnidade(doc);
                 const ordem = (Number(atual.doc_seq) || 0) + 1;
+                // Documento interno (ex.: informação da secretaria) pode ficar fora do portal das partes.
+                const visivel = p.visivel_partes !== false;
                 const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
                 // Opcional: a juntada já deixa o documento marcado para o
                 // decisor apreciar (ex.: petição recebida por outro meio).
@@ -169,8 +173,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 } as Pendencia] : [];
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
                     `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}`,
-                    { documento_id: ref.id, ordem, sha256: doc.sha256 });
-                tx.update(ref, { status: 'juntado', ordem, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName });
+                    { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel });
+                tx.update(ref, { status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName });
                 const pendencias = [...((atual.pendencias || []) as Pendencia[]), ...pend];
                 tx.update(pr, {
                     ...mov, doc_seq: ordem,

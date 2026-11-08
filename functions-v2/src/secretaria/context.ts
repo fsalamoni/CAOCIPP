@@ -16,6 +16,7 @@ export const COL = {
     unidades: 'secUnidades',
     ritos: 'secRitos',
     contadores: 'secContadores',
+    convites: 'secConvites',
 } as const;
 
 export interface Contexto {
