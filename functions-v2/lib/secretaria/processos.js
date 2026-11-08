@@ -43,6 +43,9 @@ function resumo(id, d) {
         rito_nome: d.rito_nome,
         ultimo_movimento: d.ultimo_movimento || null,
         version: d.version,
+        pendencias_abertas: d.pendencias_abertas || 0,
+        fase_suspensa: d.fase_suspensa === true,
+        proximo_vencimento: d.proximo_vencimento || null,
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
@@ -86,7 +89,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
-            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, partes: data.partes || [], fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome }),
+            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, partes: data.partes || [], fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [] }),
+            hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos,
             documentos,
             cadeiaQuebradaEm: (0, secretaria_1.verificarCadeia)(movimentos),
@@ -119,31 +123,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             tx.set(contadorRef, { organization_id: orgId, ano, seq }, { merge: true });
             const numero = (0, secretaria_1.numeroProcesso)(ano, seq);
             const fases = rito.fases;
-            const base = {
-                organization_id: orgId,
-                numero,
-                assunto,
-                descricao: (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO),
-                partes: sanitizePartes(p.partes),
-                sigilo: p.sigilo === 'restrito' ? 'restrito' : 'normal',
-                status: 'em_tramitacao',
-                rito_id: ritoSnap.id,
-                rito_nome: rito.nome,
-                rito_versao: rito.versao || 1,
-                fases,
-                fase_atual: fases[0].id,
-                unidade_atual: unidadeId,
-                unidades_historico: [unidadeId],
-                responsavel_uid: null,
-                autuado_por: auth.uid,
-                autuado_por_nome: c.userName,
-                autuado_em: new Date().toISOString(),
-                created_at: firestore_1.FieldValue.serverTimestamp(),
-                mov_seq: 0,
-                doc_seq: 0,
-                ultimo_hash: '',
-                version: 0,
-            };
+            const base = Object.assign({ organization_id: orgId, numero,
+                assunto, descricao: (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO), partes: sanitizePartes(p.partes), sigilo: p.sigilo === 'restrito' ? 'restrito' : 'normal', status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }, (0, secretaria_1.derivados)([], []));
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`, { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId });
             tx.set(procRef, Object.assign(Object.assign({}, base), mov));
             return numero;
@@ -153,7 +134,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b;
+        var _a, _b, _c;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -166,7 +147,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', 'Unidade de destino inválida');
             if (destino.id === data.unidade_atual)
                 throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa unidade');
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'tramitacao', `Remetido de ${(0, context_1.nomeUnidade)(c, data.unidade_atual)} para ${destino.nome}.${motivo ? ` Motivo: ${motivo}` : ''}`, { de: data.unidade_atual, para: destino.id });
+            // Remessa a gabinete é conclusão: o processo vai para quem decide.
+            const conclusao = destino.tipo === 'gabinete';
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + (0, context_1.nomeUnidade)(c, data.unidade_atual) + ' para'} ${destino.nome}.${motivo ? ` Motivo: ${motivo}` : ''}`, { de: data.unidade_atual, para: destino.id });
             tx.update(ref, Object.assign(Object.assign({}, mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null }));
             return mov;
         }
@@ -190,6 +173,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', 'Não há fase seguinte; escolha uma fase do rito');
             if (alvo.id === data.fase_atual)
                 throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa fase');
+            if (data.fase_suspensa === true) {
+                throw new https_1.HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
+            }
             const de = ((_b = fases.find((f) => f.id === data.fase_atual)) === null || _b === void 0 ? void 0 : _b.nome) || data.fase_atual;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}.${motivo ? ` ${motivo}` : ''}`, { de: data.fase_atual, para: alvo.id });
             tx.update(ref, Object.assign(Object.assign({}, mov), { fase_atual: alvo.id }));
@@ -207,6 +193,77 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const rotulo = { em_tramitacao: 'Reativado', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[status];
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'situacao', `${rotulo}. Motivo: ${motivo}`, { de: data.status, para: status });
             tx.update(ref, Object.assign(Object.assign({}, mov), { status }));
+            return mov;
+        }
+        // ---- Pendências: o que o decisor precisa apreciar --------------------
+        const pendencias = (data.pendencias || []);
+        const prazos = (data.prazos || []);
+        const agora = new Date().toISOString();
+        if (p.action === 'abrirPendencia') {
+            const descricao = (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
+            if (!descricao)
+                throw new https_1.HttpsError('invalid-argument', 'Descreva o que precisa ser apreciado');
+            if (pendencias.length >= secretaria_1.MAX_ITENS)
+                throw new https_1.HttpsError('resource-exhausted', 'Limite de pendências do processo');
+            const nova = {
+                id: ref.collection('_').doc().id, tipo: 'manual', descricao, interrompe: p.interrompe === true,
+                status: 'aberta', aberta_em: agora, aberta_por: c.userName,
+            };
+            const lista = [...pendencias, nova];
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia', `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, { pendencia_id: nova.id, interrompe: nova.interrompe });
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { pendencias: lista }), (0, secretaria_1.derivados)(lista, prazos)));
+            return mov;
+        }
+        if (p.action === 'resolverPendencia') {
+            // Apreciar é ato de decisão: só o gabinete que tem o processo.
+            if (((_c = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _c === void 0 ? void 0 : _c.tipo) !== 'gabinete') {
+                throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
+            }
+            const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
+            if (!alvo)
+                throw new https_1.HttpsError('not-found', 'Pendência aberta não encontrada');
+            const resolucao = (0, secretaria_1.texto)(p.resolucao, secretaria_1.MAX_TEXTO_LONGO);
+            if (!resolucao)
+                throw new https_1.HttpsError('invalid-argument', 'Registre a decisão sobre a pendência');
+            const lista = pendencias.map((x) => (x.id === alvo.id
+                ? Object.assign(Object.assign({}, x), { status: 'resolvida', resolvida_em: agora, resolvida_por: c.userName, resolucao }) : x));
+            const der = (0, secretaria_1.derivados)(lista, prazos);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia_resolvida', `Pendência apreciada (${alvo.descricao}): ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`, { pendencia_id: alvo.id });
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { pendencias: lista }), der));
+            return mov;
+        }
+        // ---- Prazos -----------------------------------------------------------
+        if (p.action === 'abrirPrazo') {
+            const descricao = (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
+            const dias = Number(p.dias);
+            const contagem = p.contagem === 'corridos' ? 'corridos' : 'uteis';
+            if (!descricao)
+                throw new https_1.HttpsError('invalid-argument', 'Descreva o prazo');
+            if (!Number.isInteger(dias) || dias < 1 || dias > secretaria_1.MAX_PRAZO_DIAS)
+                throw new https_1.HttpsError('invalid-argument', 'Informe os dias do prazo');
+            if (prazos.length >= secretaria_1.MAX_ITENS)
+                throw new https_1.HttpsError('resource-exhausted', 'Limite de prazos do processo');
+            const inicio = (0, secretaria_1.hojeBrasil)();
+            const novo = {
+                id: ref.collection('_').doc().id, descricao, destinatario: (0, secretaria_1.texto)(p.destinatario), dias, contagem,
+                inicio, vence_em: (0, secretaria_1.calcularVencimento)(inicio, dias, contagem), status: 'aberto',
+                aberto_em: agora, aberto_por: c.userName,
+            };
+            const lista = [...prazos, novo];
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo', `Prazo de ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'} aberto: ${descricao}${novo.destinatario ? ` (${novo.destinatario})` : ''}. Vence em ${novo.vence_em.split('-').reverse().join('/')}.`, { prazo_id: novo.id, vence_em: novo.vence_em });
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
+            return mov;
+        }
+        if (p.action === 'encerrarPrazo') {
+            const alvo = prazos.find((x) => x.id === p.prazo_id && x.status === 'aberto');
+            if (!alvo)
+                throw new https_1.HttpsError('not-found', 'Prazo aberto não encontrado');
+            const res = p.resultado === 'cancelado' ? 'cancelado' : 'cumprido';
+            const hoje = (0, secretaria_1.hojeBrasil)();
+            const lista = prazos.map((x) => (x.id === alvo.id ? Object.assign(Object.assign({}, x), { status: res, encerrado_em: hoje, encerrado_por: c.userName }) : x));
+            const quando = res === 'cumprido' ? (hoje <= alvo.vence_em ? ' no prazo' : ' fora do prazo') : '';
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo_encerrado', `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, { prazo_id: alvo.id, resultado: res });
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
             return mov;
         }
         throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

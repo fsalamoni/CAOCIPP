@@ -220,3 +220,88 @@ export function sanitizeDelta(input: unknown): DeltaOp[] {
 export function deltaParaTexto(ops: DeltaOp[]): string {
     return ops.map((o) => o.insert).join('');
 }
+
+// ---------------------------------------------------------------------------
+// Prazos. Regra do CPC (art. 224): exclui o dia do começo e inclui o do
+// vencimento; se o vencimento cai em dia não útil, prorroga para o primeiro
+// útil seguinte. Em dias úteis, só contam dias úteis.
+// ponytail: feriados nacionais apenas (fixos + Carnaval, Sexta-feira Santa e
+// Corpus Christi); feriados locais e recesso por órgão quando alguém pedir.
+// ---------------------------------------------------------------------------
+
+export type Contagem = 'corridos' | 'uteis';
+export const MAX_PRAZO_DIAS = 3650;
+export const MAX_ITENS = 200;
+
+function iso(d: Date): string {
+    return d.toISOString().slice(0, 10);
+}
+
+/** Domingo de Páscoa (algoritmo de Meeus/Butcher), em UTC. */
+export function pascoa(ano: number): Date {
+    const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const n = h + l - 7 * m + 114;
+    return new Date(Date.UTC(ano, Math.floor(n / 31) - 1, (n % 31) + 1));
+}
+
+const FIXOS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'];
+
+export function feriadosNacionais(ano: number): Set<string> {
+    const p = pascoa(ano).getTime();
+    // Carnaval (segunda e terça), Sexta-feira Santa, Corpus Christi.
+    const moveis = [-48, -47, -2, 60].map((n) => iso(new Date(p + n * 86400000)));
+    return new Set([...FIXOS.map((f) => `${ano}-${f}`), ...moveis]);
+}
+
+export function diaUtil(d: Date): boolean {
+    const w = d.getUTCDay();
+    return w !== 0 && w !== 6 && !feriadosNacionais(d.getUTCFullYear()).has(iso(d));
+}
+
+/** Data de vencimento (AAAA-MM-DD) de um prazo aberto em `inicio` (AAAA-MM-DD). */
+export function calcularVencimento(inicio: string, dias: number, contagem: Contagem): string {
+    const d = new Date(`${inicio}T00:00:00Z`);
+    let restantes = dias;
+    while (restantes > 0) {
+        d.setUTCDate(d.getUTCDate() + 1);
+        if (contagem === 'corridos' || diaUtil(d)) restantes--;
+    }
+    while (!diaUtil(d)) d.setUTCDate(d.getUTCDate() + 1);
+    return iso(d);
+}
+
+/** Hoje no fuso de Brasília, AAAA-MM-DD. */
+export function hojeBrasil(agora = new Date()): string {
+    return agora.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+export interface Pendencia {
+    id: string;
+    tipo: 'peticao' | 'documento' | 'manual';
+    descricao: string;
+    interrompe: boolean;
+    status: 'aberta' | 'resolvida';
+    [k: string]: unknown;
+}
+export interface Prazo {
+    id: string;
+    descricao: string;
+    vence_em: string;
+    status: 'aberto' | 'cumprido' | 'cancelado';
+    [k: string]: unknown;
+}
+
+/** Campos derivados gravados no processo, para listas e filtros. */
+export function derivados(pendencias: Pendencia[], prazos: Prazo[]) {
+    const abertas = pendencias.filter((p) => p.status === 'aberta');
+    const vencimentos = prazos.filter((p) => p.status === 'aberto').map((p) => p.vence_em).sort();
+    return {
+        pendencias_abertas: abertas.length,
+        fase_suspensa: abertas.some((p) => p.interrompe),
+        proximo_vencimento: vencimentos[0] || null,
+    };
+}

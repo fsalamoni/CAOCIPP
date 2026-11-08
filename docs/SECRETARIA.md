@@ -8,7 +8,7 @@ O módulo é independente: serve a qualquer pessoa física ou jurídica, públic
 ou privada, que use o SIGO com sua equipe. Não substitui nenhum sistema
 processual externo e não altera os demais módulos do órgão.
 
-Este documento cobre a **fase 1** (entregue). O projeto completo, com as cinco
+Este documento cobre as **fases 1 e 2** (entregues). O projeto completo, com as cinco
 fases e as decisões, está no documento de projeto (fora do repositório).
 
 ## Ativação
@@ -71,7 +71,7 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito` |
-| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus` |
+| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar` |
 | `secretariaExportarPdf` | gera o PDF dos autos |
 
@@ -109,12 +109,34 @@ entram como imagem; TXT como texto; Word/planilha aparecem como folha de
 referência com o hash (conversão fica para a fase 5). Minutas nunca entram.
 A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
 
-## Limites conhecidos da fase 1
+## Conclusão, pendências e prazos (fase 2)
+
+- **Conclusão:** tramitar para uma unidade do tipo gabinete grava o movimento
+  `conclusao` ("Conclusos a ..."). Devolver à secretaria é tramitação comum.
+- **Pendências** (`processo.pendencias[]`): o que o decisor precisa apreciar.
+  Abrem-se à mão (`abrirPendencia`) ou na juntada de um documento
+  (`juntar` com `pendencia: 'sim' | 'interrompe'`). Cada uma pode **interromper
+  a fase**: enquanto houver pendência aberta que interrompe, `avancarFase` é
+  recusado. Só o **gabinete** que tem o processo aprecia (`resolverPendencia`,
+  com a decisão por escrito); apreciada a última que interrompia, a fase volta
+  a correr. A fase 3 usa o mesmo mecanismo para a petição da parte.
+- **Prazos** (`processo.prazos[]`): `abrirPrazo` com dias, contagem (úteis ou
+  corridos) e destinatário. O vencimento segue o CPC, art. 224: exclui o dia
+  do começo, inclui o do fim e prorroga para o primeiro dia útil. Dias úteis
+  excluem sábados, domingos e feriados nacionais (fixos, Carnaval, Sexta-feira
+  Santa e Corpus Christi). `encerrarPrazo` marca cumprido (no prazo ou fora
+  dele) ou cancelado.
+- O processo grava `pendencias_abertas`, `fase_suspensa` e
+  `proximo_vencimento`, que a lista usa em selos e filtros (com pendência,
+  com prazo, prazo vencido).
+
+## Limites conhecidos
 
 - Partes não acessam o sistema (fase 3: portal externo, login próprio, petição a
   qualquer tempo com pendência para o decisor).
 - Assinatura só no nível simples (gov.br e ICP-Brasil na fase 5).
-- Prazos das fases são informativos; não há contagem nem alerta (fase 4).
+- Feriados locais e recesso não entram na contagem de prazos; não há alerta
+  por e-mail de vencimento.
 - `listar` lê até 1000 processos do órgão e filtra em memória; paginar quando
   passar disso.
 - O PDF volta inteiro na resposta da function; anexos acima de ~18 MB somados

@@ -102,6 +102,7 @@ export default function Secretaria() {
 
 function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     const [filtro, setFiltro] = useState('');
+    const [situacao, setSituacao] = useState('todos');
     const q = useQuery({
         queryKey: ['sec-processos', orgId, escopo],
         queryFn: () => secProcesso(orgId, 'listar', { escopo }),
@@ -109,13 +110,27 @@ function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     if (q.isLoading) return <div className="py-8 text-slate-500 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <div className="py-8 text-red-600">{q.error.message}</div>;
     const termo = filtro.trim().toLowerCase();
-    const lista = (q.data?.processos || []).filter((p) => !termo || `${p.numero} ${p.assunto}`.toLowerCase().includes(termo));
+    const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const lista = (q.data?.processos || [])
+        .filter((p) => !termo || `${p.numero} ${p.assunto}`.toLowerCase().includes(termo))
+        .filter((p) => situacao === 'todos'
+            || (situacao === 'pendencia' && p.pendencias_abertas > 0)
+            || (situacao === 'vencido' && p.proximo_vencimento && p.proximo_vencimento < hoje)
+            || (situacao === 'prazo' && p.proximo_vencimento));
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '—';
     const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome;
 
     return (
         <div className="space-y-3 pt-2">
-            <Input placeholder="Filtrar por número ou assunto" value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-sm" />
+            <div className="flex flex-wrap gap-2 items-center">
+                <Input placeholder="Filtrar por número ou assunto" value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-sm" />
+                <select aria-label="Filtrar por situação" value={situacao} onChange={(e) => setSituacao(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                    <option value="todos">Todos</option>
+                    <option value="pendencia">Com pendência para o decisor</option>
+                    <option value="prazo">Com prazo aberto</option>
+                    <option value="vencido">Com prazo vencido</option>
+                </select>
+            </div>
             {lista.length === 0 ? (
                 <p className="py-8 text-slate-500 dark:text-slate-400">
                     {escopo === 'caixa' ? 'Nenhum processo com as suas unidades.' : 'Nenhum processo visível para você.'}
@@ -129,6 +144,12 @@ function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                             <span className="text-sm text-slate-500 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}{p.responsavel_uid ? ` · ${nomeMembro(p.responsavel_uid) || ''}` : ''}</span>
                             <Badge variant={p.status === 'em_tramitacao' ? 'secondary' : 'outline'}>{STATUS_ROTULO[p.status]}</Badge>
                             {p.sigilo === 'restrito' && <Badge variant="outline">Restrito</Badge>}
+                            {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}{p.fase_suspensa ? ' · fase interrompida' : ''}</Badge>}
+                            {p.proximo_vencimento && (
+                                <Badge variant="outline" className={p.proximo_vencimento < hoje ? 'border-red-400 text-red-700 dark:text-red-300' : ''}>
+                                    Prazo {p.proximo_vencimento < hoje ? 'vencido' : 'vence'} {p.proximo_vencimento.split('-').reverse().join('/')}
+                                </Badge>
+                            )}
                         </button>
                     ))}
                 </div>

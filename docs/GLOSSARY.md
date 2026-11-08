@@ -382,6 +382,9 @@ Sequência de fases de um processo. Versionado; o processo guarda as fases com q
 ### Minuta / Juntada
 Minuta é o documento em preparo, visível só à unidade que o redigiu. Juntada é a entrada nos autos, com número de ordem, sem volta.
 
+### Conclusão / Pendência
+Conclusão é a remessa do processo ao gabinete para decidir. Pendência é algo que o decisor precisa apreciar; pode interromper a fase até ser apreciada.
+
 ### Cadeia de hash
 Cada movimento leva o SHA-256 do anterior; alterar um movimento antigo quebra a cadeia e é detectado.
 
