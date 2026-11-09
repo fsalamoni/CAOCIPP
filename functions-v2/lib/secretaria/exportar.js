@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaExportarPdf = void 0;
+exports.montarPdfAutos = montarPdfAutos;
 const https_1 = require("firebase-functions/v2/https");
 const pdf_lib_1 = require("pdf-lib");
 const secretaria_1 = require("../shared/secretaria");
@@ -71,38 +72,31 @@ class Escritor {
         this.y -= (_a = opts.espaco) !== null && _a !== void 0 ? _a : 4;
     }
 }
-exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, memory: '1GiB', timeoutSeconds: 120 }, async (request) => {
-    var _a, _b, _c;
-    const auth = (0, context_1.exigirAuth)(request);
-    const c = await (0, context_1.carregarContexto)(auth, (_a = request.data) === null || _a === void 0 ? void 0 : _a.organizationId);
-    const { ref, data: proc } = await (0, context_1.lerProcesso)(c, (_b = request.data) === null || _b === void 0 ? void 0 : _b.processoId);
-    const [movSnap, docSnap] = await Promise.all([
-        ref.collection('movimentos').orderBy('seq').get(),
-        ref.collection('documentos').where('status', '==', 'juntado').get(),
-    ]);
-    const movimentos = movSnap.docs.map((d) => d.data());
-    const docs = docSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
-        .sort((a, b) => a.ordem - b.ordem);
+/** Monta o PDF único dos autos. A equipe passa tudo; o portal passa só o que a parte pode ver. */
+async function montarPdfAutos(o) {
+    var _a;
+    const { proc, movimentos, docs } = o;
     const quebra = (0, secretaria_1.verificarCadeia)(movimentos);
+    const unid = (id) => { const n = o.nomeUnidade(String(id || '')); return n ? ` (${n})` : ''; };
     const pdf = await pdf_lib_1.PDFDocument.create();
     pdf.setTitle(`Processo ${proc.numero}`);
     pdf.setCreator('SIGO — Processo Eletrônico');
     const font = await pdf.embedFont(pdf_lib_1.StandardFonts.Helvetica);
     const bold = await pdf.embedFont(pdf_lib_1.StandardFonts.HelveticaBold);
     const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const w = new Escritor(pdf, font, bold, `Processo ${proc.numero} — gerado em ${geradoEm} por ${c.userName}`);
+    const w = new Escritor(pdf, font, bold, `Processo ${proc.numero} — gerado em ${geradoEm} por ${o.geradoPor}`);
     // Capa
-    w.texto(String(c.org.name || 'Órgão'), { size: 12, bold: true });
+    w.texto(String(o.orgNome || 'Órgão'), { size: 12, bold: true });
     w.texto('Processo Eletrônico', { size: 10, cor: [0.4, 0.4, 0.4], espaco: 20 });
     w.texto(`Processo nº ${proc.numero}`, { size: 18, bold: true });
     w.texto(String(proc.assunto || ''), { size: 13, espaco: 14 });
-    const fase = ((_c = (proc.fases || []).find((f) => f.id === proc.fase_atual)) === null || _c === void 0 ? void 0 : _c.nome) || proc.fase_atual;
+    const fase = ((_a = (proc.fases || []).find((f) => f.id === proc.fase_atual)) === null || _a === void 0 ? void 0 : _a.nome) || proc.fase_atual;
     const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status] || proc.status;
     for (const [k, v] of [
         ['Rito', `${proc.rito_nome} (versão ${proc.rito_versao})`],
         ['Fase atual', fase],
         ['Situação', situacao],
-        ['Unidade atual', (0, context_1.nomeUnidade)(c, proc.unidade_atual)],
+        ['Unidade atual', o.nomeUnidade(String(proc.unidade_atual || ''))],
         ['Sigilo', proc.sigilo === 'restrito' ? 'Restrito' : 'Normal'],
         ['Autuado em', `${new Date(proc.autuado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} por ${proc.autuado_por_nome}`],
     ])
@@ -123,14 +117,14 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
     w.texto('Movimentos (ordem cronológica)', { size: 14, bold: true, espaco: 10 });
     for (const m of movimentos) {
         const quando = new Date(m.em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-        w.texto(`${m.seq}. ${quando} — ${m.autor_nome} (${(0, context_1.nomeUnidade)(c, m.unidade_id)})`, { bold: true, size: 9, espaco: 0 });
+        w.texto(`${m.seq}. ${quando} — ${m.autor_nome} ${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
         w.texto(String(m.descricao), { size: 9, espaco: 0 });
         w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
     }
     // Índice dos documentos, com as folhas que cada um ocupa.
     const cfgs = new Map();
     const cfgDe = (u) => { if (!cfgs.has(u))
-        cfgs.set(u, (0, autos_1.lerConfigDocumento)(c.db, c.orgId, u)); return cfgs.get(u); };
+        cfgs.set(u, (0, autos_1.lerConfigDocumento)(o.db, o.orgId, u)); return cfgs.get(u); };
     let bytesAnexos = 0;
     const pecas = [];
     for (const d of docs) {
@@ -155,7 +149,7 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
     let folha = 1;
     const linhasIndice = [];
     for (const { d, bytes } of pecas) {
-        const codigo = d.codigo_verificacao || await (0, autos_1.garantirCodigo)(c.db, c.orgId, ref.id, String(proc.numero), d.id);
+        const codigo = d.codigo_verificacao || await (0, autos_1.garantirCodigo)(o.db, o.orgId, o.ref.id, String(proc.numero), d.id);
         const qtd = await (0, autos_1.anexarCarimbado)(pdf, bytes, {
             processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo),
             juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo,
@@ -174,7 +168,21 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
     }
     if (linhasIndice.length > 45)
         paginaIndice.drawText(seguro(`... e mais ${linhasIndice.length - 45} documentos (ver movimentos).`), { x: MARGEM, y: MARGEM - 10, size: 8, font });
-    const bytes = await pdf.save();
+    return pdf.save();
+}
+exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, memory: '1GiB', timeoutSeconds: 120 }, async (request) => {
+    var _a, _b;
+    const auth = (0, context_1.exigirAuth)(request);
+    const c = await (0, context_1.carregarContexto)(auth, (_a = request.data) === null || _a === void 0 ? void 0 : _a.organizationId);
+    const { ref, data: proc } = await (0, context_1.lerProcesso)(c, (_b = request.data) === null || _b === void 0 ? void 0 : _b.processoId);
+    const [movSnap, docSnap] = await Promise.all([
+        ref.collection('movimentos').orderBy('seq').get(),
+        ref.collection('documentos').where('status', '==', 'juntado').get(),
+    ]);
+    const movimentos = movSnap.docs.map((d) => d.data());
+    const docs = docSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
+        .sort((a, b) => a.ordem - b.ordem);
+    const bytes = await montarPdfAutos({ db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => (0, context_1.nomeUnidade)(c, id) });
     await (0, config_1.auditar)(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero });
     return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
 });

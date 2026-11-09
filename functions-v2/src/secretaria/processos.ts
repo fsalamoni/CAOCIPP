@@ -7,6 +7,7 @@ import {
     fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
+import { avisarPartesDoMovimento } from './portalAvisos';
 import {
     COL, REGION, carregarContexto, conferirVersao, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarMovimento,
@@ -426,6 +427,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
 
         throw new HttpsError('invalid-argument', 'Ação desconhecida');
     });
+    // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
+    void avisarPartesDoMovimento(db, String(p.id));
     if (convite.token) {
         const link = `${APP_URL}/Portal?convite=${convite.token}`;
         const enviado = convite.email ? await sendEmail({

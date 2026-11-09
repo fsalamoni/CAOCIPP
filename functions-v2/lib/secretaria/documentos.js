@@ -7,6 +7,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
+const portalAvisos_1 = require("./portalAvisos");
 const context_1 = require("./context");
 const autos_1 = require("./autos");
 const pdfDocumento_1 = require("./pdfDocumento");
@@ -202,6 +203,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             tx.update(pr, Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (pend.length ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})));
             return { ordem, version: mov.version, folha_inicial: folha, paginas };
         });
+        void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id);
         return Object.assign({ success: true }, r);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

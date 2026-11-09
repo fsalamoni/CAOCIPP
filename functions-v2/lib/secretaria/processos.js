@@ -17,6 +17,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const email_1 = require("../shared/email");
+const portalAvisos_1 = require("./portalAvisos");
 const context_1 = require("./context");
 const CONVITE_DIAS = 7;
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
@@ -341,6 +342,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }
         throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
     });
+    // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
+    void (0, portalAvisos_1.avisarPartesDoMovimento)(db, String(p.id));
     if (convite.token) {
         const link = `${APP_URL}/Portal?convite=${convite.token}`;
         const enviado = convite.email ? await (0, email_1.sendEmail)({

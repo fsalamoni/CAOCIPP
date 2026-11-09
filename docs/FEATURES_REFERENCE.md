@@ -143,7 +143,11 @@ Administrativo do órgão, e as unidades de lotação (secretaria, gabinete,
 assessoria, outra) ganharam equipe com atribuições e gestores, inserção de
 membros, convite por e-mail, pedidos de lotação, papel timbrado, tipos de
 documento e modelos próprios. Modelos podem ser importados de Word, PDF, HTML
-ou TXT (com cabeçalho, rodapé e imagens) ou guardados no arquivo original. Ver
+ou TXT (com cabeçalho, rodapé e imagens) ou guardados no arquivo original.
+Portal das partes completo (nov/2026): entrada por link no e-mail, "Para
+você" com prazos e novidades, processo completo em PDF, impressão, certidão
+de andamento, leitor contínuo dos documentos, manifestação guiada com
+comprovante e avisos por e-mail configuráveis. Ver
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---

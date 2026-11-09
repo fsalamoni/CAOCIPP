@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Portal das partes completo (etapa 4)
+- Entrada sem senha por link no e-mail, além de Google e e-mail/senha.
+- Bloco **Para você** (prazos, manifestações aguardando, novidades), marca de
+  novo em movimentos e documentos desde o último acesso, busca e filtro.
+- **Processo completo em PDF**, Imprimir, **Certidão de andamento**, leitor
+  contínuo dos documentos com marca de lido e link de conferência.
+- "Em que ponto está" com etapas que faltam; prazos da parte em destaque com
+  **Responder**.
+- Manifestação guiada por tipo, com prazo respondido, rascunho no navegador,
+  **comprovante de protocolo** e lista "Minhas manifestações" com a decisão.
+- **Avisos por e-mail** às partes (tudo, só prazos e decisões, nenhum) a cada
+  movimento público e lembrete de prazo 3 dias antes e no dia.
+- Celular: barra fixa com as duas ações principais.
+
 ### 09/11/2026 — Importação de ritos (etapa 3)
 - **Importar de arquivo** em Ritos: planilha, Word, PDF, BPMN, draw.io ou
   Mermaid viram uma proposta de rito completa, com fases, unidades, quem faz,

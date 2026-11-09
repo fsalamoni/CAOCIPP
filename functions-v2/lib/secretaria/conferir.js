@@ -8,6 +8,7 @@ const secretaria_1 = require("../shared/secretaria");
 const email_1 = require("../shared/email");
 const autos_1 = require("./autos");
 const context_1 = require("./context");
+const portalAvisos_1 = require("./portalAvisos");
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
  * impresso nas folhas. Responde só os dados da juntada: quem tem o código
@@ -45,6 +46,7 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
     // Só campo único em faixa: dispensa índice composto.
     const snap = await db.collection(context_1.COL.processos).where('proximo_vencimento', '<=', limite).limit(2000).get();
     const porOrg = new Map();
+    await (0, portalAvisos_1.lembrarPrazosDasPartes)(db, snap.docs.filter((d) => d.data().status === 'em_tramitacao')).catch(() => undefined);
     for (const d of snap.docs) {
         if (d.data().status !== 'em_tramitacao')
             continue;

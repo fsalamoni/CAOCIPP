@@ -121,7 +121,7 @@ Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
   Concessão por `grantPlatformAdmin` ou pelo script
   `functions-v2/scripts/bootstrap-platform-admin.js`.
 
-#### Processo Eletrônico (`secProcessos/**`, `secUnidades`, `secUnidadeConfig`, `secConvitesEquipe`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secVerificacao`) e Cloud Storage
+#### Processo Eletrônico (`secProcessos/**`, `secUnidades`, `secUnidadeConfig`, `secConvitesEquipe`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secVerificacao`, `secPortalAcessos`) e Cloud Storage
 
 - Regras: `allow read, write: if false` em todas. As Cloud Functions `secretaria*`
   aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
@@ -151,7 +151,11 @@ Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
   o SHA-256 do token (24 bytes aleatórios), vale 7 dias, é aceito por uma única
   conta e é invalidado na revogação ou em novo convite. A parte vê somente
   documentos juntados marcados como visíveis e movimentos públicos; petição
-  aceita só PDF/DOCX/PNG/JPG até 5 MB.
+  aceita só PDF/DOCX/PNG/JPG até 5 MB. A íntegra, a certidão e o comprovante
+  do portal são montados no servidor só com esses dados; o comprovante só sai
+  para a petição da própria conta. Quem não é parte recebe "não encontrado",
+  sem revelar que o processo existe. `secPortalAcessos` (preferência de aviso
+  e último acesso por processo) é fechada ao cliente.
 - Conferência pública (`secretariaConferir`, sem login): responde só a cópia
   dos metadados da juntada gravada em `secVerificacao` (fechada ao cliente),
   nunca o conteúdo nem o arquivo. O código tem 80 bits aleatórios
