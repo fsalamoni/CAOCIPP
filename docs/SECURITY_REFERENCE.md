@@ -137,6 +137,12 @@ Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
   documento e 1,5 MB por imagem. Isso fecha XSS no editor e na visualização.
 - `secConfig` e `secModelos` também são fechadas; só o admin do órgão grava
   (brasão PNG/JPG até 300 KB); qualquer membro lê modelos via `obterModelo`.
+  As versões anteriores (`secRitos/*/versoes`, `secModelos/*/versoes`) seguem
+  a mesma permissão do item: ler e restaurar versão de rito ou de modelo do
+  órgão exige admin; de modelo de unidade, gestão da unidade. Restaurar é
+  auditado (`SECRETARIA_VERSAO_RESTAURADA`). O histórico de configuração lê
+  `auditLogs` pelo cliente, com a regra que já libera leitura ao admin do
+  órgão.
 - A ação `pdf` usa a mesma checagem de acesso de `baixar`: minuta só para a
   unidade de origem; documento juntado para quem vê o processo; no portal, só
   documentos visíveis às partes.

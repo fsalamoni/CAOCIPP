@@ -75,6 +75,28 @@ function arquivoRecebido(v, tipos) {
     return { buf, mime, nome: (0, secretaria_1.texto)(a.nome, 160) || 'modelo' };
 }
 const MAX_RITOS = 50;
+/** Versões guardadas por rito ou modelo (as mais antigas saem). */
+const MAX_VERSOES = 20;
+/**
+ * Guarda a versão atual de um rito ou modelo em `versoes/{n}` antes de
+ * sobrescrever, para o admin poder voltar atrás. Só os campos editáveis.
+ */
+async function guardarVersao(ref, atual, campos) {
+    const n = Number(atual.versao) || 1;
+    const dados = { versao: n, salvo_em: atual.updated_at || atual.created_at || null, salvo_por: atual.updated_by || atual.created_by || null };
+    for (const k of campos)
+        if (atual[k] !== undefined)
+            dados[k] = atual[k];
+    await ref.collection('versoes').doc(String(n).padStart(6, '0')).set(dados);
+    const antigas = await ref.collection('versoes').orderBy('versao', 'desc').offset(MAX_VERSOES).get();
+    if (!antigas.empty) {
+        const b = ref.firestore.batch();
+        antigas.docs.forEach((d) => b.delete(d.ref));
+        await b.commit();
+    }
+}
+const CAMPOS_RITO = ['nome', 'descricao', 'fases'];
+const CAMPOS_MODELO = ['nome', 'tipo_documento', 'descricao', 'conteudo'];
 const RITO_PADRAO = {
     nome: 'Rito comum',
     descricao: 'Rito inicial criado na ativação. Pode ser editado ou substituído.',
@@ -282,13 +304,55 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             await admin.storage().bucket().file(path).save(arquivo.buf, { contentType: arquivo.mime, resumable: false });
             Object.assign(dados, { storage_path: path, arquivo_nome: arquivo.nome, arquivo_mime: arquivo.mime, tamanho: arquivo.buf.length });
         }
-        if (p.id)
-            await ref.update(dados);
+        if (p.id) {
+            // Versão anterior fica guardada (só modelos do editor têm conteúdo a versionar).
+            if (formato === 'editor' && atual)
+                await guardarVersao(ref, atual, CAMPOS_MODELO);
+            await ref.update(Object.assign(Object.assign({}, dados), { versao: (Number(atual === null || atual === void 0 ? void 0 : atual.versao) || 1) + 1 }));
+        }
         else
-            await ref.set(Object.assign(Object.assign({}, dados), { formato, organization_id: orgId, created_at: agora, created_by: auth.uid }));
+            await ref.set(Object.assign(Object.assign({}, dados), { versao: 1, formato, organization_id: orgId, created_at: agora, created_by: auth.uid }));
         p.id = ref.id;
         await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId, formato });
         return { success: true, id: p.id };
+    }
+    // Versões anteriores de um rito (admin) ou de um modelo do editor (gestão).
+    if (p.action === 'versoes' || p.action === 'restaurarVersao') {
+        const col = p.colecao === 'rito' ? context_1.COL.ritos : p.colecao === 'modelo' ? context_1.COL.modelos : null;
+        if (!col)
+            throw new https_1.HttpsError('invalid-argument', 'Coleção inválida');
+        const ref = db.collection(col).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId)
+            throw new https_1.HttpsError('not-found', 'Não encontrado');
+        if (col === context_1.COL.ritos || !atual.unidade_id)
+            (0, context_1.exigirAdmin)(c);
+        else
+            (0, context_1.exigirGestor)(c, String(atual.unidade_id));
+        if (p.action === 'versoes') {
+            const snap = await ref.collection('versoes').orderBy('versao', 'desc').limit(MAX_VERSOES).get();
+            return {
+                versao_atual: Number(atual.versao) || 1,
+                versoes: snap.docs.map((d) => {
+                    const v = d.data();
+                    const em = v.salvo_em && typeof v.salvo_em.toDate === 'function' ? v.salvo_em.toDate().toISOString() : (v.salvo_em || null);
+                    return { versao: v.versao, em, por: v.salvo_por || null, nome: v.nome || '', fases: Array.isArray(v.fases) ? v.fases.length : undefined };
+                }),
+            };
+        }
+        const vSnap = await ref.collection('versoes').doc(String(Number(p.versao) || 0).padStart(6, '0')).get();
+        const v = vSnap.data();
+        if (!v)
+            throw new https_1.HttpsError('not-found', 'Versão não encontrada');
+        const campos = col === context_1.COL.ritos ? CAMPOS_RITO : CAMPOS_MODELO;
+        await guardarVersao(ref, atual, campos);
+        const volta = { versao: (Number(atual.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid };
+        for (const k of campos)
+            if (v[k] !== undefined)
+                volta[k] = v[k];
+        await ref.update(volta);
+        await audit('SECRETARIA_VERSAO_RESTAURADA', { colecao: p.colecao, id: ref.id, nome: v.nome || atual.nome, de_versao: v.versao, nova_versao: volta.versao });
+        return { success: true, versao: volta.versao };
     }
     (0, context_1.exigirAdmin)(c);
     if (p.action === 'salvarDocumentoConfig') {
@@ -462,7 +526,8 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             if (!snap.exists || ((_j = snap.data()) === null || _j === void 0 ? void 0 : _j.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
-            // o rito só vale para os próximos.
+            // o rito só vale para os próximos. A versão anterior fica guardada.
+            await guardarVersao(ref, snap.data(), CAMPOS_RITO);
             await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_k = snap.data()) === null || _k === void 0 ? void 0 : _k.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {

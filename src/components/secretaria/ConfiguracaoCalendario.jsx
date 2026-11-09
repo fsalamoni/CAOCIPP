@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { CalendarPlus, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,16 @@ export default function ConfiguracaoCalendario({ orgId, estado }) {
     const [salvando, setSalvando] = useState(false);
 
     const muda = (lista, setLista, i, k, v) => setLista(lista.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+    // Repete no ano seguinte os recessos do último ano cadastrado (mesmos dias).
+    const maisUmAno = (d) => (d ? `${Number(d.slice(0, 4)) + 1}${d.slice(4)}` : d);
+    const ultimoAno = recessos.map((r) => r.inicio?.slice(0, 4)).filter(Boolean).sort().pop();
+    const replicar = () => {
+        const novos = recessos.filter((r) => r.inicio?.startsWith(ultimoAno)).map((r) => ({ inicio: maisUmAno(r.inicio), fim: maisUmAno(r.fim), descricao: r.descricao }))
+            .filter((n) => !recessos.some((r) => r.inicio === n.inicio && r.fim === n.fim));
+        if (!novos.length) { toast.info(`Os recessos de ${Number(ultimoAno) + 1} já estão cadastrados.`); return; }
+        setRecessos([...recessos, ...novos]);
+        toast.success(`${novos.length} recesso${novos.length > 1 ? 's' : ''} de ${ultimoAno} copiado${novos.length > 1 ? 's' : ''} para ${Number(ultimoAno) + 1}. Revise e salve.`);
+    };
     const tira = (lista, setLista, i) => setLista(lista.filter((_, j) => j !== i));
 
     const salvar = async () => {
@@ -53,7 +63,7 @@ export default function ConfiguracaoCalendario({ orgId, estado }) {
             <CardHeader>
                 <CardTitle className="text-base">Calendário e alertas de prazo</CardTitle>
                 <CardDescription>
-                    Fins de semana e feriados nacionais já contam sozinhos. Aqui entram os feriados do município ou do estado e os recessos do órgão. Vale para prazos abertos daqui em diante.
+                    Fins de semana e feriados nacionais (inclusive Carnaval, Sexta-feira Santa e Corpus Christi) já contam sozinhos. Aqui entram os feriados do município ou do estado e os recessos do órgão. Vale para prazos abertos daqui em diante.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -82,7 +92,10 @@ export default function ConfiguracaoCalendario({ orgId, estado }) {
                                 <Button variant="ghost" size="sm" aria-label={`Remover recesso ${i + 1}`} onClick={() => tira(recessos, setRecessos, i)} className="col-start-3 row-start-1 sm:col-start-auto sm:row-start-auto"><Trash2 className="w-4 h-4" /></Button>
                             </div>
                         ))}
-                        <Button variant="outline" size="sm" className="gap-1" onClick={() => setRecessos([...recessos, { inicio: '', fim: '', descricao: '' }])}><Plus className="w-4 h-4" /> Recesso</Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" className="gap-1" onClick={() => setRecessos([...recessos, { inicio: '', fim: '', descricao: '' }])}><Plus className="w-4 h-4" /> Recesso</Button>
+                            {ultimoAno && <Button variant="ghost" size="sm" className="gap-1" onClick={replicar} title={`Copia os recessos de ${ultimoAno} para ${Number(ultimoAno) + 1}`}><CalendarPlus className="w-4 h-4" /> Repetir os de {ultimoAno} em {Number(ultimoAno) + 1}</Button>}
+                        </div>
                     </fieldset>
                 </div>
                 <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-4">

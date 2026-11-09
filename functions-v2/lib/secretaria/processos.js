@@ -68,14 +68,45 @@ function resumo(id, d) {
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a;
+    var _a, _b, _d;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
     const { db, orgId } = c;
+    if (p.action === 'listar' && p.limite) {
+        // Paginado pelo servidor: do mais recente para o mais antigo por
+        // updated_at (índice organization_id + updated_at), filtrando a posse
+        // e o sigilo em memória; `cursor` é o updated_at (ms) do último lido.
+        const limite = Math.min(Math.max(Number(p.limite) || 50, 1), 200);
+        let q = db.collection(context_1.COL.processos).where('organization_id', '==', orgId).orderBy('updated_at', 'desc');
+        if (p.cursor)
+            q = q.startAfter(firestore_1.Timestamp.fromMillis(Number(p.cursor)));
+        const snap = await q.limit(limite).get();
+        const processos = snap.docs
+            .filter((d) => (0, secretaria_1.podeVer)(d.data(), c.ctx))
+            .filter((d) => p.escopo !== 'caixa' || (0, secretaria_1.podeAgir)(d.data(), c.ctx))
+            .map((d) => resumo(d.id, d.data()));
+        const ultimo = snap.docs[snap.docs.length - 1];
+        return { processos, cursor: ((_b = (_a = ultimo === null || ultimo === void 0 ? void 0 : ultimo.data().updated_at) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) || null, mais: snap.size === limite };
+    }
+    if (p.action === 'contadores') {
+        // Carga por unidade (processos não arquivados) e totais, por contagem
+        // no servidor: não traz documentos.
+        const base = db.collection(context_1.COL.processos).where('organization_id', '==', orgId);
+        const conta = async (q) => (await q.count().get()).data().count;
+        const [total, arquivados, porUnidade] = await Promise.all([
+            conta(base),
+            conta(base.where('status', '==', 'arquivado')),
+            Promise.all(c.unidades.map(async (u) => {
+                const [t, a] = await Promise.all([conta(base.where('unidade_atual', '==', u.id)), conta(base.where('unidade_atual', '==', u.id).where('status', '==', 'arquivado'))]);
+                return [u.id, t - a];
+            })),
+        ]);
+        return { total, arquivados, ativos: total - arquivados, por_unidade: Object.fromEntries(porUnidade) };
+    }
     if (p.action === 'listar') {
         // ponytail: lê até 1000 processos do órgão e filtra/ordena em memória
-        // (sem índice composto). Paginar por updated_at quando passar disso.
+        // (sem índice composto). A lista com filtros usa a versão paginada acima.
         const snap = await db.collection(context_1.COL.processos).where('organization_id', '==', orgId).limit(1000).get();
         const lista = snap.docs
             .filter((d) => (0, secretaria_1.podeVer)(d.data(), c.ctx))
@@ -169,7 +200,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
     const calendario = p.action === 'abrirPrazo'
-        ? (0, secretaria_1.sanitizeCalendario)((_a = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _a === void 0 ? void 0 : _a.calendario)
+        ? (0, secretaria_1.sanitizeCalendario)((_d = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _d === void 0 ? void 0 : _d.calendario)
         : undefined;
     const convite = { token: '', email: '', parte: '', numero: '' };
     let recebeu = null;

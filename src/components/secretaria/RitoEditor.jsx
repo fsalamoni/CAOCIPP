@@ -20,7 +20,7 @@ import { NativeSelect } from './comum';
 // vivo à direita (abaixo, no celular). Dá para começar de um modelo, importar
 // de planilha (Excel, CSV, colar do Excel) ou de diagrama (Mermaid) e exportar.
 // Nada é gravado até "Salvar"; o servidor revalida tudo.
-export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando, unidades = [] }) {
+export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando, unidades = [], extra = null }) {
     const [importar, setImportar] = useState(!rito?.id && rito?.fases?.length <= 1 && !rito?.fases?.[0]?.nome);
     const [abertas, setAbertas] = useState({}); // fase id -> orientação aberta
     if (!rito) return null;
@@ -89,6 +89,7 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
                     <label className="flex items-center gap-2 text-sm"><Checkbox checked={rito.ativo} onCheckedChange={(c) => onChange({ ...rito, ativo: c === true })} /> Disponível para novas autuações</label>
                 )}
                 <DialogFooter className="gap-2 sm:gap-0">
+                    {extra && <div className="sm:mr-auto">{extra}</div>}
                     <Button variant="outline" onClick={onClose}>Cancelar</Button>
                     <Button disabled={salvando || !rito.nome?.trim() || semNome || !fases.length} onClick={onSalvar}>
                         {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar rito
@@ -181,7 +182,7 @@ async function lerPlanilha(file) {
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
 }
 
-async function baixarPlanilha(fases, nome) {
+export async function baixarPlanilha(fases, nome) {
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(ritoParaTabela(fases));
@@ -190,7 +191,7 @@ async function baixarPlanilha(fases, nome) {
     XLSX.writeFile(wb, `${(nome || 'rito').replace(/[^\w\- ]+/g, '').trim() || 'rito'}.xlsx`);
 }
 
-const EXEMPLO_MERMAID = `flowchart TD
+export const EXEMPLO_MERMAID = `flowchart TD
   A[Protocolo] --> B[Análise - 10 dias]
   B --> C[Complementação] --> B
   B --> D[Decisão - 5 dias]

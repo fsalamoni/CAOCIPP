@@ -5,6 +5,22 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Admin e escala (etapa 7)
+- **Primeiros passos** no Painel Administrativo: "Configuração: N de 4" com
+  atalho para o que falta (unidade, equipe, rito, tipo).
+- **Ver como a equipe e a parte**: prévia de um processo de exemplo, fase a
+  fase, sem gravar nada.
+- Importação de ritos: **pendências** no alto da revisão (as que impedem e as
+  que só avisam), **rascunho** guardado no navegador, **resumo** do que foi
+  criado com atalhos para montar equipes e completar modelos, planilha de
+  exemplo.
+- **Versões** de ritos e modelos (até 20), com restaurar; **Duplicar** modelo;
+  cartões de modelo mostram em que fases são indicados.
+- Calendário: **repetir os recessos** do último ano no seguinte.
+- Aba **Histórico** da configuração: quem mudou o quê e quando.
+- Escala: lista de processos **paginada no servidor** com "Carregar mais";
+  contadores por unidade nos cartões, sem carregar processos.
+
 ### 09/11/2026 — Avisos, celular e acessibilidade (etapa 6)
 - Avisos da equipe no **sino da plataforma** (processo recebido, assinatura
   pedida, pendência, petição da parte, prazo), abrindo o processo ao clicar.

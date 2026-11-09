@@ -154,7 +154,11 @@ devolução com orientação e e-mail de processo recebido. Avisos, celular e
 acessibilidade (nov/2026): avisos da equipe no sino da plataforma com
 preferência por pessoa (sino; e-mail a cada evento, resumo diário ou nenhum),
 barra fixa e foto de documento no celular, contraste e "Tentar de novo",
-seção na Central de Ajuda. Ver
+seção na Central de Ajuda. Admin e escala (nov/2026): primeiros passos com
+indicador, prévia "ver como a equipe e a parte", pendências, rascunho e
+resumo na importação de ritos, versões de ritos e modelos com restaurar,
+duplicar modelo, repetir recessos, histórico de configuração, lista paginada
+no servidor e contadores por unidade. Ver
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---

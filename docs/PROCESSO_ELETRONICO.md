@@ -182,6 +182,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}}], versao, ativo, origem? ('importacao')` |
+| `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
@@ -189,7 +190,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
-| `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
+| `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, versao, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
 | `secPortalAcessos/{uid da parte}` | `avisos` (`tudo`, `prazos`, `nenhum`), `email`, `processos{processoId: último acesso ISO}` — fechada ao cliente; só o portal grava |
 | `notifications/{id}` (coleção da plataforma) | avisos da equipe: `user_id, type: 'processo_eletronico', subtype, title, message, organization_id, entity_type: 'processo_eletronico', entity_id (processo), read, created_at` — gravada só pelas functions; o dono lê e marca como lida |
@@ -211,8 +212,8 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario` |
-| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar` (opcionais `fase_id` e `orientacao`), `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao` |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
+| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar`, `tramitar` (opcionais `fase_id` e `orientacao`), `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao` |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar` e `resolve_pendencia_id`), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
@@ -457,6 +458,68 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   (`/Help#processo-eletronico`), por perfil (equipe, gabinete, avisos e
   celular, partes), com botão "?" no cabeçalho do módulo.
 
+## Admin e escala (etapa 7, nov/2026)
+
+- **Primeiros passos:** no Painel Administrativo → Processo Eletrônico, um
+  cartão "Configuração: N de 4" (`PrimeirosPassos.jsx`) mostra o que falta
+  para o módulo funcionar: unidade ativa, alguém lotado, rito ativo e tipo de
+  processo ativo; cada item tem um "Ir" que abre a aba certa. Some quando os
+  quatro estão prontos.
+- **Prévia "ver como":** botão **Ver como a equipe e a parte**
+  (`PreviaRito.jsx`) monta, sem gravar nada, um processo de exemplo com o rito
+  e a fase escolhidos: o cartão "Nesta fase" da equipe (unidade, quem faz,
+  ações, modelos, rótulo do botão principal, alternativas) e o "em que ponto
+  está" da parte (fase, etapas que faltam). Calculado no navegador a partir da
+  configuração; `etapasAteOFim` passou para `src/lib/secretariaRito.js`.
+- **Importação de ritos:** a revisão ganha, no alto, a lista de
+  **pendências** (`pendenciasDaProposta`): fase sem nome ou saída para fase
+  inexistente **impedem** implantar; fase sem unidade, última fase sem fim e
+  alternativas sem condição são avisos. Cada item tem "Ir" que rola até a
+  fase. A revisão fica como **rascunho** no navegador
+  (`localStorage` `rito-rascunho-{org}`), oferecida na tela inicial para
+  continuar ou descartar; apagada ao implantar. Depois de implantar aparece o
+  **resumo** do que foi criado (rito, fases, unidades, modelos, tipo) com
+  atalhos "Montar as equipes", "Completar os modelos", "Ver os tipos" e
+  "Abrir o rito", que trocam a aba da configuração. A tela inicial também
+  oferece uma **planilha de exemplo** para preencher.
+- **Versões de ritos e modelos:** cada salvamento guarda a versão anterior em
+  `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}`
+  (`versao, salvo_em, salvo_por` e os campos do conteúdo: `nome, descricao,
+  fases` no rito; `nome, tipo_documento, descricao, conteudo` no modelo), até
+  20 por item (as mais antigas são apagadas). Ações `versoes` e
+  `restaurarVersao` em `secretariaConfig` (`colecao: 'rito' | 'modelo'`):
+  rito e modelo do órgão exigem admin; modelo de unidade, gestão dela.
+  Restaurar guarda a atual como versão, grava os campos antigos, soma 1 em
+  `versao` e audita `SECRETARIA_VERSAO_RESTAURADA`. Processos em andamento
+  continuam com a cópia das fases com que foram autuados; documentos já
+  redigidos não mudam. Botão **Versões** no editor de rito e no editor de
+  modelo (`VersoesDialog.jsx`).
+- **Modelos:** cada cartão mostra "Indicado em: Rito › Fase" quando alguma
+  fase o indica; no editor, **Duplicar** abre uma cópia (sem id, "(cópia)" no
+  nome) para ajustar e salvar como modelo novo.
+- **Calendário:** botão **Repetir os de {ano} em {ano+1}** copia os recessos
+  do último ano cadastrado para o seguinte (mesmos dias, pulando os que já
+  existem) e deixa para revisar e salvar. Feriados nacionais, inclusive
+  Carnaval, Sexta-feira Santa e Corpus Christi, já são contados pelo servidor
+  (`feriadosNacionais()`); não há o que importar.
+- **Histórico de configuração:** aba **Histórico** (`HistoricoConfiguracao.jsx`)
+  lista as últimas 300 ações `SECRETARIA_*` de `auditLogs` do órgão (quem,
+  quando, o quê, detalhes), lidas pelo cliente com o índice
+  `organization_id + action + timestamp` já existente e as regras que liberam
+  leitura ao admin do órgão.
+- **Escala:** `secretariaProcesso` `listar` com `limite` (1 a 200) pagina no
+  servidor por `updated_at` desc (índice novo `organization_id + updated_at`
+  em `firestore.indexes.json`), devolvendo `{ processos, cursor, mais }`;
+  `cursor` é o `updated_at` em ms do último lido e volta em `cursor` na
+  chamada seguinte. A posse e o sigilo continuam filtrados em memória, página
+  a página, então uma página pode vir com menos itens do que `limite`. As
+  abas Caixa e Todos usam `useInfiniteQuery` com 100 por página e o botão
+  **Carregar mais**; os filtros valem sobre o que já foi carregado. Sem
+  `limite`, `listar` segue como antes (até 1000). Ação `contadores` devolve
+  `{ total, arquivados, ativos, por_unidade }` por contagem (`count()`), sem
+  trazer documentos; os cartões de unidade mostram "N processos em andamento
+  com a unidade" e avisam quando há carga e ninguém lotado.
+
 ## Ritos e tipos de processo (fase 4)
 
 O admin do órgão configura tudo em Painel Administrativo → Processo
@@ -574,8 +637,16 @@ O portal das partes mostra o diagrama sem as orientações internas.
 - A conferência pública mostra os metadados da juntada (inclusive título e
   número de processo restrito) a quem tem o código; o código só sai impresso
   nas folhas do próprio documento.
-- `listar` lê até 1000 processos do órgão e filtra em memória; paginar quando
-  passar disso.
+- `listar` sem `limite` lê até 1000 processos do órgão e filtra em memória
+  (Meu trabalho, Mesa de decisão, Painel e busca ainda usam essa forma); as
+  abas Caixa e Todos já paginam no servidor. Na forma paginada, a posse e o
+  sigilo são filtrados depois da leitura, então uma página pode vir menor e
+  os filtros da tela valem só sobre o que foi carregado.
+- Versões de rito e modelo: até 20 por item; a versão de um modelo guardado
+  no arquivo original não guarda o arquivo (só nome, tipo e descrição). O
+  histórico de configuração mostra as últimas 300 ações.
+- O rascunho da revisão de rito fica no navegador (localStorage), um por
+  órgão: não acompanha o admin em outro aparelho.
 - O PDF volta inteiro na resposta da function; anexos acima de ~18 MB somados
   viram folha de referência.
 - DOC e ODT antigos não são convertidos (exigem LibreOffice num serviço à

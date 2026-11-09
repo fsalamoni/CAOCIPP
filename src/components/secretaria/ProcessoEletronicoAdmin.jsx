@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { createPageUrl } from '@/utils';
 import { secConfig } from '@/services/secretariaService';
 import ConfiguracaoProcessoEletronico from './ConfiguracaoProcessoEletronico';
+import PrimeirosPassos from './PrimeirosPassos';
+import PreviaRito from './PreviaRito';
 
 /**
  * Painel Administrativo do órgão → Processo Eletrônico: liga ou desliga o
@@ -20,6 +22,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
     const qc = useQueryClient();
     const orgId = organization.id;
     const [saving, setSaving] = useState(false);
+    const [aba, setAba] = useState('unidades');
     const estadoQ = useQuery({ queryKey: ['sec-estado', orgId], queryFn: () => secConfig(orgId, 'estado') });
     const estado = estadoQ.data;
     const enabled = estado ? estado.enabled === true : organization?.secretariaConfig?.enabled === true;
@@ -75,16 +78,21 @@ export default function ProcessoEletronicoAdmin({ organization }) {
                         </div>
                     )}
                     {enabled && (
-                        <Button asChild variant="outline" className="gap-2">
-                            <Link to={`${createPageUrl('ProcessoEletronico')}?org=${orgId}`}>Abrir o Processo Eletrônico <ExternalLink className="w-4 h-4" aria-hidden /></Link>
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button asChild variant="outline" className="gap-2">
+                                <Link to={`${createPageUrl('ProcessoEletronico')}?org=${orgId}`}>Abrir o Processo Eletrônico <ExternalLink className="w-4 h-4" aria-hidden /></Link>
+                            </Button>
+                            {estado?.isAdmin && <PreviaRito estado={estado} />}
+                        </div>
                     )}
                 </CardContent>
             </Card>
 
+            {enabled && estado?.isAdmin && <PrimeirosPassos estado={estado} onIr={setAba} />}
+
             {estadoQ.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a configuração…</p>}
             {estadoQ.error && <p role="alert" className="text-sm text-red-600">{estadoQ.error.message}</p>}
-            {estado?.isAdmin && <ConfiguracaoProcessoEletronico orgId={orgId} estado={estado} />}
+            {estado?.isAdmin && <ConfiguracaoProcessoEletronico orgId={orgId} estado={estado} aba={aba} onAba={setAba} />}
         </div>
     );
 }
