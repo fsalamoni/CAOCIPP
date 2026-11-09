@@ -5,6 +5,7 @@ import {
     MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, sha256, texto,
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
+import { avisarPartesDoMovimento } from './portalAvisos';
 import {
     COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarMovimento,
 } from './context';
@@ -238,6 +239,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 });
                 return { ordem, version: mov.version, folha_inicial: folha, paginas };
             });
+            void avisarPartesDoMovimento(c.db, procRef.id);
             return { success: true, ...r };
         }
 

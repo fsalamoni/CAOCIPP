@@ -5,6 +5,7 @@ import { hojeBrasil, somarDias } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
 import { APP_URL, normalizarCodigo } from './autos';
 import { COL, REGION } from './context';
+import { lembrarPrazosDasPartes } from './portalAvisos';
 
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
@@ -43,6 +44,7 @@ export const secretariaAlertaPrazos = onSchedule(
         // Só campo único em faixa: dispensa índice composto.
         const snap = await db.collection(COL.processos).where('proximo_vencimento', '<=', limite).limit(2000).get();
         const porOrg = new Map<string, admin.firestore.QueryDocumentSnapshot[]>();
+        await lembrarPrazosDasPartes(db, snap.docs.filter((d) => d.data().status === 'em_tramitacao')).catch(() => undefined);
         for (const d of snap.docs) {
             if (d.data().status !== 'em_tramitacao') continue;
             const org = String(d.data().organization_id);

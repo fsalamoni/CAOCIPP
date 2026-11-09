@@ -191,6 +191,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
 | `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
+| `secPortalAcessos/{uid da parte}` | `avisos` (`tudo`, `prazos`, `nenhum`), `email`, `processos{processoId: último acesso ISO}` — fechada ao cliente; só o portal grava |
 
 No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
 `convite_hash` (último convite); `partes_uids[]` lista as contas habilitadas e
@@ -210,7 +211,7 @@ ignora as regras.
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario` |
 | `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
-| `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar` |
+| `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
 | `secretariaPlataforma` | (só administração da plataforma) `resumo`, `suspender` |
@@ -325,6 +326,51 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
 - **Revogação:** Revogar tira a conta de `partes_uids`, invalida o convite e
   grava `acesso_revogado`. A parte deixa de ver o processo na hora.
 
+### Portal completo (etapa 4, nov/2026)
+
+- **Entrada:** Google, e-mail e senha, ou **link por e-mail sem senha**
+  (`sendSignInLinkToEmail`; o e-mail fica no navegador para concluir o acesso
+  na volta, com campo de confirmação se faltar). Texto de três linhas explica o
+  que a parte pode fazer. O vocabulário evita termos internos: "manifestar-se",
+  "processo completo", "em que ponto está".
+- **Para você:** `meusProcessos` devolve `para_voce`: prazos abertos para a
+  parte (vencidos primeiro), manifestações ainda sem apreciação e processos com
+  novidade desde o último acesso. Cada processo traz `novidades` e `visto_em`;
+  `obter` grava o acesso em `secPortalAcessos/{uid}.processos` e marca `novo`
+  nos movimentos e documentos posteriores à leitura anterior (na primeira
+  leitura nada é marcado). Lista com busca e filtro acima de três processos.
+- **Ações sobre os autos:** `exportar` monta a íntegra em PDF (mesmo gerador da
+  equipe, só com movimentos públicos e documentos visíveis, sem nomes de
+  unidade); Imprimir abre esse PDF em nova aba; `certidao` gera certidão de
+  andamento de uma folha (número, assunto, fase, situação, prazos abertos,
+  último movimento, data e hora). Leitor contínuo (`LeitorAutos`) abre os
+  documentos em sequência com lista lateral, anterior/próximo, setas do
+  teclado, marca de lido no navegador e Baixar; cada documento tem o link de
+  conferência pública para copiar.
+- **Em que ponto está:** a fase atual e quantas etapas faltam até o fim pelo
+  caminho mais curto do rito (`fases` públicas só com id, nome, prazo e
+  encaminhamentos); o diagrama completo abre sob demanda.
+- **Prazos:** os dirigidos à parte (`meu`, por destinatário igual ao nome da
+  parte ou sem destinatário) ficam em destaque com dias restantes e botão
+  Responder, que pré-preenche a manifestação com o prazo.
+- **Manifestação guiada:** tipo (`Manifestação`, `Juntada de documento`,
+  `Pedido de prazo`, `Pedido de vista`, `Recurso`, `Outro`) com texto inicial e
+  orientação curta; prazo que responde (`prazo_id`, usado na tempestividade e
+  gravado na pendência); rascunho guardado no navegador até protocolar;
+  comprovante em PDF (`comprovante`) ao protocolar e em "Minhas manifestações",
+  que lista situação (nos autos, aguardando apreciação, apreciada com a
+  decisão) de cada petição da própria parte.
+- **Avisos por e-mail:** preferência `tudo` (padrão), `prazos` (prazos,
+  lembretes, decisões e mudanças de fase) ou `nenhum`, em
+  `secPortalAcessos/{uid}.avisos`. Depois de cada movimento público
+  (`processos.ts`, `documentos.ts`, petição de outra parte) a function envia o
+  e-mail fora da transação (`portalAvisos.ts`), com link direto
+  `/Portal?p=<id>`; a parte autora do movimento não é avisada. O alerta diário
+  de prazos também lembra as partes no dia e 3 dias antes do vencimento.
+  Sem `EMAIL_API_KEY`, nada é enviado.
+- **Celular:** barra fixa inferior com Processo (PDF) e Manifestar-se; a lista
+  do leitor recolhe num botão.
+
 ## Ritos e tipos de processo (fase 4)
 
 O admin do órgão configura tudo em Painel Administrativo → Processo
@@ -421,8 +467,13 @@ O portal das partes mostra o diagrama sem as orientações internas.
 
 ## Limites conhecidos
 
-- Partes não têm verificação em duas etapas nem exportam o PDF dos autos;
-  baixam cada documento.
+- Partes não têm verificação em duas etapas. A íntegra em PDF do portal segue
+  os mesmos limites de tamanho da exportação da equipe.
+- A marca de lido do leitor e o rascunho da manifestação ficam no navegador
+  (localStorage): não acompanham a parte em outro aparelho.
+- O aviso por e-mail às partes é disparado depois da transação; se a function
+  for encerrada antes do envio, o e-mail daquele movimento não sai (o portal
+  continua mostrando a novidade).
 - Se a gravação da petição falhar depois do envio do anexo ao Storage, o
   arquivo fica órfão no bucket (sem referência nos autos).
 - Assinatura só no nível simples. gov.br e ICP-Brasil dependem de credenciais
