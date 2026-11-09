@@ -139,12 +139,8 @@ passou a se chamar Processo Eletrônico, toda a configuração foi para o Painel
 Administrativo do órgão, e as unidades de lotação (secretaria, gabinete,
 assessoria, outra) ganharam equipe com atribuições e gestores, inserção de
 membros, convite por e-mail, pedidos de lotação, papel timbrado, tipos de
-<<<<<<< HEAD
 documento e modelos próprios. Modelos podem ser importados de Word, PDF, HTML
 ou TXT (com cabeçalho, rodapé e imagens) ou guardados no arquivo original. Ver
-=======
-documento e modelos próprios. Ver
->>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---

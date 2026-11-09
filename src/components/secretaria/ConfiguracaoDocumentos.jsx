@@ -203,13 +203,9 @@ export function DocumentosDaUnidade({ orgId, estado, unidade }) {
 export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
     const qc = useQueryClient();
     const [modelo, setModelo] = useState(null);
-<<<<<<< HEAD
     const [importando, setImportando] = useState(false);
     const lista = (estado.modelos || []).filter((m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id));
     const recarregar = () => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
-=======
-    const lista = (estado.modelos || []).filter((m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id));
->>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
     const abrirModelo = async (m) => {
         if (!m) { setModelo({ _k: Date.now(), nome: '', tipo_documento: '', descricao: '', ativo: true, conteudo: null, unidade_id: unidadeId }); return; }
         try {
@@ -225,10 +221,7 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
                         <FileText className="w-4 h-4 text-indigo-600" aria-hidden />
                         <span className="font-medium">{m.nome}</span>
                         {m.tipo_documento && <Badge variant="outline">{m.tipo_documento}</Badge>}
-<<<<<<< HEAD
                         {m.formato === 'original' && <Badge variant="secondary" className="gap-1"><Paperclip className="w-3 h-3" aria-hidden />{rotuloFormatoOriginal(m.arquivo_nome)}</Badge>}
-=======
->>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
                         {!m.ativo && <Badge variant="secondary">Inativo</Badge>}
                     </div>
                     {m.descricao && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{m.descricao}</p>}
@@ -236,7 +229,6 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
             ))}
         </div>
     );
-<<<<<<< HEAD
     const novo = (
         <div className="flex flex-wrap gap-2 shrink-0">
             <Button size="sm" variant="outline" className="gap-1" onClick={() => setImportando(true)}><FileUp className="w-4 h-4" /> Importar de arquivo</Button>
@@ -252,23 +244,6 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
             <ImportarModelo aberto={importando} orgId={orgId} estado={estado} unidadeId={unidadeId} onSalvo={recarregar}
                 onEditar={(m) => setModelo({ ...m, _k: Date.now() })} onFechar={() => setImportando(false)} />
         </>
-=======
-    const novo = <Button size="sm" className="gap-1 shrink-0" onClick={() => abrirModelo(null)}><Plus className="w-4 h-4" /> Novo modelo</Button>;
-    const editor = <EditorModelo modelo={modelo} setModelo={setModelo} orgId={orgId} estado={estado} onSalvo={() => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] })} />;
-    if (semCartao) return <div className="space-y-3"><div className="flex justify-end">{novo}</div>{corpo}{editor}</div>;
-    return (
-        <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-                <div>
-                    <CardTitle className="text-base">Modelos de documento do órgão</CardTitle>
-                    <CardDescription>Textos prontos para todas as unidades. Campos como {'{{numero}}'} e {'{{partes}}'} se preenchem sozinhos com os dados do processo. Cada unidade também pode ter os seus.</CardDescription>
-                </div>
-                {novo}
-            </CardHeader>
-            <CardContent>{corpo}</CardContent>
-            {editor}
-        </Card>
->>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
     );
     if (semCartao) return <div className="space-y-3"><div className="flex justify-end">{novo}</div>{corpo}{editor}</div>;
     return (
