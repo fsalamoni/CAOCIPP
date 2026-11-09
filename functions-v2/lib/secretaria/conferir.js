@@ -66,7 +66,7 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
             const d = p.data();
             const venc = String(d.proximo_vencimento);
             const linha = `<li><b>${escapar(String(d.numero))}</b> — ${escapar(String(d.assunto || ''))}: prazo ${venc < hoje ? `<b>vencido em ${br(venc)}</b>` : `vence em ${br(venc)}`}</li>`;
-            for (const uid of (((_c = unidades.get(d.unidade_atual)) === null || _c === void 0 ? void 0 : _c.membros_uids) || [])) {
+            for (const uid of (((_c = unidades.get(d.unidade_atual)) === null || _c === void 0 ? void 0 : _c.membros_uids) || []).filter((u) => !(d.partes_uids || []).includes(u))) {
                 porPessoa.set(uid, [...(porPessoa.get(uid) || []), linha]);
                 sinoPorPessoa.set(uid, [...(sinoPorPessoa.get(uid) || []), { id: p.id, numero: String(d.numero), venc }]);
             }

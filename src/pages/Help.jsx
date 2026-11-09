@@ -174,6 +174,8 @@ export default function Help() {
                 "Para você: prazos abertos e intimações; Responder abre a petição guiada",
                 "Leia os autos em sequência, exporte a íntegra em PDF ou imprima",
                 "Minhas manifestações mostram o comprovante com código de verificação",
+                "Advogado ou procurador: a secretaria convida o representante, que entra com a própria conta e fala pela parte",
+                "Membro do órgão que é parte em um processo só o alcança pelo portal (menu: Processos em que sou parte); nele, não é o órgão",
               ]}
             />
           </div>

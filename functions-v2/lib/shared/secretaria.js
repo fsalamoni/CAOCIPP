@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.ehParte = ehParte;
 exports.texto = texto;
 exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
@@ -31,6 +32,14 @@ exports.documentoEfetivo = documentoEfetivo;
 const crypto_1 = require("crypto");
 exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
 exports.MAX_LOTACOES = 200;
+/**
+ * Quem é parte (ou representante de parte) num processo só o alcança pelo
+ * portal das partes, mesmo sendo membro, gestor ou admin do órgão: nesse
+ * processo a pessoa não é o órgão. Vale para ler, agir e receber avisos.
+ */
+function ehParte(proc, uid) {
+    return (proc.partes_uids || []).includes(uid);
+}
 exports.MAX_TEXTO_CURTO = 200;
 exports.MAX_TEXTO_LONGO = 4000;
 exports.MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -144,6 +153,8 @@ function proximaFase(rito, faseAtualId) {
 }
 /** Quem tem o processo consigo: lotados na unidade que detém a posse. */
 function podeAgir(proc, ctx) {
+    if (ehParte(proc, ctx.uid))
+        return false;
     return ctx.unidadeIds.includes(proc.unidade_atual);
 }
 /**
@@ -153,6 +164,8 @@ function podeAgir(proc, ctx) {
  *   - sigilo restrito: só unidades por onde o processo passou.
  */
 function podeVer(proc, ctx) {
+    if (ehParte(proc, ctx.uid))
+        return false;
     if (ctx.isAdmin)
         return true;
     if (podeAgir(proc, ctx))

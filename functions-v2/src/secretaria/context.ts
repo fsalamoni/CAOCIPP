@@ -4,6 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import {
     ContextoUsuario,
     MovimentoBase,
+    ehParte,
     hashMovimento,
     lotacoesDe,
     podeAgir,
@@ -115,6 +116,10 @@ export async function lerProcesso(
     const ref = c.db.collection(COL.processos).doc(id);
     const snap = tx ? await tx.get(ref) : await ref.get();
     const data = snap.data();
+    // Membro que é parte neste processo: aqui ele não é o órgão; só pelo portal.
+    if (data && data.organization_id === c.orgId && ehParte(data as never, c.ctx.uid)) {
+        throw new HttpsError('failed-precondition', 'Você é parte neste processo. Acompanhe-o pelo Portal das partes.');
+    }
     if (!snap.exists || !data || data.organization_id !== c.orgId || !podeVer(data as never, c.ctx)) {
         throw new HttpsError('not-found', 'Processo não encontrado');
     }

@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { lotacoesDe } from '../shared/secretaria';
+import { ehParte, lotacoesDe } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
 import { APP_URL } from './autos';
 import { COL, Contexto } from './context';
@@ -97,10 +97,13 @@ export async function lotadosDaUnidade(db: admin.firestore.Firestore, unidadeId:
 }
 
 /** Processo chegou na unidade: avisa quem está lotado nela (menos quem remeteu). */
+/** Quem é parte no processo não é avisado como equipe (acompanha pelo portal). */
+const semPartes = (proc: admin.firestore.DocumentData, uids: string[]) => uids.filter((u) => !ehParte(proc as never, u));
+
 export async function avisarUnidadeRecebeu(c: Contexto, unidadeId: string, proc: admin.firestore.DocumentData, procId: string, motivo: string): Promise<void> {
     const unidade = c.unidades.find((u) => u.id === unidadeId);
     if (!unidade) return;
-    await notificarPessoas(c.db, c.orgId, await lotadosDaUnidade(c.db, unidadeId, unidade), {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidadeId, unidade)), {
         subtipo: 'recebido', procId,
         titulo: `Processo ${proc.numero} chegou em ${unidade.nome}`,
         mensagem: `${c.userName} remeteu: ${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}`.slice(0, 300),
@@ -110,7 +113,7 @@ export async function avisarUnidadeRecebeu(c: Contexto, unidadeId: string, proc:
 
 /** Alguém pediu a assinatura de uma pessoa da unidade numa minuta. */
 export async function avisarPedidoAssinatura(c: Contexto, uid: string, proc: admin.firestore.DocumentData, procId: string, titulo: string): Promise<void> {
-    await notificarPessoas(c.db, c.orgId, [uid], {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, [uid]), {
         subtipo: 'assinatura', procId,
         titulo: `Assinatura pedida: ${titulo}`,
         mensagem: `${c.userName} pediu sua assinatura no processo ${proc.numero}`,
@@ -122,7 +125,7 @@ export async function avisarPedidoAssinatura(c: Contexto, uid: string, proc: adm
 export async function avisarPendencia(c: Contexto, proc: admin.firestore.DocumentData, procId: string, descricao: string): Promise<void> {
     const unidade = c.unidades.find((u) => u.id === proc.unidade_atual);
     if (!unidade || unidade.tipo !== 'gabinete') return;
-    await notificarPessoas(c.db, c.orgId, await lotadosDaUnidade(c.db, unidade.id, unidade), {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidade.id, unidade)), {
         subtipo: 'pendencia', procId,
         titulo: `Pendência para decidir no processo ${proc.numero}`,
         mensagem: descricao.slice(0, 300),
@@ -132,7 +135,7 @@ export async function avisarPendencia(c: Contexto, proc: admin.firestore.Documen
 
 /** Petição da parte: avisa a unidade que está com o processo. */
 export async function avisarPeticao(db: admin.firestore.Firestore, proc: admin.firestore.DocumentData, procId: string, parteNome: string, titulo: string, tipo: string): Promise<void> {
-    await notificarPessoas(db, String(proc.organization_id), await lotadosDaUnidade(db, String(proc.unidade_atual)), {
+    await notificarPessoas(db, String(proc.organization_id), semPartes(proc, await lotadosDaUnidade(db, String(proc.unidade_atual))), {
         subtipo: 'peticao', procId,
         titulo: `Petição de ${parteNome} no processo ${proc.numero}`,
         mensagem: `${tipo ? `${tipo}: ` : ''}${titulo}`.slice(0, 300),

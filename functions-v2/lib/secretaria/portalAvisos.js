@@ -20,7 +20,15 @@ const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida'
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso) => iso.split('-').reverse().join('/');
 async function destinatarios(db, proc, filtro) {
-    const partes = (proc.partes || []).filter((x) => x.uid);
+    // Cada conta habilitada: a parte e cada representante dela.
+    const partes = [];
+    for (const x of (proc.partes || [])) {
+        if (x.uid)
+            partes.push(x);
+        for (const r of x.representantes || [])
+            if (r.uid)
+                partes.push(Object.assign(Object.assign({}, r), { polo: x.polo }));
+    }
     if (!partes.length)
         return [];
     const prefs = await db.getAll(...partes.map((x) => db.collection(portal_1.COL_ACESSOS).doc(x.uid)));

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -8,10 +8,12 @@ import {
 } from 'firebase/auth';
 import {
     ArrowLeft, Bell, BookOpen, CalendarCheck, CalendarClock, Download, FileCheck, FilePlus, FileText, Flag, Gavel, GitBranch, Loader2,
-    LogOut, Mail, Printer, Search, Send, ShieldAlert, ShieldCheck, UserCheck, Camera, RefreshCw,
+    LogOut, Mail, Printer, Search, Send, ShieldAlert, ShieldCheck, UserCheck, Camera, RefreshCw, Building2, LayoutDashboard,
 } from 'lucide-react';
 import { auth } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
+import { useOrganizations } from '@/hooks/useFirestore';
+import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +39,13 @@ const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Americ
 const diasAte = (iso) => Math.round((new Date(`${iso}T12:00:00`) - new Date(`${hojeIso()}T12:00:00`)) / 86400000);
 
 /** O papel da parte dito em uma frase, sem jargão. */
+/** Quem você é neste processo: a própria parte ou representante dela. */
+export function fraseQuem(p) {
+    if (!p) return '';
+    if (p.como === 'representante') return `Você representa ${p.parte_nome || p.nome}${p.polo ? ` (${p.polo})` : ''}`;
+    return frasePolo(p.polo);
+}
+
 export function frasePolo(polo) {
     return ({
         requerente: 'Você fez o pedido (requerente)', requerido: 'O pedido é contra você (requerido)',
@@ -79,6 +88,7 @@ export default function Portal() {
                     {isAuthenticated && (
                         <div className="flex items-center gap-1 text-sm min-w-0">
                             <span className="truncate text-slate-600 hidden md:inline max-w-[14rem]">{user?.email}</span>
+                            <VoltarAoSigo uid={user?.uid} />
                             <Avisos />
                             <Button variant="ghost" size="sm" className="gap-1" onClick={() => signOut()}><LogOut className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Sair</span></Button>
                         </div>
@@ -254,10 +264,22 @@ function Entrar({ convite }) {
     );
 }
 
+/** Quem também é membro de algum órgão volta ao SIGO por aqui. Aqui dentro, é só parte. */
+function VoltarAoSigo({ uid }) {
+    const { organizations } = useOrganizations(uid);
+    if (!organizations?.length) return null;
+    return (
+        <Button asChild variant="ghost" size="sm" className="gap-1" title="Voltar às ferramentas dos seus órgãos">
+            <Link to={createPageUrl('Dashboard')}><LayoutDashboard className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Ir para o SIGO</span></Link>
+        </Button>
+    );
+}
+
 function MeusProcessos({ onAbrir }) {
     const q = useQuery({ queryKey: ['portal-processos'], queryFn: () => secPortal('meusProcessos') });
     const [busca, setBusca] = useState('');
     const [situacao, setSituacao] = useState('todos');
+    const [orgaoSel, setOrgaoSel] = useState('');
     if (q.isLoading) return <Carregando texto="Carregando seus processos…" />;
     if (q.error) return <p role="alert" className="text-red-700 dark:text-red-400">{q.error.message} <Button variant="link" size="sm" className="gap-1 px-1" onClick={() => q.refetch()}><RefreshCw className="w-3 h-3" aria-hidden /> Tentar de novo</Button></p>;
     const lista = q.data.processos;
@@ -265,7 +287,12 @@ function MeusProcessos({ onAbrir }) {
     const termo = busca.trim().toLowerCase();
     const filtrada = lista
         .filter((p) => !termo || `${p.numero} ${p.assunto} ${p.orgao}`.toLowerCase().includes(termo))
+        .filter((p) => !orgaoSel || p.orgao === orgaoSel)
         .filter((p) => situacao === 'todos' || (situacao === 'novidades' ? p.novidades : p.status === situacao));
+    // Processos de órgãos ou entidades distintos ficam separados por órgão.
+    const orgaos = [...new Set(lista.map((p) => p.orgao))];
+    const grupos = orgaos.length > 1 ? orgaos.map((o) => [o, filtrada.filter((p) => p.orgao === o)]).filter(([, ps]) => ps.length) : [[null, filtrada]];
+    const souRepresentante = lista.some((p) => p.como === 'representante');
     return (
         <div className="space-y-5">
             {paraVoce.length > 0 && (
@@ -287,6 +314,12 @@ function MeusProcessos({ onAbrir }) {
             )}
             <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-semibold flex-1">Meus processos</h1>
+                {orgaos.length > 1 && (
+                    <select aria-label="Filtrar por órgão ou entidade" value={orgaoSel} onChange={(e) => setOrgaoSel(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900 max-w-[14rem]">
+                        <option value="">Todos os órgãos</option>
+                        {orgaos.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                )}
                 {lista.length > 3 && (
                     <>
                         <div className="relative">
@@ -305,27 +338,34 @@ function MeusProcessos({ onAbrir }) {
             {lista.length === 0 && (
                 <Card><CardContent className="pt-6 text-sm text-slate-600 dark:text-slate-300 space-y-2">
                     <p>Nenhum processo por aqui ainda.</p>
-                    <p>Para acompanhar um processo, abra o link de convite que a secretaria enviou ao seu e-mail. Se não recebeu, peça o convite ao órgão responsável, informando seu nome e CPF ou CNPJ.</p>
+                    <p>Para acompanhar um processo, abra o link de convite que a secretaria enviou ao seu e-mail. Se não recebeu, peça o convite ao órgão ou entidade responsável, informando seu nome e CPF ou CNPJ.</p>
                 </CardContent></Card>
             )}
+            {souRepresentante && lista.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Em alguns processos você atua como representante: o que você protocolar sai em nome da parte, assinado por você.</p>}
             {filtrada.length === 0 && lista.length > 0 && <p className="text-sm text-slate-600">Nenhum processo com esse filtro.</p>}
-            <ul className="space-y-3">
-                {filtrada.map((p) => (
-                    <li key={p.id}>
-                        <button type="button" onClick={() => onAbrir(p.id)} className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-sm">{p.numero}</span>
-                                <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
-                                {p.novidades && <Badge className="bg-indigo-600 hover:bg-indigo-600">Novidades</Badge>}
-                                <span className="text-xs text-slate-600">{p.orgao}</span>
-                            </div>
-                            <p className="font-medium mt-1">{p.assunto}</p>
-                            <p className="text-xs text-slate-600 mt-1">{frasePolo(p.polo)} · em: {p.fase_nome}</p>
-                            {p.ultimo_movimento && <p className="text-xs text-slate-600 mt-1 truncate">{dataHora(p.ultimo_movimento.em)} · {p.ultimo_movimento.descricao}</p>}
-                        </button>
-                    </li>
-                ))}
-            </ul>
+            {grupos.map(([orgao, ps]) => (
+                <section key={orgao || 'todos'} aria-label={orgao ? `Processos em ${orgao}` : undefined} className="space-y-3">
+                    {orgao && <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 pt-1"><Building2 className="w-4 h-4 text-indigo-600" aria-hidden /> {orgao} <span className="font-normal text-slate-500">· {ps.length}</span></h2>}
+                    <ul className="space-y-3">
+                        {ps.map((p) => (
+                            <li key={p.id}>
+                                <button type="button" onClick={() => onAbrir(p.id)} className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-mono text-sm">{p.numero}</span>
+                                        <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
+                                        {p.novidades && <Badge className="bg-indigo-600 hover:bg-indigo-600">Novidades</Badge>}
+                                        {p.como === 'representante' && <Badge variant="outline">Representante</Badge>}
+                                        {!orgao && <span className="text-xs text-slate-600">{p.orgao}</span>}
+                                    </div>
+                                    <p className="font-medium mt-1">{p.assunto}</p>
+                                    <p className="text-xs text-slate-600 mt-1">{fraseQuem(p)} · em: {p.fase_nome}</p>
+                                    {p.ultimo_movimento && <p className="text-xs text-slate-600 mt-1 truncate">{dataHora(p.ultimo_movimento.em)} · {p.ultimo_movimento.descricao}</p>}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            ))}
         </div>
     );
 }
@@ -386,7 +426,7 @@ function ProcessoParte({ id, onVoltar }) {
                             : <Badge variant="destructive" className="gap-1"><ShieldAlert className="w-3 h-3" aria-hidden /> Registro com falha de integridade</Badge>}
                     </div>
                     <p className="font-medium">{p.assunto}</p>
-                    <p className="text-sm text-slate-600">{orgao} · {frasePolo(p.minha_parte?.polo)}{p.minha_parte?.nome ? `, como ${p.minha_parte.nome}` : ''}</p>
+                    <p className="text-sm text-slate-600">{orgao} · {fraseQuem(p.minha_parte)}{p.minha_parte?.como !== 'representante' && p.minha_parte?.nome ? `, como ${p.minha_parte.nome}` : ''}</p>
                 </div>
                 <div className="hidden sm:flex flex-wrap gap-2">
                     <Button variant="outline" className="gap-2" disabled={!!ocupado} onClick={() => integra(false)}>{ocupado === 'exportar' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />} Processo completo (PDF)</Button>
