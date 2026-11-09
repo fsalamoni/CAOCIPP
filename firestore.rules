@@ -349,9 +349,12 @@ service cloud.firestore {
     // ========== PLATAFORMA: CONFIG / FEATURE FLAGS ==========
 
     match /platformConfig/{docId} {
-      // Qualquer usuário autenticado pode LER as flags (controlam o comportamento
-      // do app para todos). São apenas valores booleanos, não sensíveis.
-      allow read: if isAuthenticated();
+      // O cliente só lê as flags (controlam o comportamento do app para todos;
+      // são booleanos, não sensíveis). Os demais documentos (emailProvider,
+      // quotas) ficam só para as Functions e o super-admin: o Auth é
+      // compartilhado com os outros apps do projeto Firebase, então
+      // "autenticado" não quer dizer usuário do SIGO.
+      allow read: if isAuthenticated() && (docId == 'featureFlags' || isPlatformAdmin());
 
       // Escrita exclusiva de Cloud Functions (setFeatureFlag valida super-admin).
       allow write: if false;

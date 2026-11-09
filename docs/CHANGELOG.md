@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Convivência com outros apps do projeto Firebase
+- Functions no codebase `sigo`: o deploy do SIGO não apaga mais functions de
+  outros apps do projeto.
+- Regras e índices do Firestore publicados sem `--force`: índices de outros
+  apps ficam.
+- `platformConfig`: contas de outros apps (Auth compartilhado) só leem as
+  flags; `emailProvider` e `quotas` fechados ao cliente.
+- Riscos do projeto compartilhado documentados em SECURITY_REFERENCE.
+
 ### 09/11/2026 — Parte e membro: dois papéis
 - **Impedimento:** quem é parte (ou representante) num processo não o vê nem
   age nele como equipe, mesmo admin ou lotado na unidade; a tela do órgão

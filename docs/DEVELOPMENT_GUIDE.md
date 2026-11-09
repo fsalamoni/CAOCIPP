@@ -174,6 +174,11 @@ Sem os obrigatórios, o deploy termina verde **sem publicar nada**.
   `sigo-protagonista`, usa o primeiro disponível (hoje `sigo-caocipp`) e
   reescreve o `firebase.json` só durante o deploy
   (`.github/scripts/update-firebase-site.cjs`).
+- **Projeto compartilhado.** `protagonista-rpg` hospeda outros apps. As
+  functions do SIGO usam o codebase `sigo` e o deploy roda em dois passos:
+  hosting, functions e storage com `--force`; regras e índices do Firestore
+  sem `--force`, para não apagar índices de outros apps. Riscos e limites em
+  [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md#projeto-firebase-compartilhado-isolamento).
 - **Site legado.** `consultascao` serve `dist-redirect/` e redireciona tudo
   (301) para `https://sigo-caocipp.web.app`.
 - **Função agendada.** Antes do deploy, o workflow remove a função
