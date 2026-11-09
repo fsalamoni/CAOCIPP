@@ -90,7 +90,7 @@
     "functions": [
         {
             "source": "functions-v2",
-            "codebase": "default",
+            "codebase": "sigo",
             "predeploy": [
                 "npm --prefix \"$RESOURCE_DIR\" run build:local"
             ],

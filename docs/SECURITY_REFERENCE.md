@@ -37,7 +37,7 @@ Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 | `notifications` | Só o destinatário | Só marcar como lida (`read`, `read_at`); criadas só pelas Functions (menções e avisos do Processo Eletrônico) |
 | `presence` | Membros do órgão | Só o próprio heartbeat |
 | `otpCodes` | **Nenhuma** | **Nenhuma** |
-| `platformConfig` | Qualquer autenticado | **Nenhuma** |
+| `platformConfig` | `featureFlags`: qualquer autenticado. Demais documentos (`emailProvider`, `quotas`): só super-admin | **Nenhuma** |
 | `platformAdmins` | O próprio registro ou super-admin | **Nenhuma** |
 | `platformStats` | Só super-admin | **Nenhuma** |
 | `sec*` (Processo Eletrônico) | **Nenhuma** (tudo pelas Functions `secretaria*`) | **Nenhuma** |
@@ -48,6 +48,38 @@ heartbeat de presença. Antes disso, Consultas, Expedientes e Parcerias aceitava
 escrita direta, o que pulava as validações das Functions; e `users` era legível
 por qualquer conta autenticada, o que expunha e-mails (inclusive a partes do
 Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
+
+### Projeto Firebase compartilhado (isolamento)
+
+O SIGO roda no projeto `protagonista-rpg`, que também hospeda outros apps.
+Hoje ele usa o banco `(default)` do Firestore, o bucket padrão do Storage, o
+mesmo Firebase Authentication e as mesmas contas de serviço desses apps. O que
+isso significa, de fato:
+
+- **Regras.** Um banco tem um único conjunto de regras. Cada deploy do SIGO
+  publica `firestore.rules` (e `storage.rules`) para o banco e o bucket
+  inteiros: coleções de outro app ficam negadas ao cliente. Se outro app
+  publicar as regras dele, as do SIGO são substituídas e os dados do SIGO
+  ficam sob as regras desse app.
+- **Contas.** Quem tem conta em outro app do projeto é "autenticado" para o
+  SIGO. Por isso nenhuma regra do SIGO libera dado só por autenticação (a
+  única exceção é `platformConfig/featureFlags`, booleanos sem dado pessoal).
+- **Servidor e IAM.** Functions de qualquer app do projeto rodam com contas de
+  serviço que leem e escrevem qualquer banco e bucket do projeto, e quem é
+  Proprietário ou Editor do projeto também. Regras não limitam o Admin SDK.
+- **Nomes.** As coleções do SIGO não têm prefixo (`users`, `organizations`…);
+  um app que use o mesmo nome escreve nos mesmos documentos.
+
+O que o deploy já faz para não interferir nos outros apps (desde 09/11/2026):
+as functions usam o codebase `sigo` (o `--force` só remove functions do
+próprio SIGO) e regras e índices do Firestore são publicados sem `--force`
+(índices de outros apps não são apagados).
+
+Isolamento completo só existe com o SIGO num **projeto Firebase próprio**
+(contas, IAM, banco, bucket e cobrança separados). Um banco nomeado (por
+exemplo `sigo`) e um bucket próprios no mesmo projeto separam regras e nomes,
+mas não o Auth nem o IAM. As duas opções exigem copiar os dados de produção e
+dependem de autorização expressa; nenhuma foi feita.
 
 ---
 

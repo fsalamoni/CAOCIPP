@@ -64,4 +64,11 @@ assert.equal(await pedir(criador, 'GET', 'secUnidadeConfig/u1'), 403, 'timbrado 
 await semear('secConvitesEquipe/c1', { organization_id: org });
 assert.equal(await pedir(criador, 'GET', 'secConvitesEquipe/c1'), 403, 'convites de equipe só por Function');
 
+// Config da plataforma: qualquer conta lê as flags; o resto só pelas Functions
+// (o Auth é compartilhado com os outros apps do projeto Firebase).
+await semear('platformConfig/featureFlags', { x: true });
+await semear('platformConfig/emailProvider', { fromEmail: 'a@b.c' });
+assert.equal(await pedir(estranho, 'GET', 'platformConfig/featureFlags'), 200, 'flags legíveis');
+assert.equal(await pedir(estranho, 'GET', 'platformConfig/emailProvider'), 403, 'config de e-mail fechada');
+
 console.log('REGRAS OK');

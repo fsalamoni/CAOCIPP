@@ -243,8 +243,15 @@ jobs:
           # Deploy SOMENTE do hosting. As functions ficaram bloqueadas por
           # causa da permissão cloudscheduler.jobs.delete. Ver
           # docs/CI-DEPLOY-PERMISSIONS.md para destravar.
-          ARGS="deploy --only hosting,functions,firestore,storage --project protagonista-rpg --non-interactive --force"
+          # O projeto protagonista-rpg é compartilhado com outros apps. Por isso:
+          # - as functions usam o codebase "sigo" (firebase.json): o --force só
+          #   apaga functions removidas do próprio SIGO, nunca as de outro app;
+          # - regras e índices do Firestore vão num passo SEM --force: índices
+          #   que não estão em firestore.indexes.json (de outros apps) ficam.
+          # Ver docs/SECURITY_REFERENCE.md, seção "Projeto Firebase compartilhado".
+          TOKEN_ARGS=""
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -n "$FIREBASE_TOKEN" ]; then
-            ARGS="$ARGS --token $FIREBASE_TOKEN"
+            TOKEN_ARGS="--token $FIREBASE_TOKEN"
           fi
-          npx firebase $ARGS
+          npx firebase deploy --only hosting,functions,storage --project protagonista-rpg --non-interactive --force $TOKEN_ARGS
+          npx firebase deploy --only firestore --project protagonista-rpg --non-interactive $TOKEN_ARGS
