@@ -5,6 +5,8 @@ import { MAX_TEXTO_LONGO, documentoEfetivo, lotacoesDe, sanitizeCalendario, sani
 import { sanitizeDoc } from '../shared/documento';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
 import { sanitizeDocumentoConfig } from './documentoConfig';
+import { MAX_MODELO_BYTES, MIMES_ORIGINAL, interpretarModelo, preencherDocx } from './importarModelo';
+import { MIME_DOCX } from './conversao';
 import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
     revogarConviteEquipe, salvarUnidade, salvarUnidadeDocumento, verConviteEquipe,
@@ -21,6 +23,20 @@ export { TIPOS_DOCUMENTO_PADRAO } from './documentoConfig';
  */
 
 const MAX_MODELOS = 200;
+// O documento do Firestore tem teto de 1 MB; modelo com imagens maiores fica no original.
+const MAX_MODELO_JSON = 900_000;
+const caminhoModelo = (orgId: string, id: string) => `secretaria/${orgId}/modelos/${id}`;
+
+/** Arquivo enviado pelo navegador (base64), conferido em tipo e tamanho. */
+function arquivoRecebido(v: unknown, tipos: string[]) {
+    const a = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    const mime = String(a.mime || '');
+    if (!tipos.includes(mime)) throw new HttpsError('invalid-argument', 'Formato de arquivo não aceito');
+    const buf = Buffer.from(String(a.base64 || ''), 'base64');
+    if (!buf.length) throw new HttpsError('invalid-argument', 'Arquivo vazio');
+    if (buf.length > MAX_MODELO_BYTES) throw new HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
+    return { buf, mime, nome: texto(a.nome, 160) || 'modelo' };
+}
 const MAX_RITOS = 50;
 
 const RITO_PADRAO = {
@@ -38,7 +54,8 @@ const RITO_PADRAO = {
 type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo'
     | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
-    | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe';
+    | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
+    | 'importarModelo' | 'baixarModelo';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -56,6 +73,9 @@ interface ConfigRequest extends Record<string, unknown> {
     rito?: unknown;
     ativo?: boolean;
     token?: string;
+    unidade_id?: string;
+    arquivo?: unknown;
+    valores?: unknown;
 }
 
 export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async (request) => {
@@ -161,6 +181,20 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         };
     }
 
+    if (p.action === 'baixarModelo') {
+        exigirAtivo();
+        const m = (await db.collection(COL.modelos).doc(String(p.id || '_')).get()).data();
+        if (!m || m.organization_id !== orgId || !m.storage_path) throw new HttpsError('not-found', 'Modelo sem arquivo original');
+        let [buf] = await admin.storage().bucket().file(m.storage_path).download();
+        const valores = p.valores && typeof p.valores === 'object' ? p.valores as Record<string, unknown> : null;
+        if (valores && m.arquivo_mime === MIME_DOCX) {
+            const limpos: Record<string, string> = {};
+            for (const [k, v] of Object.entries(valores).slice(0, 40)) if (/^[a-z0-9_]{1,40}$/.test(k)) limpos[k] = texto(v, 2000);
+            buf = await preencherDocx(buf, limpos);
+        }
+        return { base64: buf.toString('base64'), mime: m.arquivo_mime, nome: m.arquivo_nome || 'modelo' };
+    }
+
     if (p.action === 'pedirLotacao') {
         exigirAtivo();
         return pedirLotacao(c, p, auth.uid, String(auth.token.email || ''));
@@ -174,6 +208,19 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
     if (p.action === 'revogarConviteEquipe') return revogarConviteEquipe(c, p, audit);
     if (p.action === 'decidirPedido') return decidirPedido(c, p, auth.uid, audit);
 
+    if (p.action === 'importarModelo') {
+        // Só interpreta e devolve a proposta; nada é gravado até salvarModelo.
+        const unidadeId = p.unidade_id ? String(p.unidade_id) : null;
+        if (unidadeId) exigirGestor(c, unidadeId); else exigirAdmin(c);
+        const a = arquivoRecebido(p.arquivo, ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf', 'text/html', 'text/plain']);
+        try {
+            return { ...(await interpretarModelo(a.buf, a.mime)), nome: a.nome.replace(/\.[a-z0-9]{2,5}$/i, ''), original_possivel: MIMES_ORIGINAL.includes(a.mime) };
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : '';
+            throw new HttpsError('invalid-argument', msg && msg.length < 300 ? msg : 'Não foi possível ler o arquivo');
+        }
+    }
+
     if (p.action === 'salvarModelo') {
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
         const col = db.collection(COL.modelos);
@@ -186,21 +233,33 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         }
         const nome = texto(m.nome, 120);
         if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao modelo');
-        let conteudo;
-        try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
-        const dados = {
+        // Formato: 'editor' (conteúdo do editor) ou 'original' (arquivo DOCX/PDF guardado).
+        const formato = (p.id ? atual?.formato : m.formato) === 'original' ? 'original' : 'editor';
+        const arquivo = formato === 'original' && (m.arquivo || !p.id) ? arquivoRecebido(m.arquivo, MIMES_ORIGINAL) : null;
+        let conteudo = null;
+        if (formato === 'editor') {
+            try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
+            if (JSON.stringify(conteudo).length > MAX_MODELO_JSON) {
+                throw new HttpsError('invalid-argument', 'Modelo grande demais (imagens pesadas); reduza as imagens ou guarde o arquivo original');
+            }
+        }
+        const dados: Record<string, unknown> = {
             nome, tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo, unidade_id: unidadeId,
             ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
-        if (p.id) {
-            await col.doc(p.id).update(dados);
-        } else {
-            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
-                throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
-            }
-            p.id = (await col.add({ ...dados, formato: 'editor', organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
+        const ref = p.id ? col.doc(p.id) : col.doc();
+        if (!p.id && (await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+            throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
         }
-        await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId });
+        if (arquivo) {
+            const path = caminhoModelo(orgId, ref.id);
+            await admin.storage().bucket().file(path).save(arquivo.buf, { contentType: arquivo.mime, resumable: false });
+            Object.assign(dados, { storage_path: path, arquivo_nome: arquivo.nome, arquivo_mime: arquivo.mime, tamanho: arquivo.buf.length });
+        }
+        if (p.id) await ref.update(dados);
+        else await ref.set({ ...dados, formato, organization_id: orgId, created_at: agora, created_by: auth.uid });
+        p.id = ref.id;
+        await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId, formato });
         return { success: true, id: p.id };
     }
 

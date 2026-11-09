@@ -2,12 +2,15 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaConfig = exports.TIPOS_DOCUMENTO_PADRAO = void 0;
 exports.auditar = auditar;
+const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
 const context_1 = require("./context");
 const documentoConfig_1 = require("./documentoConfig");
+const importarModelo_1 = require("./importarModelo");
+const conversao_1 = require("./conversao");
 const unidades_1 = require("./unidades");
 var documentoConfig_2 = require("./documentoConfig");
 Object.defineProperty(exports, "TIPOS_DOCUMENTO_PADRAO", { enumerable: true, get: function () { return documentoConfig_2.TIPOS_DOCUMENTO_PADRAO; } });
@@ -19,6 +22,22 @@ Object.defineProperty(exports, "TIPOS_DOCUMENTO_PADRAO", { enumerable: true, get
  * página do Processo Eletrônico.
  */
 const MAX_MODELOS = 200;
+// O documento do Firestore tem teto de 1 MB; modelo com imagens maiores fica no original.
+const MAX_MODELO_JSON = 900000;
+const caminhoModelo = (orgId, id) => `secretaria/${orgId}/modelos/${id}`;
+/** Arquivo enviado pelo navegador (base64), conferido em tipo e tamanho. */
+function arquivoRecebido(v, tipos) {
+    const a = (v && typeof v === 'object' ? v : {});
+    const mime = String(a.mime || '');
+    if (!tipos.includes(mime))
+        throw new https_1.HttpsError('invalid-argument', 'Formato de arquivo não aceito');
+    const buf = Buffer.from(String(a.base64 || ''), 'base64');
+    if (!buf.length)
+        throw new https_1.HttpsError('invalid-argument', 'Arquivo vazio');
+    if (buf.length > importarModelo_1.MAX_MODELO_BYTES)
+        throw new https_1.HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
+    return { buf, mime, nome: (0, secretaria_1.texto)(a.nome, 160) || 'modelo' };
+}
 const MAX_RITOS = 50;
 const RITO_PADRAO = {
     nome: 'Rito comum',
@@ -131,6 +150,22 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             ativo: m.ativo !== false, unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
         };
     }
+    if (p.action === 'baixarModelo') {
+        exigirAtivo();
+        const m = (await db.collection(context_1.COL.modelos).doc(String(p.id || '_')).get()).data();
+        if (!m || m.organization_id !== orgId || !m.storage_path)
+            throw new https_1.HttpsError('not-found', 'Modelo sem arquivo original');
+        let [buf] = await admin.storage().bucket().file(m.storage_path).download();
+        const valores = p.valores && typeof p.valores === 'object' ? p.valores : null;
+        if (valores && m.arquivo_mime === conversao_1.MIME_DOCX) {
+            const limpos = {};
+            for (const [k, v] of Object.entries(valores).slice(0, 40))
+                if (/^[a-z0-9_]{1,40}$/.test(k))
+                    limpos[k] = (0, secretaria_1.texto)(v, 2000);
+            buf = await (0, importarModelo_1.preencherDocx)(buf, limpos);
+        }
+        return { base64: buf.toString('base64'), mime: m.arquivo_mime, nome: m.arquivo_nome || 'modelo' };
+    }
     if (p.action === 'pedirLotacao') {
         exigirAtivo();
         return (0, unidades_1.pedirLotacao)(c, p, auth.uid, String(auth.token.email || ''));
@@ -150,6 +185,22 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         return (0, unidades_1.revogarConviteEquipe)(c, p, audit);
     if (p.action === 'decidirPedido')
         return (0, unidades_1.decidirPedido)(c, p, auth.uid, audit);
+    if (p.action === 'importarModelo') {
+        // Só interpreta e devolve a proposta; nada é gravado até salvarModelo.
+        const unidadeId = p.unidade_id ? String(p.unidade_id) : null;
+        if (unidadeId)
+            (0, context_1.exigirGestor)(c, unidadeId);
+        else
+            (0, context_1.exigirAdmin)(c);
+        const a = arquivoRecebido(p.arquivo, ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf', 'text/html', 'text/plain']);
+        try {
+            return Object.assign(Object.assign({}, (await (0, importarModelo_1.interpretarModelo)(a.buf, a.mime))), { nome: a.nome.replace(/\.[a-z0-9]{2,5}$/i, ''), original_possivel: importarModelo_1.MIMES_ORIGINAL.includes(a.mime) });
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : '';
+            throw new https_1.HttpsError('invalid-argument', msg && msg.length < 300 ? msg : 'Não foi possível ler o arquivo');
+        }
+    }
     if (p.action === 'salvarModelo') {
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
         const col = db.collection(context_1.COL.modelos);
@@ -167,27 +218,40 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const nome = (0, secretaria_1.texto)(m.nome, 120);
         if (!nome)
             throw new https_1.HttpsError('invalid-argument', 'Dê um nome ao modelo');
-        let conteudo;
-        try {
-            conteudo = (0, documento_1.sanitizeDoc)(m.conteudo);
-        }
-        catch (e) {
-            (0, context_1.erroUsuario)(e);
+        // Formato: 'editor' (conteúdo do editor) ou 'original' (arquivo DOCX/PDF guardado).
+        const formato = (p.id ? atual === null || atual === void 0 ? void 0 : atual.formato : m.formato) === 'original' ? 'original' : 'editor';
+        const arquivo = formato === 'original' && (m.arquivo || !p.id) ? arquivoRecebido(m.arquivo, importarModelo_1.MIMES_ORIGINAL) : null;
+        let conteudo = null;
+        if (formato === 'editor') {
+            try {
+                conteudo = (0, documento_1.sanitizeDoc)(m.conteudo);
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+            if (JSON.stringify(conteudo).length > MAX_MODELO_JSON) {
+                throw new https_1.HttpsError('invalid-argument', 'Modelo grande demais (imagens pesadas); reduza as imagens ou guarde o arquivo original');
+            }
         }
         const dados = {
             nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500), conteudo, unidade_id: unidadeId,
             ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
-        if (p.id) {
-            await col.doc(p.id).update(dados);
+        const ref = p.id ? col.doc(p.id) : col.doc();
+        if (!p.id && (await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+            throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
         }
-        else {
-            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
-                throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
-            }
-            p.id = (await col.add(Object.assign(Object.assign({}, dados), { formato: 'editor', organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
+        if (arquivo) {
+            const path = caminhoModelo(orgId, ref.id);
+            await admin.storage().bucket().file(path).save(arquivo.buf, { contentType: arquivo.mime, resumable: false });
+            Object.assign(dados, { storage_path: path, arquivo_nome: arquivo.nome, arquivo_mime: arquivo.mime, tamanho: arquivo.buf.length });
         }
-        await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId });
+        if (p.id)
+            await ref.update(dados);
+        else
+            await ref.set(Object.assign(Object.assign({}, dados), { formato, organization_id: orgId, created_at: agora, created_by: auth.uid }));
+        p.id = ref.id;
+        await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId, formato });
         return { success: true, id: p.id };
     }
     (0, context_1.exigirAdmin)(c);
