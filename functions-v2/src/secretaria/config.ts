@@ -1,11 +1,11 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { MAX_TEXTO_LONGO, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto } from '../shared/secretaria';
+import { MAX_TEXTO_LONGO, Rito, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
 import { sanitizeDocumentoConfig } from './documentoConfig';
-import { MAX_MODELO_BYTES, MIMES_ORIGINAL, interpretarModelo, preencherDocx } from './importarModelo';
+import { MAX_MODELO_BYTES, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
 import { MIME_DOCX } from './conversao';
 import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
@@ -26,6 +26,37 @@ const MAX_MODELOS = 200;
 // O documento do Firestore tem teto de 1 MB; modelo com imagens maiores fica no original.
 const MAX_MODELO_JSON = 900_000;
 const caminhoModelo = (orgId: string, id: string) => `secretaria/${orgId}/modelos/${id}`;
+
+const MAX_UNIDADES_PROPOSTA = 30;
+const MAX_MODELOS_PROPOSTA = 60;
+
+/** Tira do rito referências a unidades e modelos que não são do órgão. */
+function filtrarRefsRito(rito: Rito, unidades: Set<string>, modelos: Set<string>): Rito {
+    return {
+        ...rito,
+        fases: rito.fases.map((f) => {
+            const { unidade_id, modelos: ms, ...resto } = f;
+            const validos = (ms || []).filter((m) => modelos.has(m));
+            return { ...resto, ...(unidade_id && unidades.has(unidade_id) ? { unidade_id } : {}), ...(validos.length ? { modelos: validos } : {}) };
+        }),
+    };
+}
+
+/** Esqueleto de modelo criado pela implantação de um rito, para completar no editor. */
+function esqueletoModelo(nome: string) {
+    const p = (t: string) => ({ type: 'paragraph', content: [{ type: 'text', text: t }] });
+    return {
+        type: 'doc',
+        content: [
+            { type: 'heading', attrs: { level: 2, textAlign: 'center' }, content: [{ type: 'text', text: nome.toUpperCase() }] },
+            p('Processo nº {{numero}} · {{assunto}}'),
+            p('Interessados: {{partes}}'),
+            p('[Texto do documento]'),
+            p('{{unidade}}, {{data_extenso}}.'),
+            p('{{usuario}}'),
+        ],
+    };
+}
 
 /** Arquivo enviado pelo navegador (base64), conferido em tipo e tamanho. */
 function arquivoRecebido(v: unknown, tipos: string[]) {
@@ -55,7 +86,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
-    | 'importarModelo' | 'baixarModelo';
+    | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -76,6 +107,7 @@ interface ConfigRequest extends Record<string, unknown> {
     unidade_id?: string;
     arquivo?: unknown;
     valores?: unknown;
+    proposta?: unknown;
 }
 
 export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async (request) => {
@@ -321,9 +353,106 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         return { success: true };
     }
 
+    if (p.action === 'extrairTextoRito') {
+        const a = arquivoRecebido(p.arquivo, [MIME_DOCX, 'application/pdf', 'text/plain']);
+        try {
+            return await textoParaRito(a.buf, a.mime);
+        } catch {
+            throw new HttpsError('invalid-argument', 'Não foi possível ler o arquivo');
+        }
+    }
+
+    if (p.action === 'aplicarPropostaRito') {
+        // Implanta de uma vez (lote atômico): unidades e modelos novos, o rito
+        // com as fases ligadas a eles e, se pedido, o tipo de processo.
+        const pr = (p.proposta && typeof p.proposta === 'object' ? p.proposta : {}) as Record<string, unknown>;
+        const unidadesIn = (Array.isArray(pr.unidades) ? pr.unidades : []) as Array<Record<string, unknown>>;
+        const modelosIn = (Array.isArray(pr.modelos) ? pr.modelos : []) as Array<Record<string, unknown>>;
+        if (unidadesIn.length > MAX_UNIDADES_PROPOSTA) throw new HttpsError('invalid-argument', `No máximo ${MAX_UNIDADES_PROPOSTA} unidades novas por rito`);
+        if (modelosIn.length > MAX_MODELOS_PROPOSTA) throw new HttpsError('invalid-argument', `No máximo ${MAX_MODELOS_PROPOSTA} modelos novos por rito`);
+        const [ritosQtd, modelosSnap] = await Promise.all([
+            db.collection(COL.ritos).where('organization_id', '==', orgId).count().get(),
+            db.collection(COL.modelos).where('organization_id', '==', orgId).select('unidade_id').get(),
+        ]);
+        if (ritosQtd.data().count >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de ritos atingido');
+        if (modelosSnap.size + modelosIn.length > MAX_MODELOS) throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
+        const refUn = new Map<string, string>();
+        const novasUnidades = unidadesIn.map((u) => {
+            const nome = texto(u.nome, 120);
+            if (!nome) throw new HttpsError('invalid-argument', 'Unidade nova sem nome');
+            const ref = db.collection(COL.unidades).doc();
+            refUn.set(String(u.ref), ref.id);
+            return { ref, nome, sigla: texto(u.sigla, 12), tipo: tipoUnidade(u.tipo) };
+        });
+        const unidadesValidas = new Set([...c.unidades.map((u) => u.id), ...refUn.values()]);
+        const unidadeDe = (r: unknown) => {
+            const s = String(r || '');
+            const id = refUn.get(s) || s;
+            return unidadesValidas.has(id) ? id : null;
+        };
+        const refMod = new Map<string, string>();
+        const novosModelos = modelosIn.map((m) => {
+            const nome = texto(m.nome, 120);
+            if (!nome) throw new HttpsError('invalid-argument', 'Modelo novo sem nome');
+            const ref = db.collection(COL.modelos).doc();
+            refMod.set(String(m.ref), ref.id);
+            return { ref, nome, unidade_id: unidadeDe(m.unidade_ref), tipo_documento: texto(m.tipo_documento, 60) };
+        });
+        const modelosValidos = new Set([...modelosSnap.docs.map((d) => d.id), ...refMod.values()]);
+        const ritoIn = (pr.rito && typeof pr.rito === 'object' ? pr.rito : {}) as Record<string, unknown>;
+        const fasesIn = (Array.isArray(ritoIn.fases) ? ritoIn.fases : []) as Array<Record<string, unknown>>;
+        let rito: Rito;
+        try {
+            rito = sanitizeRito({
+                ...ritoIn,
+                fases: fasesIn.map((f) => ({
+                    ...f,
+                    unidade_id: unidadeDe(f.unidade_ref ?? f.unidade_id) || undefined,
+                    modelos: (Array.isArray(f.modelos_ref) ? f.modelos_ref : []).map((r) => refMod.get(String(r)) || String(r)),
+                })),
+            });
+        } catch (e) { erroUsuario(e); }
+        rito = filtrarRefsRito(rito!, unidadesValidas, modelosValidos);
+        const batch = db.batch();
+        const origem = `Criada ao implantar o rito "${rito.nome}".`;
+        for (const u of novasUnidades) {
+            batch.set(u.ref, {
+                organization_id: orgId, nome: u.nome, sigla: u.sigla, tipo: u.tipo, descricao: origem,
+                lotacoes: [], membros_uids: [], pedidos: [], ativa: true, created_at: agora, created_by: auth.uid,
+            });
+        }
+        for (const m of novosModelos) {
+            batch.set(m.ref, {
+                organization_id: orgId, nome: m.nome, tipo_documento: m.tipo_documento, descricao: `Modelo do rito "${rito.nome}". Complete o texto.`,
+                conteudo: sanitizeDoc(esqueletoModelo(m.nome)), unidade_id: m.unidade_id, formato: 'editor', ativo: true,
+                created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
+            });
+        }
+        const ritoRef = db.collection(COL.ritos).doc();
+        batch.set(ritoRef, { ...rito, organization_id: orgId, versao: 1, ativo: true, created_at: agora, created_by: auth.uid, origem: 'importacao' });
+        const tp = pr.tipo_processo && typeof pr.tipo_processo === 'object' ? pr.tipo_processo as Record<string, unknown> : null;
+        let tipoId: string | null = null;
+        if (tp && texto(tp.nome)) {
+            const ref = db.collection(COL.tipos).doc();
+            tipoId = ref.id;
+            batch.set(ref, {
+                nome: texto(tp.nome), sigla: texto(tp.sigla, 12), descricao: texto(tp.descricao, MAX_TEXTO_LONGO), rito_id: ritoRef.id,
+                sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: rito.fases[0]?.unidade_id || null,
+                ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
+            });
+        }
+        await batch.commit();
+        await audit('SECRETARIA_RITO_IMPLANTADO', {
+            rito_id: ritoRef.id, nome: rito.nome, fases: rito.fases.length, unidades_novas: novasUnidades.length, modelos_novos: novosModelos.length, tipo_id: tipoId,
+        });
+        return { success: true, rito_id: ritoRef.id, tipo_id: tipoId, unidades: novasUnidades.map((u) => u.ref.id), modelos: novosModelos.map((m) => m.ref.id) };
+    }
+
     if (p.action === 'salvarRito') {
         let rito;
         try { rito = sanitizeRito(p.rito); } catch (e) { erroUsuario(e); }
+        const modelosOrg = await db.collection(COL.modelos).where('organization_id', '==', orgId).select().get();
+        rito = filtrarRefsRito(rito!, new Set(c.unidades.map((u) => u.id)), new Set(modelosOrg.docs.map((d) => d.id)));
         const col = db.collection(COL.ritos);
         if (p.id) {
             const ref = col.doc(p.id);

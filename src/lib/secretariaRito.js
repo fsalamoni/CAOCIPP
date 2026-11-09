@@ -30,7 +30,9 @@ export function simplificar(fases) {
         const igual = p.length === linear.length && p.every((id, k) => id === linear[k]);
         const { proximas: _p, final, ...resto } = f;
         if (final) return i < fases.length - 1 ? { ...resto, final: true } : resto;
-        return igual || p.length === 0 ? resto : { ...resto, proximas: p };
+        // Saída com condição escrita fica explícita, mesmo sendo a seguinte da lista.
+        const temCondicao = resto.condicoes && Object.keys(resto.condicoes).length > 0;
+        return (igual && !temCondicao) || p.length === 0 ? resto : { ...resto, proximas: p };
     });
 }
 

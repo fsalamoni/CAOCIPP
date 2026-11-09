@@ -20,7 +20,7 @@ import { NativeSelect } from './comum';
 // vivo à direita (abaixo, no celular). Dá para começar de um modelo, importar
 // de planilha (Excel, CSV, colar do Excel) ou de diagrama (Mermaid) e exportar.
 // Nada é gravado até "Salvar"; o servidor revalida tudo.
-export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando }) {
+export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando, unidades = [] }) {
     const [importar, setImportar] = useState(!rito?.id && rito?.fases?.length <= 1 && !rito?.fases?.[0]?.nome);
     const [abertas, setAbertas] = useState({}); // fase id -> orientação aberta
     if (!rito) return null;
@@ -69,7 +69,7 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
                             <span className="text-xs text-slate-500">{fases.length} fase{fases.length === 1 ? '' : 's'}</span>
                         </div>
                         {fases.map((f, i) => (
-                            <FaseCard key={f.id} f={f} i={i} fases={fases} mudar={(patch) => mudar(i, patch)} mover={(d) => mover(i, d)} remover={() => remover(i)}
+                            <FaseCard key={f.id} f={f} i={i} fases={fases} unidades={unidades} mudar={(patch) => mudar(i, patch)} mover={(d) => mover(i, d)} remover={() => remover(i)}
                                 aberta={!!abertas[f.id]} alternar={() => setAbertas({ ...abertas, [f.id]: !abertas[f.id] })} />
                         ))}
                         <Button variant="outline" size="sm" className="gap-1" onClick={() => setFases([...fases, { id: novoIdFase(), nome: '' }])}><Plus className="w-4 h-4" /> Adicionar fase</Button>
@@ -100,7 +100,7 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
     );
 }
 
-function FaseCard({ f, i, fases, mudar, mover, remover, aberta, alternar }) {
+function FaseCard({ f, i, fases, unidades, mudar, mover, remover, aberta, alternar }) {
     const modo = f.final ? 'fim' : f.proximas?.length ? 'escolher' : 'linear';
     const outras = fases.filter((x) => x.id !== f.id);
     const ultima = i === fases.length - 1;
@@ -125,7 +125,7 @@ function FaseCard({ f, i, fases, mudar, mover, remover, aberta, alternar }) {
                         ...(ultima ? [] : [['fim', 'Encerra o fluxo']]),
                     ]} />
                 <button type="button" onClick={alternar} className="text-left text-sm text-indigo-700 dark:text-indigo-300 self-end py-2" aria-expanded={aberta}>
-                    {aberta ? 'Ocultar orientação' : f.orientacao ? 'Ver orientação' : 'Adicionar orientação para a equipe'}
+                    {aberta ? 'Ocultar detalhes' : (f.orientacao || f.unidade_id || f.agente || f.acoes?.length) ? 'Ver detalhes (unidade, quem faz, ações, orientação)' : 'Detalhes: unidade, quem faz, ações, orientação'}
                 </button>
             </div>
             {modo === 'escolher' && (
@@ -135,10 +135,16 @@ function FaseCard({ f, i, fases, mudar, mover, remover, aberta, alternar }) {
                         {outras.map((o) => {
                             const marcado = f.proximas?.includes(o.id);
                             return (
-                                <label key={o.id} className="flex items-center gap-2 text-sm">
-                                    <Checkbox checked={!!marcado} onCheckedChange={(c) => mudar({ proximas: c ? [...(f.proximas || []), o.id] : (f.proximas || []).filter((x) => x !== o.id) })} />
-                                    {o.nome || `Fase ${fases.indexOf(o) + 1}`}
-                                </label>
+                                <div key={o.id} className="flex flex-wrap items-center gap-2">
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <Checkbox checked={!!marcado} onCheckedChange={(c) => mudar({ proximas: c ? [...(f.proximas || []), o.id] : (f.proximas || []).filter((x) => x !== o.id) })} />
+                                        {o.nome || `Fase ${fases.indexOf(o) + 1}`}
+                                    </label>
+                                    {marcado && (f.proximas?.length || 0) > 1 && (
+                                        <Input className="h-7 w-44 text-xs" value={f.condicoes?.[o.id] || ''} placeholder="Condição (opcional)" aria-label={`Condição para seguir para ${o.nome}`}
+                                            onChange={(e) => mudar({ condicoes: { ...(f.condicoes || {}), [o.id]: e.target.value } })} />
+                                    )}
+                                </div>
                             );
                         })}
                     </div>
@@ -146,9 +152,23 @@ function FaseCard({ f, i, fases, mudar, mover, remover, aberta, alternar }) {
                 </fieldset>
             )}
             {aberta && (
-                <div className="sm:pl-8">
-                    <Label htmlFor={`ori-${f.id}`} className="sr-only">Orientação</Label>
-                    <Textarea id={`ori-${f.id}`} rows={2} value={f.orientacao || ''} onChange={(e) => mudar({ orientacao: e.target.value })} placeholder="O que a equipe deve fazer nesta fase. Aparece na tela do processo." />
+                <div className="sm:pl-8 space-y-2">
+                    <div className="grid sm:grid-cols-2 gap-2">
+                        <NativeSelect id={`un-${f.id}`} label="Unidade da fase" value={f.unidade_id || ''} onChange={(v) => mudar({ unidade_id: v || undefined })}
+                            options={[['', 'Qualquer unidade'], ...unidades.filter((u) => u.ativa !== false).map((u) => [u.id, u.nome])]} />
+                        <div>
+                            <Label htmlFor={`ag-${f.id}`}>Quem faz</Label>
+                            <Input id={`ag-${f.id}`} value={f.agente || ''} onChange={(e) => mudar({ agente: e.target.value })} placeholder="Cargo ou papel (opcional)" />
+                        </div>
+                    </div>
+                    <div>
+                        <Label htmlFor={`ac-${f.id}`}>Ações (uma por linha)</Label>
+                        <Textarea id={`ac-${f.id}`} rows={2} value={(f.acoes || []).join('\n')} onChange={(e) => mudar({ acoes: e.target.value.split('\n') })} placeholder="Aparecem como lista na tela do processo" />
+                    </div>
+                    <div>
+                        <Label htmlFor={`ori-${f.id}`}>Orientação</Label>
+                        <Textarea id={`ori-${f.id}`} rows={2} value={f.orientacao || ''} onChange={(e) => mudar({ orientacao: e.target.value })} placeholder="O que a equipe deve fazer nesta fase. Aparece na tela do processo." />
+                    </div>
                 </div>
             )}
         </div>
