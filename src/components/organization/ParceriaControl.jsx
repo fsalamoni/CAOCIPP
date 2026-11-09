@@ -167,7 +167,7 @@ export default function ParceriaControl({
     return (
         <Card>
             <CardContent className="p-6 space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                             Parcerias
@@ -176,7 +176,7 @@ export default function ParceriaControl({
                             {parcerias.length} {parcerias.length === 1 ? 'parceria' : 'parcerias'} cadastradas
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <label htmlFor="parceria-excel-upload" className="cursor-pointer">
                             <Button asChild variant="outline" disabled={uploading || parceriasLoading}>
                                 <span>

@@ -25,6 +25,7 @@ de que precisa:
 | **Panorama** *(opcional)* | Transforma qualquer planilha em painel e relatórios, sem programação. |
 | **Resumos, métricas e calendário** | Indicadores configuráveis, temporalidade em dias úteis, calendário de vencimentos. |
 | **Páginas personalizadas** | O órgão cria seus próprios tipos de registro, com campos e fases. |
+| **Secretaria Processual** *(opcional)* | Processo eletrônico com ritos configuráveis: autuação, editor de documentos, assinatura, prazos, portal das partes e PDF com verificação. |
 
 As fases são **derivadas dos dados preenchidos** e todos os cálculos são regras
 auditáveis no código: **nenhuma funcionalidade usa inteligência artificial**.
@@ -37,7 +38,7 @@ Tudo está em [`docs/`](./docs/README.md). Para começar:
 
 - [Visão geral](./docs/VISAO_GERAL.md) — o que é, para quem, módulos e limites atuais
 - [Funcionalidades](./docs/FEATURES_REFERENCE.md) — órgãos, membros, administração, métricas, automação
-- Módulos: [Consultas](./docs/CONSULTAS.md) · [Expedientes](./docs/EXPEDIENTES.md) · [Parcerias](./docs/PARCERIAS.md) · [Jurimetria](./docs/JURIMETRIA.md) · [Panorama](./docs/PANORAMA.md)
+- Módulos: [Consultas](./docs/CONSULTAS.md) · [Expedientes](./docs/EXPEDIENTES.md) · [Parcerias](./docs/PARCERIAS.md) · [Jurimetria](./docs/JURIMETRIA.md) · [Panorama](./docs/PANORAMA.md) · [Secretaria Processual](./docs/SECRETARIA.md)
 - [Arquitetura](./docs/ARCHITECTURE_REFERENCE.md) · [Segurança e LGPD](./docs/SECURITY_REFERENCE.md) · [Guia de desenvolvimento](./docs/DEVELOPMENT_GUIDE.md)
 - [Glossário](./docs/GLOSSARY.md) · [Histórico de mudanças](./docs/CHANGELOG.md)
 
@@ -70,14 +71,15 @@ npm run dev
 Antes de abrir um pull request, rode o mesmo que o CI:
 
 ```bash
-npm run lint && npm run typecheck && npm --prefix functions-v2 run build:local && npm run build
+npm run lint && npm run typecheck && npm --prefix functions-v2 run build:local
+npm --prefix functions-v2 test && npm run test:lib && npm run test:rules && npm run build
 ```
 
 ---
 
 ## Publicação
 
-Pull requests para `main` passam pelo CI (lint, verificação de tipos e build).
+Pull requests para `main` passam pelo CI (lint, verificação de tipos, testes e build).
 O merge em `main` publica automaticamente hosting, Cloud Functions, regras e
 índices do Firestore no projeto Firebase. Detalhes, segredos e permissões em
 [DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md#6-deploy).

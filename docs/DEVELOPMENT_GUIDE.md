@@ -87,13 +87,27 @@ Functions em `localhost:5001`.
 **Verificação antes de abrir um PR** (o mesmo que o CI roda):
 
 ```bash
-npm run lint && npm run typecheck && npm --prefix functions-v2 run build:local && npm run build
+npm run lint && npm run typecheck && npm --prefix functions-v2 run build:local
+npm --prefix functions-v2 test && npm run test:lib && npm run test:rules && npm run build
 ```
 
-Não há suíte de testes automatizados versionada. Mudanças em regras de negócio
-têm sido verificadas com scripts temporários (Node + jsdom) descritos nas
-mensagens de commit; quem adicionar testes permanentes deve criar o script
-`test` no `package.json` e incluí-lo no CI.
+### Testes
+
+| Comando | O que cobre |
+|---|---|
+| `npm --prefix functions-v2 test` | Regras de negócio das Functions da Secretaria Processual (`functions-v2/test/*.test.js`, `node:test`). |
+| `npm run test:lib` | Motores puros do frontend (`src/lib/*.test.js`), como o motor de ritos. |
+| `npm run test:rules` | `firestore.rules` no emulador (precisa de Java): perfis só do próprio usuário, nenhuma escrita direta em registros, auditoria só para criador e admins, coleções da Secretaria fechadas. |
+
+Os três rodam no CI. Ao mudar uma regra do Firestore, acrescente o caso em
+`scripts/test-rules.mjs`. As portas dos emuladores ficam em `firebase.json`
+(`emulators`).
+
+> **Atenção:** no emulador de Functions, `admin.firestore.FieldValue` chega
+> indefinido para as funções que o usam (o emulador embrulha `admin.firestore`).
+> Em produção funciona normalmente. Para testes locais com dados, semeie o
+> Firestore direto (token `Bearer owner` na API REST do emulador), como faz
+> `scripts/test-rules.mjs`.
 
 ---
 

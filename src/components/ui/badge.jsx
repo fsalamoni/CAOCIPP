@@ -23,12 +23,10 @@ const badgeVariants = cva(
   }
 )
 
-function Badge({
-  className,
-  variant,
-  ...props
-}) {
-  return (<div className={cn(badgeVariants({ variant }), className)} {...props} />);
-}
+// forwardRef: o Badge é usado como gatilho de Tooltip (asChild), que precisa da ref.
+const Badge = React.forwardRef(({ className, variant, ...props }, ref) => (
+  <div ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />
+));
+Badge.displayName = "Badge";
 
 export { Badge, badgeVariants }

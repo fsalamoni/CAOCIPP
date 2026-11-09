@@ -5,6 +5,34 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Documentação, segurança e usabilidade
+- **Documentação reorganizada** em português: visão geral, um guia por módulo,
+  glossário, histórico e guias antigos movidos para `docs/historico/`.
+- **Regras do Firestore endurecidas:** perfis (`users`) legíveis só pelo
+  próprio usuário (antes qualquer conta autenticada, inclusive partes do
+  Portal, lia e-mails); Consultas, Expedientes e Parcerias sem escrita direta
+  do cliente (só pelas Functions, que validam e registram histórico);
+  `auditLogs` só para criador e admins. Teste automático `npm run test:rules`
+  no CI.
+- **Cabeçalhos HTTP:** `Strict-Transport-Security` e `Permissions-Policy`.
+- **Dependências:** `npm audit fix` zerou as vulnerabilidades críticas; resta
+  o `xlsx` sem correção no npm (ver [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md)).
+- Removidos o backfill de matérias pelo navegador (`window.runBackfill`) e os
+  auxiliares de escrita direta não usados de `firestoreService.js`.
+- **Celular:** painel inicial, listas, Kanban (colunas com largura mínima e
+  rolagem própria) e perfil sem rolagem lateral.
+- **Acessibilidade:** rótulos ligados aos campos de filtro, cartões do Kanban
+  abríveis pelo teclado, números copiáveis como botões, menu lateral fecha com
+  Esc, tooltips dos selos de urgência voltaram a funcionar.
+- Papéis exibidos em português (Criador, Administrador, Membro) no perfil, na
+  página do órgão e na gestão de membros.
+
+### 08/11/2026 — Secretaria Processual (fases 1 a 6)
+- Processo eletrônico do órgão com ritos e tipos de processo configuráveis,
+  conclusão, pendências e prazos, portal das partes, editor completo de
+  documentos, folhas dos autos, busca, painel, calendário, conferência de
+  autenticidade e exportação Word/Excel/PDF. Ver [SECRETARIA.md](./SECRETARIA.md).
+
 ### 23/09/2026 — Panorama, calendário configurável e ajustes de fluxo
 - **Módulo Panorama** (flag `panorama_enabled`, padrão desligado): bases
   analíticas cujo esquema vem da planilha importada, com papéis semânticos,

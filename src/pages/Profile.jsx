@@ -40,6 +40,7 @@ import {
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import { formatPersonName } from '@/utils/nameUtils';
+import { roleLabel } from '@/constants';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -334,9 +335,9 @@ export default function Profile() {
                 {organizations.map(org => (
                   <div
                     key={org.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-slate-900 dark:text-white">
                         {org.name}
                       </h3>
@@ -345,8 +346,8 @@ export default function Profile() {
                           {org.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
-                        <span>Role: <strong>{org.userRole}</strong></span>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span>Papel: <strong>{roleLabel(org.userRole)}</strong></span>
                         <span>Membros: {org.stats?.members_count || 0}</span>
                         <span>Processos: {org.stats?.processes_count || 0}</span>
                       </div>
@@ -368,7 +369,7 @@ export default function Profile() {
               </Alert>
             )}
 
-            <div className="flex gap-3 pt-4 border-t">
+            <div className="flex flex-wrap gap-3 pt-4 border-t">
               {/* Create Organization Dialog */}
               <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
                 <DialogTrigger asChild>

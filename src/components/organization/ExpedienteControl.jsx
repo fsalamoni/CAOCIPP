@@ -180,7 +180,7 @@ export default function ExpedienteControl({
     <Card>
       <CardContent className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
               Expedientes Administrativos
@@ -190,7 +190,7 @@ export default function ExpedienteControl({
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <label htmlFor="expediente-excel-upload" className="cursor-pointer">
               <Button
                 asChild

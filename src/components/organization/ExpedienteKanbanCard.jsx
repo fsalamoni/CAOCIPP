@@ -107,14 +107,15 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
             {/* Header: Expediente Number + Urgency */}
             <div className="flex items-start justify-between gap-2">
                 {canCopyProcessNumber && expedienteNumber ? (
-                    <span
-                        className="text-sm font-bold text-slate-900 dark:text-white truncate flex-1 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    <button
+                        type="button"
+                        className="text-left text-sm font-bold text-slate-900 dark:text-white truncate flex-1 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={handleCopyProcessNumber}
                         title="Clique para copiar"
                     >
                         {expedienteNumber}
-                    </span>
+                    </button>
                 ) : (
                     <span className="text-sm font-bold text-slate-900 dark:text-white truncate flex-1">
                         {expedienteNumber || 'Sem número'}

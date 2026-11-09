@@ -151,14 +151,15 @@ export default function ParceriaKanbanCard({
                     {/* Header: PGEA + Urgência + Restrição + Aditivo badge + Ações */}
                     <div className="flex items-start justify-between gap-2">
                         {canCopy && pgea ? (
-                            <span
-                                className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                            <button
+                                type="button"
+                                className="text-left font-mono text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onClick={handleCopyPgea}
                                 title="Clique para copiar PGEA"
                             >
                                 {pgea}
-                            </span>
+                            </button>
                         ) : (
                             <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1">
                                 {pgea || '—'}

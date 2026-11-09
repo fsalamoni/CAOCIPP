@@ -324,10 +324,11 @@ export default function DataToolsPanel() {
 
                     <div className="flex flex-col sm:flex-row sm:items-end gap-3">
                         <div className="flex-1">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+                            <label htmlFor="backfill-org" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
                                 Órgão
                             </label>
                             <select
+                                id="backfill-org"
                                 value={backfillOrgId}
                                 onChange={(e) => {
                                     setBackfillOrgId(e.target.value);

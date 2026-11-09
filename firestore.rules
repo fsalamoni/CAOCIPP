@@ -33,8 +33,11 @@ service cloud.firestore {
     // ========== USERS ==========
     
     match /users/{userId} {
-      // Todos usuários autenticados podem ler perfis (para exibir nomes, fotos)
-      allow read: if isAuthenticated();
+      // Só o próprio usuário (e o super-admin) lê o perfil. Antes qualquer conta
+      // autenticada (inclusive uma parte do Portal, sem vínculo com órgão)
+      // podia listar a coleção inteira e colher nome e e-mail de toda a equipe.
+      // Nomes de colegas vêm de userOrganizations (user_name/user_email).
+      allow read: if isAuthenticated() && (isOwner(userId) || isPlatformAdmin());
 
       // Apenas o próprio usuário pode escrever seu perfil
       allow write: if isAuthenticated() && isOwner(userId);
@@ -98,27 +101,11 @@ service cloud.firestore {
       // Membros da organização podem ler processos
       allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
       
-      // Membros podem criar processos
-      allow create: if isAuthenticated() && 
-                      isMemberOf(request.resource.data.organization_id);
-      
-      // Pode atualizar se for:
-      // 1. Admin/creator da organização, OU
-      // 2. Responsável pelo processo
-      // Em ambos os casos, organization_id não pode mudar na própria escrita —
-      // sem isto, quem tem permissão de editar poderia "mover" o processo para
-      // outro órgão (inclusive um controlado por ele) trocando só esse campo.
-      allow update: if isAuthenticated() &&
-                      isMemberOf(resource.data.organization_id) && (
-                        hasRole(resource.data.organization_id, ['creator', 'admin']) ||
-                        isOwner(resource.data.responsible_user_id)
-                      ) &&
-                      request.resource.data.organization_id == resource.data.organization_id;
-      
-      // Apenas admin/creator podem deletar
-      allow delete: if isAuthenticated() && 
-                      isMemberOf(resource.data.organization_id) &&
-                      hasRole(resource.data.organization_id, ['creator', 'admin']);
+      // Escrita só pelas Cloud Functions (create/update/delete), que validam
+      // campos e permissões finas e gravam histórico e auditoria. O app não
+      // escreve aqui direto; a escrita direta pulava todas essas checagens
+      // (e deixava o responsável reescrever qualquer campo do registro).
+      allow create, update, delete: if false;
 
       // Subcoleção de histórico (Fase 3). Leitura para membros do órgão do
       // processo pai; escrita exclusiva de Cloud Functions (Admin SDK).
@@ -144,26 +131,11 @@ service cloud.firestore {
       // Membros da organização podem ler expedientes
       allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
       
-      // Membros podem criar expedientes
-      allow create: if isAuthenticated() && 
-                      isMemberOf(request.resource.data.organization_id);
-      
-      // Pode atualizar se for:
-      // 1. Admin/creator da organização, OU
-      // 2. Responsável pelo expediente
-      // organization_id não pode mudar na própria escrita (mesma razão da
-      // regra equivalente em processes/{id}).
-      allow update: if isAuthenticated() &&
-                      isMemberOf(resource.data.organization_id) && (
-                        hasRole(resource.data.organization_id, ['creator', 'admin']) ||
-                        isOwner(resource.data.responsible_user_id)
-                      ) &&
-                      request.resource.data.organization_id == resource.data.organization_id;
-      
-      // Apenas admin/creator podem deletar
-      allow delete: if isAuthenticated() && 
-                      isMemberOf(resource.data.organization_id) &&
-                      hasRole(resource.data.organization_id, ['creator', 'admin']);
+      // Escrita só pelas Cloud Functions (create/update/delete), que validam
+      // campos e permissões finas e gravam histórico e auditoria. O app não
+      // escreve aqui direto; a escrita direta pulava todas essas checagens
+      // (e deixava o responsável reescrever qualquer campo do registro).
+      allow create, update, delete: if false;
 
       // Subcoleção de histórico (Fase 3). Leitura para membros do órgão do
       // expediente pai; escrita exclusiva de Cloud Functions (Admin SDK).
@@ -192,30 +164,11 @@ service cloud.firestore {
       // Membros da organização podem ler parcerias.
       allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
 
-      // Membros podem criar parcerias (Cloud Function valida campos).
-      allow create: if isAuthenticated() &&
-                      isMemberOf(request.resource.data.organization_id);
-
-      // Pode atualizar se for:
-      // 1. Admin/creator da organização, OU
-      // 2. Assessor responsável pela parceria.
-      // organization_id não pode mudar na própria escrita.
-      // OBS: a trava fina sobre campos "congelados" quando aditivo_count > 0
-      // (não permitir editar o original depois do primeiro aditivo) é
-      // IMPLEMENTADA NO SERVIDOR (functions-v2/src/parcerias/update.ts).
-      // Regras do Firestore não conseguem inspecionar sub-campos arbitrários
-      // sem custo extra; vale manter a defesa em camadas.
-      allow update: if isAuthenticated() &&
-                      isMemberOf(resource.data.organization_id) && (
-                        hasRole(resource.data.organization_id, ['creator', 'admin']) ||
-                        isOwner(resource.data.responsible_user_id)
-                      ) &&
-                      request.resource.data.organization_id == resource.data.organization_id;
-
-      // Apenas admin/creator podem deletar.
-      allow delete: if isAuthenticated() &&
-                      isMemberOf(resource.data.organization_id) &&
-                      hasRole(resource.data.organization_id, ['creator', 'admin']);
+      // Escrita só pelas Cloud Functions (create/update/delete), que validam
+      // campos e permissões finas e gravam histórico e auditoria. O app não
+      // escreve aqui direto; a escrita direta pulava todas essas checagens
+      // (e deixava o responsável reescrever qualquer campo do registro).
+      allow create, update, delete: if false;
 
       // Subcoleção de histórico (Fase 3) — espelho do activity_log.
       match /history/{entryId} {
@@ -336,8 +289,11 @@ service cloud.firestore {
     // ========== AUDIT LOGS ==========
     
     match /auditLogs/{logId} {
-      // Membros podem ler logs da organização
-      allow read: if isAuthenticated() && isMemberOf(resource.data.organization_id);
+      // Só criador e admins do órgão (o app lê pela função getOrgAccessLog,
+      // que aplica a mesma restrição). Antes qualquer membro lia direto.
+      allow read: if isAuthenticated() &&
+                    isMemberOf(resource.data.organization_id) &&
+                    hasRole(resource.data.organization_id, ['creator', 'admin']);
       
       // NINGUÉM pode escrever diretamente - apenas Cloud Functions
       allow write: if false;

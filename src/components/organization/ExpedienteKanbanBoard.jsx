@@ -977,7 +977,7 @@ export default function ExpedienteKanbanBoard({
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
             >
-                <div className="grid grid-cols-6 gap-3">
+                <div className="grid gap-3 overflow-x-auto pb-2" style={{ gridTemplateColumns: "repeat(6, minmax(180px, 1fr))" }}>
                     {KANBAN_COLUMNS.map((col) => (
                         <KanbanColumn
                             key={col.id}

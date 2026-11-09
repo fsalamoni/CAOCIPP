@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { roleLabel } from '@/constants';
 import { parseYear } from '@/lib/dashboardMetrics';
 import DashboardMetrics from '@/components/organization/DashboardMetrics';
 import {
@@ -220,7 +221,7 @@ export default function GeneralInfo({ organization, members, processes = [], exp
                           ? 'bg-primary/10 text-primary'
                           : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
                           }`}>
-                          {member.role === 'creator' ? 'Criador' : 'Membro'}
+                          {roleLabel(member.role)}
                         </span>
                       </TableCell>
                       <TableCell className="text-slate-600 dark:text-slate-300">

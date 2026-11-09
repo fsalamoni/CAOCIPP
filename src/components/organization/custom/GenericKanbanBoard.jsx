@@ -214,7 +214,10 @@ function DraggableCard({ record, primaryFields, membersById, typesByKey, onOpen,
             ref={setNodeRef}
             {...(draggable ? { ...listeners, ...attributes } : {})}
             onClick={() => onOpen?.(record)}
-            className={`${isDragging ? 'opacity-40' : ''} ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.(record); } }}
+            role="button"
+            tabIndex={0}
+            className={`rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${isDragging ? 'opacity-40' : ''} ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
         >
             <RecordCardContent
                 record={record}

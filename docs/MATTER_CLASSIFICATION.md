@@ -76,4 +76,4 @@ O sistema possui uma rotina de classificação automática (executada em Fev/202
 - **Valores/Listas:** Constantes `MATTER_CATEGORIES` e `MATTER_SUBCATEGORIES` exportadas pelo componente.
 - **Banco de Dados:** Campos `matter_category` (string) e `matter_subcategory` (string) na coleção `processes`.
 - **Lista por órgão:** a taxonomia acima é o padrão. Cada órgão pode substituí-la em *Painel Administrativo → Classificação (Matérias)* (permissão `manage_matters`); a lista própria fica em `organization.matterSettings` (`custom`, `categories`, `subcategories`) e passa a valer nos formulários daquele órgão.
-- **Backfill:** a rotina de classificação automática está em `src/utils/backfillMatter.js` (exposta como `window.runBackfill` para execução manual) e `functions-v2/scripts/backfill_matter.ts`.
+- **Backfill:** a classificação automática de registros antigos roda pelo script `functions-v2/scripts/backfill_matter.ts` (Admin SDK). A versão que rodava no console do navegador foi removida, porque o cliente não escreve mais em `processes`.

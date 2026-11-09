@@ -27,23 +27,27 @@ Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 
 | Coleção | Leitura | Escrita pelo cliente |
 |---|---|---|
-| `users/{uid}` | Qualquer autenticado (para exibir nomes e fotos) | Só o próprio usuário |
+| `users/{uid}` | Só o próprio usuário ou super-admin (nomes de colegas vêm de `userOrganizations`) | Só o próprio usuário |
 | `userPreferences/{uid}` | Só o próprio | Só o próprio |
 | `organizations/{id}` | Membros | **Nenhuma** (só Functions) |
 | `userOrganizations/{id}` | O próprio vínculo ou membros do mesmo órgão | **Nenhuma** |
-| `processes`, `expedientes`, `parcerias` | Membros do órgão | Criar: membro. Editar: criador/admin ou o responsável, sem trocar `organization_id`. Excluir: criador/admin. Subcoleções `history`, `aditivos`, `comments`: nenhuma. |
+| `processes`, `expedientes`, `parcerias` | Membros do órgão | **Nenhuma** (só Functions, que validam campos, permissões e gravam histórico). Subcoleções `history`, `aditivos`, `comments`: nenhuma. |
 | `juris`, `jurimetriaTemplates`, `panoramaBases`, `panoramaRegistros`, `panoramaTemplates`, `entityTypes`, `customRecords` | Membros do órgão | **Nenhuma** |
-| `auditLogs` | Membros do órgão | **Nenhuma** |
+| `auditLogs` | Só criador e admins do órgão | **Nenhuma** |
 | `notifications` | Só o destinatário | Só marcar como lida (`read`, `read_at`) |
 | `presence` | Membros do órgão | Só o próprio heartbeat |
 | `otpCodes` | **Nenhuma** | **Nenhuma** |
 | `platformConfig` | Qualquer autenticado | **Nenhuma** |
 | `platformAdmins` | O próprio registro ou super-admin | **Nenhuma** |
 | `platformStats` | Só super-admin | **Nenhuma** |
+| `sec*` (Secretaria Processual) | **Nenhuma** (tudo pelas Functions `secretaria*`) | **Nenhuma** |
 
-Consultas, Expedientes e Parcerias ainda aceitam escrita direta nas condições
-acima, embora o app grave tudo por Cloud Function. Os módulos mais novos já
-nasceram fechados (`allow write: if false`).
+Desde novembro de 2026 nenhuma coleção aceita escrita direta do cliente, exceto
+o próprio perfil, as próprias preferências, a marcação de notificação lida e o
+heartbeat de presença. Antes disso, Consultas, Expedientes e Parcerias aceitavam
+escrita direta, o que pulava as validações das Functions; e `users` era legível
+por qualquer conta autenticada, o que expunha e-mails (inclusive a partes do
+Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
 
 ---
 
@@ -71,7 +75,7 @@ nasceram fechados (`allow write: if false`).
 | **Retenção e anonimização** (`data_retention_policy`, integrado) | Duas etapas, sempre manuais e só pelo criador: `previewAnonymization` lista as Consultas arquivadas há mais de `retentionConfig.anonymizeAfterDays` (padrão 365 dias); `runAnonymization` anonimiza apenas os IDs confirmados (até 300 por vez), revalidando a elegibilidade no servidor. Substitui o campo **consulente** por "Consulente anonimizado (LGPD)" e registra em `auditLogs`. |
 | **Exportações no navegador** | PDF, Excel, CSV, Word, JSON e Markdown são gerados localmente; nenhum dado vai a serviço externo. Valores de célula iniciados por `=`, `+`, `-`, `@` recebem `'` (proteção contra injeção de fórmulas). |
 | **Preferências locais** | `localStorage` guarda só preferências de exibição (chaveadas por órgão), nunca dados de registros. |
-| **Cabeçalhos HTTP** | `firebase.json`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`. |
+| **Cabeçalhos HTTP** | `firebase.json`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security` (1 ano), `Permissions-Policy` (câmera, microfone, localização, pagamento e USB desligados). |
 | **Localização do processamento** | Cloud Functions em `southamerica-east1` (São Paulo). A localização do banco Firestore é definida no projeto Firebase e não consta do repositório. |
 
 ### Limites conhecidos (importantes para a avaliação de conformidade)
@@ -82,15 +86,22 @@ nasceram fechados (`allow write: if false`).
 2. **"Restrição de acesso" não restringe leitura.** Todo membro do órgão lê
    todos os registros do órgão, inclusive os marcados como restritos. A
    marcação serve para sinalizar e auditar, não para bloquear.
-3. **`auditLogs` é legível por qualquer membro** pelas regras do Firestore. A
-   tela de log de acesso é limitada a criador e admins na Cloud Function, mas
-   uma leitura direta da coleção não passa por essa checagem.
+3. **Dependência `xlsx` sem correção no npm.** A biblioteca de planilhas
+   (SheetJS) tem vulnerabilidades altas conhecidas (poluição de protótipo e
+   ReDoS ao ler arquivos maliciosos) e a versão corrigida só é distribuída
+   fora do npm. O risco fica restrito a planilhas importadas por membros do
+   órgão. Demais pendências do `npm audit` são altas ou moderadas em
+   dependências internas do Firebase e de ferramentas de build; não há
+   críticas (novembro de 2026).
 4. **Anonimização parcial.** Só o campo consulente das Consultas é
    substituído. Objeto, observações, histórico e os demais módulos não são
    anonimizados.
 5. **Sem criptografia em nível de campo** além da criptografia em repouso
    padrão do Google Cloud.
-6. **Terceiros:** e-mails (código de 2FA e, quando reativados, relatórios)
+6. **Desenvolvimento sem `.env` usa produção.** `src/config/firebase.js` cai
+   na configuração de produção quando não há variáveis `VITE_FIREBASE_*`.
+   Para testar localmente, use os emuladores (`VITE_USE_EMULATORS=true`).
+7. **Terceiros:** e-mails (código de 2FA e, quando reativados, relatórios)
    passam pelo provedor Resend; webhooks enviam dados do evento para a URL
    configurada pelo criador.
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/FirebaseAuthContext';
@@ -63,6 +63,13 @@ export default function Layout({ children, currentPageName }) {
 
   const { user, userProfile, signOut, isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Esc fecha o menu lateral no celular (o fundo escuro só fecha com toque).
+  useEffect(() => {
+    if (!sidebarOpen) return undefined;
+    const fechar = (e) => { if (e.key === 'Escape') setSidebarOpen(false); };
+    window.addEventListener('keydown', fechar);
+    return () => window.removeEventListener('keydown', fechar);
+  }, [sidebarOpen]);
   const isPublicPage = publicPages.includes(currentPageName);
 
   /* Novo design (V2): sidebar colapsável, ficando apenas com os ícones. */
@@ -155,6 +162,7 @@ export default function Layout({ children, currentPageName }) {
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+            aria-expanded={sidebarOpen}
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
@@ -351,7 +359,7 @@ export default function Layout({ children, currentPageName }) {
                       <p className="text-xs text-slate-500 dark:text-slate-400 truncate" title={displayEmail}>{displayEmail}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/40" aria-label="Sair da conta">
+                  <Button variant="ghost" size="icon" onClick={handleLogout} className="shrink-0 text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/40" aria-label="Sair da conta">
                     <LogOut className="w-4 h-4" />
                   </Button>
                 </div>
@@ -387,6 +395,7 @@ export default function Layout({ children, currentPageName }) {
       {sidebarOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-black/50 z-30"
+          aria-hidden="true"
           onClick={() => setSidebarOpen(false)}
         />
       )}

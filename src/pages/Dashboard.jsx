@@ -425,8 +425,8 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between group">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 group">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
             <Building2 className="w-5 h-5" />
           </div>
@@ -439,8 +439,9 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select
+            aria-label="Ano dos indicadores"
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
             className="h-10 pl-3 pr-8 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -600,9 +601,10 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {activity.length > 0 ? (
                 activity.map(p => (
-                  <div
+                  <button
+                    type="button"
                     key={p.id}
-                    className="flex items-center justify-between p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
+                    className="w-full text-left flex items-center justify-between p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
                     onClick={() => navigate(`/Organization?id=${organization.id}`)}
                   >
                     <div className="flex-1 min-w-0 mr-4">
@@ -619,7 +621,7 @@ function UserOrganDashboard({ organization, user, visibleWidgets = DEFAULT_WIDGE
                     >
                       {p.status}
                     </Badge>
-                  </div>
+                  </button>
                 ))
               ) : (
                 <div className="p-10 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhuma atividade recente identificada.</div>
