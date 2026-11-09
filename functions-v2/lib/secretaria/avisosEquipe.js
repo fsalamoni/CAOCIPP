@@ -96,11 +96,13 @@ async function lotadosDaUnidade(db, unidadeId, unidade) {
     return u ? (0, secretaria_1.lotacoesDe)(u).map((l) => l.uid) : [];
 }
 /** Processo chegou na unidade: avisa quem está lotado nela (menos quem remeteu). */
+/** Quem é parte no processo não é avisado como equipe (acompanha pelo portal). */
+const semPartes = (proc, uids) => uids.filter((u) => !(0, secretaria_1.ehParte)(proc, u));
 async function avisarUnidadeRecebeu(c, unidadeId, proc, procId, motivo) {
     const unidade = c.unidades.find((u) => u.id === unidadeId);
     if (!unidade)
         return;
-    await notificarPessoas(c.db, c.orgId, await lotadosDaUnidade(c.db, unidadeId, unidade), {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidadeId, unidade)), {
         subtipo: 'recebido', procId,
         titulo: `Processo ${proc.numero} chegou em ${unidade.nome}`,
         mensagem: `${c.userName} remeteu: ${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}`.slice(0, 300),
@@ -109,7 +111,7 @@ async function avisarUnidadeRecebeu(c, unidadeId, proc, procId, motivo) {
 }
 /** Alguém pediu a assinatura de uma pessoa da unidade numa minuta. */
 async function avisarPedidoAssinatura(c, uid, proc, procId, titulo) {
-    await notificarPessoas(c.db, c.orgId, [uid], {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, [uid]), {
         subtipo: 'assinatura', procId,
         titulo: `Assinatura pedida: ${titulo}`,
         mensagem: `${c.userName} pediu sua assinatura no processo ${proc.numero}`,
@@ -121,7 +123,7 @@ async function avisarPendencia(c, proc, procId, descricao) {
     const unidade = c.unidades.find((u) => u.id === proc.unidade_atual);
     if (!unidade || unidade.tipo !== 'gabinete')
         return;
-    await notificarPessoas(c.db, c.orgId, await lotadosDaUnidade(c.db, unidade.id, unidade), {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidade.id, unidade)), {
         subtipo: 'pendencia', procId,
         titulo: `Pendência para decidir no processo ${proc.numero}`,
         mensagem: descricao.slice(0, 300),
@@ -130,7 +132,7 @@ async function avisarPendencia(c, proc, procId, descricao) {
 }
 /** Petição da parte: avisa a unidade que está com o processo. */
 async function avisarPeticao(db, proc, procId, parteNome, titulo, tipo) {
-    await notificarPessoas(db, String(proc.organization_id), await lotadosDaUnidade(db, String(proc.unidade_atual)), {
+    await notificarPessoas(db, String(proc.organization_id), semPartes(proc, await lotadosDaUnidade(db, String(proc.unidade_atual))), {
         subtipo: 'peticao', procId,
         titulo: `Petição de ${parteNome} no processo ${proc.numero}`,
         mensagem: `${tipo ? `${tipo}: ` : ''}${titulo}`.slice(0, 300),

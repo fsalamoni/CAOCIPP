@@ -18,10 +18,15 @@ const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida'
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso: string) => iso.split('-').reverse().join('/');
 
-interface Parte { uid?: string; nome: string; polo: string; email?: string }
+interface Parte { uid?: string; nome: string; polo: string; email?: string; representantes?: Parte[] }
 
 async function destinatarios(db: admin.firestore.Firestore, proc: admin.firestore.DocumentData, filtro: (pref: AvisosParte) => boolean) {
-    const partes = ((proc.partes || []) as Parte[]).filter((x) => x.uid);
+    // Cada conta habilitada: a parte e cada representante dela.
+    const partes: Parte[] = [];
+    for (const x of (proc.partes || []) as Parte[]) {
+        if (x.uid) partes.push(x);
+        for (const r of x.representantes || []) if (r.uid) partes.push({ ...r, polo: x.polo });
+    }
     if (!partes.length) return [];
     const prefs = await db.getAll(...partes.map((x) => db.collection(COL_ACESSOS).doc(x.uid!)));
     const out: Array<{ parte: Parte; email: string }> = [];

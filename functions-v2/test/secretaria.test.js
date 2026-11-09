@@ -32,6 +32,12 @@ test('acesso: posse, sigilo restrito e admin', () => {
     assert.ok(s.podeVer({ ...proc, sigilo: 'normal' }, lotadoGab));
     assert.ok(!s.podeVer({ ...proc, sigilo: 'normal' }, semLotacao));
     assert.ok(s.podeVer(proc, { uid: 'x', isAdmin: true, unidadeIds: [] }));
+    // Quem é parte no processo não o vê nem age como equipe, nem sendo admin.
+    const comParte = { ...proc, sigilo: 'normal', partes_uids: ['p1'] };
+    assert.ok(s.ehParte(comParte, 'p1'));
+    assert.ok(!s.podeVer(comParte, { uid: 'p1', isAdmin: true, unidadeIds: ['sec'] }));
+    assert.ok(!s.podeAgir(comParte, { uid: 'p1', isAdmin: false, unidadeIds: ['sec'] }));
+    assert.ok(s.podeVer(comParte, { uid: 'outro', isAdmin: false, unidadeIds: ['sec'] }));
 });
 
 test('rito: saneamento e fase seguinte', () => {

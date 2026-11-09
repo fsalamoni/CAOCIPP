@@ -25,6 +25,7 @@ const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const POLOS = ['requerente', 'requerido', 'interessado', 'terceiro'];
 const MAX_PARTES = 50;
+const MAX_REPRESENTANTES = 5;
 function sanitizePartes(input) {
     const lista = Array.isArray(input) ? input.slice(0, MAX_PARTES) : [];
     return lista
@@ -144,8 +145,10 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
             processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, partes: (data.partes || []).map((_a) => {
-                    var { convite_hash, uid } = _a, x = __rest(_a, ["convite_hash", "uid"]);
-                    return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null }));
+                    var { convite_hash, uid, representantes } = _a, x = __rest(_a, ["convite_hash", "uid", "representantes"]);
+                    return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null, representantes: (representantes || []).map(({ convite_hash: ch, uid: u, nome, email }) => ({
+                            nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null,
+                        })) }));
                 }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], acoes_feitas: data.acoes_feitas || {} }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos,
@@ -202,7 +205,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const calendario = p.action === 'abrirPrazo'
         ? (0, secretaria_1.sanitizeCalendario)((_d = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _d === void 0 ? void 0 : _d.calendario)
         : undefined;
-    const convite = { token: '', email: '', parte: '', numero: '' };
+    const convite = { token: '', email: '', parte: '', numero: '', representaQuem: '' };
     let recebeu = null;
     let pendenciaAberta = null;
     const resultado = await db.runTransaction(async (tx) => {
@@ -394,33 +397,66 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const parte = partes[idx];
             if (!Number.isInteger(idx) || !parte)
                 throw new https_1.HttpsError('invalid-argument', 'Parte inválida');
+            const reps = [...(parte.representantes || [])];
+            let ridx = p.representante_idx === undefined || p.representante_idx === null ? -1 : Number(p.representante_idx);
+            const novoRep = p.action === 'convidarParte' && p.representante && typeof p.representante === 'object' ? p.representante : null;
+            if (novoRep) {
+                const nome = (0, secretaria_1.texto)(novoRep.nome, 120);
+                if (!nome)
+                    throw new https_1.HttpsError('invalid-argument', 'Informe o nome do representante');
+                if (reps.length >= MAX_REPRESENTANTES)
+                    throw new https_1.HttpsError('invalid-argument', `Até ${MAX_REPRESENTANTES} representantes por parte`);
+                const emailRep = (0, secretaria_1.texto)(novoRep.email, 120);
+                reps.push(Object.assign({ nome }, (emailRep ? { email: emailRep } : {})));
+                ridx = reps.length - 1;
+            }
+            const alvo = ridx >= 0 ? reps[ridx] : parte;
+            if (!alvo)
+                throw new https_1.HttpsError('invalid-argument', 'Representante inválido');
+            const rotulo = ridx >= 0 ? `${alvo.nome}, representante de ${parte.nome} (${parte.polo})` : `${parte.nome} (${parte.polo})`;
+            const dadosMov = Object.assign({ parte_idx: idx }, (ridx >= 0 ? { representante: alvo.nome } : {}));
             // Convite anterior ainda não usado deixa de valer em qualquer dos dois casos.
-            if (parte.convite_hash)
-                tx.set(db.collection(context_1.COL.convites).doc(parte.convite_hash), { revogado: true }, { merge: true });
+            if (alvo.convite_hash)
+                tx.set(db.collection(context_1.COL.convites).doc(alvo.convite_hash), { revogado: true }, { merge: true });
             if (p.action === 'revogarParte') {
-                const { uid: antigo, convite_hash: _c } = parte, resto = __rest(parte, ["uid", "convite_hash"]);
-                partes[idx] = resto;
-                const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acesso_revogado', `Acesso de ${parte.nome} (${parte.polo}) ao portal das partes revogado.`, { parte_idx: idx });
+                const antigo = alvo.uid;
+                if (ridx >= 0) {
+                    reps.splice(ridx, 1);
+                    partes[idx] = Object.assign(Object.assign({}, parte), { representantes: reps });
+                }
+                else {
+                    const { uid: _u, convite_hash: _c } = parte, resto = __rest(parte, ["uid", "convite_hash"]);
+                    partes[idx] = resto;
+                }
+                const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acesso_revogado', antigo || alvo.convite_hash ? `Acesso de ${rotulo} ao portal das partes revogado.` : `${rotulo} retirado do processo.`, dadosMov);
                 tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { partes }), (antigo ? { partes_uids: firestore_1.FieldValue.arrayRemove(antigo) } : {})));
                 return mov;
             }
-            if (parte.uid)
-                throw new https_1.HttpsError('failed-precondition', 'Esta parte já acompanha o processo. Revogue o acesso antes de convidar de novo.');
-            const email = (0, secretaria_1.texto)(p.email, 120) || parte.email || '';
+            if (alvo.uid)
+                throw new https_1.HttpsError('failed-precondition', `${ridx >= 0 ? 'Este representante' : 'Esta parte'} já acompanha o processo. Revogue o acesso antes de convidar de novo.`);
+            const email = (0, secretaria_1.texto)(p.email, 120) || alvo.email || '';
             if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
                 throw new https_1.HttpsError('invalid-argument', 'E-mail inválido');
             convite.token = (0, crypto_1.randomBytes)(24).toString('base64url');
             convite.email = email;
-            convite.parte = parte.nome;
+            convite.parte = alvo.nome;
+            convite.representaQuem = ridx >= 0 ? parte.nome : '';
             convite.numero = data.numero;
             const hash = (0, secretaria_1.sha256)(convite.token);
             tx.set(db.collection(context_1.COL.convites).doc(hash), {
                 organization_id: orgId, processo_id: ref.id, parte_idx: idx, parte_nome: parte.nome, email,
+                representante_idx: ridx >= 0 ? ridx : null, representante_nome: ridx >= 0 ? alvo.nome : null,
                 criado_por: c.ctx.uid, criado_em: new Date().toISOString(),
                 expira_em: new Date(Date.now() + CONVITE_DIAS * 86400000).toISOString(), usado_por: null, revogado: false,
             });
-            partes[idx] = Object.assign(Object.assign(Object.assign({}, parte), { convite_hash: hash }), (email ? { email } : {}));
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'convite', `${parte.nome} (${parte.polo}) convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}.`, { parte_idx: idx });
+            const atualizado = Object.assign(Object.assign(Object.assign({}, alvo), { convite_hash: hash }), (email ? { email } : {}));
+            if (ridx >= 0) {
+                reps[ridx] = atualizado;
+                partes[idx] = Object.assign(Object.assign({}, parte), { representantes: reps });
+            }
+            else
+                partes[idx] = atualizado;
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'convite', `${rotulo} convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}.`, dadosMov);
             tx.update(ref, Object.assign(Object.assign({}, mov), { partes }));
             return mov;
         }
@@ -439,7 +475,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const enviado = convite.email ? await (0, email_1.sendEmail)({
             to: convite.email,
             subject: `Convite para acompanhar o processo ${convite.numero}`,
-            html: `<p>Olá, ${escapar(convite.parte)}.</p><p>Você foi habilitado a acompanhar o processo <b>${escapar(convite.numero)}</b> e a peticionar nele pelo portal das partes.</p><p><a href="${link}">Aceitar o convite</a> (vale por ${CONVITE_DIAS} dias).</p><p>Entre com sua conta Google ou crie uma senha. Se você não esperava este e-mail, ignore-o.</p>`,
+            html: `<p>Olá, ${escapar(convite.parte)}.</p><p>Você foi habilitado a acompanhar o processo <b>${escapar(convite.numero)}</b>${convite.representaQuem ? ` como representante de <b>${escapar(convite.representaQuem)}</b>` : ''} e a peticionar nele pelo portal das partes.</p><p><a href="${link}">Aceitar o convite</a> (vale por ${CONVITE_DIAS} dias).</p><p>Entre com sua conta Google ou crie uma senha. Se você não esperava este e-mail, ignore-o.</p>`,
         }).catch(() => false) : false;
         return { success: true, version: resultado.version, link, emailEnviado: enviado };
     }

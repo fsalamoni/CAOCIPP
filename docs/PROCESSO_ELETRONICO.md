@@ -42,7 +42,7 @@ repositório).
 | Secretaria | Lotado em unidade do tipo `secretaria` | Autua, junta, tramita, muda fase, atribui, sobrestá e arquiva quando tem o processo |
 | Decisão | Lotado em unidade do tipo `gabinete` | Os mesmos atos quando o processo está no gabinete (ex.: minuta de decisão, assinatura, juntada, devolução) |
 | Assessoria e outras | Lotado em unidade do tipo `assessoria` ou `outra` | Os mesmos atos de movimentação quando tem o processo (ex.: estudo e minuta) |
-| Partes | Externas, com conta própria, **nunca membros do órgão** | Pelo portal (`/Portal`): acompanham os processos em que foram habilitadas e peticionam a qualquer tempo |
+| Partes e representantes | Qualquer conta (externa **ou de membro do órgão**), habilitada por convite; o vínculo é por processo, nunca por `userOrganizations` | Pelo portal (`/Portal`): acompanham os processos em que foram habilitadas e peticionam a qualquer tempo. Um representante (advogado, procurador, preposto) tem a própria conta e fala pela parte. Quem é parte num processo **não é o órgão nele**: veja "Parte e membro: dois papéis" |
 
 O poder de movimentar vem da **posse**: o processo está sempre com uma unidade
 (`unidade_atual`) e só quem está lotado nela age sobre ele.
@@ -196,9 +196,13 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `notifications/{id}` (coleção da plataforma) | avisos da equipe: `user_id, type: 'processo_eletronico', subtype, title, message, organization_id, entity_type: 'processo_eletronico', entity_id (processo), read, created_at` — gravada só pelas functions; o dono lê e marca como lida |
 | `userPreferences/{uid}.notificationPreferences.processo_eletronico` | `{ sino, email }` — preferência de aviso da pessoa, gravada pelo cliente |
 
-No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
-`convite_hash` (último convite); `partes_uids[]` lista as contas habilitadas e
-é o que o portal consulta.
+No processo, cada item de `partes[]` pode ter `uid` (conta habilitada),
+`convite_hash` (último convite) e `representantes[]` (até 5 por parte, cada um
+`{ nome, email?, uid?, convite_hash?, habilitada_em?, conta? }`);
+`partes_uids[]` lista todas as contas habilitadas (partes e representantes) e
+é o que o portal consulta e o que impede o acesso como equipe. No aceite, a
+function grava `users/{uid}.portal_partes = true` (só para o menu do SIGO
+oferecer o portal a quem também é membro).
 
 O processo guarda a **cópia das fases** do rito com que foi autuado. Editar o
 rito incrementa `versao` e só vale para os próximos processos.
@@ -328,6 +332,46 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   também com o processo sobrestado ou arquivado.
 - **Revogação:** Revogar tira a conta de `partes_uids`, invalida o convite e
   grava `acesso_revogado`. A parte deixa de ver o processo na hora.
+
+## Parte e membro: dois papéis (nov/2026)
+
+A plataforma serve a qualquer órgão ou entidade (Ministério Público, conselho
+profissional, entidade esportiva, OSC, empresa). Em todas, a mesma pessoa pode
+ser **membro** de um órgão (equipe, gestor, decisor, admin) e, em outro
+processo, **parte** ou **representante de parte**: um conselheiro
+representado num processo ético, um empregado num processo de contratação, um
+atleta dirigente num processo disciplinar. São papéis distintos e não se
+misturam dentro de um processo.
+
+- **Impedimento no servidor.** `ehParte(proc, uid)` (`shared/secretaria.ts`)
+  é verdadeiro quando `uid` está em `partes_uids`. `podeVer` e `podeAgir`
+  devolvem falso para quem é parte, **mesmo admin do órgão ou lotado na
+  unidade que tem o processo**. `lerProcesso` recusa com `failed-precondition`
+  ("Você é parte neste processo. Acompanhe-o pelo Portal das partes.");
+  `listar`, caixa, Meu trabalho, busca e painel não trazem o processo para
+  essa pessoa. Os avisos à equipe (processo recebido, pedido de assinatura,
+  pendência, petição, prazos vencendo) pulam quem é parte no processo.
+- **Tela do órgão.** Quem abre por engano um processo em que é parte vê o
+  aviso "Você é parte neste processo" com o botão "Abrir no Portal das
+  partes" e Voltar; nenhuma ferramenta da equipe aparece.
+- **Portal como lugar único da parte.** O menu do SIGO mostra "Processos em
+  que sou parte" (ícone de balança) a quem tem `users.portal_partes`; o portal
+  mostra "Ir para o SIGO" a quem é membro de algum órgão. Dentro do portal, a
+  pessoa é só parte: nada do órgão aparece. Com processos em mais de um órgão
+  ou entidade, a lista "Meus processos" vem **separada por órgão** (título com
+  o nome e a contagem) e ganha um filtro por órgão.
+- **Representante da parte.** Ao lado de cada parte, a equipe tem
+  "Representante": informa nome e e-mail e gera o convite (`convidarParte`
+  com `representante: { nome, email? }`); para um representante já listado,
+  Convidar/Novo convite e Revogar usam `representante_idx`. O representante
+  entra com a própria conta, vê o processo exatamente como a parte e aparece
+  na lista como "Você representa X (polo)" com a etiqueta Representante. O que
+  ele protocola sai como "Dra. Rita, representante de Carlos" no movimento,
+  na pendência ("Carlos (parte, por Dra. Rita)"), no autor e na assinatura do
+  documento, na íntegra e na certidão. Avisos por e-mail da parte chegam
+  também aos representantes habilitados. Revogar um representante tira a conta
+  de `partes_uids` e o retira da lista (se nunca teve convite nem conta, o
+  movimento diz "retirado do processo").
 
 ### Portal completo (etapa 4, nov/2026)
 
@@ -616,6 +660,9 @@ O portal das partes mostra o diagrama sem as orientações internas.
 
 ## Limites conhecidos
 
+- O impedimento de quem é parte vale a partir do aceite do convite: até lá, a
+  pessoa ainda vê o processo como membro. Não há impedimento por parentesco
+  ou interesse: só por constar como parte ou representante habilitado.
 - Partes não têm verificação em duas etapas. A íntegra em PDF do portal segue
   os mesmos limites de tamanho da exportação da equipe.
 - A marca de lido do leitor e o rascunho da manifestação ficam no navegador

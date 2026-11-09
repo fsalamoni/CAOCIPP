@@ -61,6 +61,17 @@ export interface ProcessoAcesso {
     unidade_atual: string;
     unidades_historico?: string[];
     sigilo?: string;
+    /** Contas habilitadas como parte ou representante de parte (portal). */
+    partes_uids?: string[];
+}
+
+/**
+ * Quem é parte (ou representante de parte) num processo só o alcança pelo
+ * portal das partes, mesmo sendo membro, gestor ou admin do órgão: nesse
+ * processo a pessoa não é o órgão. Vale para ler, agir e receber avisos.
+ */
+export function ehParte(proc: Pick<ProcessoAcesso, 'partes_uids'>, uid: string): boolean {
+    return (proc.partes_uids || []).includes(uid);
 }
 
 export const MAX_TEXTO_CURTO = 200;
@@ -180,6 +191,7 @@ export function proximaFase(rito: Rito, faseAtualId: string): Fase | null {
 
 /** Quem tem o processo consigo: lotados na unidade que detém a posse. */
 export function podeAgir(proc: ProcessoAcesso, ctx: ContextoUsuario): boolean {
+    if (ehParte(proc, ctx.uid)) return false;
     return ctx.unidadeIds.includes(proc.unidade_atual);
 }
 
@@ -190,6 +202,7 @@ export function podeAgir(proc: ProcessoAcesso, ctx: ContextoUsuario): boolean {
  *   - sigilo restrito: só unidades por onde o processo passou.
  */
 export function podeVer(proc: ProcessoAcesso, ctx: ContextoUsuario): boolean {
+    if (ehParte(proc, ctx.uid)) return false;
     if (ctx.isAdmin) return true;
     if (podeAgir(proc, ctx)) return true;
     if (ctx.unidadeIds.length === 0) return false;

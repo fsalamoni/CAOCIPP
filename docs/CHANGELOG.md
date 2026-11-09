@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Parte e membro: dois papéis
+- **Impedimento:** quem é parte (ou representante) num processo não o vê nem
+  age nele como equipe, mesmo admin ou lotado na unidade; a tela do órgão
+  mostra "Você é parte neste processo" com atalho para o portal. Avisos à
+  equipe pulam quem é parte.
+- **Menu "Processos em que sou parte"** no SIGO para quem aceitou um convite;
+  "Ir para o SIGO" no portal para quem é membro de algum órgão.
+- **Portal por órgão:** com processos em mais de um órgão ou entidade, a
+  lista vem separada por órgão, com filtro.
+- **Representante da parte:** a equipe convida advogado, procurador ou
+  preposto (até 5 por parte), que entra com a própria conta e protocola em
+  nome da parte, assinando como "Fulana, representante de X".
+
 ### 09/11/2026 — Admin e escala (etapa 7)
 - **Primeiros passos** no Painel Administrativo: "Configuração: N de 4" com
   atalho para o que falta (unidade, equipe, rito, tipo).

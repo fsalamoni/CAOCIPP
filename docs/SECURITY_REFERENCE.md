@@ -151,9 +151,13 @@ Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
   órgão bloqueia equipe e partes no servidor, sem apagar dados, e é auditada.
 - Movimentos encadeados por SHA-256: alteração direta no banco é detectada na
   consulta e na exportação. Detalhes em [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
-- Portal das partes (`secretariaPortal`, `secConvites` fechada): a parte é
-  usuário autenticado sem vínculo em `userOrganizations`; o acesso vem só de
-  `processo.partes_uids`, gravado no aceite do convite. O convite guarda apenas
+- Portal das partes (`secretariaPortal`, `secConvites` fechada): a parte (ou o
+  representante dela) é qualquer usuário autenticado, com ou sem vínculo em
+  `userOrganizations`; o acesso ao portal vem só de `processo.partes_uids`,
+  gravado no aceite do convite. Quem está em `partes_uids` é **impedido** no
+  lado do órgão daquele processo (`ehParte` em `podeVer`/`podeAgir`,
+  `lerProcesso` recusa com `failed-precondition`, avisos à equipe o pulam),
+  mesmo sendo admin ou lotado na unidade. O convite guarda apenas
   o SHA-256 do token (24 bytes aleatórios), vale 7 dias, é aceito por uma única
   conta e é invalidado na revogação ou em novo convite. A parte vê somente
   documentos juntados marcados como visíveis e movimentos públicos; petição

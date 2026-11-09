@@ -72,7 +72,16 @@ async function lerComoParte(db, uid, id, tx) {
     return { ref, data, org };
 }
 function parteDoUsuario(proc, uid) {
-    return (proc.partes || []).find((p) => p.uid === uid);
+    const partes = (proc.partes || []);
+    const propria = partes.find((p) => p.uid === uid);
+    if (propria)
+        return { nome: propria.nome, polo: propria.polo, como: 'parte', assina: propria.nome, rotulo: `${propria.nome} (${propria.polo})` };
+    for (const p of partes) {
+        const r = (p.representantes || []).find((x) => x.uid === uid);
+        if (r)
+            return { nome: p.nome, polo: p.polo, como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${p.polo})` };
+    }
+    return undefined;
 }
 exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
     var _a, _b, _c, _d, _e, _f, _g;
@@ -107,13 +116,33 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             const parte = partes[conv.parte_idx];
             if (!parte || parte.nome !== conv.parte_nome)
                 throw new https_1.HttpsError('failed-precondition', 'A parte do convite não existe mais no processo');
-            if (parte.uid && parte.uid !== uid)
-                throw new https_1.HttpsError('failed-precondition', 'Esta parte já está vinculada a outra conta');
-            partes[conv.parte_idx] = Object.assign(Object.assign({}, parte), { uid, habilitada_em: new Date().toISOString(), conta: nomeConta });
-            const c = contextoParte(db, proc, uid, `${parte.nome} (parte)`);
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, proc, 'habilitacao', `${parte.nome} (${parte.polo}) passou a acompanhar o processo pelo portal das partes.`, { parte_idx: conv.parte_idx });
+            const ridx = typeof conv.representante_idx === 'number' ? conv.representante_idx : -1;
+            let rotulo = `${parte.nome} (${parte.polo})`;
+            let assina = parte.nome;
+            if (ridx >= 0) {
+                // Convite a um representante: a conta fica no representante, não na parte.
+                const reps = [...(parte.representantes || [])];
+                const rep = reps[ridx];
+                if (!rep || rep.nome !== conv.representante_nome)
+                    throw new https_1.HttpsError('failed-precondition', 'O representante do convite não consta mais no processo');
+                if (rep.uid && rep.uid !== uid)
+                    throw new https_1.HttpsError('failed-precondition', 'Este representante já está vinculado a outra conta');
+                reps[ridx] = Object.assign(Object.assign({}, rep), { uid, habilitada_em: new Date().toISOString(), conta: nomeConta });
+                partes[conv.parte_idx] = Object.assign(Object.assign({}, parte), { representantes: reps });
+                rotulo = `${rep.nome}, representante de ${parte.nome} (${parte.polo}),`;
+                assina = `${rep.nome}, representante de ${parte.nome}`;
+            }
+            else {
+                if (parte.uid && parte.uid !== uid)
+                    throw new https_1.HttpsError('failed-precondition', 'Esta parte já está vinculada a outra conta');
+                partes[conv.parte_idx] = Object.assign(Object.assign({}, parte), { uid, habilitada_em: new Date().toISOString(), conta: nomeConta });
+            }
+            const c = contextoParte(db, proc, uid, `${assina} (parte)`);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, proc, 'habilitacao', `${rotulo} passou a acompanhar o processo pelo portal das partes.`, Object.assign({ parte_idx: conv.parte_idx }, (ridx >= 0 ? { representante: conv.representante_nome } : {})));
             tx.update(ref, Object.assign(Object.assign({}, mov), { partes, partes_uids: firestore_1.FieldValue.arrayUnion(uid) }));
             tx.update(conviteRef, { usado_por: uid, usado_em: new Date().toISOString() });
+            // Marca no perfil para o menu do SIGO oferecer "Processos em que sou parte" a quem também é membro de órgão.
+            tx.set(db.collection('users').doc(uid), { portal_partes: true }, { merge: true });
             return { success: true, processoId: ref.id, organizationId: proc.organization_id };
         });
     }
@@ -152,7 +181,8 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             return {
                 id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, orgao: (_b = ativo.get(x.organization_id)) === null || _b === void 0 ? void 0 : _b.nome,
                 fase_nome: ((_c = (x.fases || []).find((f) => f.id === x.fase_atual)) === null || _c === void 0 ? void 0 : _c.nome) || x.fase_atual,
-                polo: parte === null || parte === void 0 ? void 0 : parte.polo, ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null,
+                polo: parte === null || parte === void 0 ? void 0 : parte.polo, parte_nome: (parte === null || parte === void 0 ? void 0 : parte.nome) || null, como: (parte === null || parte === void 0 ? void 0 : parte.como) || 'parte', representante: (parte === null || parte === void 0 ? void 0 : parte.representante) || null,
+                ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null,
             };
         });
         const ordem = { prazo: 0, peticao: 1, novidade: 2 };
@@ -208,7 +238,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
         const bytes = await (0, exportar_1.montarPdfAutos)({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
-            geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.nome) || nomeConta} (parte)`, nomeUnidade: () => '',
+            geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.assina) || nomeConta} (parte)`, nomeUnidade: () => '',
         });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
     }
@@ -230,7 +260,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             `Prazos em aberto: ${(proc.prazos || []).filter((x) => x.status === 'aberto').map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
             'Últimos movimentos:',
             ...movs.map((m) => `${brDataHora(m.em)} — ${m.descricao}`), '',
-            `Certidão emitida pelo portal das partes em ${brDataHora(new Date().toISOString())} a pedido de ${(parte === null || parte === void 0 ? void 0 : parte.nome) || nomeConta}.`,
+            `Certidão emitida pelo portal das partes em ${brDataHora(new Date().toISOString())} a pedido de ${(parte === null || parte === void 0 ? void 0 : parte.assina) || nomeConta}.`,
             `Confira cada documento pelo código impresso nas folhas em ${process.env.APP_URL || 'https://sigo-caocipp.web.app'}/Conferir.`,
         ];
         const r = await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(linhas.join('\n')), {}, { semCabecalho: true });
@@ -304,7 +334,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         if (buf)
             paginas = await (0, autos_1.paginasDeArquivo)(buf, String(p.mime));
         else if (conteudoDoc) {
-            const rr = await (0, pdfDocumento_1.renderizarDocumento)(conteudoDoc, {}, { semCabecalho: true, sha256: hashConteudo, assinaturas: [{ nome: (parteAntes === null || parteAntes === void 0 ? void 0 : parteAntes.nome) || nomeConta, em: agora }] });
+            const rr = await (0, pdfDocumento_1.renderizarDocumento)(conteudoDoc, {}, { semCabecalho: true, sha256: hashConteudo, assinaturas: [{ nome: (parteAntes === null || parteAntes === void 0 ? void 0 : parteAntes.assina) || nomeConta, em: agora }] });
             paginas = rr.paginas;
             pdf = { path: (0, autos_1.caminhoPdf)((0, documentos_1.caminhoArquivo)(procAntes.organization_id, procRef.id, docRef.id)), sha256: (0, secretaria_1.sha256)(rr.buffer) };
             await admin.storage().bucket().file(pdf.path).save(rr.buffer, { contentType: 'application/pdf', resumable: false });
@@ -323,21 +353,21 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             const interrompe = ((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.peticao_interrompe) === true;
             const pend = {
                 id: procRef.collection('_').doc().id, tipo: 'peticao', interrompe, status: 'aberta',
-                descricao: `Apreciar petição nº ${ordem} de ${parte.nome} (${parte.polo})${tipoPeticao ? ` [${tipoPeticao}]` : ''}: ${titulo}${tempest ? `. ${tempest}` : ''}`,
-                documento_id: docRef.id, aberta_em: agora, aberta_por: `${parte.nome} (parte)`,
+                descricao: `Apreciar petição nº ${ordem} de ${parte.rotulo}${tipoPeticao ? ` [${tipoPeticao}]` : ''}: ${titulo}${tempest ? `. ${tempest}` : ''}`,
+                documento_id: docRef.id, aberta_em: agora, aberta_por: parte.como === 'representante' ? `${parte.nome} (parte, por ${parte.representante})` : `${parte.nome} (parte)`,
             };
             const pendencias = [...(proc.pendencias || []), pend];
-            const c = contextoParte(db, proc, uid, `${parte.nome} (parte)`);
-            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, proc, 'peticao', `Petição protocolada por ${parte.nome} (${parte.polo}): ${titulo}. Juntada como documento nº ${ordem}, ${(0, autos_1.textoFolhas)(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`, { documento_id: docRef.id, ordem, folha_inicial: folha, paginas });
+            const c = contextoParte(db, proc, uid, `${parte.assina} (parte)`);
+            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, proc, 'peticao', `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${(0, autos_1.textoFolhas)(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`, { documento_id: docRef.id, ordem, folha_inicial: folha, paginas });
             const codigo = (0, autos_1.novoCodigo)();
-            const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? { mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.nome, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.nome} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.nome, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
+            const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? { mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
             tx.update(procRef, Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))));
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(db, procRef.id, uid);
-        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_g = parteDoUsuario(procAntes, uid)) === null || _g === void 0 ? void 0 : _g.nome) || 'A parte'), titulo, tipoPeticao);
+        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_g = parteDoUsuario(procAntes, uid)) === null || _g === void 0 ? void 0 : _g.assina) || 'A parte'), titulo, tipoPeticao);
         return Object.assign({ success: true }, r);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

@@ -24,7 +24,8 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  Gavel
+  Gavel,
+  Scale
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -207,6 +208,18 @@ export default function Layout({ children, currentPageName }) {
                   onClick={() => setSidebarOpen(false)}
                   collapsed={isCollapsed}
                 />
+                {/* Quem é parte em algum processo (próprio ou como representante) tem o portal à mão,
+                    separado das ferramentas dos órgãos: lá a pessoa não é o órgão. */}
+                {userProfile?.portal_partes && (
+                  <NavItem
+                    to="Portal"
+                    icon={Scale}
+                    label="Processos em que sou parte"
+                    active={false}
+                    onClick={() => setSidebarOpen(false)}
+                    collapsed={isCollapsed}
+                  />
+                )}
               </div>
 
               {/* Organizations Section */}

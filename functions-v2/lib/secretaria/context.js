@@ -99,6 +99,10 @@ async function lerProcesso(c, id, tx) {
     const ref = c.db.collection(exports.COL.processos).doc(id);
     const snap = tx ? await tx.get(ref) : await ref.get();
     const data = snap.data();
+    // Membro que é parte neste processo: aqui ele não é o órgão; só pelo portal.
+    if (data && data.organization_id === c.orgId && (0, secretaria_1.ehParte)(data, c.ctx.uid)) {
+        throw new https_1.HttpsError('failed-precondition', 'Você é parte neste processo. Acompanhe-o pelo Portal das partes.');
+    }
     if (!snap.exists || !data || data.organization_id !== c.orgId || !(0, secretaria_1.podeVer)(data, c.ctx)) {
         throw new https_1.HttpsError('not-found', 'Processo não encontrado');
     }

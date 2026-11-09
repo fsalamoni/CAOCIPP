@@ -18,6 +18,8 @@ import { NativeSelect, STATUS_ROTULO, dataHora, documentoDaUnidade, modelosDaUni
 import FluxoRito from './FluxoRito';
 import LeitorAutos from './LeitorAutos';
 import ErroQuery from './ErroQuery';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 
@@ -58,6 +60,19 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     }, [algoAberto, podeMexer]);
 
     if (q.isLoading) return <div className="py-8 flex gap-2 items-center text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Carregando processo…</div>;
+    if (q.error?.message?.includes('Portal das partes')) {
+        // Membro que é parte neste processo: aqui ele não é o órgão.
+        return (
+            <div role="alert" className="py-8 max-w-xl space-y-3">
+                <p className="font-medium">Você é parte neste processo.</p>
+                <p className="text-sm text-slate-600 dark:text-slate-300">Neste processo você não atua pelo órgão: acompanhe-o e manifeste-se pelo Portal das partes, como qualquer outra parte. As ferramentas da equipe ficam fechadas para você aqui.</p>
+                <div className="flex flex-wrap gap-2">
+                    <Button asChild size="sm"><Link to={`${createPageUrl('Portal')}?p=${procId}`}>Abrir no Portal das partes</Link></Button>
+                    <Button variant="ghost" size="sm" onClick={onVoltar}>Voltar</Button>
+                </div>
+            </div>
+        );
+    }
     if (q.error) return <ErroQuery q={q}><Button variant="ghost" size="sm" onClick={onVoltar}>Voltar</Button></ErroQuery>;
 
     const { movimentos, documentos, cadeiaQuebradaEm, hoje } = q.data;
@@ -84,8 +99,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     };
     const mov = (action, extra, msg) => executar(() => secProcesso(orgId, action, { id: procId, version: p.version, ...extra }), msg);
     const doc = (action, extra, msg) => executar(() => secDocumento(orgId, procId, action, extra), msg);
-    const convidar = (parte_idx, email) => executar(async () => {
-        const r = await secProcesso(orgId, 'convidarParte', { id: procId, version: p.version, parte_idx, email });
+    const convidar = (parte_idx, email, extra = {}) => executar(async () => {
+        const r = await secProcesso(orgId, 'convidarParte', { id: procId, version: p.version, parte_idx, email, ...extra });
         setLinkConvite(r);
     }, 'Convite gerado');
     const membrosDaUnidade = estado.membros.filter((m) => unidadeAtual?.membros_uids.includes(m.uid));
@@ -440,12 +455,28 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <p>Partes</p>
                                     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {p.partes.map((x, i) => (
-                                            <li key={i} className="flex flex-wrap items-center gap-2 py-1.5">
-                                                <span className="flex-1 min-w-[10rem]">{x.nome} ({x.polo}){x.email ? ` · ${x.email}` : ''}</span>
-                                                {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
-                                                {x.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
-                                                {x.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x })}>{x.portal ? 'Novo convite' : 'Convidar'}</Button>}
-                                                {x.portal && <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i }, 'Acesso revogado')}>Revogar</Button>}
+                                            <li key={i} className="py-1.5 space-y-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="flex-1 min-w-[10rem]">{x.nome} ({x.polo}){x.email ? ` · ${x.email}` : ''}</span>
+                                                    {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
+                                                    {x.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
+                                                    {x.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x })}>{x.portal ? 'Novo convite' : 'Convidar'}</Button>}
+                                                    {x.portal && <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i }, 'Acesso revogado')}>Revogar</Button>}
+                                                    <Button size="sm" variant="ghost" className="gap-1" disabled={!podeMexer || ocupado} title={`Advogado, procurador ou preposto que fala por ${x.nome}`} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, novoRep: true })}><UserPlus className="w-4 h-4" /> Representante</Button>
+                                                </div>
+                                                {(x.representantes || []).length > 0 && (
+                                                    <ul className="pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-1">
+                                                        {x.representantes.map((r, k) => (
+                                                            <li key={k} className="flex flex-wrap items-center gap-2 text-xs">
+                                                                <span className="flex-1 min-w-[10rem]">{r.nome}, representante{r.email ? ` · ${r.email}` : ''}</span>
+                                                                {r.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
+                                                                {r.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
+                                                                {r.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, representante: r, representante_idx: k })}>{r.portal ? 'Novo convite' : 'Convidar'}</Button>}
+                                                                <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i, representante_idx: k }, r.portal ? 'Acesso revogado' : 'Representante retirado')}>{r.portal ? 'Revogar' : 'Retirar'}</Button>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </li>
                                         ))}
                                     </ul>
@@ -670,14 +701,27 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
         campo = <NativeSelect label="Quem assina" value={valor} onChange={setValor} options={[['', 'Escolha…'], ...membros.filter((m) => m.uid !== estado.uid && !jaAssinaram.includes(m.uid)).map((m) => [m.uid, m.nome])]} />;
         enviar = () => doc('pedirAssinatura', { docId: acao.documento.id, uid: valor }, 'Pedido de assinatura enviado');
     } else if (tipo === 'convidar') {
-        titulo = `Convidar ${acao.parte.nome} para o portal das partes`;
+        // Alvo: a parte, um representante já listado ou um representante novo (nome obrigatório).
+        const alvo = acao.representante || (acao.novoRep ? null : acao.parte);
+        titulo = acao.novoRep ? `Convidar um representante de ${acao.parte.nome}` : `Convidar ${alvo.nome} para o portal das partes`;
+        exigeValor = !!acao.novoRep;
         campo = (
-            <div>
-                <Label htmlFor="conv-email">E-mail para envio do convite</Label>
-                <Input id="conv-email" type="email" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder={acao.parte.email || 'Opcional: sem e-mail, você copia o link'} />
+            <div className="space-y-3">
+                {acao.novoRep && (
+                    <div>
+                        <Label htmlFor="conv-nome">Nome do representante</Label>
+                        <Input id="conv-nome" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Advogado, procurador, preposto…" autoFocus />
+                    </div>
+                )}
+                {(acao.novoRep || acao.representante) && <p className="text-xs text-slate-600 dark:text-slate-400">O representante tem a própria conta e vê o processo como {acao.parte.nome}; o que ele protocolar sai em nome da parte, assinado por ele.</p>}
+                <div>
+                    <Label htmlFor="conv-email">E-mail para envio do convite</Label>
+                    <Input id="conv-email" type="email" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder={alvo?.email || 'Opcional: sem e-mail, você copia o link'} />
+                </div>
             </div>
         );
-        enviar = () => convidar(acao.idx, destinatario.trim() || acao.parte.email || '');
+        enviar = () => convidar(acao.idx, destinatario.trim() || alvo?.email || '',
+            acao.novoRep ? { representante: { nome: valor.trim(), email: destinatario.trim() } } : acao.representante ? { representante_idx: acao.representante_idx } : {});
     }
     if (tipo === 'tramitar' || tipo === 'devolver') {
         const devolver = tipo === 'devolver';
