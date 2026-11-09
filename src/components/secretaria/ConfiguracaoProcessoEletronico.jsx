@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, GitBranch, Loader2, Plus, Shapes, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, FileUp, GitBranch, Loader2, Plus, Shapes, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
 import { NativeSelect, TIPOS_UNIDADE } from './comum';
 import RitoEditor from './RitoEditor';
+import PropostaRito from './PropostaRito';
 import FluxoRito from './FluxoRito';
 import ConfiguracaoDocumentos from './ConfiguracaoDocumentos';
 import ConfiguracaoCalendario from './ConfiguracaoCalendario';
@@ -118,14 +119,18 @@ function Unidades({ orgId, estado }) {
 function Ritos({ orgId, estado }) {
     const { salvar, salvando } = useSalvar(orgId);
     const [rito, setRito] = useState(null);
+    const [importar, setImportar] = useState(false);
     return (
         <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-                <div>
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                <div className="min-w-0 flex-1">
                     <CardTitle className="text-base">Ritos</CardTitle>
-                    <CardDescription>O caminho do processo, fase a fase. Monte do zero, parta de um modelo ou importe de planilha ou diagrama.</CardDescription>
+                    <CardDescription>O caminho do processo, fase a fase. Monte do zero, parta de um modelo ou importe de planilha, Word, PDF ou diagrama (BPMN, draw.io, Mermaid): o sistema propõe o rito completo, com unidades, ações, modelos e alternativas, para você revisar e implantar.</CardDescription>
                 </div>
-                <Button size="sm" className="gap-1 shrink-0" onClick={() => setRito({ nome: '', descricao: '', fases: [{ id: `f${Date.now().toString(36)}`, nome: '' }], ativo: true })}><Plus className="w-4 h-4" /> Novo rito</Button>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setImportar(true)}><FileUp className="w-4 h-4" /> Importar de arquivo</Button>
+                    <Button size="sm" className="gap-1" onClick={() => setRito({ nome: '', descricao: '', fases: [{ id: `f${Date.now().toString(36)}`, nome: '' }], ativo: true })}><Plus className="w-4 h-4" /> Novo rito</Button>
+                </div>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {estado.ritos.map((r) => (
@@ -136,9 +141,10 @@ function Ritos({ orgId, estado }) {
                 ))}
             </CardContent>
             {rito && (
-                <RitoEditor rito={rito} onChange={setRito} onClose={() => setRito(null)} salvando={salvando}
+                <RitoEditor rito={rito} onChange={setRito} onClose={() => setRito(null)} salvando={salvando} unidades={estado.unidades}
                     onSalvar={() => salvar('salvarRito', { id: rito.id, rito, ativo: rito.ativo }, setRito)} />
             )}
+            <PropostaRito aberto={importar} orgId={orgId} estado={estado} onFechar={() => setImportar(false)} />
         </Card>
     );
 }

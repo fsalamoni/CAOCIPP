@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.texto = texto;
 exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
@@ -35,6 +35,8 @@ exports.MAX_TEXTO_CURTO = 200;
 exports.MAX_TEXTO_LONGO = 4000;
 exports.MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 exports.MAX_FASES = 30;
+exports.MAX_ACOES = 20;
+exports.MAX_MODELOS_FASE = 10;
 exports.TIPOS_ARQUIVO_PERMITIDOS = {
     'application/pdf': 'pdf',
     'image/png': 'png',
@@ -86,6 +88,7 @@ function sanitizeRito(input) {
         return { fo, id, nomeFase };
     });
     const fases = brutas.map(({ fo, id, nomeFase }) => {
+        var _a;
         const prazo = Number(fo.prazo_dias);
         const orientacao = texto(fo.orientacao, exports.MAX_TEXTO_LONGO);
         const final = fo.final === true;
@@ -100,7 +103,21 @@ function sanitizeRito(input) {
                     return alvo;
                 }))]
             : [];
-        return Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {}));
+        const unidade = texto(fo.unidade_id, 40);
+        const agente = texto(fo.agente, 80);
+        const acoes = (Array.isArray(fo.acoes) ? fo.acoes : []).map((a) => texto(a, 200)).filter(Boolean).slice(0, exports.MAX_ACOES);
+        const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, exports.MAX_MODELOS_FASE);
+        // Condições só para saídas que existem (referência pelo id do cliente ou final).
+        const condicoes = {};
+        if (fo.condicoes && typeof fo.condicoes === 'object') {
+            for (const [k, v] of Object.entries(fo.condicoes)) {
+                const alvo = (_a = ids.get(k)) !== null && _a !== void 0 ? _a : (vistos.has(k) ? k : null);
+                const rot = texto(v, 80);
+                if (alvo && rot && proximas.includes(alvo))
+                    condicoes[alvo] = rot;
+            }
+        }
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {}));
     });
     return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases };
 }

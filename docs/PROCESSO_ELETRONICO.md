@@ -123,6 +123,54 @@ pessoa confirmar.
     quebrou o campo em trechos de formatação diferentes. A ficha do modelo
     permite baixar e trocar o arquivo.
 
+## Importação de ritos (etapa 3)
+
+Em Ritos, **Importar de arquivo** lê o desenho do rito e propõe o rito
+completo: fases, unidade de cada fase, quem faz, ações, modelos de documento,
+encaminhamentos e alternativas com condição. Nada é gravado até o admin
+revisar e confirmar. A leitura é estruturada, sem IA
+(`src/lib/propostaRito.js`, testada em `src/lib/propostaRito.test.js`).
+
+- **Planilha** (.xlsx, .xls, .ods, .csv, lida no navegador): colunas com
+  cabeçalho, em qualquer ordem, entre Fase, Unidade/Setor, Responsável/Quem
+  faz, Ações, Documentos/Modelos, Segue para, Condição, Prazo e Orientação.
+  Linhas seguidas com o mesmo nome de fase são juntadas (uma linha por
+  encaminhamento ou por ação). "Segue para" aceita nome ou número da linha e
+  "Se X: Fase Y".
+- **Word e PDF** (texto extraído pela function `extrairTextoRito`): se o Word
+  tem tabela com coluna de fase, ela é lida como planilha. Senão, o texto: "Fase
+  1 – Nome", "1. Nome" ou títulos abrem fase; linhas "Unidade:", "Responsável:",
+  "Documentos:", "Segue para:", "Prazo:" e "Orientação:" preenchem a fase;
+  marcadores viram ações; "Se X, segue para Y" vira alternativa. A primeira
+  linha antes de qualquer fase vira o nome do rito.
+- **Diagramas:** BPMN 2.0 (.bpmn, Camunda, Bizagi; raias viram unidades,
+  tarefas viram fases, gateways viram alternativas com o rótulo da seta como
+  condição, objetos de dados viram modelos, anotações viram orientação),
+  draw.io (.drawio, inclusive comprimido; raias, losangos de decisão, formas de
+  documento) e Mermaid (`subgraph` vira unidade, `{}` vira decisão, rótulo da
+  seta vira condição). Também dá para colar o texto.
+
+**Revisão** (`PropostaRito.jsx`): cada fase em cartão, com nome, prazo,
+unidade (existente, nova ou nenhuma), quem faz, ações, modelos, encaminhamentos
+com condição, fase final e orientação. Ao lado: diagrama do fluxo ao vivo,
+unidades novas (renomear, tipo ou trocar por uma existente), modelos novos
+(renomear, tipo de documento ou trocar por um existente) e a opção de criar o
+tipo de processo. Unidades e modelos com o mesmo nome dos já existentes são
+ligados a eles, sem duplicar.
+
+**Implantar** (`aplicarPropostaRito`, só admin) grava tudo num lote atômico:
+as unidades novas (equipe vazia, para o gestor ou admin lotar), os modelos
+novos como esqueleto no editor (título, número, assunto, partes, local e data,
+signatário) na unidade da fase, o rito (`origem: 'importacao'`) e, se pedido, o
+tipo de processo com a unidade inicial da primeira fase. Referências a unidade
+ou modelo que não sejam do órgão são descartadas, também em `salvarRito`.
+
+**No processo:** a fase atual mostra unidade, quem faz, a lista de ações, os
+modelos indicados e as alternativas. Se a fase corre noutra unidade, aparece
+**Tramitar para lá**, com o destino já escolhido. Em Mudar fase, cada opção
+mostra a condição. O editor de ritos também edita unidade, quem faz, ações e
+condições. O portal das partes recebe só nome, prazo e ligações das fases.
+
 ## Modelo de dados
 
 Todas as coleções são fechadas ao cliente (`allow read, write: if false`). Leitura
@@ -133,7 +181,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?}], versao, ativo` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}}], versao, ativo, origem? ('importacao')` |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version` |
@@ -160,7 +208,7 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `salvarCalendario` |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario` |
 | `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
@@ -404,3 +452,8 @@ O portal das partes mostra o diagrama sem as orientações internas.
   de texto (limite do mammoth); do PDF só vem texto, até 30 páginas. Campo que
   o Word dividiu entre parágrafos não é preenchido no original. Desativar um
   modelo original não apaga o arquivo do Storage (trocar o arquivo sobrescreve).
+- Importação de ritos: até 30 unidades e 60 modelos novos por implantação. Do
+  PDF só vem o texto (sem tabelas nem desenhos); fluxograma em imagem ou PDF
+  desenhado não é lido, só BPMN, draw.io e Mermaid. Unidades criadas pelo rito
+  nascem sem equipe e os modelos criados são esqueletos para completar. A
+  unidade da fase é sugestão: tramitar continua sendo um ato da equipe.

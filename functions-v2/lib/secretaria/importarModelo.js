@@ -4,6 +4,8 @@ exports.campoConhecido = exports.MAX_MODELO_BYTES = exports.MIMES_ORIGINAL = exp
 exports.normalizarCampos = normalizarCampos;
 exports.linhasXml = linhasXml;
 exports.preencherDocx = preencherDocx;
+exports.textoDePdf = textoDePdf;
+exports.textoParaRito = textoParaRito;
 exports.interpretarModelo = interpretarModelo;
 const mammoth = require("mammoth");
 const JSZip = require("jszip");
@@ -248,6 +250,25 @@ async function interpretarPdf(buf, avisos) {
     avisos.push('PDF: o texto foi lido por linha; negrito, tabelas e imagens do PDF não vêm. Confira a formatação ou mantenha o PDF original.');
     const timbrado = cab.length || rod.length ? { cabecalho_linhas: cab.slice(0, 4), brasao: null, rodape: rod.join(' · ').slice(0, 200) } : null;
     return { doc: { type: 'doc', content: blocos.length ? blocos : [{ type: 'paragraph' }] }, timbrado };
+}
+/** Texto de um PDF, uma linha por linha visual e página separada por linha vazia. */
+async function textoDePdf(buf) {
+    const { paginas } = await linhasPdf(buf);
+    return paginas.map((p) => p.map((l) => l.texto).join('\n')).join('\n\n');
+}
+/**
+ * Texto e tabelas de um arquivo que descreve um rito (Word, PDF ou TXT), para
+ * a leitura de fases no navegador (src/lib/propostaRito.js).
+ */
+async function textoParaRito(buf, mime) {
+    if (mime === conversao_1.MIME_DOCX) {
+        const [raw, html] = await Promise.all([mammoth.extractRawText({ buffer: buf }), mammoth.convertToHtml({ buffer: buf })]);
+        const tabelas = (html.value.match(/<table[\s\S]*?<\/table>/g) || []).slice(0, 10).map((t) => (t.match(/<tr[\s\S]*?<\/tr>/g) || []).slice(0, 200).map((tr) => (tr.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/g) || []).slice(0, 20).map((c) => desXml(c.replace(/<\/p>/g, '\n').replace(/<[^>]+>/g, '')).replace(/[ \t]+/g, ' ').trim())));
+        return { texto: raw.value, tabelas };
+    }
+    if (mime === exports.MIME_PDF)
+        return { texto: await textoDePdf(buf), tabelas: [] };
+    return { texto: buf.toString('utf8'), tabelas: [] };
 }
 // ---------- entrada ----------
 async function interpretarModelo(buf, mime) {

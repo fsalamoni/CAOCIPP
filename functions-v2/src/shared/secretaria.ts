@@ -36,6 +36,16 @@ export interface Fase {
     proximas?: string[];
     /** Fase terminal: o fluxo acaba nela, mesmo que não seja a última da lista. */
     final?: boolean;
+    /** Unidade que cuida da fase (sugestão de tramitação ao entrar nela). */
+    unidade_id?: string;
+    /** Quem faz (cargo ou papel), ex.: "Analista", "Promotor". */
+    agente?: string;
+    /** O que fazer na fase, em itens. */
+    acoes?: string[];
+    /** Modelos de documento sugeridos na fase (ids de secModelos). */
+    modelos?: string[];
+    /** Condição de cada saída: { id da próxima fase: "se deferido" }. */
+    condicoes?: Record<string, string>;
 }
 export interface Rito { nome: string; descricao: string; fases: Fase[] }
 
@@ -57,6 +67,8 @@ export const MAX_TEXTO_CURTO = 200;
 export const MAX_TEXTO_LONGO = 4000;
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const MAX_FASES = 30;
+export const MAX_ACOES = 20;
+export const MAX_MODELOS_FASE = 10;
 
 export const TIPOS_ARQUIVO_PERMITIDOS: Record<string, string> = {
     'application/pdf': 'pdf',
@@ -117,6 +129,19 @@ export function sanitizeRito(input: unknown): Rito {
                 return alvo;
             }))]
             : [];
+        const unidade = texto(fo.unidade_id, 40);
+        const agente = texto(fo.agente, 80);
+        const acoes = (Array.isArray(fo.acoes) ? fo.acoes : []).map((a) => texto(a, 200)).filter(Boolean).slice(0, MAX_ACOES);
+        const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, MAX_MODELOS_FASE);
+        // Condições só para saídas que existem (referência pelo id do cliente ou final).
+        const condicoes: Record<string, string> = {};
+        if (fo.condicoes && typeof fo.condicoes === 'object') {
+            for (const [k, v] of Object.entries(fo.condicoes as Record<string, unknown>)) {
+                const alvo = ids.get(k) ?? (vistos.has(k) ? k : null);
+                const rot = texto(v, 80);
+                if (alvo && rot && proximas.includes(alvo)) condicoes[alvo] = rot;
+            }
+        }
         return {
             id,
             nome: nomeFase,
@@ -124,6 +149,11 @@ export function sanitizeRito(input: unknown): Rito {
             ...(orientacao ? { orientacao } : {}),
             ...(proximas.length ? { proximas } : {}),
             ...(final ? { final: true } : {}),
+            ...(unidade ? { unidade_id: unidade } : {}),
+            ...(agente ? { agente } : {}),
+            ...(acoes.length ? { acoes } : {}),
+            ...(modelos.length ? { modelos } : {}),
+            ...(Object.keys(condicoes).length ? { condicoes } : {}),
         };
     });
     return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases };

@@ -121,8 +121,9 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao,
                 fase_nome: (data.fases || []).find((f: { id: string }) => f.id === data.fase_atual)?.nome || data.fase_atual,
                 fase_atual: data.fase_atual,
-                // Fluxo sem as orientações internas da equipe.
-                fases: ((data.fases || []) as Array<Record<string, unknown>>).map(({ orientacao: _o, ...f }) => f),
+                // Fluxo sem o que é interno da equipe (orientação, unidade, quem faz, ações, modelos, condições).
+                fases: ((data.fases || []) as Array<Record<string, unknown>>).map(({ id, nome, prazo_dias, proximas, final }) => (
+                    { id, nome, ...(prazo_dias ? { prazo_dias } : {}), ...(proximas ? { proximas } : {}), ...(final ? { final } : {}) })),
                 partes: (data.partes || []).map((x: { nome: string; polo: string }) => ({ nome: x.nome, polo: x.polo })),
                 prazos: ((data.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto')
                     .map((x) => ({ descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em })),

@@ -1,15 +1,4 @@
 "use strict";
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaPortal = void 0;
 const admin = require("firebase-admin");
@@ -126,11 +115,8 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao,
                 fase_nome: ((_a = (data.fases || []).find((f) => f.id === data.fase_atual)) === null || _a === void 0 ? void 0 : _a.nome) || data.fase_atual,
                 fase_atual: data.fase_atual,
-                // Fluxo sem as orientações internas da equipe.
-                fases: (data.fases || []).map((_a) => {
-                    var { orientacao: _o } = _a, f = __rest(_a, ["orientacao"]);
-                    return f;
-                }),
+                // Fluxo sem o que é interno da equipe (orientação, unidade, quem faz, ações, modelos, condições).
+                fases: (data.fases || []).map(({ id, nome, prazo_dias, proximas, final }) => (Object.assign(Object.assign(Object.assign({ id, nome }, (prazo_dias ? { prazo_dias } : {})), (proximas ? { proximas } : {})), (final ? { final } : {})))),
                 partes: (data.partes || []).map((x) => ({ nome: x.nome, polo: x.polo })),
                 prazos: (data.prazos || []).filter((x) => x.status === 'aberto')
                     .map((x) => ({ descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em })),

@@ -1,4 +1,15 @@
 "use strict";
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaConfig = exports.TIPOS_DOCUMENTO_PADRAO = void 0;
 exports.auditar = auditar;
@@ -25,6 +36,31 @@ const MAX_MODELOS = 200;
 // O documento do Firestore tem teto de 1 MB; modelo com imagens maiores fica no original.
 const MAX_MODELO_JSON = 900000;
 const caminhoModelo = (orgId, id) => `secretaria/${orgId}/modelos/${id}`;
+const MAX_UNIDADES_PROPOSTA = 30;
+const MAX_MODELOS_PROPOSTA = 60;
+/** Tira do rito referências a unidades e modelos que não são do órgão. */
+function filtrarRefsRito(rito, unidades, modelos) {
+    return Object.assign(Object.assign({}, rito), { fases: rito.fases.map((f) => {
+            const { unidade_id, modelos: ms } = f, resto = __rest(f, ["unidade_id", "modelos"]);
+            const validos = (ms || []).filter((m) => modelos.has(m));
+            return Object.assign(Object.assign(Object.assign({}, resto), (unidade_id && unidades.has(unidade_id) ? { unidade_id } : {})), (validos.length ? { modelos: validos } : {}));
+        }) });
+}
+/** Esqueleto de modelo criado pela implantação de um rito, para completar no editor. */
+function esqueletoModelo(nome) {
+    const p = (t) => ({ type: 'paragraph', content: [{ type: 'text', text: t }] });
+    return {
+        type: 'doc',
+        content: [
+            { type: 'heading', attrs: { level: 2, textAlign: 'center' }, content: [{ type: 'text', text: nome.toUpperCase() }] },
+            p('Processo nº {{numero}} · {{assunto}}'),
+            p('Interessados: {{partes}}'),
+            p('[Texto do documento]'),
+            p('{{unidade}}, {{data_extenso}}.'),
+            p('{{usuario}}'),
+        ],
+    };
+}
 /** Arquivo enviado pelo navegador (base64), conferido em tipo e tamanho. */
 function arquivoRecebido(v, tipos) {
     const a = (v && typeof v === 'object' ? v : {});
@@ -51,7 +87,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
@@ -310,6 +346,105 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         await audit('SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe });
         return { success: true };
     }
+    if (p.action === 'extrairTextoRito') {
+        const a = arquivoRecebido(p.arquivo, [conversao_1.MIME_DOCX, 'application/pdf', 'text/plain']);
+        try {
+            return await (0, importarModelo_1.textoParaRito)(a.buf, a.mime);
+        }
+        catch (_m) {
+            throw new https_1.HttpsError('invalid-argument', 'Não foi possível ler o arquivo');
+        }
+    }
+    if (p.action === 'aplicarPropostaRito') {
+        // Implanta de uma vez (lote atômico): unidades e modelos novos, o rito
+        // com as fases ligadas a eles e, se pedido, o tipo de processo.
+        const pr = (p.proposta && typeof p.proposta === 'object' ? p.proposta : {});
+        const unidadesIn = (Array.isArray(pr.unidades) ? pr.unidades : []);
+        const modelosIn = (Array.isArray(pr.modelos) ? pr.modelos : []);
+        if (unidadesIn.length > MAX_UNIDADES_PROPOSTA)
+            throw new https_1.HttpsError('invalid-argument', `No máximo ${MAX_UNIDADES_PROPOSTA} unidades novas por rito`);
+        if (modelosIn.length > MAX_MODELOS_PROPOSTA)
+            throw new https_1.HttpsError('invalid-argument', `No máximo ${MAX_MODELOS_PROPOSTA} modelos novos por rito`);
+        const [ritosQtd, modelosSnap] = await Promise.all([
+            db.collection(context_1.COL.ritos).where('organization_id', '==', orgId).count().get(),
+            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('unidade_id').get(),
+        ]);
+        if (ritosQtd.data().count >= MAX_RITOS)
+            throw new https_1.HttpsError('resource-exhausted', 'Limite de ritos atingido');
+        if (modelosSnap.size + modelosIn.length > MAX_MODELOS)
+            throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
+        const refUn = new Map();
+        const novasUnidades = unidadesIn.map((u) => {
+            const nome = (0, secretaria_1.texto)(u.nome, 120);
+            if (!nome)
+                throw new https_1.HttpsError('invalid-argument', 'Unidade nova sem nome');
+            const ref = db.collection(context_1.COL.unidades).doc();
+            refUn.set(String(u.ref), ref.id);
+            return { ref, nome, sigla: (0, secretaria_1.texto)(u.sigla, 12), tipo: (0, secretaria_1.tipoUnidade)(u.tipo) };
+        });
+        const unidadesValidas = new Set([...c.unidades.map((u) => u.id), ...refUn.values()]);
+        const unidadeDe = (r) => {
+            const s = String(r || '');
+            const id = refUn.get(s) || s;
+            return unidadesValidas.has(id) ? id : null;
+        };
+        const refMod = new Map();
+        const novosModelos = modelosIn.map((m) => {
+            const nome = (0, secretaria_1.texto)(m.nome, 120);
+            if (!nome)
+                throw new https_1.HttpsError('invalid-argument', 'Modelo novo sem nome');
+            const ref = db.collection(context_1.COL.modelos).doc();
+            refMod.set(String(m.ref), ref.id);
+            return { ref, nome, unidade_id: unidadeDe(m.unidade_ref), tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60) };
+        });
+        const modelosValidos = new Set([...modelosSnap.docs.map((d) => d.id), ...refMod.values()]);
+        const ritoIn = (pr.rito && typeof pr.rito === 'object' ? pr.rito : {});
+        const fasesIn = (Array.isArray(ritoIn.fases) ? ritoIn.fases : []);
+        let rito;
+        try {
+            rito = (0, secretaria_1.sanitizeRito)(Object.assign(Object.assign({}, ritoIn), { fases: fasesIn.map((f) => {
+                    var _a;
+                    return (Object.assign(Object.assign({}, f), { unidade_id: unidadeDe((_a = f.unidade_ref) !== null && _a !== void 0 ? _a : f.unidade_id) || undefined, modelos: (Array.isArray(f.modelos_ref) ? f.modelos_ref : []).map((r) => refMod.get(String(r)) || String(r)) }));
+                }) }));
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        rito = filtrarRefsRito(rito, unidadesValidas, modelosValidos);
+        const batch = db.batch();
+        const origem = `Criada ao implantar o rito "${rito.nome}".`;
+        for (const u of novasUnidades) {
+            batch.set(u.ref, {
+                organization_id: orgId, nome: u.nome, sigla: u.sigla, tipo: u.tipo, descricao: origem,
+                lotacoes: [], membros_uids: [], pedidos: [], ativa: true, created_at: agora, created_by: auth.uid,
+            });
+        }
+        for (const m of novosModelos) {
+            batch.set(m.ref, {
+                organization_id: orgId, nome: m.nome, tipo_documento: m.tipo_documento, descricao: `Modelo do rito "${rito.nome}". Complete o texto.`,
+                conteudo: (0, documento_1.sanitizeDoc)(esqueletoModelo(m.nome)), unidade_id: m.unidade_id, formato: 'editor', ativo: true,
+                created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
+            });
+        }
+        const ritoRef = db.collection(context_1.COL.ritos).doc();
+        batch.set(ritoRef, Object.assign(Object.assign({}, rito), { organization_id: orgId, versao: 1, ativo: true, created_at: agora, created_by: auth.uid, origem: 'importacao' }));
+        const tp = pr.tipo_processo && typeof pr.tipo_processo === 'object' ? pr.tipo_processo : null;
+        let tipoId = null;
+        if (tp && (0, secretaria_1.texto)(tp.nome)) {
+            const ref = db.collection(context_1.COL.tipos).doc();
+            tipoId = ref.id;
+            batch.set(ref, {
+                nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id,
+                sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_h = rito.fases[0]) === null || _h === void 0 ? void 0 : _h.unidade_id) || null,
+                ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
+            });
+        }
+        await batch.commit();
+        await audit('SECRETARIA_RITO_IMPLANTADO', {
+            rito_id: ritoRef.id, nome: rito.nome, fases: rito.fases.length, unidades_novas: novasUnidades.length, modelos_novos: novosModelos.length, tipo_id: tipoId,
+        });
+        return { success: true, rito_id: ritoRef.id, tipo_id: tipoId, unidades: novasUnidades.map((u) => u.ref.id), modelos: novosModelos.map((m) => m.ref.id) };
+    }
     if (p.action === 'salvarRito') {
         let rito;
         try {
@@ -318,15 +453,17 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         catch (e) {
             (0, context_1.erroUsuario)(e);
         }
+        const modelosOrg = await db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select().get();
+        rito = filtrarRefsRito(rito, new Set(c.unidades.map((u) => u.id)), new Set(modelosOrg.docs.map((d) => d.id)));
         const col = db.collection(context_1.COL.ritos);
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_h = snap.data()) === null || _h === void 0 ? void 0 : _h.organization_id) !== orgId)
+            if (!snap.exists || ((_j = snap.data()) === null || _j === void 0 ? void 0 : _j.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos.
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_j = snap.data()) === null || _j === void 0 ? void 0 : _j.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_k = snap.data()) === null || _k === void 0 ? void 0 : _k.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).get()).size;
@@ -357,7 +494,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if (((_k = (await ref.get()).data()) === null || _k === void 0 ? void 0 : _k.organization_id) !== orgId)
+            if (((_l = (await ref.get()).data()) === null || _l === void 0 ? void 0 : _l.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
             await ref.update(dados);
         }

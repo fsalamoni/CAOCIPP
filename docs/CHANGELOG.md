@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Importação de ritos (etapa 3)
+- **Importar de arquivo** em Ritos: planilha, Word, PDF, BPMN, draw.io ou
+  Mermaid viram uma proposta de rito completa, com fases, unidades, quem faz,
+  ações, modelos, encaminhamentos e alternativas com condição.
+- Tela de revisão com diagrama ao vivo; o admin edita tudo e decide se
+  implanta. Implantar cria de uma vez as unidades, os modelos (esqueleto), o
+  rito e, se marcado, o tipo de processo.
+- No processo: a fase mostra unidade, ações, modelos e alternativas, e sugere
+  tramitar para a unidade da fase.
+- Sem IA: leitura estruturada.
+
 ### 09/11/2026 — Importação de modelos de documento (etapa 2)
 - **Importar de arquivo** em Modelos (órgão e unidades): Word, PDF, HTML ou
   TXT viram modelo do editor, com cabeçalho, rodapé, brasão, fonte e imagens

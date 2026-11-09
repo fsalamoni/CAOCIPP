@@ -120,6 +120,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const iAtual = p.fases.findIndex((f) => f.id === p.fase_atual);
     const faseAtual = p.fases[iAtual];
     const proximasNomes = seguintes(p.fases, iAtual).map((id) => p.fases.find((f) => f.id === id)?.nome).join(' ou ');
+    // O rito pode dizer em que unidade a fase corre: sugere remeter para lá.
+    const unidadeDaFase = faseAtual?.unidade_id && faseAtual.unidade_id !== p.unidade_atual
+        ? estado.unidades.find((u) => u.id === faseAtual.unidade_id && u.ativa) : null;
+    const modelosSugeridos = (faseAtual?.modelos || []).map((id) => (estado.modelos || []).find((m) => m.id === id)).filter(Boolean);
+    const temDetalhes = !!(faseAtual?.orientacao || faseAtual?.acoes?.length || faseAtual?.agente || faseAtual?.unidade_id || modelosSugeridos.length);
 
     return (
         <div className="space-y-5">
@@ -152,7 +157,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             </div>
             {!posse && <p className="text-sm text-slate-500 dark:text-slate-400">Você consulta este processo. Só a unidade que está com ele pode movimentá-lo.</p>}
 
-            <details className="group rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" open={!!faseAtual?.orientacao}>
+            {posse && podeMexer && unidadeDaFase && (
+                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-4 py-3 text-sm">
+                    <span className="flex-1 min-w-0">Pelo rito, a fase <b>{p.fase_nome}</b> corre em <b>{unidadeDaFase.nome}</b>.</span>
+                    <Button size="sm" variant="outline" className="gap-2" disabled={ocupado} onClick={() => setAcao({ tipo: 'tramitar', destino: unidadeDaFase.id })}><Send className="w-4 h-4" /> Tramitar para lá</Button>
+                </div>
+            )}
+
+            <details className="group rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" open={temDetalhes}>
                 <summary className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="text-sm text-slate-500">Fase atual</span>
                     <span className="font-medium">{p.fase_nome}</span>
@@ -161,7 +173,28 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     <span className="ml-auto text-xs text-indigo-700 dark:text-indigo-300 hidden group-open:inline">Ocultar fluxo</span>
                 </summary>
                 <div className="px-4 pb-4 space-y-3">
+                    {(faseAtual?.unidade_id || faseAtual?.agente) && (
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                            {faseAtual.unidade_id && <>Unidade: <b>{nomeUnidade(faseAtual.unidade_id)}</b></>}
+                            {faseAtual.unidade_id && faseAtual.agente && ' · '}
+                            {faseAtual.agente && <>Quem faz: <b>{faseAtual.agente}</b></>}
+                        </p>
+                    )}
                     {faseAtual?.orientacao && <p className="text-sm rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-100 px-3 py-2"><b>Orientação:</b> {faseAtual.orientacao}</p>}
+                    {faseAtual?.acoes?.length > 0 && (
+                        <div className="text-sm">
+                            <p className="font-medium mb-1">O que fazer nesta fase</p>
+                            <ul className="list-disc pl-5 space-y-0.5 text-slate-700 dark:text-slate-300">{faseAtual.acoes.map((a, i) => <li key={i}>{a}</li>)}</ul>
+                        </div>
+                    )}
+                    {modelosSugeridos.length > 0 && (
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Modelos indicados: {modelosSugeridos.map((m) => m.nome).join(', ')}</p>
+                    )}
+                    {faseAtual?.condicoes && Object.keys(faseAtual.condicoes).length > 0 && (
+                        <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-0.5">
+                            {Object.entries(faseAtual.condicoes).map(([id, cond]) => <li key={id}>Se {cond}: segue para <b>{p.fases.find((f) => f.id === id)?.nome || id}</b></li>)}
+                        </ul>
+                    )}
                     <FluxoRito fases={p.fases} atual={p.fase_atual} />
                 </div>
             </details>
@@ -432,14 +465,17 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
     if (tipo === 'tramitar') {
         titulo = 'Tramitar para outra unidade';
         const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== p.unidade_atual);
-        campo = <NativeSelect label="Destino" value={valor} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, `${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})`])]} />;
-        enviar = () => mov('tramitar', { unidade_destino: valor, motivo }, 'Processo remetido');
+        const destino = valor || acao.destino || '';
+        campo = <NativeSelect label="Destino" value={destino} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, `${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})`])]} />;
+        exigeValor = !destino;
+        enviar = () => mov('tramitar', { unidade_destino: destino, motivo }, 'Processo remetido');
     } else if (tipo === 'fase') {
         titulo = 'Mudar a fase';
         const noFluxo = seguintes(p.fases, p.fases.findIndex((f) => f.id === p.fase_atual));
         const escolhida = valor || noFluxo[0] || '';
         const fora = !!escolhida && !noFluxo.includes(escolhida);
         const nomeFase = (id) => p.fases.find((f) => f.id === id)?.nome;
+        const condicoes = p.fases.find((f) => f.id === p.fase_atual)?.condicoes || {};
         campo = (
             <div className="space-y-3">
                 {noFluxo.length > 0 ? (
@@ -450,6 +486,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
                                 <button key={id} type="button" onClick={() => setValor(id)} aria-pressed={escolhida === id}
                                     className={`text-left rounded-md border px-3 py-2 text-sm ${escolhida === id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 dark:border-indigo-400' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
                                     <span className="font-medium">{nomeFase(id)}</span>
+                                    {condicoes[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Se {condicoes[id]}</span>}
                                     {p.fases.find((f) => f.id === id)?.orientacao && <span className="block text-xs text-slate-500">{p.fases.find((f) => f.id === id).orientacao}</span>}
                                 </button>
                             ))}
