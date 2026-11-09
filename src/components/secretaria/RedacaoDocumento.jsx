@@ -62,6 +62,9 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
         setSujo(false);
         setConfirmarSaida(false);
         setVersaoEditor((v) => v + 1);
+        // Aberto a partir do modelo indicado pela fase: já entra preenchido.
+        if (inicial.modeloId) usarModelo(inicial.modeloId, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aberto, inicial]);
 
     const leitura = !!inicial?.somenteLeitura;
@@ -70,9 +73,9 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
     const tipos = [...new Set([...(docCfg.tipos_documento || []), tipo].filter(Boolean))];
     const modelos = modelosDaUnidade(estado, unidadeId).filter((m) => m.formato !== 'original');
 
-    const usarModelo = async (id) => {
+    const usarModelo = async (id, semConfirmar = false) => {
         if (!id) return;
-        if (sujo && !window.confirm('Trocar pelo modelo apaga o que foi escrito. Continuar?')) return;
+        if (!semConfirmar && sujo && !window.confirm('Trocar pelo modelo apaga o que foi escrito. Continuar?')) return;
         setOcupado(true);
         try {
             const m = await secConfig(orgId, 'obterModelo', { id });

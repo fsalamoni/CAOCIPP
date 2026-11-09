@@ -22,7 +22,7 @@ const portalAvisos_1 = require("./portalAvisos");
  * visíveis às partes. O que a parte faz: peticiona a qualquer tempo. A petição
  * é juntada na hora (protocolo eletrônico) e abre pendência para o decisor.
  */
-exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia'];
+exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
 const TIPOS_PETICAO = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
 exports.TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de vista', 'Recurso', 'Outro'];

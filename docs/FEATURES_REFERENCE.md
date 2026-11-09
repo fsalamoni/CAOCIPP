@@ -147,7 +147,10 @@ ou TXT (com cabeçalho, rodapé e imagens) ou guardados no arquivo original.
 Portal das partes completo (nov/2026): entrada por link no e-mail, "Para
 você" com prazos e novidades, processo completo em PDF, impressão, certidão
 de andamento, leitor contínuo dos documentos, manifestação guiada com
-comprovante e avisos por e-mail configuráveis. Ver
+comprovante e avisos por e-mail configuráveis. Equipe e decisor (nov/2026):
+cartão "Nesta fase" com botão único, Novo documento unificado, pedido de
+assinatura, aba Meu trabalho, Mesa de decisão com decisão por despacho,
+devolução com orientação e e-mail de processo recebido. Ver
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---

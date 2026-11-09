@@ -184,9 +184,9 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}}], versao, ativo, origem? ('importacao')` |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
-| `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version` |
+| `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
-| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
+| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
 | `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
@@ -210,9 +210,9 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario` |
-| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
+| `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar` (opcionais `fase_id` e `orientacao`), `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao` |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
-| `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
+| `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar` e `resolve_pendencia_id`), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
 | `secretariaPlataforma` | (só administração da plataforma) `resumo`, `suspender` |
 | `secretariaConferir` | (pública, sem login) consulta um documento juntado pelo código de conferência |
@@ -370,6 +370,54 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   Sem `EMAIL_API_KEY`, nada é enviado.
 - **Celular:** barra fixa inferior com Processo (PDF) e Manifestar-se; a lista
   do leitor recolhe num botão.
+
+## Equipe e decisor (etapa 5, nov/2026)
+
+- **Nesta fase:** cartão fixo no topo do processo com o nome da fase, para
+  onde segue, quem faz e em que unidade corre, a orientação do rito, as ações
+  como caixas de marcar (`marcarAcao`, movimento interno `acao_fase`, guardado
+  em `acoes_feitas`) e os modelos indicados como botões "Redigir X", que abrem
+  o editor já preenchido (ou criam a minuta do Word/PDF). O fluxo completo
+  fica recolhido.
+- **Botão único:** muda conforme o rito. Fase que corre em outra unidade:
+  "Enviar para X". Uma só fase seguinte em outra unidade: "Concluir e enviar
+  para X" (`tramitar` com `fase_id`, um ato, um movimento). Uma seguinte na
+  mesma unidade: "Concluir e seguir para Y". Várias: "Seguir para a próxima
+  fase…" (abre as alternativas com condição). Fase final: arquivar. Gabinete
+  com pendência: "Apreciar a pendência". As demais ações ficam em "Mais".
+- **Novo documento:** um só diálogo com os modelos da fase em destaque, os
+  demais modelos, redigir em branco por tipo ou enviar arquivo. Atalho `N`.
+- **Minutas:** "Pedir assinatura" a alguém lotado na unidade
+  (`pedirAssinatura`: grava `assinaturas_pedidas` no documento,
+  `assinaturas_pendentes` no processo e envia e-mail); "Assinar antes de
+  juntar" na juntada (`assinar: true`, a assinatura entra antes de gerar o
+  PDF). Assinar, juntar ou excluir a minuta limpa o pedido.
+- **Meu trabalho:** primeira aba para quem está lotado, com grupos por
+  urgência a partir da mesma consulta da caixa: pediram sua assinatura,
+  orientação do gabinete, comigo, prazo vencendo em 7 dias, chegaram hoje
+  (`recebido_em`), sem responsável. Botões Assumir e Abrir; contagem na aba.
+- **Mesa de decisão:** aba para quem está lotado em gabinete, com os
+  processos conclusos com pendência aberta, da espera mais antiga para a mais
+  nova. Na apreciação, o documento que gerou a pendência (a petição) aparece
+  ao lado da decisão. Decisão em dois formatos: nota (`resolverPendencia`) ou
+  **despacho**: abre o editor com o modelo "Despacho" se houver; ao juntar, a
+  opção "Este documento decide uma pendência" (`resolve_pendencia_id`, só no
+  gabinete) resolve a pendência com a resolução "Decidida pelo documento nº
+  N". Lista curta de decisões anteriores no processo.
+- **Devolver à secretaria com orientação:** no gabinete, `tramitar` com
+  `orientacao` remete de volta (à unidade que concluiu, ou à primeira
+  secretaria) e deixa a orientação em destaque no processo e no Meu trabalho
+  até "Concluída" (`concluirOrientacao`, movimento interno).
+- **Processo recebido:** depois de cada tramitação, e-mail a quem está lotado
+  na unidade de destino (`avisosEquipe.ts`, fora da transação), com quem
+  remeteu, motivo ou orientação e link do processo. O diálogo de envio mostra
+  quem vai receber e avisa se não há ninguém lotado.
+- **Autos:** leitor contínuo (`LeitorAutos`, o mesmo do portal) por
+  "Ler em sequência" ou clicando no título; marca de lido no navegador.
+- **Atalhos:** `N` novo documento, `T` enviar para outra unidade, `J` ir às
+  pendências (fora de campos de texto e com nada aberto).
+- Para o gabinete, uma linha de contexto no topo: partes, tipo, dias em
+  tramitação e último documento.
 
 ## Ritos e tipos de processo (fase 4)
 

@@ -8,6 +8,8 @@ const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
 const portalAvisos_1 = require("./portalAvisos");
+const avisosEquipe_1 = require("./avisosEquipe");
+const secretaria_2 = require("../shared/secretaria");
 const context_1 = require("./context");
 const autos_1 = require("./autos");
 const pdfDocumento_1 = require("./pdfDocumento");
@@ -15,12 +17,14 @@ function caminhoArquivo(orgId, procId, docId) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
 exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
+    var _a;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
     const { ref: procRef, data: proc } = await (0, context_1.lerProcesso)(c, p.processoId);
     const docsCol = procRef.collection('documentos');
     const agoraIso = new Date().toISOString();
+    const semPedidos = (lista, docId, uid) => (lista || []).filter((x) => !(x.docId === docId && (!uid || x.uid === uid)));
     const lerDoc = async (tx) => {
         if (!p.docId)
             throw new https_1.HttpsError('invalid-argument', 'docId é obrigatório');
@@ -125,6 +129,9 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         const { ref, doc } = await lerDoc();
         exigirMinutaDaMinhaUnidade(doc);
         await ref.delete();
+        if ((proc.assinaturas_pendentes || []).some((x) => x.docId === ref.id)) {
+            await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
+        }
         const bucket = admin.storage().bucket();
         if (doc.storage_path)
             await bucket.file(doc.storage_path).delete({ ignoreNotFound: true });
@@ -132,25 +139,64 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         await bucket.file((0, autos_1.caminhoPdf)(caminhoArquivo(c.orgId, procRef.id, p.docId))).delete({ ignoreNotFound: true });
         return { success: true };
     }
-    if (p.action === 'assinar') {
-        await c.db.runTransaction(async (tx) => {
-            const { ref, doc } = await lerDoc(tx);
-            exigirMinutaDaMinhaUnidade(doc);
-            const assinaturas = (doc.assinaturas || []);
-            if (assinaturas.some((a) => a.uid === auth.uid))
-                throw new https_1.HttpsError('already-exists', 'Você já assinou este documento');
-            // Assinatura eletrônica simples (Lei 14.063/2020, art. 4º, I):
-            // identifica o signatário pela conta autenticada e amarra ao
-            // hash do conteúdo naquele instante.
-            tx.update(ref, {
-                assinaturas: [...assinaturas, {
-                        uid: auth.uid, nome: c.userName, em: agoraIso, sha256: doc.sha256, nivel: 'simples',
-                    }],
-            });
+    const assinarMinuta = () => c.db.runTransaction(async (tx) => {
+        const { ref, doc } = await lerDoc(tx);
+        const atual = (await tx.get(procRef)).data() || {}; // leituras antes de qualquer escrita
+        exigirMinutaDaMinhaUnidade(doc);
+        const assinaturas = (doc.assinaturas || []);
+        if (assinaturas.some((a) => a.uid === auth.uid))
+            throw new https_1.HttpsError('already-exists', 'Você já assinou este documento');
+        // Assinatura eletrônica simples (Lei 14.063/2020, art. 4º, I):
+        // identifica o signatário pela conta autenticada e amarra ao
+        // hash do conteúdo naquele instante.
+        tx.update(ref, {
+            assinaturas: [...assinaturas, {
+                    uid: auth.uid, nome: c.userName, em: agoraIso, sha256: doc.sha256, nivel: 'simples',
+                }],
         });
+        // O pedido de assinatura feito a esta pessoa está atendido.
+        if ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id && x.uid === auth.uid)) {
+            tx.update(procRef, { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id, auth.uid) });
+        }
+    });
+    if (p.action === 'assinar') {
+        await assinarMinuta();
+        return { success: true };
+    }
+    if (p.action === 'pedirAssinatura') {
+        (0, context_1.exigirPosse)(c, proc);
+        const { ref, doc } = await lerDoc();
+        exigirMinutaDaMinhaUnidade(doc);
+        const uid = String(p.uid || '');
+        const unidade = c.unidades.find((u) => u.id === doc.unidade_origem);
+        const lot = unidade ? (0, secretaria_2.lotacoesDe)(unidade).find((l) => l.uid === uid) : null;
+        if (!lot)
+            throw new https_1.HttpsError('invalid-argument', 'Escolha alguém lotado na unidade da minuta');
+        if (uid === auth.uid)
+            throw new https_1.HttpsError('invalid-argument', 'Você mesmo pode assinar');
+        if ((doc.assinaturas || []).some((a) => a.uid === uid))
+            throw new https_1.HttpsError('already-exists', 'Essa pessoa já assinou');
+        const mem = (await c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`).get()).data();
+        const nome = String((mem === null || mem === void 0 ? void 0 : mem.user_name) || (mem === null || mem === void 0 ? void 0 : mem.user_email) || 'Membro');
+        const pedido = { uid, nome, por: c.userName, em: agoraIso };
+        await ref.update({ assinaturas_pedidas: [...(doc.assinaturas_pedidas || []).filter((x) => x.uid !== uid), pedido] });
+        await procRef.update({ assinaturas_pendentes: [...semPedidos(proc.assinaturas_pendentes, ref.id, uid), { docId: ref.id, uid, titulo: doc.titulo }] });
+        void (0, avisosEquipe_1.avisarPedidoAssinatura)(c, uid, proc, procRef.id, String(doc.titulo));
         return { success: true };
     }
     if (p.action === 'juntar') {
+        // "Assinar e juntar": a assinatura entra antes de renderizar o PDF.
+        if (p.assinar)
+            await assinarMinuta().catch((e) => { if ((e === null || e === void 0 ? void 0 : e.code) !== 'already-exists')
+                throw e; });
+        // Decisão por despacho: a juntada resolve a pendência indicada (só o gabinete).
+        const pendenciaAlvo = p.resolve_pendencia_id
+            ? (proc.pendencias || []).find((x) => x.id === p.resolve_pendencia_id && x.status === 'aberta') : null;
+        if (p.resolve_pendencia_id && !pendenciaAlvo)
+            throw new https_1.HttpsError('not-found', 'Pendência aberta não encontrada');
+        if (pendenciaAlvo && ((_a = c.unidades.find((u) => u.id === proc.unidade_atual)) === null || _a === void 0 ? void 0 : _a.tipo) !== 'gabinete') {
+            throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete');
+        }
         // Antes da transação: o PDF do documento (do editor) e quantas folhas
         // ele ocupa. A transação confere que nada mudou desde então.
         const { doc: antes } = await lerDoc();
@@ -194,13 +240,21 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                     descricao: `Apreciar o documento nº ${ordem}: ${doc.titulo}`, documento_id: ref.id,
                     status: 'aberta', aberta_em: agoraIso, aberta_por: c.userName,
                 }] : [];
-            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}`, Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})));
+            const resolvida = pendenciaAlvo ? (atual.pendencias || []).find((x) => x.id === pendenciaAlvo.id && x.status === 'aberta') : null;
+            if (pendenciaAlvo && !resolvida)
+                throw new https_1.HttpsError('aborted', 'A pendência já foi apreciada por outra pessoa');
+            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`, Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})));
             const juntado = Object.assign({ status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }, (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
             const codigo = (0, autos_1.novoCodigo)();
             tx.set(c.db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(c.orgId, String(c.org.name || ''), pr.id, atual, ref.id, Object.assign(Object.assign({}, doc), juntado)));
             tx.update(ref, Object.assign(Object.assign({}, juntado), { codigo_verificacao: codigo }));
-            const pendencias = [...(atual.pendencias || []), ...pend];
-            tx.update(pr, Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (pend.length ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})));
+            const pendencias = [
+                ...(atual.pendencias || []).map((x) => (resolvida && x.id === resolvida.id
+                    ? Object.assign(Object.assign({}, x), { status: 'resolvida', resolvida_em: agoraIso, resolvida_por: c.userName, resolucao: `Decidida pelo documento nº ${ordem}: ${doc.titulo}` }) : x)),
+                ...pend,
+            ];
+            const mexeuPendencias = pend.length > 0 || !!resolvida;
+            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
             return { ordem, version: mov.version, folha_inicial: folha, paginas };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id);
