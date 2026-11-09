@@ -403,6 +403,12 @@ Numeração contínua das páginas dos autos. Cada documento juntado recebe a fa
 ### Papel timbrado
 Cabeçalho (linhas e brasão), rodapé, fonte e tamanho padrão definidos pelo admin do órgão e aplicados aos documentos redigidos na Secretaria.
 
+### Código de conferência
+Código de 16 caracteres (`XXXX-XXXX-XXXX-XXXX`) criado na juntada e impresso, com QR, em cada folha do documento. Em `/Conferir`, qualquer pessoa confirma que o documento está nos autos, em que folhas, quando e com quais assinaturas.
+
+### Calendário do órgão
+Feriados locais e recessos definidos pelo admin do órgão na Secretaria. Feriado prorroga o vencimento; recesso suspende a contagem do prazo, inclusive em dias corridos.
+
 ### Modelo de documento
 Texto pronto criado pelo admin do órgão, com campos como `{{numero}}` e `{{partes}}` que se preenchem com os dados do processo ao começar a redigir.
 

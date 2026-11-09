@@ -14,6 +14,7 @@ import { NativeSelect } from './comum';
 import RitoEditor from './RitoEditor';
 import FluxoRito from './FluxoRito';
 import ConfiguracaoDocumentos from './ConfiguracaoDocumentos';
+import ConfiguracaoCalendario from './ConfiguracaoCalendario';
 
 // Configuração (admin do órgão): tipos de processo, ritos (fluxos) e unidades
 // com lotação. A ordem dos cartões segue o caminho natural de quem configura:
@@ -116,6 +117,7 @@ export default function SecretariaConfiguracao({ orgId, estado }) {
             </Card>
 
             <ConfiguracaoDocumentos orgId={orgId} estado={estado} />
+            <ConfiguracaoCalendario orgId={orgId} estado={estado} />
 
             <Dialog open={!!unidade} onOpenChange={(o) => !o && setUnidade(null)}>
                 <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">

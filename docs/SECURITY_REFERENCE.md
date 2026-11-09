@@ -364,7 +364,7 @@ match /notifications/{notificationId} {
 - ✅ Can only mark as read (no other modifications)
 - ✅ Can delete own notifications
 
-#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secTipos`, `secContadores`, `secConvites`) e Cloud Storage
+#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secVerificacao`) e Cloud Storage
 
 - Regras: `allow read, write: if false` em todas. As Cloud Functions `secretaria*`
   aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
@@ -394,7 +394,18 @@ match /notifications/{notificationId} {
   o SHA-256 do token (24 bytes aleatórios), vale 7 dias, é aceito por uma única
   conta e é invalidado na revogação ou em novo convite. A parte vê somente
   documentos juntados marcados como visíveis e movimentos públicos; petição
-  aceita só PDF/PNG/JPG até 5 MB.
+  aceita só PDF/DOCX/PNG/JPG até 5 MB.
+- Conferência pública (`secretariaConferir`, sem login): responde só a cópia
+  dos metadados da juntada gravada em `secVerificacao` (fechada ao cliente),
+  nunca o conteúdo nem o arquivo. O código tem 80 bits aleatórios
+  (`crypto.randomBytes`), o que torna inviável adivinhar códigos; ele só sai
+  impresso nas folhas do próprio documento. Quem tem o código vê título e
+  número do processo mesmo em processo restrito (aceito: já tem o documento).
+- Word e Excel são lidos no servidor (mammoth, xlsx) e o resultado passa por
+  `sanitizeDoc`, como o texto do editor: links só http(s)/mailto, imagens só
+  PNG/JPEG. Arquivo inválido vira folha de referência, sem derrubar a juntada.
+- Alerta de prazos: e-mail só para quem está lotado na unidade que tem o
+  processo, com número e assunto escapados em HTML; não vai para partes.
 
 ---
 

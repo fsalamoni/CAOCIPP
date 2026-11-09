@@ -58,8 +58,9 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
-| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?` |
-| `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado) |
+| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
+| `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
+| `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
 | `secModelos/{id}` | `organization_id, nome, tipo_documento, descricao, conteudo, ativo` |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
 
@@ -78,12 +79,14 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo`, `obterModelo` (qualquer membro) |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo`, `obterModelo` (qualquer membro), `salvarCalendario` |
 | `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
 | `secretariaPlataforma` | (só administração da plataforma) `resumo`, `suspender` |
+| `secretariaConferir` | (pública, sem login) consulta um documento juntado pelo código de conferência |
+| `secretariaAlertaPrazos` | (agendada, todo dia às 7h de Brasília) e-mail de prazos vencidos ou que vencem em até 2 dias |
 
 Regras comuns:
 
@@ -251,20 +254,65 @@ O portal das partes mostra o diagrama sem as orientações internas.
   órgão vê o motivo. Auditoria: `SECRETARIA_SUSPENSA_PLATAFORMA`,
   `SECRETARIA_REATIVADA_PLATAFORMA`.
 
+## Busca, painel, calendário, conferência e Word/Excel (fase 6)
+
+- **Busca:** as abas Caixa e Todos buscam por número, assunto, tipo, nome ou
+  CPF/CNPJ das partes (sem acento e com ou sem pontuação). "Mais filtros" abre
+  unidade atual, fase, tipo, status, sigilo e período de autuação; "Limpar
+  filtros" volta ao padrão. `listar` passou a devolver `partes_resumo`,
+  `autuado_em`, `rito_id` e `pendencia_desde` (pendência aberta mais antiga).
+- **Painel:** aba nova com totais (em tramitação, com pendência, prazos
+  vencidos e da semana, sobrestados, arquivados), idade média, barras por
+  unidade, fase e tipo, pendências mais antigas e prazos da semana. Filtra por
+  unidade (visão da secretaria ou do gabinete). Calculado sobre os processos
+  que a pessoa pode ver.
+- **Calendário do órgão:** Configuração → "Calendário e alertas de prazo".
+  Feriados locais (até 200) prorrogam o vencimento e não contam em dias
+  úteis; recessos (até 50, de até 120 dias cada) e o recesso forense
+  opcional (20/12 a 20/01, CPC art. 220) suspendem a contagem até em dias
+  corridos. Vale para prazos abertos depois de salvar. Auditoria:
+  `SECRETARIA_CALENDARIO`.
+- **Alerta de prazos:** com `alerta_prazos` ligado, `secretariaAlertaPrazos`
+  envia às 7h um e-mail por pessoa lotada na unidade que tem o processo, com
+  os prazos vencidos ou que vencem em até 2 dias. Órgão suspenso ou com o
+  módulo desligado não recebe.
+- **Código de conferência:** toda juntada (equipe ou petição da parte) cria um
+  código de 16 caracteres (80 bits, base32 Crockford, `XXXX-XXXX-XXXX-XXXX`)
+  e o registro `secVerificacao/{código}`. Cada folha do PDF carimbado traz o
+  QR e o código no alto à esquerda. A página pública `/Conferir?c=CÓDIGO`
+  mostra órgão, processo, documento, folhas, juntada, assinaturas e hashes, e
+  compara no navegador o hash de um arquivo original (nada é enviado).
+  Documentos juntados antes da fase 6 ganham código na primeira vez que o PDF
+  é gerado. O processo mostra o código ao lado de cada documento dos autos.
+- **Word e Excel:** DOCX (mammoth → HTML → documento do editor) e XLSX (cada
+  aba vira título e tabela; até 10 abas, 400 linhas e 20 colunas) passam a
+  virar folhas com conteúdo, no mesmo renderizador dos textos redigidos, e
+  contam as páginas reais. O portal aceita petição em DOCX. Arquivo
+  corrompido vira folha de referência com o hash.
+
 ## Limites conhecidos
 
 - Partes não têm verificação em duas etapas nem exportam o PDF dos autos;
   baixam cada documento.
 - Se a gravação da petição falhar depois do envio do anexo ao Storage, o
   arquivo fica órfão no bucket (sem referência nos autos).
-- Assinatura só no nível simples (gov.br e ICP-Brasil na fase 5).
-- Feriados locais e recesso não entram na contagem de prazos; não há alerta
-  por e-mail de vencimento.
+- Assinatura só no nível simples. gov.br e ICP-Brasil dependem de credenciais
+  externas (cadastro no gov.br e certificado/serviço de assinatura) e ainda não
+  foram implementadas; o mesmo vale para pedir assinatura a outra pessoa.
+- O calendário do órgão não recalcula prazos já abertos.
+- O alerta de prazos lê até 2000 processos com vencimento próximo por dia, em
+  todos os órgãos.
+- A conferência pública mostra os metadados da juntada (inclusive título e
+  número de processo restrito) a quem tem o código; o código só sai impresso
+  nas folhas do próprio documento.
 - `listar` lê até 1000 processos do órgão e filtra em memória; paginar quando
   passar disso.
 - O PDF volta inteiro na resposta da function; anexos acima de ~18 MB somados
   viram folha de referência.
-- Documentos Word e planilhas não são convertidos para o PDF.
+- DOC e ODT antigos não são convertidos (exigem LibreOffice num serviço à
+  parte); viram folha de referência. No Word, caixas de texto, cabeçalhos e
+  notas de rodapé do arquivo não entram nas folhas.
+- O Painel e a busca trabalham sobre a mesma lista de até 1000 processos.
 - No PDF, as fontes Times e Courier só têm caracteres latinos (WinAnsi);
   outros símbolos saem como "?". Arial (Roboto) cobre mais caracteres.
 - Localizar e substituir não acha texto que atravessa mudança de formatação.

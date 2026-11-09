@@ -153,9 +153,10 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
     let folha = 1;
     const linhasIndice = [];
     for (const { d, bytes } of pecas) {
+        const codigo = d.codigo_verificacao || await (0, autos_1.garantirCodigo)(c.db, c.orgId, ref.id, String(proc.numero), d.id);
         const qtd = await (0, autos_1.anexarCarimbado)(pdf, bytes, {
             processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo),
-            juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256,
+            juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo,
         });
         linhasIndice.push(`Doc. nº ${d.ordem} — ${d.titulo} (${d.tipo}) — ${(0, autos_1.textoFolhas)(folha, qtd)}`);
         folha += qtd;

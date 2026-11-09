@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { MAX_TEXTO_LONGO, sanitizeRito, texto } from '../shared/secretaria';
+import { MAX_TEXTO_LONGO, sanitizeCalendario, sanitizeRito, texto } from '../shared/secretaria';
 import { FONTES, sanitizeDoc } from '../shared/documento';
 
 const MAX_MODELOS = 200;
@@ -52,7 +52,9 @@ const RITO_PADRAO = {
 interface ConfigRequest {
     organizationId: string;
     action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo'
-        | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo';
+        | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario';
+    calendario?: unknown;
+    alerta_prazos?: boolean;
     documento?: unknown;
     modelo?: unknown;
     tipo?: unknown;
@@ -114,6 +116,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             documento: sanitizeDocumentoConfig(cfgSnap.data()?.documento),
+            calendario: sanitizeCalendario(cfgSnap.data()?.calendario),
+            alerta_prazos: cfgSnap.data()?.alerta_prazos === true,
             modelos: modelosSnap.docs.map((d) => {
                 const m = d.data();
                 return { id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false };
@@ -140,6 +144,16 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, documento, updated_at: agora, updated_by: auth.uid }, { merge: true });
         await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_DOCUMENTO_CONFIG', { linhas: documento!.cabecalho_linhas.length, brasao: !!documento!.brasao });
         return { success: true };
+    }
+
+    if (p.action === 'salvarCalendario') {
+        const calendario = sanitizeCalendario(p.calendario);
+        const alerta = p.alerta_prazos === true;
+        await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, calendario, alerta_prazos: alerta, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_CALENDARIO', {
+            feriados: calendario.feriados.length, recessos: calendario.recessos.length, recesso_forense: calendario.recesso_forense, alerta_prazos: alerta,
+        });
+        return { success: true, calendario };
     }
 
     if (p.action === 'salvarModelo') {

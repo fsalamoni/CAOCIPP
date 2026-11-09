@@ -307,8 +307,8 @@ function Peticionar({ id, onFeito }) {
                 <div><Label htmlFor="pt-tit">Título</Label><Input id="pt-tit" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Manifestação sobre o laudo" maxLength={200} /></div>
                 <div><Label htmlFor="pt-txt">Texto</Label><Textarea id="pt-txt" rows={6} value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={40000} /></div>
                 <div>
-                    <Label htmlFor="pt-arq">Anexo (PDF, PNG ou JPG, até {MAX_MB} MB)</Label>
-                    <Input id="pt-arq" ref={inputArquivo} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setArquivo(e.target.files?.[0] || null)} />
+                    <Label htmlFor="pt-arq">Anexo (PDF, Word DOCX, PNG ou JPG, até {MAX_MB} MB)</Label>
+                    <Input id="pt-arq" ref={inputArquivo} type="file" accept=".pdf,.docx,.png,.jpg,.jpeg" onChange={(e) => setArquivo(e.target.files?.[0] || null)} />
                 </div>
                 <p className="text-xs text-slate-500">A petição entra nos autos na hora, com seu nome, data e hora, e vai para apreciação de quem decide.</p>
                 <Button disabled={ocupado} onClick={enviar} className="gap-2">

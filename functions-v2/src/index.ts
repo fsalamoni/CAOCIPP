@@ -78,6 +78,7 @@ export { secretariaDocumento } from './secretaria/documentos';
 export { secretariaExportarPdf } from './secretaria/exportar';
 export { secretariaPortal } from './secretaria/portal';
 export { secretariaPlataforma } from './secretaria/plataforma';
+export { secretariaConferir, secretariaAlertaPrazos } from './secretaria/conferir';
 
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
 export { getPlatformOverview } from './platform/overview';

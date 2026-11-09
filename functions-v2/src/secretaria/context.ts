@@ -19,6 +19,7 @@ export const COL = {
     convites: 'secConvites',
     tipos: 'secTipos',
     config: 'secConfig',
+    verificacao: 'secVerificacao',
     modelos: 'secModelos',
 } as const;
 

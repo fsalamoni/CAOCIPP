@@ -52,7 +52,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         const { doc } = await lerDoc();
         const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.pdf`;
         if (doc.status === 'juntado')
-            return { base64: await (0, autos_1.pdfCarimbado)(c.db, c.orgId, String(proc.numero), doc), nome };
+            return { base64: await (0, autos_1.pdfCarimbado)(c.db, c.orgId, procRef.id, String(proc.numero), p.docId, doc), nome };
         if (!c.ctx.unidadeIds.includes(doc.unidade_origem))
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         if (doc.origem !== 'editor')
@@ -194,7 +194,10 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                     status: 'aberta', aberta_em: agoraIso, aberta_por: c.userName,
                 }] : [];
             const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}`, Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})));
-            tx.update(ref, Object.assign({ status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }, (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})));
+            const juntado = Object.assign({ status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }, (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
+            const codigo = (0, autos_1.novoCodigo)();
+            tx.set(c.db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(c.orgId, String(c.org.name || ''), pr.id, atual, ref.id, Object.assign(Object.assign({}, doc), juntado)));
+            tx.update(ref, Object.assign(Object.assign({}, juntado), { codigo_verificacao: codigo }));
             const pendencias = [...(atual.pendencias || []), ...pend];
             tx.update(pr, Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (pend.length ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})));
             return { ordem, version: mov.version, folha_inicial: folha, paginas };
