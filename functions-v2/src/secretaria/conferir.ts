@@ -68,8 +68,8 @@ export const secretariaAlertaPrazos = onSchedule(
                 if (!email) continue;
                 await sendEmail({
                     to: String(email),
-                    subject: `Secretaria Processual: ${linhas.length} prazo(s) vencendo ou vencido(s)`,
-                    html: `<p>Processos com a sua unidade em ${escapar(String(org.data()?.name || ''))}:</p><ul>${linhas.slice(0, 50).join('')}</ul>${linhas.length > 50 ? `<p>… e mais ${linhas.length - 50}.</p>` : ''}<p><a href="${APP_URL}/Secretaria?org=${orgId}">Abrir a Secretaria</a></p><p style="color:#64748b;font-size:12px">O administrador do órgão liga ou desliga este aviso em Secretaria → Configuração → Calendário de prazos.</p>`,
+                    subject: `Processo Eletrônico: ${linhas.length} prazo(s) vencendo ou vencido(s)`,
+                    html: `<p>Processos com a sua unidade em ${escapar(String(org.data()?.name || ''))}:</p><ul>${linhas.slice(0, 50).join('')}</ul>${linhas.length > 50 ? `<p>… e mais ${linhas.length - 50}.</p>` : ''}<p><a href="${APP_URL}/ProcessoEletronico?org=${orgId}">Abrir o Processo Eletrônico</a></p><p style="color:#64748b;font-size:12px">O administrador do órgão liga ou desliga este aviso em Painel Administrativo → Processo Eletrônico → Calendário.</p>`,
                 }).catch(() => false);
             }
         }

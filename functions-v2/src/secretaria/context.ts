@@ -5,6 +5,7 @@ import {
     ContextoUsuario,
     MovimentoBase,
     hashMovimento,
+    lotacoesDe,
     podeAgir,
     podeVer,
 } from '../shared/secretaria';
@@ -21,6 +22,8 @@ export const COL = {
     config: 'secConfig',
     verificacao: 'secVerificacao',
     modelos: 'secModelos',
+    unidadeConfig: 'secUnidadeConfig',
+    convitesEquipe: 'secConvitesEquipe',
 } as const;
 
 export interface Contexto {
@@ -30,6 +33,8 @@ export interface Contexto {
     ctx: ContextoUsuario;
     userName: string;
     unidades: Array<{ id: string } & admin.firestore.DocumentData>;
+    /** Unidades ativas em que o usuário é gestor (configura a unidade). */
+    gestorDe: string[];
 }
 
 export function exigirAuth(request: { auth?: { uid: string; token: Record<string, unknown> } }) {
@@ -57,22 +62,22 @@ export async function carregarContexto(
         // não milhares); trocar por um índice de lotação se passar de centenas.
         db.collection(COL.unidades).where('organization_id', '==', orgId).get(),
     ]);
-    if (!memSnap.exists || !orgSnap.exists) {
+    if (!memSnap.exists || !orgSnap.exists || memSnap.data()?.active === false) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const mem = memSnap.data() || {};
     const org = orgSnap.data() || {};
     const isAdmin = mem.role === 'creator' || mem.permissions?.configure_secretaria === true;
     if (!opts.permitirInativa && org.secretariaConfig?.enabled !== true) {
-        throw new HttpsError('failed-precondition', 'A Secretaria Processual não está ativa neste órgão');
+        throw new HttpsError('failed-precondition', 'O Processo Eletrônico não está ativo neste órgão');
     }
     if (!opts.permitirInativa && org.secretariaConfig?.suspensa_plataforma === true) {
-        throw new HttpsError('failed-precondition', 'A Secretaria Processual deste órgão está suspensa pela administração da plataforma');
+        throw new HttpsError('failed-precondition', 'O Processo Eletrônico deste órgão está suspenso pela administração da plataforma');
     }
     const unidades = unSnap.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string } & admin.firestore.DocumentData));
-    const unidadeIds = unidades
-        .filter((u) => u.ativa !== false && Array.isArray(u.membros_uids) && u.membros_uids.includes(auth.uid))
-        .map((u) => u.id);
+    const ativas = unidades.filter((u) => u.ativa !== false);
+    const unidadeIds = ativas.filter((u) => lotacoesDe(u).some((l) => l.uid === auth.uid)).map((u) => u.id);
+    const gestorDe = ativas.filter((u) => lotacoesDe(u).some((l) => l.uid === auth.uid && l.gestor)).map((u) => u.id);
     return {
         db,
         orgId,
@@ -80,13 +85,24 @@ export async function carregarContexto(
         ctx: { uid: auth.uid, isAdmin, unidadeIds },
         userName: String(auth.token.name || mem.user_name || mem.user_email || 'Usuário'),
         unidades,
+        gestorDe,
     };
 }
 
 export function exigirAdmin(c: Contexto) {
     if (!c.ctx.isAdmin) {
-        throw new HttpsError('permission-denied', 'É preciso a permissão "Configurar Secretaria Processual"');
+        throw new HttpsError('permission-denied', 'É preciso a permissão "Configurar Processo Eletrônico"');
     }
+}
+
+/** Admin do órgão ou gestor da unidade. */
+export function exigirGestor(c: Contexto, unidadeId: unknown) {
+    const u = c.unidades.find((x) => x.id === unidadeId);
+    if (!u) throw new HttpsError('not-found', 'Unidade não encontrada');
+    if (!c.ctx.isAdmin && !c.gestorDe.includes(u.id)) {
+        throw new HttpsError('permission-denied', 'Só a gestão da unidade ou o admin do órgão podem fazer isso');
+    }
+    return u;
 }
 
 /** Lê o processo garantindo que é do órgão (sem vazar existência de outro). */

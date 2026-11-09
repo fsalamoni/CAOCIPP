@@ -229,5 +229,5 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
 
 /** Contexto mínimo para registrar movimento em nome de uma parte. */
 function contextoParte(db: admin.firestore.Firestore, proc: admin.firestore.DocumentData, uid: string, nome: string): Contexto {
-    return { db, orgId: proc.organization_id, org: {}, ctx: { uid, isAdmin: false, unidadeIds: [] }, userName: nome, unidades: [] };
+    return { db, orgId: proc.organization_id, org: {}, ctx: { uid, isAdmin: false, unidadeIds: [] }, userName: nome, unidades: [], gestorDe: [] };
 }

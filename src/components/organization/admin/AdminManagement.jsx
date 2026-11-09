@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Users, Database, Bot, AlertTriangle, FileText, Handshake, LayoutGrid, Gauge, ShieldCheck, Zap, Lock, Timer, Scale, Telescope, Gavel } from 'lucide-react';
 import { useFlag } from '@/lib/FeatureFlagsContext';
@@ -22,7 +23,7 @@ import PermissionsManager from './PermissionsManager';
 import AutomationSettings from './AutomationSettings';
 import SecuritySettings from './SecuritySettings';
 import StageTimeSettings from './StageTimeSettings';
-import SecretariaAtivacao from '@/components/secretaria/SecretariaAtivacao';
+import ProcessoEletronicoAdmin from '@/components/secretaria/ProcessoEletronicoAdmin';
 
 export default function AdminManagement({ organization, members, userRole, userMembership }) {
     const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
@@ -53,6 +54,9 @@ export default function AdminManagement({ organization, members, userRole, userM
     const showPanoramaTab = isPanoramaOn && (!customEntitiesOn || panoramaEnabledForOrg);
 
     const isCreator = userRole === 'creator';
+    // `secao` na URL abre direto uma aba (ex.: &secao=secretaria vindo do Processo Eletrônico).
+    const [searchParams] = useSearchParams();
+    const secao = searchParams.get('secao');
 
     // Permissões efetivas do usuário atual. O criador possui todas; membros
     // delegados possuem apenas as marcadas em seu membership.
@@ -80,7 +84,7 @@ export default function AdminManagement({ organization, members, userRole, userM
     }
 
     // Primeira aba disponível para o usuário (evita abrir numa aba sem permissão).
-    const defaultTab = isCreator
+    const primeiraAba = isCreator
         ? 'details'
         : (can.details && 'details')
         || (can.matters && 'matters')
@@ -93,6 +97,7 @@ export default function AdminManagement({ organization, members, userRole, userM
         || (can.padronizacao && 'padronizacao')
         || (can.secretaria && 'secretaria')
         || 'details';
+    const defaultTab = secao === 'secretaria' && can.secretaria ? 'secretaria' : primeiraAba;
 
     return (
         <div className="space-y-6">
@@ -176,7 +181,7 @@ export default function AdminManagement({ organization, members, userRole, userM
                     {can.secretaria && (
                         <TabsTrigger value="secretaria" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
                             <Gavel className="w-4 h-4" />
-                            Secretaria Processual
+                            Processo Eletrônico
                         </TabsTrigger>
                     )}
                     {isCreator && showAutomationTab && (
@@ -279,7 +284,7 @@ export default function AdminManagement({ organization, members, userRole, userM
 
                 {can.secretaria && (
                     <TabsContent value="secretaria">
-                        <SecretariaAtivacao organization={organization} />
+                        <ProcessoEletronicoAdmin organization={organization} />
                     </TabsContent>
                 )}
 

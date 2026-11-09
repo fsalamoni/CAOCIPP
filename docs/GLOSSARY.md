@@ -127,13 +127,16 @@ Lista de alterações de um registro, espelhada na subcoleção `history/`.
 
 ---
 
-## Secretaria Processual
+## Processo Eletrônico
 
-### Secretaria Processual (módulo)
-Módulo de processo eletrônico do órgão (ver [SECRETARIA.md](./SECRETARIA.md)).
+### Processo Eletrônico (módulo)
+Módulo de processo eletrônico do órgão (ver [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md)). Até nov/2026 se chamava Secretaria Processual; os nomes internos (`secretaria*`, coleções `sec*`) foram mantidos.
 
-### Unidade (Secretaria Processual)
-Secretaria (movimenta e cumpre) ou gabinete (decide), com membros lotados.
+### Unidade de lotação (Processo Eletrônico)
+Secretaria (autua, movimenta e cumpre), gabinete (decide), assessoria (estuda e minuta) ou outra. Tem equipe, papel timbrado, tipos de documento e modelos próprios.
+
+### Lotação / Atribuição / Gestor da unidade
+Lotação é o vínculo de uma pessoa com a unidade. Atribuição é a função dela ali (ex.: Chefe de secretaria, Assessor). O gestor da unidade monta a equipe, admite pedidos, convida pessoas e ajusta o timbrado, os tipos e os modelos da unidade.
 
 ### Posse
 A unidade que está com o processo. Só quem está lotado nela o movimenta.
@@ -153,7 +156,7 @@ Cada movimento leva o SHA-256 do anterior; alterar um movimento antigo quebra a 
 ### Portal das partes / Habilitação
 Página pública `/Portal` onde a parte, com conta própria, acompanha os processos em que foi habilitada e peticiona. Habilitação é o aceite do convite enviado pela secretaria; a parte nunca vira membro do órgão.
 
-### Tipo de processo (Secretaria Processual)
+### Tipo de processo (Processo Eletrônico)
 Modelo de autuação definido pelo admin do órgão: nome, sigla, rito, sigilo padrão e unidade sugerida.
 
 ### Fluxo do rito / Ramificação

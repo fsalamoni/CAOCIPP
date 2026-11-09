@@ -1,40 +1,26 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { MAX_TEXTO_LONGO, sanitizeCalendario, sanitizeRito, texto } from '../shared/secretaria';
-import { FONTES, sanitizeDoc } from '../shared/documento';
+import { MAX_TEXTO_LONGO, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto } from '../shared/secretaria';
+import { sanitizeDoc } from '../shared/documento';
+import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
+import { sanitizeDocumentoConfig } from './documentoConfig';
+import {
+    aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
+    revogarConviteEquipe, salvarUnidade, salvarUnidadeDocumento, verConviteEquipe,
+} from './unidades';
 
-const MAX_MODELOS = 200;
-const MAX_BRASAO = 300 * 1024;
-export const TIPOS_DOCUMENTO_PADRAO = [
-    'Despacho', 'Decisão', 'Informação', 'Certidão', 'Ofício', 'Memorando', 'Parecer', 'Termo', 'Ata', 'Relatório', 'Notificação', 'Documento',
-];
-
-/** Cabeçalho, rodapé, fonte e tipos de documento do órgão (lista fechada). */
-function sanitizeDocumentoConfig(v: unknown) {
-    const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
-    const brasao = typeof o.brasao === 'string' && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(o.brasao) ? o.brasao : null;
-    if (brasao && brasao.length * 0.75 > MAX_BRASAO) throw new Error('O brasão passa de 300 KB; use uma imagem menor');
-    const linhas = (Array.isArray(o.cabecalho_linhas) ? o.cabecalho_linhas : []).map((l) => texto(l, 120)).filter(Boolean).slice(0, 4);
-    const tipos = [...new Set((Array.isArray(o.tipos_documento) ? o.tipos_documento : []).map((t) => texto(t, 60)).filter(Boolean))].slice(0, 60);
-    const tamanho = Number(o.tamanho_padrao);
-    return {
-        cabecalho_linhas: linhas,
-        brasao,
-        rodape: texto(o.rodape, 200),
-        fonte_padrao: FONTES[String(o.fonte_padrao)] ? String(o.fonte_padrao) : 'serif',
-        tamanho_padrao: tamanho >= 9 && tamanho <= 16 ? tamanho : 12,
-        tipos_documento: tipos.length ? tipos : TIPOS_DOCUMENTO_PADRAO,
-    };
-}
-import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth } from './context';
+export { TIPOS_DOCUMENTO_PADRAO } from './documentoConfig';
 
 /**
- * Configuração da Secretaria Processual do órgão: ativação (pelo admin do
- * órgão), unidades com seus membros lotados, e ritos.
+ * Configuração do Processo Eletrônico do órgão (function `secretariaConfig`,
+ * nome mantido): ativação, unidades de lotação e equipes, ritos, tipos de
+ * processo, papel timbrado, modelos e calendário. A tela fica no Painel
+ * Administrativo do órgão; a gestão de cada unidade, também na própria
+ * página do Processo Eletrônico.
  */
 
-const MAX_UNIDADES = 100;
+const MAX_MODELOS = 200;
 const MAX_RITOS = 50;
 
 const RITO_PADRAO = {
@@ -49,10 +35,14 @@ const RITO_PADRAO = {
     ],
 };
 
-interface ConfigRequest {
+type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo'
+    | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
+    | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
+    | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe';
+
+interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
-    action: 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo'
-        | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario';
+    action: Acao;
     calendario?: unknown;
     alerta_prazos?: boolean;
     documento?: unknown;
@@ -61,49 +51,77 @@ interface ConfigRequest {
     peticao_interrompe?: boolean;
     enabled?: boolean;
     id?: string;
-    unidade?: { nome?: string; sigla?: string; tipo?: string; membros_uids?: unknown; ativa?: boolean };
+    unidadeId?: string;
+    unidade?: unknown;
     rito?: unknown;
     ativo?: boolean;
+    token?: string;
 }
 
 export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async (request) => {
     const auth = exigirAuth(request);
     const p = request.data || ({} as ConfigRequest);
+
+    // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
+    if (p.action === 'verConviteEquipe') return verConviteEquipe(p.token);
+    if (p.action === 'aceitarConviteEquipe') return aceitarConviteEquipe(auth, p.token);
+
     const c = await carregarContexto(auth, p.organizationId, { permitirInativa: true });
     const { db, orgId } = c;
     const enabled = c.org.secretariaConfig?.enabled === true;
     const agora = FieldValue.serverTimestamp();
+    const audit = (action: string, details: Record<string, unknown>) => auditar(db, orgId, auth.uid, c.userName, action, details);
+    const exigirAtivo = () => {
+        if (!enabled) throw new HttpsError('failed-precondition', 'O Processo Eletrônico não está ativo neste órgão');
+    };
 
     if (p.action === 'estado') {
         if (!enabled && !c.ctx.isAdmin) return { enabled: false, isAdmin: false };
-        const [ritosSnap, tiposSnap, cfgSnap, modelosSnap] = await Promise.all([
+        const minhas = c.ctx.unidadeIds;
+        const [ritosSnap, tiposSnap, cfgSnap, modelosSnap, memSnap, unCfgSnaps, convites] = await Promise.all([
             db.collection(COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(COL.tipos).where('organization_id', '==', orgId).get(),
             db.collection(COL.config).doc(orgId).get(),
-            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo').get(),
+            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'formato', 'arquivo_nome').get(),
+            db.collection('userOrganizations').where('organization_id', '==', orgId).get(),
+            minhas.length ? db.getAll(...minhas.map((id) => db.collection(COL.unidadeConfig).doc(id))) : Promise.resolve([]),
+            convitesPendentes(c),
         ]);
-        let membros: Array<{ uid: string; nome: string; email: string }> = [];
         // Todo usuário lotado precisa ver os nomes de colegas para atribuir
-        // processos; e-mail só para quem administra.
-        const memSnap = await db.collection('userOrganizations').where('organization_id', '==', orgId).get();
-        membros = memSnap.docs.map((d) => {
+        // processos; e-mail só para quem administra ou gere unidade.
+        const veEmail = c.ctx.isAdmin || c.gestorDe.length > 0;
+        const membros = memSnap.docs.filter((d) => d.data().active !== false).map((d) => {
             const m = d.data();
             return {
                 uid: String(m.user_id || d.id.split('_')[0]),
                 nome: String(m.user_name || m.user_email || 'Membro'),
-                email: c.ctx.isAdmin ? String(m.user_email || '') : '',
+                email: veEmail ? String(m.user_email || '') : '',
+                funcao: String(m.function || ''),
             };
         });
+        const documento = sanitizeDocumentoConfig(cfgSnap.data()?.documento);
+        // Timbrado e tipos efetivos das unidades em que a pessoa está lotada
+        // (o editor e a redação usam o da unidade que tem o processo).
+        const documentoUnidades: Record<string, unknown> = {};
+        for (const s of unCfgSnaps) documentoUnidades[s.id] = documentoEfetivo(documento, s.data() as never);
         return {
             enabled,
             peticao_interrompe: c.org.secretariaConfig?.peticao_interrompe === true,
             isAdmin: c.ctx.isAdmin,
             uid: c.ctx.uid,
-            minhasUnidades: c.ctx.unidadeIds,
-            unidades: c.unidades.map((u) => ({
-                id: u.id, nome: u.nome, sigla: u.sigla, tipo: u.tipo,
-                ativa: u.ativa !== false, membros_uids: u.membros_uids || [],
-            })),
+            minhasUnidades: minhas,
+            gestorDe: c.gestorDe,
+            unidades: c.unidades.map((u) => {
+                const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
+                const lotacoes = lotacoesDe(u);
+                return {
+                    id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '',
+                    ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes,
+                    ...(gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {}),
+                    pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x: { uid: string }) => x.uid === auth.uid),
+                };
+            }).sort((a, b) => String(a.nome).localeCompare(String(b.nome))),
+            convitesEquipe: convites,
             ritos: ritosSnap.docs.map((d) => {
                 const r = d.data();
                 return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false };
@@ -115,12 +133,16 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                     sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
-            documento: sanitizeDocumentoConfig(cfgSnap.data()?.documento),
+            documento,
+            documentoUnidades,
             calendario: sanitizeCalendario(cfgSnap.data()?.calendario),
             alerta_prazos: cfgSnap.data()?.alerta_prazos === true,
             modelos: modelosSnap.docs.map((d) => {
                 const m = d.data();
-                return { id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false };
+                return {
+                    id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false,
+                    unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
+                };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             suspensa_plataforma: c.org.secretariaConfig?.suspensa_plataforma === true,
             motivo_suspensao: c.org.secretariaConfig?.motivo_suspensao || '',
@@ -130,10 +152,56 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
     }
 
     if (p.action === 'obterModelo') {
-        if (!enabled) throw new HttpsError('failed-precondition', 'A Secretaria Processual não está ativa neste órgão');
+        exigirAtivo();
         const m = (await db.collection(COL.modelos).doc(String(p.id || '_')).get()).data();
         if (!m || m.organization_id !== orgId) throw new HttpsError('not-found', 'Modelo não encontrado');
-        return { id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo, ativo: m.ativo !== false };
+        return {
+            id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo,
+            ativo: m.ativo !== false, unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
+        };
+    }
+
+    if (p.action === 'pedirLotacao') {
+        exigirAtivo();
+        return pedirLotacao(c, p, auth.uid, String(auth.token.email || ''));
+    }
+
+    // Gestão de unidade: admin do órgão ou gestor da unidade.
+    if (p.action === 'salvarUnidade') return salvarUnidade(c, p, auth.uid, audit);
+    if (p.action === 'obterUnidadeDocumento') return obterUnidadeDocumento(c, p);
+    if (p.action === 'salvarUnidadeDocumento') return salvarUnidadeDocumento(c, p, auth.uid, audit);
+    if (p.action === 'convidarEquipe') { exigirAtivo(); return convidarEquipe(c, p, auth.uid, audit); }
+    if (p.action === 'revogarConviteEquipe') return revogarConviteEquipe(c, p, audit);
+    if (p.action === 'decidirPedido') return decidirPedido(c, p, auth.uid, audit);
+
+    if (p.action === 'salvarModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
+        const col = db.collection(COL.modelos);
+        const atual = p.id ? (await col.doc(p.id).get()).data() : null;
+        if (p.id && atual?.organization_id !== orgId) throw new HttpsError('not-found', 'Modelo não encontrado');
+        // Modelo do órgão: admin. Modelo de unidade: gestão dela (antes e depois de mudar).
+        const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
+        for (const u of new Set([unidadeId, atual ? (atual.unidade_id || null) : unidadeId])) {
+            if (u) exigirGestor(c, u); else exigirAdmin(c);
+        }
+        const nome = texto(m.nome, 120);
+        if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao modelo');
+        let conteudo;
+        try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
+        const dados = {
+            nome, tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo, unidade_id: unidadeId,
+            ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
+        };
+        if (p.id) {
+            await col.doc(p.id).update(dados);
+        } else {
+            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+                throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
+            }
+            p.id = (await col.add({ ...dados, formato: 'editor', organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
+        }
+        await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId });
+        return { success: true, id: p.id };
     }
 
     exigirAdmin(c);
@@ -142,7 +210,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         let documento;
         try { documento = sanitizeDocumentoConfig(p.documento); } catch (e) { erroUsuario(e); }
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, documento, updated_at: agora, updated_by: auth.uid }, { merge: true });
-        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_DOCUMENTO_CONFIG', { linhas: documento!.cabecalho_linhas.length, brasao: !!documento!.brasao });
+        await audit('SECRETARIA_DOCUMENTO_CONFIG', { linhas: documento!.cabecalho_linhas.length, brasao: !!documento!.brasao });
         return { success: true };
     }
 
@@ -150,35 +218,10 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const calendario = sanitizeCalendario(p.calendario);
         const alerta = p.alerta_prazos === true;
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, calendario, alerta_prazos: alerta, updated_at: agora, updated_by: auth.uid }, { merge: true });
-        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_CALENDARIO', {
+        await audit('SECRETARIA_CALENDARIO', {
             feriados: calendario.feriados.length, recessos: calendario.recessos.length, recesso_forense: calendario.recesso_forense, alerta_prazos: alerta,
         });
         return { success: true, calendario };
-    }
-
-    if (p.action === 'salvarModelo') {
-        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
-        const nome = texto(m.nome, 120);
-        if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao modelo');
-        let conteudo;
-        try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
-        const dados = {
-            nome, tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo,
-            ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
-        };
-        const col = db.collection(COL.modelos);
-        if (p.id) {
-            const ref = col.doc(p.id);
-            if ((await ref.get()).data()?.organization_id !== orgId) throw new HttpsError('not-found', 'Modelo não encontrado');
-            await ref.update(dados);
-        } else {
-            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
-                throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
-            }
-            p.id = (await col.add({ ...dados, organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
-        }
-        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome });
-        return { success: true, id: p.id };
     }
 
     if (p.action === 'ativar') {
@@ -189,12 +232,13 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             'secretariaConfig.updated_by': auth.uid,
         });
         // Primeira ativação: deixa o órgão pronto para autuar, com uma
-        // secretaria (o admin lotado nela) e um rito comum. Nada é criado se
-        // já existir unidade ou rito.
+        // secretaria (o admin lotado e gestor) e um rito comum. Nada é criado
+        // se já existir unidade ou rito.
         if (ligar && c.unidades.length === 0) {
             await db.collection(COL.unidades).add({
-                organization_id: orgId, nome: 'Secretaria', sigla: 'SEC', tipo: 'secretaria',
-                membros_uids: [auth.uid], ativa: true, created_at: agora, created_by: auth.uid,
+                organization_id: orgId, nome: 'Secretaria', sigla: 'SEC', tipo: 'secretaria', descricao: '',
+                lotacoes: [{ uid: auth.uid, atribuicao: 'Administração do Processo Eletrônico', gestor: true }],
+                membros_uids: [auth.uid], pedidos: [], ativa: true, created_at: agora, created_by: auth.uid,
             });
         }
         const temRito = !(await db.collection(COL.ritos).where('organization_id', '==', orgId).limit(1).get()).empty;
@@ -203,7 +247,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 organization_id: orgId, ...RITO_PADRAO, versao: 1, ativo: true, created_at: agora, created_by: auth.uid,
             });
         }
-        await auditar(db, orgId, auth.uid, c.userName, ligar ? 'SECRETARIA_ATIVADA' : 'SECRETARIA_DESATIVADA', {});
+        await audit(ligar ? 'SECRETARIA_ATIVADA' : 'SECRETARIA_DESATIVADA', {});
         return { success: true, enabled: ligar };
     }
 
@@ -214,39 +258,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             'secretariaConfig.updated_at': agora,
             'secretariaConfig.updated_by': auth.uid,
         });
-        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe });
+        await audit('SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe });
         return { success: true };
-    }
-
-    if (p.action === 'salvarUnidade') {
-        const u = p.unidade || {};
-        const nome = texto(u.nome);
-        if (!nome) throw new HttpsError('invalid-argument', 'A unidade precisa de um nome');
-        const tipo = u.tipo === 'gabinete' ? 'gabinete' : 'secretaria';
-        const membrosIn = Array.isArray(u.membros_uids) ? u.membros_uids.filter((x): x is string => typeof x === 'string') : [];
-        const membros = [...new Set(membrosIn)].slice(0, 200);
-        // Só membros do órgão podem ser lotados.
-        if (membros.length) {
-            const refs = membros.map((uid) => db.collection('userOrganizations').doc(`${uid}_${orgId}`));
-            const snaps = await db.getAll(...refs);
-            const fora = snaps.filter((s) => !s.exists).length;
-            if (fora) throw new HttpsError('invalid-argument', `${fora} pessoa(s) não são membros do órgão`);
-        }
-        const dados = {
-            nome, sigla: texto(u.sigla, 20), tipo, membros_uids: membros, ativa: u.ativa !== false,
-            updated_at: agora, updated_by: auth.uid,
-        };
-        if (p.id) {
-            const atual = c.unidades.find((x) => x.id === p.id);
-            if (!atual) throw new HttpsError('not-found', 'Unidade não encontrada');
-            await db.collection(COL.unidades).doc(p.id).update(dados);
-        } else {
-            if (c.unidades.length >= MAX_UNIDADES) throw new HttpsError('resource-exhausted', 'Limite de unidades atingido');
-            const ref = await db.collection(COL.unidades).add({ ...dados, organization_id: orgId, created_at: agora, created_by: auth.uid });
-            p.id = ref.id;
-        }
-        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_UNIDADE_SALVA', { unidade_id: p.id, nome, membros: membros.length });
-        return { success: true, id: p.id };
     }
 
     if (p.action === 'salvarRito') {
@@ -266,7 +279,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             const ref = await col.add({ ...rito, organization_id: orgId, versao: 1, ativo: true, created_at: agora, created_by: auth.uid });
             p.id = ref.id;
         }
-        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_RITO_SALVO', { rito_id: p.id, nome: rito!.nome });
+        await audit('SECRETARIA_RITO_SALVO', { rito_id: p.id, nome: rito!.nome });
         return { success: true, id: p.id };
     }
 
@@ -292,7 +305,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             if ((await col.where('organization_id', '==', orgId).get()).size >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de tipos atingido');
             p.id = (await col.add({ ...dados, organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
         }
-        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome });
+        await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome });
         return { success: true, id: p.id };
     }
 

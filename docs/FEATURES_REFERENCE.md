@@ -107,10 +107,10 @@ Functions (`upsertEntityType`, `createRecord`, `updateRecord`,
 
 ---
 
-## Secretaria Processual
+## Processo Eletrônico
 
 Módulo de processo eletrônico, ligado pelo admin do órgão (Painel
-Administrativo → Secretaria Processual). Fase 1: unidades (secretarias e
+Administrativo → Processo Eletrônico). Fase 1: unidades (secretarias e
 gabinetes) com lotação, ritos versionados, autuação com numeração anual,
 tramitação por posse, atribuição, mudança de fase, sobrestamento e
 arquivamento, minutas redigidas no editor ou enviadas, assinatura eletrônica
@@ -134,8 +134,13 @@ busca por parte e CPF com filtros avançados, aba Painel com indicadores,
 feriados locais e recessos na contagem de prazos, alerta diário de prazos
 por e-mail, código de conferência com QR em cada folha e página pública
 `/Conferir`, e conversão de Word (DOCX) e Excel (XLSX) em folhas dos autos
-(inclusive petição em Word no portal). Ver
-[SECRETARIA.md](./SECRETARIA.md).
+(inclusive petição em Word no portal). Reestruturação (nov/2026): o módulo
+passou a se chamar Processo Eletrônico, toda a configuração foi para o Painel
+Administrativo do órgão, e as unidades de lotação (secretaria, gabinete,
+assessoria, outra) ganharam equipe com atribuições e gestores, inserção de
+membros, convite por e-mail, pedidos de lotação, papel timbrado, tipos de
+documento e modelos próprios. Ver
+[PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---
 

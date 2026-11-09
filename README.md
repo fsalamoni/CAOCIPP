@@ -25,7 +25,7 @@ de que precisa:
 | **Panorama** *(opcional)* | Transforma qualquer planilha em painel e relatórios, sem programação. |
 | **Resumos, métricas e calendário** | Indicadores configuráveis, temporalidade em dias úteis, calendário de vencimentos. |
 | **Páginas personalizadas** | O órgão cria seus próprios tipos de registro, com campos e fases. |
-| **Secretaria Processual** *(opcional)* | Processo eletrônico com ritos configuráveis: autuação, editor de documentos, assinatura, prazos, portal das partes e PDF com verificação. |
+| **Processo Eletrônico** *(opcional)* | Processo eletrônico com ritos configuráveis: autuação, editor de documentos, assinatura, prazos, portal das partes e PDF com verificação. |
 
 As fases são **derivadas dos dados preenchidos** e todos os cálculos são regras
 auditáveis no código: **nenhuma funcionalidade usa inteligência artificial**.
@@ -38,7 +38,7 @@ Tudo está em [`docs/`](./docs/README.md). Para começar:
 
 - [Visão geral](./docs/VISAO_GERAL.md) — o que é, para quem, módulos e limites atuais
 - [Funcionalidades](./docs/FEATURES_REFERENCE.md) — órgãos, membros, administração, métricas, automação
-- Módulos: [Consultas](./docs/CONSULTAS.md) · [Expedientes](./docs/EXPEDIENTES.md) · [Parcerias](./docs/PARCERIAS.md) · [Jurimetria](./docs/JURIMETRIA.md) · [Panorama](./docs/PANORAMA.md) · [Secretaria Processual](./docs/SECRETARIA.md)
+- Módulos: [Consultas](./docs/CONSULTAS.md) · [Expedientes](./docs/EXPEDIENTES.md) · [Parcerias](./docs/PARCERIAS.md) · [Jurimetria](./docs/JURIMETRIA.md) · [Panorama](./docs/PANORAMA.md) · [Processo Eletrônico](./docs/PROCESSO_ELETRONICO.md)
 - [Arquitetura](./docs/ARCHITECTURE_REFERENCE.md) · [Segurança e LGPD](./docs/SECURITY_REFERENCE.md) · [Guia de desenvolvimento](./docs/DEVELOPMENT_GUIDE.md)
 - [Glossário](./docs/GLOSSARY.md) · [Histórico de mudanças](./docs/CHANGELOG.md)
 

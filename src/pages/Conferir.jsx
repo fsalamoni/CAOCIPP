@@ -54,7 +54,7 @@ export default function Conferir() {
             </header>
             <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                    Digite o código impresso no alto das folhas do documento (ou leia o QR) para confirmar que ele foi juntado a um processo da Secretaria Processual.
+                    Digite o código impresso no alto das folhas do documento (ou leia o QR) para confirmar que ele foi juntado a um processo eletrônico do SIGO.
                 </p>
                 <form className="flex flex-col sm:flex-row gap-2 sm:items-end" onSubmit={(e) => { e.preventDefault(); consultar(); }}>
                     <div className="flex-1">

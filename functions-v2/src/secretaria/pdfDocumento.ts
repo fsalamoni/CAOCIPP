@@ -188,7 +188,7 @@ export async function renderizarDocumento(doc: No, cfg: ConfigDocumento = {}, me
         pageSize: 'A4',
         pageMargins: [MARGENS[0], topo, MARGENS[2], 2.2 * CM],
         defaultStyle: { font: fonte, fontSize: Number(cfg.tamanho_padrao) || 12, lineHeight: 1.15 },
-        info: { creator: 'SIGO — Secretaria Processual', producer: 'SIGO' },
+        info: { creator: 'SIGO — Processo Eletrônico', producer: 'SIGO' },
         content: corpo.length ? corpo : [{ text: ' ' }],
         header: temCabecalho ? () => ({
             margin: [MARGENS[0], 24, MARGENS[2], 0],

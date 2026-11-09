@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { base64ParaUrl, baixarBase64, secConfig } from '@/services/secretariaService';
 import EditorDocumento, { preencherCampos } from './EditorDocumento';
+import { documentoDaUnidade, modelosDaUnidade } from './comum';
 
 const DIALOGO_CHEIO = 'max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[96vh] sm:max-w-[1240px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden';
 
@@ -39,7 +40,7 @@ export function VisualizadorPdf({ pdf, onFechar }) {
  * Salvar não fecha (Ctrl+S); a prévia em PDF mostra como o documento entra
  * nos autos, com cabeçalho e assinaturas.
  */
-export default function RedacaoDocumento({ aberto, inicial, estado, orgId, valoresCampos, onSalvar, onPdf, onFechar }) {
+export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unidadeId, valoresCampos, onSalvar, onPdf, onFechar }) {
     const [titulo, setTitulo] = useState('');
     const [tipo, setTipo] = useState('Despacho');
     const [docId, setDocId] = useState(null);
@@ -64,8 +65,10 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, valor
     }, [aberto, inicial]);
 
     const leitura = !!inicial?.somenteLeitura;
-    const tipos = [...new Set([...(estado.documento?.tipos_documento || []), tipo].filter(Boolean))];
-    const modelos = (estado.modelos || []).filter((m) => m.ativo);
+    // Timbrado, tipos e modelos da unidade que tem o processo (ou os do órgão).
+    const docCfg = documentoDaUnidade(estado, unidadeId);
+    const tipos = [...new Set([...(docCfg.tipos_documento || []), tipo].filter(Boolean))];
+    const modelos = modelosDaUnidade(estado, unidadeId).filter((m) => m.formato !== 'original');
 
     const usarModelo = async (id) => {
         if (!id) return;
@@ -159,7 +162,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, valor
                             key={versaoEditor}
                             conteudo={conteudoInicial}
                             somenteLeitura={leitura}
-                            config={estado.documento || {}}
+                            config={docCfg}
                             autoFocus={!leitura}
                             onChange={(j) => { conteudo.current = j; setSujo(true); }}
                             onSalvar={salvar}
