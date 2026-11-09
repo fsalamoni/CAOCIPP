@@ -9,6 +9,7 @@ const email_1 = require("../shared/email");
 const autos_1 = require("./autos");
 const context_1 = require("./context");
 const portalAvisos_1 = require("./portalAvisos");
+const avisosEquipe_1 = require("./avisosEquipe");
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
  * impresso nas folhas. Responde só os dados da juntada: quem tem o código
@@ -60,12 +61,24 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
             continue;
         const unidades = new Map((await db.collection(context_1.COL.unidades).where('organization_id', '==', orgId).get()).docs.map((u) => [u.id, u.data()]));
         const porPessoa = new Map();
+        const sinoPorPessoa = new Map();
         for (const p of procs) {
             const d = p.data();
             const venc = String(d.proximo_vencimento);
             const linha = `<li><b>${escapar(String(d.numero))}</b> — ${escapar(String(d.assunto || ''))}: prazo ${venc < hoje ? `<b>vencido em ${br(venc)}</b>` : `vence em ${br(venc)}`}</li>`;
             for (const uid of (((_c = unidades.get(d.unidade_atual)) === null || _c === void 0 ? void 0 : _c.membros_uids) || [])) {
                 porPessoa.set(uid, [...(porPessoa.get(uid) || []), linha]);
+                sinoPorPessoa.set(uid, [...(sinoPorPessoa.get(uid) || []), { id: p.id, numero: String(d.numero), venc }]);
+            }
+        }
+        // Sino: um aviso por processo com prazo vencendo ou vencido (sem e-mail, que vai abaixo).
+        for (const [uid, itens] of sinoPorPessoa) {
+            for (const it of itens.slice(0, 20)) {
+                await (0, avisosEquipe_1.notificarPessoas)(db, orgId, [uid], {
+                    subtipo: 'prazo', procId: it.id, soSino: true,
+                    titulo: `Prazo ${it.venc < hoje ? 'vencido' : 'vencendo'} no processo ${it.numero}`,
+                    mensagem: `${it.venc < hoje ? 'Venceu' : 'Vence'} em ${br(it.venc)}`, html: '',
+                });
             }
         }
         for (const [uid, linhas] of porPessoa) {
@@ -80,5 +93,6 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
             }).catch(() => false);
         }
     }
+    await (0, avisosEquipe_1.enviarResumosDiarios)(db);
 });
 //# sourceMappingURL=conferir.js.map

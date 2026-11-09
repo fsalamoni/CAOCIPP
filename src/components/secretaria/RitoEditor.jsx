@@ -66,7 +66,7 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
                     <div className="lg:col-span-3 space-y-2">
                         <div className="flex items-center justify-between">
                             <Label>Fases, na ordem do fluxo principal</Label>
-                            <span className="text-xs text-slate-500">{fases.length} fase{fases.length === 1 ? '' : 's'}</span>
+                            <span className="text-xs text-slate-600">{fases.length} fase{fases.length === 1 ? '' : 's'}</span>
                         </div>
                         {fases.map((f, i) => (
                             <FaseCard key={f.id} f={f} i={i} fases={fases} unidades={unidades} mudar={(patch) => mudar(i, patch)} mover={(d) => mover(i, d)} remover={() => remover(i)}
@@ -79,8 +79,8 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
                             <p className="text-sm font-medium mb-2 flex items-center gap-2"><GitBranch className="w-4 h-4" /> Prévia do fluxo</p>
                             {fases.some((f) => f.nome?.trim())
                                 ? <FluxoRito fases={fases.filter((f) => f.nome?.trim())} />
-                                : <p className="text-sm text-slate-500">Dê nome às fases para ver o diagrama.</p>}
-                            <p className="text-xs text-slate-500 mt-2">Setas tracejadas são voltas no fluxo. Caixas arredondadas encerram o fluxo.</p>
+                                : <p className="text-sm text-slate-600">Dê nome às fases para ver o diagrama.</p>}
+                            <p className="text-xs text-slate-600 mt-2">Setas tracejadas são voltas no fluxo. Caixas arredondadas encerram o fluxo.</p>
                         </div>
                     </div>
                 </div>
@@ -107,7 +107,7 @@ function FaseCard({ f, i, fases, unidades, mudar, mover, remover, aberta, altern
     return (
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 space-y-2">
             <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs font-mono w-6 text-slate-500" aria-hidden>{i + 1}</span>
+                <span className="text-xs font-mono w-6 text-slate-600" aria-hidden>{i + 1}</span>
                 <Input className="flex-1 min-w-[10rem]" value={f.nome} placeholder="Nome da fase" onChange={(e) => mudar({ nome: e.target.value })} aria-label={`Nome da fase ${i + 1}`} />
                 <div className="flex items-center gap-1">
                     <Input className="w-20" type="number" min={1} max={3650} placeholder="Dias" value={f.prazo_dias || ''} onChange={(e) => mudar({ prazo_dias: Number(e.target.value) || undefined })} aria-label={`Prazo da fase ${i + 1}, em dias`} />
@@ -130,7 +130,7 @@ function FaseCard({ f, i, fases, unidades, mudar, mover, remover, aberta, altern
             </div>
             {modo === 'escolher' && (
                 <fieldset className="sm:pl-8">
-                    <legend className="text-xs text-slate-500 mb-1">Pode seguir para (a primeira marcada é a sugerida)</legend>
+                    <legend className="text-xs text-slate-600 mb-1">Pode seguir para (a primeira marcada é a sugerida)</legend>
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                         {outras.map((o) => {
                             const marcado = f.proximas?.includes(o.id);
@@ -231,8 +231,8 @@ function Importar({ fases, nomeRito, onCarregar }) {
                 {modelos.map((m) => (
                     <button key={m.nome} type="button" onClick={() => onCarregar(m.fases, m)} className="text-left rounded-md border border-slate-200 dark:border-slate-700 p-3 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                         <p className="font-medium text-sm">{m.nome}</p>
-                        <p className="text-xs text-slate-500">{m.descricao}</p>
-                        <p className="text-xs text-slate-500 mt-1">{m.fases.map((f) => f.nome).join(' · ')}</p>
+                        <p className="text-xs text-slate-600">{m.descricao}</p>
+                        <p className="text-xs text-slate-600 mt-1">{m.fases.map((f) => f.nome).join(' · ')}</p>
                     </button>
                 ))}
             </TabsContent>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   HelpCircle,
@@ -6,10 +6,16 @@ import {
   FileText,
   BarChart3,
   Building2,
-  Mail
+  Mail,
+  Gavel
 } from 'lucide-react';
 
 export default function Help() {
+  // Chegando por link com #secao (ex.: ajuda do Processo Eletrônico), rola até ela.
+  useEffect(() => {
+    const el = window.location.hash && document.getElementById(window.location.hash.slice(1));
+    if (el) el.scrollIntoView({ block: 'start' });
+  }, []);
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
@@ -111,6 +117,65 @@ export default function Help() {
               💡 <strong>Dica:</strong> O status é calculado automaticamente baseado nas datas que você preenche.
               Você não precisa alterar o status manualmente!
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Processo Eletrônico */}
+      <Card id="processo-eletronico" className="shadow-sm border-slate-200 dark:border-slate-700 scroll-mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Gavel className="w-5 h-5" />
+            Processo Eletrônico
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Módulo opcional do órgão para tramitar processos próprios: autuação, ritos com fases, documentos assinados e numerados,
+            prazos, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo em Administração, seção Processo Eletrônico.
+          </p>
+          <div className="grid md:grid-cols-2 gap-6">
+            <FeatureCard
+              icon={Users}
+              title="Equipe da unidade"
+              items={[
+                "Meu trabalho: o que pede sua ação, por urgência; use Assumir para ficar responsável",
+                "Nesta fase: marque as ações feitas e abra os modelos com um clique",
+                "Botão principal segue o rito: concluir, enviar ou seguir para a próxima fase",
+                "Minutas são rascunhos da unidade; Juntar inclui nos autos, com número e data",
+                "Atalhos: N novo documento, T enviar, J juntar; Ler em sequência lê os autos sem cliques",
+              ]}
+            />
+            <FeatureCard
+              icon={Gavel}
+              title="Quem decide (gabinete)"
+              items={[
+                "Mesa de decisão: pendências e petições das partes para apreciar",
+                "Apreciar mostra a petição ao lado e permite decidir por despacho",
+                "Peça a assinatura de alguém da unidade ou assine e junte num ato",
+                "Devolver à secretaria com orientação; a equipe marca Concluída",
+              ]}
+            />
+            <FeatureCard
+              icon={HelpCircle}
+              title="Avisos e celular"
+              items={[
+                "Sino da plataforma avisa processo recebido, assinatura pedida, pendência, petição e prazo",
+                "Em Avisos, escolha um e-mail por evento, um resumo por dia ou nenhum",
+                "No celular, o botão principal fica fixo embaixo e dá para fotografar um documento",
+                "Prazos vencendo: alerta diário por e-mail para a unidade",
+              ]}
+            />
+            <FeatureCard
+              icon={FileText}
+              title="Partes (portal)"
+              items={[
+                "Entre com Google, senha ou link por e-mail; o convite liga você ao processo",
+                "Para você: prazos abertos e intimações; Responder abre a petição guiada",
+                "Leia os autos em sequência, exporte a íntegra em PDF ou imprima",
+                "Minhas manifestações mostram o comprovante com código de verificação",
+              ]}
+            />
           </div>
         </CardContent>
       </Card>

@@ -60,7 +60,7 @@ export default function ConfiguracaoCalendario({ orgId, estado }) {
                 <div className="grid lg:grid-cols-2 gap-5">
                     <fieldset className="space-y-2 min-w-0">
                         <legend className="text-sm font-medium mb-1">Feriados locais</legend>
-                        {feriados.length === 0 && <p className="text-sm text-slate-500">Nenhum feriado local.</p>}
+                        {feriados.length === 0 && <p className="text-sm text-slate-600">Nenhum feriado local.</p>}
                         {feriados.map((f, i) => (
                             <div key={i} className="grid grid-cols-[1fr_auto] sm:grid-cols-[10rem_1fr_auto] gap-2 items-center">
                                 <Input type="date" className="min-w-0" aria-label={`Data do feriado ${i + 1}`} value={f.data} onChange={(e) => muda(feriados, setFeriados, i, 'data', e.target.value)} />
@@ -72,8 +72,8 @@ export default function ConfiguracaoCalendario({ orgId, estado }) {
                     </fieldset>
                     <fieldset className="space-y-2 min-w-0">
                         <legend className="text-sm font-medium mb-1">Recessos e suspensões</legend>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Os dias do período não contam nem em prazo de dias corridos.</p>
-                        {recessos.length === 0 && <p className="text-sm text-slate-500">Nenhum recesso.</p>}
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Os dias do período não contam nem em prazo de dias corridos.</p>
+                        {recessos.length === 0 && <p className="text-sm text-slate-600">Nenhum recesso.</p>}
                         {recessos.map((r, i) => (
                             <div key={i} className="grid grid-cols-[1fr_1fr_auto] sm:grid-cols-[10rem_10rem_1fr_auto] gap-2 items-center">
                                 <Input type="date" className="min-w-0" aria-label={`Início do recesso ${i + 1}`} value={r.inicio} onChange={(e) => muda(recessos, setRecessos, i, 'inicio', e.target.value)} />

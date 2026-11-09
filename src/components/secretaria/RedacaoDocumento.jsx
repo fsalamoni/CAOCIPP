@@ -29,7 +29,7 @@ export function VisualizadorPdf({ pdf, onFechar }) {
                     <Button size="sm" variant="ghost" onClick={onFechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                 </div>
                 {url && <iframe title={pdf?.titulo || 'PDF'} src={url} className="flex-1 w-full bg-slate-200 dark:bg-slate-800" />}
-                <p className="sm:hidden text-xs text-slate-500 px-3 py-2">No celular, se o PDF não aparecer inteiro, use Baixar.</p>
+                <p className="sm:hidden text-xs text-slate-600 px-3 py-2">No celular, se o PDF não aparecer inteiro, use Baixar.</p>
             </DialogContent>
         </Dialog>
     );
@@ -129,7 +129,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
                     <DialogTitle className="sr-only">{leitura ? titulo : docId ? 'Editar minuta' : 'Nova minuta'}</DialogTitle>
                     <DialogDescription className="sr-only">Editor de documento do processo</DialogDescription>
                     {leitura ? (
-                        <p className="font-medium flex-1 min-w-0 truncate">{titulo} <span className="text-sm font-normal text-slate-500">· {tipo}</span></p>
+                        <p className="font-medium flex-1 min-w-0 truncate">{titulo} <span className="text-sm font-normal text-slate-600">· {tipo}</span></p>
                     ) : (
                         <>
                             <Input aria-label="Título do documento" placeholder="Título do documento" value={titulo} onChange={(e) => { setTitulo(e.target.value); setSujo(true); }} className="h-9 flex-1 min-w-[12rem]" />
@@ -145,7 +145,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
                         </>
                     )}
                     <div className="flex items-center gap-2 ml-auto">
-                        {!leitura && <span className="text-xs text-slate-500 hidden md:inline" aria-live="polite">{ocupado ? 'Salvando…' : sujo ? 'Alterações não salvas' : docId ? 'Salvo' : ''}</span>}
+                        {!leitura && <span className="text-xs text-slate-600 hidden md:inline" aria-live="polite">{ocupado ? 'Salvando…' : sujo ? 'Alterações não salvas' : docId ? 'Salvo' : ''}</span>}
                         <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={visualizar}><Eye className="w-4 h-4" /> <span className="hidden sm:inline">{leitura ? 'PDF' : 'Visualizar PDF'}</span></Button>
                         {!leitura && <Button size="sm" className="gap-1" disabled={ocupado || !titulo.trim()} onClick={salvar}>{ocupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar</Button>}
                         <Button size="sm" variant="ghost" onClick={fechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>

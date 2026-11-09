@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CalendarClock, Clock, FolderOpen, Loader2, PauseCircle, Archive } from 'lucide-react';
+import ErroQuery from './ErroQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { secProcesso } from '@/services/secretariaService';
 import { rotuloUnidade } from './comum';
@@ -43,16 +44,16 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
         };
     }, [q.data, unidade]);
 
-    if (q.isLoading) return <div className="py-8 text-slate-500 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
-    if (q.error) return <div className="py-8 text-red-600">{q.error.message}</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.error) return <ErroQuery q={q} />;
 
     const kpis = [
         { rotulo: 'Em tramitação', valor: m.ativos, icone: FolderOpen, cor: 'text-indigo-600 dark:text-indigo-400' },
         { rotulo: 'Com pendência para o decisor', valor: m.comPendencia, icone: AlertTriangle, cor: 'text-amber-600 dark:text-amber-400' },
         { rotulo: 'Prazos vencidos', valor: m.vencidos.length, icone: Clock, cor: 'text-red-600 dark:text-red-400' },
         { rotulo: 'Prazos em 7 dias', valor: m.semana.length, icone: CalendarClock, cor: 'text-sky-600 dark:text-sky-400' },
-        { rotulo: 'Sobrestados', valor: m.sobrestados, icone: PauseCircle, cor: 'text-slate-500' },
-        { rotulo: 'Arquivados', valor: m.arquivados, icone: Archive, cor: 'text-slate-500' },
+        { rotulo: 'Sobrestados', valor: m.sobrestados, icone: PauseCircle, cor: 'text-slate-600' },
+        { rotulo: 'Arquivados', valor: m.arquivados, icone: Archive, cor: 'text-slate-600' },
     ];
 
     return (
@@ -63,14 +64,14 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                     <option value="">Todas as unidades</option>
                     {estado.unidades.filter((u) => u.ativa).map((u) => <option key={u.id} value={u.id}>{u.nome} ({rotuloUnidade(u.tipo).toLowerCase()})</option>)}
                 </select>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Idade média dos processos em tramitação: {m.idadeMedia} dias</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Idade média dos processos em tramitação: {m.idadeMedia} dias</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 {kpis.map(({ rotulo, valor, icone: Icone, cor }) => (
                     <div key={rotulo} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
                         <Icone className={`w-4 h-4 ${cor}`} aria-hidden="true" />
                         <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">{valor}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{rotulo}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">{rotulo}</p>
                     </div>
                 ))}
             </div>
@@ -83,14 +84,14 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Pendências mais antigas</CardTitle></CardHeader>
                     <CardContent>
-                        {m.pendentes.length === 0 ? <p className="text-sm text-slate-500">Nenhuma pendência aberta.</p> : (
+                        {m.pendentes.length === 0 ? <p className="text-sm text-slate-600">Nenhuma pendência aberta.</p> : (
                             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {m.pendentes.map((p) => (
                                     <li key={p.id}>
                                         <button onClick={() => onAbrir(p.id)} className="w-full text-left py-2 flex items-baseline gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded px-1">
                                             <span className="font-mono text-xs text-indigo-700 dark:text-indigo-300">{p.numero}</span>
                                             <span className="flex-1 min-w-0 truncate text-sm">{p.assunto}</span>
-                                            <span className={`text-xs tabular-nums ${dias(p.pendencia_desde) > 10 ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-500'}`}>há {dias(p.pendencia_desde)} dia(s)</span>
+                                            <span className={`text-xs tabular-nums ${dias(p.pendencia_desde) > 10 ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600'}`}>há {dias(p.pendencia_desde)} dia(s)</span>
                                         </button>
                                     </li>
                                 ))}
@@ -101,14 +102,14 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Prazos vencidos e da semana</CardTitle></CardHeader>
                     <CardContent>
-                        {m.vencidos.length + m.semana.length === 0 ? <p className="text-sm text-slate-500">Nenhum prazo vencido ou para os próximos 7 dias.</p> : (
+                        {m.vencidos.length + m.semana.length === 0 ? <p className="text-sm text-slate-600">Nenhum prazo vencido ou para os próximos 7 dias.</p> : (
                             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {[...m.vencidos, ...m.semana].sort((a, b) => a.proximo_vencimento.localeCompare(b.proximo_vencimento)).slice(0, 10).map((p) => (
                                     <li key={p.id}>
                                         <button onClick={() => onAbrir(p.id)} className="w-full text-left py-2 flex items-baseline gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded px-1">
                                             <span className="font-mono text-xs text-indigo-700 dark:text-indigo-300">{p.numero}</span>
                                             <span className="flex-1 min-w-0 truncate text-sm">{p.assunto}</span>
-                                            <span className={`text-xs tabular-nums ${p.proximo_vencimento < m.hoje ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-500'}`}>
+                                            <span className={`text-xs tabular-nums ${p.proximo_vencimento < m.hoje ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600'}`}>
                                                 {p.proximo_vencimento < m.hoje ? 'venceu' : 'vence'} {br(p.proximo_vencimento)}
                                             </span>
                                         </button>
@@ -129,11 +130,11 @@ function Barras({ titulo, dados }) {
         <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">{titulo}</CardTitle></CardHeader>
             <CardContent>
-                {dados.length === 0 ? <p className="text-sm text-slate-500">Sem processos em tramitação.</p> : (
+                {dados.length === 0 ? <p className="text-sm text-slate-600">Sem processos em tramitação.</p> : (
                     <ul className="space-y-2">
                         {dados.map(([nome, v]) => (
                             <li key={nome} className="text-sm">
-                                <div className="flex justify-between gap-2"><span className="truncate">{nome}</span><span className="tabular-nums text-slate-500">{v}</span></div>
+                                <div className="flex justify-between gap-2"><span className="truncate">{nome}</span><span className="tabular-nums text-slate-600">{v}</span></div>
                                 <div className="mt-1 h-2 rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true">
                                     <div className="h-2 rounded bg-indigo-500 dark:bg-indigo-400" style={{ width: `${(v / max) * 100}%` }} />
                                 </div>

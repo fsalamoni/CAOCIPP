@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AlertCircle, CalendarClock, Inbox, Loader2, PenLine, Undo2, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ErroQuery from './ErroQuery';
 import { Badge } from '@/components/ui/badge';
 import { secProcesso } from '@/services/secretariaService';
 import { STATUS_ROTULO } from './comum';
@@ -38,8 +39,8 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
     const qc = useQueryClient();
     const [assumindo, setAssumindo] = useState('');
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'caixa'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }) });
-    if (q.isLoading) return <div className="py-8 text-slate-500 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
-    if (q.error) return <div className="py-8 text-red-600">{q.error.message}</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.error) return <ErroQuery q={q} />;
     const { grupos, hoje } = gruposDeTrabalho(q.data?.processos || [], estado);
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '—';
     const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome || '';
@@ -75,7 +76,7 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
                                 <div key={p.id} className="p-3 flex flex-wrap gap-x-4 gap-y-1 items-center">
                                     <button type="button" onClick={() => onAbrir(p.id)} className="font-mono text-sm text-indigo-700 dark:text-indigo-300 hover:underline">{p.numero}</button>
                                     <button type="button" onClick={() => onAbrir(p.id)} className="font-medium text-left text-slate-900 dark:text-white flex-1 min-w-[12rem] hover:underline">{p.assunto}</button>
-                                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">
                                         {p.fase_nome} · {nomeUnidade(p.unidade_atual)}{naUnidade != null ? ` ${ha(naUnidade)}` : ''}{p.responsavel_uid && p.responsavel_uid !== estado.uid ? ` · ${nomeMembro(p.responsavel_uid)}` : ''}
                                     </span>
                                     {g.id === 'assinar' && <Badge className="bg-amber-500 hover:bg-amber-500">{(p.assinaturas_pendentes || []).filter((x) => x.uid === estado.uid).map((x) => x.titulo).join(', ')}</Badge>}
@@ -98,8 +99,8 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
 /** Pendências de todos os processos nos gabinetes em que a pessoa está lotada, da mais antiga para a mais nova. */
 export function MesaDecisao({ orgId, estado, onAbrir }) {
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'caixa'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }) });
-    if (q.isLoading) return <div className="py-8 text-slate-500 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
-    if (q.error) return <div className="py-8 text-red-600">{q.error.message}</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.error) return <ErroQuery q={q} />;
     const gabinetes = new Set(estado.unidades.filter((u) => u.tipo === 'gabinete' && estado.minhasUnidades.includes(u.id)).map((u) => u.id));
     const lista = (q.data?.processos || [])
         .filter((p) => gabinetes.has(p.unidade_atual) && p.pendencias_abertas > 0 && p.status !== 'arquivado')
@@ -115,8 +116,8 @@ export function MesaDecisao({ orgId, estado, onAbrir }) {
                 return (
                     <button key={p.id} type="button" onClick={() => onAbrir(p.id)} className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800 flex flex-wrap gap-x-6 gap-y-1 items-baseline">
                         <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300">{p.numero}</span>
-                        <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-500">{p.tipo_nome}</span>}</span>
-                        <span className="text-sm text-slate-500 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}</span>
+                        <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-600">{p.tipo_nome}</span>}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}</span>
                         <Badge className={`${espera > 10 ? 'bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100 hover:bg-red-100' : 'bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100'}`}>
                             {p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''} · espera {ha(espera) || 'desde hoje'}{p.fase_suspensa ? ' · fase interrompida' : ''}
                         </Badge>

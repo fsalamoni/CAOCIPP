@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Avisos, celular e acessibilidade (etapa 6)
+- Avisos da equipe no **sino da plataforma** (processo recebido, assinatura
+  pedida, pendência, petição da parte, prazo), abrindo o processo ao clicar.
+- Diálogo **Avisos** com preferência por pessoa: sino ligado ou não; e-mail a
+  cada evento, um **resumo por dia** ou nenhum.
+- Celular: barra fixa com o botão principal e Novo documento; **fotografar um
+  documento** na equipe e no portal.
+- Acessibilidade: contraste do texto auxiliar, **Tentar de novo** nos erros
+  de carregamento, glossário nos termos técnicos.
+- Seção **Processo Eletrônico** na Central de Ajuda, por perfil, com atalho
+  "?" no módulo.
+
 ### 09/11/2026 — Equipe e decisor (etapa 5)
 - Cartão **Nesta fase** com ações marcáveis, modelos da fase como botões e um
   **botão único** que segue o rito (inclusive enviar e mudar a fase num ato).

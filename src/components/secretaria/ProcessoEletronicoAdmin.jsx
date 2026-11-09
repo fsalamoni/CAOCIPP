@@ -82,7 +82,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
                 </CardContent>
             </Card>
 
-            {estadoQ.isLoading && <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a configuração…</p>}
+            {estadoQ.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a configuração…</p>}
             {estadoQ.error && <p role="alert" className="text-sm text-red-600">{estadoQ.error.message}</p>}
             {estado?.isAdmin && <ConfiguracaoProcessoEletronico orgId={orgId} estado={estado} />}
         </div>

@@ -102,7 +102,7 @@ export default function PropostaRito({ aberto, orgId, estado, onFechar }) {
                             <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center cursor-pointer border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-400 ${lendo ? 'opacity-60 pointer-events-none' : ''}`}>
                                 {lendo ? <Loader2 className="w-7 h-7 animate-spin text-indigo-600" aria-hidden /> : <FileUp className="w-7 h-7 text-indigo-600" aria-hidden />}
                                 <span className="font-medium">{lendo ? 'Lendo…' : 'Escolher arquivo'}</span>
-                                <span className="text-xs text-slate-500">Planilha (Excel, CSV), Word, PDF, BPMN, draw.io, Mermaid ou texto · até {MAX_MB} MB</span>
+                                <span className="text-xs text-slate-600">Planilha (Excel, CSV), Word, PDF, BPMN, draw.io, Mermaid ou texto · até {MAX_MB} MB</span>
                                 <input type="file" accept={ACEITOS} className="sr-only" onChange={escolher} disabled={lendo} />
                             </label>
                             <div className="grid sm:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-300">
@@ -228,7 +228,7 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                         </section>
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5"><Building2 className="w-4 h-4" aria-hidden /> Unidades novas ({unNovas.length})</h3>
-                            {unNovas.length === 0 && <p className="text-xs text-slate-500">Todas as unidades citadas já existem no órgão.</p>}
+                            {unNovas.length === 0 && <p className="text-xs text-slate-600">Todas as unidades citadas já existem no órgão.</p>}
                             {unNovas.map((u) => (
                                 <div key={u.ref} className="space-y-1.5 border-t first:border-0 border-slate-100 dark:border-slate-800 pt-2 first:pt-0">
                                     <div className="flex gap-2">
@@ -248,7 +248,7 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                         </section>
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5"><FileText className="w-4 h-4" aria-hidden /> Modelos novos ({modNovos.length})</h3>
-                            {modNovos.length === 0 && <p className="text-xs text-slate-500">Nenhum modelo novo. Documentos citados nas fases aparecem aqui.</p>}
+                            {modNovos.length === 0 && <p className="text-xs text-slate-600">Nenhum modelo novo. Documentos citados nas fases aparecem aqui.</p>}
                             {modNovos.map((m) => (
                                 <div key={m.ref} className="space-y-1.5 border-t first:border-0 border-slate-100 dark:border-slate-800 pt-2 first:pt-0">
                                     <div className="flex gap-2">
@@ -258,7 +258,7 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                                             {(estado.documento?.tipos_documento || []).map((t) => <option key={t} value={t}>{t}</option>)}
                                         </select>
                                     </div>
-                                    <p className="text-xs text-slate-500">{m.unidade_ref ? `Da unidade ${nomeUnidade(m.unidade_ref)}` : 'Do órgão'} · sai com um texto-base com campos automáticos para completar.</p>
+                                    <p className="text-xs text-slate-600">{m.unidade_ref ? `Da unidade ${nomeUnidade(m.unidade_ref)}` : 'Do órgão'} · sai com um texto-base com campos automáticos para completar.</p>
                                     {(estado.modelos || []).length > 0 && (
                                         <select aria-label={`Usar um modelo existente no lugar de ${m.nome}`} value="" onChange={(e) => e.target.value && trocarModelo(m.ref, e.target.value)} className={`${campo} h-8 w-full text-xs`}>
                                             <option value="">Ou usar um modelo que já existe…</option>
@@ -276,7 +276,7 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                                     <Input aria-label="Sigla" placeholder="Sigla" value={tipo.sigla} onChange={(e) => setTipo({ ...tipo, sigla: e.target.value })} className="h-8 w-24" />
                                 </div>
                             )}
-                            {tipo.criar && <p className="text-xs text-slate-500">Começa na unidade da primeira fase{p.fases[0]?.unidade_ref ? ` (${nomeUnidade(p.fases[0].unidade_ref)})` : ''}.</p>}
+                            {tipo.criar && <p className="text-xs text-slate-600">Começa na unidade da primeira fase{p.fases[0]?.unidade_ref ? ` (${nomeUnidade(p.fases[0].unidade_ref)})` : ''}.</p>}
                         </section>
                     </aside>
                 </div>
@@ -362,10 +362,10 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 <label className="flex items-center gap-2 text-sm mb-2"><Checkbox checked={!!f.final} onCheckedChange={(c) => mudar({ final: c === true })} /> O processo termina nesta fase</label>
                 {!f.final && (
                     <div className="space-y-1.5">
-                        {saidas.length === 0 && <p className="text-xs text-slate-500">{proxLista ? `Segue para a próxima da lista (${proxLista}).` : 'Última fase.'}</p>}
+                        {saidas.length === 0 && <p className="text-xs text-slate-600">{proxLista ? `Segue para a próxima da lista (${proxLista}).` : 'Última fase.'}</p>}
                         {saidas.map((id, k) => (
                             <div key={`${id}-${k}`} className="flex flex-wrap gap-2 items-center">
-                                <span className="text-xs text-slate-500">→</span>
+                                <span className="text-xs text-slate-600">→</span>
                                 <select aria-label="Próxima fase" value={id} onChange={(e) => setSaida(k, e.target.value)} className={`${campo} h-8 flex-1 min-w-[9rem]`}>
                                     {outras.map((x) => <option key={x.id} value={x.id}>{x.nome || '(sem nome)'}</option>)}
                                 </select>

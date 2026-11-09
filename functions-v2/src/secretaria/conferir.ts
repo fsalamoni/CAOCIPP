@@ -6,6 +6,7 @@ import { sendEmail } from '../shared/email';
 import { APP_URL, normalizarCodigo } from './autos';
 import { COL, REGION } from './context';
 import { lembrarPrazosDasPartes } from './portalAvisos';
+import { enviarResumosDiarios, notificarPessoas } from './avisosEquipe';
 
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
@@ -56,12 +57,24 @@ export const secretariaAlertaPrazos = onSchedule(
             if (cfg.data()?.alerta_prazos !== true || sc.enabled !== true || sc.suspensa_plataforma === true) continue;
             const unidades = new Map((await db.collection(COL.unidades).where('organization_id', '==', orgId).get()).docs.map((u) => [u.id, u.data()]));
             const porPessoa = new Map<string, string[]>();
+            const sinoPorPessoa = new Map<string, Array<{ id: string; numero: string; venc: string }>>();
             for (const p of procs) {
                 const d = p.data();
                 const venc = String(d.proximo_vencimento);
                 const linha = `<li><b>${escapar(String(d.numero))}</b> — ${escapar(String(d.assunto || ''))}: prazo ${venc < hoje ? `<b>vencido em ${br(venc)}</b>` : `vence em ${br(venc)}`}</li>`;
                 for (const uid of (unidades.get(d.unidade_atual)?.membros_uids || []) as string[]) {
                     porPessoa.set(uid, [...(porPessoa.get(uid) || []), linha]);
+                    sinoPorPessoa.set(uid, [...(sinoPorPessoa.get(uid) || []), { id: p.id, numero: String(d.numero), venc }]);
+                }
+            }
+            // Sino: um aviso por processo com prazo vencendo ou vencido (sem e-mail, que vai abaixo).
+            for (const [uid, itens] of sinoPorPessoa) {
+                for (const it of itens.slice(0, 20)) {
+                    await notificarPessoas(db, orgId, [uid], {
+                        subtipo: 'prazo', procId: it.id, soSino: true,
+                        titulo: `Prazo ${it.venc < hoje ? 'vencido' : 'vencendo'} no processo ${it.numero}`,
+                        mensagem: `${it.venc < hoje ? 'Venceu' : 'Vence'} em ${br(it.venc)}`, html: '',
+                    });
                 }
             }
             for (const [uid, linhas] of porPessoa) {
@@ -75,5 +88,6 @@ export const secretariaAlertaPrazos = onSchedule(
                 }).catch(() => false);
             }
         }
+        await enviarResumosDiarios(db);
     },
 );

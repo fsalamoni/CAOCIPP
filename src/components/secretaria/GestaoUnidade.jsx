@@ -30,7 +30,7 @@ function DadosUnidade({ u, setU, idPrefixo }) {
                     {Object.entries(TIPOS_UNIDADE).map(([k, t]) => (
                         <label key={k} className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer ${u.tipo === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950' : 'border-slate-200 dark:border-slate-700'}`}>
                             <input type="radio" name={`${idPrefixo}-tipo`} className="mt-1" checked={u.tipo === k} onChange={() => setU({ ...u, tipo: k })} />
-                            <span><span className="font-medium block">{t.rotulo}</span><span className="text-slate-500 dark:text-slate-400">{t.descricao}</span></span>
+                            <span><span className="font-medium block">{t.rotulo}</span><span className="text-slate-600 dark:text-slate-400">{t.descricao}</span></span>
                         </label>
                     ))}
                 </div>
@@ -110,7 +110,7 @@ function CorpoGestao({ orgId, estado, unidade }) {
             <TabsContent value="equipe" className="pt-3"><Equipe orgId={orgId} estado={estado} unidade={unidade} /></TabsContent>
             <TabsContent value="documentos" className="pt-3"><DocumentosDaUnidade orgId={orgId} estado={estado} unidade={unidade} /></TabsContent>
             <TabsContent value="modelos" className="pt-3">
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Modelos que só esta unidade usa (além dos do órgão). Saem com o papel timbrado da unidade.</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Modelos que só esta unidade usa (além dos do órgão). Saem com o papel timbrado da unidade.</p>
                 <ListaModelos orgId={orgId} estado={estado} unidadeId={unidade.id} semCartao />
             </TabsContent>
             {estado.isAdmin && <TabsContent value="dados" className="pt-3"><EditarDados orgId={orgId} unidade={unidade} /></TabsContent>}
@@ -174,7 +174,7 @@ function Equipe({ orgId, estado, unidade }) {
                     <h3 id={`ped-${unidade.id}`} className="text-sm font-semibold text-amber-900 dark:text-amber-100">Pedidos de lotação</h3>
                     {unidade.pedidos.map((p) => (
                         <div key={p.uid} className="flex flex-wrap items-center gap-2 text-sm">
-                            <span className="flex-1 min-w-[12rem]"><b>{p.nome}</b>{p.email && <span className="text-slate-500"> · {p.email}</span>}{p.mensagem && <span className="block text-slate-600 dark:text-slate-300">“{p.mensagem}”</span>}<span className="block text-xs text-slate-500">{dataHora(p.em)}</span></span>
+                            <span className="flex-1 min-w-[12rem]"><b>{p.nome}</b>{p.email && <span className="text-slate-600"> · {p.email}</span>}{p.mensagem && <span className="block text-slate-600 dark:text-slate-300">“{p.mensagem}”</span>}<span className="block text-xs text-slate-600">{dataHora(p.em)}</span></span>
                             <Input list="atribuicoes-sugeridas" aria-label={`Atribuição de ${p.nome}`} placeholder="Atribuição" className="h-8 w-44" value={admissao[p.uid] || ''} onChange={(e) => setAdmissao({ ...admissao, [p.uid]: e.target.value })} />
                             <Button size="sm" className="gap-1" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: true, atribuicao: admissao[p.uid] || '' }), `${p.nome} admitido`)}><Check className="w-4 h-4" /> Admitir</Button>
                             <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: false }), 'Pedido recusado')}>Recusar</Button>
@@ -186,15 +186,15 @@ function Equipe({ orgId, estado, unidade }) {
             <section aria-labelledby={`lot-${unidade.id}`} className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                     <h3 id={`lot-${unidade.id}`} className="text-sm font-semibold">Lotados ({lot.length})</h3>
-                    <span className="text-xs text-slate-500 flex items-center gap-1"><Crown className="w-3.5 h-3.5" aria-hidden /> Gestor configura a unidade</span>
+                    <span className="text-xs text-slate-600 flex items-center gap-1"><Crown className="w-3.5 h-3.5" aria-hidden /> Gestor configura a unidade</span>
                 </div>
-                {lot.length === 0 && <p className="text-sm text-slate-500">Ninguém lotado. Insira membros do órgão ou convide por e-mail.</p>}
+                {lot.length === 0 && <p className="text-sm text-slate-600">Ninguém lotado. Insira membros do órgão ou convide por e-mail.</p>}
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-md border border-slate-200 dark:border-slate-700">
                     {lot.map((l) => {
                         const m = membro(l.uid);
                         return (
                             <li key={l.uid} className="flex flex-wrap items-center gap-2 p-2">
-                                <span className="flex-1 min-w-[10rem] text-sm"><span className="font-medium">{m?.nome || 'Ex-membro do órgão'}</span>{m?.email && <span className="block text-xs text-slate-500">{m.email}</span>}</span>
+                                <span className="flex-1 min-w-[10rem] text-sm"><span className="font-medium">{m?.nome || 'Ex-membro do órgão'}</span>{m?.email && <span className="block text-xs text-slate-600">{m.email}</span>}</span>
                                 <Input list="atribuicoes-sugeridas" aria-label={`Atribuição de ${m?.nome || l.uid}`} placeholder="Atribuição" className="h-8 w-48" maxLength={80} value={l.atribuicao} onChange={(e) => mudar(l.uid, 'atribuicao', e.target.value)} />
                                 <label className="flex items-center gap-1 text-sm"><Checkbox checked={l.gestor} onCheckedChange={(c) => mudar(l.uid, 'gestor', c === true)} /> Gestor</label>
                                 <Button size="sm" variant="ghost" aria-label={`Remover ${m?.nome || ''} da unidade`} onClick={() => { setLot(lot.filter((x) => x.uid !== l.uid)); setSujo(true); }}><Trash2 className="w-4 h-4" /></Button>
@@ -221,7 +221,7 @@ function Equipe({ orgId, estado, unidade }) {
 
             <section aria-labelledby={`conv-${unidade.id}`} className="space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
                 <h3 id={`conv-${unidade.id}`} className="text-sm font-semibold">Convidar por e-mail</h3>
-                <p className="text-xs text-slate-500">Para quem ainda não é membro do órgão. Ao aceitar com a conta do e-mail convidado, a pessoa entra no órgão já lotada aqui. Vale 7 dias.</p>
+                <p className="text-xs text-slate-600">Para quem ainda não é membro do órgão. Ao aceitar com a conta do e-mail convidado, a pessoa entra no órgão já lotada aqui. Vale 7 dias.</p>
                 <div className="flex flex-wrap items-end gap-2">
                     <div className="flex-1 min-w-[12rem]"><Label htmlFor={`cv-email-${unidade.id}`}>E-mail</Label><Input id={`cv-email-${unidade.id}`} type="email" className="mt-1" value={convite.email} onChange={(e) => setConvite({ ...convite, email: e.target.value })} /></div>
                     <div className="w-48"><Label htmlFor={`cv-atr-${unidade.id}`}>Atribuição</Label><Input id={`cv-atr-${unidade.id}`} list="atribuicoes-sugeridas" className="mt-1" value={convite.atribuicao} onChange={(e) => setConvite({ ...convite, atribuicao: e.target.value })} /></div>
@@ -238,7 +238,7 @@ function Equipe({ orgId, estado, unidade }) {
                     <ul className="text-sm space-y-1 pt-1">
                         {convites.map((c) => (
                             <li key={c.id} className="flex flex-wrap items-center gap-2">
-                                <span className="flex-1 min-w-[12rem]">{c.email}{c.atribuicao && ` · ${c.atribuicao}`}{c.gestor && ' · gestor'} <span className="text-xs text-slate-500">(vence {dataHora(c.expira_em)})</span></span>
+                                <span className="flex-1 min-w-[12rem]">{c.email}{c.atribuicao && ` · ${c.atribuicao}`}{c.gestor && ' · gestor'} <span className="text-xs text-slate-600">(vence {dataHora(c.expira_em)})</span></span>
                                 <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'revogarConviteEquipe', { id: c.id }), 'Convite revogado')}>Revogar</Button>
                             </li>
                         ))}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, Gavel, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +14,8 @@ import { createPageUrl } from '@/utils';
 import { useOrganizations } from '@/hooks/useFirestore';
 import { secConfig, secProcesso } from '@/services/secretariaService';
 import ProcessoView from '@/components/secretaria/ProcessoView';
+import ErroQuery from '@/components/secretaria/ErroQuery';
+import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
 import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/UnidadesDoUsuario';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
@@ -50,10 +52,10 @@ export default function ProcessoEletronico() {
 
     if (tokenEquipe) return <ConviteEquipe token={tokenEquipe} />;
     if (!orgId) {
-        return <div className="p-8 text-slate-500">Escolha um órgão no menu lateral.</div>;
+        return <div className="p-8 text-slate-600">Escolha um órgão no menu lateral.</div>;
     }
     if (estadoQ.isLoading) {
-        return <div className="p-8 flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o Processo Eletrônico…</div>;
+        return <div className="p-8 flex items-center gap-2 text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o Processo Eletrônico…</div>;
     }
     if (estadoQ.error) {
         return <div className="p-8 text-red-600">{estadoQ.error.message}</div>;
@@ -98,13 +100,13 @@ export default function ProcessoEletronico() {
         <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                    <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" aria-label="Voltar ao órgão">
+                    <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="text-slate-600 hover:text-slate-800 dark:hover:text-slate-200" aria-label="Voltar ao órgão">
                         <ArrowLeft className="w-5 h-5" />
                     </Link>
                     <Gavel className="w-6 h-6 text-indigo-600 dark:text-indigo-400 shrink-0" />
                     <div className="min-w-0">
                         <h1 className="text-xl font-semibold text-slate-900 dark:text-white truncate">Processo Eletrônico</h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                        <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
                             {org?.name || ''}
                             {estado.minhasUnidades.length > 0 && ` · lotado em ${estado.minhasUnidades.map((id) => estado.unidades.find((u) => u.id === id)?.nome).join(', ')}`}
                         </p>
@@ -112,6 +114,10 @@ export default function ProcessoEletronico() {
                 </div>
                 {!procId && (
                     <div className="flex flex-wrap gap-2">
+                        <Button asChild variant="ghost" size="icon" aria-label="Ajuda do Processo Eletrônico">
+                            <Link to={`${createPageUrl('Help')}#processo-eletronico`}><HelpCircle className="w-5 h-5" aria-hidden /></Link>
+                        </Button>
+                        {estado.minhasUnidades.length > 0 && <AvisosEquipe />}
                         {estado.isAdmin && (
                             <Button asChild variant="outline" className="gap-2">
                                 <Link to={`${createPageUrl('Organization')}?id=${orgId}&tab=admin&secao=secretaria`}><Settings className="w-4 h-4" aria-hidden /> Configurar</Link>
@@ -181,8 +187,8 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
         queryKey: ['sec-processos', orgId, escopo],
         queryFn: () => secProcesso(orgId, 'listar', { escopo }),
     });
-    if (q.isLoading) return <div className="py-8 text-slate-500 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
-    if (q.error) return <div className="py-8 text-red-600">{q.error.message}</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.error) return <ErroQuery q={q} />;
     const todos = q.data?.processos || [];
     const termo = norm(f.texto.trim());
     const termoDig = f.texto.replace(/\D/g, '');
@@ -222,7 +228,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                 {ativos > 0 && (
                     <Button variant="ghost" size="sm" className="gap-1" onClick={() => setF(FILTROS_VAZIOS)}><X className="w-4 h-4" /> Limpar filtros</Button>
                 )}
-                <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}</span>
             </div>
             {avancado && (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900/50">
@@ -262,7 +268,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                 </div>
             )}
             {lista.length === 0 ? (
-                <div className="py-8 text-slate-500 dark:text-slate-400 space-y-2">
+                <div className="py-8 text-slate-600 dark:text-slate-400 space-y-2">
                     <p>{todos.length && ativos ? 'Nenhum processo com esses filtros.' : escopo === 'caixa' ? 'Nenhum processo com as suas unidades.' : 'Nenhum processo visível para você.'}</p>
                     {todos.length > 0 && ativos > 0 && <Button variant="outline" size="sm" onClick={() => setF(FILTROS_VAZIOS)}>Limpar filtros</Button>}
                     {!todos.length && escopo === 'caixa' && estado.minhasUnidades.length > 0 && <p className="text-sm">Use <b>Novo processo</b> acima para autuar o primeiro.</p>}
@@ -273,8 +279,8 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     {lista.map((p) => (
                         <button key={p.id} onClick={() => onAbrir(p.id)} className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800 flex flex-wrap gap-x-6 gap-y-1 items-baseline">
                             <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300">{p.numero}</span>
-                            <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-500">{p.tipo_nome}</span>}</span>
-                            <span className="text-sm text-slate-500 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}{p.responsavel_uid ? ` · ${nomeMembro(p.responsavel_uid) || ''}` : ''}</span>
+                            <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-600">{p.tipo_nome}</span>}</span>
+                            <span className="text-sm text-slate-600 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}{p.responsavel_uid ? ` · ${nomeMembro(p.responsavel_uid) || ''}` : ''}</span>
                             <Badge variant={p.status === 'em_tramitacao' ? 'secondary' : 'outline'}>{STATUS_ROTULO[p.status]}</Badge>
                             {p.sigilo === 'restrito' && <Badge variant="outline">Restrito</Badge>}
                             {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}{p.fase_suspensa ? ' · fase interrompida' : ''}</Badge>}
@@ -342,7 +348,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                         <div>
                             <NativeSelect id="sec-tipo" label="Tipo de processo" value={f.tipo_id} onChange={escolherTipo}
                                 options={[['', 'Sem tipo (escolher o rito)'], ...tiposAtivos.map((t) => [t.id, t.sigla ? `${t.nome} (${t.sigla})` : t.nome])]} />
-                            {tipoSel?.descricao && <p className="text-xs text-slate-500 mt-1">{tipoSel.descricao}</p>}
+                            {tipoSel?.descricao && <p className="text-xs text-slate-600 mt-1">{tipoSel.descricao}</p>}
                         </div>
                     )}
                     <div><Label htmlFor="sec-assunto">Assunto</Label><Input id="sec-assunto" value={f.assunto} onChange={(e) => set('assunto', e.target.value)} maxLength={200} /></div>
