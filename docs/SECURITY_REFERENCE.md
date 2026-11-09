@@ -34,7 +34,7 @@ Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 | `processes`, `expedientes`, `parcerias` | Membros do órgão | **Nenhuma** (só Functions, que validam campos, permissões e gravam histórico). Subcoleções `history`, `aditivos`, `comments`: nenhuma. |
 | `juris`, `jurimetriaTemplates`, `panoramaBases`, `panoramaRegistros`, `panoramaTemplates`, `entityTypes`, `customRecords` | Membros do órgão | **Nenhuma** |
 | `auditLogs` | Só criador e admins do órgão | **Nenhuma** |
-| `notifications` | Só o destinatário | Só marcar como lida (`read`, `read_at`) |
+| `notifications` | Só o destinatário | Só marcar como lida (`read`, `read_at`); criadas só pelas Functions (menções e avisos do Processo Eletrônico) |
 | `presence` | Membros do órgão | Só o próprio heartbeat |
 | `otpCodes` | **Nenhuma** | **Nenhuma** |
 | `platformConfig` | Qualquer autenticado | **Nenhuma** |

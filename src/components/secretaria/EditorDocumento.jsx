@@ -348,8 +348,8 @@ export default function EditorDocumento({
                                 <button type="button" title="Inserir campo automático" aria-label="Inserir campo automático" onMouseDown={(e) => e.preventDefault()} className="h-8 px-1.5 shrink-0 inline-flex items-center gap-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm"><Braces className="w-4 h-4" /> Campo</button>
                             </PopoverTrigger>
                             <PopoverContent className="w-64 p-1" onOpenAutoFocus={(e) => e.preventDefault()}>
-                                <p className="text-xs px-2 py-1 text-slate-500">Preenchido sozinho quando o modelo for usado num processo.</p>
-                                {campos.map(([k, r]) => <button key={k} type="button" onClick={() => ch().insertContent(`{{${k}}}`).run()} className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">{r} <span className="text-xs font-mono text-slate-500">{`{{${k}}}`}</span></button>)}
+                                <p className="text-xs px-2 py-1 text-slate-600">Preenchido sozinho quando o modelo for usado num processo.</p>
+                                {campos.map(([k, r]) => <button key={k} type="button" onClick={() => ch().insertContent(`{{${k}}}`).run()} className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">{r} <span className="text-xs font-mono text-slate-600">{`{{${k}}}`}</span></button>)}
                             </PopoverContent>
                         </Popover>
                     )}
@@ -361,7 +361,7 @@ export default function EditorDocumento({
                             <Input value={busca.termo} onChange={(e) => setBusca({ ...busca, termo: e.target.value })} placeholder="Localizar" aria-label="Localizar" onKeyDown={(e) => e.key === 'Enter' && proxima()} />
                             <Input value={busca.subst} onChange={(e) => setBusca({ ...busca, subst: e.target.value })} placeholder="Substituir por" aria-label="Substituir por" />
                             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={busca.caso} onChange={(e) => setBusca({ ...busca, caso: e.target.checked })} /> Diferenciar maiúsculas</label>
-                            <p className="text-xs text-slate-500" aria-live="polite">{busca.termo ? `${ocorrencias.length} ocorrência(s)` : ''}</p>
+                            <p className="text-xs text-slate-600" aria-live="polite">{busca.termo ? `${ocorrencias.length} ocorrência(s)` : ''}</p>
                             <div className="flex flex-wrap gap-1 justify-end">
                                 <Button size="sm" variant="outline" disabled={!ocorrencias.length} onClick={proxima}>Próxima</Button>
                                 <Button size="sm" variant="outline" disabled={!ocorrencias.length} onClick={substituir}>Substituir</Button>

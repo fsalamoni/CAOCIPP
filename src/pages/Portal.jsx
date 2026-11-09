@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import {
     ArrowLeft, Bell, BookOpen, CalendarCheck, CalendarClock, Download, FileCheck, FilePlus, FileText, Flag, Gavel, GitBranch, Loader2,
-    LogOut, Mail, Printer, Search, Send, ShieldAlert, ShieldCheck, UserCheck,
+    LogOut, Mail, Printer, Search, Send, ShieldAlert, ShieldCheck, UserCheck, Camera, RefreshCw,
 } from 'lucide-react';
 import { auth } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
@@ -94,7 +94,7 @@ export default function Portal() {
                     <button type="button" onClick={() => ir(null)} className="flex items-center gap-2 font-semibold"><Gavel className="w-5 h-5 text-indigo-600" aria-hidden /> Portal das partes</button>
                     {isAuthenticated && (
                         <div className="flex items-center gap-1 text-sm min-w-0">
-                            <span className="truncate text-slate-500 hidden md:inline max-w-[14rem]">{user?.email}</span>
+                            <span className="truncate text-slate-600 hidden md:inline max-w-[14rem]">{user?.email}</span>
                             <Avisos />
                             <Button variant="ghost" size="sm" className="gap-1" onClick={() => signOut()}><LogOut className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Sair</span></Button>
                         </div>
@@ -113,7 +113,7 @@ export default function Portal() {
 }
 
 function Carregando({ texto }) {
-    return <div className="py-10 flex gap-2 items-center text-slate-500" role="status"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> {texto}</div>;
+    return <div className="py-10 flex gap-2 items-center text-slate-600" role="status"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> {texto}</div>;
 }
 
 /** Preferência de avisos por e-mail da conta. */
@@ -251,7 +251,7 @@ function Entrar({ convite }) {
                             {modo === 'criar' && <div><Label htmlFor="pt-nome">Nome</Label><Input id="pt-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" /></div>}
                             <div><Label htmlFor="pt-email">E-mail</Label><Input id="pt-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" inputMode="email" /></div>
                             {modo !== 'link' && <div><Label htmlFor="pt-senha">Senha</Label><Input id="pt-senha" type="password" required minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete={modo === 'criar' ? 'new-password' : 'current-password'} /></div>}
-                            {modo === 'link' && <p className="text-xs text-slate-500">{pedirEmailDoLink ? 'Confirme o e-mail que recebeu o link para concluir o acesso.' : 'Você recebe um link por e-mail e entra sem senha.'}</p>}
+                            {modo === 'link' && <p className="text-xs text-slate-600">{pedirEmailDoLink ? 'Confirme o e-mail que recebeu o link para concluir o acesso.' : 'Você recebe um link por e-mail e entra sem senha.'}</p>}
                             <Button type="submit" className="w-full" disabled={ocupado}>
                                 {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" aria-hidden />}{modo === 'criar' ? 'Criar conta' : modo === 'link' ? (pedirEmailDoLink ? 'Concluir acesso' : 'Enviar link de acesso') : 'Entrar'}
                             </Button>
@@ -265,7 +265,7 @@ function Entrar({ convite }) {
                     </div>
                 </CardContent>
             </Card>
-            <p className="text-xs text-slate-500 text-center">Convite vencido ou não recebido? Peça um novo à secretaria do órgão que conduz o processo.</p>
+            <p className="text-xs text-slate-600 text-center">Convite vencido ou não recebido? Peça um novo à secretaria do órgão que conduz o processo.</p>
         </div>
     );
 }
@@ -275,7 +275,7 @@ function MeusProcessos({ onAbrir }) {
     const [busca, setBusca] = useState('');
     const [situacao, setSituacao] = useState('todos');
     if (q.isLoading) return <Carregando texto="Carregando seus processos…" />;
-    if (q.error) return <p className="text-red-600">{q.error.message}</p>;
+    if (q.error) return <p role="alert" className="text-red-700 dark:text-red-400">{q.error.message} <Button variant="link" size="sm" className="gap-1 px-1" onClick={() => q.refetch()}><RefreshCw className="w-3 h-3" aria-hidden /> Tentar de novo</Button></p>;
     const lista = q.data.processos;
     const paraVoce = q.data.para_voce || [];
     const termo = busca.trim().toLowerCase();
@@ -324,7 +324,7 @@ function MeusProcessos({ onAbrir }) {
                     <p>Para acompanhar um processo, abra o link de convite que a secretaria enviou ao seu e-mail. Se não recebeu, peça o convite ao órgão responsável, informando seu nome e CPF ou CNPJ.</p>
                 </CardContent></Card>
             )}
-            {filtrada.length === 0 && lista.length > 0 && <p className="text-sm text-slate-500">Nenhum processo com esse filtro.</p>}
+            {filtrada.length === 0 && lista.length > 0 && <p className="text-sm text-slate-600">Nenhum processo com esse filtro.</p>}
             <ul className="space-y-3">
                 {filtrada.map((p) => (
                     <li key={p.id}>
@@ -333,11 +333,11 @@ function MeusProcessos({ onAbrir }) {
                                 <span className="font-mono text-sm">{p.numero}</span>
                                 <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
                                 {p.novidades && <Badge className="bg-indigo-600 hover:bg-indigo-600">Novidades</Badge>}
-                                <span className="text-xs text-slate-500">{p.orgao}</span>
+                                <span className="text-xs text-slate-600">{p.orgao}</span>
                             </div>
                             <p className="font-medium mt-1">{p.assunto}</p>
-                            <p className="text-xs text-slate-500 mt-1">{frasePolo(p.polo)} · em: {p.fase_nome}</p>
-                            {p.ultimo_movimento && <p className="text-xs text-slate-500 mt-1 truncate">{dataHora(p.ultimo_movimento.em)} · {p.ultimo_movimento.descricao}</p>}
+                            <p className="text-xs text-slate-600 mt-1">{frasePolo(p.polo)} · em: {p.fase_nome}</p>
+                            {p.ultimo_movimento && <p className="text-xs text-slate-600 mt-1 truncate">{dataHora(p.ultimo_movimento.em)} · {p.ultimo_movimento.descricao}</p>}
                         </button>
                     </li>
                 ))}
@@ -355,7 +355,7 @@ function ProcessoParte({ id, onVoltar }) {
     const formRef = useRef(null);
 
     if (q.isLoading) return <Carregando texto="Carregando processo…" />;
-    if (q.error) return <div className="text-red-600">{q.error.message} <Button variant="link" onClick={onVoltar}>Voltar</Button></div>;
+    if (q.error) return <div role="alert" className="text-red-700 dark:text-red-400">{q.error.message} <Button variant="link" size="sm" className="gap-1 px-1" onClick={() => q.refetch()}><RefreshCw className="w-3 h-3" aria-hidden /> Tentar de novo</Button><Button variant="link" size="sm" onClick={onVoltar}>Voltar</Button></div>;
     const { processo: p, movimentos, documentos, cadeiaIntegra, orgao, minhas_peticoes: peticoes, tipos_peticao: tipos } = q.data;
     const faltam = etapasAteOFim(p.fases || [], p.fase_atual);
     const novosDocs = documentos.filter((d) => d.novo).length;
@@ -402,7 +402,7 @@ function ProcessoParte({ id, onVoltar }) {
                             : <Badge variant="destructive" className="gap-1"><ShieldAlert className="w-3 h-3" aria-hidden /> Registro com falha de integridade</Badge>}
                     </div>
                     <p className="font-medium">{p.assunto}</p>
-                    <p className="text-sm text-slate-500">{orgao} · {frasePolo(p.minha_parte?.polo)}{p.minha_parte?.nome ? `, como ${p.minha_parte.nome}` : ''}</p>
+                    <p className="text-sm text-slate-600">{orgao} · {frasePolo(p.minha_parte?.polo)}{p.minha_parte?.nome ? `, como ${p.minha_parte.nome}` : ''}</p>
                 </div>
                 <div className="hidden sm:flex flex-wrap gap-2">
                     <Button variant="outline" className="gap-2" disabled={!!ocupado} onClick={() => integra(false)}>{ocupado === 'exportar' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />} Processo completo (PDF)</Button>
@@ -415,8 +415,8 @@ function ProcessoParte({ id, onVoltar }) {
                 <details>
                     <summary className="cursor-pointer px-4 py-3 text-sm">
                         Em que ponto está: <b>{p.fase_nome}</b>
-                        {faltam != null && faltam > 0 && <span className="text-slate-500"> · {faltam === 1 ? 'falta 1 etapa' : `faltam ${faltam} etapas`} até o fim</span>}
-                        {faltam === 0 && <span className="text-slate-500"> · etapa final</span>}
+                        {faltam != null && faltam > 0 && <span className="text-slate-600"> · {faltam === 1 ? 'falta 1 etapa' : `faltam ${faltam} etapas`} até o fim</span>}
+                        {faltam === 0 && <span className="text-slate-600"> · etapa final</span>}
                         {p.fases?.length > 1 && <span className="text-indigo-700 dark:text-indigo-300"> (ver o caminho completo)</span>}
                     </summary>
                     {p.fases?.length > 1 && <div className="px-4 pb-4"><FluxoRito fases={p.fases} atual={p.fase_atual} /></div>}
@@ -451,13 +451,13 @@ function ProcessoParte({ id, onVoltar }) {
                             {documentos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(documentos[0].id)}><BookOpen className="w-4 h-4" aria-hidden /> Ler em sequência</Button>}
                         </CardHeader>
                         <CardContent className="space-y-1">
-                            {documentos.length === 0 && <p className="text-sm text-slate-500">Nenhum documento disponível ainda.</p>}
+                            {documentos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento disponível ainda.</p>}
                             {documentos.map((d) => (
                                 <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
-                                    <span className="font-mono text-xs w-8 text-slate-500">{d.ordem}</span>
+                                    <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
                                     <div className="flex-1 min-w-0">
                                         <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}{d.novo && <span className="ml-2 inline-block w-2 h-2 rounded-full bg-indigo-500 align-middle" aria-label="novo" />}</button>
-                                        <p className="text-xs text-slate-500">{[d.tipo, d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null, dataHora(d.juntado_em)].filter(Boolean).join(' · ')}</p>
+                                        <p className="text-xs text-slate-600">{[d.tipo, d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null, dataHora(d.juntado_em)].filter(Boolean).join(' · ')}</p>
                                     </div>
                                     {d.codigo_verificacao && (
                                         <Button variant="ghost" size="sm" title="Copiar o link de conferência pública deste documento" aria-label={`Copiar link de conferência de ${d.titulo}`}
@@ -484,8 +484,8 @@ function ProcessoParte({ id, onVoltar }) {
                                 {[...peticoes].reverse().map((x) => (
                                     <div key={x.id} className="flex flex-wrap items-center gap-2 py-1.5 border-b last:border-0 border-slate-100 dark:border-slate-800">
                                         <div className="flex-1 min-w-[10rem]">
-                                            <p className="font-medium">{x.titulo}{x.tipo_peticao ? <span className="font-normal text-slate-500"> · {x.tipo_peticao}</span> : null}</p>
-                                            <p className="text-xs text-slate-500">Protocolo {x.protocolo} · {dataHora(x.em)}</p>
+                                            <p className="font-medium">{x.titulo}{x.tipo_peticao ? <span className="font-normal text-slate-600"> · {x.tipo_peticao}</span> : null}</p>
+                                            <p className="text-xs text-slate-600">Protocolo {x.protocolo} · {dataHora(x.em)}</p>
                                             {x.situacao === 'apreciada' && x.resolucao && <p className="text-xs mt-1 rounded bg-slate-50 dark:bg-slate-800 px-2 py-1"><b>Decisão</b>{x.apreciada_em ? ` em ${dataHora(x.apreciada_em)}` : ''}: {x.resolucao}</p>}
                                         </div>
                                         <Badge variant={x.situacao === 'aguardando' ? 'outline' : 'secondary'}>{x.situacao === 'aguardando' ? 'Aguardando apreciação' : x.situacao === 'apreciada' ? 'Apreciada' : 'Nos autos'}</Badge>
@@ -503,7 +503,7 @@ function ProcessoParte({ id, onVoltar }) {
                         <ol className="space-y-3">
                             {[...movimentos].reverse().map((m) => (
                                 <li key={m.seq} className={`border-l-2 pl-3 ${m.novo ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'}`}>
-                                    <p className="text-xs text-slate-500 flex items-center gap-1.5"><Icone tipo={m.tipo} /> {dataHora(m.em)} · {m.autor_nome}{m.novo && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}</p>
+                                    <p className="text-xs text-slate-600 flex items-center gap-1.5"><Icone tipo={m.tipo} /> {dataHora(m.em)} · {m.autor_nome}{m.novo && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}</p>
                                     <p className="text-sm">{m.descricao}</p>
                                 </li>
                             ))}
@@ -624,8 +624,11 @@ function Peticionar({ id, prazos, tipos = [], prazoInicial, onFeito, onComprovan
                 <div>
                     <Label htmlFor="pt-arq">Anexo (PDF, Word, foto ou imagem, até {MAX_MB} MB)</Label>
                     <Input id="pt-arq" ref={inputArquivo} type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,image/*,application/pdf" onChange={(e) => setArquivo(e.target.files?.[0] || null)} />
+                    <Label htmlFor="pt-foto" className="mt-2 inline-flex items-center gap-1 text-sm font-normal text-indigo-700 dark:text-indigo-300 cursor-pointer sm:hidden"><Camera className="w-4 h-4" aria-hidden /> Fotografar um documento</Label>
+                    <input id="pt-foto" type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => setArquivo(e.target.files?.[0] || null)} />
+                    {arquivo && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Anexo: {arquivo.name}</p>}
                 </div>
-                <p className="text-xs text-slate-500">Sua manifestação entra nos autos na hora, com seu nome, data e hora, e vai para quem decide. {rascunho && !protocolo ? 'Rascunho recuperado deste aparelho.' : 'O que você escreve fica salvo neste aparelho até protocolar.'}</p>
+                <p className="text-xs text-slate-600">Sua manifestação entra nos autos na hora, com seu nome, data e hora, e vai para quem decide. {rascunho && !protocolo ? 'Rascunho recuperado deste aparelho.' : 'O que você escreve fica salvo neste aparelho até protocolar.'}</p>
                 <Button disabled={ocupado} onClick={enviar} className="gap-2 w-full sm:w-auto">
                     {ocupado ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Send className="w-4 h-4" aria-hidden />} Protocolar
                 </Button>

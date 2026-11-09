@@ -258,6 +258,8 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             return { ordem, version: mov.version, folha_inicial: folha, paginas };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id);
+        if (p.pendencia === 'sim' || p.pendencia === 'interrompe')
+            void (0, avisosEquipe_1.avisarPendencia)(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
         return Object.assign({ success: true }, r);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

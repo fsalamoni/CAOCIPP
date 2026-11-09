@@ -10,6 +10,7 @@ import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasD
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 import { montarPdfAutos } from './exportar';
 import { avisarPartesDoMovimento } from './portalAvisos';
+import { avisarPeticao } from './avisosEquipe';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -361,6 +362,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
         });
         void avisarPartesDoMovimento(db, procRef.id, uid);
+        void avisarPeticao(db, procAntes, procRef.id, String(parteDoUsuario(procAntes, uid)?.nome || 'A parte'), titulo, tipoPeticao);
         return { success: true, ...r };
     }
 

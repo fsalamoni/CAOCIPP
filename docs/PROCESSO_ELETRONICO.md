@@ -192,6 +192,8 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
 | `secPortalAcessos/{uid da parte}` | `avisos` (`tudo`, `prazos`, `nenhum`), `email`, `processos{processoId: último acesso ISO}` — fechada ao cliente; só o portal grava |
+| `notifications/{id}` (coleção da plataforma) | avisos da equipe: `user_id, type: 'processo_eletronico', subtype, title, message, organization_id, entity_type: 'processo_eletronico', entity_id (processo), read, created_at` — gravada só pelas functions; o dono lê e marca como lida |
+| `userPreferences/{uid}.notificationPreferences.processo_eletronico` | `{ sino, email }` — preferência de aviso da pessoa, gravada pelo cliente |
 
 No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
 `convite_hash` (último convite); `partes_uids[]` lista as contas habilitadas e
@@ -419,6 +421,42 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
 - Para o gabinete, uma linha de contexto no topo: partes, tipo, dias em
   tramitação e último documento.
 
+## Avisos, celular e acessibilidade (etapa 6, nov/2026)
+
+- **Sino da plataforma:** os avisos da equipe passam a usar a coleção
+  `notifications` já existente (tipo `processo_eletronico`, `subtype` em
+  `recebido | assinatura | pendencia | peticao | prazo`, `entity_type`
+  `processo_eletronico`, `entity_id` = processo). Clicar no sino abre o
+  processo. Gravados pelas functions depois da transação
+  (`avisosEquipe.ts`, `notificarPessoas`), nunca dentro dela; falha no aviso
+  não desfaz o ato (fica em `console.error`).
+- **Quem recebe o quê:** processo recebido → lotados na unidade de destino,
+  menos quem remeteu; pedido de assinatura → a pessoa pedida; pendência
+  aberta (por `abrirPendencia` ou por juntada com pendência) → lotados no
+  gabinete que está com o processo, menos quem abriu; petição da parte →
+  lotados na unidade que está com o processo; prazo vencendo ou vencido →
+  lotados na unidade, um aviso por processo, no job diário das 7h (até 20 por
+  pessoa por dia). A parte nunca entra no sino da equipe.
+- **Preferências** em `userPreferences/{uid}.notificationPreferences.processo_eletronico`
+  (`{ sino: boolean, email: 'cada' | 'resumo' | 'nenhum' }`, padrão sino
+  ligado e um e-mail por evento), editadas no diálogo **Avisos** do cabeçalho
+  do Processo Eletrônico (`AvisosEquipe.jsx`, via `useUserPreferences`).
+  `resumo`: o job diário (`secretariaAlertaPrazos`, `enviarResumosDiarios`)
+  manda um e-mail com os avisos não lidos das últimas 24 horas, por órgão.
+  O alerta diário de prazos por e-mail não depende da preferência.
+- **Celular:** na tela do processo o botão principal e "Novo documento" ficam
+  numa barra fixa embaixo (`sm:hidden`, respeita `safe-area-inset-bottom`);
+  "Fotografar um documento" (`<input capture="environment">`) em Novo
+  documento e no Peticionar do portal.
+- **Acessibilidade:** texto auxiliar passa de `text-slate-500` para
+  `text-slate-600` (contraste AA sobre branco) nos componentes do módulo e
+  no portal; erros de carregamento ganham `role="alert"` e botão **Tentar de
+  novo** (`ErroQuery.jsx`, `q.refetch()`); glossário em `title` nos termos
+  "Juntar" e "Minutas da unidade".
+- **Ajuda:** seção "Processo Eletrônico" na Central de Ajuda
+  (`/Help#processo-eletronico`), por perfil (equipe, gabinete, avisos e
+  celular, partes), com botão "?" no cabeçalho do módulo.
+
 ## Ritos e tipos de processo (fase 4)
 
 O admin do órgão configura tudo em Painel Administrativo → Processo
@@ -519,9 +557,12 @@ O portal das partes mostra o diagrama sem as orientações internas.
   os mesmos limites de tamanho da exportação da equipe.
 - A marca de lido do leitor e o rascunho da manifestação ficam no navegador
   (localStorage): não acompanham a parte em outro aparelho.
-- O aviso por e-mail às partes é disparado depois da transação; se a function
-  for encerrada antes do envio, o e-mail daquele movimento não sai (o portal
-  continua mostrando a novidade).
+- Os avisos por e-mail às partes e à equipe (e o sino) são disparados depois
+  da transação; se a function for encerrada antes, o aviso daquele movimento
+  não sai (o portal e as abas continuam mostrando a novidade).
+- O resumo diário por e-mail lê até 500 pessoas com a preferência "resumo" e
+  100 avisos não lidos por pessoa; os avisos de prazo no sino não são
+  deduplicados entre dias (um por processo por dia).
 - Se a gravação da petição falhar depois do envio do anexo ao Storage, o
   arquivo fica órfão no bucket (sem referência nos autos).
 - Assinatura só no nível simples. gov.br e ICP-Brasil dependem de credenciais

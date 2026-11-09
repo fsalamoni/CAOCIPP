@@ -11,6 +11,7 @@ const autos_1 = require("./autos");
 const pdfDocumento_1 = require("./pdfDocumento");
 const exportar_1 = require("./exportar");
 const portalAvisos_1 = require("./portalAvisos");
+const avisosEquipe_1 = require("./avisosEquipe");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -74,7 +75,7 @@ function parteDoUsuario(proc, uid) {
     return (proc.partes || []).find((p) => p.uid === uid);
 }
 exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const db = admin.firestore();
@@ -336,6 +337,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(db, procRef.id, uid);
+        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_g = parteDoUsuario(procAntes, uid)) === null || _g === void 0 ? void 0 : _g.nome) || 'A parte'), titulo, tipoPeticao);
         return Object.assign({ success: true }, r);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

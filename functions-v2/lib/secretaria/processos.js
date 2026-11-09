@@ -173,6 +173,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         : undefined;
     const convite = { token: '', email: '', parte: '', numero: '' };
     let recebeu = null;
+    let pendenciaAberta = null;
     const resultado = await db.runTransaction(async (tx) => {
         var _a, _b, _d, _e, _f;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
@@ -301,6 +302,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const lista = [...pendencias, nova];
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia', `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, { pendencia_id: nova.id, interrompe: nova.interrompe });
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { pendencias: lista }), (0, secretaria_1.derivados)(lista, prazos)));
+            pendenciaAberta = { proc: data, descricao };
             return mov;
         }
         if (p.action === 'resolverPendencia') {
@@ -398,6 +400,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const r = recebeu;
     if (r)
         void (0, avisosEquipe_1.avisarUnidadeRecebeu)(c, r.unidadeId, r.proc, String(p.id), motivo || (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO));
+    const pa = pendenciaAberta;
+    if (pa)
+        void (0, avisosEquipe_1.avisarPendencia)(c, pa.proc, String(p.id), pa.descricao);
     if (convite.token) {
         const link = `${APP_URL}/Portal?convite=${convite.token}`;
         const enviado = convite.email ? await (0, email_1.sendEmail)({

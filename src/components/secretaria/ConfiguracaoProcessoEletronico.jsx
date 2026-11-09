@@ -72,16 +72,16 @@ export function CartaoUnidade({ u, estado, onAbrir }) {
         <button onClick={onAbrir} className={item}>
             <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{u.nome}</span>
-                {u.sigla && <span className="text-xs text-slate-500">{u.sigla}</span>}
+                {u.sigla && <span className="text-xs text-slate-600">{u.sigla}</span>}
                 <Badge variant="outline">{TIPOS_UNIDADE[u.tipo]?.rotulo || 'Secretaria'}</Badge>
                 {!u.ativa && <Badge variant="secondary">Inativa</Badge>}
                 {(u.pedidos || []).length > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{u.pedidos.length} pedido{u.pedidos.length > 1 ? 's' : ''} de lotação</Badge>}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-1">
                 <Users className="w-3.5 h-3.5 shrink-0" aria-hidden />
                 {nomes.length ? `${nomes.length} lotado${nomes.length > 1 ? 's' : ''}: ${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? '…' : ''}` : 'Ninguém lotado'}
             </p>
-            {gestores.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Gestão: {gestores.join(', ')}</p>}
+            {gestores.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Gestão: {gestores.join(', ')}</p>}
         </button>
     );
 }
@@ -100,10 +100,10 @@ function Unidades({ orgId, estado }) {
                 <Button size="sm" className="gap-1 shrink-0" onClick={() => setNova(true)}><Plus className="w-4 h-4" /> Nova unidade</Button>
             </CardHeader>
             <CardContent className="space-y-4">
-                {estado.unidades.length === 0 && <p className="text-sm text-slate-500">Nenhuma unidade. Crie a secretaria e os gabinetes do órgão.</p>}
+                {estado.unidades.length === 0 && <p className="text-sm text-slate-600">Nenhuma unidade. Crie a secretaria e os gabinetes do órgão.</p>}
                 {grupos.map(([tipo, lista]) => (
                     <div key={tipo}>
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">{TIPOS_UNIDADE[tipo].rotulo}{lista.length > 1 ? 's' : ''}</h3>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">{TIPOS_UNIDADE[tipo].rotulo}{lista.length > 1 ? 's' : ''}</h3>
                         <div className="grid md:grid-cols-2 gap-2">
                             {lista.map((u) => <CartaoUnidade key={u.id} u={u} estado={estado} onAbrir={() => setAberta(u.id)} />)}
                         </div>
@@ -135,8 +135,8 @@ function Ritos({ orgId, estado }) {
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {estado.ritos.map((r) => (
                     <button key={r.id} onClick={() => setRito({ ...r, fases: r.fases.map((f) => ({ ...f })) })} className={item}>
-                        <div className="flex items-center gap-2"><span className="font-medium">{r.nome}</span><span className="text-xs text-slate-500">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{r.fases.length} fases: {r.fases.map((f) => f.nome).join(' → ')}</p>
+                        <div className="flex items-center gap-2"><span className="font-medium">{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{r.fases.length} fases: {r.fases.map((f) => f.nome).join(' → ')}</p>
                     </button>
                 ))}
             </CardContent>
@@ -168,16 +168,16 @@ function Tipos({ orgId, estado }) {
                 </Button>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
-                {tipos.length === 0 && <p className="text-sm text-slate-500">Sem tipos, quem autua escolhe o rito diretamente.</p>}
+                {tipos.length === 0 && <p className="text-sm text-slate-600">Sem tipos, quem autua escolhe o rito diretamente.</p>}
                 {tipos.map((t) => (
                     <button key={t.id} onClick={() => setTipo({ ...t, unidade_inicial: t.unidade_inicial || '' })} className={item}>
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{t.nome}</span>
-                            {t.sigla && <span className="text-xs text-slate-500">{t.sigla}</span>}
+                            {t.sigla && <span className="text-xs text-slate-600">{t.sigla}</span>}
                             {t.sigilo_padrao === 'restrito' && <Badge variant="outline">Restrito</Badge>}
                             {!t.ativo && <Badge variant="secondary">Inativo</Badge>}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
                     </button>
                 ))}
             </CardContent>

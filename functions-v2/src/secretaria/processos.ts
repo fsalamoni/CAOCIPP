@@ -8,7 +8,7 @@ import {
 } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
 import { avisarPartesDoMovimento } from './portalAvisos';
-import { avisarUnidadeRecebeu } from './avisosEquipe';
+import { avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import {
     COL, REGION, carregarContexto, conferirVersao, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarMovimento,
@@ -255,6 +255,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         : undefined;
     const convite = { token: '', email: '', parte: '', numero: '' };
     let recebeu: { unidadeId: string; proc: admin.firestore.DocumentData } | null = null;
+    let pendenciaAberta: { proc: admin.firestore.DocumentData; descricao: string } | null = null;
     const resultado = await db.runTransaction(async (tx) => {
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
@@ -388,6 +389,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const mov = registrarMovimento(tx, c, ref, data, 'pendencia',
                 `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, { pendencia_id: nova.id, interrompe: nova.interrompe });
             tx.update(ref, { ...mov, pendencias: lista, ...derivados(lista, prazos) });
+            pendenciaAberta = { proc: data, descricao };
             return mov;
         }
 
@@ -487,6 +489,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     void avisarPartesDoMovimento(db, String(p.id));
     const r = recebeu as { unidadeId: string; proc: admin.firestore.DocumentData } | null;
     if (r) void avisarUnidadeRecebeu(c, r.unidadeId, r.proc, String(p.id), motivo || texto(p.orientacao, MAX_TEXTO_LONGO));
+    const pa = pendenciaAberta as { proc: admin.firestore.DocumentData; descricao: string } | null;
+    if (pa) void avisarPendencia(c, pa.proc, String(p.id), pa.descricao);
     if (convite.token) {
         const link = `${APP_URL}/Portal?convite=${convite.token}`;
         const enviado = convite.email ? await sendEmail({

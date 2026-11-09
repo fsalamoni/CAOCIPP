@@ -150,7 +150,11 @@ de andamento, leitor contínuo dos documentos, manifestação guiada com
 comprovante e avisos por e-mail configuráveis. Equipe e decisor (nov/2026):
 cartão "Nesta fase" com botão único, Novo documento unificado, pedido de
 assinatura, aba Meu trabalho, Mesa de decisão com decisão por despacho,
-devolução com orientação e e-mail de processo recebido. Ver
+devolução com orientação e e-mail de processo recebido. Avisos, celular e
+acessibilidade (nov/2026): avisos da equipe no sino da plataforma com
+preferência por pessoa (sino; e-mail a cada evento, resumo diário ou nenhum),
+barra fixa e foto de documento no celular, contraste e "Tentar de novo",
+seção na Central de Ajuda. Ver
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---

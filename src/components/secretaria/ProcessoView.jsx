@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
     AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Download, Eye, FilePen, Loader2, MoreHorizontal,
-    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus,
+    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, bas
 import { NativeSelect, STATUS_ROTULO, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import LeitorAutos from './LeitorAutos';
+import ErroQuery from './ErroQuery';
 import { seguintes } from '@/lib/secretariaRito';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 
@@ -56,8 +57,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         return () => window.removeEventListener('keydown', aoTeclar);
     }, [algoAberto, podeMexer]);
 
-    if (q.isLoading) return <div className="py-8 flex gap-2 items-center text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Carregando processo…</div>;
-    if (q.error) return <div className="py-8 text-red-600">{q.error.message} <Button variant="link" onClick={onVoltar}>Voltar</Button></div>;
+    if (q.isLoading) return <div className="py-8 flex gap-2 items-center text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Carregando processo…</div>;
+    if (q.error) return <ErroQuery q={q}><Button variant="ghost" size="sm" onClick={onVoltar}>Voltar</Button></ErroQuery>;
 
     const { movimentos, documentos, cadeiaQuebradaEm, hoje } = q.data;
     const unidadeAtual = estado.unidades.find((u) => u.id === p.unidade_atual);
@@ -185,7 +186,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const diasTramitando = diasDesde(p.autuado_em);
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 pb-20 sm:pb-0">
+            {(principal || podeMexer) && (
+                <div className="sm:hidden fixed bottom-0 inset-x-0 z-20 flex gap-2 border-t bg-white/95 dark:bg-slate-950/95 backdrop-blur p-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+                    {principal && <Button className="flex-1 gap-2" disabled={ocupado} onClick={principal.acao}><principal.icone className="w-4 h-4" aria-hidden /> <span className="truncate">{principal.rotulo}</span></Button>}
+                    {podeMexer && <Button variant="outline" size="icon" disabled={ocupado} onClick={() => setNovoDoc(true)} aria-label="Novo documento"><Plus className="w-4 h-4" aria-hidden /></Button>}
+                </div>
+            )}
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1 min-w-0">
                     <Button variant="ghost" size="sm" className="gap-1 -ml-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" /> Processos</Button>
@@ -210,9 +217,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </div>
                 <div className="flex flex-wrap gap-2 items-start">
                     {principal && (
-                        <Button className="gap-2" disabled={ocupado} onClick={principal.acao}><principal.icone className="w-4 h-4" /> {principal.rotulo}</Button>
+                        <Button className="gap-2 hidden sm:inline-flex" disabled={ocupado} onClick={principal.acao}><principal.icone className="w-4 h-4" /> {principal.rotulo}</Button>
                     )}
-                    {podeMexer && <Button variant="outline" className="gap-2" disabled={ocupado} onClick={() => setNovoDoc(true)} title="Atalho: N"><Plus className="w-4 h-4" /> Novo documento</Button>}
+                    {podeMexer && <Button variant="outline" className="gap-2 hidden sm:inline-flex" disabled={ocupado} onClick={() => setNovoDoc(true)} title="Atalho: N"><Plus className="w-4 h-4" /> Novo documento</Button>}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="outline" className="gap-1" aria-label="Mais ações"><MoreHorizontal className="w-4 h-4" /> Mais <ChevronDown className="w-3 h-3" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -234,7 +241,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     </DropdownMenu>
                 </div>
             </div>
-            {!posse && <p className="text-sm text-slate-500 dark:text-slate-400">Você consulta este processo. Só a unidade que está com ele pode movimentá-lo.</p>}
+            {!posse && <p className="text-sm text-slate-600 dark:text-slate-400">Você consulta este processo. Só a unidade que está com ele pode movimentá-lo.</p>}
 
             {p.orientacao && (
                 <div role="status" className="flex flex-wrap items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-4 py-3 text-sm">
@@ -252,9 +259,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span>Nesta fase: {p.fase_nome}</span>
-                        {proximas.length > 0 && <span className="text-sm font-normal text-slate-500">segue para {proximas.map((f) => f.nome).join(' ou ')}</span>}
-                        {proximas.length === 0 && <span className="text-sm font-normal text-slate-500">fase final</span>}
-                        {faseAtual?.prazo_dias > 0 && <span className="text-sm font-normal text-slate-500">· prazo da fase: {faseAtual.prazo_dias} dias</span>}
+                        {proximas.length > 0 && <span className="text-sm font-normal text-slate-600">segue para {proximas.map((f) => f.nome).join(' ou ')}</span>}
+                        {proximas.length === 0 && <span className="text-sm font-normal text-slate-600">fase final</span>}
+                        {faseAtual?.prazo_dias > 0 && <span className="text-sm font-normal text-slate-600">· prazo da fase: {faseAtual.prazo_dias} dias</span>}
                     </CardTitle>
                     {(faseAtual?.unidade_id || faseAtual?.agente) && (
                         <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -273,7 +280,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <label className={`flex items-start gap-2 text-sm ${podeMexer ? 'cursor-pointer' : ''}`}>
                                         <input type="checkbox" className="mt-1" checked={feitas.has(i)} disabled={!podeMexer || ocupado}
                                             onChange={(e) => mov('marcarAcao', { acao_idx: i, feita: e.target.checked })} />
-                                        <span className={feitas.has(i) ? 'line-through text-slate-500' : ''}>{a}</span>
+                                        <span className={feitas.has(i) ? 'line-through text-slate-600' : ''}>{a}</span>
                                     </label>
                                 </li>
                             ))}
@@ -292,7 +299,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </ul>
                     )}
                     {!faseAtual?.acoes?.length && !modelosDaFase.length && !faseAtual?.orientacao && (
-                        <p className="text-sm text-slate-500">O rito não detalha esta fase. {podeMexer ? 'Use Novo documento para redigir e o botão acima para seguir.' : ''}</p>
+                        <p className="text-sm text-slate-600">O rito não detalha esta fase. {podeMexer ? 'Use Novo documento para redigir e o botão acima para seguir.' : ''}</p>
                     )}
                     <details className="group text-sm">
                         <summary className="cursor-pointer text-indigo-700 dark:text-indigo-300 list-none"><span className="group-open:hidden">Ver o fluxo do rito</span><span className="hidden group-open:inline">Ocultar o fluxo</span></summary>
@@ -309,13 +316,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             {autos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(autos[0].id)}><BookOpen className="w-4 h-4" /> Ler em sequência</Button>}
                         </CardHeader>
                         <CardContent className="space-y-2">
-                            {autos.length === 0 && <p className="text-sm text-slate-500">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
+                            {autos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
                             {autos.map((d) => (
                                 <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
-                                    <span className="font-mono text-xs w-8 text-slate-500">{d.ordem}</span>
+                                    <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
                                     <div className="flex-1 min-w-0">
                                         <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}</button>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
                                         {d.codigo_verificacao && (
                                             <a href={`/Conferir?c=${d.codigo_verificacao}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-700 dark:text-indigo-300 hover:underline" title="Abrir a conferência pública deste documento">
                                                 Conferência {d.codigo_verificacao}
@@ -334,11 +341,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     {posse && (
                         <Card>
                             <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-                                <CardTitle className="text-base">Minutas da unidade</CardTitle>
+                                <CardTitle className="text-base" title="Rascunhos da unidade: só entram nos autos quando alguém os junta">Minutas da unidade</CardTitle>
                                 <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setNovoDoc(true)}><Plus className="w-4 h-4" /> Novo documento</Button>
                             </CardHeader>
                             <CardContent className="space-y-2">
-                                {minutas.length === 0 && <p className="text-sm text-slate-500">Minutas ficam visíveis só para a sua unidade até a juntada.</p>}
+                                {minutas.length === 0 && <p className="text-sm text-slate-600">Minutas ficam visíveis só para a sua unidade até a juntada.</p>}
                                 {minutas.map((d) => {
                                     const assinei = d.assinaturas.some((a) => a.uid === estado.uid);
                                     const pedidoAMim = (d.assinaturas_pedidas || []).some((x) => x.uid === estado.uid) && !assinei;
@@ -348,7 +355,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             <Paperclip className="w-4 h-4 text-slate-400" />
                                             <div className="flex-1 min-w-[10rem]">
                                                 <p className="font-medium">{d.titulo}{pedidoAMim && <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">Pediram sua assinatura</Badge>}</p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                <p className="text-xs text-slate-600 dark:text-slate-400">
                                                     {d.tipo} · {d.origem === 'editor' ? 'redigido' : d.nome_arquivo} · {d.autor_nome}{d.assinaturas.length ? ` · assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : ''}
                                                     {pedidos.length ? ` · aguarda assinatura de ${pedidos.map((x) => x.nome).join(', ')}` : ''}
                                                 </p>
@@ -358,7 +365,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                 : <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label="Baixar"><Download className="w-4 h-4" /></Button>}
                                             <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
                                             {membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
-                                            <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })}>Juntar</Button>
+                                            <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>
                                             <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída')} aria-label="Excluir minuta"><Trash2 className="w-4 h-4" /></Button>
                                         </div>
                                     );
@@ -387,7 +394,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                         <AlertCircle className="w-4 h-4 text-amber-600" />
                                         <div className="flex-1 min-w-[10rem]">
                                             <p>{x.descricao}</p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            <p className="text-xs text-slate-600 dark:text-slate-400">
                                                 Aberta {dias === 0 ? 'hoje' : `há ${dias} dia${dias === 1 ? '' : 's'}`} por {x.aberta_por}{x.interrompe ? ' · interrompe a fase' : ''}
                                                 {docDaPend && <> · <button type="button" className="underline" onClick={() => setLeitura(docDaPend.id)}>ver doc. nº {docDaPend.ordem}</button></>}
                                             </p>
@@ -403,7 +410,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                         <CalendarClock className={`w-4 h-4 ${vencido ? 'text-red-600' : 'text-indigo-600'}`} />
                                         <div className="flex-1 min-w-[10rem]">
                                             <p>{x.descricao}{x.destinatario ? ` · ${x.destinatario}` : ''}</p>
-                                            <p className={`text-xs ${vencido ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            <p className={`text-xs ${vencido ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
                                                 {x.dias} dias {x.contagem === 'uteis' ? 'úteis' : 'corridos'} · {vencido ? 'venceu' : 'vence'} em {x.vence_em.split('-').reverse().join('/')}
                                             </p>
                                         </div>
@@ -411,10 +418,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     </div>
                                 );
                             })}
-                            {pendenciasAbertas.length === 0 && !p.prazos.some((x) => x.status === 'aberto') && <p className="text-slate-500">Nenhuma pendência ou prazo aberto.</p>}
+                            {pendenciasAbertas.length === 0 && !p.prazos.some((x) => x.status === 'aberto') && <p className="text-slate-600">Nenhuma pendência ou prazo aberto.</p>}
                             {noGabinete && p.pendencias.some((x) => x.status === 'resolvida') && (
                                 <details className="pt-1">
-                                    <summary className="cursor-pointer text-slate-500">Decisões anteriores ({p.pendencias.filter((x) => x.status === 'resolvida').length})</summary>
+                                    <summary className="cursor-pointer text-slate-600">Decisões anteriores ({p.pendencias.filter((x) => x.status === 'resolvida').length})</summary>
                                     <ul className="mt-1 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                                         {p.pendencias.filter((x) => x.status === 'resolvida').map((x) => <li key={x.id}><b>{dataHora(x.resolvida_em)}</b> · {x.descricao}: {x.resolucao}</li>)}
                                     </ul>
@@ -456,7 +463,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <ol className="space-y-3">
                             {[...movimentos].reverse().map((m) => (
                                 <li key={m.seq} className="border-l-2 border-indigo-200 dark:border-indigo-800 pl-3">
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">#{m.seq} · {dataHora(m.em)} · {m.autor_nome} · {nomeUnidade(m.unidade_id)}</p>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">#{m.seq} · {dataHora(m.em)} · {m.autor_nome} · {nomeUnidade(m.unidade_id)}</p>
                                     <p className="text-sm text-slate-800 dark:text-slate-200">{m.descricao}</p>
                                     <p className="text-[10px] font-mono text-slate-400 truncate" title={m.hash}>{m.hash}</p>
                                 </li>
@@ -479,7 +486,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     <div className="space-y-2 text-sm">
                         <p>{linkConvite?.emailEnviado ? 'O convite foi enviado por e-mail. Você também pode copiar o link abaixo.' : 'Envie este link à parte pelo meio que preferir. Ele não será mostrado de novo.'}</p>
                         <Input readOnly value={linkConvite?.link || ''} onFocus={(e) => e.target.select()} aria-label="Link do convite" />
-                        <p className="text-xs text-slate-500">Vale por 7 dias e só pode ser aceito por uma conta. Quem aceitar vê os documentos marcados como visíveis às partes e pode peticionar.</p>
+                        <p className="text-xs text-slate-600">Vale por 7 dias e só pode ser aceito por uma conta. Quem aceitar vê os documentos marcados como visíveis às partes e pode peticionar.</p>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => navigator.clipboard?.writeText(linkConvite?.link || '').then(() => toast.success('Link copiado'))}>Copiar link</Button>
@@ -530,7 +537,7 @@ function NovoDocumento({ aberto, onFechar, tipos, tipoPadrao, modelosDaFase, mod
                             <div className="grid gap-2">
                                 {modelosDaFase.map((m) => (
                                     <button key={m.id} type="button" disabled={ocupado} onClick={() => onModelo(m)} className="text-left rounded-md border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950 px-3 py-2 text-sm hover:border-indigo-500">
-                                        <span className="font-medium">{m.nome}</span>{m.tipo_documento && <span className="text-slate-500"> · {m.tipo_documento}</span>}{m.formato === 'original' && <span className="text-xs text-slate-500"> · arquivo {m.arquivo_nome}</span>}
+                                        <span className="font-medium">{m.nome}</span>{m.tipo_documento && <span className="text-slate-600"> · {m.tipo_documento}</span>}{m.formato === 'original' && <span className="text-xs text-slate-600"> · arquivo {m.arquivo_nome}</span>}
                                     </button>
                                 ))}
                             </div>
@@ -549,6 +556,8 @@ function NovoDocumento({ aberto, onFechar, tipos, tipoPadrao, modelosDaFase, mod
                     <div>
                         <Label htmlFor="novo-arquivo">Ou enviar um arquivo (PDF, Word, Excel, imagem ou texto, até {MAX_MB} MB)</Label>
                         <Input id="novo-arquivo" type="file" disabled={ocupado} accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx,.odt,.xlsx" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onArquivo(f); }} />
+                        <Label htmlFor="novo-foto" className="mt-2 inline-flex items-center gap-1 text-sm font-normal text-indigo-700 dark:text-indigo-300 cursor-pointer sm:hidden"><Camera className="w-4 h-4" aria-hidden /> Fotografar um documento</Label>
+                        <input id="novo-foto" type="file" accept="image/*" capture="environment" className="sr-only" disabled={ocupado} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onArquivo(f); }} />
                     </div>
                 </div>
             </DialogContent>
@@ -604,8 +613,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
                 {acao.pendencia.documento_id && (
                     <div className="h-[50vh] rounded-md border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                         {pdfPend?.url ? <iframe title="Documento da pendência" src={pdfPend.url} className="w-full h-full rounded-md" />
-                            : pdfPend?.erro ? <p className="text-sm text-slate-500">Não foi possível abrir o documento.</p>
-                                : <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>}
+                            : pdfPend?.erro ? <p className="text-sm text-slate-600">Não foi possível abrir o documento.</p>
+                                : <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>}
                     </div>
                 )}
             </div>
@@ -687,7 +696,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
                 {faseNova && <p className="text-sm text-slate-700 dark:text-slate-300">A fase passa de <b>{p.fase_nome}</b> para <b>{faseNova.nome}</b> no mesmo ato.</p>}
                 <NativeSelect label="Destino" value={destino} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, rot(u)])]} />
                 {uDest && (
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-600">
                         {recebem.length ? `Quem recebe: ${recebem.map((m) => m.nome).join(', ')}. Serão avisados por e-mail.` : 'Atenção: ninguém está lotado nessa unidade.'}
                     </p>
                 )}
@@ -714,7 +723,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
                                     className={`text-left rounded-md border px-3 py-2 text-sm ${escolhida === id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 dark:border-indigo-400' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
                                     <span className="font-medium">{nomeFase(id)}</span>
                                     {condicoes[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Se {condicoes[id]}</span>}
-                                    {p.fases.find((f) => f.id === id)?.orientacao && <span className="block text-xs text-slate-500">{p.fases.find((f) => f.id === id).orientacao}</span>}
+                                    {p.fases.find((f) => f.id === id)?.orientacao && <span className="block text-xs text-slate-600">{p.fases.find((f) => f.id === id).orientacao}</span>}
                                 </button>
                             ))}
                         </div>
@@ -750,7 +759,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
                     {!semTexto && (
                         <div><Label htmlFor="acao-motivo">{rotuloTexto}{exigeTexto ? ' (obrigatório)' : ''}</Label><Textarea id="acao-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
                     )}
-                    <p className="text-xs text-slate-500">Fica registrado na linha do tempo com seu nome, data e hora.</p>
+                    <p className="text-xs text-slate-600">Fica registrado na linha do tempo com seu nome, data e hora.</p>
                 </div>
                 <DialogFooter className="flex-row flex-wrap gap-2">
                     {rodape}

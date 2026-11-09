@@ -120,7 +120,7 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, onEdi
                 <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center cursor-pointer border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-400 ${lendo ? 'opacity-60 pointer-events-none' : ''}`}>
                     {lendo ? <Loader2 className="w-6 h-6 animate-spin text-indigo-600" aria-hidden /> : <FileUp className="w-6 h-6 text-indigo-600" aria-hidden />}
                     <span className="text-sm font-medium">{lendo ? 'Lendo o arquivo…' : arquivo ? `Trocar arquivo (${arquivo.nome})` : 'Escolher arquivo'}</span>
-                    <span className="text-xs text-slate-500">Até {MAX_MB} MB</span>
+                    <span className="text-xs text-slate-600">Até {MAX_MB} MB</span>
                     <input type="file" accept={ACEITOS} className="sr-only" onChange={escolher} disabled={lendo} />
                 </label>
 
@@ -136,13 +136,13 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, onEdi
                             <label className={`flex items-start gap-2 rounded-md border p-3 text-sm ${proposta.semTexto ? 'opacity-50' : 'cursor-pointer'} ${modo === 'editor' ? 'border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
                                 <input type="radio" name="imp-modo" className="mt-1" checked={modo === 'editor'} disabled={proposta.semTexto} onChange={() => setModo('editor')} />
                                 <span><span className="font-medium">Modelo editável (recomendado)</span>
-                                    <span className="block text-slate-500">Abre no editor para revisar. Sai com o papel timbrado e os campos preenchidos sozinhos.</span></span>
+                                    <span className="block text-slate-600">Abre no editor para revisar. Sai com o papel timbrado e os campos preenchidos sozinhos.</span></span>
                             </label>
                             {proposta.original_possivel && (
                                 <label className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer ${modo === 'original' ? 'border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
                                     <input type="radio" name="imp-modo" className="mt-1" checked={modo === 'original'} onChange={() => setModo('original')} />
                                     <span><span className="font-medium">Manter o arquivo original ({rotuloFormatoOriginal(arquivo?.mime)})</span>
-                                        <span className="block text-slate-500">
+                                        <span className="block text-slate-600">
                                             {arquivo?.mime === 'application/pdf'
                                                 ? 'O PDF entra como minuta do processo, sem alteração.'
                                                 : 'O Word entra como minuta do processo com os campos já preenchidos, no layout exato do arquivo.'}
@@ -156,7 +156,7 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, onEdi
                                 <p className="text-sm font-medium">Campos automáticos encontrados</p>
                                 {proposta.campos.length
                                     ? <div className="flex flex-wrap gap-1">{proposta.campos.map((c) => <Badge key={c} variant="secondary" className="gap-1"><CheckCircle2 className="w-3 h-3" aria-hidden />{ROTULO_CAMPO[c] || c}</Badge>)}</div>
-                                    : <p className="text-xs text-slate-500">Nenhum. Você pode inserir campos depois no editor (botão Campos).</p>}
+                                    : <p className="text-xs text-slate-600">Nenhum. Você pode inserir campos depois no editor (botão Campos).</p>}
                             </div>
                         )}
 
@@ -167,13 +167,13 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, onEdi
                                     <PreviaFolha cfg={{ ...(estado.documento || {}), ...t, brasao: t.brasao || null }} />
                                     <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
                                         {t.cabecalho_linhas?.map((l, i) => <p key={i}>{l}</p>)}
-                                        {t.rodape && <p className="text-slate-500">Rodapé: {t.rodape}</p>}
-                                        {t.brasao && <p className="text-slate-500">Com imagem (brasão).</p>}
+                                        {t.rodape && <p className="text-slate-600">Rodapé: {t.rodape}</p>}
+                                        {t.brasao && <p className="text-slate-600">Com imagem (brasão).</p>}
                                     </div>
                                 </div>
                                 <label className="flex items-start gap-2 text-sm">
                                     <Checkbox checked={aplicarTimbre} onCheckedChange={(c) => setAplicarTimbre(c === true)} className="mt-0.5" />
-                                    <span>Usar como papel timbrado {destinoTimbre}. <span className="text-slate-500">Substitui o cabeçalho e o rodapé atuais.</span></span>
+                                    <span>Usar como papel timbrado {destinoTimbre}. <span className="text-slate-600">Substitui o cabeçalho e o rodapé atuais.</span></span>
                                 </label>
                             </div>
                         )}

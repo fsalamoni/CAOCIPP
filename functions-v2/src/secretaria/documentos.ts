@@ -6,7 +6,7 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import { avisarPartesDoMovimento } from './portalAvisos';
-import { avisarPedidoAssinatura } from './avisosEquipe';
+import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { lotacoesDe } from '../shared/secretaria';
 import {
     COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarMovimento,
@@ -298,6 +298,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 return { ordem, version: mov.version, folha_inicial: folha, paginas };
             });
             void avisarPartesDoMovimento(c.db, procRef.id);
+            if (p.pendencia === 'sim' || p.pendencia === 'interrompe') void avisarPendencia(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
             return { success: true, ...r };
         }
 
