@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Equipe e decisor (etapa 5)
+- Cartão **Nesta fase** com ações marcáveis, modelos da fase como botões e um
+  **botão único** que segue o rito (inclusive enviar e mudar a fase num ato).
+- **Novo documento** unificado; **Pedir assinatura** a colega da unidade e
+  **Assinar e juntar** num passo.
+- Aba **Meu trabalho** (pediram sua assinatura, orientação do gabinete,
+  comigo, vencendo, chegaram hoje, sem responsável) e aba **Mesa de decisão**
+  para o gabinete; apreciação com a petição ao lado e **decisão por
+  despacho**; decisões anteriores.
+- **Devolver à secretaria com orientação**, em destaque até ser concluída.
+- E-mail a quem está lotado quando um processo chega na unidade; o envio
+  mostra quem vai receber.
+- Leitor contínuo dos autos na tela da equipe; atalhos N, T e J.
+
 ### 09/11/2026 — Portal das partes completo (etapa 4)
 - Entrada sem senha por link no e-mail, além de Google e e-mail/senha.
 - Bloco **Para você** (prazos, manifestações aguardando, novidades), marca de

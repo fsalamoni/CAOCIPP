@@ -18,6 +18,7 @@ const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const email_1 = require("../shared/email");
 const portalAvisos_1 = require("./portalAvisos");
+const avisosEquipe_1 = require("./avisosEquipe");
 const context_1 = require("./context");
 const CONVITE_DIAS = 7;
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
@@ -60,6 +61,10 @@ function resumo(id, d) {
         partes_resumo: (d.partes || []).map((x) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
         pendencia_desde: (d.pendencias || [])
             .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
+        // Fila de trabalho: quando chegou na unidade, pedidos de assinatura e orientação do gabinete.
+        recebido_em: d.recebido_em || d.autuado_em || null,
+        assinaturas_pendentes: d.assinaturas_pendentes || [],
+        orientacao: d.orientacao || null,
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
@@ -88,7 +93,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
-            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao').get(),
+            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'assinaturas_pedidas', 'peticao_tipo').get(),
         ]);
         const movimentos = movs.docs.map((d) => d.data());
         const posse = (0, secretaria_1.podeAgir)(data, c.ctx);
@@ -101,8 +106,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             mime: d.mime || null, nome_arquivo: d.nome_arquivo || null, tamanho: d.tamanho || null,
             sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem,
             autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
-            assinaturas: d.assinaturas || [],
-            peticao: d.peticao === true, visivel_partes: d.visivel_partes !== false,
+            assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [],
+            peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false,
             paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null,
         }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
@@ -110,7 +115,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, partes: (data.partes || []).map((_a) => {
                     var { convite_hash, uid } = _a, x = __rest(_a, ["convite_hash", "uid"]);
                     return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null }));
-                }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [] }),
+                }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], acoes_feitas: data.acoes_feitas || {} }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos,
             documentos,
@@ -167,8 +172,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         ? (0, secretaria_1.sanitizeCalendario)((_a = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _a === void 0 ? void 0 : _a.calendario)
         : undefined;
     const convite = { token: '', email: '', parte: '', numero: '' };
+    let recebeu = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d;
+        var _a, _b, _d, _e, _f;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -183,8 +189,53 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa unidade');
             // Remessa a gabinete é conclusão: o processo vai para quem decide.
             const conclusao = destino.tipo === 'gabinete';
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + (0, context_1.nomeUnidade)(c, data.unidade_atual) + ' para'} ${destino.nome}.${motivo ? ` Motivo: ${motivo}` : ''}`, { de: data.unidade_atual, para: destino.id });
-            tx.update(ref, Object.assign(Object.assign({}, mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null }));
+            // Opcional, num só ato: mudar a fase (quando a próxima corre em outra unidade)
+            // e deixar uma orientação para a unidade que recebe (devolução do gabinete).
+            const fases = (data.fases || []);
+            const novaFase = p.fase_id ? fases.find((f) => f.id === p.fase_id) : null;
+            if (p.fase_id && !novaFase)
+                throw new https_1.HttpsError('invalid-argument', 'Fase inválida');
+            if (novaFase && novaFase.id === data.fase_atual)
+                throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa fase');
+            if (novaFase && data.fase_suspensa === true)
+                throw new https_1.HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
+            const foraDoFluxo = !!novaFase && !(0, secretaria_1.fasesSeguintes)(fases, data.fase_atual).some((f) => f.id === novaFase.id);
+            if (foraDoFluxo && !motivo)
+                throw new https_1.HttpsError('invalid-argument', `${novaFase.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
+            const orientacao = (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO);
+            const faseDe = ((_a = fases.find((f) => f.id === data.fase_atual)) === null || _a === void 0 ? void 0 : _a.nome) || data.fase_atual;
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + (0, context_1.nomeUnidade)(c, data.unidade_atual) + ' para'} ${destino.nome}.`
+                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
+                + `${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign({ de: data.unidade_atual, para: destino.id }, (novaFase ? Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})) : {})));
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? { fase_atual: novaFase.id } : {})), { orientacao: orientacao
+                    ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
+                    : firestore_1.FieldValue.delete() }));
+            recebeu = { unidadeId: destino.id, proc: data };
+            return mov;
+        }
+        if (p.action === 'concluirOrientacao') {
+            if (!data.orientacao)
+                throw new https_1.HttpsError('failed-precondition', 'Não há orientação pendente');
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'orientacao_concluida', `Orientação de ${data.orientacao.de || 'outra unidade'} concluída: ${data.orientacao.texto}${motivo ? ` ${motivo}` : ''}`);
+            tx.update(ref, Object.assign(Object.assign({}, mov), { orientacao: firestore_1.FieldValue.delete() }));
+            return mov;
+        }
+        if (p.action === 'marcarAcao') {
+            // Caixa de marcar das ações da fase: movimento interno leve, sem documento.
+            const fase = (data.fases || []).find((f) => f.id === data.fase_atual);
+            const idx = Number(p.acao_idx);
+            const acao = (_b = fase === null || fase === void 0 ? void 0 : fase.acoes) === null || _b === void 0 ? void 0 : _b[idx];
+            if (!fase || !acao)
+                throw new https_1.HttpsError('invalid-argument', 'Ação da fase inválida');
+            const feitas = Object.assign({}, (data.acoes_feitas || {}));
+            const lista = new Set(feitas[fase.id] || []);
+            if (p.feita === false)
+                lista.delete(idx);
+            else
+                lista.add(idx);
+            feitas[fase.id] = [...lista].sort((a, b) => a - b);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', `${p.feita === false ? 'Desmarcada' : 'Feita'} a ação "${acao}" da fase ${fase.nome}.`, { fase_id: fase.id, acao_idx: idx, feita: p.feita !== false });
+            tx.update(ref, Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }));
             return mov;
         }
         if (p.action === 'atribuir') {
@@ -193,7 +244,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (alvo && !((unidade === null || unidade === void 0 ? void 0 : unidade.membros_uids) || []).includes(alvo)) {
                 throw new https_1.HttpsError('invalid-argument', 'A pessoa precisa estar lotada na unidade que tem o processo');
             }
-            const nomeAlvo = alvo ? ((_a = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _a === void 0 ? void 0 : _a.user_name) || 'membro' : '';
+            const nomeAlvo = alvo ? ((_d = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _d === void 0 ? void 0 : _d.user_name) || 'membro' : '';
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'atribuicao', alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', { responsavel_uid: alvo });
             tx.update(ref, Object.assign(Object.assign({}, mov), { responsavel_uid: alvo }));
             return mov;
@@ -214,7 +265,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const foraDoFluxo = !(0, secretaria_1.fasesSeguintes)(fases, data.fase_atual).some((f) => f.id === alvo.id);
             if (foraDoFluxo && !motivo)
                 throw new https_1.HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
-            const de = ((_b = fases.find((f) => f.id === data.fase_atual)) === null || _b === void 0 ? void 0 : _b.nome) || data.fase_atual;
+            const de = ((_e = fases.find((f) => f.id === data.fase_atual)) === null || _e === void 0 ? void 0 : _e.nome) || data.fase_atual;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})));
             tx.update(ref, Object.assign(Object.assign({}, mov), { fase_atual: alvo.id }));
             return mov;
@@ -254,7 +305,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }
         if (p.action === 'resolverPendencia') {
             // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (((_d = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _d === void 0 ? void 0 : _d.tipo) !== 'gabinete') {
+            if (((_f = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _f === void 0 ? void 0 : _f.tipo) !== 'gabinete') {
                 throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
@@ -344,6 +395,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     });
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
     void (0, portalAvisos_1.avisarPartesDoMovimento)(db, String(p.id));
+    const r = recebeu;
+    if (r)
+        void (0, avisosEquipe_1.avisarUnidadeRecebeu)(c, r.unidadeId, r.proc, String(p.id), motivo || (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO));
     if (convite.token) {
         const link = `${APP_URL}/Portal?convite=${convite.token}`;
         const enviado = convite.email ? await (0, email_1.sendEmail)({

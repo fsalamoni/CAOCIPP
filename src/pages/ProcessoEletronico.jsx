@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, Gavel, Inbox, Loader2, Plus, Settings, Files, LayoutDashboard, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, Building2, Gavel, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,6 +17,7 @@ import ProcessoView from '@/components/secretaria/ProcessoView';
 import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/UnidadesDoUsuario';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
+import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
 import { STATUS_ROTULO, NativeSelect } from '@/components/secretaria/comum';
 
 export default function ProcessoEletronico() {
@@ -34,6 +35,12 @@ export default function ProcessoEletronico() {
         enabled: !!orgId && !tokenEquipe,
     });
     const estado = estadoQ.data;
+    // Mesma consulta da caixa: alimenta as contagens das abas "Meu trabalho" e "Mesa de decisão".
+    const caixaQ = useQuery({
+        queryKey: ['sec-processos', orgId, 'caixa'],
+        queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }),
+        enabled: !!estado?.enabled && !estado.suspensa_plataforma && estado.minhasUnidades.length > 0,
+    });
 
     const abrir = (id) => {
         const next = new URLSearchParams(params);
@@ -82,6 +89,10 @@ export default function ProcessoEletronico() {
     const pedidosPendentes = estado.unidades
         .filter((u) => estado.gestorDe?.includes(u.id))
         .reduce((n, u) => n + (u.pedidos || []).length, 0);
+    const caixa = caixaQ.data?.processos || [];
+    const meuTrabalho = gruposDeTrabalho(caixa, estado).total;
+    const gabinetes = estado.unidades.filter((u) => u.tipo === 'gabinete' && estado.minhasUnidades.includes(u.id)).map((u) => u.id);
+    const paraDecidir = gabinetes.length ? caixa.filter((p) => gabinetes.includes(p.unidade_atual) && p.status !== 'arquivado').reduce((n, p) => n + (p.pendencias_abertas || 0), 0) : 0;
 
     return (
         <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
@@ -119,9 +130,21 @@ export default function ProcessoEletronico() {
             {procId ? (
                 <ProcessoView orgId={orgId} procId={procId} estado={estado} onVoltar={() => abrir(null)} />
             ) : (
-                <Tabs defaultValue={estado.minhasUnidades.length ? 'caixa' : estado.isAdmin ? 'todos' : 'unidades'}>
-                    <TabsList>
+                <Tabs defaultValue={estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : 'unidades'}>
+                    <TabsList className="flex-wrap h-auto">
+                        {estado.minhasUnidades.length > 0 && (
+                            <TabsTrigger value="meu" className="gap-2">
+                                <ListChecks className="w-4 h-4" /> Meu trabalho
+                                {meuTrabalho > 0 && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600">{meuTrabalho}</Badge>}
+                            </TabsTrigger>
+                        )}
                         <TabsTrigger value="caixa" className="gap-2"><Inbox className="w-4 h-4" /> Caixa da unidade</TabsTrigger>
+                        {gabinetes.length > 0 && (
+                            <TabsTrigger value="mesa" className="gap-2">
+                                <Scale className="w-4 h-4" /> Mesa de decisão
+                                {paraDecidir > 0 && <Badge className="ml-1 bg-amber-500 hover:bg-amber-500">{paraDecidir}</Badge>}
+                            </TabsTrigger>
+                        )}
                         <TabsTrigger value="todos" className="gap-2"><Files className="w-4 h-4" /> Todos</TabsTrigger>
                         <TabsTrigger value="painel" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Painel</TabsTrigger>
                         <TabsTrigger value="unidades" className="gap-2">
@@ -129,7 +152,9 @@ export default function ProcessoEletronico() {
                             {pedidosPendentes > 0 && <Badge className="ml-1 bg-amber-500 hover:bg-amber-500">{pedidosPendentes}</Badge>}
                         </TabsTrigger>
                     </TabsList>
+                    <TabsContent value="meu"><MeuTrabalho orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="caixa"><ListaProcessos orgId={orgId} escopo="caixa" estado={estado} onAbrir={abrir} /></TabsContent>
+                    <TabsContent value="mesa"><MesaDecisao orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="todos"><ListaProcessos orgId={orgId} escopo="todos" estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="painel"><PainelSecretaria orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="unidades"><UnidadesDoUsuario orgId={orgId} estado={estado} /></TabsContent>
@@ -237,9 +262,12 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                 </div>
             )}
             {lista.length === 0 ? (
-                <p className="py-8 text-slate-500 dark:text-slate-400">
-                    {todos.length && ativos ? 'Nenhum processo com esses filtros.' : escopo === 'caixa' ? 'Nenhum processo com as suas unidades.' : 'Nenhum processo visível para você.'}
-                </p>
+                <div className="py-8 text-slate-500 dark:text-slate-400 space-y-2">
+                    <p>{todos.length && ativos ? 'Nenhum processo com esses filtros.' : escopo === 'caixa' ? 'Nenhum processo com as suas unidades.' : 'Nenhum processo visível para você.'}</p>
+                    {todos.length > 0 && ativos > 0 && <Button variant="outline" size="sm" onClick={() => setF(FILTROS_VAZIOS)}>Limpar filtros</Button>}
+                    {!todos.length && escopo === 'caixa' && estado.minhasUnidades.length > 0 && <p className="text-sm">Use <b>Novo processo</b> acima para autuar o primeiro.</p>}
+                    {!todos.length && !estado.minhasUnidades.length && <p className="text-sm">Peça lotação em uma unidade na aba <b>Unidades</b>.</p>}
+                </div>
             ) : (
                 <div className="divide-y divide-slate-200 dark:divide-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                     {lista.map((p) => (

@@ -8,6 +8,7 @@ import {
 } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
 import { avisarPartesDoMovimento } from './portalAvisos';
+import { avisarUnidadeRecebeu } from './avisosEquipe';
 import {
     COL, REGION, carregarContexto, conferirVersao, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarMovimento,
@@ -22,7 +23,12 @@ import {
 interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
-        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte';
+        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
+        | 'marcarAcao' | 'concluirOrientacao';
+    // ações da fase (caixas de marcar) e orientação do gabinete ao devolver
+    acao_idx?: number;
+    feita?: boolean;
+    orientacao?: string;
     // portal das partes
     parte_idx?: number;
     email?: string;
@@ -97,6 +103,10 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         partes_resumo: (d.partes || []).map((x: { nome?: string; documento?: string }) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
         pendencia_desde: ((d.pendencias || []) as Pendencia[])
             .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
+        // Fila de trabalho: quando chegou na unidade, pedidos de assinatura e orientação do gabinete.
+        recebido_em: d.recebido_em || d.autuado_em || null,
+        assinaturas_pendentes: d.assinaturas_pendentes || [],
+        orientacao: d.orientacao || null,
     };
 }
 
@@ -127,6 +137,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             ref.collection('documentos').select(
                 'titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem',
                 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
+                'assinaturas_pedidas', 'peticao_tipo',
             ).get(),
         ]);
         const movimentos = movs.docs.map((d) => d.data());
@@ -140,8 +151,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 mime: d.mime || null, nome_arquivo: d.nome_arquivo || null, tamanho: d.tamanho || null,
                 sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem,
                 autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
-                assinaturas: d.assinaturas || [],
-                peticao: d.peticao === true, visivel_partes: d.visivel_partes !== false,
+                assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [],
+                peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false,
                 paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null,
             }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
@@ -158,6 +169,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 autuado_por: data.autuado_por_nome,
                 pendencias: data.pendencias || [],
                 prazos: data.prazos || [],
+                acoes_feitas: data.acoes_feitas || {},
             },
             hoje: hojeBrasil(),
             movimentos,
@@ -242,6 +254,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         ? sanitizeCalendario((await db.collection(COL.config).doc(orgId).get()).data()?.calendario)
         : undefined;
     const convite = { token: '', email: '', parte: '', numero: '' };
+    let recebeu: { unidadeId: string; proc: admin.firestore.DocumentData } | null = null;
     const resultado = await db.runTransaction(async (tx) => {
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
@@ -256,15 +269,58 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (destino.id === data.unidade_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa unidade');
             // Remessa a gabinete é conclusão: o processo vai para quem decide.
             const conclusao = destino.tipo === 'gabinete';
+            // Opcional, num só ato: mudar a fase (quando a próxima corre em outra unidade)
+            // e deixar uma orientação para a unidade que recebe (devolução do gabinete).
+            const fases = (data.fases || []) as Fase[];
+            const novaFase = p.fase_id ? fases.find((f) => f.id === p.fase_id) : null;
+            if (p.fase_id && !novaFase) throw new HttpsError('invalid-argument', 'Fase inválida');
+            if (novaFase && novaFase.id === data.fase_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa fase');
+            if (novaFase && data.fase_suspensa === true) throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
+            const foraDoFluxo = !!novaFase && !fasesSeguintes(fases, data.fase_atual).some((f) => f.id === novaFase.id);
+            if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${novaFase!.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
+            const orientacao = texto(p.orientacao, MAX_TEXTO_LONGO);
+            const faseDe = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             const mov = registrarMovimento(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao',
-                `${conclusao ? 'Conclusos a' : 'Remetido de ' + nomeUnidade(c, data.unidade_atual) + ' para'} ${destino.nome}.${motivo ? ` Motivo: ${motivo}` : ''}`,
-                { de: data.unidade_atual, para: destino.id });
+                `${conclusao ? 'Conclusos a' : 'Remetido de ' + nomeUnidade(c, data.unidade_atual) + ' para'} ${destino.nome}.`
+                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
+                + `${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`,
+                { de: data.unidade_atual, para: destino.id, ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}) } : {}) });
             tx.update(ref, {
                 ...mov,
                 unidade_atual: destino.id,
                 unidades_historico: FieldValue.arrayUnion(destino.id),
                 responsavel_uid: null,
+                recebido_em: new Date().toISOString(),
+                ...(novaFase ? { fase_atual: novaFase.id } : {}),
+                orientacao: orientacao
+                    ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: nomeUnidade(c, data.unidade_atual) }
+                    : FieldValue.delete(),
             });
+            recebeu = { unidadeId: destino.id, proc: data };
+            return mov;
+        }
+
+        if (p.action === 'concluirOrientacao') {
+            if (!data.orientacao) throw new HttpsError('failed-precondition', 'Não há orientação pendente');
+            const mov = registrarMovimento(tx, c, ref, data, 'orientacao_concluida',
+                `Orientação de ${data.orientacao.de || 'outra unidade'} concluída: ${data.orientacao.texto}${motivo ? ` ${motivo}` : ''}`);
+            tx.update(ref, { ...mov, orientacao: FieldValue.delete() });
+            return mov;
+        }
+
+        if (p.action === 'marcarAcao') {
+            // Caixa de marcar das ações da fase: movimento interno leve, sem documento.
+            const fase = ((data.fases || []) as Fase[]).find((f) => f.id === data.fase_atual);
+            const idx = Number(p.acao_idx);
+            const acao = fase?.acoes?.[idx];
+            if (!fase || !acao) throw new HttpsError('invalid-argument', 'Ação da fase inválida');
+            const feitas: Record<string, number[]> = { ...(data.acoes_feitas || {}) };
+            const lista = new Set<number>(feitas[fase.id] || []);
+            if (p.feita === false) lista.delete(idx); else lista.add(idx);
+            feitas[fase.id] = [...lista].sort((a, b) => a - b);
+            const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
+                `${p.feita === false ? 'Desmarcada' : 'Feita'} a ação "${acao}" da fase ${fase.nome}.`, { fase_id: fase.id, acao_idx: idx, feita: p.feita !== false });
+            tx.update(ref, { ...mov, acoes_feitas: feitas });
             return mov;
         }
 
@@ -429,6 +485,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     });
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
     void avisarPartesDoMovimento(db, String(p.id));
+    const r = recebeu as { unidadeId: string; proc: admin.firestore.DocumentData } | null;
+    if (r) void avisarUnidadeRecebeu(c, r.unidadeId, r.proc, String(p.id), motivo || texto(p.orientacao, MAX_TEXTO_LONGO));
     if (convite.token) {
         const link = `${APP_URL}/Portal?convite=${convite.token}`;
         const enviado = convite.email ? await sendEmail({

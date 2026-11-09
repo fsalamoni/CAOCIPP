@@ -6,6 +6,8 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import { avisarPartesDoMovimento } from './portalAvisos';
+import { avisarPedidoAssinatura } from './avisosEquipe';
+import { lotacoesDe } from '../shared/secretaria';
 import {
     COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarMovimento,
 } from './context';
@@ -29,8 +31,14 @@ import { renderizarDocumento } from './pdfDocumento';
 interface DocRequest {
     organizationId: string;
     processoId: string;
-    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'excluirMinuta' | 'baixar' | 'pdf';
+    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura';
     docId?: string;
+    /** pedirAssinatura: quem deve assinar (lotado na unidade da minuta). */
+    uid?: string;
+    /** Juntada: assinar antes, no mesmo ato. */
+    assinar?: boolean;
+    /** Juntada pelo gabinete: o documento é a decisão desta pendência. */
+    resolve_pendencia_id?: string;
     version?: number;
     titulo?: string;
     tipo?: string;
@@ -58,6 +66,9 @@ export const secretariaDocumento = onCall<DocRequest>(
         const { ref: procRef, data: proc } = await lerProcesso(c, p.processoId);
         const docsCol = procRef.collection('documentos');
         const agoraIso = new Date().toISOString();
+        type Pedido = { docId: string; uid: string; titulo: string };
+        const semPedidos = (lista: unknown, docId: string, uid?: string) =>
+            ((lista || []) as Pedido[]).filter((x) => !(x.docId === docId && (!uid || x.uid === uid)));
 
         const lerDoc = async (tx?: admin.firestore.Transaction) => {
             if (!p.docId) throw new HttpsError('invalid-argument', 'docId é obrigatório');
@@ -153,6 +164,9 @@ export const secretariaDocumento = onCall<DocRequest>(
             const { ref, doc } = await lerDoc();
             exigirMinutaDaMinhaUnidade(doc);
             await ref.delete();
+            if (((proc.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id)) {
+                await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
+            }
             const bucket = admin.storage().bucket();
             if (doc.storage_path) await bucket.file(doc.storage_path).delete({ ignoreNotFound: true });
             // PDF que uma juntada interrompida tenha deixado.
@@ -160,25 +174,60 @@ export const secretariaDocumento = onCall<DocRequest>(
             return { success: true };
         }
 
-        if (p.action === 'assinar') {
-            await c.db.runTransaction(async (tx) => {
-                const { ref, doc } = await lerDoc(tx);
-                exigirMinutaDaMinhaUnidade(doc);
-                const assinaturas = (doc.assinaturas || []) as Array<{ uid: string }>;
-                if (assinaturas.some((a) => a.uid === auth.uid)) throw new HttpsError('already-exists', 'Você já assinou este documento');
-                // Assinatura eletrônica simples (Lei 14.063/2020, art. 4º, I):
-                // identifica o signatário pela conta autenticada e amarra ao
-                // hash do conteúdo naquele instante.
-                tx.update(ref, {
-                    assinaturas: [...assinaturas, {
-                        uid: auth.uid, nome: c.userName, em: agoraIso, sha256: doc.sha256, nivel: 'simples',
-                    }],
-                });
+        const assinarMinuta = () => c.db.runTransaction(async (tx) => {
+            const { ref, doc } = await lerDoc(tx);
+            const atual = (await tx.get(procRef)).data() || {}; // leituras antes de qualquer escrita
+            exigirMinutaDaMinhaUnidade(doc);
+            const assinaturas = (doc.assinaturas || []) as Array<{ uid: string }>;
+            if (assinaturas.some((a) => a.uid === auth.uid)) throw new HttpsError('already-exists', 'Você já assinou este documento');
+            // Assinatura eletrônica simples (Lei 14.063/2020, art. 4º, I):
+            // identifica o signatário pela conta autenticada e amarra ao
+            // hash do conteúdo naquele instante.
+            tx.update(ref, {
+                assinaturas: [...assinaturas, {
+                    uid: auth.uid, nome: c.userName, em: agoraIso, sha256: doc.sha256, nivel: 'simples',
+                }],
             });
+            // O pedido de assinatura feito a esta pessoa está atendido.
+            if (((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id && x.uid === auth.uid)) {
+                tx.update(procRef, { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id, auth.uid) });
+            }
+        });
+
+        if (p.action === 'assinar') {
+            await assinarMinuta();
+            return { success: true };
+        }
+
+        if (p.action === 'pedirAssinatura') {
+            exigirPosse(c, proc);
+            const { ref, doc } = await lerDoc();
+            exigirMinutaDaMinhaUnidade(doc);
+            const uid = String(p.uid || '');
+            const unidade = c.unidades.find((u) => u.id === doc.unidade_origem);
+            const lot = unidade ? lotacoesDe(unidade).find((l) => l.uid === uid) : null;
+            if (!lot) throw new HttpsError('invalid-argument', 'Escolha alguém lotado na unidade da minuta');
+            if (uid === auth.uid) throw new HttpsError('invalid-argument', 'Você mesmo pode assinar');
+            if (((doc.assinaturas || []) as Array<{ uid: string }>).some((a) => a.uid === uid)) throw new HttpsError('already-exists', 'Essa pessoa já assinou');
+            const mem = (await c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`).get()).data();
+            const nome = String(mem?.user_name || mem?.user_email || 'Membro');
+            const pedido = { uid, nome, por: c.userName, em: agoraIso };
+            await ref.update({ assinaturas_pedidas: [...((doc.assinaturas_pedidas || []) as unknown[]).filter((x) => (x as { uid: string }).uid !== uid), pedido] });
+            await procRef.update({ assinaturas_pendentes: [...semPedidos(proc.assinaturas_pendentes, ref.id, uid), { docId: ref.id, uid, titulo: doc.titulo }] });
+            void avisarPedidoAssinatura(c, uid, proc, procRef.id, String(doc.titulo));
             return { success: true };
         }
 
         if (p.action === 'juntar') {
+            // "Assinar e juntar": a assinatura entra antes de renderizar o PDF.
+            if (p.assinar) await assinarMinuta().catch((e) => { if (e?.code !== 'already-exists') throw e; });
+            // Decisão por despacho: a juntada resolve a pendência indicada (só o gabinete).
+            const pendenciaAlvo = p.resolve_pendencia_id
+                ? ((proc.pendencias || []) as Pendencia[]).find((x) => x.id === p.resolve_pendencia_id && x.status === 'aberta') : null;
+            if (p.resolve_pendencia_id && !pendenciaAlvo) throw new HttpsError('not-found', 'Pendência aberta não encontrada');
+            if (pendenciaAlvo && c.unidades.find((u) => u.id === proc.unidade_atual)?.tipo !== 'gabinete') {
+                throw new HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete');
+            }
             // Antes da transação: o PDF do documento (do editor) e quantas folhas
             // ele ocupa. A transação confere que nada mudou desde então.
             const { doc: antes } = await lerDoc();
@@ -220,9 +269,11 @@ export const secretariaDocumento = onCall<DocRequest>(
                     descricao: `Apreciar o documento nº ${ordem}: ${doc.titulo}`, documento_id: ref.id,
                     status: 'aberta', aberta_em: agoraIso, aberta_por: c.userName,
                 } as Pendencia] : [];
+                const resolvida = pendenciaAlvo ? ((atual.pendencias || []) as Pendencia[]).find((x) => x.id === pendenciaAlvo.id && x.status === 'aberta') : null;
+                if (pendenciaAlvo && !resolvida) throw new HttpsError('aborted', 'A pendência já foi apreciada por outra pessoa');
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
-                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}`,
-                    { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}) });
+                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`,
+                    { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}) });
                 const juntado = {
                     status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName,
                     paginas, folha_inicial: folha, folha_final: folha + paginas - 1,
@@ -232,10 +283,17 @@ export const secretariaDocumento = onCall<DocRequest>(
                 tx.set(c.db.collection(COL.verificacao).doc(codigo),
                     registroVerificacao(c.orgId, String(c.org.name || ''), pr.id, atual, ref.id, { ...doc, ...juntado }));
                 tx.update(ref, { ...juntado, codigo_verificacao: codigo });
-                const pendencias = [...((atual.pendencias || []) as Pendencia[]), ...pend];
+                const pendencias = [
+                    ...((atual.pendencias || []) as Pendencia[]).map((x) => (resolvida && x.id === resolvida.id
+                        ? { ...x, status: 'resolvida' as const, resolvida_em: agoraIso, resolvida_por: c.userName, resolucao: `Decidida pelo documento nº ${ordem}: ${doc.titulo}` }
+                        : x)),
+                    ...pend,
+                ];
+                const mexeuPendencias = pend.length > 0 || !!resolvida;
                 tx.update(pr, {
                     ...mov, doc_seq: ordem, folhas_seq: folha + paginas - 1,
-                    ...(pend.length ? { pendencias, ...derivados(pendencias, (atual.prazos || []) as Prazo[]) } : {}),
+                    ...(mexeuPendencias ? { pendencias, ...derivados(pendencias, (atual.prazos || []) as Prazo[]) } : {}),
+                    ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
                 });
                 return { ordem, version: mov.version, folha_inicial: folha, paginas };
             });

@@ -23,7 +23,7 @@ import { avisarPartesDoMovimento } from './portalAvisos';
  * é juntada na hora (protocolo eletrônico) e abre pendência para o decisor.
  */
 
-export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia'];
+export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
 const TIPOS_PETICAO: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
 export const TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de vista', 'Recurso', 'Outro'];
