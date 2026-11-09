@@ -59,5 +59,9 @@ assert.equal(await pedir(criador, 'GET', 'auditLogs/l1'), 200, 'criador lê audi
 // Secretaria: tudo fechado ao cliente.
 await semear('secProcessos/s1', { organization_id: org });
 assert.equal(await pedir(criador, 'GET', 'secProcessos/s1'), 403, 'secretaria só por Function');
+await semear('secUnidadeConfig/u1', { organization_id: org });
+assert.equal(await pedir(criador, 'GET', 'secUnidadeConfig/u1'), 403, 'timbrado de unidade só por Function');
+await semear('secConvitesEquipe/c1', { organization_id: org });
+assert.equal(await pedir(criador, 'GET', 'secConvitesEquipe/c1'), 403, 'convites de equipe só por Function');
 
 console.log('REGRAS OK');

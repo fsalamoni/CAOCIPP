@@ -266,10 +266,10 @@ export default function Layout({ children, currentPageName }) {
                                 })}
                               {activeOrgResolvedId === org.id && org.secretariaConfig?.enabled === true && (
                                 <SubNavItem
-                                  to="Secretaria"
+                                  to="ProcessoEletronico"
                                   params={`?org=${org.id}`}
                                   icon={Gavel}
-                                  label="Secretaria Processual"
+                                  label="Processo Eletrônico"
                                   active={false}
                                   onClick={() => setSidebarOpen(false)}
                                 />

@@ -90,7 +90,7 @@ export const secretariaDocumento = onCall<DocRequest>(
             if (doc.status === 'juntado') return { base64: await pdfCarimbado(c.db, c.orgId, procRef.id, String(proc.numero), p.docId!, doc), nome };
             if (!c.ctx.unidadeIds.includes(doc.unidade_origem)) throw new HttpsError('not-found', 'Documento não encontrado');
             if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Baixe o arquivo original da minuta');
-            const r = await renderizarDocumento(conteudoDoDocumento(doc), await lerConfigDocumento(c.db, c.orgId), {
+            const r = await renderizarDocumento(conteudoDoDocumento(doc), await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), {
                 assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: 'MINUTA',
             });
             return { base64: r.buffer.toString('base64'), nome, paginas: r.paginas };
@@ -187,7 +187,7 @@ export const secretariaDocumento = onCall<DocRequest>(
             let paginas = Number(antes.paginas) || 0;
             let pdf: { path: string; sha256: string } | null = null;
             if (antes.origem === 'editor') {
-                const r = await renderizarDocumento(conteudoDoDocumento(antes), await lerConfigDocumento(c.db, c.orgId), {
+                const r = await renderizarDocumento(conteudoDoDocumento(antes), await lerConfigDocumento(c.db, c.orgId, antes.unidade_origem), {
                     assinaturas: antes.assinaturas || [], sha256: antes.sha256,
                 });
                 paginas = r.paginas;

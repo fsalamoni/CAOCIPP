@@ -95,7 +95,7 @@ npm --prefix functions-v2 test && npm run test:lib && npm run test:rules && npm 
 
 | Comando | O que cobre |
 |---|---|
-| `npm --prefix functions-v2 test` | Regras de negócio das Functions da Secretaria Processual (`functions-v2/test/*.test.js`, `node:test`). |
+| `npm --prefix functions-v2 test` | Regras de negócio das Functions do Processo Eletrônico (`functions-v2/test/*.test.js`, `node:test`). |
 | `npm run test:lib` | Motores puros do frontend (`src/lib/*.test.js`), como o motor de ritos. |
 | `npm run test:rules` | `firestore.rules` no emulador (precisa de Java 21+): perfis só do próprio usuário, nenhuma escrita direta em registros, auditoria só para criador e admins, coleções da Secretaria fechadas. |
 

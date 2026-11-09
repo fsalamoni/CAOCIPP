@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = void 0;
+exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.texto = texto;
 exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
@@ -24,7 +24,13 @@ exports.calcularVencimento = calcularVencimento;
 exports.somarDias = somarDias;
 exports.hojeBrasil = hojeBrasil;
 exports.derivados = derivados;
+exports.tipoUnidade = tipoUnidade;
+exports.sanitizeLotacoes = sanitizeLotacoes;
+exports.lotacoesDe = lotacoesDe;
+exports.documentoEfetivo = documentoEfetivo;
 const crypto_1 = require("crypto");
+exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
+exports.MAX_LOTACOES = 200;
 exports.MAX_TEXTO_CURTO = 200;
 exports.MAX_TEXTO_LONGO = 4000;
 exports.MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -321,5 +327,43 @@ function derivados(pendencias, prazos) {
         fase_suspensa: abertas.some((p) => p.interrompe),
         proximo_vencimento: vencimentos[0] || null,
     };
+}
+function tipoUnidade(v) {
+    return exports.TIPOS_UNIDADE.includes(v) ? v : 'secretaria';
+}
+/** Lotações saneadas (sem repetição de pessoa). */
+function sanitizeLotacoes(input) {
+    const vistos = new Set();
+    const out = [];
+    for (const l of Array.isArray(input) ? input : []) {
+        const o = (l && typeof l === 'object' ? l : {});
+        const uid = texto(o.uid, 128);
+        if (!uid || vistos.has(uid))
+            continue;
+        vistos.add(uid);
+        out.push({ uid, atribuicao: texto(o.atribuicao, 80), gestor: o.gestor === true });
+        if (out.length >= exports.MAX_LOTACOES)
+            break;
+    }
+    return out;
+}
+/**
+ * Lotações da unidade. Unidades criadas antes das lotações só têm
+ * `membros_uids`: cada uid vira lotação sem atribuição e sem gestão.
+ */
+function lotacoesDe(u) {
+    if (Array.isArray(u.lotacoes))
+        return sanitizeLotacoes(u.lotacoes);
+    return sanitizeLotacoes((Array.isArray(u.membros_uids) ? u.membros_uids : []).map((uid) => ({ uid })));
+}
+/**
+ * Papel timbrado efetivo de uma unidade: o próprio, se ela tiver, ou o do
+ * órgão. Tipos de documento da unidade somam-se aos do órgão.
+ */
+function documentoEfetivo(orgao, unidade) {
+    const base = (unidade === null || unidade === void 0 ? void 0 : unidade.timbrado_proprio) && unidade.documento ? Object.assign(Object.assign({}, orgao), unidade.documento) : Object.assign({}, orgao);
+    const doOrgao = orgao.tipos_documento || [];
+    const tipos = [...new Set([...doOrgao, ...((unidade === null || unidade === void 0 ? void 0 : unidade.tipos_documento) || [])])];
+    return Object.assign(Object.assign({}, base), { tipos_documento: tipos });
 }
 //# sourceMappingURL=secretaria.js.map

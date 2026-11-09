@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import * as QRCode from 'qrcode';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { No, deltaParaDoc } from '../shared/documento';
-import { DeltaOp } from '../shared/secretaria';
+import { DeltaOp, documentoEfetivo } from '../shared/secretaria';
 import { COL } from './context';
 import { ConfigDocumento, dataHora, renderizarDocumento, textoParaDoc, winAnsi } from './pdfDocumento';
 import { conversivel, officeParaDoc } from './conversao';
@@ -14,9 +14,17 @@ import { conversivel, officeParaDoc } from './conversao';
  * número do documento e hash. Usado na juntada, no download e na exportação.
  */
 
-export async function lerConfigDocumento(db: admin.firestore.Firestore, orgId: string): Promise<ConfigDocumento> {
-    const s = await db.collection(COL.config).doc(orgId).get();
-    return (s.data()?.documento || {}) as ConfigDocumento;
+/**
+ * Papel timbrado de um documento: o da unidade que o redigiu, se ela tiver
+ * timbrado próprio, ou o do órgão.
+ */
+export async function lerConfigDocumento(db: admin.firestore.Firestore, orgId: string, unidadeId?: string): Promise<ConfigDocumento> {
+    const [s, u] = await Promise.all([
+        db.collection(COL.config).doc(orgId).get(),
+        unidadeId ? db.collection(COL.unidadeConfig).doc(unidadeId).get() : Promise.resolve(null),
+    ]);
+    const un = u?.data();
+    return documentoEfetivo((s.data()?.documento || {}) as ConfigDocumento, un?.organization_id === orgId ? un as never : null);
 }
 
 export function conteudoDoDocumento(d: admin.firestore.DocumentData): No {
@@ -85,7 +93,7 @@ export async function pdfDoDocumento(d: admin.firestore.DocumentData, cfg: Confi
     }
     return folhaSimples(String(d.titulo), [
         `Arquivo ${d.nome_arquivo} (${d.mime}), sem conversão para PDF nesta versão.`,
-        'O original está nos autos eletrônicos e pode ser baixado na Secretaria.',
+        'O original está nos autos eletrônicos e pode ser baixado no Processo Eletrônico.',
         `SHA-256 ${d.sha256}`,
     ]);
 }
@@ -207,7 +215,7 @@ export const textoFolhas = (ini: number, qtd: number) => (qtd > 1 ? `fls. ${ini}
 export async function pdfCarimbado(
     db: admin.firestore.Firestore, orgId: string, procId: string, numero: string, docId: string, d: admin.firestore.DocumentData,
 ): Promise<string> {
-    const cfg = await lerConfigDocumento(db, orgId);
+    const cfg = await lerConfigDocumento(db, orgId, d.unidade_origem);
     const destino = await PDFDocument.create();
     const codigo = d.codigo_verificacao || await garantirCodigo(db, orgId, procId, numero, docId);
     await anexarCarimbado(destino, await pdfDoDocumento(d, cfg), {

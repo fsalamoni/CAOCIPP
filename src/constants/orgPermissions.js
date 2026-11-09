@@ -48,8 +48,8 @@ export const ORG_PERMISSIONS = [
     },
     {
         key: 'configure_secretaria',
-        label: 'Configurar Secretaria Processual',
-        description: 'Ligar a Secretaria Processual, criar unidades (secretarias e gabinetes), lotar membros e definir os ritos. Quem tem esta permissão também consulta todos os processos do órgão.',
+        label: 'Configurar Processo Eletrônico',
+        description: 'Ligar o Processo Eletrônico, criar unidades de lotação (secretarias, gabinetes, assessorias), montar equipes e definir tipos de processo, ritos, papel timbrado e modelos. Quem tem esta permissão também consulta todos os processos do órgão.',
     },
     {
         key: 'manage_metrics',

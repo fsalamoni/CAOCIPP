@@ -107,3 +107,24 @@ test('rito com ramificações: próximas por id do cliente, orientação e valid
 test('número do processo', () => {
     assert.equal(s.numeroProcesso(2026, 42), '000042/2026');
 });
+
+test('unidades: tipos, lotações e migração de membros_uids', () => {
+    assert.equal(s.tipoUnidade('assessoria'), 'assessoria');
+    assert.equal(s.tipoUnidade('xyz'), 'secretaria');
+    const l = s.sanitizeLotacoes([{ uid: 'a', atribuicao: ' Chefe ', gestor: true }, { uid: 'a' }, { uid: '' }, 'lixo', { uid: 'b', gestor: 'sim' }]);
+    assert.deepEqual(l, [{ uid: 'a', atribuicao: 'Chefe', gestor: true }, { uid: 'b', atribuicao: '', gestor: false }]);
+    // Unidade antiga (só membros_uids) vira lotações sem atribuição nem gestão.
+    assert.deepEqual(s.lotacoesDe({ membros_uids: ['x', 'y'] }), [{ uid: 'x', atribuicao: '', gestor: false }, { uid: 'y', atribuicao: '', gestor: false }]);
+    assert.deepEqual(s.lotacoesDe({ lotacoes: [{ uid: 'z', gestor: true }], membros_uids: ['x'] }), [{ uid: 'z', atribuicao: '', gestor: true }]);
+});
+
+test('timbrado efetivo: próprio da unidade ou do órgão; tipos somados', () => {
+    const orgao = { cabecalho_linhas: ['MP'], rodape: 'R', tipos_documento: ['Despacho', 'Ofício'] };
+    assert.deepEqual(s.documentoEfetivo(orgao, null), orgao);
+    const herdado = s.documentoEfetivo(orgao, { timbrado_proprio: false, documento: { cabecalho_linhas: ['Gab'] }, tipos_documento: ['Parecer', 'Ofício'] });
+    assert.deepEqual(herdado.cabecalho_linhas, ['MP']);
+    assert.deepEqual(herdado.tipos_documento, ['Despacho', 'Ofício', 'Parecer']);
+    const proprio = s.documentoEfetivo(orgao, { timbrado_proprio: true, documento: { cabecalho_linhas: ['Gab'], tipos_documento: [] } });
+    assert.deepEqual(proprio.cabecalho_linhas, ['Gab']);
+    assert.deepEqual(proprio.tipos_documento, ['Despacho', 'Ofício']);
+});

@@ -97,7 +97,7 @@ export default function Admin() {
                         <Mail className="w-4 h-4" /> E-mail
                     </TabsTrigger>
                     <TabsTrigger value="secretaria" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 dark:data-[state=active]:bg-indigo-900 dark:data-[state=active]:text-indigo-200">
-                        <Gavel className="w-4 h-4" /> Secretaria
+                        <Gavel className="w-4 h-4" /> Processo Eletrônico
                     </TabsTrigger>
                     {wave2 && (
                         <>

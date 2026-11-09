@@ -1,0 +1,250 @@
+import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Check, Copy, Crown, Loader2, Mail, Save, Trash2, UserPlus, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { secConfig } from '@/services/secretariaService';
+import { TIPOS_UNIDADE, dataHora } from './comum';
+import { DocumentosDaUnidade, ListaModelos } from './ConfiguracaoDocumentos';
+
+const ATRIBUICOES = ['Chefe de secretaria', 'Analista', 'Técnico', 'Estagiário', 'Assessor', 'Promotor de Justiça', 'Procurador de Justiça', 'Servidor', 'Gestor'];
+
+/** Dados básicos da unidade (admin do órgão): nome, sigla, tipo, descrição, ativa. */
+function DadosUnidade({ u, setU, idPrefixo }) {
+    return (
+        <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2"><Label htmlFor={`${idPrefixo}-nome`}>Nome</Label><Input id={`${idPrefixo}-nome`} value={u.nome} onChange={(e) => setU({ ...u, nome: e.target.value })} placeholder="Ex.: Gabinete do Promotor" /></div>
+                <div><Label htmlFor={`${idPrefixo}-sigla`}>Sigla</Label><Input id={`${idPrefixo}-sigla`} value={u.sigla || ''} maxLength={20} onChange={(e) => setU({ ...u, sigla: e.target.value })} /></div>
+            </div>
+            <fieldset>
+                <legend className="text-sm font-medium mb-2">Papel no processo</legend>
+                <div className="grid sm:grid-cols-2 gap-2">
+                    {Object.entries(TIPOS_UNIDADE).map(([k, t]) => (
+                        <label key={k} className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer ${u.tipo === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950' : 'border-slate-200 dark:border-slate-700'}`}>
+                            <input type="radio" name={`${idPrefixo}-tipo`} className="mt-1" checked={u.tipo === k} onChange={() => setU({ ...u, tipo: k })} />
+                            <span><span className="font-medium block">{t.rotulo}</span><span className="text-slate-500 dark:text-slate-400">{t.descricao}</span></span>
+                        </label>
+                    ))}
+                </div>
+            </fieldset>
+            <div><Label htmlFor={`${idPrefixo}-desc`}>Descrição (opcional)</Label><Textarea id={`${idPrefixo}-desc`} rows={2} maxLength={500} value={u.descricao || ''} onChange={(e) => setU({ ...u, descricao: e.target.value })} placeholder="O que a unidade faz, horário, contato…" /></div>
+            {u.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={u.ativa !== false} onCheckedChange={(c) => setU({ ...u, ativa: c === true })} /> Unidade ativa (inativa não recebe processos e ninguém atua por ela)</label>}
+        </div>
+    );
+}
+
+/** Criação de unidade (admin). Depois de criada, abre a gestão completa. */
+export function NovaUnidade({ orgId, aberto, onFechar, onCriada }) {
+    const qc = useQueryClient();
+    const [u, setU] = useState({ nome: '', sigla: '', tipo: 'gabinete', descricao: '' });
+    const [salvando, setSalvando] = useState(false);
+    useEffect(() => { if (aberto) setU({ nome: '', sigla: '', tipo: 'gabinete', descricao: '' }); }, [aberto]);
+    const salvar = async () => {
+        setSalvando(true);
+        try {
+            const r = await secConfig(orgId, 'salvarUnidade', { unidade: { ...u, lotacoes: [] } });
+            toast.success('Unidade criada. Agora monte a equipe.');
+            await qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
+            onCriada(r.id);
+        } catch (e) { toast.error(e?.message || 'Não foi possível criar'); } finally { setSalvando(false); }
+    };
+    return (
+        <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader>
+                    <DialogTitle>Nova unidade de lotação</DialogTitle>
+                    <DialogDescription>Secretaria, gabinete, assessoria ou outra. A equipe, o papel timbrado e os modelos se ajustam em seguida.</DialogDescription>
+                </DialogHeader>
+                <DadosUnidade u={u} setU={setU} idPrefixo="nova-un" />
+                <DialogFooter>
+                    <Button variant="outline" onClick={onFechar}>Cancelar</Button>
+                    <Button disabled={salvando || !u.nome.trim()} onClick={salvar}>{salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Criar unidade</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/**
+ * Gestão completa de uma unidade: equipe (lotações, atribuições, gestão,
+ * inserir, convidar, admitir pedidos), papel timbrado e tipos próprios,
+ * modelos da unidade e, para o admin do órgão, os dados básicos.
+ * Em `embutido`, renderiza sem diálogo (aba "Minha unidade").
+ */
+export default function GestaoUnidade({ orgId, estado, unidadeId, onFechar, embutido = false }) {
+    const unidade = estado.unidades.find((x) => x.id === unidadeId);
+    if (!unidade) return null;
+    const corpo = <CorpoGestao key={unidade.id} orgId={orgId} estado={estado} unidade={unidade} />;
+    if (embutido) return corpo;
+    return (
+        <Dialog open onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader>
+                    <DialogTitle className="flex flex-wrap items-center gap-2">{unidade.nome} <Badge variant="outline">{TIPOS_UNIDADE[unidade.tipo]?.rotulo}</Badge>{!unidade.ativa && <Badge variant="secondary">Inativa</Badge>}</DialogTitle>
+                    <DialogDescription>{TIPOS_UNIDADE[unidade.tipo]?.descricao}. Configure a equipe, o papel timbrado, os tipos de documento e os modelos desta unidade.</DialogDescription>
+                </DialogHeader>
+                {corpo}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function CorpoGestao({ orgId, estado, unidade }) {
+    const pedidos = unidade.pedidos || [];
+    return (
+        <Tabs defaultValue="equipe">
+            <TabsList className="flex-wrap h-auto">
+                <TabsTrigger value="equipe">Equipe{pedidos.length > 0 && <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">{pedidos.length}</Badge>}</TabsTrigger>
+                <TabsTrigger value="documentos">Timbrado e tipos</TabsTrigger>
+                <TabsTrigger value="modelos">Modelos</TabsTrigger>
+                {estado.isAdmin && <TabsTrigger value="dados">Dados da unidade</TabsTrigger>}
+            </TabsList>
+            <TabsContent value="equipe" className="pt-3"><Equipe orgId={orgId} estado={estado} unidade={unidade} /></TabsContent>
+            <TabsContent value="documentos" className="pt-3"><DocumentosDaUnidade orgId={orgId} estado={estado} unidade={unidade} /></TabsContent>
+            <TabsContent value="modelos" className="pt-3">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Modelos que só esta unidade usa (além dos do órgão). Saem com o papel timbrado da unidade.</p>
+                <ListaModelos orgId={orgId} estado={estado} unidadeId={unidade.id} semCartao />
+            </TabsContent>
+            {estado.isAdmin && <TabsContent value="dados" className="pt-3"><EditarDados orgId={orgId} unidade={unidade} /></TabsContent>}
+        </Tabs>
+    );
+}
+
+function EditarDados({ orgId, unidade }) {
+    const qc = useQueryClient();
+    const [u, setU] = useState({ ...unidade });
+    const [salvando, setSalvando] = useState(false);
+    const salvar = async () => {
+        setSalvando(true);
+        try {
+            await secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: u });
+            toast.success('Unidade salva');
+            qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
+        } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
+    };
+    return (
+        <div className="space-y-4">
+            <DadosUnidade u={u} setU={setU} idPrefixo={`un-${unidade.id}`} />
+            <Button className="gap-1" disabled={salvando || !u.nome?.trim()} onClick={salvar}>{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar dados</Button>
+        </div>
+    );
+}
+
+function Equipe({ orgId, estado, unidade }) {
+    const qc = useQueryClient();
+    const [lot, setLot] = useState(unidade.lotacoes || []);
+    const [sujo, setSujo] = useState(false);
+    const [ocupado, setOcupado] = useState(false);
+    const [novo, setNovo] = useState({ uid: '', atribuicao: '' });
+    const [convite, setConvite] = useState({ email: '', atribuicao: '', gestor: false });
+    const [link, setLink] = useState(null);
+    const [admissao, setAdmissao] = useState({}); // uid -> atribuição
+    useEffect(() => { setLot(unidade.lotacoes || []); setSujo(false); }, [unidade.lotacoes]);
+
+    const membro = (uid) => estado.membros.find((m) => m.uid === uid);
+    const disponiveis = estado.membros.filter((m) => !lot.some((l) => l.uid === m.uid));
+    const convites = (estado.convitesEquipe || []).filter((c) => c.unidade_id === unidade.id);
+    const recarregar = () => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
+    const mudar = (uid, campo, valor) => { setLot(lot.map((l) => (l.uid === uid ? { ...l, [campo]: valor } : l))); setSujo(true); };
+
+    const rodar = async (fn, ok) => {
+        setOcupado(true);
+        try { const r = await fn(); if (ok) toast.success(ok); recarregar(); return r; } catch (e) { toast.error(e?.message || 'Não foi possível concluir'); return null; } finally { setOcupado(false); }
+    };
+    const salvarEquipe = () => rodar(() => secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: { ...unidade, lotacoes: lot } }), 'Equipe salva').then((r) => r && setSujo(false));
+    const convidar = async () => {
+        const r = await rodar(() => secConfig(orgId, 'convidarEquipe', { unidadeId: unidade.id, ...convite }), null);
+        if (r) { setLink(r); setConvite({ email: '', atribuicao: '', gestor: false }); }
+    };
+
+    return (
+        <div className="space-y-6">
+            <datalist id="atribuicoes-sugeridas">{ATRIBUICOES.map((a) => <option key={a} value={a} />)}</datalist>
+
+            {(unidade.pedidos || []).length > 0 && (
+                <section aria-labelledby={`ped-${unidade.id}`} className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-2">
+                    <h3 id={`ped-${unidade.id}`} className="text-sm font-semibold text-amber-900 dark:text-amber-100">Pedidos de lotação</h3>
+                    {unidade.pedidos.map((p) => (
+                        <div key={p.uid} className="flex flex-wrap items-center gap-2 text-sm">
+                            <span className="flex-1 min-w-[12rem]"><b>{p.nome}</b>{p.email && <span className="text-slate-500"> · {p.email}</span>}{p.mensagem && <span className="block text-slate-600 dark:text-slate-300">“{p.mensagem}”</span>}<span className="block text-xs text-slate-500">{dataHora(p.em)}</span></span>
+                            <Input list="atribuicoes-sugeridas" aria-label={`Atribuição de ${p.nome}`} placeholder="Atribuição" className="h-8 w-44" value={admissao[p.uid] || ''} onChange={(e) => setAdmissao({ ...admissao, [p.uid]: e.target.value })} />
+                            <Button size="sm" className="gap-1" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: true, atribuicao: admissao[p.uid] || '' }), `${p.nome} admitido`)}><Check className="w-4 h-4" /> Admitir</Button>
+                            <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: false }), 'Pedido recusado')}>Recusar</Button>
+                        </div>
+                    ))}
+                </section>
+            )}
+
+            <section aria-labelledby={`lot-${unidade.id}`} className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                    <h3 id={`lot-${unidade.id}`} className="text-sm font-semibold">Lotados ({lot.length})</h3>
+                    <span className="text-xs text-slate-500 flex items-center gap-1"><Crown className="w-3.5 h-3.5" aria-hidden /> Gestor configura a unidade</span>
+                </div>
+                {lot.length === 0 && <p className="text-sm text-slate-500">Ninguém lotado. Insira membros do órgão ou convide por e-mail.</p>}
+                <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-md border border-slate-200 dark:border-slate-700">
+                    {lot.map((l) => {
+                        const m = membro(l.uid);
+                        return (
+                            <li key={l.uid} className="flex flex-wrap items-center gap-2 p-2">
+                                <span className="flex-1 min-w-[10rem] text-sm"><span className="font-medium">{m?.nome || 'Ex-membro do órgão'}</span>{m?.email && <span className="block text-xs text-slate-500">{m.email}</span>}</span>
+                                <Input list="atribuicoes-sugeridas" aria-label={`Atribuição de ${m?.nome || l.uid}`} placeholder="Atribuição" className="h-8 w-48" maxLength={80} value={l.atribuicao} onChange={(e) => mudar(l.uid, 'atribuicao', e.target.value)} />
+                                <label className="flex items-center gap-1 text-sm"><Checkbox checked={l.gestor} onCheckedChange={(c) => mudar(l.uid, 'gestor', c === true)} /> Gestor</label>
+                                <Button size="sm" variant="ghost" aria-label={`Remover ${m?.nome || ''} da unidade`} onClick={() => { setLot(lot.filter((x) => x.uid !== l.uid)); setSujo(true); }}><Trash2 className="w-4 h-4" /></Button>
+                            </li>
+                        );
+                    })}
+                </ul>
+                <div className="flex flex-wrap items-end gap-2 pt-1">
+                    <div className="flex-1 min-w-[12rem]">
+                        <Label htmlFor={`ins-${unidade.id}`}>Inserir membro do órgão</Label>
+                        <select id={`ins-${unidade.id}`} value={novo.uid} onChange={(e) => setNovo({ ...novo, uid: e.target.value })} className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                            <option value="">{disponiveis.length ? 'Escolha…' : 'Todos os membros já estão lotados'}</option>
+                            {disponiveis.map((m) => <option key={m.uid} value={m.uid}>{m.nome}{m.funcao ? ` · ${m.funcao}` : ''}</option>)}
+                        </select>
+                    </div>
+                    <div className="w-48"><Label htmlFor={`ins-atr-${unidade.id}`}>Atribuição</Label><Input id={`ins-atr-${unidade.id}`} list="atribuicoes-sugeridas" className="mt-1" value={novo.atribuicao} onChange={(e) => setNovo({ ...novo, atribuicao: e.target.value })} /></div>
+                    <Button variant="outline" className="gap-1" disabled={!novo.uid} onClick={() => { setLot([...lot, { uid: novo.uid, atribuicao: novo.atribuicao, gestor: false }]); setNovo({ uid: '', atribuicao: '' }); setSujo(true); }}><UserPlus className="w-4 h-4" /> Inserir</Button>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Button className="gap-1" disabled={ocupado || !sujo} onClick={salvarEquipe}>{ocupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar equipe</Button>
+                    {sujo && <span className="text-xs text-amber-700 dark:text-amber-300" aria-live="polite">Alterações não salvas</span>}
+                </div>
+            </section>
+
+            <section aria-labelledby={`conv-${unidade.id}`} className="space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                <h3 id={`conv-${unidade.id}`} className="text-sm font-semibold">Convidar por e-mail</h3>
+                <p className="text-xs text-slate-500">Para quem ainda não é membro do órgão. Ao aceitar com a conta do e-mail convidado, a pessoa entra no órgão já lotada aqui. Vale 7 dias.</p>
+                <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 min-w-[12rem]"><Label htmlFor={`cv-email-${unidade.id}`}>E-mail</Label><Input id={`cv-email-${unidade.id}`} type="email" className="mt-1" value={convite.email} onChange={(e) => setConvite({ ...convite, email: e.target.value })} /></div>
+                    <div className="w-48"><Label htmlFor={`cv-atr-${unidade.id}`}>Atribuição</Label><Input id={`cv-atr-${unidade.id}`} list="atribuicoes-sugeridas" className="mt-1" value={convite.atribuicao} onChange={(e) => setConvite({ ...convite, atribuicao: e.target.value })} /></div>
+                    <label className="flex items-center gap-1 text-sm h-9"><Checkbox checked={convite.gestor} onCheckedChange={(c) => setConvite({ ...convite, gestor: c === true })} /> Gestor</label>
+                    <Button variant="outline" className="gap-1" disabled={ocupado || !convite.email.includes('@')} onClick={convidar}><Mail className="w-4 h-4" /> Convidar</Button>
+                </div>
+                {link && (
+                    <div role="status" className="rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-2 text-sm space-y-1">
+                        <p>{link.emailEnviado ? 'Convite enviado por e-mail.' : 'O envio de e-mail não está configurado; copie o link e envie à pessoa.'}</p>
+                        <div className="flex gap-2"><Input readOnly value={link.link} aria-label="Link do convite" className="h-8" onFocus={(e) => e.target.select()} /><Button size="sm" variant="outline" className="gap-1" onClick={() => { navigator.clipboard?.writeText(link.link); toast.success('Link copiado'); }}><Copy className="w-4 h-4" /> Copiar</Button><Button size="sm" variant="ghost" aria-label="Fechar" onClick={() => setLink(null)}><X className="w-4 h-4" /></Button></div>
+                    </div>
+                )}
+                {convites.length > 0 && (
+                    <ul className="text-sm space-y-1 pt-1">
+                        {convites.map((c) => (
+                            <li key={c.id} className="flex flex-wrap items-center gap-2">
+                                <span className="flex-1 min-w-[12rem]">{c.email}{c.atribuicao && ` · ${c.atribuicao}`}{c.gestor && ' · gestor'} <span className="text-xs text-slate-500">(vence {dataHora(c.expira_em)})</span></span>
+                                <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'revogarConviteEquipe', { id: c.id }), 'Convite revogado')}>Revogar</Button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
+        </div>
+    );
+}

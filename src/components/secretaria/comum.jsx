@@ -7,6 +7,22 @@ export const STATUS_ROTULO = {
     arquivado: 'Arquivado',
 };
 
+/** Tipos de unidade de lotação: o que cada uma faz no processo. */
+export const TIPOS_UNIDADE = {
+    secretaria: { rotulo: 'Secretaria', descricao: 'Autua, movimenta, cumpre e junta' },
+    gabinete: { rotulo: 'Gabinete', descricao: 'Recebe a conclusão, decide e aprecia pendências' },
+    assessoria: { rotulo: 'Assessoria', descricao: 'Estuda, minuta e devolve' },
+    outra: { rotulo: 'Outra unidade', descricao: 'Atua quando o processo está com ela' },
+};
+export const rotuloUnidade = (tipo) => TIPOS_UNIDADE[tipo]?.rotulo || 'Secretaria';
+
+/** Papel timbrado e tipos de documento da unidade (ou os do órgão). */
+export const documentoDaUnidade = (estado, unidadeId) => estado.documentoUnidades?.[unidadeId] || estado.documento || {};
+
+/** Modelos que uma unidade pode usar: os do órgão e os dela. */
+export const modelosDaUnidade = (estado, unidadeId) =>
+    (estado.modelos || []).filter((m) => m.ativo && (!m.unidade_id || m.unidade_id === unidadeId));
+
 export function NativeSelect({ label, value, onChange, options, id }) {
     const selId = id || `sel-${label}`;
     return (

@@ -42,7 +42,7 @@ de IA.
 | **Papel** (`role`) | `creator` (quem criou o órgão — tem todos os poderes), `admin` ou `member`. Governa autorização. |
 | **Função** (`function`) | Texto livre que descreve o que a pessoa faz (ex.: Assessoria, Secretaria, Decisória, Promotor). Personaliza o painel inicial; não concede permissão. |
 | **Atribuições** | Permissões especiais que o criador delega a membros (ex.: configurar Parcerias, excluir registros). Ver [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md). |
-| **Módulo** | Conjunto de páginas do órgão (Consultas, Expedientes, Parcerias, Jurimetria, Panorama, Secretaria Processual, Resumos, Calendário). Cada órgão liga os que usa em *Painel Administrativo → Páginas e Módulos*. |
+| **Módulo** | Conjunto de páginas do órgão (Consultas, Expedientes, Parcerias, Jurimetria, Panorama, Processo Eletrônico, Resumos, Calendário). Cada órgão liga os que usa em *Painel Administrativo → Páginas e Módulos*. |
 | **Super-admin** | Administrador da plataforma inteira (custom claim `platformAdmin`). Acessa a página *Administração & Custos*. |
 
 ---
@@ -71,7 +71,7 @@ de IA.
 | **Resumos Inteligentes** | Indicadores consolidados de Consultas e Expedientes por período: totais, taxa de conclusão, tempo médio do fluxo, urgentes, distribuição por localidade, resumo por status, temporalidade em dias úteis e comparação com o período anterior. | [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) |
 | **Calendário de Vencimentos** | Prazos de Consultas, Expedientes e Parcerias num calendário. | [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) |
 | **Páginas personalizadas** | O órgão cria seus próprios tipos de registro (campos, fases, Kanban, lista e resumo) sem código. | [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) |
-| **Secretaria Processual** | Processo eletrônico com ritos configuráveis: autuação, editor de documentos, assinatura, juntada com paginação, prazos, portal das partes e PDF com código de verificação. Liberada pelo admin do órgão. | [SECRETARIA.md](./SECRETARIA.md) |
+| **Processo Eletrônico** | Processo eletrônico com ritos configuráveis: autuação, editor de documentos, assinatura, juntada com paginação, prazos, portal das partes e PDF com código de verificação. Liberada pelo admin do órgão. | [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md) |
 
 Jurimetria e Panorama são **opcionais**: só aparecem quando o super-admin liga
 as flags `jurimetria_enabled` / `panorama_enabled` **e** o órgão ativa o módulo.
@@ -87,7 +87,7 @@ Os demais módulos estão integrados ao produto.
 | `/Dashboard` | Painel inicial do usuário, com KPIs e atividades de todos os seus órgãos. |
 | `/Organization?id=…&tab=…` | Página do órgão; a aba ativa fica na URL (`tab=kanban`, `processes`, `parcerias`, `admin` etc.). |
 | `/Profile` | Perfil do usuário (nome, função, e-mail de notificação, preferências). |
-| `/Secretaria?org=…` | Secretaria Processual do órgão (processos, documentos, prazos). |
+| `/ProcessoEletronico?org=…` | Processo Eletrônico do órgão (processos, documentos, prazos). |
 | `/Admin` | Administração & Custos (somente super-admin). |
 | `/Help`, `/Terms` | Central de ajuda e Termos de Uso. |
 
@@ -111,7 +111,7 @@ Outros limites que valem para quem chega agora:
   relatório semanal por e-mail) estão **comentadas** em
   `functions-v2/src/index.ts` e não rodam em produção. A única agendada ativa é
   `checkPartnershipNoticeDeadlines` (avisos das Parcerias), além do alerta de
-  prazos da Secretaria Processual (`secretariaAlertaPrazos`).
+  prazos do Processo Eletrônico (`secretariaAlertaPrazos`).
 - A marcação "Restrição de acesso" de uma Consulta é um **rótulo** que gera
   registro de auditoria ao abrir; ela não esconde o registro dos demais membros
   do órgão (ver [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md#3-lgpd-e-proteção-de-dados)).

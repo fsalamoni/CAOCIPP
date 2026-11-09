@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secDocumento, secExportarPdf, secProcesso, baixarBase64, arquivoParaBase64 } from '@/services/secretariaService';
-import { NativeSelect, STATUS_ROTULO, dataHora } from './comum';
+import { NativeSelect, STATUS_ROTULO, dataHora, documentoDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { seguintes } from '@/lib/secretariaRito';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
@@ -187,7 +187,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
                                 <CardTitle className="text-base">Minutas da unidade</CardTitle>
                                 <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer} onClick={() => setEditor({ titulo: '', tipo: estado.documento?.tipos_documento?.[0] || 'Despacho', conteudo: null })}><FilePen className="w-4 h-4" /> Redigir</Button>
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer} onClick={() => setEditor({ titulo: '', tipo: documentoDaUnidade(estado, p.unidade_atual).tipos_documento?.[0] || 'Despacho', conteudo: null })}><FilePen className="w-4 h-4" /> Redigir</Button>
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} asChild={podeMexer}>
                                         {podeMexer ? (
                                             <label className="cursor-pointer"><FileUp className="w-4 h-4" /> Enviar arquivo
@@ -326,6 +326,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 inicial={editor}
                 estado={estado}
                 orgId={orgId}
+                unidadeId={p.unidade_atual}
                 valoresCampos={valoresCampos}
                 onSalvar={async ({ docId, titulo, tipo, conteudo }) => {
                     if (docId) await secDocumento(orgId, procId, 'editarMinuta', { docId, titulo, tipo, conteudo });
@@ -413,7 +414,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
     if (tipo === 'tramitar') {
         titulo = 'Tramitar para outra unidade';
         const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== p.unidade_atual);
-        campo = <NativeSelect label="Destino" value={valor} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, `${u.nome}${u.tipo === 'gabinete' ? ' (gabinete)' : ''}`])]} />;
+        campo = <NativeSelect label="Destino" value={valor} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, `${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})`])]} />;
         enviar = () => mov('tramitar', { unidade_destino: valor, motivo }, 'Processo remetido');
     } else if (tipo === 'fase') {
         titulo = 'Mudar a fase';

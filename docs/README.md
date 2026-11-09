@@ -24,7 +24,7 @@
 | [PARCERIAS.md](./PARCERIAS.md) | Convênios, Termos de Cooperação e de Fomento, aditivos, avisos, extinção |
 | [JURIMETRIA.md](./JURIMETRIA.md) | Base de júris, importação, relatórios e exportação |
 | [PANORAMA.md](./PANORAMA.md) | Bases analíticas de qualquer área a partir de planilhas |
-| [SECRETARIA.md](./SECRETARIA.md) | Secretaria Processual: processo eletrônico com ritos, unidades, documentos, assinatura, folhas, portal das partes e conferência pública |
+| [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md) | Processo Eletrônico: processo eletrônico com ritos, unidades, documentos, assinatura, folhas, portal das partes e conferência pública |
 
 ## Técnica
 

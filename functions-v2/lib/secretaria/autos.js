@@ -18,6 +18,7 @@ const crypto_1 = require("crypto");
 const QRCode = require("qrcode");
 const pdf_lib_1 = require("pdf-lib");
 const documento_1 = require("../shared/documento");
+const secretaria_1 = require("../shared/secretaria");
 const context_1 = require("./context");
 const pdfDocumento_1 = require("./pdfDocumento");
 const conversao_1 = require("./conversao");
@@ -26,10 +27,18 @@ const conversao_1 = require("./conversao");
  * folhas (fls.) contínuas no processo, com carimbo de processo, folha,
  * número do documento e hash. Usado na juntada, no download e na exportação.
  */
-async function lerConfigDocumento(db, orgId) {
+/**
+ * Papel timbrado de um documento: o da unidade que o redigiu, se ela tiver
+ * timbrado próprio, ou o do órgão.
+ */
+async function lerConfigDocumento(db, orgId, unidadeId) {
     var _a;
-    const s = await db.collection(context_1.COL.config).doc(orgId).get();
-    return (((_a = s.data()) === null || _a === void 0 ? void 0 : _a.documento) || {});
+    const [s, u] = await Promise.all([
+        db.collection(context_1.COL.config).doc(orgId).get(),
+        unidadeId ? db.collection(context_1.COL.unidadeConfig).doc(unidadeId).get() : Promise.resolve(null),
+    ]);
+    const un = u === null || u === void 0 ? void 0 : u.data();
+    return (0, secretaria_1.documentoEfetivo)((((_a = s.data()) === null || _a === void 0 ? void 0 : _a.documento) || {}), (un === null || un === void 0 ? void 0 : un.organization_id) === orgId ? un : null);
 }
 function conteudoDoDocumento(d) {
     return d.conteudo ? d.conteudo : (0, documento_1.deltaParaDoc)((d.delta || []));
@@ -112,7 +121,7 @@ async function pdfDoDocumento(d, cfg) {
     }
     return folhaSimples(String(d.titulo), [
         `Arquivo ${d.nome_arquivo} (${d.mime}), sem conversão para PDF nesta versão.`,
-        'O original está nos autos eletrônicos e pode ser baixado na Secretaria.',
+        'O original está nos autos eletrônicos e pode ser baixado no Processo Eletrônico.',
         `SHA-256 ${d.sha256}`,
     ]);
 }
@@ -223,7 +232,7 @@ const textoFolhas = (ini, qtd) => (qtd > 1 ? `fls. ${ini} a ${ini + qtd - 1}` : 
 exports.textoFolhas = textoFolhas;
 /** Um documento juntado, carimbado, em PDF próprio (download avulso). */
 async function pdfCarimbado(db, orgId, procId, numero, docId, d) {
-    const cfg = await lerConfigDocumento(db, orgId);
+    const cfg = await lerConfigDocumento(db, orgId, d.unidade_origem);
     const destino = await pdf_lib_1.PDFDocument.create();
     const codigo = d.codigo_verificacao || await garantirCodigo(db, orgId, procId, numero, docId);
     await anexarCarimbado(destino, await pdfDoDocumento(d, cfg), {

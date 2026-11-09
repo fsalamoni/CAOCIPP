@@ -5,6 +5,24 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Processo Eletrônico por unidades (etapa 1)
+- **Novo nome:** a Secretaria Processual passou a se chamar **Processo
+  Eletrônico** (página `/ProcessoEletronico`; links antigos `/Secretaria`
+  redirecionam). Nomes internos e dados não mudaram.
+- **Configuração no Painel Administrativo** do órgão, aba Processo Eletrônico:
+  ativação, preferências, unidades e equipes, tipos de processo, ritos,
+  documentos e modelos e calendário. A aba Configuração saiu da página do
+  processo (o admin tem o botão Configurar).
+- **Unidades de lotação:** secretaria, gabinete, assessoria ou outra, com
+  descrição; equipe com atribuição e gestor por pessoa; inserir membros do
+  órgão, convidar por e-mail quem ainda não é do órgão (entra já lotado) e
+  admitir ou recusar pedidos de lotação.
+- **Gestor da unidade** (na nova aba Unidades do Processo Eletrônico): monta a
+  equipe, define o papel timbrado próprio (ou usa o do órgão), soma tipos de
+  documento aos do órgão e cria modelos da unidade.
+- Documentos redigidos saem com o timbrado da unidade que os redigiu.
+- Ex-membros do órgão (vínculo inativo) deixam de acessar o módulo.
+
 ### 09/11/2026 — Documentação, segurança e usabilidade
 - **Documentação reorganizada** em português: visão geral, um guia por módulo,
   glossário, histórico e guias antigos movidos para `docs/historico/`.

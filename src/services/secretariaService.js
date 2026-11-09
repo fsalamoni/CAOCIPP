@@ -1,5 +1,6 @@
 // ============================================================================
-// secretariaService — wrappers das Cloud Functions da Secretaria Processual.
+// secretariaService — wrappers das Cloud Functions do Processo Eletrônico
+// (antiga Secretaria Processual; nomes internos mantidos).
 // Leitura e escrita passam pelas functions: as coleções sec* são fechadas ao
 // cliente nas regras do Firestore.
 // ============================================================================

@@ -40,7 +40,7 @@ Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 | `platformConfig` | Qualquer autenticado | **Nenhuma** |
 | `platformAdmins` | O próprio registro ou super-admin | **Nenhuma** |
 | `platformStats` | Só super-admin | **Nenhuma** |
-| `sec*` (Secretaria Processual) | **Nenhuma** (tudo pelas Functions `secretaria*`) | **Nenhuma** |
+| `sec*` (Processo Eletrônico) | **Nenhuma** (tudo pelas Functions `secretaria*`) | **Nenhuma** |
 
 Desde novembro de 2026 nenhuma coleção aceita escrita direta do cliente, exceto
 o próprio perfil, as próprias preferências, a marcação de notificação lida e o
@@ -121,7 +121,7 @@ Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
   Concessão por `grantPlatformAdmin` ou pelo script
   `functions-v2/scripts/bootstrap-platform-admin.js`.
 
-#### Secretaria Processual (`secProcessos/**`, `secUnidades`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secVerificacao`) e Cloud Storage
+#### Processo Eletrônico (`secProcessos/**`, `secUnidades`, `secUnidadeConfig`, `secConvitesEquipe`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secVerificacao`) e Cloud Storage
 
 - Regras: `allow read, write: if false` em todas. As Cloud Functions `secretaria*`
   aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
@@ -144,7 +144,7 @@ Portal). As duas brechas foram fechadas e são cobertas pelo e2e nos emuladores.
   `platformAdmins/{uid}.active` ou `PLATFORM_ADMIN_EMAILS`). A suspensão por
   órgão bloqueia equipe e partes no servidor, sem apagar dados, e é auditada.
 - Movimentos encadeados por SHA-256: alteração direta no banco é detectada na
-  consulta e na exportação. Detalhes em [SECRETARIA.md](./SECRETARIA.md).
+  consulta e na exportação. Detalhes em [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 - Portal das partes (`secretariaPortal`, `secConvites` fechada): a parte é
   usuário autenticado sem vínculo em `userOrganizations`; o acesso vem só de
   `processo.partes_uids`, gravado no aceite do convite. O convite guarda apenas

@@ -1,4 +1,4 @@
-# Secretaria Processual
+# Processo Eletrônico
 
 Processo eletrônico do órgão: autuação com rito, tramitação entre unidades,
 documentos redigidos na plataforma ou enviados, assinatura, juntada, linha do
@@ -8,30 +8,40 @@ O módulo é independente: serve a qualquer pessoa física ou jurídica, públic
 ou privada, que use o SIGO com sua equipe. Não substitui nenhum sistema
 processual externo e não altera os demais módulos do órgão.
 
-Este documento cobre as **fases 1 a 4** (entregues). O projeto completo, com as cinco
-fases e as decisões, está no documento de projeto (fora do repositório).
+Até nov/2026 o módulo se chamava **Secretaria Processual**. Os nomes internos
+(functions `secretaria*`, coleções `sec*`, permissão `configure_secretaria`)
+foram mantidos para não migrar dados; só o nome visível mudou.
+
+O projeto completo e as decisões estão no documento de projeto (fora do
+repositório).
 
 ## Ativação
 
 - Quem ativa: o **admin do órgão** (criador ou quem tem a permissão
-  `configure_secretaria`), em Painel Administrativo → aba Secretaria Processual.
+  `configure_secretaria`), em Painel Administrativo → aba Processo Eletrônico.
+  Ali fica **toda a configuração**: ativação, preferências, unidades e equipes,
+  tipos de processo, ritos, documentos e modelos do órgão e calendário.
 - Não depende de flag da plataforma. O estado fica em
   `organizations/{id}.secretariaConfig.enabled`, gravado só pela function
   `secretariaConfig` (ação `ativar`). Órgãos sem o campo ficam desligados.
 - Na primeira ativação, se o órgão não tiver unidade nem rito, a plataforma cria
-  a unidade "Secretaria" (com o admin lotado) e o "Rito comum" (Autuação →
+  a unidade "Secretaria" (com o admin lotado como gestor) e o "Rito comum" (Autuação →
   Instrução → Decisão → Cumprimento → Encerramento).
 - Desativar esconde a página e bloqueia as functions. Nada é apagado.
-- Página: `/Secretaria?org=<id>`; processo aberto: `&p=<processoId>`. O link
-  aparece no submenu do órgão quando a Secretaria está ativa.
+- Página: `/ProcessoEletronico?org=<id>`; processo aberto: `&p=<processoId>`.
+  Links antigos `/Secretaria?...` redirecionam. O link aparece no submenu do
+  órgão quando o módulo está ativo. Na página, o admin tem o botão
+  **Configurar**, que abre o Painel Administrativo na aba do módulo.
 
 ## Perfis
 
 | Perfil | Quem é | O que faz |
 |---|---|---|
-| Organização | Admin do órgão (`configure_secretaria` ou criador) | Ativa, cria unidades, lota membros, define ritos e tipos de processo, consulta todos os processos |
+| Organização | Admin do órgão (`configure_secretaria` ou criador) | Ativa, cria e edita unidades, define ritos, tipos de processo, timbrado e modelos do órgão, consulta todos os processos |
+| Gestor da unidade | Lotado com a marca de gestor | Monta a equipe da unidade (insere membros, convida por e-mail, admite pedidos, define atribuições e outros gestores), escolhe o timbrado, os tipos de documento e os modelos da unidade |
 | Secretaria | Lotado em unidade do tipo `secretaria` | Autua, junta, tramita, muda fase, atribui, sobrestá e arquiva quando tem o processo |
 | Decisão | Lotado em unidade do tipo `gabinete` | Os mesmos atos quando o processo está no gabinete (ex.: minuta de decisão, assinatura, juntada, devolução) |
+| Assessoria e outras | Lotado em unidade do tipo `assessoria` ou `outra` | Os mesmos atos de movimentação quando tem o processo (ex.: estudo e minuta) |
 | Partes | Externas, com conta própria, **nunca membros do órgão** | Pelo portal (`/Portal`): acompanham os processos em que foram habilitadas e peticionam a qualquer tempo |
 
 O poder de movimentar vem da **posse**: o processo está sempre com uma unidade
@@ -43,7 +53,39 @@ O poder de movimentar vem da **posse**: o processo está sempre com uma unidade
 - **Sigilo restrito:** só unidades por onde o processo passou
   (`unidades_historico`) e o admin.
 - **Minutas:** só a unidade que as redigiu, até a juntada.
-- Membro do órgão sem lotação não vê processo nenhum (salvo o admin).
+- Membro do órgão sem lotação não vê processo nenhum (salvo o admin). A página
+  mostra a ele a aba Unidades, de onde pode pedir lotação.
+- Membro com vínculo inativo no órgão não acessa o módulo.
+
+## Unidades de lotação e equipes
+
+Cada unidade tem tipo (`secretaria`, `gabinete`, `assessoria`, `outra`), nome,
+sigla, descrição e uma **equipe**: cada pessoa lotada tem uma atribuição (texto
+livre, ex.: "Chefe de secretaria") e pode ser **gestora** da unidade.
+
+- **Onde se gerencia:** o admin, no Painel Administrativo (aba Unidades e
+  equipes); o gestor, na aba **Unidades** da página do Processo Eletrônico.
+  As abas da unidade são Equipe, Timbrado e tipos, Modelos e Dados (só admin).
+- **Inserir:** o gestor escolhe um membro ativo do órgão e o lota.
+- **Convidar:** o gestor informa um e-mail; a plataforma envia um link
+  (`/ProcessoEletronico?equipe=<token>`, vale 7 dias, uso único) e mostra o
+  link para copiar. Quem aceita precisa entrar com o mesmo e-mail; vira membro
+  do órgão (ou tem o vínculo reativado) e já entra lotado com a atribuição
+  indicada. Convites pendentes podem ser revogados.
+- **Pedir lotação:** qualquer membro do órgão vê o diretório de unidades e pede
+  lotação com uma mensagem. O gestor ou o admin admite (com atribuição) ou
+  recusa.
+- O gestor não cria nem desativa unidades, não muda tipo, nome ou sigla e não
+  retira a própria marca de gestor (evita unidade sem gestor por engano).
+- **Timbrado e tipos da unidade:** a unidade usa o papel timbrado do órgão ou
+  um próprio (cabeçalho, brasão, rodapé, fonte). Os tipos de documento da
+  unidade se somam aos do órgão. O documento redigido sai com o timbrado da
+  unidade que o redigiu (`unidade_origem`), inclusive no PDF dos autos.
+- **Modelos da unidade:** aparecem para quem redige na unidade, junto com os
+  modelos do órgão.
+- Unidades antigas, só com `membros_uids`, continuam valendo: as atribuições
+  ficam vazias e ninguém é gestor até o admin marcar. Ao salvar a equipe, a
+  plataforma grava `lotacoes` e mantém `membros_uids` em sincronia.
 
 ## Modelo de dados
 
@@ -52,7 +94,9 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 
 | Coleção | Conteúdo |
 |---|---|
-| `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete), membros_uids[], ativa` |
+| `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
+| `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
+| `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?}], versao, ativo` |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
@@ -61,7 +105,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
-| `secModelos/{id}` | `organization_id, nome, tipo_documento, descricao, conteudo, ativo` |
+| `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, conteudo, ativo` |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
 
 No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
@@ -79,7 +123,7 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade`, `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo`, `obterModelo` (qualquer membro), `salvarCalendario` |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade), `obterModelo` (qualquer membro), `salvarCalendario` |
 | `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
@@ -190,16 +234,16 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   É juntada na hora com número de ordem e assinatura simples da parte, gera o
   movimento `peticao` (com a tempestividade diante dos prazos abertos para ela
   ou sem destinatário) e abre pendência para o decisor. Se o admin ligar
-  "Petição da parte interrompe a fase" (Painel Administrativo → Secretaria
-  Processual), a pendência suspende a fase até o gabinete apreciá-la. Vale
+  "Petição da parte interrompe a fase" (Painel Administrativo → Processo
+  Eletrônico), a pendência suspende a fase até o gabinete apreciá-la. Vale
   também com o processo sobrestado ou arquivado.
 - **Revogação:** Revogar tira a conta de `partes_uids`, invalida o convite e
   grava `acesso_revogado`. A parte deixa de ver o processo na hora.
 
 ## Ritos e tipos de processo (fase 4)
 
-O admin do órgão configura tudo em Painel Administrativo → Secretaria
-Processual, sem sair da plataforma.
+O admin do órgão configura tudo em Painel Administrativo → Processo
+Eletrônico, sem sair da plataforma.
 
 **Rito.** Lista de fases. Cada fase tem nome, prazo em dias (opcional),
 orientação para a equipe (opcional, não aparece para as partes) e o que vem
@@ -243,11 +287,11 @@ O portal das partes mostra o diagrama sem as orientações internas.
 
 ## Papel timbrado e controles (fase 5)
 
-- **Órgão:** Configuração → "Papel timbrado e tipos de documento" (até 4
+- **Órgão:** Painel Administrativo → Processo Eletrônico → "Documentos e modelos": papel timbrado e tipos de documento (até 4
   linhas de cabeçalho, brasão PNG/JPG até 300 KB, rodapé, fonte e tamanho
   padrão, com prévia da folha) e "Modelos de documento". Auditoria:
   `SECRETARIA_DOCUMENTO_CONFIG`, `SECRETARIA_MODELO_SALVO`.
-- **Plataforma:** Administração → aba "Secretaria" lista os órgãos com o
+- **Plataforma:** Administração → aba "Processo Eletrônico" lista os órgãos com o
   módulo ligado e o volume de processos, e permite **suspender** com motivo
   (`secretariaConfig.suspensa_plataforma`, `motivo_suspensao`). Suspenso, o
   órgão (equipe e partes) não acessa os processos; nada é apagado. O admin do
@@ -266,7 +310,7 @@ O portal das partes mostra o diagrama sem as orientações internas.
   unidade, fase e tipo, pendências mais antigas e prazos da semana. Filtra por
   unidade (visão da secretaria ou do gabinete). Calculado sobre os processos
   que a pessoa pode ver.
-- **Calendário do órgão:** Configuração → "Calendário e alertas de prazo".
+- **Calendário do órgão:** Painel Administrativo → Processo Eletrônico → "Calendário".
   Feriados locais (até 200) prorrogam o vencimento e não contam em dias
   úteis; recessos (até 50, de até 120 dias cada) e o recesso forense
   opcional (20/12 a 20/01, CPC art. 220) suspendem a contagem até em dias

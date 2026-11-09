@@ -138,7 +138,7 @@ fase), `validators.ts` (requisitos de fase das Parcerias), `permissions.ts`
 (atribuições), `fields.ts` (aliases de campos), `phaseDates.ts`, `history.ts`,
 `normalization.ts`, `webhooks.ts`, `email.ts`, `jurimetria.ts`, `panorama.ts`.
 
-#### Secretaria Processual (`secUnidades`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secConfig`, `secModelos`, `secVerificacao`, `secProcessos` + subcoleções `movimentos` e `documentos`)
+#### Processo Eletrônico (`secUnidades`, `secUnidadeConfig`, `secConvitesEquipe`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secConfig`, `secModelos`, `secVerificacao`, `secProcessos` + subcoleções `movimentos` e `documentos`)
 **Purpose:** Processo eletrônico do órgão. Fechadas ao cliente; tudo passa pelas
 functions `secretaria*`. Arquivos no Cloud Storage em
 `secretaria/{org}/{processo}/{documento}` (e `.pdf` ao lado, para textos
@@ -147,7 +147,7 @@ juntados). PDFs gerados no servidor com `pdfmake` (documento) e `pdf-lib`
 Word e Excel convertidos no servidor com `mammoth` e `xlsx`; editor no
 navegador com TipTap. Página pública `/Conferir` e alerta diário de prazos
 (`secretariaAlertaPrazos`, Cloud Scheduler). Modelo completo em
-[SECRETARIA.md](./SECRETARIA.md).
+[PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---
 

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CalendarClock, Clock, FolderOpen, Loader2, PauseCircle, Archive } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { secProcesso } from '@/services/secretariaService';
+import { rotuloUnidade } from './comum';
 
 const hojeBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somar = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -60,7 +61,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 <select aria-label="Unidade do painel" value={unidade} onChange={(e) => setUnidade(e.target.value)}
                     className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
                     <option value="">Todas as unidades</option>
-                    {estado.unidades.filter((u) => u.ativa).map((u) => <option key={u.id} value={u.id}>{u.nome}{u.tipo === 'gabinete' ? ' (gabinete)' : ''}</option>)}
+                    {estado.unidades.filter((u) => u.ativa).map((u) => <option key={u.id} value={u.id}>{u.nome} ({rotuloUnidade(u.tipo).toLowerCase()})</option>)}
                 </select>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Idade média dos processos em tramitação: {m.idadeMedia} dias</p>
             </div>

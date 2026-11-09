@@ -228,6 +228,6 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
 });
 /** Contexto mínimo para registrar movimento em nome de uma parte. */
 function contextoParte(db, proc, uid, nome) {
-    return { db, orgId: proc.organization_id, org: {}, ctx: { uid, isAdmin: false, unidadeIds: [] }, userName: nome, unidades: [] };
+    return { db, orgId: proc.organization_id, org: {}, ctx: { uid, isAdmin: false, unidadeIds: [] }, userName: nome, unidades: [], gestorDe: [] };
 }
 //# sourceMappingURL=portal.js.map

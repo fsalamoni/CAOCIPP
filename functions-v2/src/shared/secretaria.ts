@@ -1,12 +1,14 @@
 import { createHash } from 'crypto';
 
 // ============================================================================
-// Secretaria Processual — regras puras (sem Firestore), testadas em
-// functions-v2/test/secretaria.test.js.
+// Processo Eletrônico (antiga Secretaria Processual; os nomes internos
+// `secretaria*` e as coleções `sec*` foram mantidos) — regras puras (sem
+// Firestore), testadas em functions-v2/test/secretaria.test.js.
 //
 // Vocabulário:
-//   - unidade: secretaria (movimenta e cumpre) ou gabinete (decide). Cada
-//     unidade tem membros lotados (uids).
+//   - unidade de lotação: secretaria (movimenta e cumpre), gabinete (decide),
+//     assessoria (estuda e minuta) ou outra. Cada unidade tem lotações
+//     (pessoa, atribuição e se é gestora da unidade).
 //   - posse: o processo está SEMPRE com uma unidade (unidade_atual). Só quem
 //     está lotado nela movimenta o processo.
 //   - rito: sequência de fases, com versão. O processo guarda a versão do rito
@@ -15,7 +17,12 @@ import { createHash } from 'crypto';
 //     hash SHA-256 do anterior; alterar um movimento antigo quebra a cadeia.
 // ============================================================================
 
-export type TipoUnidade = 'secretaria' | 'gabinete';
+export type TipoUnidade = 'secretaria' | 'gabinete' | 'assessoria' | 'outra';
+export const TIPOS_UNIDADE: TipoUnidade[] = ['secretaria', 'gabinete', 'assessoria', 'outra'];
+
+/** Pessoa lotada numa unidade: atribuição livre e se gere a unidade. */
+export interface Lotacao { uid: string; atribuicao: string; gestor: boolean }
+export const MAX_LOTACOES = 200;
 export type Sigilo = 'normal' | 'restrito';
 export type StatusProcesso = 'em_tramitacao' | 'sobrestado' | 'arquivado';
 
@@ -396,4 +403,46 @@ export function derivados(pendencias: Pendencia[], prazos: Prazo[]) {
         fase_suspensa: abertas.some((p) => p.interrompe),
         proximo_vencimento: vencimentos[0] || null,
     };
+}
+
+export function tipoUnidade(v: unknown): TipoUnidade {
+    return TIPOS_UNIDADE.includes(v as TipoUnidade) ? (v as TipoUnidade) : 'secretaria';
+}
+
+/** Lotações saneadas (sem repetição de pessoa). */
+export function sanitizeLotacoes(input: unknown): Lotacao[] {
+    const vistos = new Set<string>();
+    const out: Lotacao[] = [];
+    for (const l of Array.isArray(input) ? input : []) {
+        const o = (l && typeof l === 'object' ? l : {}) as Record<string, unknown>;
+        const uid = texto(o.uid, 128);
+        if (!uid || vistos.has(uid)) continue;
+        vistos.add(uid);
+        out.push({ uid, atribuicao: texto(o.atribuicao, 80), gestor: o.gestor === true });
+        if (out.length >= MAX_LOTACOES) break;
+    }
+    return out;
+}
+
+/**
+ * Lotações da unidade. Unidades criadas antes das lotações só têm
+ * `membros_uids`: cada uid vira lotação sem atribuição e sem gestão.
+ */
+export function lotacoesDe(u: Record<string, unknown>): Lotacao[] {
+    if (Array.isArray(u.lotacoes)) return sanitizeLotacoes(u.lotacoes);
+    return sanitizeLotacoes((Array.isArray(u.membros_uids) ? u.membros_uids : []).map((uid) => ({ uid })));
+}
+
+/**
+ * Papel timbrado efetivo de uma unidade: o próprio, se ela tiver, ou o do
+ * órgão. Tipos de documento da unidade somam-se aos do órgão.
+ */
+export function documentoEfetivo<T extends object>(
+    orgao: T,
+    unidade?: { timbrado_proprio?: boolean; documento?: object | null; tipos_documento?: string[] } | null
+): T & { tipos_documento: string[] } {
+    const base = unidade?.timbrado_proprio && unidade.documento ? { ...orgao, ...unidade.documento } : { ...orgao };
+    const doOrgao = (orgao as { tipos_documento?: string[] }).tipos_documento || [];
+    const tipos = [...new Set([...doOrgao, ...(unidade?.tipos_documento || [])])];
+    return { ...base, tipos_documento: tipos } as T & { tipos_documento: string[] };
 }

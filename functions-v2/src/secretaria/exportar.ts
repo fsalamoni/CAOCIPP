@@ -85,7 +85,7 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
 
         const pdf = await PDFDocument.create();
         pdf.setTitle(`Processo ${proc.numero}`);
-        pdf.setCreator('SIGO — Secretaria Processual');
+        pdf.setCreator('SIGO — Processo Eletrônico');
         const font = await pdf.embedFont(StandardFonts.Helvetica);
         const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
         const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -93,7 +93,7 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
 
         // Capa
         w.texto(String(c.org.name || 'Órgão'), { size: 12, bold: true });
-        w.texto('Secretaria Processual', { size: 10, cor: [0.4, 0.4, 0.4], espaco: 20 });
+        w.texto('Processo Eletrônico', { size: 10, cor: [0.4, 0.4, 0.4], espaco: 20 });
         w.texto(`Processo nº ${proc.numero}`, { size: 18, bold: true });
         w.texto(String(proc.assunto || ''), { size: 13, espaco: 14 });
         const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual)?.nome || proc.fase_atual;
@@ -128,7 +128,8 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
         }
 
         // Índice dos documentos, com as folhas que cada um ocupa.
-        const cfg = await lerConfigDocumento(c.db, c.orgId);
+        const cfgs = new Map<string, ReturnType<typeof lerConfigDocumento>>();
+        const cfgDe = (u: string) => { if (!cfgs.has(u)) cfgs.set(u, lerConfigDocumento(c.db, c.orgId, u)); return cfgs.get(u)!; };
         let bytesAnexos = 0;
         const pecas: Array<{ d: admin.firestore.DocumentData; bytes: Uint8Array }> = [];
         for (const d of docs) {
@@ -136,11 +137,11 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
             if (d.origem === 'upload' && bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
                 bytes = await folhaSimples(String(d.titulo), [
                     'Arquivo não incorporado: o PDF único dos autos passou do limite de tamanho.',
-                    'Baixe o documento avulso na Secretaria; o hash abaixo permite conferir o original.',
+                    'Baixe o documento avulso no Processo Eletrônico; o hash abaixo permite conferir o original.',
                     `SHA-256 ${d.sha256}`,
                 ]);
             } else {
-                bytes = await pdfDoDocumento(d, cfg);
+                bytes = await pdfDoDocumento(d, await cfgDe(String(d.unidade_origem || '')));
                 bytesAnexos += d.origem === 'upload' ? (d.tamanho || 0) : bytes.length;
             }
             pecas.push({ d, bytes });
