@@ -39,6 +39,9 @@ export const USER_ROLES = {
     MEMBER: 'member'
 };
 
+export const ROLE_LABELS = { owner: 'Proprietário', creator: 'Criador', admin: 'Administrador', member: 'Membro' };
+export const roleLabel = (role) => ROLE_LABELS[role] || 'Membro';
+
 // ========== USER FUNCTIONS ==========
 export const USER_FUNCTIONS = {
     SECRETARIA: 'secretaria',

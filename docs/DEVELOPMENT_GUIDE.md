@@ -1,543 +1,208 @@
-# 👨‍💻 SIGO - Development Guide
+# Guia de desenvolvimento
 
-**Version:** 1.2.0 - Final (Precision Rebranding)  
-**Last Updated:** 2026-02-12  
-**Purpose:** Guide for developers and AI agents working on SIGO
-
----
-
-## Quick Start for Developers
-
-### Prerequisites
-
-- Node.js 22+ installed
-- Git installed
-- Firebase CLI installed (`npm install -g firebase-tools`)
-- Code editor (VS Code recommended)
-
-### Setup Steps
-
-```powershell
-# 1. Clone repository (if applicable)
-git clone <repo-url>
-cd CAOCIPP
-
-# 2. Install dependencies
-npm install
-
-# 3. Configure environment
-# Copy .env.example to .env and fill in Firebase credentials
-
-# 4. Start dev server
-npm run dev
-
-# 5. Open browser
-# http://localhost:5173
-```
+Como preparar o ambiente, rodar o SIGO localmente, fazer uma alteração
+completa e publicar.
 
 ---
 
-## Project Organization
+## 1. Pré-requisitos
 
-### Directory Roles
-
-| Directory | Purpose | When to Add Files |
-|-----------|---------|-------------------|
-| `src/pages/` | Route components | New top-level pages |
-| `src/components/organization/` | Organization features | Process/member management |
-| `src/components/ui/` | Reusable UI | New UI primitives |
-| `src/hooks/` | Custom hooks | Reusable data logic |
-| `src/services/` | Business logic | Firebase operations |
-| `src/config/` | Configuration | Global settings |
-| `src/utils/` | Helper functions | Utilities, formatters |
-| `docs/` | Documentation | Reference docs |
-
-### File Naming Conventions
-
-- **Components:** PascalCase, `.jsx` extension → `ProcessControl.jsx`
-- **Hooks:** camelCase, `use` prefix → `useFirestore.js`
-- **Services:** camelCase, `Service` suffix → `firestoreService.js`
-- **Utils:** camelCase → `logger.js`
+- **Node.js 22** (mesma versão do CI e do runtime das Cloud Functions).
+- **npm** (o repositório usa `package-lock.json`).
+- **Firebase CLI**: já vem como dependência (`npx firebase …`); a instalação
+  global é opcional.
+- **Java 11+**, só se for usar os emuladores do Firestore.
+- Uma conta Google com acesso ao projeto Firebase, para deploy manual ou para
+  usar a base real.
 
 ---
 
-## Development Workflow
+## 2. Instalação
 
-### Adding a New Feature
-
-**1. Plan**
-- Review `FEATURES_REFERENCE.md` for existing patterns
-- Check `ARCHITECTURE_REFERENCE.md` for data models
-- Review `SECURITY_REFERENCE.md` for permission requirements
-
-**2. Create Branch** (if using Git)
 ```bash
-git checkout -b feature/feature-name
+git clone https://github.com/fsalamoni/CAOCIPP.git
+cd CAOCIPP
+npm install
+npm --prefix functions-v2 install
+cp .env.example .env      # opcional, ver abaixo
 ```
 
-**3. Implement**
-- Follow existing patterns
-- Reuse components from `src/components/ui/`
-- Use Tailwind CSS for styling
-- Add Firebase rules if accessing new data
+### Variáveis do frontend (`.env`)
 
-**4. Test**
-- Manual testing in browser
-- Test all user roles (creator, member)
-- Test error cases
+| Variável | Uso |
+|---|---|
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` | Configuração web do Firebase |
+| `VITE_USE_EMULATORS` | `true` liga os emuladores locais (só em `npm run dev`) |
+| `VITE_CONSULTAS_CAO_*` | Opcionais, legado da versão Base44 |
 
-**5. Document**
-- Update `FEATURES_REFERENCE.md` if adding feature
-- Add comments for complex logic
-- Update `GLOSSARY.md` for new terms
+> **Atenção.** Sem `.env` (ou com os valores de exemplo), `src/config/firebase.js`
+> usa a configuração do **projeto de produção**. Qualquer gravação feita no
+> `npm run dev` vai para a base real. Para testar sem risco, use os emuladores.
 
-**6. Deploy**
-```powershell
-# Deploy Firestore rules (if changed)
-firebase deploy --only firestore:rules
+### Variáveis das Cloud Functions (`functions-v2/.env`, nunca versionado)
 
-# Deploy application
-npm run build
-firebase deploy --only hosting
-```
+| Variável | Uso |
+|---|---|
+| `EMAIL_API_KEY` | Chave do Resend (2FA e relatórios por e-mail) |
+| `PLATFORM_ADMIN_EMAILS` | E-mails com acesso de super-admin garantido (bootstrap) |
+| `BILLING_BQ_PROJECT`, `BILLING_BQ_DATASET`, `BILLING_BQ_TABLE` | Export do Cloud Billing para a aba Custos |
 
-### Code Review Checklist
-
-- [ ] Follows existing code patterns
-- [ ] Uses reusable components
-- [ ] Includes error handling
-- [ ] Shows loading states
-- [ ] Responsive on mobile/tablet/desktop
-- [ ] Firestore rules updated (if needed)
-- [ ] No hardcoded secrets
-- [ ] Console.logs removed
+Todas são opcionais: sem elas, a funcionalidade correspondente fica inativa e
+nada quebra.
 
 ---
 
-## Common Tasks
+## 3. Rodando localmente
 
-### Adding a New Page
-
-**1. Create page component:**
-```jsx
-// src/pages/NewPage.jsx
-export default function NewPage() {
-  return (
-    <div className="container mx-auto p-6">
-      <h1>New Page</h1>
-    </div>
-  );
-}
+```bash
+npm run dev                                   # Vite em http://localhost:5173
 ```
 
-**2. Add route:**
-```jsx
-// src/App.jsx
-import NewPage from './pages/NewPage';
+Com emuladores (base isolada):
 
-// In Routes
-<Route path="/new-page" element={<NewPage />} />
-```
-
-### Adding a Firestore Collection
-
-**1. Define security rules:**
-```javascript
-// firestore.rules
-match /newCollection/{docId} {
-  allow read: if isAuthenticated();
-  allow create: if isAuthenticated();
-}
-```
-
-**2. Create service function:**
-```javascript
-// src/services/firestoreService.js
-export async function createNewDocument(data, userId) {
-  const docRef = await addDoc(collection(db, 'newCollection'), {
-    ...data,
-    created_by: userId,
-    created_at: serverTimestamp()
-  });
-  return docRef.id;
-}
-```
-
-**3. Create hook:**
-```javascript
-// src/hooks/useFirestore.js
-export function useNewCollection(filter) {
-  const [data, setData] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    const q = query(
-      collection(db, 'newCollection'),
-      where('filter_field', '==', filter)
-    );
-    
-    getDocs(q).then(snapshot => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setData(items);
-      setIsLoading(false);
-    });
-  }, [filter]);
-  
-  return { data, isLoading };
-}
-```
-
-**4. Deploy rules:**
-```powershell
-firebase deploy --only firestore:rules
-```
-
-### Adding a UI Component
-
-**1. Check if Radix UI primitive exists:**
-- Browse: https://www.radix-ui.com/primitives/
-
-**2. If it exists, install:**
-```powershell
-npm install @radix-ui/react-component-name
-```
-
-**3. Create wrapper:**
-```jsx
-// src/components/ui/component.jsx
-import * as ComponentPrimitive from '@radix-ui/react-component-name';
-
-export function Component({ children, ...props }) {
-  return (
-    <ComponentPrimitive.Root {...props}>
-      {children}
-    </ComponentPrimitive.Root>
-  );
-}
-```
-
-**4. Use in app:**
-```jsx
-import { Component } from '@/components/ui/component';
-
-<Component>Content</Component>
-```
-
----
-
-## Firebase Operations
-
-### Reading Data
-
-**Simple Query:**
-```javascript
-const q = query(
-  collection(db, 'processes'),
-  where('organization_id', '==', orgId)
-);
-const snapshot = await getDocs(q);
-const processes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-```
-
-**Real-time Listener:**
-```javascript
-useEffect(() => {
-  const unsubscribe = onSnapshot(doc(db, 'organizations', orgId), (doc) => {
-    setOrg({ id: doc.id, ...doc.data() });
-  });
-  return () => unsubscribe();
-}, [orgId]);
-```
-
-### Writing Data
-
-**Create:**
-```javascript
-const docRef = await addDoc(collection(db, 'processes'), {
-  organization_id: orgId,
-  process_number: '00001.001.001/2026',
-  created_at: serverTimestamp()
-});
-```
-
-**Update:**
-```javascript
-await updateDoc(doc(db, 'processes', processId), {
-  status: 'Em elaboração',
-  updated_at: serverTimestamp()
-});
-```
-
-**Delete:**
-```javascript
-await deleteDoc(doc(db, 'processes', processId));
-```
-
-**Atomic Increment:**
-```javascript
-await updateDoc(doc(db, 'organizations', orgId), {
-  'stats.processes_count': increment(1)
-});
-```
-
----
-
-## Error Handling
-
-### Standard Pattern
-
-```javascript
-try {
-  await someOperation();
-  toast.success('Operação realizada com sucesso!');
-} catch (error) {
-  logger.error('Operation failed', { error, context });
-  toast.error('Erro ao realizar operação: ' + error.message);
-}
-```
-
-### User-Friendly Messages
-
-```javascript
-// ❌ BAD
-toast.error(error.message); // "permission-denied"
-
-// ✅ GOOD
-toast.error('Você não tem permissão para realizar esta ação');
-```
-
----
-
-## Testing Strategies
-
-### Manual Testing
-
-**Checklist for New Features:**
-1. [ ] Happy path works
-2. [ ] Error cases handled
-3. [ ] Loading states shown
-4. [ ] Permissions enforced
-5. [ ] Works on mobile
-6. [ ] Works as non-creator member
-7. [ ] Data validates correctly
-
-### Testing with Multiple Users
-
-1. Open browser in normal mode (User A - Creator)
-2. Open browser in incognito (User B - Member)
-3. Test interactions between users
-4. Verify permission boundaries
-
----
-
-## Performance Optimization
-
-### Query Optimization
-
-**❌ BAD - Fetching all, filtering client-side:**
-```javascript
-const all = await getDocs(collection(db, 'processes'));
-const filtered = all.docs.filter(doc => doc.data().organization_id === orgId);
-```
-
-**✅ GOOD - Server-side filtering:**
-```javascript
-const q = query(
-  collection(db, 'processes'),
-  where('organization_id', '==', orgId)
-);
-const snapshot = await getDocs(q);
-```
-
-### Pagination (Future)
-
-```javascript
-const q = query(
-  collection(db, 'processes'),
-  where('organization_id', '==', orgId),
-  orderBy('created_at', 'desc'),
-  limit(25)
-);
-
-// Next page
-const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-const nextQ = query(..., startAfter(lastDoc), limit(25));
-```
-
----
-
-## Debugging Tips
-
-### Firebase Console
-
-- **Authentication:** View logged-in users
-- **Firestore:** Browse data, run queries
-- **Rules:** Test rules with simulator
-- **Hosting:** View deployed versions
-
-### Browser DevTools
-
-**Console Tab:**
-- Check for JavaScript errors
-- View `logger.error()` messages
-
-**Network Tab:**
-- Monitor Firestore requests
-- Check for failed requests
-- Verify data being sent
-
-**Application Tab:**
-- View localStorage (Firebase tokens)
-- Check session persistence
-
-### Common Issues
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| "Missing or insufficient permissions" | Firestore rules block access | Check rules, verify user membership |
-| "Firebase: Error (auth/unauthorized-domain)" | Domain not authorized | Add to Firebase Console > Auth > Authorized domains |
-| Index not found | Composite index missing | Deploy indexes or click link in error |
-| Components not updating | Missing dependency in useEffect | Add to dependency array |
-
----
-
-## Deployment
-
-### Development Build
-
-```powershell
+```bash
+npm --prefix functions-v2 run build:local
+npx firebase emulators:start --only auth,firestore,functions
+# em outro terminal, com VITE_USE_EMULATORS=true no .env:
 npm run dev
 ```
 
-Access: http://localhost:5173
+O app se conecta a Auth em `localhost:9099`, Firestore em `localhost:8080` e
+Functions em `localhost:5001`.
 
-### Production Build
+---
 
-```powershell
-# Build optimized bundle
-npm run build
+## 4. Scripts
 
-# Preview build locally
-npm run preview
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção em `dist/` |
+| `npm run preview` | Serve o build localmente |
+| `npm run lint` / `npm run lint:fix` | ESLint |
+| `npm run typecheck` | `tsc` sobre o frontend (`jsconfig.json`) |
+| `npm --prefix functions-v2 run build:local` | Compila as functions para `functions-v2/lib/` |
+| `npm --prefix functions-v2 run serve` | Compila e sobe só o emulador de functions |
 
-# Deploy to Firebase
-firebase deploy --only hosting
+**Verificação antes de abrir um PR** (o mesmo que o CI roda):
+
+```bash
+npm run lint && npm run typecheck && npm --prefix functions-v2 run build:local
+npm --prefix functions-v2 test && npm run test:lib && npm run test:rules && npm run build
 ```
 
-### Firestore Rules Deployment
+### Testes
 
-```powershell
-# Deploy rules
-firebase deploy --only firestore:rules
+| Comando | O que cobre |
+|---|---|
+| `npm --prefix functions-v2 test` | Regras de negócio das Functions da Secretaria Processual (`functions-v2/test/*.test.js`, `node:test`). |
+| `npm run test:lib` | Motores puros do frontend (`src/lib/*.test.js`), como o motor de ritos. |
+| `npm run test:rules` | `firestore.rules` no emulador (precisa de Java 21+): perfis só do próprio usuário, nenhuma escrita direta em registros, auditoria só para criador e admins, coleções da Secretaria fechadas. |
 
-# Deploy indexes
-firebase deploy --only firestore:indexes
+Os três rodam no CI. Ao mudar uma regra do Firestore, acrescente o caso em
+`scripts/test-rules.mjs`. As portas dos emuladores ficam em `firebase.json`
+(`emulators`).
 
-# Deploy both
-firebase deploy --only firestore
-```
+> **Atenção:** no emulador de Functions, `admin.firestore.FieldValue` chega
+> indefinido para as funções que o usam (o emulador embrulha `admin.firestore`).
+> Em produção funciona normalmente. Para testes locais com dados, semeie o
+> Firestore direto (token `Bearer owner` na API REST do emulador), como faz
+> `scripts/test-rules.mjs`.
 
----## AI Agent Guidelines
+---
 
-### For AI Assistants Working on SIGO
+## 5. Convenções do código
 
-**Before Making Changes:**
-1. Read relevant reference docs (`ARCHITECTURE_REFERENCE.md`, `SECURITY_REFERENCE.md`, etc.)
-2. Check `GLOSSARY.md` for unfamiliar terms
-3. Review existing code patterns in similar components
-4. Verify Firestore rules allow the operation
+- **Idioma.** Interface, mensagens de erro e comentários em português.
+- **Escrita sempre por Cloud Function.** Nova operação de gravação = nova
+  função `onCall` em `functions-v2/src/<domínio>/`, exportada em
+  `functions-v2/src/index.ts`, com wrapper em `src/services/functionsService.js`.
+  Toda função começa conferindo `request.auth`, o vínculo
+  `userOrganizations/{uid}_{orgId}`, a atribuição necessária e se o
+  `organization_id` do documento é o da requisição.
+- **Regras espelhadas.** Cálculo de fase, aliases de campos, requisitos de fase
+  e atribuições existem no servidor e no cliente. Ao mudar um lado, mude o
+  outro; os comentários no topo de cada arquivo apontam o espelho
+  (ex.: `shared/validators.ts` ↔ `src/utils/parceriaPhases.js`,
+  `shared/permissions.ts` ↔ `src/constants/orgPermissions.js`).
+- **Compatibilidade de dados.** Campos novos são aditivos; registros antigos
+  sem o campo precisam continuar funcionando (padrão "ausente = comportamento
+  atual"). Nunca reescrever ou apagar dados existentes numa migração sem
+  autorização explícita.
+- **Novos recursos atrás de flag.** Cadastre a flag em
+  `src/constants/featureFlags.js`. Para nascer desligada, inclua a chave em
+  `OPTIONAL_FLAG_KEYS`; tirar de lá torna a flag integrada (ligada para todos).
+- **Novo módulo do órgão.** Registrar em `BUILTIN_MODULES`,
+  `BUILTIN_MODULE_META`, `resolveBuiltinModules` e `getOrganizationTabs`
+  (`src/lib/organizationModules.js`); acrescentar a coleção a
+  `ORG_SCOPED_COLLECTIONS` (`organizations/delete.ts`), às regras e aos índices.
+- **`functions-v2/lib/` é versionado.** Depois de mudar `functions-v2/src`,
+  rode `npm --prefix functions-v2 run build:local` e inclua o `lib/` no commit.
+- **Documentação no mesmo PR.** Toda mudança de comportamento, dados, telas,
+  permissões ou estrutura atualiza os documentos correspondentes em `docs/`
+  (ver o índice em [README.md](./README.md)).
 
-**When Writing Code:**
-1. Follow existing patterns (don't reinvent)
-2. Reuse components from `src/components/ui/`
-3. Use existing hooks/services when possible
-4. Add proper error handling and loading states
-5. Include TypeScript-style JSDoc comments for complex functions
+---
 
-**After Making Changes:**
-1. Verify code compiles (`npm run dev`)
-2. Test manually in browser
-3. Update `FEATURES_REFERENCE.md` if adding features
-4. Update `GLOSSARY.md` if adding new terms
+## 6. Deploy
 
-**Example JSDoc Comment:**
-```javascript
-/**
- * Creates a new process in Firestore
- * @param {Object} data - Process data
- * @param {string} data.process_number - Unique process identifier
- * @param {string} data.organization_id - Organization ID
- * @param {string} creatorUid - User ID of creator
- * @returns {Promise<string>} Created process ID
- */
-export async function createProcess(data, creatorUid) {
-  // Implementation
-}
+### Fluxo
+
+1. Trabalhe num branch e abra um pull request para `main`.
+2. O **CI** (`.github/workflows/ci.yml`) roda lint, typecheck e os dois builds.
+3. Ao fazer merge em `main`, o workflow **Deploy to Firebase**
+   (`.github/workflows/deploy.yml`) publica hosting, functions, regras e índices
+   no projeto `protagonista-rpg`. Também pode ser disparado à mão
+   (*Actions → Deploy to Firebase → Run workflow*).
+4. Confira em <https://sigo-caocipp.web.app>.
+
+### Segredos do repositório (GitHub → Settings → Secrets and variables → Actions)
+
+| Segredo | Obrigatório | Uso |
+|---|---|---|
+| `FIREBASE_SERVICE_ACCOUNT` (recomendado) ou `FIREBASE_TOKEN` | Sim | Autenticação do deploy |
+| `VITE_FIREBASE_*` (seis variáveis) | Sim | Configuração do frontend publicado |
+| `EMAIL_API_KEY`, `PLATFORM_ADMIN_EMAILS`, `BILLING_BQ_*` | Não | Viram `functions-v2/.env` durante o deploy |
+| `VITE_CONSULTAS_CAO_*` | Não | Legado |
+
+Sem os obrigatórios, o deploy termina verde **sem publicar nada**.
+
+### Particularidades
+
+- **ID do site.** `firebase.json` declara o site `sigo`, que é reservado por
+  outro projeto. O workflow tenta `sigo`, `sigo-caocipp`, `sigo-mp-rs` e
+  `sigo-protagonista`, usa o primeiro disponível (hoje `sigo-caocipp`) e
+  reescreve o `firebase.json` só durante o deploy
+  (`.github/scripts/update-firebase-site.cjs`).
+- **Site legado.** `consultascao` serve `dist-redirect/` e redireciona tudo
+  (301) para `https://sigo-caocipp.web.app`.
+- **Função agendada.** Antes do deploy, o workflow remove a função
+  `checkPartnershipNoticeDeadlines` e o job do Cloud Scheduler, se estiverem
+  órfãos, e o deploy os recria. A conta de serviço precisa do papel *Cloud
+  Scheduler Admin* — ver [CI-DEPLOY-PERMISSIONS.md](./CI-DEPLOY-PERMISSIONS.md).
+- **Domínio próprio.** `*.web.app` não pode ser domínio personalizado de outro
+  site. Para um endereço como `sigo.mp.rs.gov.br`, é preciso registrar o
+  domínio e associá-lo ao site `sigo-caocipp` no console do Firebase, além de
+  incluí-lo nos domínios autorizados do Firebase Auth e nas origens do OAuth.
+
+### Deploy manual (emergência)
+
+```bash
+npx firebase login
+npm --prefix functions-v2 run build:local && npm run build
+CREATED_SITE=sigo-caocipp node .github/scripts/update-firebase-site.cjs   # troca "sigo" no firebase.json
+npx firebase deploy --only hosting,functions,firestore --project protagonista-rpg
+git checkout firebase.json                                                # não commitar a troca
 ```
 
 ---
 
-## Resources
+## 7. Problemas comuns
 
-### Documentation
-- `ARCHITECTURE_REFERENCE.md` - System structure
-- `SECURITY_REFERENCE.md` - Security rules & auth
-- `FEATURES_REFERENCE.md` - Feature implementation
-- `DESIGN_SYSTEM_REFERENCE.md` - UI patterns
-- `GLOSSARY.md` - Terminology
-
-### External Docs
-- [React Docs](https://react.dev)
-- [Firebase Docs](https://firebase.google.com/docs)
-- [Tailwind CSS Docs](https://tailwindcss.com/docs)
-- [Radix UI Docs](https://www.radix-ui.com/primitives)
-- [Vite Docs](https://vitejs.dev/guide/)
-
-### Code Examples
-- Look at existing pages in `src/pages/`
-- Look at components in `src/components/organization/`
-- Check hooks in `src/hooks/useFirestore.js`
-- Review services in `src/services/firestoreService.js`
-
----
-
-## Troubleshooting Guide
-
-### "npm install" fails
-- Delete `node_modules` and `package-lock.json`
-- Run `npm install` again
-- Check Node.js version (need 22+)
-
-### Firebase connection errors
-- Check `.env` file has correct values
-- Verify Firebase project exists
-- Check authorized domains in Firebase Console
-
-### Firestore permissions errors
-- Deploy latest rules: `firebase deploy --only firestore:rules`
-- Check user is logged in
-- Verify user is member of organization
-
-### Build errors
-- Run `npm run build` and read error messages
-- Check for missing imports
-- Verify all dependencies installed
-
----
-
-## Conclusion
-
-This guide provides:
-- ✅ Quick start instructions
-- ✅ Common development tasks
-- ✅ Code patterns and best practices
-- ✅ Debugging strategies
-- ✅ Deployment procedures
-- ✅ AI agent guidelines
-
-**Key Principle:** When in doubt, follow existing patterns in the codebase.
-
-For specific implementation details, consult the reference documentation in `docs/`.
+| Sintoma | Causa provável |
+|---|---|
+| Listas vazias logo após publicar índices | Índices do Firestore ainda em construção; aguarde alguns minutos. |
+| "useAuth must be used within an AuthProvider" | Import de `@/lib/AuthContext` em vez de `@/lib/FirebaseAuthContext`. |
+| Página de módulo não aparece | Flag global desligada ou módulo desligado em *Páginas e Módulos* (`moduleConfig`). |
+| Login falha num domínio novo | Domínio não incluído em *Firebase Auth → Authorized domains* e nas origens do OAuth no Google Cloud. |
+| Mudança nas functions não chegou ao deploy | `functions-v2/lib` desatualizado no commit — recompile. O deploy também compila no `predeploy`. |

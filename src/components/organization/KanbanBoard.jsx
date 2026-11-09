@@ -974,7 +974,7 @@ export default function KanbanBoard({
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
             >
-                <div className={`grid gap-3 ${KANBAN_COLUMNS.length === 6 ? 'grid-cols-6' : 'grid-cols-5'}`}>
+                <div className="grid gap-3 overflow-x-auto pb-2" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(180px, 1fr))` }}>
                     {KANBAN_COLUMNS.map((col) => (
                         <KanbanColumn
                             key={col.id}

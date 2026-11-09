@@ -11,7 +11,6 @@ import ThemeV2Effect from '@/lib/ThemeV2';
 import { ThemeSwitcherProvider } from '@/lib/ThemeSwitcher';
 import TwoFactorGate from '@/lib/TwoFactorGate';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import { runBackfill } from '@/utils/backfillMatter';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -59,11 +58,6 @@ const AuthenticatedApp = () => {
 
 
 function App() {
-  // Expose backfill tool to window for manual execution
-  if (typeof window !== 'undefined') {
-    window.runBackfill = runBackfill;
-  }
-
   return (
     <ErrorBoundary>
       <FirebaseAuthProvider>

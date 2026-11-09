@@ -117,14 +117,15 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
             {/* Header: Process Number + Badges */}
             <div className="flex items-start justify-between gap-2">
                 {canCopyProcessNumber && processNumber ? (
-                    <span
-                        className="text-sm font-bold text-slate-900 dark:text-white truncate flex-1 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    <button
+                        type="button"
+                        className="text-left text-sm font-bold text-slate-900 dark:text-white truncate flex-1 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={handleCopyProcessNumber}
                         title="Clique para copiar"
                     >
                         {processNumber}
-                    </span>
+                    </button>
                 ) : (
                     <span className="text-sm font-bold text-slate-900 dark:text-white truncate flex-1">
                         {processNumber || 'Sem número'}

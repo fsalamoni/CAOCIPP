@@ -795,7 +795,7 @@ export default function ProcessTable({
     <div className="space-y-4">
       <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[300px]">
+          <div className="relative flex-1 min-w-full sm:min-w-[300px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
             <Input
               placeholder="Buscar por número, consulente ou cidade..."
@@ -805,7 +805,7 @@ export default function ProcessTable({
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40 h-10">
                 <SelectValue placeholder="Status" />
@@ -858,7 +858,7 @@ export default function ProcessTable({
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Urgência</label>
                       <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-                        <SelectTrigger className="h-9">
+                        <SelectTrigger aria-label="Urgência" className="h-9">
                           <SelectValue placeholder="Qualquer" />
                         </SelectTrigger>
                         <SelectContent>
@@ -871,7 +871,7 @@ export default function ProcessTable({
 
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Longa Data</label>
-                      <Button
+                      <Button aria-label="Longa data: 365 dias ou mais" aria-pressed={isAniversarianteFilter}
                         variant={isAniversarianteFilter ? "default" : "outline"}
                         size="sm"
                         onClick={() => setIsAniversarianteFilter(!isAniversarianteFilter)}
@@ -884,7 +884,7 @@ export default function ProcessTable({
 
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Local / Cidade</label>
-                      <Input
+                      <Input aria-label="Local / Cidade"
                         placeholder="Filtrar cidade..."
                         value={locationFilter === "all" ? "" : locationFilter}
                         onChange={(e) => setLocationFilter(e.target.value || "all")}
@@ -894,7 +894,7 @@ export default function ProcessTable({
                   </div>
 
                   <div className="pt-2">
-                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 block">Filtros de Datas</label>
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 block">Filtros de Datas</p>
                     <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin">
                       {[
                         { label: 'Entrada no CAO', key: 'entry' },
@@ -1210,13 +1210,13 @@ export default function ProcessTable({
       />
 
       {filteredAndSortedProcesses.length > 0 && (
-        <div className="sticky bottom-0 mt-4 flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)] z-20">
+        <div className="sticky bottom-0 mt-4 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)] z-20">
           <div className="flex items-center gap-4">
             <p className="text-sm text-slate-500 dark:text-slate-400">Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredAndSortedProcesses.length)} de {filteredAndSortedProcesses.length} processos</p>
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-400 dark:text-slate-500">Exibir:</label>
               <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(parseInt(v))}>
-                <SelectTrigger className="w-16 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Exibir" className="w-16 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="20">20</SelectItem>

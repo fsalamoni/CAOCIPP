@@ -1,3 +1,4 @@
+import { roleLabel } from '@/constants';
 import React, { useState } from 'react';
 import { removeMember, updateMember } from '@/services/functionsService';
 import { Button } from '@/components/ui/button';
@@ -94,7 +95,7 @@ export default function MemberManagement({ organization, members }) {
                                                 ? 'bg-primary/10 text-primary'
                                                 : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
                                                 }`}>
-                                                {member.role === 'creator' ? 'Criador' : 'Membro'}
+                                                {roleLabel(member.role)}
                                             </span>
                                         </TableCell>
                                         <TableCell>

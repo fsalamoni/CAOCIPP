@@ -1,173 +1,65 @@
-# 📚 SIGO - Documentation Index
+# Documentação do SIGO
 
-**Purpose:** Central index for all SIGO reference documentation
-
----
-
-## Reference Documentation
-
-Complete technical documentation for developers, maintainers, and AI agents.
-
-### Core References
-
-|  | Document | Purpose | When to Read |
-|--|----------|---------|--------------|
-| 🏗️ | [**ARCHITECTURE_REFERENCE.md**](./ARCHITECTURE_REFERENCE.md) | Complete system structure, data models, component hierarchy | Understanding system design, adding features |
-| 🔒 | [**SECURITY_REFERENCE.md**](./SECURITY_REFERENCE.md) | Security rules, authentication, authorization, threat model | Implementing auth/authz, security audit |
-| ⚙️ | [**FEATURES_REFERENCE.md**](./FEATURES_REFERENCE.md) | All implemented features with code examples | Understanding functionality, extending features |
-| 🎨 | [**DESIGN_SYSTEM_REFERENCE.md**](./DESIGN_SYSTEM_REFERENCE.md) | UI patterns, components, colors, typography (V1 — current default) | Building UI, maintaining consistency |
-| 🖤 | [**DESIGN_SYSTEM_V2.md**](./DESIGN_SYSTEM_V2.md) | New minimalist design standard (opt-in via `frontend_v2` flag), tokens, how to build new screens | Building any new screen/modal, rolling out the visual redesign |
-| ⚖️ | [**JURIMETRIA.md**](./JURIMETRIA.md) | Módulo de Jurimetria: modelo de dados, importação, relatórios, permissões e flags | Trabalhar na base de júris, importação ou relatórios |
-| 🔭 | [**PANORAMA.md**](./PANORAMA.md) | Módulo Panorama: papéis semânticos, configuração de bases por órgão, inferência de colunas, prescrição e relatórios | Configurar uma base nova, entender os papéis ou trabalhar no módulo coringa |
-| 🏛️ | [**SECRETARIA.md**](./SECRETARIA.md) | Secretaria Processual: processo eletrônico com ritos, unidades, posse, documentos, assinatura, juntada, cadeia de hash e PDF dos autos | Ativar ou evoluir o módulo de processo eletrônico |
-| 📖 | [**GLOSSARY.md**](./GLOSSARY.md) | 150+ terms across 8 categories | Onboarding, understanding terminology |
-| 👨‍💻 | [**DEVELOPMENT_GUIDE.md**](./DEVELOPMENT_GUIDE.md) | Setup, workflow, common tasks, debugging | Setting up environment, daily development |
+Índice de toda a documentação de referência. Comece pela
+[Visão geral](./VISAO_GERAL.md) se é a primeira vez que você vê o projeto.
 
 ---
 
-## User Guides
+## Entender a plataforma
 
-Documentation for end users and testers.
+| Documento | Conteúdo |
+|---|---|
+| [VISAO_GERAL.md](./VISAO_GERAL.md) | O que é o SIGO, que problema resolve, perfis de uso, módulos e limites atuais |
+| [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) | Funcionalidades comuns: órgãos, membros, Painel Administrativo, métricas, páginas personalizadas, automação, administração da plataforma, feature flags |
+| [GLOSSARY.md](./GLOSSARY.md) | Termos de negócio, técnicos e siglas |
+| [CHANGELOG.md](./CHANGELOG.md) | Histórico das entregas |
 
-| Document | Purpose |
-|----------|---------|
-| [QUICK_START.md](../QUICK_START.md) | Get started quickly (5 steps) |
-| [TESTING_GUIDE.md](../TESTING_GUIDE.md) | Complete testing procedures (7 categories) |
-| [README_MIGRATION.md](../README_MIGRATION.md) | Migration summary and status |
+## Módulos
 
----
+| Documento | Módulo |
+|---|---|
+| [CONSULTAS.md](./CONSULTAS.md) | Consultas: fases, Kanban, campos, importação |
+| [MATTER_CLASSIFICATION.md](./MATTER_CLASSIFICATION.md) | Classificação das Consultas por matéria |
+| [EXPEDIENTES.md](./EXPEDIENTES.md) | Expedientes administrativos |
+| [PARCERIAS.md](./PARCERIAS.md) | Convênios, Termos de Cooperação e de Fomento, aditivos, avisos, extinção |
+| [JURIMETRIA.md](./JURIMETRIA.md) | Base de júris, importação, relatórios e exportação |
+| [PANORAMA.md](./PANORAMA.md) | Bases analíticas de qualquer área a partir de planilhas |
+| [SECRETARIA.md](./SECRETARIA.md) | Secretaria Processual: processo eletrônico com ritos, unidades, documentos, assinatura, folhas, portal das partes e conferência pública |
 
-## Technical Setup
+## Técnica
 
-Step-by-step configuration guides.
+| Documento | Conteúdo |
+|---|---|
+| [ARCHITECTURE_REFERENCE.md](./ARCHITECTURE_REFERENCE.md) | Tecnologias, estrutura do repositório, fluxo de dados, Cloud Functions, coleções, implantação |
+| [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md) | Regras do Firestore, autenticação, autorização, LGPD, decisões de segurança por módulo |
+| [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) | Ambiente local, emuladores, convenções, verificação, deploy |
+| [CI-DEPLOY-PERMISSIONS.md](./CI-DEPLOY-PERMISSIONS.md) | Permissões do Google Cloud exigidas pelo deploy automático |
+| [DESIGN_SYSTEM_V2.md](./DESIGN_SYSTEM_V2.md) | Padrão visual atual (V2, minimalista) e como construir telas novas |
+| [DESIGN_SYSTEM_REFERENCE.md](./DESIGN_SYSTEM_REFERENCE.md) | Padrão visual anterior (V1), que só volta a valer se a flag `frontend_v2` for desligada |
 
-| Document | Purpose |
-|----------|---------|
-| [FIREBASE_SETUP.md](../FIREBASE_SETUP.md) | Firebase project configuration |
-| [FIREBASE_RULES_MERGE.md](../FIREBASE_RULES_MERGE.md) | Merging security rules |
-| [SETUP_NODEJS.md](../SETUP_NODEJS.md) | Installing Node.js |
-| [MIGRATION_PROGRESS.md](../MIGRATION_PROGRESS.md) | Migration progress tracker |
+## Histórico
 
----
-
-## Reading Order
-
-### For New Developers
-
-1. **Start here:** DEVELOPMENT_GUIDE.md
-2. **Understand terminology:** GLOSSARY.md
-3. **Learn architecture:** ARCHITECTURE_REFERENCE.md
-4. **Study features:** FEATURES_REFERENCE.md
-5. **Reference as needed:** SECURITY_REFERENCE.md, DESIGN_SYSTEM_REFERENCE.md
-
-### For AI Agents
-
-1. **System understanding:** ARCHITECTURE_REFERENCE.md
-2. **Learn domain:** GLOSSARY.md → Business Domain Terms
-3. **Implementation patterns:** FEATURES_REFERENCE.md
-4. **Development workflow:** DEVELOPMENT_GUIDE.md → AI Agent Guidelines
-5. **Reference:** SECURITY_REFERENCE.md, DESIGN_SYSTEM_REFERENCE.md
-
-### For Security Audits
-
-1. **SECURITY_REFERENCE.md** (complete security documentation)
-2. **ARCHITECTURE_REFERENCE.md** → Data Architecture
-3. **FEATURES_REFERENCE.md** → Permission Matrix
-
-### For UI/UX Work
-
-1. **DESIGN_SYSTEM_REFERENCE.md** (complete design system, V1 — current default)
-2. **DESIGN_SYSTEM_V2.md** (new minimalist standard, opt-in, how to build new screens)
-3. **FEATURES_REFERENCE.md** → UI/UX Features
-4. **ARCHITECTURE_REFERENCE.md** → Component Architecture
+[historico/](./historico/README.md) guarda os guias da migração Base44 →
+Firebase. Não descrevem o sistema atual.
 
 ---
 
-## Document Statistics
+## Ordem de leitura sugerida
 
-| Document | Lines | Words | Topics |
-|----------|-------|-------|--------|
-| ARCHITECTURE_REFERENCE.md | 950+ | 8,500+ | 10 sections |
-| SECURITY_REFERENCE.md | 850+ | 7,500+ | 9 sections |
-| FEATURES_REFERENCE.md | 750+ | 6,500+ | 8 sections |
-| DESIGN_SYSTEM_REFERENCE.md | 400+ | 3,000+ | 10 sections |
-| DESIGN_SYSTEM_V2.md | 250+ | 2,000+ | 9 sections |
-| GLOSSARY.md | 600+ | 5,000+ | 150+ terms |
-| DEVELOPMENT_GUIDE.md | 550+ | 4,500+ | 11 sections |
-| **TOTAL** | **4,350+** | **37,000+** | **67 sections** |
+- **Quem vai usar ou apresentar o SIGO:** Visão geral → documentos dos módulos.
+- **Quem vai desenvolver:** Visão geral → Arquitetura → Guia de
+  desenvolvimento → Segurança → documento do módulo que vai alterar.
+- **Avaliação de segurança e LGPD:** Segurança (seções 2, 3 e 5) →
+  Arquitetura (seção 5, coleções) → `firestore.rules`.
 
 ---
 
-##Quick Reference
+## Como manter
 
-### Common Lookups
-
-**"How do I...?"**
-- Create a process? → FEATURES_REFERENCE.md → Process Management → Create Process
-- Add security rules? → SECURITY_REFERENCE.md → Firestore Security Rules
-- Style a button? → DESIGN_SYSTEM_REFERENCE.md → Component Patterns → Buttons
-- Query Firestore? → DEVELOPMENT_GUIDE.md → Firebase Operations
-- Understand a term? → GLOSSARY.md → Search term
-
-**"What is...?"**
-- The data model? → ARCHITECTURE_REFERENCE.md → Data Architecture
-- The authentication flow? → ARCHITECTURE_REFERENCE.md → Authentication Flow
-- organizationId? → GLOSSARY.md → Database Terms
-- The color system? → DESIGN_SYSTEM_REFERENCE.md → Color System
-
-**"Where is...?"**
-- User profile data stored? → ARCHITECTURE_REFERENCE.md → Firestore Collections → users
-- Process creation logic? → DEVELOPMENT_GUIDE.md → Common Tasks
-- Button component? → src/components/ui/button.jsx + DESIGN_SYSTEM_REFERENCE.md
-
----
-
-## Maintenance
-
-### Keeping Documentation Updated
-
-**When to update:**
-- New feature added → Update FEATURES_REFERENCE.md
-- Architecture changed → Update ARCHITECTURE_REFERENCE.md
-- Security rules modified → Update SECURITY_REFERENCE.md
-- UI pattern created → Update DESIGN_SYSTEM_REFERENCE.md
-- New terminology introduced → Update GLOSSARY.md
-- Development workflow changed → Update DEVELOPMENT_GUIDE.md
-
-**How to update:**
-1. Edit relevant .md file in `docs/`
-2. Update "Last Updated" date at top
-3. Commit with descriptive message
-4. Deploy updated docs (if using docs hosting)
-
----
-
-## Contributing
-
-When adding documentation:
-1. Use existing formatting for consistency
-2. Include code examples where appropriate
-3. Add diagrams for complex concepts (Mermaid.js)
-4. Cross-reference other docs when relevant
-5. Update this index if adding new docs
-
----
-
-## Feedback
-
-found an issue in documentation?
-- Missing information
-- Unclear explanations
-- Outdated content
-- Broken links
-
-Report via:
-- Project issue tracker
-- Direct message to maintainer
-- Pull request with fix
-
----
-
-**Last Updated:** 2026-07-09  
-**Total Documentation:** 7 reference docs + 4 guides + this index = 12 documents
-**Final Version:** 1.7.0 - Design System V2 (Minimalist Redesign) ✅
+- A documentação descreve o que o código faz **hoje**. Ao mudar
+  comportamento, dados, telas, permissões ou estrutura, atualize no mesmo PR o
+  documento afetado e, se for uma entrega relevante, o
+  [CHANGELOG.md](./CHANGELOG.md).
+- Documento novo entra neste índice.
+- Escreva em português, citando arquivos e campos reais (`caminho/arquivo.js`,
+  `nome_do_campo`), para que o leitor possa conferir no código.

@@ -1020,7 +1020,7 @@ export default function ParceriaKanbanBoard({
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
             >
-                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns_list.length}, minmax(0, 1fr))` }}>
+                <div className="grid gap-3 overflow-x-auto pb-2" style={{ gridTemplateColumns: `repeat(${columns_list.length}, minmax(180px, 1fr))` }}>
                     {columns_list.map((col) => (
                         <KanbanColumn
                             key={col.id}
