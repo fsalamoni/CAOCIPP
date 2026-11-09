@@ -29,13 +29,9 @@ Este papel dá as permissões:
 
 ## Estado atual
 
-- **Item 7/8/9 (avisos automáticos)**: schema, UI e backend **ATIVOS** em produção.
-- **Cloud Function agendada**: PAUSADA (comentada em `functions-v2/src/index.ts`).
-- **Próximo passo**: conceder a permissão acima, depois descomentar a linha em `functions-v2/src/index.ts`:
-  ```ts
-  export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
-  ```
-  E fazer o deploy.
+- **Avisos automáticos das Parcerias**: schema, UI e backend ativos em produção.
+- **Cloud Function agendada `checkPartnershipNoticeDeadlines`**: **exportada** em `functions-v2/src/index.ts` desde 19/08/2026, e os deploys de `main` concluem com sucesso (último verificado: 23/09/2026). Antes de cada deploy, o workflow remove a função e o job do Scheduler caso estejam órfãos (`.github/scripts/delete_scheduler_job.py`).
+- **Outras três agendadas** (`autoEscalateStalledUrgent`, `sendDailyUrgentSummary`, `sendWeeklyOrgReport`) continuam **comentadas** em `functions-v2/src/index.ts`. Para reativá-las: confirmar que a API `cloudscheduler.googleapis.com` está habilitada e a conta de serviço tem *Cloud Scheduler Admin*, descomentar as exportações e fazer o deploy.
 
 ## Histórico de deploys que falharam por permissão
 

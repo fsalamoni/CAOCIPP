@@ -1,15 +1,13 @@
-# 🎨 SIGO - Design System Reference
+# 🎨 SIGO - Design System V1 (anterior)
 
-**Version:** 1.0.0  
-**Last Updated:** 2026-02-12  
-**Purpose:** UI/UX design patterns and component guidelines
-
-> 📣 **V2 disponível (opt-in):** existe um novo padrão visual minimalista
-> (IBM Plex, paleta navy, flat) aplicável via feature flag `frontend_v2`
-> em Administração da Plataforma → Funcionalidades. Este documento
-> continua descrevendo o visual **atual (V1)**, que é o padrão enquanto a
-> flag estiver desligada. Para o novo padrão e as diretrizes de construção
-> de novas telas, ver [`DESIGN_SYSTEM_V2.md`](./DESIGN_SYSTEM_V2.md).
+> **Este não é o visual atual.** Desde agosto de 2026 a plataforma usa o
+> **Design System V2** (IBM Plex, paleta navy, flat), descrito em
+> [`DESIGN_SYSTEM_V2.md`](./DESIGN_SYSTEM_V2.md), que é o padrão para
+> qualquer tela nova. O V2 é aplicado como uma camada de CSS sobre os
+> componentes descritos aqui; por isso este documento continua útil para
+> entender as classes e componentes de base, e descreve o que se vê se a
+> flag `frontend_v2` for desligada (válvula de emergência). O conteúdo abaixo
+> está em inglês e não foi revisado desde fevereiro de 2026.
 
 ---
 
