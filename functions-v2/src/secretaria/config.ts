@@ -5,8 +5,11 @@ import { MAX_TEXTO_LONGO, documentoEfetivo, lotacoesDe, sanitizeCalendario, sani
 import { sanitizeDoc } from '../shared/documento';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
 import { sanitizeDocumentoConfig } from './documentoConfig';
+<<<<<<< HEAD
 import { MAX_MODELO_BYTES, MIMES_ORIGINAL, interpretarModelo, preencherDocx } from './importarModelo';
 import { MIME_DOCX } from './conversao';
+=======
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
 import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
     revogarConviteEquipe, salvarUnidade, salvarUnidadeDocumento, verConviteEquipe,
@@ -23,6 +26,7 @@ export { TIPOS_DOCUMENTO_PADRAO } from './documentoConfig';
  */
 
 const MAX_MODELOS = 200;
+<<<<<<< HEAD
 // O documento do Firestore tem teto de 1 MB; modelo com imagens maiores fica no original.
 const MAX_MODELO_JSON = 900_000;
 const caminhoModelo = (orgId: string, id: string) => `secretaria/${orgId}/modelos/${id}`;
@@ -37,6 +41,8 @@ function arquivoRecebido(v: unknown, tipos: string[]) {
     if (buf.length > MAX_MODELO_BYTES) throw new HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
     return { buf, mime, nome: texto(a.nome, 160) || 'modelo' };
 }
+=======
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
 const MAX_RITOS = 50;
 
 const RITO_PADRAO = {
@@ -54,8 +60,12 @@ const RITO_PADRAO = {
 type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo'
     | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
+<<<<<<< HEAD
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo';
+=======
+    | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe';
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -73,9 +83,12 @@ interface ConfigRequest extends Record<string, unknown> {
     rito?: unknown;
     ativo?: boolean;
     token?: string;
+<<<<<<< HEAD
     unidade_id?: string;
     arquivo?: unknown;
     valores?: unknown;
+=======
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
 }
 
 export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async (request) => {
@@ -181,6 +194,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         };
     }
 
+<<<<<<< HEAD
     if (p.action === 'baixarModelo') {
         exigirAtivo();
         const m = (await db.collection(COL.modelos).doc(String(p.id || '_')).get()).data();
@@ -195,6 +209,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         return { base64: buf.toString('base64'), mime: m.arquivo_mime, nome: m.arquivo_nome || 'modelo' };
     }
 
+=======
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
     if (p.action === 'pedirLotacao') {
         exigirAtivo();
         return pedirLotacao(c, p, auth.uid, String(auth.token.email || ''));
@@ -208,6 +224,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
     if (p.action === 'revogarConviteEquipe') return revogarConviteEquipe(c, p, audit);
     if (p.action === 'decidirPedido') return decidirPedido(c, p, auth.uid, audit);
 
+<<<<<<< HEAD
     if (p.action === 'importarModelo') {
         // Só interpreta e devolve a proposta; nada é gravado até salvarModelo.
         const unidadeId = p.unidade_id ? String(p.unidade_id) : null;
@@ -221,6 +238,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         }
     }
 
+=======
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
     if (p.action === 'salvarModelo') {
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
         const col = db.collection(COL.modelos);
@@ -233,6 +252,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         }
         const nome = texto(m.nome, 120);
         if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao modelo');
+<<<<<<< HEAD
         // Formato: 'editor' (conteúdo do editor) ou 'original' (arquivo DOCX/PDF guardado).
         const formato = (p.id ? atual?.formato : m.formato) === 'original' ? 'original' : 'editor';
         const arquivo = formato === 'original' && (m.arquivo || !p.id) ? arquivoRecebido(m.arquivo, MIMES_ORIGINAL) : null;
@@ -260,6 +280,23 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         else await ref.set({ ...dados, formato, organization_id: orgId, created_at: agora, created_by: auth.uid });
         p.id = ref.id;
         await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId, formato });
+=======
+        let conteudo;
+        try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
+        const dados = {
+            nome, tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo, unidade_id: unidadeId,
+            ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
+        };
+        if (p.id) {
+            await col.doc(p.id).update(dados);
+        } else {
+            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+                throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
+            }
+            p.id = (await col.add({ ...dados, formato: 'editor', organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
+        }
+        await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId });
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
         return { success: true, id: p.id };
     }
 

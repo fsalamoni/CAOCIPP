@@ -9,8 +9,11 @@ const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
 const context_1 = require("./context");
 const documentoConfig_1 = require("./documentoConfig");
+<<<<<<< HEAD
 const importarModelo_1 = require("./importarModelo");
 const conversao_1 = require("./conversao");
+=======
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
 const unidades_1 = require("./unidades");
 var documentoConfig_2 = require("./documentoConfig");
 Object.defineProperty(exports, "TIPOS_DOCUMENTO_PADRAO", { enumerable: true, get: function () { return documentoConfig_2.TIPOS_DOCUMENTO_PADRAO; } });
@@ -22,6 +25,7 @@ Object.defineProperty(exports, "TIPOS_DOCUMENTO_PADRAO", { enumerable: true, get
  * página do Processo Eletrônico.
  */
 const MAX_MODELOS = 200;
+<<<<<<< HEAD
 // O documento do Firestore tem teto de 1 MB; modelo com imagens maiores fica no original.
 const MAX_MODELO_JSON = 900000;
 const caminhoModelo = (orgId, id) => `secretaria/${orgId}/modelos/${id}`;
@@ -38,6 +42,8 @@ function arquivoRecebido(v, tipos) {
         throw new https_1.HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
     return { buf, mime, nome: (0, secretaria_1.texto)(a.nome, 160) || 'modelo' };
 }
+=======
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
 const MAX_RITOS = 50;
 const RITO_PADRAO = {
     nome: 'Rito comum',
@@ -149,6 +155,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo,
             ativo: m.ativo !== false, unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
         };
+<<<<<<< HEAD
     }
     if (p.action === 'baixarModelo') {
         exigirAtivo();
@@ -276,6 +283,90 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         });
         return { success: true, calendario };
     }
+=======
+    }
+    if (p.action === 'pedirLotacao') {
+        exigirAtivo();
+        return (0, unidades_1.pedirLotacao)(c, p, auth.uid, String(auth.token.email || ''));
+    }
+    // Gestão de unidade: admin do órgão ou gestor da unidade.
+    if (p.action === 'salvarUnidade')
+        return (0, unidades_1.salvarUnidade)(c, p, auth.uid, audit);
+    if (p.action === 'obterUnidadeDocumento')
+        return (0, unidades_1.obterUnidadeDocumento)(c, p);
+    if (p.action === 'salvarUnidadeDocumento')
+        return (0, unidades_1.salvarUnidadeDocumento)(c, p, auth.uid, audit);
+    if (p.action === 'convidarEquipe') {
+        exigirAtivo();
+        return (0, unidades_1.convidarEquipe)(c, p, auth.uid, audit);
+    }
+    if (p.action === 'revogarConviteEquipe')
+        return (0, unidades_1.revogarConviteEquipe)(c, p, audit);
+    if (p.action === 'decidirPedido')
+        return (0, unidades_1.decidirPedido)(c, p, auth.uid, audit);
+    if (p.action === 'salvarModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
+        const col = db.collection(context_1.COL.modelos);
+        const atual = p.id ? (await col.doc(p.id).get()).data() : null;
+        if (p.id && (atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId)
+            throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
+        // Modelo do órgão: admin. Modelo de unidade: gestão dela (antes e depois de mudar).
+        const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
+        for (const u of new Set([unidadeId, atual ? (atual.unidade_id || null) : unidadeId])) {
+            if (u)
+                (0, context_1.exigirGestor)(c, u);
+            else
+                (0, context_1.exigirAdmin)(c);
+        }
+        const nome = (0, secretaria_1.texto)(m.nome, 120);
+        if (!nome)
+            throw new https_1.HttpsError('invalid-argument', 'Dê um nome ao modelo');
+        let conteudo;
+        try {
+            conteudo = (0, documento_1.sanitizeDoc)(m.conteudo);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        const dados = {
+            nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500), conteudo, unidade_id: unidadeId,
+            ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
+        };
+        if (p.id) {
+            await col.doc(p.id).update(dados);
+        }
+        else {
+            if ((await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+                throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
+            }
+            p.id = (await col.add(Object.assign(Object.assign({}, dados), { formato: 'editor', organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
+        }
+        await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId });
+        return { success: true, id: p.id };
+    }
+    (0, context_1.exigirAdmin)(c);
+    if (p.action === 'salvarDocumentoConfig') {
+        let documento;
+        try {
+            documento = (0, documentoConfig_1.sanitizeDocumentoConfig)(p.documento);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, documento, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await audit('SECRETARIA_DOCUMENTO_CONFIG', { linhas: documento.cabecalho_linhas.length, brasao: !!documento.brasao });
+        return { success: true };
+    }
+    if (p.action === 'salvarCalendario') {
+        const calendario = (0, secretaria_1.sanitizeCalendario)(p.calendario);
+        const alerta = p.alerta_prazos === true;
+        await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, calendario, alerta_prazos: alerta, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await audit('SECRETARIA_CALENDARIO', {
+            feriados: calendario.feriados.length, recessos: calendario.recessos.length, recesso_forense: calendario.recesso_forense, alerta_prazos: alerta,
+        });
+        return { success: true, calendario };
+    }
+>>>>>>> 3b52f267a18d451b5857eda73cc4cc9a41c3a868
     if (p.action === 'ativar') {
         const ligar = p.enabled === true;
         await db.collection('organizations').doc(orgId).update({
