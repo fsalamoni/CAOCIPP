@@ -69,6 +69,23 @@ function arquivoRecebido(v: unknown, tipos: string[]) {
     return { buf, mime, nome: texto(a.nome, 160) || 'modelo' };
 }
 const MAX_RITOS = 50;
+/** Versões guardadas por rito ou modelo (as mais antigas saem). */
+const MAX_VERSOES = 20;
+
+/**
+ * Guarda a versão atual de um rito ou modelo em `versoes/{n}` antes de
+ * sobrescrever, para o admin poder voltar atrás. Só os campos editáveis.
+ */
+async function guardarVersao(ref: admin.firestore.DocumentReference, atual: admin.firestore.DocumentData, campos: string[]) {
+    const n = Number(atual.versao) || 1;
+    const dados: Record<string, unknown> = { versao: n, salvo_em: atual.updated_at || atual.created_at || null, salvo_por: atual.updated_by || atual.created_by || null };
+    for (const k of campos) if (atual[k] !== undefined) dados[k] = atual[k];
+    await ref.collection('versoes').doc(String(n).padStart(6, '0')).set(dados);
+    const antigas = await ref.collection('versoes').orderBy('versao', 'desc').offset(MAX_VERSOES).get();
+    if (!antigas.empty) { const b = ref.firestore.batch(); antigas.docs.forEach((d) => b.delete(d.ref)); await b.commit(); }
+}
+const CAMPOS_RITO = ['nome', 'descricao', 'fases'];
+const CAMPOS_MODELO = ['nome', 'tipo_documento', 'descricao', 'conteudo'];
 
 const RITO_PADRAO = {
     nome: 'Rito comum',
@@ -86,7 +103,8 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
-    | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito';
+    | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
+    | 'versoes' | 'restaurarVersao';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -288,11 +306,45 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             await admin.storage().bucket().file(path).save(arquivo.buf, { contentType: arquivo.mime, resumable: false });
             Object.assign(dados, { storage_path: path, arquivo_nome: arquivo.nome, arquivo_mime: arquivo.mime, tamanho: arquivo.buf.length });
         }
-        if (p.id) await ref.update(dados);
-        else await ref.set({ ...dados, formato, organization_id: orgId, created_at: agora, created_by: auth.uid });
+        if (p.id) {
+            // Versão anterior fica guardada (só modelos do editor têm conteúdo a versionar).
+            if (formato === 'editor' && atual) await guardarVersao(ref, atual, CAMPOS_MODELO);
+            await ref.update({ ...dados, versao: (Number(atual?.versao) || 1) + 1 });
+        } else await ref.set({ ...dados, versao: 1, formato, organization_id: orgId, created_at: agora, created_by: auth.uid });
         p.id = ref.id;
         await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId, formato });
         return { success: true, id: p.id };
+    }
+
+    // Versões anteriores de um rito (admin) ou de um modelo do editor (gestão).
+    if (p.action === 'versoes' || p.action === 'restaurarVersao') {
+        const col = p.colecao === 'rito' ? COL.ritos : p.colecao === 'modelo' ? COL.modelos : null;
+        if (!col) throw new HttpsError('invalid-argument', 'Coleção inválida');
+        const ref = db.collection(col).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId) throw new HttpsError('not-found', 'Não encontrado');
+        if (col === COL.ritos || !atual.unidade_id) exigirAdmin(c); else exigirGestor(c, String(atual.unidade_id));
+        if (p.action === 'versoes') {
+            const snap = await ref.collection('versoes').orderBy('versao', 'desc').limit(MAX_VERSOES).get();
+            return {
+                versao_atual: Number(atual.versao) || 1,
+                versoes: snap.docs.map((d) => {
+                    const v = d.data();
+                    const em = v.salvo_em && typeof v.salvo_em.toDate === 'function' ? v.salvo_em.toDate().toISOString() : (v.salvo_em || null);
+                    return { versao: v.versao, em, por: v.salvo_por || null, nome: v.nome || '', fases: Array.isArray(v.fases) ? v.fases.length : undefined };
+                }),
+            };
+        }
+        const vSnap = await ref.collection('versoes').doc(String(Number(p.versao) || 0).padStart(6, '0')).get();
+        const v = vSnap.data();
+        if (!v) throw new HttpsError('not-found', 'Versão não encontrada');
+        const campos = col === COL.ritos ? CAMPOS_RITO : CAMPOS_MODELO;
+        await guardarVersao(ref, atual, campos);
+        const volta: Record<string, unknown> = { versao: (Number(atual.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid };
+        for (const k of campos) if (v[k] !== undefined) volta[k] = v[k];
+        await ref.update(volta);
+        await audit('SECRETARIA_VERSAO_RESTAURADA', { colecao: p.colecao, id: ref.id, nome: v.nome || atual.nome, de_versao: v.versao, nova_versao: volta.versao });
+        return { success: true, versao: volta.versao };
     }
 
     exigirAdmin(c);
@@ -459,7 +511,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             const snap = await ref.get();
             if (!snap.exists || snap.data()?.organization_id !== orgId) throw new HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
-            // o rito só vale para os próximos.
+            // o rito só vale para os próximos. A versão anterior fica guardada.
+            await guardarVersao(ref, snap.data()!, CAMPOS_RITO);
             await ref.update({ ...rito, ativo: p.ativo !== false, versao: (Number(snap.data()?.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid });
         } else {
             const qtd = (await col.where('organization_id', '==', orgId).get()).size;

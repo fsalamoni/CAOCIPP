@@ -85,6 +85,22 @@ export function ritoDeTabela(linhas) {
     return { fases: simplificar(fases), avisos };
 }
 
+/** Quantas etapas faltam, no caminho mais curto, até o fim do rito (null se a fase não existe). */
+export function etapasAteOFim(fases, atualId) {
+    const i0 = fases.findIndex((f) => f.id === atualId);
+    if (i0 < 0) return null;
+    const dist = new Map([[atualId, 0]]);
+    const fila = [atualId];
+    while (fila.length) {
+        const id = fila.shift();
+        const i = fases.findIndex((f) => f.id === id);
+        const prox = seguintes(fases, i);
+        if (prox.length === 0) return dist.get(id);
+        for (const n of prox) if (!dist.has(n)) { dist.set(n, dist.get(id) + 1); fila.push(n); }
+    }
+    return null;
+}
+
 /** Linhas para exportar (com cabeçalho), citando as próximas pelo nome. */
 export function ritoParaTabela(fases) {
     const nome = (id) => fases.find((f) => f.id === id)?.nome || id;

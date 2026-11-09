@@ -23,7 +23,7 @@ import { secPortal, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/ser
 import { STATUS_ROTULO, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import LeitorAutos from '@/components/secretaria/LeitorAutos';
-import { seguintes } from '@/lib/secretariaRito';
+import { etapasAteOFim } from '@/lib/secretariaRito';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
 // conta própria, aceita o convite da secretaria e acompanha só os processos em
@@ -42,22 +42,6 @@ export function frasePolo(polo) {
         requerente: 'Você fez o pedido (requerente)', requerido: 'O pedido é contra você (requerido)',
         interessado: 'Você é interessado', terceiro: 'Você participa como terceiro',
     })[polo] || `Você participa como ${polo || 'parte'}`;
-}
-
-/** Quantas etapas faltam, no caminho mais curto, até o fim do rito. */
-function etapasAteOFim(fases, atualId) {
-    const i0 = fases.findIndex((f) => f.id === atualId);
-    if (i0 < 0) return null;
-    const dist = new Map([[atualId, 0]]);
-    const fila = [atualId];
-    while (fila.length) {
-        const id = fila.shift();
-        const i = fases.findIndex((f) => f.id === id);
-        const prox = seguintes(fases, i);
-        if (prox.length === 0) return dist.get(id);
-        for (const n of prox) if (!dist.has(n)) { dist.set(n, dist.get(id) + 1); fila.push(n); }
-    }
-    return null;
 }
 
 const ICONE_MOV = {

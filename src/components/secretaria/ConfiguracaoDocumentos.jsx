@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
+import { Copy, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,16 @@ import { secConfig } from '@/services/secretariaService';
 import { NativeSelect, documentoDaUnidade } from './comum';
 import EditorDocumento, { CAMPOS_MODELO, FONTES, prepararImagem } from './EditorDocumento';
 import ImportarModelo, { EditorOriginal, rotuloFormatoOriginal } from './ImportarModelo';
+import VersoesDialog from './VersoesDialog';
+
+/** "Rito › Fase" de cada fase que indica o modelo, por id de modelo. */
+function fasesQueIndicam(estado) {
+    const m = new Map();
+    for (const r of estado.ritos || []) {
+        for (const f of r.fases || []) for (const id of f.modelos || []) m.set(id, [...(m.get(id) || []), `${r.nome} › ${f.nome}`]);
+    }
+    return m;
+}
 
 const CSS_FONTE = { serif: '"Times New Roman", Times, serif', 'sans-serif': 'Arial, Helvetica, sans-serif', monospace: '"Courier New", Courier, monospace' };
 
@@ -205,6 +215,7 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
     const [modelo, setModelo] = useState(null);
     const [importando, setImportando] = useState(false);
     const lista = (estado.modelos || []).filter((m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id));
+    const indicadoEm = fasesQueIndicam(estado);
     const recarregar = () => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
     const abrirModelo = async (m) => {
         if (!m) { setModelo({ _k: Date.now(), nome: '', tipo_documento: '', descricao: '', ativo: true, conteudo: null, unidade_id: unidadeId }); return; }
@@ -225,6 +236,7 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
                         {!m.ativo && <Badge variant="secondary">Inativo</Badge>}
                     </div>
                     {m.descricao && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{m.descricao}</p>}
+                    {indicadoEm.has(m.id) && <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">Indicado em: {indicadoEm.get(m.id).slice(0, 3).join(' · ')}{indicadoEm.get(m.id).length > 3 ? ` e mais ${indicadoEm.get(m.id).length - 3}` : ''}</p>}
                 </button>
             ))}
         </div>
@@ -293,6 +305,13 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
                     <Input aria-label="Descrição" placeholder="Para que serve (opcional)" value={modelo.descricao || ''} onChange={(e) => setModelo({ ...modelo, descricao: e.target.value })} className="h-9 flex-1 min-w-[12rem]" />
                     <label className="flex items-center gap-2 text-sm"><Checkbox checked={modelo.ativo !== false} onCheckedChange={(c) => setModelo({ ...modelo, ativo: c === true })} /> Ativo</label>
                     <div className="flex gap-2 ml-auto">
+                        {modelo.id && <VersoesDialog orgId={orgId} colecao="modelo" id={modelo.id} nome={modelo.nome} estado={estado} onRestaurado={() => { onSalvo(); setModelo(null); }} />}
+                        {modelo.id && (
+                            <Button size="sm" variant="ghost" className="gap-1" title="Cria uma cópia deste modelo, para ajustar e salvar"
+                                onClick={() => setModelo({ ...modelo, id: undefined, nome: `${modelo.nome} (cópia)`, conteudo: conteudo.current || modelo.conteudo, _k: Date.now() })}>
+                                <Copy className="w-4 h-4" aria-hidden /> Duplicar
+                            </Button>
+                        )}
                         <Button size="sm" className="gap-1" disabled={salvando || !modelo.nome.trim()} onClick={salvar}>{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar</Button>
                         <Button size="sm" variant="ghost" onClick={() => setModelo(null)} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                     </div>

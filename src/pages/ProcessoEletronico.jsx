@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -183,13 +183,17 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     const [f, setF] = useState(FILTROS_VAZIOS);
     const [avancado, setAvancado] = useState(false);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-    const q = useQuery({
-        queryKey: ['sec-processos', orgId, escopo],
-        queryFn: () => secProcesso(orgId, 'listar', { escopo }),
+    // Paginado pelo servidor, dos mais recentes para os mais antigos; os
+    // filtros valem sobre o que já foi carregado ("Carregar mais" traz o resto).
+    const q = useInfiniteQuery({
+        queryKey: ['sec-processos', orgId, escopo, 'paginado'],
+        queryFn: ({ pageParam }) => secProcesso(orgId, 'listar', { escopo, limite: PAGINA, cursor: pageParam || undefined }),
+        initialPageParam: null,
+        getNextPageParam: (ultima) => (ultima.mais ? ultima.cursor : undefined),
     });
     if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
-    if (q.error) return <ErroQuery q={q} />;
-    const todos = q.data?.processos || [];
+    if (q.error && !q.data) return <ErroQuery q={q} />;
+    const todos = q.data?.pages.flatMap((pg) => pg.processos) || [];
     const termo = norm(f.texto.trim());
     const termoDig = f.texto.replace(/\D/g, '');
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -228,7 +232,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                 {ativos > 0 && (
                     <Button variant="ghost" size="sm" className="gap-1" onClick={() => setF(FILTROS_VAZIOS)}><X className="w-4 h-4" /> Limpar filtros</Button>
                 )}
-                <span className="text-sm text-slate-600 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}{q.hasNextPage ? ' carregados' : ''}</span>
             </div>
             {avancado && (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900/50">
@@ -293,9 +297,20 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     ))}
                 </div>
             )}
+            {q.hasNextPage && (
+                <div className="flex items-center gap-3">
+                    <Button variant="outline" size="sm" disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()} className="gap-2">
+                        {q.isFetchingNextPage && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />} Carregar mais {PAGINA}
+                    </Button>
+                    {ativos > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">Os filtros valem só sobre o que já foi carregado.</span>}
+                </div>
+            )}
         </div>
     );
 }
+
+/** Processos por página na lista (o servidor aceita até 200). */
+const PAGINA = 100;
 
 function NovoProcesso({ orgId, estado, onCriado }) {
     const qc = useQueryClient();

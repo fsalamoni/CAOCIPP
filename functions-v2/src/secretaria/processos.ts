@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { randomBytes } from 'crypto';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
@@ -24,7 +24,10 @@ interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
-        | 'marcarAcao' | 'concluirOrientacao';
+        | 'marcarAcao' | 'concluirOrientacao' | 'contadores';
+    // listar paginado (sem `limite`, devolve até 1000 como antes)
+    limite?: number;
+    cursor?: number;
     // ações da fase (caixas de marcar) e orientação do gabinete ao devolver
     acao_idx?: number;
     feita?: boolean;
@@ -116,9 +119,41 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     const c = await carregarContexto(auth, p.organizationId);
     const { db, orgId } = c;
 
+    if (p.action === 'listar' && p.limite) {
+        // Paginado pelo servidor: do mais recente para o mais antigo por
+        // updated_at (índice organization_id + updated_at), filtrando a posse
+        // e o sigilo em memória; `cursor` é o updated_at (ms) do último lido.
+        const limite = Math.min(Math.max(Number(p.limite) || 50, 1), 200);
+        let q = db.collection(COL.processos).where('organization_id', '==', orgId).orderBy('updated_at', 'desc');
+        if (p.cursor) q = q.startAfter(Timestamp.fromMillis(Number(p.cursor)));
+        const snap = await q.limit(limite).get();
+        const processos = snap.docs
+            .filter((d) => podeVer(d.data() as never, c.ctx))
+            .filter((d) => p.escopo !== 'caixa' || podeAgir(d.data() as never, c.ctx))
+            .map((d) => resumo(d.id, d.data()));
+        const ultimo = snap.docs[snap.docs.length - 1];
+        return { processos, cursor: ultimo?.data().updated_at?.toMillis?.() || null, mais: snap.size === limite };
+    }
+
+    if (p.action === 'contadores') {
+        // Carga por unidade (processos não arquivados) e totais, por contagem
+        // no servidor: não traz documentos.
+        const base = db.collection(COL.processos).where('organization_id', '==', orgId);
+        const conta = async (q: admin.firestore.Query) => (await q.count().get()).data().count;
+        const [total, arquivados, porUnidade] = await Promise.all([
+            conta(base),
+            conta(base.where('status', '==', 'arquivado')),
+            Promise.all(c.unidades.map(async (u) => {
+                const [t, a] = await Promise.all([conta(base.where('unidade_atual', '==', u.id)), conta(base.where('unidade_atual', '==', u.id).where('status', '==', 'arquivado'))]);
+                return [u.id, t - a] as const;
+            })),
+        ]);
+        return { total, arquivados, ativos: total - arquivados, por_unidade: Object.fromEntries(porUnidade) };
+    }
+
     if (p.action === 'listar') {
         // ponytail: lê até 1000 processos do órgão e filtra/ordena em memória
-        // (sem índice composto). Paginar por updated_at quando passar disso.
+        // (sem índice composto). A lista com filtros usa a versão paginada acima.
         const snap = await db.collection(COL.processos).where('organization_id', '==', orgId).limit(1000).get();
         const lista = snap.docs
             .filter((d) => podeVer(d.data() as never, c.ctx))

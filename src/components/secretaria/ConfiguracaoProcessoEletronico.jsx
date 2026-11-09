@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, FileUp, GitBranch, Loader2, Plus, Shapes, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, FileUp, GitBranch, History, Loader2, Plus, Shapes, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { secConfig } from '@/services/secretariaService';
+import { secConfig, secProcesso } from '@/services/secretariaService';
 import { NativeSelect, TIPOS_UNIDADE } from './comum';
 import RitoEditor from './RitoEditor';
 import PropostaRito from './PropostaRito';
@@ -18,6 +18,8 @@ import FluxoRito from './FluxoRito';
 import ConfiguracaoDocumentos from './ConfiguracaoDocumentos';
 import ConfiguracaoCalendario from './ConfiguracaoCalendario';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
+import HistoricoConfiguracao from './HistoricoConfiguracao';
+import VersoesDialog from './VersoesDialog';
 
 const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400';
 
@@ -27,21 +29,27 @@ const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:borde
  * órgão e calendário. A ordem das abas segue o caminho de quem monta o
  * processo: quem trabalha, o que se autua, como anda, com que papéis e prazos.
  */
-export default function ConfiguracaoProcessoEletronico({ orgId, estado }) {
+export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onAba }) {
+    // A aba pode ser controlada de fora (primeiros passos, resumo da implantação).
+    const [interna, setInterna] = useState('unidades');
+    const atual = aba ?? interna;
+    const mudar = onAba || setInterna;
     return (
-        <Tabs defaultValue="unidades" className="space-y-4">
+        <Tabs value={atual} onValueChange={mudar} className="space-y-4">
             <TabsList className="flex-wrap h-auto justify-start">
                 <TabsTrigger value="unidades" className="gap-2"><Building2 className="w-4 h-4" /> Unidades e equipes</TabsTrigger>
                 <TabsTrigger value="tipos" className="gap-2"><Shapes className="w-4 h-4" /> Tipos de processo</TabsTrigger>
                 <TabsTrigger value="ritos" className="gap-2"><GitBranch className="w-4 h-4" /> Ritos</TabsTrigger>
                 <TabsTrigger value="documentos" className="gap-2"><FileText className="w-4 h-4" /> Documentos e modelos</TabsTrigger>
                 <TabsTrigger value="calendario" className="gap-2"><CalendarDays className="w-4 h-4" /> Calendário</TabsTrigger>
+                <TabsTrigger value="historico" className="gap-2"><History className="w-4 h-4" /> Histórico</TabsTrigger>
             </TabsList>
             <TabsContent value="unidades"><Unidades orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} /></TabsContent>
-            <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} /></TabsContent>
+            <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} /></TabsContent>
             <TabsContent value="documentos"><ConfiguracaoDocumentos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="calendario"><ConfiguracaoCalendario orgId={orgId} estado={estado} /></TabsContent>
+            <TabsContent value="historico">{atual === 'historico' && <HistoricoConfiguracao orgId={orgId} />}</TabsContent>
         </Tabs>
     );
 }
@@ -65,7 +73,7 @@ function useSalvar(orgId) {
     return { salvar, salvando };
 }
 
-export function CartaoUnidade({ u, estado, onAbrir }) {
+export function CartaoUnidade({ u, estado, onAbrir, carga }) {
     const nomes = (u.lotacoes || []).map((l) => estado.membros.find((m) => m.uid === l.uid)?.nome).filter(Boolean);
     const gestores = (u.lotacoes || []).filter((l) => l.gestor).map((l) => estado.membros.find((m) => m.uid === l.uid)?.nome).filter(Boolean);
     return (
@@ -82,6 +90,7 @@ export function CartaoUnidade({ u, estado, onAbrir }) {
                 {nomes.length ? `${nomes.length} lotado${nomes.length > 1 ? 's' : ''}: ${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? '…' : ''}` : 'Ninguém lotado'}
             </p>
             {gestores.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Gestão: {gestores.join(', ')}</p>}
+            {carga != null && <p className={`text-xs mt-0.5 ${carga > 0 && !nomes.length ? 'text-amber-700 dark:text-amber-300 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>{carga} processo{carga === 1 ? '' : 's'} em andamento com a unidade{carga > 0 && !nomes.length ? ' e ninguém lotado' : ''}</p>}
         </button>
     );
 }
@@ -89,6 +98,9 @@ export function CartaoUnidade({ u, estado, onAbrir }) {
 function Unidades({ orgId, estado }) {
     const [aberta, setAberta] = useState(null);
     const [nova, setNova] = useState(false);
+    // Carga por unidade contada no servidor (não traz processos).
+    const cargaQ = useQuery({ queryKey: ['sec-contadores', orgId], queryFn: () => secProcesso(orgId, 'contadores'), staleTime: 60_000 });
+    const carga = cargaQ.data?.por_unidade;
     const grupos = Object.keys(TIPOS_UNIDADE).map((t) => [t, estado.unidades.filter((u) => (u.tipo || 'secretaria') === t)]).filter(([, l]) => l.length);
     return (
         <Card>
@@ -105,7 +117,7 @@ function Unidades({ orgId, estado }) {
                     <div key={tipo}>
                         <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">{TIPOS_UNIDADE[tipo].rotulo}{lista.length > 1 ? 's' : ''}</h3>
                         <div className="grid md:grid-cols-2 gap-2">
-                            {lista.map((u) => <CartaoUnidade key={u.id} u={u} estado={estado} onAbrir={() => setAberta(u.id)} />)}
+                            {lista.map((u) => <CartaoUnidade key={u.id} u={u} estado={estado} carga={carga ? carga[u.id] || 0 : undefined} onAbrir={() => setAberta(u.id)} />)}
                         </div>
                     </div>
                 ))}
@@ -116,7 +128,7 @@ function Unidades({ orgId, estado }) {
     );
 }
 
-function Ritos({ orgId, estado }) {
+function Ritos({ orgId, estado, onIr }) {
     const { salvar, salvando } = useSalvar(orgId);
     const [rito, setRito] = useState(null);
     const [importar, setImportar] = useState(false);
@@ -142,9 +154,10 @@ function Ritos({ orgId, estado }) {
             </CardContent>
             {rito && (
                 <RitoEditor rito={rito} onChange={setRito} onClose={() => setRito(null)} salvando={salvando} unidades={estado.unidades}
-                    onSalvar={() => salvar('salvarRito', { id: rito.id, rito, ativo: rito.ativo }, setRito)} />
+                    onSalvar={() => salvar('salvarRito', { id: rito.id, rito, ativo: rito.ativo }, setRito)}
+                    extra={rito.id && <VersoesDialog orgId={orgId} colecao="rito" id={rito.id} nome={rito.nome} estado={estado} onRestaurado={() => setRito(null)} />} />
             )}
-            <PropostaRito aberto={importar} orgId={orgId} estado={estado} onFechar={() => setImportar(false)} />
+            <PropostaRito aberto={importar} orgId={orgId} estado={estado} onFechar={() => setImportar(false)} onIr={onIr} />
         </Card>
     );
 }
