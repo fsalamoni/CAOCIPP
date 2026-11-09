@@ -40,7 +40,7 @@ import NotificationBell from '@/lib/NotificationBell';
 
 import { useLocation } from 'react-router-dom';
 
-const publicPages = ['Landing', 'Help', 'Terms', 'Portal'];
+const publicPages = ['Landing', 'Help', 'Terms', 'Portal', 'Conferir'];
 
 /* Campos do documento do órgão que decidem quais abas aparecem. São os únicos
    que o documento em tempo real sobrepõe ao objeto vindo do vínculo — tudo o

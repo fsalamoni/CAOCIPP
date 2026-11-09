@@ -56,6 +56,7 @@ import Terms from './pages/Terms';
 import Admin from './pages/Admin';
 import Secretaria from './pages/Secretaria';
 import Portal from './pages/Portal';
+import Conferir from './pages/Conferir';
 import __Layout from './Layout.jsx';
 
 
@@ -69,6 +70,7 @@ export const PAGES = {
     "Admin": Admin,
     "Secretaria": Secretaria,
     "Portal": Portal,
+    "Conferir": Conferir,
 }
 
 export const pagesConfig = {

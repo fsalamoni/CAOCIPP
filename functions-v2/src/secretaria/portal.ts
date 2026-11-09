@@ -6,7 +6,7 @@ import {
 } from '../shared/secretaria';
 import { COL, Contexto, REGION, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
-import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, paginasDeArquivo, pdfCarimbado, textoFolhas } from './autos';
+import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 
 /**
@@ -22,7 +22,7 @@ import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
  */
 
 const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia'];
-const TIPOS_PETICAO: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg' };
+const TIPOS_PETICAO: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 
 interface PortalRequest {
     action: 'aceitarConvite' | 'meusProcessos' | 'obter' | 'baixar' | 'pdf' | 'peticionar';
@@ -142,7 +142,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
         const d = (await ref.collection('documentos').doc(String(p.docId || '_')).get()).data();
         if (!d || d.status !== 'juntado' || d.visivel_partes === false) throw new HttpsError('not-found', 'Documento não encontrado');
-        if (p.action === 'pdf') return { base64: await pdfCarimbado(db, proc.organization_id, String(proc.numero), d), nome: `documento-${d.ordem}.pdf` };
+        if (p.action === 'pdf') return { base64: await pdfCarimbado(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), nome: `documento-${d.ordem}.pdf` };
         if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, conteudo: conteudoDoDocumento(d) };
         const [buf] = await admin.storage().bucket().file(d.storage_path).download();
         return { origem: 'upload', titulo: d.titulo, mime: d.mime, nomeArquivo: d.nome_arquivo, base64: buf.toString('base64') };
@@ -155,7 +155,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         if (!corpo && !temArquivo) throw new HttpsError('invalid-argument', 'Escreva a petição ou anexe um arquivo');
         let buf: Buffer | null = null;
         if (temArquivo) {
-            if (!TIPOS_PETICAO[String(p.mime)]) throw new HttpsError('invalid-argument', 'Anexe PDF, PNG ou JPG');
+            if (!TIPOS_PETICAO[String(p.mime)]) throw new HttpsError('invalid-argument', 'Anexe PDF, Word (DOCX), PNG ou JPG');
             buf = Buffer.from(String(p.base64), 'base64');
             if (!buf.length || buf.length > MAX_UPLOAD_BYTES) throw new HttpsError('invalid-argument', 'Arquivo vazio ou acima de 5 MB');
         }
@@ -203,7 +203,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const mov = registrarMovimento(tx, c, procRef, proc, 'peticao',
                 `Petição protocolada por ${parte.nome} (${parte.polo}): ${titulo}. Juntada como documento nº ${ordem}, ${textoFolhas(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`,
                 { documento_id: docRef.id, ordem, folha_inicial: folha, paginas });
-            tx.set(docRef, {
+            const codigo = novoCodigo();
+            const dadosDoc = {
                 titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem,
                 ...(buf ? { mime: p.mime, nome_arquivo: texto(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc }),
                 ...(pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}),
@@ -212,7 +213,11 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.nome, criado_em: agora,
                 juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.nome} (parte)`, visivel_partes: true,
                 assinaturas: [{ uid, nome: parte.nome, em: agora, sha256: hashConteudo, nivel: 'simples' }],
-            });
+                codigo_verificacao: codigo,
+            };
+            tx.set(docRef, dadosDoc);
+            tx.set(db.collection(COL.verificacao).doc(codigo),
+                registroVerificacao(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
             tx.update(procRef, { ...mov, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]) });
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora };
         });

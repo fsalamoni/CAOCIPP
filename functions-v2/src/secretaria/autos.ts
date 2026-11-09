@@ -1,9 +1,12 @@
 import * as admin from 'firebase-admin';
+import { randomBytes } from 'crypto';
+import * as QRCode from 'qrcode';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { No, deltaParaDoc } from '../shared/documento';
 import { DeltaOp } from '../shared/secretaria';
 import { COL } from './context';
 import { ConfigDocumento, dataHora, renderizarDocumento, textoParaDoc, winAnsi } from './pdfDocumento';
+import { conversivel, officeParaDoc } from './conversao';
 
 /**
  * Peças dos autos em PDF: cada documento juntado vira páginas numeradas em
@@ -28,6 +31,9 @@ export async function paginasDeArquivo(buf: Buffer, mime: string): Promise<numbe
         try { return (await PDFDocument.load(buf, { ignoreEncryption: true })).getPageCount(); } catch { return 1; }
     }
     if (mime === 'text/plain') return (await renderizarDocumento(textoParaDoc(buf.toString('utf8')), {}, { semCabecalho: true })).paginas;
+    if (conversivel(mime)) {
+        try { return (await renderizarDocumento((await officeParaDoc(buf, mime))!, {}, { semCabecalho: true })).paginas; } catch { return 1; }
+    }
     return 1; // imagem numa folha; outros formatos, folha de referência
 }
 
@@ -73,6 +79,7 @@ export async function pdfDoDocumento(d: admin.firestore.DocumentData, cfg: Confi
         }
         if (d.mime === 'image/png' || d.mime === 'image/jpeg') return folhaSimples(d.titulo, [], { buf, mime: d.mime });
         if (d.mime === 'text/plain') return (await renderizarDocumento(textoParaDoc(buf.toString('utf8')), {}, { semCabecalho: true })).buffer;
+        if (conversivel(d.mime)) return (await renderizarDocumento((await officeParaDoc(buf, d.mime))!, {}, { semCabecalho: true })).buffer;
     } catch {
         return folhaSimples(String(d.titulo), ['Não foi possível incorporar este arquivo (corrompido ou protegido).', 'O original continua nos autos eletrônicos.', `SHA-256 ${d.sha256}`]);
     }
@@ -83,26 +90,94 @@ export async function pdfDoDocumento(d: admin.firestore.DocumentData, cfg: Confi
     ]);
 }
 
+// ---------------------------------------------------------------------------
+// Código de verificação: cada documento juntado ganha um código aleatório
+// (80 bits) impresso em todas as folhas, com QR para a página pública
+// /Conferir, que mostra os dados da juntada, signatários e hashes.
+// ---------------------------------------------------------------------------
+
+export const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
+const BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+export function novoCodigo(): string {
+    const b = randomBytes(10);
+    let bits = 0, valor = 0, out = '';
+    for (const byte of b) {
+        valor = (valor << 8) | byte; bits += 8;
+        while (bits >= 5) { out += BASE32[(valor >>> (bits - 5)) & 31]; bits -= 5; }
+    }
+    return out.match(/.{4}/g)!.join('-');
+}
+
+/** Aceita minúsculas, espaços, sem hífen e O/I/L no lugar de 0/1. */
+export function normalizarCodigo(v: unknown): string {
+    const s = String(v || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+    return s.length === 16 && [...s].every((ch) => BASE32.includes(ch)) ? s.match(/.{4}/g)!.join('-') : '';
+}
+
+export const urlConferencia = (codigo: string) => `${APP_URL}/Conferir?c=${codigo}`;
+
+/** O que a página pública mostra sobre um documento juntado. */
+export function registroVerificacao(
+    orgId: string, orgao: string, procId: string, proc: admin.firestore.DocumentData,
+    docId: string, d: admin.firestore.DocumentData,
+) {
+    return {
+        organization_id: orgId, orgao, processo_id: procId, numero: String(proc.numero), documento_id: docId,
+        ordem: d.ordem ?? null, titulo: String(d.titulo || ''), tipo: String(d.tipo || ''), origem: d.origem || null,
+        nome_arquivo: d.nome_arquivo || null, juntado_em: d.juntado_em || null, juntado_por: d.juntado_por_nome || null,
+        folha_inicial: d.folha_inicial ?? null, folha_final: d.folha_final ?? null, paginas: d.paginas ?? null,
+        assinaturas: ((d.assinaturas || []) as Array<{ nome: string; em: string; nivel?: string }>).map((a) => ({ nome: a.nome, em: a.em, nivel: a.nivel || 'simples' })),
+        sha256: d.sha256 || null, pdf_sha256: d.pdf_sha256 || null, peticao: d.peticao === true,
+        criado_em: new Date().toISOString(),
+    };
+}
+
+/** Código do documento juntado; cria (uma vez) para documentos juntados antes desta função. */
+export async function garantirCodigo(
+    db: admin.firestore.Firestore, orgId: string, procId: string, numero: string, docId: string,
+): Promise<string | null> {
+    const procRef = db.collection(COL.processos).doc(procId);
+    const ref = procRef.collection('documentos').doc(docId);
+    return db.runTransaction(async (tx) => {
+        const [s, p, o] = await Promise.all([tx.get(ref), tx.get(procRef), tx.get(db.collection('organizations').doc(orgId))]);
+        const d = s.data();
+        if (!d || d.status !== 'juntado') return null;
+        if (d.codigo_verificacao) return String(d.codigo_verificacao);
+        const codigo = novoCodigo();
+        tx.set(db.collection(COL.verificacao).doc(codigo), registroVerificacao(orgId, String(o.data()?.name || ''), procId, p.data() || { numero }, docId, d));
+        tx.update(ref, { codigo_verificacao: codigo });
+        return codigo;
+    });
+}
+
 /**
- * Carimba as páginas: no topo, processo e folha; no rodapé, documento,
- * juntada e hash. Devolve quantas páginas o documento ocupou.
+ * Carimba as páginas: no topo, processo e folha (e código de conferência com
+ * QR); no rodapé, documento, juntada e hash. Devolve quantas páginas o
+ * documento ocupou.
  */
 export async function anexarCarimbado(
     destino: PDFDocument,
     origem: Uint8Array,
-    info: { processo: string; folha: number | null; ordem?: number; titulo: string; juntadoEm?: string; juntadoPor?: string; sha256?: string },
+    info: { processo: string; folha: number | null; ordem?: number; titulo: string; juntadoEm?: string; juntadoPor?: string; sha256?: string; codigo?: string | null },
 ): Promise<number> {
     let src: PDFDocument;
     try { src = await PDFDocument.load(origem, { ignoreEncryption: true }); } catch {
         src = await PDFDocument.load(await folhaSimples(info.titulo, ['Arquivo não pôde ser lido.', `SHA-256 ${info.sha256 || ''}`]));
     }
     const font = await destino.embedFont(StandardFonts.Helvetica);
+    const qr = info.codigo ? await destino.embedPng(await QRCode.toBuffer(urlConferencia(info.codigo), { margin: 0, width: 96, errorCorrectionLevel: 'M' })) : null;
     const paginas = await destino.copyPages(src, src.getPageIndices());
     paginas.forEach((pg, i) => {
         destino.addPage(pg);
         const { width, height } = pg.getSize();
         const topo = winAnsi(`Processo nº ${info.processo}${info.folha ? ` · fls. ${info.folha + i}` : ''}`);
         pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: rgb(0.25, 0.25, 0.4) });
+        if (qr && info.codigo) {
+            pg.drawImage(qr, { x: 14, y: height - 52, width: 34, height: 34 });
+            pg.drawText(winAnsi(`Conferência: ${info.codigo}`), { x: 52, y: height - 26, size: 6.5, font, color: rgb(0.25, 0.25, 0.4) });
+            pg.drawText(winAnsi(`${APP_URL.replace(/^https?:\/\//, '')}/Conferir`), { x: 52, y: height - 35, size: 6, font, color: rgb(0.4, 0.4, 0.4) });
+        }
         if (info.ordem) {
             const base = winAnsi(`Doc. nº ${info.ordem} · ${info.titulo.slice(0, 60)}${info.juntadoEm ? ` · juntado em ${dataHora(info.juntadoEm)}${info.juntadoPor ? ` por ${info.juntadoPor}` : ''}` : ''}${info.sha256 ? ` · SHA-256 ${info.sha256.slice(0, 16)}…` : ''}`);
             pg.drawText(base, { x: 20, y: 8, size: 6, font, color: rgb(0.4, 0.4, 0.4), maxWidth: width - 40 });
@@ -129,12 +204,15 @@ export async function folhasDoProcesso(
 export const textoFolhas = (ini: number, qtd: number) => (qtd > 1 ? `fls. ${ini} a ${ini + qtd - 1}` : `fl. ${ini}`);
 
 /** Um documento juntado, carimbado, em PDF próprio (download avulso). */
-export async function pdfCarimbado(db: admin.firestore.Firestore, orgId: string, numero: string, d: admin.firestore.DocumentData): Promise<string> {
+export async function pdfCarimbado(
+    db: admin.firestore.Firestore, orgId: string, procId: string, numero: string, docId: string, d: admin.firestore.DocumentData,
+): Promise<string> {
     const cfg = await lerConfigDocumento(db, orgId);
     const destino = await PDFDocument.create();
+    const codigo = d.codigo_verificacao || await garantirCodigo(db, orgId, procId, numero, docId);
     await anexarCarimbado(destino, await pdfDoDocumento(d, cfg), {
         processo: numero, folha: typeof d.folha_inicial === 'number' ? d.folha_inicial : null, ordem: d.ordem,
-        titulo: String(d.titulo), juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256,
+        titulo: String(d.titulo), juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo,
     });
     return Buffer.from(await destino.save()).toString('base64');
 }

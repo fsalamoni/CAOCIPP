@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = void 0;
+exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = void 0;
 exports.texto = texto;
 exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
@@ -15,10 +15,13 @@ exports.hashMovimento = hashMovimento;
 exports.verificarCadeia = verificarCadeia;
 exports.sanitizeDelta = sanitizeDelta;
 exports.deltaParaTexto = deltaParaTexto;
+exports.sanitizeCalendario = sanitizeCalendario;
+exports.emRecesso = emRecesso;
 exports.pascoa = pascoa;
 exports.feriadosNacionais = feriadosNacionais;
 exports.diaUtil = diaUtil;
 exports.calcularVencimento = calcularVencimento;
+exports.somarDias = somarDias;
 exports.hojeBrasil = hojeBrasil;
 exports.derivados = derivados;
 const crypto_1 = require("crypto");
@@ -223,6 +226,34 @@ function sanitizeDelta(input) {
 function deltaParaTexto(ops) {
     return ops.map((o) => o.insert).join('');
 }
+exports.MAX_FERIADOS = 200;
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const dataValida = (v) => typeof v === 'string' && DATA_ISO.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+function sanitizeCalendario(input) {
+    const o = (input && typeof input === 'object' ? input : {});
+    const feriados = (Array.isArray(o.feriados) ? o.feriados : [])
+        .map((f) => (f && typeof f === 'object' ? f : {}))
+        .filter((f) => dataValida(f.data))
+        .map((f) => ({ data: String(f.data), descricao: texto(f.descricao, 80) }));
+    const unicos = [...new Map(feriados.map((f) => [f.data, f])).values()].sort((a, b) => a.data.localeCompare(b.data)).slice(0, exports.MAX_FERIADOS);
+    const recessos = (Array.isArray(o.recessos) ? o.recessos : [])
+        .map((r) => (r && typeof r === 'object' ? r : {}))
+        .filter((r) => dataValida(r.inicio) && dataValida(r.fim) && String(r.inicio) <= String(r.fim))
+        .filter((r) => (Date.parse(String(r.fim)) - Date.parse(String(r.inicio))) / 86400000 <= 120)
+        .map((r) => ({ inicio: String(r.inicio), fim: String(r.fim), descricao: texto(r.descricao, 80) }))
+        .slice(0, 50);
+    return { feriados: unicos, recessos, recesso_forense: o.recesso_forense === true };
+}
+/** Dia em que os prazos ficam suspensos pelo recesso do órgão. */
+function emRecesso(d, cal) {
+    if (!cal)
+        return false;
+    const s = iso(d);
+    const md = s.slice(5);
+    if (cal.recesso_forense && (md >= '12-20' || md <= '01-20'))
+        return true;
+    return (cal.recessos || []).some((r) => s >= r.inicio && s <= r.fim);
+}
 exports.MAX_PRAZO_DIAS = 3650;
 exports.MAX_ITENS = 200;
 function iso(d) {
@@ -245,21 +276,36 @@ function feriadosNacionais(ano) {
     const moveis = [-48, -47, -2, 60].map((n) => iso(new Date(p + n * 86400000)));
     return new Set([...FIXOS.map((f) => `${ano}-${f}`), ...moveis]);
 }
-function diaUtil(d) {
+function diaUtil(d, cal) {
+    var _a;
     const w = d.getUTCDay();
-    return w !== 0 && w !== 6 && !feriadosNacionais(d.getUTCFullYear()).has(iso(d));
+    if (w === 0 || w === 6)
+        return false;
+    const s = iso(d);
+    if (feriadosNacionais(d.getUTCFullYear()).has(s))
+        return false;
+    if ((_a = cal === null || cal === void 0 ? void 0 : cal.feriados) === null || _a === void 0 ? void 0 : _a.some((f) => f.data === s))
+        return false;
+    return !emRecesso(d, cal);
 }
 /** Data de vencimento (AAAA-MM-DD) de um prazo aberto em `inicio` (AAAA-MM-DD). */
-function calcularVencimento(inicio, dias, contagem) {
+function calcularVencimento(inicio, dias, contagem, cal) {
     const d = new Date(`${inicio}T00:00:00Z`);
     let restantes = dias;
     while (restantes > 0) {
         d.setUTCDate(d.getUTCDate() + 1);
-        if (contagem === 'corridos' || diaUtil(d))
+        // Recesso suspende o prazo também em dias corridos.
+        if (contagem === 'corridos' ? !emRecesso(d, cal) : diaUtil(d, cal))
             restantes--;
     }
-    while (!diaUtil(d))
+    while (!diaUtil(d, cal))
         d.setUTCDate(d.getUTCDate() + 1);
+    return iso(d);
+}
+/** AAAA-MM-DD somado de n dias corridos. */
+function somarDias(data, n) {
+    const d = new Date(`${data}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
     return iso(d);
 }
 /** Hoje no fuso de Brasília, AAAA-MM-DD. */

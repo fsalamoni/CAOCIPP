@@ -167,6 +167,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <div className="flex-1 min-w-0">
                                         <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => verNosAutos(d)}>{d.titulo}</button>
                                         <p className="text-xs text-slate-500 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
+                                        {d.codigo_verificacao && (
+                                            <a href={`/Conferir?c=${d.codigo_verificacao}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-700 dark:text-indigo-300 hover:underline" title="Abrir a conferência pública deste documento">
+                                                Conferência {d.codigo_verificacao}
+                                            </a>
+                                        )}
                                     </div>
                                     {d.peticao && <Badge variant="secondary">Petição da parte</Badge>}
                                     {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}

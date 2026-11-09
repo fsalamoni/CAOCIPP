@@ -38,6 +38,15 @@ export const secPortal = (action, extra = {}) =>
 export const secPlataforma = (action, extra = {}) =>
     call('secretariaPlataforma', { action, ...extra });
 
+/** Conferência pública de documento juntado (sem login), pelo código das folhas. */
+export const secConferir = (codigo) => call('secretariaConferir', { codigo });
+
+/** SHA-256 (hex) de um arquivo, calculado no navegador. */
+export async function sha256Arquivo(file) {
+    const h = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 /** base64 → URL de objeto (pré-visualização); revogue quando não precisar mais. */
 export function base64ParaUrl(base64, mime = 'application/pdf') {
     const bin = atob(base64);

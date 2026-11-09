@@ -421,12 +421,15 @@ CAOCIPP/
 }
 ```
 
-#### Secretaria Processual (`secUnidades`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secConfig`, `secModelos`, `secProcessos` + subcoleções `movimentos` e `documentos`)
+#### Secretaria Processual (`secUnidades`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secConfig`, `secModelos`, `secVerificacao`, `secProcessos` + subcoleções `movimentos` e `documentos`)
 **Purpose:** Processo eletrônico do órgão. Fechadas ao cliente; tudo passa pelas
 functions `secretaria*`. Arquivos no Cloud Storage em
 `secretaria/{org}/{processo}/{documento}` (e `.pdf` ao lado, para textos
 juntados). PDFs gerados no servidor com `pdfmake` (documento) e `pdf-lib`
-(carimbo de folhas e autos); editor no navegador com TipTap. Modelo completo em
+(carimbo de folhas e autos, com QR do código de conferência via `qrcode`);
+Word e Excel convertidos no servidor com `mammoth` e `xlsx`; editor no
+navegador com TipTap. Página pública `/Conferir` e alerta diário de prazos
+(`secretariaAlertaPrazos`, Cloud Scheduler). Modelo completo em
 [SECRETARIA.md](./SECRETARIA.md).
 
 ---

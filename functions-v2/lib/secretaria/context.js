@@ -23,6 +23,7 @@ exports.COL = {
     convites: 'secConvites',
     tipos: 'secTipos',
     config: 'secConfig',
+    verificacao: 'secVerificacao',
     modelos: 'secModelos',
 };
 function exigirAuth(request) {

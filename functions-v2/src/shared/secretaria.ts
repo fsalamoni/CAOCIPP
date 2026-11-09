@@ -267,9 +267,47 @@ export function deltaParaTexto(ops: DeltaOp[]): string {
 // Prazos. Regra do CPC (art. 224): exclui o dia do começo e inclui o do
 // vencimento; se o vencimento cai em dia não útil, prorroga para o primeiro
 // útil seguinte. Em dias úteis, só contam dias úteis.
-// ponytail: feriados nacionais apenas (fixos + Carnaval, Sexta-feira Santa e
-// Corpus Christi); feriados locais e recesso por órgão quando alguém pedir.
+// Além dos feriados nacionais, o órgão cadastra feriados locais (não úteis)
+// e períodos de recesso, em que os prazos ficam suspensos (não contam nem em
+// dias corridos, como no art. 220 do CPC).
 // ---------------------------------------------------------------------------
+
+export interface CalendarioOrgao {
+    /** Datas AAAA-MM-DD com descrição. */
+    feriados?: Array<{ data: string; descricao?: string }>;
+    /** Períodos (inclusivos) em que os prazos ficam suspensos. */
+    recessos?: Array<{ inicio: string; fim: string; descricao?: string }>;
+    /** Recesso forense anual de 20/12 a 20/01. */
+    recesso_forense?: boolean;
+}
+export const MAX_FERIADOS = 200;
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const dataValida = (v: unknown): v is string => typeof v === 'string' && DATA_ISO.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+
+export function sanitizeCalendario(input: unknown): Required<CalendarioOrgao> {
+    const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const feriados = (Array.isArray(o.feriados) ? o.feriados : [])
+        .map((f) => (f && typeof f === 'object' ? f : {}) as Record<string, unknown>)
+        .filter((f) => dataValida(f.data))
+        .map((f) => ({ data: String(f.data), descricao: texto(f.descricao, 80) }));
+    const unicos = [...new Map(feriados.map((f) => [f.data, f])).values()].sort((a, b) => a.data.localeCompare(b.data)).slice(0, MAX_FERIADOS);
+    const recessos = (Array.isArray(o.recessos) ? o.recessos : [])
+        .map((r) => (r && typeof r === 'object' ? r : {}) as Record<string, unknown>)
+        .filter((r) => dataValida(r.inicio) && dataValida(r.fim) && String(r.inicio) <= String(r.fim))
+        .filter((r) => (Date.parse(String(r.fim)) - Date.parse(String(r.inicio))) / 86400000 <= 120)
+        .map((r) => ({ inicio: String(r.inicio), fim: String(r.fim), descricao: texto(r.descricao, 80) }))
+        .slice(0, 50);
+    return { feriados: unicos, recessos, recesso_forense: o.recesso_forense === true };
+}
+
+/** Dia em que os prazos ficam suspensos pelo recesso do órgão. */
+export function emRecesso(d: Date, cal?: CalendarioOrgao): boolean {
+    if (!cal) return false;
+    const s = iso(d);
+    const md = s.slice(5);
+    if (cal.recesso_forense && (md >= '12-20' || md <= '01-20')) return true;
+    return (cal.recessos || []).some((r) => s >= r.inicio && s <= r.fim);
+}
 
 export type Contagem = 'corridos' | 'uteis';
 export const MAX_PRAZO_DIAS = 3650;
@@ -299,20 +337,32 @@ export function feriadosNacionais(ano: number): Set<string> {
     return new Set([...FIXOS.map((f) => `${ano}-${f}`), ...moveis]);
 }
 
-export function diaUtil(d: Date): boolean {
+export function diaUtil(d: Date, cal?: CalendarioOrgao): boolean {
     const w = d.getUTCDay();
-    return w !== 0 && w !== 6 && !feriadosNacionais(d.getUTCFullYear()).has(iso(d));
+    if (w === 0 || w === 6) return false;
+    const s = iso(d);
+    if (feriadosNacionais(d.getUTCFullYear()).has(s)) return false;
+    if (cal?.feriados?.some((f) => f.data === s)) return false;
+    return !emRecesso(d, cal);
 }
 
 /** Data de vencimento (AAAA-MM-DD) de um prazo aberto em `inicio` (AAAA-MM-DD). */
-export function calcularVencimento(inicio: string, dias: number, contagem: Contagem): string {
+export function calcularVencimento(inicio: string, dias: number, contagem: Contagem, cal?: CalendarioOrgao): string {
     const d = new Date(`${inicio}T00:00:00Z`);
     let restantes = dias;
     while (restantes > 0) {
         d.setUTCDate(d.getUTCDate() + 1);
-        if (contagem === 'corridos' || diaUtil(d)) restantes--;
+        // Recesso suspende o prazo também em dias corridos.
+        if (contagem === 'corridos' ? !emRecesso(d, cal) : diaUtil(d, cal)) restantes--;
     }
-    while (!diaUtil(d)) d.setUTCDate(d.getUTCDate() + 1);
+    while (!diaUtil(d, cal)) d.setUTCDate(d.getUTCDate() + 1);
+    return iso(d);
+}
+
+/** AAAA-MM-DD somado de n dias corridos. */
+export function somarDias(data: string, n: number): string {
+    const d = new Date(`${data}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
     return iso(d);
 }
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Gavel, Inbox, Loader2, Plus, Settings, Files } from 'lucide-react';
+import { ArrowLeft, Gavel, Inbox, Loader2, Plus, Settings, Files, LayoutDashboard, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,6 +16,7 @@ import { secConfig, secProcesso } from '@/services/secretariaService';
 import ProcessoView from '@/components/secretaria/ProcessoView';
 import SecretariaConfiguracao from '@/components/secretaria/SecretariaConfiguracao';
 import FluxoRito from '@/components/secretaria/FluxoRito';
+import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import { STATUS_ROTULO, NativeSelect } from '@/components/secretaria/comum';
 
 export default function Secretaria() {
@@ -101,10 +102,12 @@ export default function Secretaria() {
                     <TabsList>
                         <TabsTrigger value="caixa" className="gap-2"><Inbox className="w-4 h-4" /> Caixa da unidade</TabsTrigger>
                         <TabsTrigger value="todos" className="gap-2"><Files className="w-4 h-4" /> Todos</TabsTrigger>
+                        <TabsTrigger value="painel" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Painel</TabsTrigger>
                         {estado.isAdmin && <TabsTrigger value="config" className="gap-2"><Settings className="w-4 h-4" /> Configuração</TabsTrigger>}
                     </TabsList>
                     <TabsContent value="caixa"><ListaProcessos orgId={orgId} escopo="caixa" estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="todos"><ListaProcessos orgId={orgId} escopo="todos" estado={estado} onAbrir={abrir} /></TabsContent>
+                    <TabsContent value="painel"><PainelSecretaria orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
                     {estado.isAdmin && <TabsContent value="config"><SecretariaConfiguracao orgId={orgId} estado={estado} /></TabsContent>}
                 </Tabs>
             )}
@@ -112,48 +115,106 @@ export default function Secretaria() {
     );
 }
 
-function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
-    const [filtro, setFiltro] = useState('');
-    const [situacao, setSituacao] = useState('todos');
-    const [tipoF, setTipoF] = useState('');
+const FILTROS_VAZIOS = { texto: '', situacao: 'todos', tipo: '', unidade: '', fase: '', status: '', sigilo: '', de: '', ate: '' };
+const sel = 'h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
+// Busca sem acento: "joao" acha "João".
+const norm = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const Campo = ({ rotulo, children }) => (
+    <label className="text-sm space-y-1"><span className="block text-slate-600 dark:text-slate-300">{rotulo}</span>{children}</label>
+);
+
+export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
+    const [f, setF] = useState(FILTROS_VAZIOS);
+    const [avancado, setAvancado] = useState(false);
+    const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     const q = useQuery({
         queryKey: ['sec-processos', orgId, escopo],
         queryFn: () => secProcesso(orgId, 'listar', { escopo }),
     });
     if (q.isLoading) return <div className="py-8 text-slate-500 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <div className="py-8 text-red-600">{q.error.message}</div>;
-    const termo = filtro.trim().toLowerCase();
+    const todos = q.data?.processos || [];
+    const termo = norm(f.texto.trim());
+    const termoDig = f.texto.replace(/\D/g, '');
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-    const lista = (q.data?.processos || [])
-        .filter((p) => !termo || `${p.numero} ${p.assunto} ${p.tipo_nome || ''}`.toLowerCase().includes(termo))
-        .filter((p) => !tipoF || p.tipo_id === tipoF)
-        .filter((p) => situacao === 'todos'
-            || (situacao === 'pendencia' && p.pendencias_abertas > 0)
-            || (situacao === 'vencido' && p.proximo_vencimento && p.proximo_vencimento < hoje)
-            || (situacao === 'prazo' && p.proximo_vencimento));
+    const fases = [...new Set(todos.map((p) => p.fase_nome).filter(Boolean))].sort();
+    const lista = todos
+        .filter((p) => !termo || norm(`${p.numero} ${p.assunto} ${p.tipo_nome || ''} ${p.partes_resumo || ''}`).includes(termo)
+            || (termoDig.length >= 3 && String(p.partes_resumo || '').replace(/\D/g, '').includes(termoDig)))
+        .filter((p) => !f.tipo || p.tipo_id === f.tipo)
+        .filter((p) => !f.unidade || p.unidade_atual === f.unidade)
+        .filter((p) => !f.fase || p.fase_nome === f.fase)
+        .filter((p) => !f.status || p.status === f.status)
+        .filter((p) => !f.sigilo || p.sigilo === f.sigilo)
+        .filter((p) => !f.de || (p.autuado_em || '').slice(0, 10) >= f.de)
+        .filter((p) => !f.ate || (p.autuado_em || '').slice(0, 10) <= f.ate)
+        .filter((p) => f.situacao === 'todos'
+            || (f.situacao === 'pendencia' && p.pendencias_abertas > 0)
+            || (f.situacao === 'vencido' && p.proximo_vencimento && p.proximo_vencimento < hoje)
+            || (f.situacao === 'prazo' && p.proximo_vencimento));
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '—';
     const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome;
+    const ativos = Object.entries(f).filter(([k, v]) => v !== FILTROS_VAZIOS[k]).length;
 
     return (
         <div className="space-y-3 pt-2">
             <div className="flex flex-wrap gap-2 items-center">
-                <Input placeholder="Filtrar por número ou assunto" value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-sm" />
-                <select aria-label="Filtrar por situação" value={situacao} onChange={(e) => setSituacao(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
-                    <option value="todos">Todos</option>
+                <Input placeholder="Número, assunto, parte ou CPF/CNPJ" aria-label="Buscar processos" value={f.texto} onChange={(e) => set('texto', e.target.value)} className="max-w-sm" />
+                <select aria-label="Filtrar por situação" value={f.situacao} onChange={(e) => set('situacao', e.target.value)} className={sel}>
+                    <option value="todos">Qualquer situação</option>
                     <option value="pendencia">Com pendência para o decisor</option>
                     <option value="prazo">Com prazo aberto</option>
                     <option value="vencido">Com prazo vencido</option>
                 </select>
-                {(estado.tipos || []).length > 0 && (
-                    <select aria-label="Filtrar por tipo de processo" value={tipoF} onChange={(e) => setTipoF(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
-                        <option value="">Todos os tipos</option>
-                        {estado.tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                    </select>
+                <Button variant="outline" size="sm" className="gap-2" aria-expanded={avancado} onClick={() => setAvancado((v) => !v)}>
+                    <SlidersHorizontal className="w-4 h-4" /> Mais filtros
+                </Button>
+                {ativos > 0 && (
+                    <Button variant="ghost" size="sm" className="gap-1" onClick={() => setF(FILTROS_VAZIOS)}><X className="w-4 h-4" /> Limpar filtros</Button>
                 )}
+                <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}</span>
             </div>
+            {avancado && (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900/50">
+                    <Campo rotulo="Unidade atual">
+                        <select value={f.unidade} onChange={(e) => set('unidade', e.target.value)} className={`${sel} w-full`}>
+                            <option value="">Todas</option>
+                            {estado.unidades.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                        </select>
+                    </Campo>
+                    <Campo rotulo="Fase">
+                        <select value={f.fase} onChange={(e) => set('fase', e.target.value)} className={`${sel} w-full`}>
+                            <option value="">Todas</option>
+                            {fases.map((n) => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                    </Campo>
+                    <Campo rotulo="Tipo de processo">
+                        <select value={f.tipo} onChange={(e) => set('tipo', e.target.value)} className={`${sel} w-full`}>
+                            <option value="">Todos</option>
+                            {(estado.tipos || []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                        </select>
+                    </Campo>
+                    <Campo rotulo="Status">
+                        <select value={f.status} onChange={(e) => set('status', e.target.value)} className={`${sel} w-full`}>
+                            <option value="">Todos</option>
+                            {Object.entries(STATUS_ROTULO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                    </Campo>
+                    <Campo rotulo="Sigilo">
+                        <select value={f.sigilo} onChange={(e) => set('sigilo', e.target.value)} className={`${sel} w-full`}>
+                            <option value="">Todos</option>
+                            <option value="normal">Normal</option>
+                            <option value="restrito">Restrito</option>
+                        </select>
+                    </Campo>
+                    <Campo rotulo="Autuado de"><Input type="date" value={f.de} onChange={(e) => set('de', e.target.value)} /></Campo>
+                    <Campo rotulo="Autuado até"><Input type="date" value={f.ate} onChange={(e) => set('ate', e.target.value)} /></Campo>
+                </div>
+            )}
             {lista.length === 0 ? (
                 <p className="py-8 text-slate-500 dark:text-slate-400">
-                    {escopo === 'caixa' ? 'Nenhum processo com as suas unidades.' : 'Nenhum processo visível para você.'}
+                    {todos.length && ativos ? 'Nenhum processo com esses filtros.' : escopo === 'caixa' ? 'Nenhum processo com as suas unidades.' : 'Nenhum processo visível para você.'}
                 </p>
             ) : (
                 <div className="divide-y divide-slate-200 dark:divide-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">

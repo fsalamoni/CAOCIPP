@@ -48,7 +48,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId, { permitirInativa: true });
@@ -98,12 +98,14 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             documento: sanitizeDocumentoConfig((_c = cfgSnap.data()) === null || _c === void 0 ? void 0 : _c.documento),
+            calendario: (0, secretaria_1.sanitizeCalendario)((_d = cfgSnap.data()) === null || _d === void 0 ? void 0 : _d.calendario),
+            alerta_prazos: ((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.alerta_prazos) === true,
             modelos: modelosSnap.docs.map((d) => {
                 const m = d.data();
                 return { id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
-            suspensa_plataforma: ((_d = c.org.secretariaConfig) === null || _d === void 0 ? void 0 : _d.suspensa_plataforma) === true,
-            motivo_suspensao: ((_e = c.org.secretariaConfig) === null || _e === void 0 ? void 0 : _e.motivo_suspensao) || '',
+            suspensa_plataforma: ((_f = c.org.secretariaConfig) === null || _f === void 0 ? void 0 : _f.suspensa_plataforma) === true,
+            motivo_suspensao: ((_g = c.org.secretariaConfig) === null || _g === void 0 ? void 0 : _g.motivo_suspensao) || '',
             orgao: String(c.org.name || ''),
             membros,
         };
@@ -129,6 +131,15 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_DOCUMENTO_CONFIG', { linhas: documento.cabecalho_linhas.length, brasao: !!documento.brasao });
         return { success: true };
     }
+    if (p.action === 'salvarCalendario') {
+        const calendario = (0, secretaria_1.sanitizeCalendario)(p.calendario);
+        const alerta = p.alerta_prazos === true;
+        await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, calendario, alerta_prazos: alerta, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await auditar(db, orgId, auth.uid, c.userName, 'SECRETARIA_CALENDARIO', {
+            feriados: calendario.feriados.length, recessos: calendario.recessos.length, recesso_forense: calendario.recesso_forense, alerta_prazos: alerta,
+        });
+        return { success: true, calendario };
+    }
     if (p.action === 'salvarModelo') {
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
         const nome = (0, secretaria_1.texto)(m.nome, 120);
@@ -148,7 +159,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const col = db.collection(context_1.COL.modelos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if (((_f = (await ref.get()).data()) === null || _f === void 0 ? void 0 : _f.organization_id) !== orgId)
+            if (((_h = (await ref.get()).data()) === null || _h === void 0 ? void 0 : _h.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
             await ref.update(dados);
         }
@@ -241,11 +252,11 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_g = snap.data()) === null || _g === void 0 ? void 0 : _g.organization_id) !== orgId)
+            if (!snap.exists || ((_j = snap.data()) === null || _j === void 0 ? void 0 : _j.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos.
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_h = snap.data()) === null || _h === void 0 ? void 0 : _h.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_k = snap.data()) === null || _k === void 0 ? void 0 : _k.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).get()).size;
@@ -276,7 +287,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if (((_j = (await ref.get()).data()) === null || _j === void 0 ? void 0 : _j.organization_id) !== orgId)
+            if (((_l = (await ref.get()).data()) === null || _l === void 0 ? void 0 : _l.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
             await ref.update(dados);
         }

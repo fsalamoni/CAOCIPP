@@ -53,9 +53,16 @@ function resumo(id, d) {
         pendencias_abertas: d.pendencias_abertas || 0,
         fase_suspensa: d.fase_suspensa === true,
         proximo_vencimento: d.proximo_vencimento || null,
+        // Pesquisa e painéis.
+        rito_id: d.rito_id || null,
+        autuado_em: d.autuado_em || null,
+        partes_resumo: (d.partes || []).map((x) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
+        pendencia_desde: (d.pendencias || [])
+            .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
+    var _a;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -80,7 +87,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
-            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final').get(),
+            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao').get(),
         ]);
         const movimentos = movs.docs.map((d) => d.data());
         const posse = (0, secretaria_1.podeAgir)(data, c.ctx);
@@ -95,7 +102,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
             assinaturas: d.assinaturas || [],
             peticao: d.peticao === true, visivel_partes: d.visivel_partes !== false,
-            paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null,
+            paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null,
         }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
@@ -154,6 +161,10 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     }
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
+    // Feriados locais e recesso do órgão entram na contagem de prazos.
+    const calendario = p.action === 'abrirPrazo'
+        ? (0, secretaria_1.sanitizeCalendario)((_a = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _a === void 0 ? void 0 : _a.calendario)
+        : undefined;
     const convite = { token: '', email: '', parte: '', numero: '' };
     const resultado = await db.runTransaction(async (tx) => {
         var _a, _b, _d;
@@ -272,7 +283,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const inicio = (0, secretaria_1.hojeBrasil)();
             const novo = {
                 id: ref.collection('_').doc().id, descricao, destinatario: (0, secretaria_1.texto)(p.destinatario), dias, contagem,
-                inicio, vence_em: (0, secretaria_1.calcularVencimento)(inicio, dias, contagem), status: 'aberto',
+                inicio, vence_em: (0, secretaria_1.calcularVencimento)(inicio, dias, contagem, calendario), status: 'aberto',
                 aberto_em: agora, aberto_por: c.userName,
             };
             const lista = [...prazos, novo];

@@ -4,7 +4,7 @@ import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { Fase, verificarCadeia } from '../shared/secretaria';
 import { REGION, carregarContexto, exigirAuth, lerProcesso, nomeUnidade } from './context';
 import { auditar } from './config';
-import { anexarCarimbado, folhaSimples, lerConfigDocumento, pdfDoDocumento, textoFolhas } from './autos';
+import { anexarCarimbado, folhaSimples, garantirCodigo, lerConfigDocumento, pdfDoDocumento, textoFolhas } from './autos';
 
 /**
  * Exporta os autos em um PDF único, em ordem cronológica: capa, índice de
@@ -153,9 +153,10 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
         let folha = 1;
         const linhasIndice: string[] = [];
         for (const { d, bytes } of pecas) {
+            const codigo = d.codigo_verificacao || await garantirCodigo(c.db, c.orgId, ref.id, String(proc.numero), d.id);
             const qtd = await anexarCarimbado(pdf, bytes, {
                 processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo),
-                juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256,
+                juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo,
             });
             linhasIndice.push(`Doc. nº ${d.ordem} — ${d.titulo} (${d.tipo}) — ${textoFolhas(folha, qtd)}`);
             folha += qtd;

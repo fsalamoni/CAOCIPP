@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    Contagem, Fase, MAX_ITENS, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
+    CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
     fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
@@ -90,6 +90,12 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         pendencias_abertas: d.pendencias_abertas || 0,
         fase_suspensa: d.fase_suspensa === true,
         proximo_vencimento: d.proximo_vencimento || null,
+        // Pesquisa e painéis.
+        rito_id: d.rito_id || null,
+        autuado_em: d.autuado_em || null,
+        partes_resumo: (d.partes || []).map((x: { nome?: string; documento?: string }) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
+        pendencia_desde: ((d.pendencias || []) as Pendencia[])
+            .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
     };
 }
 
@@ -119,7 +125,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
             ref.collection('documentos').select(
                 'titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem',
-                'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final',
+                'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
             ).get(),
         ]);
         const movimentos = movs.docs.map((d) => d.data());
@@ -135,7 +141,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
                 assinaturas: d.assinaturas || [],
                 peticao: d.peticao === true, visivel_partes: d.visivel_partes !== false,
-                paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null,
+                paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null,
             }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
@@ -230,6 +236,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
 
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = texto(p.motivo, MAX_TEXTO_LONGO);
+    // Feriados locais e recesso do órgão entram na contagem de prazos.
+    const calendario: CalendarioOrgao | undefined = p.action === 'abrirPrazo'
+        ? sanitizeCalendario((await db.collection(COL.config).doc(orgId).get()).data()?.calendario)
+        : undefined;
     const convite = { token: '', email: '', parte: '', numero: '' };
     const resultado = await db.runTransaction(async (tx) => {
         const { ref, data } = await lerProcesso(c, p.id, tx);
@@ -355,7 +365,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const inicio = hojeBrasil();
             const novo: Prazo = {
                 id: ref.collection('_').doc().id, descricao, destinatario: texto(p.destinatario), dias, contagem,
-                inicio, vence_em: calcularVencimento(inicio, dias, contagem), status: 'aberto',
+                inicio, vence_em: calcularVencimento(inicio, dias, contagem, calendario), status: 'aberto',
                 aberto_em: agora, aberto_por: c.userName,
             };
             const lista = [...prazos, novo];

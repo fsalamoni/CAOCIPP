@@ -652,7 +652,12 @@ editor de documentos completo (folha A4, fontes, tabelas, imagens, quebra de
 página, localizar e substituir), papel timbrado do órgão, modelos com campos
 automáticos, prévia em PDF, juntada com numeração de folhas e PDF carimbado
 de cada documento (também no portal), índice de folhas nos autos e controle
-da Secretaria por órgão no painel da plataforma (suspensão com motivo). Ver
+da Secretaria por órgão no painel da plataforma (suspensão com motivo). Fase 6:
+busca por parte e CPF com filtros avançados, aba Painel com indicadores,
+feriados locais e recessos na contagem de prazos, alerta diário de prazos
+por e-mail, código de conferência com QR em cada folha e página pública
+`/Conferir`, e conversão de Word (DOCX) e Excel (XLSX) em folhas dos autos
+(inclusive petição em Word no portal). Ver
 [SECRETARIA.md](./SECRETARIA.md).
 
 ---
