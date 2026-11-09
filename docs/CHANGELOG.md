@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 09/11/2026 — Importação de modelos de documento (etapa 2)
+- **Importar de arquivo** em Modelos (órgão e unidades): Word, PDF, HTML ou
+  TXT viram modelo do editor, com cabeçalho, rodapé, brasão, fonte e imagens
+  do Word e cabeçalho e rodapé repetidos do PDF.
+- Campos como `{{numero}}`, `«Número»` e `[NÚMERO DO PROCESSO]` viram campos
+  automáticos; o timbrado achado pode virar o da unidade ou do órgão.
+- Opção de **manter o arquivo original** (Word ou PDF): no processo, cria a
+  minuta com o arquivo, e o Word sai com os campos preenchidos.
+- Sem IA: leitura estruturada (mammoth, pdfjs, XML do Word).
+
 ### 09/11/2026 — Processo Eletrônico por unidades (etapa 1)
 - **Novo nome:** a Secretaria Processual passou a se chamar **Processo
   Eletrônico** (página `/ProcessoEletronico`; links antigos `/Secretaria`

@@ -11,8 +11,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { secDocumento, secExportarPdf, secProcesso, baixarBase64, arquivoParaBase64 } from '@/services/secretariaService';
-import { NativeSelect, STATUS_ROTULO, dataHora, documentoDaUnidade, rotuloUnidade } from './comum';
+import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, arquivoParaBase64 } from '@/services/secretariaService';
+import { NativeSelect, STATUS_ROTULO, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { seguintes } from '@/lib/secretariaRito';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
@@ -104,6 +104,17 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         }, 'Arquivo enviado como minuta');
     };
 
+    // Modelo guardado em Word/PDF: o Word sai com os campos preenchidos e vira minuta.
+    const modelosArquivo = modelosDaUnidade(estado, p.unidade_atual).filter((m) => m.formato === 'original');
+    const usarModeloArquivo = (id) => {
+        const m = modelosArquivo.find((x) => x.id === id);
+        if (!m) return;
+        executar(async () => {
+            const r = await secConfig(orgId, 'baixarModelo', { id: m.id, valores: valoresCampos });
+            await secDocumento(orgId, procId, 'upload', { titulo: m.nome, tipo: m.tipo_documento || 'Documento', nomeArquivo: r.nome, mime: r.mime, base64: r.base64 });
+        }, /\.pdf$/i.test(m.arquivo_nome) ? 'Minuta criada com o PDF do modelo' : 'Minuta criada com o Word do modelo, campos preenchidos');
+    };
+
     const minutas = documentos.filter((d) => d.status === 'minuta');
     const autos = documentos.filter((d) => d.status === 'juntado');
     const iAtual = p.fases.findIndex((f) => f.id === p.fase_atual);
@@ -186,7 +197,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <Card>
                             <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
                                 <CardTitle className="text-base">Minutas da unidade</CardTitle>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    {modelosArquivo.length > 0 && (
+                                        <select aria-label="Criar minuta de um modelo em arquivo" value="" disabled={!podeMexer || ocupado} onChange={(e) => usarModeloArquivo(e.target.value)}
+                                            className="h-8 rounded-md border border-input bg-transparent dark:bg-slate-900 px-2 text-sm max-w-[12rem]">
+                                            <option value="">Modelo em arquivo…</option>
+                                            {modelosArquivo.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                                        </select>
+                                    )}
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer} onClick={() => setEditor({ titulo: '', tipo: documentoDaUnidade(estado, p.unidade_atual).tipos_documento?.[0] || 'Despacho', conteudo: null })}><FilePen className="w-4 h-4" /> Redigir</Button>
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} asChild={podeMexer}>
                                         {podeMexer ? (

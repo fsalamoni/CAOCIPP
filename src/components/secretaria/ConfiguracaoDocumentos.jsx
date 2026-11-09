@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { FileText, ImagePlus, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
+import { FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
 import { NativeSelect, documentoDaUnidade } from './comum';
 import EditorDocumento, { CAMPOS_MODELO, FONTES, prepararImagem } from './EditorDocumento';
+import ImportarModelo, { EditorOriginal, rotuloFormatoOriginal } from './ImportarModelo';
 
 const CSS_FONTE = { serif: '"Times New Roman", Times, serif', 'sans-serif': 'Arial, Helvetica, sans-serif', monospace: '"Courier New", Courier, monospace' };
 
@@ -202,7 +203,9 @@ export function DocumentosDaUnidade({ orgId, estado, unidade }) {
 export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
     const qc = useQueryClient();
     const [modelo, setModelo] = useState(null);
+    const [importando, setImportando] = useState(false);
     const lista = (estado.modelos || []).filter((m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id));
+    const recarregar = () => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
     const abrirModelo = async (m) => {
         if (!m) { setModelo({ _k: Date.now(), nome: '', tipo_documento: '', descricao: '', ativo: true, conteudo: null, unidade_id: unidadeId }); return; }
         try {
@@ -218,6 +221,7 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
                         <FileText className="w-4 h-4 text-indigo-600" aria-hidden />
                         <span className="font-medium">{m.nome}</span>
                         {m.tipo_documento && <Badge variant="outline">{m.tipo_documento}</Badge>}
+                        {m.formato === 'original' && <Badge variant="secondary" className="gap-1"><Paperclip className="w-3 h-3" aria-hidden />{rotuloFormatoOriginal(m.arquivo_nome)}</Badge>}
                         {!m.ativo && <Badge variant="secondary">Inativo</Badge>}
                     </div>
                     {m.descricao && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{m.descricao}</p>}
@@ -225,15 +229,29 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
             ))}
         </div>
     );
-    const novo = <Button size="sm" className="gap-1 shrink-0" onClick={() => abrirModelo(null)}><Plus className="w-4 h-4" /> Novo modelo</Button>;
-    const editor = <EditorModelo modelo={modelo} setModelo={setModelo} orgId={orgId} estado={estado} onSalvo={() => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] })} />;
+    const novo = (
+        <div className="flex flex-wrap gap-2 shrink-0">
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => setImportando(true)}><FileUp className="w-4 h-4" /> Importar de arquivo</Button>
+            <Button size="sm" className="gap-1" onClick={() => abrirModelo(null)}><Plus className="w-4 h-4" /> Novo modelo</Button>
+        </div>
+    );
+    const docCfg = unidadeId ? documentoDaUnidade(estado, unidadeId) : (estado.documento || {});
+    const editor = (
+        <>
+            {modelo?.formato === 'original'
+                ? <EditorOriginal modelo={modelo} setModelo={setModelo} orgId={orgId} tipos={docCfg.tipos_documento || []} onSalvo={recarregar} />
+                : <EditorModelo modelo={modelo} setModelo={setModelo} orgId={orgId} estado={estado} onSalvo={recarregar} />}
+            <ImportarModelo aberto={importando} orgId={orgId} estado={estado} unidadeId={unidadeId} onSalvo={recarregar}
+                onEditar={(m) => setModelo({ ...m, _k: Date.now() })} onFechar={() => setImportando(false)} />
+        </>
+    );
     if (semCartao) return <div className="space-y-3"><div className="flex justify-end">{novo}</div>{corpo}{editor}</div>;
     return (
         <Card>
             <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
                 <div>
                     <CardTitle className="text-base">Modelos de documento do órgão</CardTitle>
-                    <CardDescription>Textos prontos para todas as unidades. Campos como {'{{numero}}'} e {'{{partes}}'} se preenchem sozinhos com os dados do processo. Cada unidade também pode ter os seus.</CardDescription>
+                    <CardDescription>Textos prontos para todas as unidades. Campos como {'{{numero}}'} e {'{{partes}}'} se preenchem sozinhos com os dados do processo. Crie no editor ou importe de um Word ou PDF. Cada unidade também pode ter os seus.</CardDescription>
                 </div>
                 {novo}
             </CardHeader>

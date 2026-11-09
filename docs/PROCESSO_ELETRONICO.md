@@ -87,6 +87,42 @@ livre, ex.: "Chefe de secretaria") e pode ser **gestora** da unidade.
   ficam vazias e ninguém é gestor até o admin marcar. Ao salvar a equipe, a
   plataforma grava `lotacoes` e mantém `membros_uids` em sincronia.
 
+## Importação de modelos (etapa 2)
+
+Em Modelos (do órgão ou da unidade), **Importar de arquivo** aceita Word
+(.docx), PDF, HTML e TXT até 5 MB. A leitura é estruturada, sem IA
+(`functions-v2/src/secretaria/importarModelo.ts`), e nada é gravado até a
+pessoa confirmar.
+
+- **Word:** o corpo vem pelo mammoth, com títulos, negrito, itálico, listas,
+  tabelas, links e imagens. Do pacote do Word saem o **cabeçalho** (até 4
+  linhas), a primeira imagem PNG/JPG do cabeçalho até 300 KB como **brasão**, o
+  **rodapé** (sem o número de página) e a **fonte e o tamanho** padrão.
+- **PDF:** o texto é lido por linha (pdfjs) e reagrupado em parágrafos pelo
+  espaçamento. O que se repete no alto e no pé das páginas vira cabeçalho e
+  rodapé. Imagens, negrito e tabelas do PDF não vêm. PDF digitalizado (sem
+  texto) só pode ser guardado como original.
+- **Campos:** `{{numero}}`, `${numero}`, `«Número»`, `<<data>>` e
+  `[NÚMERO DO PROCESSO]` viram campos automáticos quando o nome é conhecido
+  (número, assunto, tipo, partes, unidade, fase, órgão, usuário, data e data por
+  extenso, com sinônimos como "interessado", "signatário" ou "data por
+  extenso"). Nomes desconhecidos entre chaves ou aspas angulares ficam como
+  campo para preencher à mão; colchetes com nome desconhecido (ex.: `[1]`)
+  ficam como texto.
+- **Papel timbrado achado:** a tela mostra a prévia e oferece usá-lo como
+  timbrado da unidade (vira timbrado próprio) ou do órgão. Só muda se a pessoa
+  marcar.
+- **Como guardar:**
+  - *Modelo editável:* abre no editor para revisar e salvar (formato
+    `editor`). Modelos com imagens que passem de ~900 KB no total precisam de
+    imagens menores ou do formato original (teto do Firestore).
+  - *Arquivo original* (Word ou PDF): o arquivo fica no Storage
+    (`secretaria/{org}/modelos/{id}`, formato `original`). No processo, a lista
+    **Modelo em arquivo…** das minutas cria uma minuta com o arquivo; no Word, os
+    campos saem preenchidos com os dados do processo, mesmo quando o Word
+    quebrou o campo em trechos de formatação diferentes. A ficha do modelo
+    permite baixar e trocar o arquivo.
+
 ## Modelo de dados
 
 Todas as coleções são fechadas ao cliente (`allow read, write: if false`). Leitura
@@ -105,7 +141,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], ordem, juntado_em, visivel_partes, peticao?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
-| `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, conteudo, ativo` |
+| `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
 
 No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
@@ -115,7 +151,8 @@ No processo, cada item de `partes[]` pode ter `uid` (conta habilitada) e
 O processo guarda a **cópia das fases** do rito com que foi autuado. Editar o
 rito incrementa `versao` e só vale para os próximos processos.
 
-Arquivos ficam no Cloud Storage em `secretaria/{org}/{processo}/{documento}`.
+Arquivos ficam no Cloud Storage em `secretaria/{org}/{processo}/{documento}`;
+modelos guardados no original, em `secretaria/{org}/modelos/{modelo}`.
 `storage.rules` nega todo acesso do navegador; o Admin SDK das functions
 ignora as regras.
 
@@ -123,7 +160,7 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade), `obterModelo` (qualquer membro), `salvarCalendario` |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `salvarCalendario` |
 | `secretariaProcesso` | `listar`, `obter`, `autuar`, `tramitar`, `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte` |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `juntar`, `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
@@ -363,3 +400,7 @@ O portal das partes mostra o diagrama sem as orientações internas.
 - O índice de documentos da exportação cabe numa página (~45 documentos).
 - Processos anteriores à fase 5 não tinham folhas; a contagem deles soma as
   páginas conhecidas (1 quando não há).
+- Importação de modelos: do Word não vêm alinhamento, recuos, cores nem caixas
+  de texto (limite do mammoth); do PDF só vem texto, até 30 páginas. Campo que
+  o Word dividiu entre parágrafos não é preenchido no original. Desativar um
+  modelo original não apaga o arquivo do Storage (trocar o arquivo sobrescreve).
