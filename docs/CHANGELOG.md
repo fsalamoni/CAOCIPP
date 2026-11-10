@@ -5,6 +5,12 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Minutas seguem com o processo
+- Na remessa, as minutas da unidade aparecem marcadas em "Minutas que seguem
+  com o processo". A unidade que recebe (ex.: o gabinete) lê, revisa, assina
+  e junta a minuta da assessoria; só quem redigiu pode excluí-la. O termo de
+  remessa não cita minutas, que continuam fora dos autos até a juntada.
+
 ### 10/11/2026 — Rito decide o que vai aos autos e que documentos exige
 - **Registro nos autos por fase**: no editor do rito, cada fase pode deixar
   tudo nos autos (padrão), deixar fora as remessas internas da fase ou ficar

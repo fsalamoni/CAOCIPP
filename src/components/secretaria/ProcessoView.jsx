@@ -399,7 +399,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setNovoDoc(true)}><Plus className="w-4 h-4" /> Novo documento</Button>
                             </CardHeader>
                             <CardContent className="space-y-2">
-                                {minutas.length === 0 && <p className="text-sm text-slate-600">Minutas ficam visíveis só para a sua unidade até a juntada.</p>}
+                                {minutas.length === 0 && <p className="text-sm text-slate-600">Minutas ficam visíveis só para a sua unidade até a juntada, salvo as que seguem com o processo numa remessa.</p>}
                                 {minutas.map((d) => {
                                     const assinei = d.assinaturas.some((a) => a.uid === estado.uid);
                                     const pedidoAMim = (d.assinaturas_pedidas || []).some((x) => x.uid === estado.uid) && !assinei;
@@ -412,6 +412,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                 <p className="text-xs text-slate-600 dark:text-slate-400">
                                                     {d.tipo} · {d.origem === 'editor' ? 'redigido' : d.nome_arquivo} · {d.autor_nome}{d.assinaturas.length ? ` · assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : ''}
                                                     {pedidos.length ? ` · aguarda assinatura de ${pedidos.map((x) => x.nome).join(', ')}` : ''}
+                                                    {d.unidade_origem !== p.unidade_atual && ` · redigida em ${nomeUnidade(d.unidade_origem)}`}
                                                 </p>
                                             </div>
                                             {d.origem === 'editor'
@@ -420,7 +421,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
                                             {membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
                                             <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>
-                                            <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída')} aria-label="Excluir minuta"><Trash2 className="w-4 h-4" /></Button>
+                                            {/* Quem recebeu a minuta com o processo não apaga o trabalho da outra unidade. */}
+                                            {(d.unidade_origem === p.unidade_atual || !posse) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída')} aria-label="Excluir minuta"><Trash2 className="w-4 h-4" /></Button>}
                                         </div>
                                     );
                                 })}
@@ -583,7 +585,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} textosProntos={estado.textos_comunicacao || []} ocupado={ocupado}
                 onFechar={() => setAcao(null)} onExpedir={(comunicacao) => mov('expedirComunicacao', { comunicacao }, comunicacao.meio === 'outro' ? 'Ciência registrada nos autos' : 'Comunicação expedida')} />
 
-            <AcaoDialog acao={['dados', 'comunicar'].includes(acao?.tipo) ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} convidar={convidar}
+            <AcaoDialog acao={['dados', 'comunicar'].includes(acao?.tipo) ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} minutas={minutas} mov={mov} doc={doc} convidar={convidar}
                 noGabinete={noGabinete} orgId={orgId} procId={procId}
                 onDespacho={(pend) => { setAcao(null); setEditor({ titulo: `Despacho: ${pend.descricao}`.slice(0, 200), tipo: 'Despacho', conteudo: null, modeloId: modelos.find((m) => /despacho/i.test(m.nome) && m.formato !== 'original')?.id }); }} />
 
@@ -696,7 +698,7 @@ function ItemExigencia({ e, podeMexer, ocupado, modelo, onModelo, onNovo }) {
     );
 }
 
-function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, convidar, noGabinete, orgId, procId, onDespacho }) {
+function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], mov, doc, convidar, noGabinete, orgId, procId, onDespacho }) {
     const [valor, setValor] = useState('');
     const [visivel, setVisivel] = useState('sim');
     const [motivo, setMotivo] = useState('');
@@ -707,8 +709,9 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
     const [resolve, setResolve] = useState('');
     const [pdfPend, setPdfPend] = useState(null); // {url} do documento da pendência em apreciação
     const [atende, setAtende] = useState(null); // juntada: exigências marcadas (null = as que o sistema reconhece)
+    const [levar, setLevar] = useState(null); // remessa: minutas que seguem (null = todas)
     const tipo = acao?.tipo;
-    const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setAssinar(true); setResolve(''); setAtende(null); onClose(); };
+    const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setAssinar(true); setResolve(''); setAtende(null); setLevar(null); onClose(); };
     const pendenciasAbertas = p.pendencias.filter((x) => x.status === 'aberta');
     const exigPendentes = pendentesDaFase(p.fases.find((f) => f.id === p.fase_atual), p.exigencias_cumpridas);
     // Sair da fase com documento exigido em aberto: o motivo vira a dispensa, registrada.
@@ -862,6 +865,9 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
         const uDest = estado.unidades.find((u) => u.id === destino);
         const recebem = uDest ? estado.membros.filter((m) => uDest.membros_uids.includes(m.uid)) : [];
         const faseNova = acao.fase_id ? p.fases.find((f) => f.id === acao.fase_id) : null;
+        // Minutas com a unidade que remete; por padrão, todas seguem (ex.: a da assessoria para o gabinete).
+        const minutasDaUnidade = minutas.filter((d) => d.unidade_origem === p.unidade_atual || (d.unidades_acesso || []).includes(p.unidade_atual));
+        const levarIds = levar ?? minutasDaUnidade.map((d) => d.id);
         const orgaoAtual = estado.unidades.find((u) => u.id === p.unidade_atual)?.orgao_id || null;
         const outroOrgao = !!uDest && (uDest.orgao_id || null) !== orgaoAtual && (estado.orgaos || []).length > 0;
         const rot = (u) => `${nomeOrgao(estado, u.orgao_id) ? `${nomeOrgao(estado, u.orgao_id)} › ` : ''}${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})${u.id === acao.destino ? ' · indicada pelo rito' : passou.includes(u.id) ? ' · já passou por aqui' : ''}`;
@@ -869,6 +875,19 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
             <div className="space-y-2">
                 {faseNova && <p className="text-sm text-slate-700 dark:text-slate-300">A fase passa de <b>{p.fase_nome}</b> para <b>{faseNova.nome}</b> no mesmo ato.</p>}
                 {faseNova && avisoDispensa}
+                {!devolver && minutasDaUnidade.length > 0 && (
+                    <fieldset>
+                        <legend className="text-sm font-medium mb-1">Minutas que seguem com o processo</legend>
+                        {minutasDaUnidade.map((d) => (
+                            <label key={d.id} className="flex items-start gap-2 text-sm">
+                                <input type="checkbox" className="mt-1" checked={levarIds.includes(d.id)}
+                                    onChange={(ev) => setLevar(ev.target.checked ? [...levarIds, d.id] : levarIds.filter((x) => x !== d.id))} />
+                                <span>{d.titulo} <span className="text-xs text-slate-600 dark:text-slate-400">({d.tipo})</span></span>
+                            </label>
+                        ))}
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">A unidade de destino poderá ler, revisar, assinar e juntar. Sua unidade continua vendo a minuta.</p>
+                    </fieldset>
+                )}
                 <NativeSelect label="Destino" value={destino} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, rot(u)])]} />
                 {outroOrgao && <p className="text-sm text-indigo-800 dark:text-indigo-200">Remessa para outro órgão: de <b>{nomeOrgao(estado, orgaoAtual) || estado.orgao || 'entidade'}</b> para <b>{nomeOrgao(estado, uDest.orgao_id) || estado.orgao || 'entidade'}</b>. O termo de remessa registra os dois órgãos.</p>}
                 {uDest && (
@@ -881,7 +900,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
         exigeValor = !destino;
         if (devolver) { exigeTexto = true; rotuloTexto = 'Orientação para a secretaria (fica em destaque no processo até ser concluída)'; }
         else if (faseNova && exigPendentes.length) { exigeTexto = true; rotuloTexto = 'Motivo da dispensa do documento exigido'; }
-        enviar = () => mov('tramitar', { unidade_destino: destino, ...(devolver ? { orientacao: motivo } : { motivo }), ...(acao.fase_id ? { fase_id: acao.fase_id } : {}) }, devolver ? 'Processo devolvido com orientação' : 'Processo remetido');
+        enviar = () => mov('tramitar', { unidade_destino: destino, ...(devolver ? { orientacao: motivo } : { motivo }), ...(acao.fase_id ? { fase_id: acao.fase_id } : {}),
+            ...(!devolver && levarIds.length ? { minutas: levarIds } : {}) }, devolver ? 'Processo devolvido com orientação' : 'Processo remetido');
     } else if (tipo === 'fase') {
         titulo = 'Mudar a fase';
         const noFluxo = seguintes(p.fases, p.fases.findIndex((f) => f.id === p.fase_atual));
@@ -951,7 +971,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
                 <DialogFooter className="flex-row flex-wrap gap-2">
                     {rodape}
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
-                    <Button disabled={ocupado || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); }}>
+                    <Button disabled={ocupado || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); }}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {tipo === 'resolver' ? 'Registrar a decisão' : 'Confirmar'}
                     </Button>
                 </DialogFooter>

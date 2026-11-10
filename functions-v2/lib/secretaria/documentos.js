@@ -38,13 +38,13 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
     const exigirMinutaDaMinhaUnidade = (doc) => {
         if (doc.status !== 'minuta')
             throw new https_1.HttpsError('failed-precondition', 'Documento já juntado aos autos não pode ser alterado');
-        if (!c.ctx.unidadeIds.includes(doc.unidade_origem)) {
+        if (!(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds)) {
             throw new https_1.HttpsError('permission-denied', 'A minuta pertence a outra unidade');
         }
     };
     if (p.action === 'baixar') {
         const { doc } = await lerDoc();
-        if (doc.status !== 'juntado' && !c.ctx.unidadeIds.includes(doc.unidade_origem)) {
+        if (doc.status !== 'juntado' && !(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds)) {
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         }
         if (doc.origem === 'editor')
@@ -59,7 +59,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.pdf`;
         if (doc.status === 'juntado')
             return { base64: await (0, autos_1.pdfCarimbado)(c.db, c.orgId, procRef.id, String(proc.numero), p.docId, doc), nome };
-        if (!c.ctx.unidadeIds.includes(doc.unidade_origem))
+        if (!(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds))
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         if (doc.origem !== 'editor')
             throw new https_1.HttpsError('failed-precondition', 'Baixe o arquivo original da minuta');
@@ -120,6 +120,9 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
     if (p.action === 'excluirMinuta') {
         const { ref, doc } = await lerDoc();
         exigirMinutaDaMinhaUnidade(doc);
+        // Quem recebeu a minuta com o processo revisa e junta, mas não apaga o trabalho de outra unidade.
+        if (!c.ctx.unidadeIds.includes(doc.unidade_origem))
+            throw new https_1.HttpsError('permission-denied', 'Só a unidade que redigiu a minuta pode excluí-la');
         await ref.delete();
         if ((proc.assinaturas_pendentes || []).some((x) => x.docId === ref.id)) {
             await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
@@ -160,10 +163,11 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         const { ref, doc } = await lerDoc();
         exigirMinutaDaMinhaUnidade(doc);
         const uid = String(p.uid || '');
-        const unidade = c.unidades.find((u) => u.id === doc.unidade_origem);
-        const lot = unidade ? (0, secretaria_2.lotacoesDe)(unidade).find((l) => l.uid === uid) : null;
+        // Quem assina: alguém da unidade que tem o processo ou da que redigiu a minuta.
+        const lot = c.unidades.filter((u) => u.id === doc.unidade_origem || u.id === proc.unidade_atual)
+            .flatMap((u) => (0, secretaria_2.lotacoesDe)(u)).find((l) => l.uid === uid);
         if (!lot)
-            throw new https_1.HttpsError('invalid-argument', 'Escolha alguém lotado na unidade da minuta');
+            throw new https_1.HttpsError('invalid-argument', 'Escolha alguém lotado na unidade da minuta ou na que tem o processo');
         if (uid === auth.uid)
             throw new https_1.HttpsError('invalid-argument', 'Você mesmo pode assinar');
         if ((doc.assinaturas || []).some((a) => a.uid === uid))

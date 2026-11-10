@@ -175,7 +175,8 @@ comprovante, laudo, ofício respondido) ou **qualquer um**.
 ## 9. Acesso, sigilo e papéis
 
 - Normal: a equipe do órgão vê; restrito: só quem por ele passou e o admin;
-  minuta: só a unidade que a redigiu.
+  minuta: só a unidade que a redigiu e as unidades a quem ela a enviou com
+  o processo (a assessoria que minuta para o gabinete assinar).
 - A parte vê pelo portal só o que lhe diz respeito: documentos marcados
   como visíveis, atos dos autos, comunicações a ela. Nunca registros
   internos, pendências, orientações ou minutas.
@@ -203,6 +204,7 @@ comprovante, laudo, ofício respondido) ou **qualquer um**.
 | Origem do evento | `origemEvento` em `functions-v2/src/shared/autos.ts`: `usuario` (termo com folha), `interno` (o rito deixou fora dos autos) ou `sistema` (os dois últimos saem no extrato) |
 | O que vai aos autos | `fase.registro` no rito (`remessas_fora` ou `interno`) e `acoes_regras[i].autos` (certidão de cumprimento); `movimentoInterno` em `functions-v2/src/shared/exigencias.ts` |
 | Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |
+| Minuta | Trabalho interno da unidade (`minutaAcessivel`); segue com o processo quando marcada na remessa (`unidades_acesso`), sem constar do termo |
 | Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a secretaria expede, sempre nos autos |
 | Impedimento de parte | `ehParte` em `functions-v2/src/shared/secretaria.ts` |
 

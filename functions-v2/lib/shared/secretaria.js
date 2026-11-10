@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
+exports.minutaAcessivel = minutaAcessivel;
 exports.texto = texto;
 exports.sanitizeOrigem = sanitizeOrigem;
 exports.slug = slug;
@@ -42,6 +43,17 @@ exports.MAX_LOTACOES = 200;
 function ehParte(proc, uid) {
     return (proc.partes_uids || []).includes(uid);
 }
+/**
+ * Minuta é trabalho interno: só a unidade que a redigiu a vê, e as unidades
+ * para onde ela seguiu junto com o processo (`unidades_acesso`, gravado na
+ * remessa). Juntado, o documento é dos autos e esta regra não se aplica.
+ */
+function minutaAcessivel(doc, unidadeIds) {
+    if (unidadeIds.includes(String(doc.unidade_origem)))
+        return true;
+    return Array.isArray(doc.unidades_acesso) && doc.unidades_acesso.some((u) => unidadeIds.includes(String(u)));
+}
+exports.MAX_MINUTAS_REMESSA = 30;
 exports.MAX_TEXTO_CURTO = 200;
 exports.MAX_TEXTO_LONGO = 4000;
 exports.MAX_UPLOAD_BYTES = 5 * 1024 * 1024;

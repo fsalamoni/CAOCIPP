@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, sha256, texto,
+    MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, minutaAcessivel, sha256, texto,
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
@@ -85,14 +85,14 @@ export const secretariaDocumento = onCall<DocRequest>(
         };
         const exigirMinutaDaMinhaUnidade = (doc: admin.firestore.DocumentData) => {
             if (doc.status !== 'minuta') throw new HttpsError('failed-precondition', 'Documento já juntado aos autos não pode ser alterado');
-            if (!c.ctx.unidadeIds.includes(doc.unidade_origem)) {
+            if (!minutaAcessivel(doc, c.ctx.unidadeIds)) {
                 throw new HttpsError('permission-denied', 'A minuta pertence a outra unidade');
             }
         };
 
         if (p.action === 'baixar') {
             const { doc } = await lerDoc();
-            if (doc.status !== 'juntado' && !c.ctx.unidadeIds.includes(doc.unidade_origem)) {
+            if (doc.status !== 'juntado' && !minutaAcessivel(doc, c.ctx.unidadeIds)) {
                 throw new HttpsError('not-found', 'Documento não encontrado');
             }
             if (doc.origem === 'editor') return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: conteudoDoDocumento(doc) };
@@ -106,7 +106,7 @@ export const secretariaDocumento = onCall<DocRequest>(
             const { doc } = await lerDoc();
             const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.pdf`;
             if (doc.status === 'juntado') return { base64: await pdfCarimbado(c.db, c.orgId, procRef.id, String(proc.numero), p.docId!, doc), nome };
-            if (!c.ctx.unidadeIds.includes(doc.unidade_origem)) throw new HttpsError('not-found', 'Documento não encontrado');
+            if (!minutaAcessivel(doc, c.ctx.unidadeIds)) throw new HttpsError('not-found', 'Documento não encontrado');
             if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Baixe o arquivo original da minuta');
             const r = await renderizarDocumento(conteudoDoDocumento(doc), await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), {
                 assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: 'MINUTA',
@@ -170,6 +170,8 @@ export const secretariaDocumento = onCall<DocRequest>(
         if (p.action === 'excluirMinuta') {
             const { ref, doc } = await lerDoc();
             exigirMinutaDaMinhaUnidade(doc);
+            // Quem recebeu a minuta com o processo revisa e junta, mas não apaga o trabalho de outra unidade.
+            if (!c.ctx.unidadeIds.includes(doc.unidade_origem)) throw new HttpsError('permission-denied', 'Só a unidade que redigiu a minuta pode excluí-la');
             await ref.delete();
             if (((proc.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id)) {
                 await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
@@ -211,9 +213,10 @@ export const secretariaDocumento = onCall<DocRequest>(
             const { ref, doc } = await lerDoc();
             exigirMinutaDaMinhaUnidade(doc);
             const uid = String(p.uid || '');
-            const unidade = c.unidades.find((u) => u.id === doc.unidade_origem);
-            const lot = unidade ? lotacoesDe(unidade).find((l) => l.uid === uid) : null;
-            if (!lot) throw new HttpsError('invalid-argument', 'Escolha alguém lotado na unidade da minuta');
+            // Quem assina: alguém da unidade que tem o processo ou da que redigiu a minuta.
+            const lot = c.unidades.filter((u) => u.id === doc.unidade_origem || u.id === proc.unidade_atual)
+                .flatMap((u) => lotacoesDe(u)).find((l) => l.uid === uid);
+            if (!lot) throw new HttpsError('invalid-argument', 'Escolha alguém lotado na unidade da minuta ou na que tem o processo');
             if (uid === auth.uid) throw new HttpsError('invalid-argument', 'Você mesmo pode assinar');
             if (((doc.assinaturas || []) as Array<{ uid: string }>).some((a) => a.uid === uid)) throw new HttpsError('already-exists', 'Essa pessoa já assinou');
             const mem = (await c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`).get()).data();

@@ -81,6 +81,18 @@ export function ehParte(proc: Pick<ProcessoAcesso, 'partes_uids'>, uid: string):
     return (proc.partes_uids || []).includes(uid);
 }
 
+/**
+ * Minuta é trabalho interno: só a unidade que a redigiu a vê, e as unidades
+ * para onde ela seguiu junto com o processo (`unidades_acesso`, gravado na
+ * remessa). Juntado, o documento é dos autos e esta regra não se aplica.
+ */
+export function minutaAcessivel(doc: { unidade_origem?: unknown; unidades_acesso?: unknown }, unidadeIds: string[]): boolean {
+    if (unidadeIds.includes(String(doc.unidade_origem))) return true;
+    return Array.isArray(doc.unidades_acesso) && doc.unidades_acesso.some((u) => unidadeIds.includes(String(u)));
+}
+
+export const MAX_MINUTAS_REMESSA = 30;
+
 export const MAX_TEXTO_CURTO = 200;
 export const MAX_TEXTO_LONGO = 4000;
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;

@@ -64,7 +64,9 @@ O poder de movimentar vem da **posse**: o processo está sempre com uma unidade
 - **Sigilo normal:** qualquer membro lotado em alguma unidade do órgão lê.
 - **Sigilo restrito:** só unidades por onde o processo passou
   (`unidades_historico`) e o admin.
-- **Minutas:** só a unidade que as redigiu, até a juntada.
+- **Minutas:** só a unidade que as redigiu, até a juntada, e as unidades para
+  onde seguiram junto com o processo numa remessa (`unidades_acesso`,
+  `minutaAcessivel` em `functions-v2/src/shared/secretaria.ts`).
 - Membro do órgão sem lotação não vê processo nenhum (salvo o admin). A página
   mostra a ele a aba Unidades, de onde pode pedir lotação.
 - Membro com vínculo inativo no órgão não acessa o módulo.
@@ -243,7 +245,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor, visivel_partes}], origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
-| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, modelo_id?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
+| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, modelo_id?, unidades_acesso?[], paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
 | `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, versao, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
@@ -273,7 +275,7 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
-| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`), `tramitar` (opcionais `fase_id` e `orientacao`; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
+| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta` e `upload` (opcional `modelo_id`), `editarMinuta`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar`, `resolve_pendencia_id` e `atende`, as exigências do rito que o documento cumpre), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
@@ -744,7 +746,20 @@ misturam dentro de um processo.
   (`pedirAssinatura`: grava `assinaturas_pedidas` no documento,
   `assinaturas_pendentes` no processo e envia e-mail); "Assinar antes de
   juntar" na juntada (`assinar: true`, a assinatura entra antes de gerar o
-  PDF). Assinar, juntar ou excluir a minuta limpa o pedido.
+  PDF). Assinar, juntar ou excluir a minuta limpa o pedido. Pode receber o
+  pedido quem está lotado na unidade que redigiu a minuta ou na que tem o
+  processo.
+- **Minutas que seguem com o processo (nov/2026):** no diálogo de remessa
+  (não na devolução com orientação), "Minutas que seguem com o processo"
+  lista as minutas que estão com a unidade que remete, todas marcadas. As
+  marcadas vão em `tramitar` como `minutas`; o servidor confere, na mesma
+  transação, que cada uma é minuta acessível à unidade atual (senão
+  `invalid-argument`) e acrescenta o destino a `unidades_acesso`. A unidade
+  de destino lê, revisa, assina, pede assinatura e junta; só a unidade que
+  redigiu exclui. A unidade de origem continua vendo a minuta. O termo de
+  remessa ou conclusão não cita minutas (trabalho interno); os ids ficam em
+  `dados.minutas` do movimento. Na lista, a minuta recebida mostra
+  "redigida em {unidade}".
 - **Meu trabalho:** primeira aba para quem está lotado, com grupos por
   urgência a partir da mesma consulta da caixa: pediram sua assinatura,
   orientação do gabinete, comigo, prazo vencendo em 7 dias, chegaram hoje

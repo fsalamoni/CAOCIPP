@@ -47,6 +47,14 @@ test('pendências, reconhecimento e forma do documento', () => {
     assert.throws(() => x.reconhecer(pend, { origem: 'upload' }, ['d9']), /não está pendente/);
 });
 
+test('minuta: vê a unidade que redigiu e as unidades para onde seguiu com o processo', () => {
+    const doc = { unidade_origem: 'assessoria', unidades_acesso: ['gabinete'] };
+    assert.equal(s.minutaAcessivel(doc, ['assessoria']), true);
+    assert.equal(s.minutaAcessivel(doc, ['secretaria', 'gabinete']), true);
+    assert.equal(s.minutaAcessivel(doc, ['secretaria']), false);
+    assert.equal(s.minutaAcessivel({ unidade_origem: 'a' }, ['b']), false);
+});
+
 test('movimentoInterno segue o registro das fases', () => {
     const fases = [{ id: 'a' }, { id: 'b', registro: 'interno' }, { id: 'c', registro: 'remessas_fora' }];
     assert.equal(x.movimentoInterno(fases, 'a', 'b'), true);
