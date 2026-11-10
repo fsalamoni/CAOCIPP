@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Eventos do processo, termos com folha e PDF integral ou parcial
+- O processo ganhou a tabela **Eventos**: tudo o que aconteceu, numerado, com
+  o que foi feito, por quem, em que unidade, data, hora e as folhas que ocupa.
+  Filtros (todos, atos de usuários, sistema, com documentos), busca e ordem.
+- Cada ato de usuário tem a sua página nos autos: o documento juntado ou um
+  **termo** de uma folha (termo de autuação, de conclusão, certidão de
+  abertura de prazo...). O termo passa a ocupar folha dos autos. Os registros
+  do sistema saem reunidos num extrato ao fim.
+- **Ler os autos** abre evento por evento, na ordem, com anterior e próximo.
+- **Gerar PDF**: processo inteiro, apenas os eventos marcados, tudo menos os
+  marcados ou um intervalo de folhas, com ou sem capa e índice. O PDF parcial
+  diz na capa que é cópia parcial. Vale também para a parte, no portal, só
+  com o que ela pode ver.
+
 ### 10/11/2026 — Tipo de processo define os campos do "Novo processo"
 - Em cada tipo de processo, o admin define o formulário de autuação:
   Descrição e Partes opcionais, obrigatórias ou não usadas, e até 20 campos

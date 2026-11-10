@@ -27,6 +27,7 @@ import { STATUS_ROTULO, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import { DadosCampos } from '@/components/secretaria/CamposProcesso';
 import LeitorAutos from '@/components/secretaria/LeitorAutos';
+import EventosAutos from '@/components/secretaria/EventosAutos';
 import { etapasAteOFim } from '@/lib/secretariaRito';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
@@ -532,10 +533,13 @@ function ProcessoParte({ id, onVoltar }) {
                 </div>
 
                 <Card className="lg:col-span-2 h-fit">
-                    <CardHeader className="pb-2"><CardTitle className="text-base">Andamento</CardTitle></CardHeader>
+                    <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                        <CardTitle className="text-base">Últimos andamentos</CardTitle>
+                        <Button size="sm" variant="link" className="h-auto p-0" onClick={() => document.getElementById('portal-eventos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Ver todos ({movimentos.length})</Button>
+                    </CardHeader>
                     <CardContent>
                         <ol className="space-y-3">
-                            {[...movimentos].reverse().map((m) => (
+                            {[...movimentos].reverse().slice(0, 6).map((m) => (
                                 <li key={m.seq} className={`border-l-2 pl-3 ${m.novo ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'}`}>
                                     <p className="text-xs text-slate-600 flex items-center gap-1.5"><Icone tipo={m.tipo} /> {dataHora(m.em)} · {m.autor_nome}{m.novo && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}</p>
                                     <p className="text-sm">{m.descricao}</p>
@@ -544,6 +548,10 @@ function ProcessoParte({ id, onVoltar }) {
                         </ol>
                     </CardContent>
                 </Card>
+            </div>
+
+            <div id="portal-eventos" className="scroll-mt-4">
+                <EventosAutos titulo="Andamento do processo" movimentos={movimentos} gerarPdf={(selecao) => secPortal('exportar', { processoId: id, selecao })} />
             </div>
 
             {/* Celular: as duas ações mais usadas ficam sempre à mão. */}

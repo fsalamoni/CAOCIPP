@@ -10,6 +10,7 @@ import {
     podeAgir,
     podeVer,
 } from '../shared/secretaria';
+import { geraTermo } from '../shared/autos';
 
 export const REGION = 'southamerica-east1';
 
@@ -164,8 +165,13 @@ export function registrarMovimento(
         hash_anterior: String(proc.ultimo_hash || ''),
     };
     const hash = hashMovimento(base);
-    tx.set(procRef.collection('movimentos').doc(String(seq).padStart(6, '0')), { ...base, hash });
+    // Ato de usuário sem documento ocupa uma folha dos autos (o termo). Processo
+    // antigo, com documentos e sem contagem de folhas, fica sem folha no termo.
+    const semContagem = typeof proc.folhas_seq !== 'number' && Number(proc.doc_seq) > 0;
+    const folha = geraTermo(base) && !semContagem ? (Number(proc.folhas_seq) || 0) + 1 : null;
+    tx.set(procRef.collection('movimentos').doc(String(seq).padStart(6, '0')), { ...base, hash, ...(folha ? { folha } : {}) });
     return {
+        ...(folha ? { folhas_seq: folha } : {}),
         mov_seq: seq,
         ultimo_hash: hash,
         version: (Number(proc.version) || 0) + 1,

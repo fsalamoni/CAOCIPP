@@ -6,6 +6,7 @@ import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
     fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
+import { extrasDoEvento } from '../shared/autos';
 import { sendEmail } from '../shared/email';
 import { CampoValor, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorTexto } from '../shared/camposProcesso';
 import { avisarPartesDoMovimento } from './portalAvisos';
@@ -220,7 +221,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 acoes_feitas: data.acoes_feitas || {},
             },
             hoje: hojeBrasil(),
-            movimentos,
+            movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
             documentos,
             cadeiaQuebradaEm: verificarCadeia(movimentos as never),
             posse,

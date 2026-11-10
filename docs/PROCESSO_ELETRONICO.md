@@ -327,12 +327,43 @@ Regras comuns:
   fls. N" no canto e, no pé, número do documento, título, data da juntada,
   autor e hash. A parte vê o mesmo no portal.
 
+## Eventos e autos (nov/2026)
+
+Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
+
+- **Evento** é o movimento gravado (`movimentos/{seq}`, cadeia de hash
+  inalterada). `shared/autos.ts` classifica cada um pela origem:
+  **sistema** (`TIPOS_SISTEMA`: `atribuicao`, `acao_fase`,
+  `orientacao_concluida`, `convite`, ou `dados.automatico === true`) ou
+  **usuário** (todo o resto).
+- **Termo.** Ato de usuário que não juntou documento (`geraTermo`) tem como
+  página um termo de uma folha, gerado do próprio movimento (título por tipo
+  em `tituloEvento`, descrição, autor, unidade, data, hora e hash). A partir
+  desta versão, `registrarMovimento` reserva a folha: grava `folha` no
+  movimento e avança `folhas_seq` do processo. Movimentos antigos não têm
+  `folha`: o termo sai sem número de folha e nada é renumerado. Processo
+  antigo com documentos e sem `folhas_seq` também fica sem folha no termo.
+- **Tela.** `EventosAutos.jsx` (equipe e portal): tabela com nº, data e hora,
+  evento, quem e folhas; filtros Todos, Atos de usuários, Sistema e Com
+  documentos; busca; ordem. `obter` devolve em cada movimento `origem`,
+  `titulo`, `folhas` e `documento_id` (`extrasDoEvento`). "Ler os autos"
+  usa o `LeitorAutos` evento a evento. O cartão lateral mostra só os seis
+  últimos eventos e leva à tabela.
+- **Seleção** (`selecao` em `secretariaExportarPdf` e em `secretariaPortal`
+  ação `exportar`; `sanitizeSelecao` e `selecionar`): `modo` `integral`,
+  `apenas` ou `exceto` (com `eventos`: lista de `seq`) ou `intervalo`
+  (`folha_de`, `folha_a`: entram só as folhas pedidas, inclusive parte de
+  um documento); `capa` e `indice` ligam ou desligam essas páginas. A
+  parte só alcança o que já vê: o servidor filtra movimentos e documentos
+  antes de aplicar a seleção.
+
 ## Exportação em PDF
 
 Gerada no servidor com `pdf-lib` e `pdfmake`: capa (dados, partes,
-integridade), movimentos em ordem cronológica com hash, índice "Documentos
-(folhas dos autos)" e cada documento juntado na ordem da juntada, carimbado
-com as folhas. Redigidos entram com o PDF guardado na juntada (ou renderizado
+integridade; "cópia parcial" quando há seleção), índice dos autos (atos de
+usuário com folhas e hash) e as peças em ordem cronológica: cada documento
+juntado, carimbado com as folhas gravadas na juntada, ou o termo do ato. Ao
+fim, o "Extrato de registros do sistema". Redigidos entram com o PDF guardado na juntada (ou renderizado
 de novo, se forem antigos); PDFs enviados entram página a página; PNG/JPG como
 imagem; TXT como texto; Word/planilha como folha de referência com o hash.
 Minutas nunca entram.

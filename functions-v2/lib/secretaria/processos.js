@@ -16,6 +16,7 @@ const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const autos_1 = require("../shared/autos");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const portalAvisos_1 = require("./portalAvisos");
@@ -153,7 +154,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                         })) }));
                 }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], acoes_feitas: data.acoes_feitas || {} }),
             hoje: (0, secretaria_1.hojeBrasil)(),
-            movimentos,
+            movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,
             cadeiaQuebradaEm: (0, secretaria_1.verificarCadeia)(movimentos),
             posse,

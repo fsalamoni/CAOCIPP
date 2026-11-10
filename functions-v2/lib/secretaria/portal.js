@@ -10,6 +10,7 @@ const documentos_1 = require("./documentos");
 const autos_1 = require("./autos");
 const pdfDocumento_1 = require("./pdfDocumento");
 const exportar_1 = require("./exportar");
+const autos_2 = require("../shared/autos");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 /**
@@ -222,7 +223,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 autuado_em: data.autuado_em || null,
             },
             movimentos: todos.filter((m) => { var _a; return !exports.MOVIMENTOS_INTERNOS.includes(m.tipo) && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false; })
-                .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm })),
+                .map((m) => (Object.assign({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm }, (0, autos_2.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
             minhas_peticoes: peticoesDaParte(data, documentos, uid),
             tipos_peticao: exports.TIPOS_PETICAO_PORTAL,
@@ -241,7 +242,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
         const bytes = await (0, exportar_1.montarPdfAutos)({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
-            geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.assina) || nomeConta} (parte)`, nomeUnidade: () => '',
+            geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
         });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
     }
