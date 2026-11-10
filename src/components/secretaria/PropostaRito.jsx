@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, Download, FileText, FileUp, GitBranch, Loader2, Plus, Rocket, Shapes, Trash2, Users, X,
+    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, ChevronDown, Download, FileText, FileUp, GitBranch, Loader2, Plus, Rocket, Shapes, Trash2, Users, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -298,22 +298,48 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
     const modNovos = p.modelos.filter((m) => usadosMod.has(m.ref));
     const pendencias = useMemo(() => pendenciasDaProposta(p), [p]);
     const semNome = pendencias.some((x) => x.grave);
-    const irParaFase = (id) => document.getElementById(`fase-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const fluxo = p.fases.map((f) => ({ ...f, proximas: f.final ? [] : f.proximas }));
+    // Fases recolhidas por padrão quando são muitas: a lista cabe na tela e o fluxo guia a revisão.
+    const [abertas, setAbertas] = useState(() => new Set(p.fases.length <= 6 ? p.fases.map((f) => f.id) : []));
+    const [sel, setSel] = useState(null);
+    const alternar = (id) => setAbertas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    const irParaFase = (id) => {
+        setSel(id);
+        setAbertas((s) => new Set(s).add(id));
+        // Espera o cartão abrir para rolar até ele.
+        requestAnimationFrame(() => document.getElementById(`fase-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    };
+    const comPendencia = useMemo(() => new Set(pendencias.map((x) => x.fase)), [pendencias]);
+    const fluxo = useMemo(() => p.fases.filter((f) => f.nome.trim()).map((f) => ({ ...f, proximas: f.final ? [] : f.proximas, raia: nomeUnidade(f.unidade_ref) })),
+        [p.fases, p.unidades, estado.unidades]);
+    const todasAbertas = abertas.size >= p.fases.length;
 
     return (
         <>
             <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="p-4 pb-0 space-y-3">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                        <div><Label htmlFor="pr-nome">Nome do rito</Label><Input id="pr-nome" value={p.nome} onChange={(e) => setP({ ...p, nome: e.target.value })} /></div>
+                        <div><Label htmlFor="pr-desc">Descrição</Label><Input id="pr-desc" value={p.descricao} onChange={(e) => setP({ ...p, descricao: e.target.value })} /></div>
+                    </div>
+                    <section aria-label="Fluxo do rito" className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
+                        <div className="mb-1 flex flex-wrap items-baseline gap-x-3">
+                            <h3 className="text-sm font-semibold flex items-center gap-1.5"><GitBranch className="w-4 h-4" aria-hidden /> Fluxo</h3>
+                            <p className="text-xs text-slate-600 dark:text-slate-300">Uma raia por unidade. Clique numa fase para abrir e ajustar.</p>
+                        </div>
+                        {fluxo.length > 0
+                            ? <FluxoRito fases={fluxo} atual={sel} onSelecionar={irParaFase} legenda alturaMaxima="62vh" />
+                            : <p className="text-sm text-slate-600">Dê nome às fases para ver o fluxo.</p>}
+                    </section>
+                </div>
                 <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-4 p-4">
                     <div className="space-y-3 min-w-0">
-                        <div className="grid sm:grid-cols-2 gap-3">
-                            <div><Label htmlFor="pr-nome">Nome do rito</Label><Input id="pr-nome" value={p.nome} onChange={(e) => setP({ ...p, nome: e.target.value })} /></div>
-                            <div><Label htmlFor="pr-desc">Descrição</Label><Input id="pr-desc" value={p.descricao} onChange={(e) => setP({ ...p, descricao: e.target.value })} /></div>
-                        </div>
                         {p.avisos?.length > 0 && (
-                            <ul className="text-xs space-y-1 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 p-3">
-                                {p.avisos.slice(0, 8).map((a, i) => <li key={i} className="flex gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden />{a}</li>)}
-                            </ul>
+                            <details className="rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 p-3 text-xs" open={p.avisos.length <= 3}>
+                                <summary className="cursor-pointer font-semibold">{p.avisos.length} {p.avisos.length > 1 ? 'observações' : 'observação'} da leitura do arquivo</summary>
+                                <ul className="mt-2 space-y-1">
+                                    {p.avisos.slice(0, 12).map((a, i) => <li key={i} className="flex gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden />{a}</li>)}
+                                </ul>
+                            </details>
                         )}
                         {pendencias.length > 0 && (
                             <section aria-label="Pendências" className="rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3">
@@ -329,20 +355,20 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                                 </ul>
                             </section>
                         )}
-                        <h3 className="text-sm font-semibold pt-1">{p.fases.length} fases</h3>
+                        <div className="flex items-center gap-2 pt-1">
+                            <h3 className="text-sm font-semibold">{p.fases.length} fases</h3>
+                            <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs" onClick={() => setAbertas(new Set(todasAbertas ? [] : p.fases.map((f) => f.id)))}>{todasAbertas ? 'Recolher todas' : 'Abrir todas'}</Button>
+                        </div>
                         {p.fases.map((f, i) => (
                             <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
+                                aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
                                 nomeModelo={nomeModelo} mudar={(d) => mudarFase(f.id, d)} mover={(d) => mover(i, d)} remover={() => remover(f.id)}
                                 novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} />
                         ))}
-                        <Button variant="outline" size="sm" className="gap-1" onClick={() => setP({ ...p, fases: [...p.fases, { id: novoIdFase(), nome: '', proximas: [] }] })}><Plus className="w-4 h-4" /> Adicionar fase</Button>
+                        <Button variant="outline" size="sm" className="gap-1" onClick={() => { const id = novoIdFase(); setP({ ...p, fases: [...p.fases, { id, nome: '', proximas: [] }] }); setAbertas((s) => new Set(s).add(id)); }}><Plus className="w-4 h-4" /> Adicionar fase</Button>
                     </div>
 
                     <aside className="space-y-4 lg:sticky lg:top-0 self-start">
-                        <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                            <h3 className="text-sm font-semibold mb-2">Fluxo</h3>
-                            <div className="max-h-[42vh] overflow-auto"><FluxoRito fases={fluxo} /></div>
-                        </section>
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5"><Building2 className="w-4 h-4" aria-hidden /> Unidades novas ({unNovas.length})</h3>
                             {unNovas.length === 0 && <p className="text-xs text-slate-600">Todas as unidades citadas já existem no órgão.</p>}
@@ -417,7 +443,7 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
     );
 }
 
-function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo, mudar, mover, remover, novaUnidade, addModelo }) {
+function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo, mudar, mover, remover, novaUnidade, addModelo, aberta, onAlternar, selecionada, pendente, unidadeNome }) {
     const [novoModelo, setNovoModelo] = useState('');
     const outras = fases.filter((x) => x.id !== f.id);
     const saidas = f.proximas || [];
@@ -430,10 +456,25 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
         if (antiga && condicoes[antiga] !== undefined) { condicoes[id] = condicoes[antiga]; delete condicoes[antiga]; }
         mudar({ proximas: [...new Set(novas.filter(Boolean))], condicoes });
     };
+    const nomeDe = (id) => fases.find((x) => x.id === id)?.nome || '?';
+    const resumo = f.final ? 'Fim do processo' : saidas.length > 1 ? `${saidas.length} saídas` : saidas.length === 1 ? `→ ${nomeDe(saidas[0])}` : proxLista ? `→ ${proxLista}` : 'Sem saída';
     return (
-        <div id={`fase-${f.id}`} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 space-y-3 scroll-mt-4">
-            <div className="flex flex-wrap items-center gap-2">
+        <div id={`fase-${f.id}`} className={`rounded-lg border bg-white dark:bg-slate-900 scroll-mt-4 ${selecionada ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'}`}>
+            <button type="button" onClick={onAlternar} aria-expanded={aberta} aria-controls={`fase-corpo-${f.id}`}
+                className="flex w-full items-center gap-2 rounded-lg p-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">
                 <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-100 text-xs font-semibold flex items-center justify-center shrink-0">{i + 1}</span>
+                <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-sm font-medium ${f.nome.trim() ? '' : 'text-red-700 dark:text-red-300'}`}>{f.nome.trim() || 'Fase sem nome'}</span>
+                    <span className="block truncate text-xs text-slate-600 dark:text-slate-300">
+                        {[unidadeNome || 'Sem unidade', f.prazo_dias ? `${f.prazo_dias} dias` : '', resumo].filter(Boolean).join(' · ')}
+                    </span>
+                </span>
+                {pendente && <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" aria-label="Tem pendência" />}
+                <ChevronDown className={`w-4 h-4 shrink-0 text-slate-500 transition-transform ${aberta ? 'rotate-180' : ''}`} aria-hidden />
+            </button>
+            {aberta && (
+            <div id={`fase-corpo-${f.id}`} className="space-y-3 border-t border-slate-100 dark:border-slate-800 p-3">
+            <div className="flex flex-wrap items-center gap-2">
                 <Input aria-label={`Nome da fase ${i + 1}`} value={f.nome} onChange={(e) => mudar({ nome: e.target.value })} placeholder="Nome da fase" className="h-9 flex-1 min-w-[10rem] font-medium" />
                 <Input aria-label={`Prazo da fase ${i + 1}, em dias`} type="number" min={1} max={3650} placeholder="Dias" value={f.prazo_dias || ''} onChange={(e) => mudar({ prazo_dias: Number(e.target.value) || undefined })} className="h-9 w-20" />
                 <div className="flex">
@@ -504,6 +545,8 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 <Label htmlFor={`or-${f.id}`} className="text-xs">Orientação para a equipe</Label>
                 <Textarea id={`or-${f.id}`} rows={2} value={f.orientacao || ''} onChange={(e) => mudar({ orientacao: e.target.value })} />
             </div>
+            </div>
+            )}
         </div>
     );
 }

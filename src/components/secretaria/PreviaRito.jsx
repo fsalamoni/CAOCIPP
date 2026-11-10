@@ -71,7 +71,7 @@ export default function PreviaRito({ estado }) {
                                     {principal && <Button className="gap-2 pointer-events-none" aria-disabled><principal.icone className="w-4 h-4" aria-hidden /> {principal.rotulo}</Button>}
                                     {prox.length > 1 && <p className="text-xs text-slate-600 dark:text-slate-300">Alternativas: {prox.map((f) => `${f.nome}${fase.condicoes?.[f.id] ? ` (${fase.condicoes[f.id]})` : ''}`).join(' · ')}</p>}
                                 </div>
-                                <FluxoRito fases={fases} atual={fase.id} />
+                                <FluxoRito fases={fases} atual={fase.id} unidades={estado.unidades} />
                             </TabsContent>
                             <TabsContent value="parte" className="space-y-3">
                                 <div className="rounded-lg border p-3 space-y-2">

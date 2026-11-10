@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Rito: diagramas unidos e fluxo no formato do Bizagi
+- Importação: diagramas desenhados em páginas separadas são unidos sozinhos
+  onde um termina e o outro começa (atividade com o nome do outro diagrama,
+  eventos de fim, início e ligação com o mesmo nome, fim que cita o outro
+  diagrama e, sem pista nenhuma, o fim principal do anterior). Cada união
+  aparece nas observações da revisão.
+- Fluxo do rito desenhado na notação do Bizagi em todas as telas: raias por
+  unidade, início, tarefas, losango de desvio, fim, condição escrita na seta e
+  voltas tracejadas. O fluxo longo muda de linha para caber inteiro na tela;
+  há zoom e tela cheia.
+- Revisão da importação: fluxo inteiro no alto, fases em cartões recolhíveis
+  (clicar na fase do desenho abre o cartão) e observações agrupadas.
+
 ### 10/11/2026 — Importação de rito por arquivo
 - PDF: o texto saía colado ("2.Nome", "1.Autuação") e as fases numeradas não
   eram achadas; agora os pedaços separados ganham espaço, "1.Nome" abre fase e

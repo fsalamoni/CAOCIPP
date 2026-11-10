@@ -180,8 +180,17 @@ revisar e confirmar. A leitura é estruturada, sem IA
   (`subProcess`, `BlockActivity`) e chamada de subprocesso de outra página
   (`callActivity`, `SubFlow`) se abrem no lugar da atividade (entra pelo
   início de dentro, sai pelo fim de dentro, com "Parte do subprocesso" na
-  orientação); mensagens entre piscinas ligam um processo ao outro; processos
-  principais soltos ficam em sequência, com aviso. Também: draw.io (.drawio,
+  orientação); mensagens entre piscinas ligam um processo ao outro. Diagramas
+  desenhados em páginas separadas são unidos sozinhos, nesta ordem: atividade
+  com o nome de outro diagrama (ou piscina) abre esse diagrama no lugar;
+  evento de fim ou de ligação com o mesmo nome de um evento de início ou de
+  ligação de outro diagrama liga os dois; evento de fim que cita o nome de
+  outro diagrama leva ao início dele; e, sem nenhuma dessas pistas, o diagrama
+  que ninguém alcança começa onde o anterior termina (com vários fins, só o
+  principal, o mais distante do início, é ligado; os outros continuam
+  encerrando o processo). Cada união aparece nas observações da revisão. A
+  piscina dá nome ao diagrama quando o processo tem nome genérico
+  ("Processo 1"). Também: draw.io (.drawio,
   inclusive comprimido; raias, losangos de decisão, formas de documento) e
   Mermaid (`subgraph` vira unidade, `{}` vira decisão, rótulo da seta vira
   condição). Também dá para colar o texto ou o XML.
@@ -191,10 +200,13 @@ revisar e confirmar. A leitura é estruturada, sem IA
   próximo e o último segue para depois da junção. A fase ganha "corre em
   paralelo com: …" na orientação e a revisão mostra um aviso.
 
-**Revisão** (`PropostaRito.jsx`): cada fase em cartão, com nome, prazo,
+**Revisão** (`PropostaRito.jsx`): no alto, o fluxo inteiro desenhado na
+notação do Bizagi (ver "Diagrama do fluxo" abaixo), atualizado ao vivo; clicar
+numa fase do desenho abre o cartão dela. Abaixo, cada fase em cartão
+recolhível (o cabeçalho resume unidade, prazo e saída), com nome, prazo,
 unidade (existente, nova ou nenhuma), quem faz, ações, modelos, encaminhamentos
-com condição, fase final e orientação. Ao lado: diagrama do fluxo ao vivo,
-unidades novas (renomear, tipo ou trocar por uma existente), modelos novos
+com condição, fase final e orientação. As observações da leitura do arquivo
+ficam num bloco que abre e fecha. Ao lado: unidades novas (renomear, tipo ou trocar por uma existente), modelos novos
 (renomear, tipo de documento ou trocar por um existente) e a opção de criar o
 tipo de processo. Unidades e modelos com o mesmo nome dos já existentes são
 ligados a eles, sem duplicar.
@@ -624,7 +636,19 @@ final. `fasesSeguintes` aplica a regra acima.
 
 **Editor visual** (`RitoEditor.jsx`): fases em cartões (reordenar, remover,
 escolher o que vem depois, orientação) e o diagrama do fluxo
-(`FluxoRito.jsx`, SVG) atualizado ao vivo. Pontos de partida:
+(`FluxoRito.jsx`, SVG) atualizado ao vivo.
+
+**Diagrama do fluxo** (`FluxoRito.jsx`, geometria em `src/lib/fluxoBpmn.js`):
+todo rito, importado ou não, é desenhado na notação BPMN usada pelo Bizagi, da
+esquerda para a direita: uma raia por unidade, círculo verde de início,
+tarefas em caixas azuis (com o prazo), losango amarelo quando a fase tem mais
+de uma saída, círculo vermelho de fim, setas em ângulo reto com a condição
+escrita e voltas tracejadas. Quando o fluxo não cabe na largura da tela, ele
+continua na faixa de baixo (como um texto que muda de linha), para aparecer
+inteiro e legível. Há zoom, ajuste à largura e tela cheia (Esc fecha); leitores
+de tela recebem o fluxo em lista. O portal das partes não mostra as raias.
+
+Pontos de partida:
 
 - **Modelos prontos:** rito comum, requerimento simples, procedimento com
   contraditório (com recurso) e atendimento ao cidadão.

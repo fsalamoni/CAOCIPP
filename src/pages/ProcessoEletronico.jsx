@@ -411,7 +411,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                     {ritoSel && (
                         <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
                             <summary className="text-sm cursor-pointer">Ver o fluxo do rito ({ritoSel.fases.length} fases)</summary>
-                            <FluxoRito fases={ritoSel.fases} className="mt-2" />
+                            <FluxoRito fases={ritoSel.fases} unidades={estado.unidades} className="mt-2" />
                         </details>
                     )}
                     <div className="space-y-2">

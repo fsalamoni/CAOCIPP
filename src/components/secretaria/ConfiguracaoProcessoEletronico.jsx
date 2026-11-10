@@ -219,7 +219,7 @@ function Tipos({ orgId, estado }) {
                             {estado.ritos.find((r) => r.id === tipo.rito_id) && (
                                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
                                     <p className="text-sm font-medium mb-2">Fluxo deste tipo</p>
-                                    <FluxoRito fases={estado.ritos.find((r) => r.id === tipo.rito_id).fases} />
+                                    <FluxoRito fases={estado.ritos.find((r) => r.id === tipo.rito_id).fases} unidades={estado.unidades} />
                                 </div>
                             )}
                             {tipo.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={tipo.ativo} onCheckedChange={(c) => setTipo({ ...tipo, ativo: c === true })} /> Disponível para novas autuações</label>}

@@ -78,9 +78,9 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
                         <div className="lg:sticky lg:top-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
                             <p className="text-sm font-medium mb-2 flex items-center gap-2"><GitBranch className="w-4 h-4" /> Prévia do fluxo</p>
                             {fases.some((f) => f.nome?.trim())
-                                ? <FluxoRito fases={fases.filter((f) => f.nome?.trim())} />
+                                ? <FluxoRito fases={fases.filter((f) => f.nome?.trim())} unidades={unidades} legenda />
                                 : <p className="text-sm text-slate-600">Dê nome às fases para ver o diagrama.</p>}
-                            <p className="text-xs text-slate-600 mt-2">Setas tracejadas são voltas no fluxo. Caixas arredondadas encerram o fluxo.</p>
+                            <p className="text-xs text-slate-600 mt-2">Uma raia por unidade. O losango aparece quando a fase tem mais de uma saída.</p>
                         </div>
                     </div>
                 </div>

@@ -164,7 +164,58 @@ test('BPMN: callActivity abre o processo chamado; processos soltos ficam em sequ
     const { fases, avisos } = propostaDeBpmn(xml);
     assert.deepEqual(nomes(fases), ['Autuar', 'Nomear perito', 'Receber laudo', 'Arquivar']);
     assert.deepEqual(seg(fases, 'Receber laudo'), ['Arquivar']);
-    assert.ok(avisos.some((a) => /em sequência \(Principal → Encerramento\)/.test(a)));
+    assert.ok(avisos.some((a) => /"Encerramento" começa onde "Principal" termina/.test(a)));
+});
+
+// Dois diagramas (páginas) em que um termina onde o outro começa.
+const pagina = (id, piscina, corpo) => `<Package xmlns="http://www.wfmc.org/2009/XPDL2.2" Id="pk${id}">
+  <Pools><Pool Id="pool${id}" Name="${piscina}" Process="${id}"/></Pools>
+  <WorkflowProcesses><WorkflowProcess Id="${id}" Name="Processo 1">${corpo}</WorkflowProcess></WorkflowProcesses></Package>`;
+const ev = (id, tipo, nome = '') => `<Activity Id="${id}" Name="${nome}"><Event><${tipo}/></Event></Activity>`;
+const DESENVOLVIMENTO = pagina('D', 'CONSULTAS - DESENVOLVIMENTO', `<Activities>
+    ${ev('d0', 'StartEvent')}<Activity Id="d1" Name="Pesquisar"/><Activity Id="d2" Name="Redigir"/>${ev('d9', 'EndEvent')}
+  </Activities><Transitions><Transition From="d0" To="d1"/><Transition From="d1" To="d2"/><Transition From="d2" To="d9"/></Transitions>`);
+const entrada = (fins) => pagina('E', 'CONSULTAS - ENTRADA', `<Activities>
+    ${ev('e0', 'StartEvent')}<Activity Id="e1" Name="Criar PGEA"/><Activity Id="g" Name="Cabe consulta?"><Route GatewayType="Exclusive"/></Activity>
+    <Activity Id="e2" Name="Informar solicitante"/><Activity Id="e3" Name="Distribuir"/>${fins}
+  </Activities><Transitions><Transition From="e0" To="e1"/><Transition From="e1" To="g"/><Transition From="g" To="e2" Name="Não"/>
+    <Transition From="g" To="e3" Name="Sim"/><Transition From="e2" To="f1"/><Transition From="e3" To="f2"/></Transitions>`);
+
+test('diagramas unidos pelo nome: o fim com o nome do outro diagrama continua nele (em qualquer ordem no arquivo)', () => {
+    const E = entrada(`${ev('f1', 'EndEvent', 'Consulta recusada')}${ev('f2', 'EndEvent', 'Desenvolvimento')}`);
+    const { fases, avisos } = propostaDeDiagramas([{ xml: DESENVOLVIMENTO }, { xml: E }]);
+    assert.equal(fases[0].nome, 'Criar PGEA');
+    assert.deepEqual(seg(fases, 'Distribuir'), ['Pesquisar']);
+    assert.ok(por(fases, 'Informar solicitante').final);
+    assert.equal(seg(fases, 'Redigir').length, 0);
+    assert.equal(por(fases, 'Pesquisar').unidade, 'CONSULTAS - DESENVOLVIMENTO');
+    assert.ok(avisos.some((a) => /o fim "Desenvolvimento" de "CONSULTAS - ENTRADA" continua em "CONSULTAS - DESENVOLVIMENTO"/.test(a)), avisos.join('|'));
+});
+
+test('diagramas sem nome em comum: só o fim principal continua no diagrama seguinte', () => {
+    // O fim da recusa fica a 4 passos do início; o do caminho principal, mais longe.
+    const E = entrada(`${ev('f1', 'EndEvent')}<Activity Id="e4" Name="Registrar"/>${ev('f2', 'EndEvent')}`).replace('<Transition From="e3" To="f2"/>', '<Transition From="e3" To="e4"/><Transition From="e4" To="f2"/>');
+    const { fases, avisos } = propostaDeDiagramas([{ xml: E }, { xml: DESENVOLVIMENTO }]);
+    assert.deepEqual(seg(fases, 'Registrar'), ['Pesquisar']);
+    assert.ok(por(fases, 'Informar solicitante').final);
+    assert.ok(avisos.some((a) => /tem 2 fins: o principal foi ligado ao início de "CONSULTAS - DESENVOLVIMENTO"/.test(a)), avisos.join('|'));
+});
+
+test('eventos de ligação de mesmo nome e atividade com o nome do outro diagrama', () => {
+    // Ligação: "A" sem saída numa página continua no "A" sem entrada da outra.
+    const P1 = pagina('P1', 'Entrada', `<Activities>${ev('a0', 'StartEvent')}<Activity Id="a1" Name="Receber"/>${ev('a2', 'IntermediateEvent', 'A')}</Activities>
+      <Transitions><Transition From="a0" To="a1"/><Transition From="a1" To="a2"/></Transitions>`);
+    const P2 = pagina('P2', 'Análise', `<Activities>${ev('b0', 'IntermediateEvent', 'A')}<Activity Id="b1" Name="Analisar"/>${ev('b9', 'EndEvent')}</Activities>
+      <Transitions><Transition From="b0" To="b1"/><Transition From="b1" To="b9"/></Transitions>`);
+    const r = propostaDeDiagramas([{ xml: P2 }, { xml: P1 }]);
+    assert.deepEqual(nomes(r.fases), ['Receber', 'Analisar']);
+    assert.deepEqual(seg(r.fases, 'Receber'), ['Analisar']);
+    // Atividade "Análise" na página 1 é a chamada da página "Análise".
+    const P3 = pagina('P3', 'Entrada', `<Activities>${ev('c0', 'StartEvent')}<Activity Id="c1" Name="Receber"/><Activity Id="c2" Name="Análise"/><Activity Id="c3" Name="Arquivar"/>${ev('c9', 'EndEvent')}</Activities>
+      <Transitions><Transition From="c0" To="c1"/><Transition From="c1" To="c2"/><Transition From="c2" To="c3"/><Transition From="c3" To="c9"/></Transitions>`);
+    const P4 = P2.replace(ev('b0', 'IntermediateEvent', 'A'), ev('b0', 'StartEvent'));
+    const s = propostaDeDiagramas([{ xml: P3 }, { xml: P4 }]);
+    assert.deepEqual(nomes(s.fases), ['Receber', 'Analisar', 'Arquivar']);
 });
 
 test('planilha com várias abas: aba de detalhamento, macroetapa, saída para outra aba e paralela', () => {
