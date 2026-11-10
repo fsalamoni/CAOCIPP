@@ -32,9 +32,11 @@ export const rotuloUnidade = (tipo) => TIPOS_UNIDADE[tipo]?.rotulo || 'Secretari
 /** Papel timbrado e tipos de documento da unidade (ou os do órgão). */
 export const documentoDaUnidade = (estado, unidadeId) => estado.documentoUnidades?.[unidadeId] || estado.documento || {};
 
-/** Modelos que uma unidade pode usar: os do órgão e os dela. */
-export const modelosDaUnidade = (estado, unidadeId) =>
-    (estado.modelos || []).filter((m) => m.ativo && (!m.unidade_id || m.unidade_id === unidadeId));
+/** Modelos que uma unidade pode usar: os da entidade, os do órgão interno dela e os dela. */
+export const modelosDaUnidade = (estado, unidadeId) => {
+    const orgao = (estado.unidades || []).find((u) => u.id === unidadeId)?.orgao_id || null;
+    return (estado.modelos || []).filter((m) => m.ativo && (m.unidade_id ? m.unidade_id === unidadeId : !m.orgao_id || m.orgao_id === orgao));
+};
 
 export function NativeSelect({ label, value, onChange, options, id }) {
     const selId = id || `sel-${label}`;

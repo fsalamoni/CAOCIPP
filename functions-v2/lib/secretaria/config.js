@@ -113,7 +113,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
@@ -138,7 +138,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             db.collection(context_1.COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).get(),
             db.collection(context_1.COL.config).doc(orgId).get(),
-            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'formato', 'arquivo_nome').get(),
+            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome').get(),
             db.collection('userOrganizations').where('organization_id', '==', orgId).get(),
             minhas.length ? db.getAll(...minhas.map((id) => db.collection(context_1.COL.unidadeConfig).doc(id))) : Promise.resolve([]),
             (0, unidades_1.convitesPendentes)(c),
@@ -193,15 +193,16 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             calendario: (0, secretaria_1.sanitizeCalendario)((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.calendario),
             alerta_prazos: ((_f = cfgSnap.data()) === null || _f === void 0 ? void 0 : _f.alerta_prazos) === true,
             ciencia_dias: (0, comunicacoes_1.cienciaDias)((_g = cfgSnap.data()) === null || _g === void 0 ? void 0 : _g.ciencia_dias),
+            textos_comunicacao: (0, comunicacoes_1.textosProntosDe)((_h = cfgSnap.data()) === null || _h === void 0 ? void 0 : _h.textos_comunicacao),
             modelos: modelosSnap.docs.map((d) => {
                 const m = d.data();
                 return {
                     id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false,
-                    unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
+                    unidade_id: m.unidade_id || null, orgao_id: m.orgao_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
-            suspensa_plataforma: ((_h = c.org.secretariaConfig) === null || _h === void 0 ? void 0 : _h.suspensa_plataforma) === true,
-            motivo_suspensao: ((_j = c.org.secretariaConfig) === null || _j === void 0 ? void 0 : _j.motivo_suspensao) || '',
+            suspensa_plataforma: ((_j = c.org.secretariaConfig) === null || _j === void 0 ? void 0 : _j.suspensa_plataforma) === true,
+            motivo_suspensao: ((_k = c.org.secretariaConfig) === null || _k === void 0 ? void 0 : _k.motivo_suspensao) || '',
             orgao: String(c.org.name || ''),
             membros,
         };
@@ -213,7 +214,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
         return {
             id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo,
-            ativo: m.ativo !== false, unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
+            ativo: m.ativo !== false, unidade_id: m.unidade_id || null, orgao_id: m.orgao_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
         };
     }
     if (p.action === 'baixarModelo') {
@@ -290,6 +291,10 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const nome = (0, secretaria_1.texto)(m.nome, 120);
         if (!nome)
             throw new https_1.HttpsError('invalid-argument', 'Dê um nome ao modelo');
+        // Modelo da entidade pode ser só de um órgão interno (vale para as unidades dele).
+        const orgaoModelo = unidadeId ? '' : String(m.orgao_id || '');
+        if (orgaoModelo && !(await (0, orgaos_2.lerOrgaos)(db, orgId)).some((o) => o.id === orgaoModelo))
+            throw new https_1.HttpsError('invalid-argument', 'Órgão do modelo inválido');
         // Formato: 'editor' (conteúdo do editor) ou 'original' (arquivo DOCX/PDF guardado).
         const formato = (p.id ? atual === null || atual === void 0 ? void 0 : atual.formato : m.formato) === 'original' ? 'original' : 'editor';
         const arquivo = formato === 'original' && (m.arquivo || !p.id) ? arquivoRecebido(m.arquivo, importarModelo_1.MIMES_ORIGINAL) : null;
@@ -305,10 +310,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 throw new https_1.HttpsError('invalid-argument', 'Modelo grande demais (imagens pesadas); reduza as imagens ou guarde o arquivo original');
             }
         }
-        const dados = {
-            nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500), conteudo, unidade_id: unidadeId,
-            ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
-        };
+        const dados = Object.assign(Object.assign({ nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500), conteudo, unidade_id: unidadeId }, ('orgao_id' in m || unidadeId ? { orgao_id: orgaoModelo || null } : {})), { ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid });
         const ref = p.id ? col.doc(p.id) : col.doc();
         if (!p.id && (await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
             throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
@@ -426,6 +428,18 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         await audit('SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe, ciencia_dias: dias });
         return { success: true };
     }
+    if (p.action === 'salvarTextosComunicacao') {
+        let textos;
+        try {
+            textos = (0, comunicacoes_1.sanitizeTextosProntos)(p.textos);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, textos_comunicacao: textos, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await audit('SECRETARIA_TEXTOS_COMUNICACAO', { textos: textos.length });
+        return { success: true };
+    }
     if (p.action === 'extrairTextoRito') {
         const a = arquivoRecebido(p.arquivo, [conversao_1.MIME_DOCX, 'application/pdf', 'text/plain', importarModelo_1.MIME_BIZAGI]);
         if (a.mime === importarModelo_1.MIME_BIZAGI && a.buf.subarray(0, 2).toString('latin1') !== 'PK') {
@@ -521,7 +535,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             tipoId = ref.id;
             batch.set(ref, {
                 nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id,
-                sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_k = rito.fases[0]) === null || _k === void 0 ? void 0 : _k.unidade_id) || null,
+                sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_l = rito.fases[0]) === null || _l === void 0 ? void 0 : _l.unidade_id) || null,
                 ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
             });
         }
@@ -545,12 +559,12 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_l = snap.data()) === null || _l === void 0 ? void 0 : _l.organization_id) !== orgId)
+            if (!snap.exists || ((_m = snap.data()) === null || _m === void 0 ? void 0 : _m.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos. A versão anterior fica guardada.
             await guardarVersao(ref, snap.data(), CAMPOS_RITO);
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_m = snap.data()) === null || _m === void 0 ? void 0 : _m.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_o = snap.data()) === null || _o === void 0 ? void 0 : _o.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).get()).size;
@@ -589,7 +603,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if (((_o = (await ref.get()).data()) === null || _o === void 0 ? void 0 : _o.organization_id) !== orgId)
+            if (((_p = (await ref.get()).data()) === null || _p === void 0 ? void 0 : _p.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
             await ref.update(dados);
         }

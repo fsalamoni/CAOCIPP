@@ -209,16 +209,16 @@ export function DocumentosDaUnidade({ orgId, estado, unidade }) {
     );
 }
 
-/** Modelos do órgão (unidadeId null) ou de uma unidade. */
-export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
+/** Modelos da entidade (unidadeId null), de um órgão interno (orgaoId) ou de uma unidade. */
+export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCartao = false }) {
     const qc = useQueryClient();
     const [modelo, setModelo] = useState(null);
     const [importando, setImportando] = useState(false);
-    const lista = (estado.modelos || []).filter((m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id));
+    const lista = (estado.modelos || []).filter((m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id && (m.orgao_id || null) === orgaoId));
     const indicadoEm = fasesQueIndicam(estado);
     const recarregar = () => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
     const abrirModelo = async (m) => {
-        if (!m) { setModelo({ _k: Date.now(), nome: '', tipo_documento: '', descricao: '', ativo: true, conteudo: null, unidade_id: unidadeId }); return; }
+        if (!m) { setModelo({ _k: Date.now(), nome: '', tipo_documento: '', descricao: '', ativo: true, conteudo: null, unidade_id: unidadeId, orgao_id: orgaoId }); return; }
         try {
             setModelo({ ...(await secConfig(orgId, 'obterModelo', { id: m.id })), _k: Date.now() });
         } catch (e) { toast.error(e?.message || 'Não foi possível abrir o modelo'); }
@@ -253,7 +253,7 @@ export function ListaModelos({ orgId, estado, unidadeId, semCartao = false }) {
             {modelo?.formato === 'original'
                 ? <EditorOriginal modelo={modelo} setModelo={setModelo} orgId={orgId} tipos={docCfg.tipos_documento || []} onSalvo={recarregar} />
                 : <EditorModelo modelo={modelo} setModelo={setModelo} orgId={orgId} estado={estado} onSalvo={recarregar} />}
-            <ImportarModelo aberto={importando} orgId={orgId} estado={estado} unidadeId={unidadeId} onSalvo={recarregar}
+            <ImportarModelo aberto={importando} orgId={orgId} estado={estado} unidadeId={unidadeId} orgaoId={orgaoId} onSalvo={recarregar}
                 onEditar={(m) => setModelo({ ...m, _k: Date.now() })} onFechar={() => setImportando(false)} />
         </>
     );

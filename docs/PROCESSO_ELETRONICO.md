@@ -415,6 +415,15 @@ Intimação, notificação, citação, ciência e comunicação. Lógica pura em
   tem `portal_partes` e na página do Portal).
 - **Testes:** `functions-v2/test/comunicacoes.test.js`.
 
+## Textos prontos de comunicação (nov/2026)
+
+`secConfig/{orgId}.textos_comunicacao`: até 40 itens `{id, nome, especie
+(ou '' para qualquer), texto, dias, contagem}`, validados por
+`sanitizeTextosProntos` (`functions-v2/src/shared/comunicacoes.ts`). Ação
+`secretariaConfig.salvarTextosComunicacao {textos}` (admin; grava a lista
+inteira). `estado` devolve `textos_comunicacao`. No formulário de expedição,
+o texto pronto preenche o texto e o prazo, e a pessoa ajusta antes de expedir.
+
 ## Órgãos internos (nov/2026)
 
 A entidade é **singular** (sem órgãos internos; as unidades ficam ligadas
@@ -443,8 +452,11 @@ direto a ela) ou **composta** por órgãos em árvore.
 - **Telas:** `src/components/secretaria/Orgaos.jsx` (aba Estrutura,
   organograma, formulário do órgão, assistente) e `src/lib/orgaos.js`
   (rótulos, estruturas de exemplo, `unidadeComOrgao`).
-- **Fora desta entrega:** modelos de documento por órgão (hoje são da
-  entidade ou da unidade) e painel por órgão.
+- **Modelos por órgão:** `secModelos.orgao_id` (só em modelo sem
+  `unidade_id`). `modelosDaUnidade` devolve os da entidade, os do órgão da
+  unidade e os da unidade. Gerência só do admin, no formulário do órgão.
+- **Para a equipe:** `UnidadesDoUsuario` mostra o organograma detalhado
+  (competências) e o painel soma os processos por órgão.
 - **Testes:** `functions-v2/test/orgaos.test.js`, `src/lib/orgaos.test.js`.
 
 ## Meus Processos Eletrônicos (nov/2026)

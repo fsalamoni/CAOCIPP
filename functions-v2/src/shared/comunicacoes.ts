@@ -125,3 +125,33 @@ export function destinatario(c: Comunicacao, partes: Array<{ uid?: string; repre
     const p = partes[c.parte_idx];
     return !!p && (p.uid === uid || (p.representantes || []).some((r) => r.uid === uid));
 }
+
+export const MAX_TEXTOS_PRONTOS = 40;
+/** Texto pronto para expedir comunicações (a secretaria escolhe e ajusta). */
+export interface TextoPronto { id: string; nome: string; especie: string; texto: string; dias: number; contagem: Contagem }
+
+export function sanitizeTextosProntos(raw: unknown): TextoPronto[] {
+    const lista = Array.isArray(raw) ? raw : [];
+    if (lista.length > MAX_TEXTOS_PRONTOS) throw new Error(`São até ${MAX_TEXTOS_PRONTOS} textos prontos`);
+    const ids = new Set<string>();
+    return lista.map((x, i) => {
+        const t = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+        const nome = texto(t.nome, 80);
+        const corpo = texto(t.texto, 2000);
+        if (!nome || !corpo) throw new Error('Cada texto pronto precisa de nome e de texto');
+        let id = /^[A-Za-z0-9_-]{1,40}$/.test(String(t.id || '')) ? String(t.id) : `t${i}`;
+        while (ids.has(id)) id += 'x';
+        ids.add(id);
+        const dias = Number(t.dias);
+        return {
+            id, nome, texto: corpo, especie: ESPECIES[String(t.especie)] ? String(t.especie) : '',
+            dias: Number.isInteger(dias) && dias > 0 && dias <= MAX_PRAZO_DIAS ? dias : 0,
+            contagem: t.contagem === 'corridos' ? 'corridos' : 'uteis',
+        };
+    });
+}
+
+/** Lê o que está gravado sem lançar. */
+export function textosProntosDe(raw: unknown): TextoPronto[] {
+    try { return sanitizeTextosProntos(Array.isArray(raw) ? raw.slice(0, MAX_TEXTOS_PRONTOS) : []); } catch { return []; }
+}

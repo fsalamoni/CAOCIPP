@@ -50,3 +50,19 @@ test('derivados, destinatário e limite de ciência', () => {
     assert.deepEqual([cienciaDias(undefined), cienciaDias(0), cienciaDias(500), cienciaDias('x')], [10, 0, 90, 10]);
     assert.deepEqual([textoPrazo({ dias: 1, contagem: 'uteis' }), textoPrazo({ dias: 3, contagem: 'corridos' }), textoPrazo({ dias: 0, contagem: 'uteis' })], ['1 dia útil', '3 dias corridos', '']);
 });
+
+test('textos prontos: exigem nome e texto, espécie desconhecida vira qualquer, prazo fora do limite some', () => {
+    const { sanitizeTextosProntos, textosProntosDe, MAX_TEXTOS_PRONTOS } = require('../lib/shared/comunicacoes');
+    assert.throws(() => sanitizeTextosProntos([{ nome: 'Sem texto' }]), /nome e de texto/);
+    assert.throws(() => sanitizeTextosProntos(Array.from({ length: MAX_TEXTOS_PRONTOS + 1 }, () => ({ nome: 'a', texto: 'b' }))), /até/);
+    const l = sanitizeTextosProntos([
+        { id: 'a', nome: ' Defesa ', especie: 'intimacao', texto: 'Apresente defesa.', dias: 15, contagem: 'corridos' },
+        { id: 'a', nome: 'Outra', especie: 'inventada', texto: 'x', dias: -3 },
+    ]);
+    assert.deepEqual(l[0], { id: 'a', nome: 'Defesa', especie: 'intimacao', texto: 'Apresente defesa.', dias: 15, contagem: 'corridos' });
+    assert.equal(l[1].especie, '');
+    assert.equal(l[1].dias, 0);
+    assert.notEqual(l[1].id, 'a');
+    assert.deepEqual(textosProntosDe([{ nome: 'quebrado' }]), []);
+    assert.deepEqual(textosProntosDe(undefined), []);
+});

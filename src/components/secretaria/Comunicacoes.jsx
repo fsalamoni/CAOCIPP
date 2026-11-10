@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { BellRing, CheckCircle2, Clock, Loader2, Megaphone, Send, XCircle } from 'lucide-react';
+import { BellRing, CheckCircle2, Clock, Loader2, Megaphone, Plus, Send, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,7 +86,7 @@ const temConta = (x) => x.portal === 'ativo' || (x.representantes || []).some((r
  * Formulário de expedição. O prazo vem sugerido da fase do rito quando ela
  * tem um; se não tem, quem expede precisa dizer os dias ou marcar "sem prazo".
  */
-export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, ocupado, onFechar, onExpedir }) {
+export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, textosProntos = [], ocupado, onFechar, onExpedir }) {
     const [especie, setEspecie] = useState('intimacao');
     const [partes, setPartes] = useState([]);
     const [texto, setTexto] = useState('');
@@ -107,6 +107,14 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, o
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aberto]);
 
+    // Texto pronto: preenche o texto e, se tiver, o prazo; a pessoa ajusta antes de expedir.
+    const prontos = textosProntos.filter((t) => !t.especie || t.especie === especie);
+    const usarPronto = (id) => {
+        const t = prontos.find((x) => x.id === id);
+        if (!t) return;
+        setTexto(t.texto);
+        if (t.dias > 0 && especie !== 'ciencia') { setModoPrazo('dias'); setDias(String(t.dias)); setContagem(t.contagem); }
+    };
     const marcar = (i) => setPartes((l) => (l.includes(i) ? l.filter((x) => x !== i) : [...l, i]));
     const escolherEspecie = (id) => { setEspecie(id); if (id === 'ciencia') setModoPrazo('sem'); };
     const semConta = partes.filter((i) => !temConta(p.partes[i]));
@@ -169,6 +177,12 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, o
                     <div className="space-y-3">
                         <div>
                             <Label htmlFor="com-texto" className="text-sm font-medium">3. O que está sendo comunicado</Label>
+                            {prontos.length > 0 && (
+                                <select aria-label="Usar um texto pronto" value="" onChange={(e) => usarPronto(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                                    <option value="">Usar um texto pronto…</option>
+                                    {prontos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                                </select>
+                            )}
                             <Textarea id="com-texto" rows={4} className="mt-1" value={texto} onChange={(e) => setTexto(e.target.value)}
                                 placeholder="Ex.: Fica intimado a se manifestar sobre o relatório da comissão, juntado às fls. 12–18." />
                         </div>
@@ -249,5 +263,74 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, o
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+const TEXTO_NOVO = { nome: '', especie: '', texto: '', dias: '', contagem: 'uteis' };
+
+/** Configuração: textos prontos para a secretaria usar ao intimar ou comunicar. */
+export function TextosComunicacao({ estado, salvando, onSalvar }) {
+    const textos = estado.textos_comunicacao || [];
+    const [t, setT] = useState(null);
+    const set = (k, v) => setT((x) => ({ ...x, [k]: v }));
+    const gravar = async (lista) => { if (await onSalvar(lista)) setT(null); };
+    const salvar = () => {
+        const item = { ...t, id: t.id || `t${Date.now().toString(36)}`, dias: Number(t.dias) || 0 };
+        gravar(t.id ? textos.map((x) => (x.id === t.id ? item : x)) : [...textos, item]);
+    };
+    return (
+        <Card>
+            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+                <div>
+                    <CardTitle className="text-base">Textos prontos de intimações e comunicações</CardTitle>
+                    <CardDescription>Frases que a secretaria usa sempre. Ao intimar ou comunicar, ela escolhe um texto pronto, ajusta o que precisar e expede. O prazo sugerido já vem preenchido.</CardDescription>
+                </div>
+                <Button size="sm" className="gap-1 shrink-0" onClick={() => setT({ ...TEXTO_NOVO })}><Plus className="w-4 h-4" aria-hidden /> Novo texto</Button>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-2 gap-2">
+                {textos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum texto pronto ainda.</p>}
+                {textos.map((x) => (
+                    <button key={x.id} type="button" onClick={() => setT({ ...x, dias: x.dias ? String(x.dias) : '' })} className="w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium">{x.nome}</span><Badge variant="outline">{x.especie ? nomeEspecie(x.especie) : 'Qualquer espécie'}</Badge>{x.dias > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">prazo de {textoPrazo(x)}</span>}</span>
+                        <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{x.texto}</span>
+                    </button>
+                ))}
+            </CardContent>
+            <Dialog open={!!t} onOpenChange={(a) => !a && setT(null)}>
+                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                    <DialogHeader>
+                        <DialogTitle>{t?.id ? 'Editar texto pronto' : 'Novo texto pronto'}</DialogTitle>
+                        <DialogDescription>Fica disponível para a secretaria na hora de intimar ou comunicar uma parte.</DialogDescription>
+                    </DialogHeader>
+                    {t && (
+                        <div className="space-y-3">
+                            <div><Label htmlFor="tx-nome">Nome</Label><Input id="tx-nome" value={t.nome} maxLength={80} onChange={(e) => set('nome', e.target.value)} placeholder="Ex.: Intimação para defesa" /></div>
+                            <div>
+                                <Label htmlFor="tx-especie">Espécie</Label>
+                                <select id="tx-especie" value={t.especie} onChange={(e) => set('especie', e.target.value)} className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                                    <option value="">Qualquer espécie</option>
+                                    {ESPECIES.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+                                </select>
+                            </div>
+                            <div><Label htmlFor="tx-texto">Texto</Label><Textarea id="tx-texto" rows={5} maxLength={2000} value={t.texto} onChange={(e) => set('texto', e.target.value)} placeholder="Ex.: Fica intimado a apresentar defesa escrita sobre os fatos descritos na representação." /></div>
+                            <div className="flex flex-wrap items-end gap-2">
+                                <div className="w-32"><Label htmlFor="tx-dias">Prazo sugerido</Label><Input id="tx-dias" type="number" min={0} max={365} value={t.dias} onChange={(e) => set('dias', e.target.value)} placeholder="Sem prazo" /></div>
+                                <select aria-label="Contagem do prazo" value={t.contagem} onChange={(e) => set('contagem', e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                                    <option value="uteis">dias úteis</option>
+                                    <option value="corridos">dias corridos</option>
+                                </select>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter className="gap-2 sm:justify-between">
+                        <div>{t?.id && <Button type="button" variant="ghost" className="text-red-700 dark:text-red-400" disabled={salvando} onClick={() => gravar(textos.filter((x) => x.id !== t.id))}>Remover</Button>}</div>
+                        <div className="flex gap-2 justify-end">
+                            <Button type="button" variant="outline" onClick={() => setT(null)}>Cancelar</Button>
+                            <Button disabled={salvando || !t?.nome.trim() || !t?.texto.trim()} onClick={salvar}>Salvar</Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </Card>
     );
 }

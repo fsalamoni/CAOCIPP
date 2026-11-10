@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Acabamento: órgão para a equipe, modelos por órgão e textos prontos
+- **Estrutura visível para a equipe**: a aba Unidades do Processo Eletrônico
+  mostra o organograma com as competências de cada órgão, o titular e as
+  unidades; cada unidade mostra o órgão e as atribuições.
+- **Painel**: gráfico "Em tramitação por órgão interno" e unidades com o
+  nome do órgão.
+- **Modelos de documento por órgão**: no formulário do órgão, a seção
+  "Modelos de documento deste órgão". Só as unidades dele usam esses modelos,
+  além dos da entidade e dos próprios de cada unidade.
+- **Textos prontos de intimações e comunicações** (aba Documentos e modelos):
+  nome, espécie, texto e prazo sugerido. Ao intimar ou comunicar, a secretaria
+  escolhe o texto pronto, ajusta e expede.
+
 ### 10/11/2026 — Órgãos internos da entidade
 - Nova aba **Estrutura** na configuração do Processo Eletrônico. A entidade
   pode continuar singular (só com as suas unidades) ou ser composta por
