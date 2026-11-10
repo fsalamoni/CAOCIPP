@@ -169,8 +169,11 @@ e mudança de fase guiada pelo fluxo (fora do fluxo exige motivo). Importação
 de ritos (etapa 3): planilha (todas as abas), Word, PDF, Bizagi (.bpm, todas as
 páginas), BPMN, XPDL, draw.io ou Mermaid viram proposta completa (fases,
 unidades, quem faz, ações, modelos, alternativas com condição; subprocessos
-abertos em etapas e ramos paralelos em sequência), revisada e implantada de
-uma vez pelo admin. Fase 5:
+abertos em etapas, ramos paralelos em sequência e diagramas de páginas
+separadas unidos onde um termina e o outro começa), revisada e implantada de
+uma vez pelo admin. O fluxo de todo rito é desenhado na notação do Bizagi
+(raias, início, tarefas, desvios, fim), inteiro na tela, com zoom e tela
+cheia. Fase 5:
 editor de documentos completo (folha A4, fontes, tabelas, imagens, quebra de
 página, localizar e substituir), papel timbrado do órgão, modelos com campos
 automáticos, prévia em PDF, juntada com numeração de folhas e PDF carimbado

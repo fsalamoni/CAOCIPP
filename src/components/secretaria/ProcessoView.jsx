@@ -318,7 +318,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     )}
                     <details className="group text-sm">
                         <summary className="cursor-pointer text-indigo-700 dark:text-indigo-300 list-none"><span className="group-open:hidden">Ver o fluxo do rito</span><span className="hidden group-open:inline">Ocultar o fluxo</span></summary>
-                        <FluxoRito fases={p.fases} atual={p.fase_atual} className="mt-2" />
+                        <FluxoRito fases={p.fases} atual={p.fase_atual} unidades={estado.unidades} className="mt-2" />
                     </details>
                 </CardContent>
             </Card>

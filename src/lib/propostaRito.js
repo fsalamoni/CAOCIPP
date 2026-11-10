@@ -219,7 +219,7 @@ export function modeloDeBpmn(xml) {
         if (nos.get(no) && notas.get(nota)) nos.get(no).orientacao = [nos.get(no).orientacao, notas.get(nota)].filter(Boolean).join(' ').slice(0, 2000);
     }
     for (const n of nos.values()) n.unidade = raiaDe.get(n.chave) || piscinaDoProcesso.get(n.container) || undefined;
-    for (const c of containers) if (!c.nome && piscinaDoProcesso.get(c.id)) c.nome = piscinaDoProcesso.get(c.id);
+    for (const c of containers) { c.piscina = piscinaDoProcesso.get(c.id) || ''; if (!c.nome) c.nome = c.piscina; }
     if (!nos.size) avisos.push('Não parece um BPMN: nenhuma tarefa ou evento encontrado');
     return { nos: [...nos.values()], arestas, containers, avisos };
 }
@@ -302,7 +302,7 @@ export function modeloDeXpdl(xml) {
         delete n.lane;
         delete n.performer;
     }
-    for (const c of containers) if (!c.nome && piscinaDoProcesso.get(c.id)) c.nome = piscinaDoProcesso.get(c.id);
+    for (const c of containers) { c.piscina = piscinaDoProcesso.get(c.id) || ''; if (!c.nome) c.nome = c.piscina; }
     if (!nos.length) avisos.push('Não parece um XPDL: nenhuma atividade encontrada');
     return { nos, arestas, containers, avisos };
 }
@@ -401,10 +401,25 @@ function sequenciarParalelos(nos, arestas, avisos) {
     }
 }
 
+/** Nomes que dizem a mesma coisa: iguais sem acento/caixa, ou um contém o outro (5+ letras). */
+function casa(a, b) {
+    const x = sem(a);
+    const y = sem(b);
+    if (!x || !y) return false;
+    return x === y || (Math.min(x.length, y.length) >= 5 && (x.includes(y) || y.includes(x)));
+}
+
 /**
  * Junta um ou mais modelos (BPMN/XPDL, páginas de um pacote) numa proposta.
- * Processos que nenhum outro chama são os principais; se houver vários sem
- * mensagem ligando um ao outro, ficam em sequência na ordem do arquivo.
+ * Processos que nenhum outro chama são os principais. Quando há vários, eles
+ * são unidos onde um termina e o outro começa, nesta ordem de confiança:
+ * 1. atividade com o nome de outro diagrama abre esse diagrama no lugar dela;
+ * 2. evento de ligação (ou fim) com o mesmo nome de um evento sem entrada
+ *    (ou início) de outro ponto: a seta continua ali;
+ * 3. fim com o nome de outro diagrama (ou da piscina dele) segue para o início dele;
+ * 4. mensagem entre piscinas;
+ * 5. sem nada disso, o fim principal (o mais distante do início) de um
+ *    diagrama segue para o início do seguinte, e os outros fins encerram.
  */
 export function propostaDeModelos(modelos) {
     const nos = [];
@@ -413,30 +428,88 @@ export function propostaDeModelos(modelos) {
     const avisos = [];
     for (const m of modelos) { nos.push(...m.nos); arestas.push(...m.arestas); containers.push(...m.containers); avisos.push(...m.avisos); }
     if (modelos.length > 1) avisos.splice(0, avisos.length, ...avisos.filter((a) => !/^Não parece/.test(a)));
-    const chamados = new Set(nos.map((n) => n.sub).filter(Boolean));
-    const raizes = unicos(containers.map((c) => c.id)).filter((id) => !chamados.has(id) && nos.some((n) => n.container === id && n.tipo === 'atividade'));
-    abrirSubprocessos(nos, arestas, avisos);
-    // Processos principais soltos: o fim de um segue para o início do próximo.
-    const porChave = new Map(nos.map((n) => [n.chave, n]));
-    const recebeMensagem = (id) => arestas.some((a) => a.mensagem && porChave.get(a.para)?.container === id);
-    const nomeDe = (id) => containers.find((c) => c.id === id)?.nome || 'processo sem nome';
-    let anterior = null;
-    const encadeados = [];
-    for (const id of raizes) {
-        if (anterior && !recebeMensagem(id)) {
-            const inicios = nos.filter((n) => n.container === id && n.tipo === 'inicio');
-            const fins = nos.filter((n) => n.container === anterior && n.tipo === 'fim');
-            if (inicios.length && fins.length) {
-                for (const f of fins) { f.tipo = 'passa'; for (const i of inicios) arestas.push({ de: f.chave, para: i.chave }); }
-                for (const i of inicios) i.tipo = 'passa';
-                encadeados.push(nomeDe(id));
-            }
-        }
-        // Só o primeiro processo principal começa o rito; os outros são alcançados por mensagem ou encadeamento.
-        if (anterior) for (const n of nos) if (n.container === id && n.tipo === 'inicio') n.tipo = 'passa';
-        anterior = id;
+    const comAtividade = new Set(nos.filter((n) => n.tipo === 'atividade').map((n) => n.container));
+    const generico = (s) => /^(processo|process|proceso|diagrama|diagram)\s*\d*$/i.test(String(s || '').trim());
+    const nomeDe = (id) => {
+        const c = containers.find((x) => x.id === id) || {};
+        return (c.piscina && (!c.nome || generico(c.nome)) ? c.piscina : c.nome || c.piscina) || 'diagrama sem nome';
+    };
+    const nomesDe = (id) => containers.filter((c) => c.id === id).flatMap((c) => [c.nome, c.piscina]).filter((s) => s && !generico(s));
+    // 1. Atividade que leva o nome de outro diagrama é a chamada dele.
+    for (const n of nos) {
+        if (n.tipo !== 'atividade' || n.sub || !n.nome) continue;
+        const alvo = containers.find((c) => c.id !== n.container && comAtividade.has(c.id) && nomesDe(c.id).some((x) => sem(x) === sem(n.nome)));
+        if (alvo && !nos.some((x) => x.sub === alvo.id)) n.sub = alvo.id;
     }
-    if (encadeados.length) avisos.push(`${raizes.length} processos do arquivo não se ligam por fluxo; foram postos em sequência (${[nomeDe(raizes[0]), ...encadeados].join(' → ')}). Confira.`);
+    const chamados = new Set(nos.map((n) => n.sub).filter(Boolean));
+    const raizes = unicos(containers.map((c) => c.id)).filter((id) => !chamados.has(id) && comAtividade.has(id));
+    // Diagrama principal de cada container (os subprocessos pertencem a quem os chama).
+    const raizDe = new Map(raizes.map((id) => [id, id]));
+    for (let mudou = true, volta = 0; mudou && volta < 10; volta++) {
+        mudou = false;
+        for (const n of nos) if (n.sub && raizDe.has(n.container) && !raizDe.has(n.sub)) { raizDe.set(n.sub, raizDe.get(n.container)); mudou = true; }
+    }
+    abrirSubprocessos(nos, arestas, avisos);
+    const porChave = new Map(nos.map((n) => [n.chave, n]));
+    const raizDoNo = (k) => raizDe.get(porChave.get(k)?.container);
+    const temSaida = (k) => arestas.some((a) => a.de === k && porChave.has(a.para));
+    const temEntrada = (k) => arestas.some((a) => a.para === k && porChave.has(a.de));
+    const entrada = (id) => arestas.some((a) => raizDoNo(a.para) === id && raizDoNo(a.de) && raizDoNo(a.de) !== id);
+    const iniciosDe = (id) => {
+        const ini = nos.filter((n) => n.container === id && n.tipo === 'inicio');
+        return ini.length ? ini : nos.filter((n) => n.container === id && n.tipo === 'atividade' && !temEntrada(n.chave));
+    };
+    const ligar = (de, para) => {
+        arestas.push({ de: de.chave, para: para.chave });
+        if (de.tipo === 'fim') de.tipo = 'passa';
+        if (para.tipo === 'inicio') para.tipo = 'passa';
+    };
+    // 2. Eventos de mesmo nome: quem não tem saída continua em quem não tem entrada.
+    for (const de of nos.filter((n) => n.nome && (n.tipo === 'fim' || (n.tipo === 'passa' && !n.paralelo)))) {
+        if (temSaida(de.chave)) continue;
+        const para = nos.find((n) => n !== de && sem(n.nome) === sem(de.nome) && !temEntrada(n.chave)
+            && ((n.tipo === 'passa' && !n.paralelo) || (n.tipo === 'inicio' && raizDoNo(n.chave) !== raizDoNo(de.chave))));
+        if (!para || (de.tipo === 'fim' && raizDoNo(para.chave) === raizDoNo(de.chave))) continue;
+        const [a, b] = [raizDoNo(de.chave), raizDoNo(para.chave)];
+        ligar(de, para);
+        if (a && b && a !== b) avisos.push(`Diagramas unidos pelo evento "${de.nome}": "${nomeDe(a)}" continua em "${nomeDe(b)}".`);
+    }
+    // 3. Fim com o nome de outro diagrama segue para o início dele.
+    for (const fim of nos.filter((n) => n.tipo === 'fim' && n.nome)) {
+        const alvo = raizes.find((id) => id !== raizDoNo(fim.chave) && nomesDe(id).some((x) => casa(x, fim.nome)));
+        const inicios = alvo ? iniciosDe(alvo) : [];
+        if (!inicios.length) continue;
+        avisos.push(`Diagramas unidos: o fim "${fim.nome}" de "${nomeDe(raizDoNo(fim.chave))}" continua em "${nomeDe(alvo)}".`);
+        for (const i of inicios) ligar(fim, i);
+    }
+    // 5. Diagramas principais que ninguém alcança: o anterior termina onde ele começa.
+    const primeiro = raizes.find((id) => !entrada(id)) || raizes[0];
+    const sequencia = [primeiro, ...raizes.filter((id) => id !== primeiro)];
+    sequencia.forEach((id, k) => {
+        if (k === 0 || entrada(id)) return;
+        const inicios = iniciosDe(id);
+        // O diagrama anterior mais próximo que ainda tem um fim livre.
+        let fins = [];
+        let anterior = null;
+        for (let j = k - 1; j >= 0 && !fins.length; j--) { anterior = sequencia[j]; fins = nos.filter((n) => n.tipo === 'fim' && raizDoNo(n.chave) === anterior); }
+        if (!inicios.length || !fins.length) return;
+        let principal = fins[0];
+        if (fins.length > 1) {
+            // Fim principal: o mais distante do começo do diagrama (os outros costumam ser saídas antecipadas).
+            const dist = new Map();
+            const fila = nos.filter((n) => raizDoNo(n.chave) === anterior && !arestas.some((a) => a.para === n.chave && raizDoNo(a.de) === anterior)).map((n) => n.chave);
+            fila.forEach((c) => dist.set(c, 0));
+            while (fila.length) {
+                const c = fila.shift();
+                for (const a of arestas) if (a.de === c && !dist.has(a.para) && raizDoNo(a.para) === anterior) { dist.set(a.para, dist.get(c) + 1); fila.push(a.para); }
+            }
+            for (const f of fins) if ((dist.get(f.chave) ?? -1) >= (dist.get(principal.chave) ?? -1)) principal = f;
+            avisos.push(`"${nomeDe(anterior)}" tem ${fins.length} fins: o principal${principal.nome ? ` ("${principal.nome}")` : ''} foi ligado ao início de "${nomeDe(id)}" e os outros encerram o processo. Confira na revisão.`);
+        } else avisos.push(`Diagramas unidos: "${nomeDe(id)}" começa onde "${nomeDe(anterior)}" termina.`);
+        for (const i of inicios) ligar(principal, i);
+    });
+    // Só o primeiro diagrama começa o rito.
+    for (const n of nos) if (n.tipo === 'inicio' && raizDoNo(n.chave) && raizDoNo(n.chave) !== primeiro) n.tipo = 'passa';
     sequenciarParalelos(nos, arestas, avisos);
     for (const n of nos) {
         const notas = [n.etapaDe ? `Parte do subprocesso "${n.etapaDe}".` : '', n.paraleloCom?.length ? `No diagrama, corre em paralelo com: ${n.paraleloCom.join(', ')}.` : ''].filter(Boolean);
