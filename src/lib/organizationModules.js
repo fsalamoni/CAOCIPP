@@ -132,6 +132,21 @@ export function resolveBuiltinModules(organization) {
 }
 
 /**
+ * Ordem dos módulos built-in para o órgão: a padrão (BUILTIN_MODULE_META),
+ * rearranjada pelos `order` gravados em moduleConfig. Sempre devolve TODAS as
+ * chaves; módulo sem `order` fica na posição padrão.
+ * @param {object} organization
+ * @returns {string[]}
+ */
+export function getModuleOrder(organization) {
+    const cfg = organization?.moduleConfig;
+    return BUILTIN_MODULE_META
+        .map((m, i) => ({ key: m.key, i, order: typeof cfg?.[m.key]?.order === 'number' ? cfg[m.key].order : i }))
+        .sort((a, b) => a.order - b.order || a.i - b.i)
+        .map((m) => m.key);
+}
+
+/**
  * Monta a lista ordenada de abas que devem aparecer para o órgão.
  *
  * @param {object} organization  Documento do órgão (pode conter moduleConfig).
@@ -174,39 +189,56 @@ export function getOrganizationTabs(organization, opts = {}) {
     // Página obrigatória e permanente.
     tabs.push({ key: 'info', label: 'Informações Gerais', icon: Building2, module: 'core' });
 
+    // Blocos de abas por módulo, na ordem padrão. Com a flag de páginas
+    // personalizadas ligada, o admin pode reordená-los em Páginas e módulos
+    // (moduleConfig.<módulo>.order); módulo sem ordem gravada mantém a posição padrão.
+    const blocks = [];
     if (showProcesses) {
-        tabs.push({ key: 'kanban', label: 'Painel de Consultas', icon: LayoutDashboard, module: BUILTIN_MODULES.PROCESSES });
-        tabs.push({ key: 'processes', label: 'Consultas', icon: Search, module: BUILTIN_MODULES.PROCESSES });
+        blocks.push({ module: BUILTIN_MODULES.PROCESSES, tabs: [
+            { key: 'kanban', label: 'Painel de Consultas', icon: LayoutDashboard, module: BUILTIN_MODULES.PROCESSES },
+            { key: 'processes', label: 'Consultas', icon: Search, module: BUILTIN_MODULES.PROCESSES },
+        ] });
     }
-
     if (showExpedientes) {
-        tabs.push({ key: 'kanban-expedientes', label: 'Painel de Expedientes', icon: LayoutDashboard, module: BUILTIN_MODULES.EXPEDIENTES });
-        tabs.push({ key: 'expedientes', label: 'Expedientes', icon: FileText, module: BUILTIN_MODULES.EXPEDIENTES });
+        blocks.push({ module: BUILTIN_MODULES.EXPEDIENTES, tabs: [
+            { key: 'kanban-expedientes', label: 'Painel de Expedientes', icon: LayoutDashboard, module: BUILTIN_MODULES.EXPEDIENTES },
+            { key: 'expedientes', label: 'Expedientes', icon: FileText, module: BUILTIN_MODULES.EXPEDIENTES },
+        ] });
     }
-
     if (showParcerias) {
-        tabs.push({ key: 'kanban-parcerias', label: 'Painel de Parcerias', icon: LayoutDashboard, module: BUILTIN_MODULES.PARCERIAS });
-        tabs.push({ key: 'parcerias', label: 'Parcerias', icon: Handshake, module: BUILTIN_MODULES.PARCERIAS });
+        blocks.push({ module: BUILTIN_MODULES.PARCERIAS, tabs: [
+            { key: 'kanban-parcerias', label: 'Painel de Parcerias', icon: LayoutDashboard, module: BUILTIN_MODULES.PARCERIAS },
+            { key: 'parcerias', label: 'Parcerias', icon: Handshake, module: BUILTIN_MODULES.PARCERIAS },
+        ] });
     }
-
     if (showJurimetria) {
-        tabs.push({ key: 'jurimetria', label: 'Jurimetria', icon: Scale, module: BUILTIN_MODULES.JURIMETRIA });
+        blocks.push({ module: BUILTIN_MODULES.JURIMETRIA, tabs: [
+            { key: 'jurimetria', label: 'Jurimetria', icon: Scale, module: BUILTIN_MODULES.JURIMETRIA },
+        ] });
     }
-
     if (showPanorama) {
-        tabs.push({ key: 'panorama', label: 'Panorama', icon: Telescope, module: BUILTIN_MODULES.PANORAMA });
+        blocks.push({ module: BUILTIN_MODULES.PANORAMA, tabs: [
+            { key: 'panorama', label: 'Panorama', icon: Telescope, module: BUILTIN_MODULES.PANORAMA },
+        ] });
     }
-
     if (showSummary) {
-        tabs.push({ key: 'summary', label: 'Resumos Inteligentes', icon: Sparkles, module: BUILTIN_MODULES.SUMMARY });
+        blocks.push({ module: BUILTIN_MODULES.SUMMARY, tabs: [
+            { key: 'summary', label: 'Resumos Inteligentes', icon: Sparkles, module: BUILTIN_MODULES.SUMMARY },
+        ] });
     }
-
     // Calendário de vencimentos (flag `deadline_calendar`): só faz sentido se
     // houver ao menos um módulo de Consultas/Expedientes/Parcerias ativo no órgão,
-    // e o admin do órgão pode ocultá-lo em Páginas e Módulos.
+    // e o admin do órgão pode ocultá-lo em Páginas e módulos.
     if (deadlineCalendarOn && showCalendar && (showProcesses || showExpedientes || showParcerias)) {
-        tabs.push({ key: 'calendar', label: 'Calendário de Vencimentos', icon: CalendarDays, module: 'core' });
+        blocks.push({ module: BUILTIN_MODULES.CALENDAR, tabs: [
+            { key: 'calendar', label: 'Calendário de Vencimentos', icon: CalendarDays, module: 'core' },
+        ] });
     }
+    if (customEntitiesOn) {
+        const order = getModuleOrder(organization);
+        blocks.sort((a, b) => order.indexOf(a.module) - order.indexOf(b.module));
+    }
+    blocks.forEach((b) => tabs.push(...b.tabs));
 
     // Reservado para fases B+ (tipos de entidade custom geram cpanel:/clist:/csummary:).
     if (customEntitiesOn && Array.isArray(customTypes)) {

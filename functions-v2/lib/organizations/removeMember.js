@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeMember = void 0;
 const admin = require("firebase-admin");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 exports.removeMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     var _a, _b;
@@ -43,12 +44,12 @@ exports.removeMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     // Instead of deleting, we mark as inactive and set left_at
     await targetMembershipRef.update({
         active: false,
-        left_at: admin.firestore.FieldValue.serverTimestamp()
+        left_at: firestore_1.FieldValue.serverTimestamp()
     });
     // 4. Update stats
     const orgRef = db.collection('organizations').doc(organizationId);
     await orgRef.update({
-        'stats.members_count': admin.firestore.FieldValue.increment(-1)
+        'stats.members_count': firestore_1.FieldValue.increment(-1)
     });
     // 5. Audit log
     await db.collection('auditLogs').add({
@@ -57,7 +58,7 @@ exports.removeMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
         user_name: request.auth.token.name || '',
         action: 'REMOVE_MEMBER',
         details: { removed_user_id: userIdToRemove },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: firestore_1.FieldValue.serverTimestamp()
     });
     return { success: true, message: 'Membro removido com sucesso' };
 });

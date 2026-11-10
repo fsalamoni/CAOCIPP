@@ -26,10 +26,8 @@ junto. O SIGO transforma essas planilhas numa plataforma única:
 
 **Não há inteligência artificial em nenhum cálculo.** Status, métricas,
 relatórios, inferência de colunas do Panorama e pontuação da Jurimetria são
-regras determinísticas escritas no código e documentadas aqui. A aba
-"Inteligência Artificial" do Painel Administrativo apenas grava preferências
-(`organization.summarySettings`); nenhuma função do sistema chama um serviço
-de IA.
+regras determinísticas escritas no código e documentadas aqui. Nenhuma função
+do sistema chama um serviço de IA.
 
 ---
 

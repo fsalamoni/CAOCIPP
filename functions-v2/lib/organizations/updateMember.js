@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateMember = void 0;
 const admin = require("firebase-admin");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
@@ -53,10 +54,10 @@ exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     if (newRole)
         updates.role = newRole;
     if (newFunction !== undefined)
-        updates.function = newFunction;
+        updates.function = String(newFunction !== null && newFunction !== void 0 ? newFunction : '').trim().slice(0, 60);
     if (permissions !== undefined)
         updates.permissions = (0, permissions_1.sanitizePermissions)(permissions);
-    updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
+    updates.updated_at = firestore_1.FieldValue.serverTimestamp();
     await targetRef.update(updates);
     // 4. Audit
     await db.collection('auditLogs').add({
@@ -65,7 +66,7 @@ exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
         user_name: request.auth.token.name || '',
         action: 'UPDATE_MEMBER',
         details: { updated_user_id: userIdToUpdate, changes: updates },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: firestore_1.FieldValue.serverTimestamp()
     });
     return { success: true };
 });

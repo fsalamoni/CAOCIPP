@@ -29,10 +29,10 @@ administração da plataforma. Cada módulo de dados tem documento próprio:
 |---|---|---|
 | Criar órgão | `createOrganization`. Gera um **código de convite** de 8 caracteres. Opção de começar "mínimo" (só Informações Gerais e Painel Administrativo). | Qualquer usuário autenticado |
 | Entrar num órgão | `joinOrganization` com o código de convite; entra como `member`. | Qualquer usuário com o código |
-| Mudar papel ou função de um membro | `updateMember` (`admin` ↔ `member`; função em texto livre). O papel `creator` nunca é atribuído por aqui. | Criador ou admin |
+| Mudar papel ou função de um membro | `updateMember` (`admin` ↔ `member`; função em texto de até 60 caracteres, que o painel preenche a partir de uma lista fixa). O papel `creator` nunca é atribuído por aqui. | Criador ou admin |
 | Delegar atribuições | `updateMember` com `permissions`. | Somente o criador |
 | Remover membro | `removeMember`. O criador não pode ser removido. | Criador ou admin |
-| Apagar todos os dados | `clearOrganizationData` (*Zona de Perigo*). | Somente o criador |
+| Apagar todos os dados | `clearOrganizationData` (*Manutenção e zona de perigo*). | Somente o criador |
 | Excluir o órgão | `deleteOrganization`, exige digitar o nome exato do órgão; apaga em cascata as coleções do órgão. | Criador ou super-admin |
 
 Toda alteração dessas grava uma linha em `auditLogs`.
@@ -57,7 +57,8 @@ As abas visíveis são calculadas em `getOrganizationTabs`
 
 **Ligar e desligar módulos.** `organization.moduleConfig.<módulo>.enabled`.
 Órgão sem `moduleConfig` (legado) mostra todos os módulos; órgão com
-`moduleConfig` mostra apenas os marcados como `true`. Exceção: o calendário
+`moduleConfig` mostra apenas os marcados como `true`, na ordem de
+`moduleConfig.<módulo>.order` quando houver. Exceção: o calendário
 some só com `false` explícito. O servidor grava o `moduleConfig` módulo a
 módulo, para não apagar módulos que uma versão antiga do site desconheça.
 
@@ -65,27 +66,66 @@ módulo, para não apagar módulos que uma versão antiga do site desconheça.
 
 ## 4. Painel Administrativo do órgão
 
-`src/components/organization/admin/AdminManagement.jsx`. Cada aba exige uma
-atribuição; o criador vê todas. O servidor (`updateOrganization`) confere a
-mesma permissão campo a campo.
+`src/components/organization/admin/AdminManagement.jsx` desenha o painel a
+partir do mapa em `src/lib/adminSections.js` (seções, grupos, quem pode abrir
+e de quais flags globais cada uma depende). O painel abre numa **Visão geral**
+com as seções agrupadas por assunto e a situação de cada uma; no computador há
+um menu lateral fixo com os mesmos grupos e, no celular, um seletor. A seção
+aberta fica no endereço (`&secao=<chave>`), então dá para recarregar, voltar e
+compartilhar o link. A busca do topo procura por nome, descrição e
+palavras-chave das seções (sem acento e sem diferenciar maiúsculas).
 
-| Aba | Permissão | Grava em `organizations/{id}` |
-|---|---|---|
-| Detalhes | `edit_details` | `name`, `description` |
-| Membros, Atribuições | só o criador | (memberships) |
-| Classificação (Matérias) | `manage_matters` | `matterSettings`, `thirdPartiesSettingsConsultas`, `thirdPartyPhaseEnabledConsultas` |
-| Páginas e Módulos | `manage_modules` | `moduleConfig`, tipos de página personalizada |
-| Métricas | `manage_metrics` | `dashboardConfig` |
-| Expedientes | `configure_expedientes` | `expedienteSettings`, `thirdPartiesSettingsExpedientes` |
-| Parcerias | `configure_parcerias` | `parceriaSettings`, `thirdPartiesSettingsParcerias` |
-| Jurimetria | `configure_jurimetria` | `jurimetriaSettings` |
-| Panorama | `configure_panorama` | coleção `panoramaBases` |
-| Padronização em Bloco | `bulk_standardize` | registros (troca de valores em lote) |
-| Automação | só o criador | `goalsConfig`, `escalationConfig`, `reportsConfig` |
-| Segurança | só o criador | `retentionConfig`, `webhookConfig`; consulta do log de acesso |
-| Indicador de Tempo | só o criador | `stageTimeConfig` |
-| Inteligência Artificial | só o criador | `summarySettings` (apenas preferências; nenhuma IA é chamada) |
-| Zona de Perigo | só o criador | apagar dados / excluir órgão |
+Cada seção exige uma atribuição; o criador vê todas e, no título, lê se a
+seção pode ser delegada e por qual atribuição. O servidor
+(`updateOrganization`) confere a mesma permissão campo a campo.
+
+| Grupo | Seção (`secao`) | Permissão | Grava em `organizations/{id}` |
+|---|---|---|---|
+| Órgão | Identidade e contato (`details`) | `edit_details` | `name`, `description`, `contactInfo` (sigla, e-mail, telefone, endereço, site) |
+| Órgão | Páginas e módulos (`modules`) | `manage_modules` | `moduleConfig` (ligado e ordem), tipos de página personalizada |
+| Órgão | Métricas das páginas (`metrics`) | `manage_metrics` | `dashboardConfig` |
+| Pessoas e acesso | Membros e convite (`members`) | só o criador | (memberships) |
+| Pessoas e acesso | Atribuições especiais (`permissions`) | só o criador | (memberships) |
+| Módulos de trabalho | Consultas (`matters`) | `manage_matters` | `matterSettings`, `thirdPartiesSettingsConsultas`, `thirdPartyPhaseEnabledConsultas` |
+| Módulos de trabalho | Expedientes (`expedientes`) | `configure_expedientes` | `expedienteSettings`, `thirdPartiesSettingsExpedientes` |
+| Módulos de trabalho | Parcerias (`parcerias`) | `configure_parcerias` | `parceriaSettings`, `thirdPartiesSettingsParcerias` |
+| Módulos de trabalho | Jurimetria (`jurimetria`) | `configure_jurimetria` | `jurimetriaSettings` |
+| Módulos de trabalho | Panorama (`panorama`) | `configure_panorama` | coleção `panoramaBases` |
+| Módulos de trabalho | Processo Eletrônico (`secretaria`) | `configure_secretaria` | ver [PROCESSO_ELETRONICO.md](PROCESSO_ELETRONICO.md) |
+| Regras e automação | Indicador de tempo (`stagetime`) | `configure_automation` | `stageTimeConfig` |
+| Regras e automação | Metas, alertas e relatórios (`automation`) | `configure_automation` | `goalsConfig`, `escalationConfig`, `reportsConfig` |
+| Dados e segurança | Padronização em bloco (`padronizacao`) | `bulk_standardize` | registros (troca de valores em lote) |
+| Dados e segurança | Auditoria, retenção e integrações (`security`) | só o criador | `retentionConfig`, `webhookConfig`; consulta do log de acesso |
+| Dados e segurança | Manutenção e zona de perigo (`danger`) | só o criador | logs retroativos, apagar dados, excluir órgão |
+
+- **Seções que dependem de flag global** (Páginas e módulos, Jurimetria,
+  Panorama, Indicador de tempo, Metas/alertas/relatórios, Auditoria/retenção/
+  integrações) somem quando a flag está desligada na plataforma.
+- **Página desligada no órgão:** a seção do módulo continua no painel, marcada
+  como "desligada", com atalho para Páginas e módulos. Consultas, Expedientes
+  e Parcerias seguem configuráveis; Jurimetria e Panorama só mostram o aviso.
+- **Ordem das páginas:** em Páginas e módulos, as setas definem a ordem dos
+  módulos na navegação (`moduleConfig.<módulo>.order`, lida por
+  `getModuleOrder`/`getOrganizationTabs`). Informações Gerais vem sempre
+  primeiro; páginas personalizadas, Processo Eletrônico e Painel
+  Administrativo, sempre depois. Vale só com a flag `custom_entities` ligada.
+- **Identidade e contato:** o servidor apara e limita os textos, recusa nome
+  vazio e descarta e-mail ou site inválidos (site precisa começar com
+  `http://` ou `https://`). O que for preenchido aparece em Informações Gerais.
+- **Membros e convite:** código de convite com botão de copiar, busca por nome
+  ou e-mail, filtro Ativos / Ex-membros / Todos, função escolhida numa lista
+  fixa (Secretaria, Assessoria, Decisória ou sem função; os painéis usam a
+  função para saber quem é assessor) e remoção com confirmação. Remover não
+  apaga o histórico: a pessoa vira ex-membro.
+- **Atribuições especiais:** as 12 atribuições são agrupadas por área (Órgão,
+  Módulos de trabalho, Regras e automação, Dados), com "marcar a área toda" e
+  "todas". A tabela mostra, por pessoa, quantas ela tem em cada área.
+- O papel `admin` existe no servidor (ver seção 2), mas o painel não oferece
+  trocar o papel de um membro; o que distingue os membros na prática são as
+  atribuições especiais.
+- A antiga aba "Inteligência Artificial" foi retirada: ela só gravava
+  `summarySettings`, que nenhuma parte do sistema lê. O campo continua aceito
+  pelo servidor e os dados gravados não foram tocados.
 
 ---
 
