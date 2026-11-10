@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
 exports.texto = texto;
+exports.sanitizeOrigem = sanitizeOrigem;
 exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
 exports.fasesSeguintes = fasesSeguintes;
@@ -58,6 +59,31 @@ exports.TIPOS_ARQUIVO_PERMITIDOS = {
 };
 function texto(v, max = exports.MAX_TEXTO_CURTO) {
     return typeof v === 'string' ? v.trim().slice(0, max) : '';
+}
+/**
+ * Origem do processo: como chegou ao órgão (Lei 9.784/1999, arts. 5º e 6º).
+ * A referência (nº do ofício, processo de origem, meio de recebimento) é texto
+ * livre e não vai ao portal das partes.
+ */
+exports.ORIGENS = ['requerimento', 'representacao', 'oficio', 'de_oficio', 'outro_processo', 'outro'];
+exports.ROTULO_ORIGEM = {
+    requerimento: 'Requerimento do interessado',
+    representacao: 'Representação ou denúncia',
+    oficio: 'Ofício ou comunicação de outro órgão',
+    de_oficio: 'De ofício (iniciativa do órgão)',
+    outro_processo: 'Derivado de outro processo',
+    outro: 'Outra',
+};
+const textoOrigem = (o) => (o ? [exports.ROTULO_ORIGEM[o.tipo] || exports.ROTULO_ORIGEM.outro, o.descricao].filter(Boolean).join(': ') : '');
+exports.textoOrigem = textoOrigem;
+/** Origem saneada, ou null quando nada foi informado. */
+function sanitizeOrigem(input) {
+    const o = (input && typeof input === 'object' ? input : {});
+    const descricao = texto(o.descricao, exports.MAX_TEXTO_CURTO);
+    const tipo = exports.ORIGENS.includes(o.tipo) ? o.tipo : null;
+    if (!tipo && !descricao)
+        return null;
+    return { tipo: tipo || 'outro', descricao };
 }
 function slug(v) {
     return v

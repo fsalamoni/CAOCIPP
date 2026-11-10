@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
-import { Fase, verificarCadeia } from '../shared/secretaria';
+import { Fase, textoOrigem, verificarCadeia } from '../shared/secretaria';
 import { Selecao, documentoDoEvento, folhasDoEvento, origemEvento, sanitizeSelecao, selecionar, tituloEvento } from '../shared/autos';
 import { REGION, carregarContexto, exigirAuth, lerProcesso, nomeUnidade } from './context';
 import { auditar } from './config';
@@ -82,6 +82,8 @@ export interface OpcoesAutos {
     geradoPor: string;
     nomeUnidade: (id: string) => string;
     selecao?: Selecao;
+    /** PDF da equipe: a capa traz a origem (a referência é dado interno). */
+    equipe?: boolean;
 }
 
 export function selecaoOuErro(raw: unknown): Selecao {
@@ -152,6 +154,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
             ['Sigilo', proc.sigilo === 'restrito' ? 'Restrito' : 'Normal'],
             ...(proc.urgente === true ? [['Tramitação', `URGENTE${proc.urgencia?.motivo ? ` (${proc.urgencia.motivo})` : ''}`]] : []),
             ['Autuado em', `${quandoBR(proc.autuado_em)} por ${proc.autuado_por_nome}`],
+            ...(o.equipe && proc.origem ? [['Origem', textoOrigem(proc.origem)]] : []),
         ]) w.texto(`${k}: ${v}`);
         if (proc.descricao) w.texto(`\n${proc.descricao}`);
         const partes = (proc.partes || []) as Array<{ nome: string; polo: string; documento?: string }>;
@@ -252,7 +255,7 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
         const docs = docSnap.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
             .sort((a, b) => a.ordem - b.ordem);
 
-        const bytes = await montarPdfAutos({ db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => nomeUnidade(c, id), selecao });
+        const bytes = await montarPdfAutos({ db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => nomeUnidade(c, id), selecao, equipe: true });
         // Abrir uma peça no leitor não é exportação: só registra o PDF com capa ou de várias peças.
         if (selecao.capa || selecao.eventos.length !== 1) await auditar(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero, modo: selecao.modo });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };

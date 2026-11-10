@@ -27,6 +27,8 @@ import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
+import CapaProcesso from './CapaProcesso';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const MAX_MB = 5;
 const folhas = (d) => (d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null);
@@ -43,6 +45,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [pdf, setPdf] = useState(null); // {base64, nome, titulo}
     const [novoDoc, setNovoDoc] = useState(false);
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
+    const [vista, setVista] = useState(null); // capa | andamento | autos | eventos (null = padrão do perfil)
     const pendenciasRef = useRef(null);
     const eventosRef = useRef(null);
 
@@ -59,7 +62,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             const k = e.key.toLowerCase();
             if (k === 'n' && podeMexer) { e.preventDefault(); setNovoDoc(true); }
             if (k === 't' && podeMexer) { e.preventDefault(); setAcao({ tipo: 'tramitar' }); }
-            if (k === 'j') { e.preventDefault(); pendenciasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+            if (k === 'j') {
+                e.preventDefault();
+                setVista('andamento');
+                setTimeout(() => pendenciasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+            }
         };
         window.addEventListener('keydown', aoTeclar);
         return () => window.removeEventListener('keydown', aoTeclar);
@@ -206,10 +213,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     const ultimoDoc = autos[autos.length - 1];
     const diasTramitando = diasDesde(p.autuado_em);
+    // Quem tem o processo abre no Andamento (onde age); os demais, na Capa.
+    const vistaAtual = vista || (podeMexer ? 'andamento' : 'capa');
+    const noAndamento = vistaAtual === 'andamento';
 
     return (
-        <div className="space-y-5 pb-20 sm:pb-0">
-            {(principal || podeMexer) && (
+        <div className="space-y-4 pb-20 sm:pb-0">
+            {noAndamento && (principal || podeMexer) && (
                 <div className="sm:hidden fixed bottom-0 inset-x-0 z-20 flex gap-2 border-t bg-white/95 dark:bg-slate-950/95 backdrop-blur p-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
                     {principal && <Button className="flex-1 gap-2" disabled={ocupado} onClick={principal.acao}><principal.icone className="w-4 h-4" aria-hidden /> <span className="truncate">{principal.rotulo}</span></Button>}
                     {podeMexer && <Button variant="outline" size="icon" disabled={ocupado} onClick={() => setNovoDoc(true)} aria-label="Novo documento"><Plus className="w-4 h-4" aria-hidden /></Button>}
@@ -230,7 +240,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             ? <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><ShieldCheck className="w-4 h-4" /> Integridade conferida</span>
                             : <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-400"><ShieldAlert className="w-4 h-4" /> Cadeia quebrada no movimento {cadeiaQuebradaEm}</span>}
                     </div>
-                    {noGabinete && (
+                    {noGabinete && noAndamento && (
                         <p className="text-sm text-slate-600 dark:text-slate-300">
                             {p.partes.map((x) => `${x.nome} (${x.polo})`).join(' · ') || 'Sem partes'}{p.tipo_nome ? ` · ${p.tipo_nome}` : ''}
                             {diasTramitando != null && ` · ${diasTramitando} dia${diasTramitando === 1 ? '' : 's'} em tramitação`}
@@ -238,6 +248,17 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </p>
                     )}
                 </div>
+            </div>
+
+            <Tabs value={vistaAtual} onValueChange={setVista}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <TabsList className="flex-wrap h-auto">
+                    <TabsTrigger value="capa">Capa</TabsTrigger>
+                    <TabsTrigger value="andamento">Andamento{p.pendencias_abertas > 0 ? ` (${p.pendencias_abertas})` : ''}</TabsTrigger>
+                    <TabsTrigger value="autos">Autos ({autos.length})</TabsTrigger>
+                    <TabsTrigger value="eventos">Eventos ({movimentos.length})</TabsTrigger>
+                </TabsList>
+                {noAndamento && (
                 <div className="flex flex-wrap gap-2 items-start">
                     {principal && (
                         <Button className="gap-2 hidden sm:inline-flex" disabled={ocupado} onClick={principal.acao}><principal.icone className="w-4 h-4" /> {principal.rotulo}</Button>
@@ -257,6 +278,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <DropdownMenuItem disabled={!podeMexer || !naSecretaria || p.status !== 'em_tramitacao'} onSelect={() => setAcao({ tipo: 'comunicar' })}>Intimar ou comunicar uma parte</DropdownMenuItem>
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'urgencia' })}>{p.urgente ? 'Retirar a urgência' : 'Marcar como urgente'}</DropdownMenuItem>
                                     <DropdownMenuItem onSelect={() => setAcao({ tipo: 'situacao' })}>Alterar a situação</DropdownMenuItem>
+                                    <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'dados' })}>Corrigir os dados do processo</DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                 </>
                             )}
@@ -265,7 +287,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
+                )}
             </div>
+
+            <TabsContent value="capa" className="mt-4">
+                <CapaProcesso p={p} movimentos={movimentos} estado={estado} nomeUnidade={nomeUnidade} cadeiaQuebradaEm={cadeiaQuebradaEm}
+                    onLer={(id) => setLeitura(id)} onVerEventos={() => setVista('eventos')} />
+            </TabsContent>
+
+            <TabsContent value="andamento" className="mt-4 space-y-5">
             {!posse && <p className="text-sm text-slate-600 dark:text-slate-400">Você consulta este processo. Só a unidade que está com ele pode movimentá-lo.</p>}
 
             {p.orientacao && (
@@ -335,34 +365,6 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
             <div className="grid lg:grid-cols-5 gap-5">
                 <div className="lg:col-span-3 space-y-5">
-                    <Card>
-                        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-                            <CardTitle className="text-base">Autos ({autos.length} documentos)</CardTitle>
-                            {autos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(autos[0].id)}><BookOpen className="w-4 h-4" /> Ler em sequência</Button>}
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            {autos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
-                            {autos.map((d) => (
-                                <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
-                                    <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
-                                    <div className="flex-1 min-w-0">
-                                        <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}</button>
-                                        <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
-                                        {d.codigo_verificacao && (
-                                            <a href={`/Conferir?c=${d.codigo_verificacao}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-700 dark:text-indigo-300 hover:underline" title="Abrir a conferência pública deste documento">
-                                                Conferência {d.codigo_verificacao}
-                                            </a>
-                                        )}
-                                    </div>
-                                    {d.peticao && <Badge variant="secondary">Petição da parte{d.peticao_tipo ? `: ${d.peticao_tipo}` : ''}</Badge>}
-                                    {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}
-                                    <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => verNosAutos(d)} aria-label={`Ver ${d.titulo} nos autos`} title="Ver nos autos (PDF com folhas)"><Eye className="w-4 h-4" /></Button>
-                                    {d.origem === 'upload' && <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo original de ${d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
-                                </div>
-                            ))}
-                        </CardContent>
-                    </Card>
-
                     {posse && (
                         <Card>
                             <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
@@ -455,77 +457,96 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </CardContent>
                     </Card>
 
+                </div>
+
+                <div className="lg:col-span-2 space-y-5">
                     <CartaoComunicacoes p={p} posse={posse} podeMexer={podeMexer && p.status === 'em_tramitacao'} naSecretaria={naSecretaria} ocupado={ocupado}
                         onNova={() => setAcao({ tipo: 'comunicar' })} onSemEfeito={(c) => setAcao({ tipo: 'semEfeito', comunicacao: c })} />
 
-                    <Card>
-                        <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
-                            <CardTitle className="text-base">Dados do processo</CardTitle>
-                            <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'dados' })}>Editar dados</Button>
-                        </CardHeader>
-                        <CardContent className="text-sm space-y-1 text-slate-700 dark:text-slate-300">
-                            <p>Rito: {p.rito_nome} · autuado em {dataHora(p.autuado_em)} por {p.autuado_por}</p>
-                            {p.descricao && <p className="whitespace-pre-wrap">{p.descricao}</p>}
-                            <DadosCampos campos={p.campos} className="pt-2" />
-                            {p.partes.length > 0 && (
-                                <div className="pt-1">
-                                    <p>Partes</p>
-                                    <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {p.partes.map((x, i) => (
-                                            <li key={i} className="py-1.5 space-y-1">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="flex-1 min-w-[10rem]">{x.nome} ({x.polo}){x.email ? ` · ${x.email}` : ''}</span>
-                                                    {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
-                                                    {x.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
-                                                    {x.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x })}>{x.portal ? 'Novo convite' : 'Convidar'}</Button>}
-                                                    {x.portal && <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i }, 'Acesso revogado')}>Revogar</Button>}
-                                                    <Button size="sm" variant="ghost" className="gap-1" disabled={!podeMexer || ocupado} title={`Advogado, procurador ou preposto que fala por ${x.nome}`} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, novoRep: true })}><UserPlus className="w-4 h-4" /> Representante</Button>
-                                                </div>
-                                                {(x.representantes || []).length > 0 && (
-                                                    <ul className="pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-1">
-                                                        {x.representantes.map((r, k) => (
-                                                            <li key={k} className="flex flex-wrap items-center gap-2 text-xs">
-                                                                <span className="flex-1 min-w-[10rem]">{r.nome}, representante{r.email ? ` · ${r.email}` : ''}</span>
-                                                                {r.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
-                                                                {r.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
-                                                                {r.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, representante: r, representante_idx: k })}>{r.portal ? 'Novo convite' : 'Convidar'}</Button>}
-                                                                <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i, representante_idx: k }, r.portal ? 'Acesso revogado' : 'Representante retirado')}>{r.portal ? 'Revogar' : 'Retirar'}</Button>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                            {p.tipo_nome && <p>Tipo: {p.tipo_nome}</p>}
-                            <p className="text-xs text-slate-400 pt-1">Atalhos: <kbd>N</kbd> novo documento · <kbd>T</kbd> enviar para outra unidade · <kbd>J</kbd> ir às pendências</p>
-                        </CardContent>
-                    </Card>
+                    {posse && (
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base">Partes no portal</CardTitle>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">Convide as partes e os representantes para acompanharem e peticionarem pelo portal.</p>
+                            </CardHeader>
+                            <CardContent className="text-sm">
+                                {p.partes.length === 0 && <p className="text-slate-600">Nenhuma parte cadastrada. Inclua partes em Mais › Corrigir os dados do processo, se o tipo permitir.</p>}
+                                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {p.partes.map((x, i) => (
+                                        <li key={i} className="py-2 space-y-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="flex-1 min-w-[10rem]">{x.nome} ({x.polo}){x.email ? ` · ${x.email}` : ''}</span>
+                                                {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
+                                                {x.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {x.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x })}>{x.portal ? 'Novo convite' : 'Convidar'}</Button>}
+                                                {x.portal && <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i }, 'Acesso revogado')}>Revogar</Button>}
+                                                <Button size="sm" variant="ghost" className="gap-1" disabled={!podeMexer || ocupado} title={`Advogado, procurador ou preposto que fala por ${x.nome}`} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, novoRep: true })}><UserPlus className="w-4 h-4" /> Representante</Button>
+                                            </div>
+                                            {(x.representantes || []).length > 0 && (
+                                                <ul className="pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-1">
+                                                    {x.representantes.map((r, k) => (
+                                                        <li key={k} className="flex flex-wrap items-center gap-2 text-xs">
+                                                            <span className="flex-1 min-w-[10rem]">{r.nome}, representante{r.email ? ` · ${r.email}` : ''}</span>
+                                                            {r.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
+                                                            {r.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
+                                                            {r.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, representante: r, representante_idx: k })}>{r.portal ? 'Novo convite' : 'Convidar'}</Button>}
+                                                            <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i, representante_idx: k }, r.portal ? 'Acesso revogado' : 'Representante retirado')}>{r.portal ? 'Revogar' : 'Retirar'}</Button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    )}
+                    {posse && <p className="text-xs text-slate-600 dark:text-slate-400">Atalhos: <kbd>N</kbd> novo documento · <kbd>T</kbd> enviar para outra unidade · <kbd>J</kbd> ir às pendências</p>}
                 </div>
+            </div>
+            </TabsContent>
 
-                <Card className="lg:col-span-2 h-fit">
+            <TabsContent value="autos" className="mt-4">
+                <Card>
                     <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-                        <CardTitle className="text-base">Últimos eventos</CardTitle>
-                        <Button size="sm" variant="link" className="h-auto p-0" onClick={() => eventosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Ver todos ({movimentos.length})</Button>
+                        <CardTitle className="text-base">Autos ({autos.length} documentos)</CardTitle>
+                        <div className="flex flex-wrap gap-2">
+                            {autos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(autos[0].id)}><BookOpen className="w-4 h-4" /> Ler em sequência</Button>}
+                            <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={exportar}><Download className="w-4 h-4" /> PDF dos autos</Button>
+                        </div>
                     </CardHeader>
-                    <CardContent>
-                        <ol className="space-y-3">
-                            {[...movimentos].reverse().slice(0, 6).map((m) => (
-                                <li key={m.seq} className="border-l-2 border-indigo-200 dark:border-indigo-800 pl-3">
-                                    <p className="text-xs text-slate-600 dark:text-slate-400">#{m.seq} · {dataHora(m.em)} · {m.autor_nome} · {nomeUnidade(m.unidade_id)}</p>
-                                    <p className="text-sm text-slate-800 dark:text-slate-200">{m.descricao}</p>
-                                </li>
-                            ))}
-                        </ol>
+                    <CardContent className="space-y-2">
+                        {autos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
+                        {autos.map((d) => (
+                            <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
+                                <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
+                                <div className="flex-1 min-w-0">
+                                    <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}</button>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
+                                    {d.codigo_verificacao && (
+                                        <a href={`/Conferir?c=${d.codigo_verificacao}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-700 dark:text-indigo-300 hover:underline" title="Abrir a conferência pública deste documento">
+                                            Conferência {d.codigo_verificacao}
+                                        </a>
+                                    )}
+                                </div>
+                                {d.peticao && <Badge variant="secondary">Petição da parte{d.peticao_tipo ? `: ${d.peticao_tipo}` : ''}</Badge>}
+                                {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}
+                                <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => verNosAutos(d)} aria-label={`Ver ${d.titulo} nos autos`} title="Ver nos autos (PDF com folhas)"><Eye className="w-4 h-4" /></Button>
+                                {d.origem === 'upload' && <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo original de ${d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
+                            </div>
+                        ))}
                     </CardContent>
                 </Card>
-            </div>
+            </TabsContent>
 
-            <div ref={eventosRef} className="scroll-mt-4">
-                <EventosAutos movimentos={movimentos} nomeUnidade={nomeUnidade} gerarPdf={(selecao) => secExportarPdf(orgId, procId, selecao)} />
-            </div>
+            <TabsContent value="eventos" className="mt-4">
+                <div ref={eventosRef} className="scroll-mt-4">
+                    <EventosAutos movimentos={movimentos} nomeUnidade={nomeUnidade} gerarPdf={(selecao) => secExportarPdf(orgId, procId, selecao)} />
+                </div>
+            </TabsContent>
+            </Tabs>
 
             {acao?.tipo === 'dados' && (
                 <EditarDados p={p} tipo={(estado.tipos || []).find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}

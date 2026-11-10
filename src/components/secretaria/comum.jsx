@@ -20,6 +20,20 @@ export const STATUS_ROTULO = {
     arquivado: 'Arquivado',
 };
 
+/** Origem do processo (espelho de ORIGENS em functions-v2/src/shared/secretaria.ts). */
+export const ORIGENS = [
+    ['requerimento', 'Requerimento do interessado'],
+    ['representacao', 'Representação ou denúncia'],
+    ['oficio', 'Ofício ou comunicação de outro órgão'],
+    ['de_oficio', 'De ofício (iniciativa do órgão)'],
+    ['outro_processo', 'Derivado de outro processo'],
+    ['outro', 'Outra'],
+];
+export const rotuloOrigem = (tipo) => ORIGENS.find(([v]) => v === tipo)?.[1] || 'Outra';
+
+/** Polos das partes, na ordem em que a capa os mostra. */
+export const POLOS = { requerente: 'Requerente', requerido: 'Requerido', interessado: 'Interessado', terceiro: 'Terceiro' };
+
 /** Tipos de unidade de lotação: o que cada uma faz no processo. */
 export const TIPOS_UNIDADE = {
     secretaria: { rotulo: 'Secretaria', descricao: 'Autua, movimenta, cumpre e junta' },

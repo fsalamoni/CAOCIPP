@@ -28,7 +28,7 @@ import { faltando, formularioDe } from '@/lib/camposProcesso';
 import { unidadeComOrgao } from '@/lib/orgaos';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
-import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
+import { ORIGENS, STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
 
 export default function ProcessoEletronico() {
     const [params, setParams] = useSearchParams();
@@ -359,7 +359,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     const restrito = (t) => (t?.orgao_id && (estado.orgaos || []).some((o) => o.id === t.orgao_id) ? t.orgao_id : null);
     const unidadesPara = (t) => estado.minhasUnidades.filter((id) => !restrito(t) || orgaoDe(id) === restrito(t));
     const tiposAtivos = (estado.tipos || []).filter((t) => t.ativo && ritosAtivos.some((r) => r.id === t.rito_id) && unidadesPara(t).length > 0);
-    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', urgente: false, motivo_urgencia: '', partes: [], campos: {} };
+    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', urgente: false, motivo_urgencia: '', origem: { tipo: '', descricao: '' }, partes: [], campos: {} };
     const [f, setF] = useState(vazio);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     // Escolher o tipo preenche rito, sigilo e unidade sugerida (se a pessoa está lotada nela).
@@ -415,6 +415,16 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                     <div><Label htmlFor="sec-assunto">Assunto<span className="text-red-600 dark:text-red-400" aria-hidden> *</span></Label><Input id="sec-assunto" value={f.assunto} onChange={(e) => set('assunto', e.target.value)} maxLength={200} /></div>
                     {form.descricao !== 'oculto' && <div><Label htmlFor="sec-desc">Descrição{req(form.descricao)}</Label><Textarea id="sec-desc" value={f.descricao} onChange={(e) => set('descricao', e.target.value)} rows={3} aria-required={form.descricao === 'obrigatorio' || undefined} /></div>}
                     <CamposProcesso campos={form.campos} valores={f.campos} onChange={(id, v) => setF((x) => ({ ...x, campos: { ...x.campos, [id]: v } }))} />
+                    <div className="grid sm:grid-cols-3 gap-3">
+                        <NativeSelect id="sec-origem" label="Origem" value={f.origem.tipo} onChange={(v) => set('origem', { ...f.origem, tipo: v })}
+                            options={[['', 'Não informar'], ...ORIGENS]} />
+                        <div className="sm:col-span-2">
+                            <Label htmlFor="sec-origem-ref">Referência da origem</Label>
+                            <Input id="sec-origem-ref" className="mt-1" value={f.origem.descricao} maxLength={200} onChange={(e) => set('origem', { ...f.origem, descricao: e.target.value })}
+                                placeholder="Ex.: Ofício nº 12/2026 da Prefeitura, recebido por e-mail" aria-describedby="sec-origem-ajuda" />
+                        </div>
+                        <p id="sec-origem-ajuda" className="sm:col-span-3 -mt-2 text-xs text-slate-600 dark:text-slate-400">Como o processo chegou ao órgão. Aparece na capa e no PDF da equipe; as partes não veem a referência.</p>
+                    </div>
                     <div className="grid sm:grid-cols-3 gap-3">
                         {tipoSel
                             ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>

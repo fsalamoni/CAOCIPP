@@ -147,6 +147,7 @@ async function montarPdfAutos(o) {
             ['Sigilo', proc.sigilo === 'restrito' ? 'Restrito' : 'Normal'],
             ...(proc.urgente === true ? [['Tramitação', `URGENTE${((_b = proc.urgencia) === null || _b === void 0 ? void 0 : _b.motivo) ? ` (${proc.urgencia.motivo})` : ''}`]] : []),
             ['Autuado em', `${quandoBR(proc.autuado_em)} por ${proc.autuado_por_nome}`],
+            ...(o.equipe && proc.origem ? [['Origem', (0, secretaria_1.textoOrigem)(proc.origem)]] : []),
         ])
             w.texto(`${k}: ${v}`);
         if (proc.descricao)
@@ -247,7 +248,7 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
     const movimentos = movSnap.docs.map((d) => d.data());
     const docs = docSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
         .sort((a, b) => a.ordem - b.ordem);
-    const bytes = await montarPdfAutos({ db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => (0, context_1.nomeUnidade)(c, id), selecao });
+    const bytes = await montarPdfAutos({ db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => (0, context_1.nomeUnidade)(c, id), selecao, equipe: true });
     // Abrir uma peça no leitor não é exportação: só registra o PDF com capa ou de várias peças.
     if (selecao.capa || selecao.eventos.length !== 1)
         await (0, config_1.auditar)(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero, modo: selecao.modo });

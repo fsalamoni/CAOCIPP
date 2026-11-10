@@ -134,3 +134,13 @@ test('timbrado efetivo: próprio da unidade ou do órgão; tipos somados', () =>
     assert.deepEqual(proprio.cabecalho_linhas, ['Gab']);
     assert.deepEqual(proprio.tipos_documento, ['Despacho', 'Ofício']);
 });
+
+test('origem do processo: tipo conhecido, referência curta, vazio vira null', () => {
+    assert.equal(s.sanitizeOrigem(null), null);
+    assert.equal(s.sanitizeOrigem({ tipo: 'x', descricao: '  ' }), null);
+    assert.deepEqual(s.sanitizeOrigem({ tipo: 'oficio', descricao: 'Ofício 12/2026' }), { tipo: 'oficio', descricao: 'Ofício 12/2026' });
+    assert.deepEqual(s.sanitizeOrigem({ tipo: 'inventado', descricao: 'carta' }), { tipo: 'outro', descricao: 'carta' });
+    assert.equal(s.sanitizeOrigem({ tipo: 'de_oficio', descricao: 'a'.repeat(500) }).descricao.length, 200);
+    assert.equal(s.textoOrigem({ tipo: 'oficio', descricao: 'Ofício 12/2026' }), 'Ofício ou comunicação de outro órgão: Ofício 12/2026');
+    assert.equal(s.textoOrigem(null), '');
+});

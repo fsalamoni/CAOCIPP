@@ -96,6 +96,34 @@ export function texto(v: unknown, max = MAX_TEXTO_CURTO): string {
     return typeof v === 'string' ? v.trim().slice(0, max) : '';
 }
 
+/**
+ * Origem do processo: como chegou ao órgão (Lei 9.784/1999, arts. 5º e 6º).
+ * A referência (nº do ofício, processo de origem, meio de recebimento) é texto
+ * livre e não vai ao portal das partes.
+ */
+export const ORIGENS = ['requerimento', 'representacao', 'oficio', 'de_oficio', 'outro_processo', 'outro'] as const;
+export type TipoOrigem = typeof ORIGENS[number];
+export interface Origem { tipo: TipoOrigem; descricao: string }
+export const ROTULO_ORIGEM: Record<TipoOrigem, string> = {
+    requerimento: 'Requerimento do interessado',
+    representacao: 'Representação ou denúncia',
+    oficio: 'Ofício ou comunicação de outro órgão',
+    de_oficio: 'De ofício (iniciativa do órgão)',
+    outro_processo: 'Derivado de outro processo',
+    outro: 'Outra',
+};
+export const textoOrigem = (o: Origem | null | undefined): string =>
+    (o ? [ROTULO_ORIGEM[o.tipo] || ROTULO_ORIGEM.outro, o.descricao].filter(Boolean).join(': ') : '');
+
+/** Origem saneada, ou null quando nada foi informado. */
+export function sanitizeOrigem(input: unknown): Origem | null {
+    const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const descricao = texto(o.descricao, MAX_TEXTO_CURTO);
+    const tipo = ORIGENS.includes(o.tipo as TipoOrigem) ? (o.tipo as TipoOrigem) : null;
+    if (!tipo && !descricao) return null;
+    return { tipo: tipo || 'outro', descricao };
+}
+
 export function slug(v: string): string {
     return v
         .normalize('NFD')

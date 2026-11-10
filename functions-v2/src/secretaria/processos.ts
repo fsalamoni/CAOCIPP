@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
+    fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import { sendEmail } from '../shared/email';
@@ -36,6 +36,7 @@ interface ProcRequest {
     /** Urgência: na autuação (com `motivo_urgencia`) e na ação `urgencia` (com `motivo`). */
     urgente?: boolean;
     motivo_urgencia?: string;
+    origem?: { tipo?: string; descricao?: string };
     // listar paginado (sem `limite`, devolve até 1000 como antes)
     limite?: number;
     cursor?: number;
@@ -226,6 +227,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 })),
                 fases: data.fases || [],
                 unidades_historico: data.unidades_historico || [],
+                // A primeira unidade da lista é a que autuou (arrayUnion só acrescenta).
+                unidade_autuacao: (data.unidades_historico || [])[0] || null,
+                origem: data.origem || null,
                 autuado_em: data.autuado_em,
                 autuado_por: data.autuado_por_nome,
                 pendencias: data.pendencias || [],
@@ -277,6 +281,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes);
         let campos: CampoValor[] = [];
         try { validarPadrao(form, descricao, partes); campos = validarCampos(form, p.campos); } catch (e) { erroUsuario(e); }
+        const origem = sanitizeOrigem(p.origem);
         const ano = new Date().getFullYear();
         const contadorRef = db.collection(COL.contadores).doc(`${orgId}_${ano}`);
         const procRef = db.collection(COL.processos).doc();
@@ -294,6 +299,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 partes,
                 campos,
                 sigilo,
+                ...(origem ? { origem } : {}),
                 ...(urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {}),
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {}),
                 status: 'em_tramitacao',
@@ -319,7 +325,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
                 `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}`,
-                { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId, ...(urgente ? { urgente: true } : {}),
+                { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId, ...(urgente ? { urgente: true } : {}), ...(origem ? { origem } : {}),
                     ...(campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, valorTexto(x)])) } : {}) });
             tx.set(procRef, { ...base, ...mov });
             return numero;
