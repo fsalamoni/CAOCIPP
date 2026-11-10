@@ -200,7 +200,9 @@ comprovante, laudo, ofício respondido) ou **qualquer um**.
 | Autos | Aba **Autos**: documentos juntados, leitura em sequência e PDF |
 | Eventos | Aba **Eventos** (`EventosAutos.jsx`): todos os eventos, filtros por origem |
 | Origem do processo | `secProcessos.origem` (`{ tipo, descricao }`), informada na autuação; tipos em `ORIGENS` (`functions-v2/src/shared/secretaria.ts`, espelho em `src/components/secretaria/comum.jsx`) |
-| Origem do evento | `origemEvento` em `functions-v2/src/shared/autos.ts`: `usuario` (termo com folha) ou `sistema` (extrato) |
+| Origem do evento | `origemEvento` em `functions-v2/src/shared/autos.ts`: `usuario` (termo com folha), `interno` (o rito deixou fora dos autos) ou `sistema` (os dois últimos saem no extrato) |
+| O que vai aos autos | `fase.registro` no rito (`remessas_fora` ou `interno`) e `acoes_regras[i].autos` (certidão de cumprimento); `movimentoInterno` em `functions-v2/src/shared/exigencias.ts` |
+| Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |
 | Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a secretaria expede, sempre nos autos |
 | Impedimento de parte | `ehParte` em `functions-v2/src/shared/secretaria.ts` |
 

@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Rito decide o que vai aos autos e que documentos exige
+- **Registro nos autos por fase**: no editor do rito, cada fase pode deixar
+  tudo nos autos (padrão), deixar fora as remessas internas da fase ou ficar
+  inteira no registro interno (ex.: distribuição entre assessorias). O ato
+  continua registrado, com autor e hora, na aba Eventos (filtro Internos),
+  sem termo nem folha e fora do portal das partes.
+- **Ação com certidão**: uma ação da fase pode gerar certidão de cumprimento
+  nos autos ao ser marcada.
+- **Documento exigido**: a fase (até 5) ou uma ação pode exigir documento,
+  redigido no órgão, recebido de fora ou qualquer um, com tipo e modelo
+  indicados. A juntada cumpre a exigência (reconhecida pelo modelo ou tipo,
+  ou marcada no diálogo de juntar). Para sair da fase sem ele, é preciso
+  informar o motivo da dispensa, que fica registrado.
+
 ### 10/11/2026 — Capa do processo e guia de lógica processual
 - **Guia de domínio** [LOGICA_PROCESSUAL.md](./LOGICA_PROCESSUAL.md): o que é
   ato do processo e o que é trabalho interno, o que vai para os autos, o que a

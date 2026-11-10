@@ -130,7 +130,7 @@ export default function CapaProcesso({ p, movimentos, estado, nomeUnidade, cadei
                     {cadeiaQuebradaEm === null
                         ? <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><ShieldCheck className="w-4 h-4" aria-hidden /> Integridade dos {plural(movimentos.length, 'evento', 'eventos')} conferida</span>
                         : <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-400"><ShieldAlert className="w-4 h-4" aria-hidden /> Cadeia quebrada no evento {cadeiaQuebradaEm}</span>}
-                    {outros > 0 && <Button variant="link" size="sm" className="h-auto p-0" onClick={onVerEventos}>Mais {plural(outros, 'registro', 'registros')} do sistema na aba Eventos</Button>}
+                    {outros > 0 && <Button variant="link" size="sm" className="h-auto p-0" onClick={onVerEventos}>Mais {plural(outros, 'registro', 'registros')} internos e do sistema na aba Eventos</Button>}
                 </div>
             </Bloco>
         </div>

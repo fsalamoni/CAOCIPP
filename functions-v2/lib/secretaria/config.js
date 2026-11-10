@@ -47,6 +47,17 @@ function filtrarRefsRito(rito, unidades, modelos) {
     return Object.assign(Object.assign({}, rito), { fases: rito.fases.map((f) => {
             const { unidade_id, modelos: ms } = f, resto = __rest(f, ["unidade_id", "modelos"]);
             const validos = (ms || []).filter((m) => modelos.has(m));
+            // Documento exigido com modelo de fora do órgão: fica a exigência, sem o modelo.
+            const limpa = (e) => {
+                if (!e.modelo_id || modelos.has(e.modelo_id))
+                    return e;
+                const { modelo_id: _fora } = e, sem = __rest(e, ["modelo_id"]);
+                return sem;
+            };
+            if (resto.documentos)
+                resto.documentos = resto.documentos.map(limpa);
+            if (resto.acoes_regras)
+                resto.acoes_regras = resto.acoes_regras.map((r) => ((r === null || r === void 0 ? void 0 : r.documento) ? Object.assign(Object.assign({}, r), { documento: limpa(r.documento) }) : r));
             return Object.assign(Object.assign(Object.assign({}, resto), (unidade_id && unidades.has(unidade_id) ? { unidade_id } : {})), (validos.length ? { modelos: validos } : {}));
         }) });
 }

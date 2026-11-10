@@ -9,7 +9,7 @@ import { caminhoArquivo } from './documentos';
 import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 import { montarPdfAutos, selecaoOuErro } from './exportar';
-import { extrasDoEvento } from '../shared/autos';
+import { extrasDoEvento, visivelParaPartes } from '../shared/autos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comunicacoes';
@@ -28,7 +28,7 @@ import { situacaoDaParte } from '../shared/meusProcessos';
  * é juntada na hora (protocolo eletrônico) e abre pendência para o decisor.
  */
 
-export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
+export { MOVIMENTOS_INTERNOS } from '../shared/autos';
 const TIPOS_PETICAO: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
 export const TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
@@ -301,7 +301,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
             },
-            movimentos: todos.filter((m) => !MOVIMENTOS_INTERNOS.includes(m.tipo) && m.dados?.visivel_partes !== false)
+            movimentos: todos.filter((m) => visivelParaPartes(m as never))
                 .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
             documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
             minhas_peticoes: peticoesDaParte(data, documentos, uid),
@@ -318,7 +318,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             ref.collection('movimentos').orderBy('seq').get(),
             ref.collection('documentos').where('status', '==', 'juntado').get(),
         ]);
-        const movimentos = movs.docs.map((d) => d.data()).filter((m) => !MOVIMENTOS_INTERNOS.includes(m.tipo) && m.dados?.visivel_partes !== false);
+        const movimentos = movs.docs.map((d) => d.data()).filter((m) => visivelParaPartes(m as never));
         const documentos = docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData)).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
         const bytes = await montarPdfAutos({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
@@ -331,7 +331,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         // Uma folha: situação atual e últimos movimentos públicos, com data e hora.
         const { ref, data: proc, org } = await lerComoParte(db, uid, p.processoId);
         const movs = (await ref.collection('movimentos').orderBy('seq', 'desc').limit(40).get()).docs.map((d) => d.data())
-            .filter((m) => !MOVIMENTOS_INTERNOS.includes(m.tipo) && m.dados?.visivel_partes !== false).slice(0, 10);
+            .filter((m) => visivelParaPartes(m as never)).slice(0, 10);
         const fase = (proc.fases || []).find((f: { id: string }) => f.id === proc.fase_atual)?.nome || proc.fase_atual;
         const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status as string] || proc.status;
         const parte = parteDoUsuario(proc, uid);

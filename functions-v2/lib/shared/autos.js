@@ -5,7 +5,9 @@
  * de partes dos autos para o PDF. Lógica pura, sem Firebase.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MODOS_SELECAO = exports.tituloEvento = exports.geraTermo = exports.documentoDoEvento = exports.origemEvento = exports.TIPOS_SISTEMA = void 0;
+exports.MODOS_SELECAO = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
+exports.origemEvento = origemEvento;
+exports.tituloEvento = tituloEvento;
 exports.folhasDoEvento = folhasDoEvento;
 exports.extrasDoEvento = extrasDoEvento;
 exports.urgentesPrimeiro = urgentesPrimeiro;
@@ -13,13 +15,34 @@ exports.sanitizeSelecao = sanitizeSelecao;
 exports.selecionar = selecionar;
 /** Registros de controle interno ou automáticos: não geram termo próprio. */
 exports.TIPOS_SISTEMA = ['atribuicao', 'acao_fase', 'orientacao_concluida', 'convite'];
-const origemEvento = (m) => { var _a; return (exports.TIPOS_SISTEMA.includes(m.tipo) || ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.automatico) === true ? 'sistema' : 'usuario'); };
-exports.origemEvento = origemEvento;
+/**
+ * usuario: ato do processo (termo com folha, salvo se juntou documento);
+ * interno: ato que o rito manda deixar fora dos autos (`dados.interno`);
+ * sistema: controle interno ou automático. Ação da fase marcada como
+ * "certidão nos autos" no rito (`dados.nos_autos`) é ato de usuário.
+ */
+function origemEvento(m) {
+    var _a, _b, _c;
+    if (((_a = m.dados) === null || _a === void 0 ? void 0 : _a.interno) === true)
+        return 'interno';
+    if (m.tipo === 'acao_fase' && ((_b = m.dados) === null || _b === void 0 ? void 0 : _b.nos_autos) === true)
+        return 'usuario';
+    return exports.TIPOS_SISTEMA.includes(m.tipo) || ((_c = m.dados) === null || _c === void 0 ? void 0 : _c.automatico) === true ? 'sistema' : 'usuario';
+}
+/** Movimentos que o portal nunca mostra às partes (além dos marcados `visivel_partes: false`). */
+exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
+/** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
+const visivelParaPartes = (m) => {
+    var _a;
+    return ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false && origemEvento(m) !== 'interno'
+        && (!exports.MOVIMENTOS_INTERNOS.includes(m.tipo) || origemEvento(m) === 'usuario');
+};
+exports.visivelParaPartes = visivelParaPartes;
 /** Id do documento que o evento juntou aos autos (juntada, petição). */
 const documentoDoEvento = (m) => { var _a, _b; return (typeof ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.documento_id) === 'string' && typeof ((_b = m.dados) === null || _b === void 0 ? void 0 : _b.ordem) === 'number' ? m.dados.documento_id : null); };
 exports.documentoDoEvento = documentoDoEvento;
 /** Ato de usuário sem documento: a página dele é o termo. */
-const geraTermo = (m) => (0, exports.origemEvento)(m) === 'usuario' && !(0, exports.documentoDoEvento)(m);
+const geraTermo = (m) => origemEvento(m) === 'usuario' && !(0, exports.documentoDoEvento)(m);
 exports.geraTermo = geraTermo;
 const TITULOS = {
     autuacao: 'Termo de autuação',
@@ -46,8 +69,17 @@ const TITULOS = {
     orientacao_concluida: 'Orientação concluída',
     convite: 'Convite',
 };
-const tituloEvento = (m) => TITULOS[m.tipo] || 'Certidão';
-exports.tituloEvento = tituloEvento;
+function tituloEvento(m) {
+    var _a, _b;
+    if (m.tipo === 'acao_fase' && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.nos_autos) === true)
+        return 'Certidão de cumprimento';
+    const t = TITULOS[m.tipo] || 'Certidão';
+    // Fora dos autos não há termo nem certidão: "Termo de remessa" vira "Remessa (registro interno)".
+    if (((_b = m.dados) === null || _b === void 0 ? void 0 : _b.interno) !== true)
+        return t;
+    const ato = t.replace(/^(Certidão|Termo) de /, '');
+    return `${ato.charAt(0).toUpperCase()}${ato.slice(1)} (registro interno)`;
+}
 /** Folhas que o evento ocupa nos autos: as do documento juntado ou a do termo. */
 function folhasDoEvento(m, docs) {
     const id = (0, exports.documentoDoEvento)(m);
@@ -60,7 +92,7 @@ function folhasDoEvento(m, docs) {
 }
 /** O que a tela precisa saber de cada evento, além do movimento gravado. */
 function extrasDoEvento(m, docs) {
-    return { origem: (0, exports.origemEvento)(m), titulo: (0, exports.tituloEvento)(m), folhas: folhasDoEvento(m, docs), documento_id: (0, exports.documentoDoEvento)(m) };
+    return { origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: (0, exports.documentoDoEvento)(m) };
 }
 /** Urgentes primeiro, mantendo a ordem que a lista já tinha. */
 function urgentesPrimeiro(lista) {
