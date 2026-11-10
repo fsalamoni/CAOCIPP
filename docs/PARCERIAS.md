@@ -124,7 +124,7 @@ A lista de terceiros fica em `thirdPartiesSettingsParcerias`.
 | Excluir Parceria ou aditivo | Quem tem `delete_records` |
 | Configurar o módulo | Quem tem `configure_parcerias` |
 
-Com webhooks configurados (*Painel Administrativo → Segurança*), o módulo
+Com webhooks configurados (*Painel Administrativo → Auditoria, retenção e integrações*), o módulo
 dispara os eventos `parceria_created` e `parceria_extinguished`.
 
 ---

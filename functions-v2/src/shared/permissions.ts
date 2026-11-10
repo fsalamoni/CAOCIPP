@@ -19,6 +19,7 @@ export type OrgPermissionKey =
     | 'configure_secretaria'
     | 'manage_metrics'
     | 'manage_modules'
+    | 'configure_automation'
     | 'bulk_standardize'
     | 'delete_records';
 
@@ -32,6 +33,7 @@ export const ORG_PERMISSION_KEYS: OrgPermissionKey[] = [
     'configure_secretaria',
     'manage_metrics',
     'manage_modules',
+    'configure_automation',
     'bulk_standardize',
     'delete_records',
 ];

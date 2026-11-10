@@ -139,8 +139,29 @@ export default function GeneralInfo({ organization, members, processes = [], exp
             <CardContent className="space-y-4">
               <div>
                 <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">Nome Oficial</p>
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{organization.name}</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">
+                  {organization.name}
+                  {organization.contactInfo?.acronym && (
+                    <span className="ml-2 text-sm font-semibold text-slate-500 dark:text-slate-400">({organization.contactInfo.acronym})</span>
+                  )}
+                </p>
               </div>
+
+              {['email', 'phone', 'address', 'website'].some((k) => organization.contactInfo?.[k]) && (
+                <div>
+                  <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1">Contato</p>
+                  <ul className="text-sm text-slate-700 dark:text-slate-300 space-y-0.5 break-words">
+                    {organization.contactInfo.email && (
+                      <li><a className="text-indigo-600 dark:text-indigo-300 hover:underline" href={`mailto:${organization.contactInfo.email}`}>{organization.contactInfo.email}</a></li>
+                    )}
+                    {organization.contactInfo.phone && <li>{organization.contactInfo.phone}</li>}
+                    {organization.contactInfo.address && <li>{organization.contactInfo.address}</li>}
+                    {organization.contactInfo.website && (
+                      <li><a className="text-indigo-600 dark:text-indigo-300 hover:underline" href={organization.contactInfo.website} target="_blank" rel="noopener noreferrer">{organization.contactInfo.website}</a></li>
+                    )}
+                  </ul>
+                </div>
+              )}
 
               {organization.description && (
                 <div>

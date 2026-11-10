@@ -18,59 +18,84 @@
 export const ORG_PERMISSIONS = [
     {
         key: 'edit_details',
+        group: 'orgao',
         label: 'Editar detalhes',
-        description: 'Editar nome e descrição da organização.',
+        description: 'Editar nome, sigla, descrição e dados de contato do órgão.',
     },
     {
         key: 'manage_matters',
+        group: 'modulos',
         label: 'Configurar consultas e matérias',
         description: 'Criar, editar e excluir a classificação de matérias (configuração de consultas).',
     },
     {
         key: 'configure_expedientes',
+        group: 'modulos',
         label: 'Configurar expedientes',
         description: 'Gerenciar os sistemas e as origens dos expedientes.',
     },
     {
         key: 'configure_parcerias',
+        group: 'modulos',
         label: 'Configurar parcerias',
         description: 'Gerenciar os tipos de parceria e a lista de terceiros do módulo de Parcerias.',
     },
     {
         key: 'configure_jurimetria',
+        group: 'modulos',
         label: 'Configurar jurimetria',
         description: 'Gerenciar as listas oficiais, a tabela de pontuação e as colunas da base de júris (módulo de Jurimetria).',
     },
     {
         key: 'configure_panorama',
+        group: 'modulos',
         label: 'Configurar Panorama',
         description: 'Criar e configurar as bases analíticas do módulo Panorama: colunas, papéis, desfechos, regiões e regras de prescrição.',
     },
     {
         key: 'configure_secretaria',
+        group: 'modulos',
         label: 'Configurar Processo Eletrônico',
         description: 'Ligar o Processo Eletrônico, criar unidades de lotação (secretarias, gabinetes, assessorias), montar equipes e definir tipos de processo, ritos, papel timbrado e modelos. Quem tem esta permissão também consulta todos os processos do órgão.',
     },
     {
         key: 'manage_metrics',
+        group: 'orgao',
         label: 'Gerenciar métricas',
         description: 'Criar, editar e excluir as métricas do painel.',
     },
     {
         key: 'manage_modules',
+        group: 'orgao',
         label: 'Gerenciar páginas e módulos',
-        description: 'Criar, editar e excluir módulos e páginas personalizadas.',
+        description: 'Ligar, desligar e ordenar as páginas do órgão e criar páginas personalizadas.',
+    },
+    {
+        key: 'configure_automation',
+        group: 'regras',
+        label: 'Configurar regras e automação',
+        description: 'Definir o indicador de tempo na etapa, as metas de conclusão, o escalonamento de urgentes e os relatórios por e-mail.',
     },
     {
         key: 'bulk_standardize',
+        group: 'dados',
         label: 'Padronização em bloco',
         description: 'Padronizar valores de campos em bloco.',
     },
     {
         key: 'delete_records',
+        group: 'dados',
         label: 'Excluir registros',
         description: 'Excluir consultas (processos), expedientes, parcerias, júris e registros do Panorama.',
     },
+];
+
+/** Áreas em que as permissões se agrupam na interface (mesmos grupos do Painel Administrativo). */
+export const ORG_PERMISSION_GROUPS = [
+    { key: 'orgao', label: 'Órgão' },
+    { key: 'modulos', label: 'Módulos de trabalho' },
+    { key: 'regras', label: 'Regras e automação' },
+    { key: 'dados', label: 'Dados' },
 ];
 
 /** Conjunto das chaves válidas para validação rápida. */
@@ -91,6 +116,9 @@ export const ADMIN_TAB_PERMISSION = {
     metrics: 'manage_metrics',
     modules: 'manage_modules',
     padronizacao: 'bulk_standardize',
+    secretaria: 'configure_secretaria',
+    stagetime: 'configure_automation',
+    automation: 'configure_automation',
 };
 
 /**

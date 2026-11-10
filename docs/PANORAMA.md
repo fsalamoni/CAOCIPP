@@ -132,8 +132,8 @@ calcular prescrição sem saber qual coluna é a data.
 
 1. Um administrador da plataforma liga a flag **Módulo Panorama** em
    *Administração → Feature Flags*.
-2. O criador do órgão ativa **Panorama** em *Painel Administrativo → Gerenciar
-   Páginas e Módulos*.
+2. O criador do órgão ativa **Panorama** em *Painel Administrativo → Páginas e
+   módulos*.
 
 Só com as duas chaves a aba aparece. Enquanto a flag está desligada, nada do
 módulo existe na interface — e nenhum dado de outro módulo é afetado.
@@ -404,7 +404,7 @@ o nome exato da base. Os dados precisariam ser importados de novo.
 | Chave | Onde | Efeito |
 |---|---|---|
 | `panorama_enabled` | Administração → Feature Flags | Default **OFF**. Desligada, nada do módulo existe na interface |
-| `moduleConfig.panorama.enabled` | Painel Administrativo → Páginas e Módulos | Ativa o módulo neste órgão |
+| `moduleConfig.panorama.enabled` | Painel Administrativo → Páginas e módulos | Ativa o módulo neste órgão |
 
 Defesa em profundidade idêntica à da Jurimetria e das Parcerias: a aba da página
 e a aba de configuração exigem as duas. As Cloud Functions validam a permissão do

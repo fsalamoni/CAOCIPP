@@ -5,6 +5,25 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Painel Administrativo reorganizado
+- O painel abre numa visão geral, com as seções agrupadas em Órgão, Pessoas e
+  acesso, Módulos de trabalho, Regras e automação e Dados e segurança. Menu
+  lateral fixo no computador, seletor no celular, busca de configuração e a
+  seção aberta no endereço (`&secao=`).
+- Cada seção tem título, explicação e, para o criador, a indicação de quem
+  pode acessá-la. Módulo com a página desligada aparece marcado, com atalho
+  para ligar.
+- Identidade e contato: sigla, e-mail, telefone, endereço e site do órgão,
+  exibidos em Informações Gerais.
+- Páginas e módulos: setas para definir a ordem das páginas na navegação.
+- Membros e convite: código de convite com copiar, busca, filtro de
+  ex-membros, função escolhida numa lista explicada e remoção com confirmação.
+- Atribuições especiais agrupadas por área, com "marcar a área toda", e nova
+  atribuição "Configurar regras e automação" (indicador de tempo, metas,
+  escalonamento e relatórios), antes exclusivas do criador.
+- A aba "Inteligência Artificial" saiu do painel: só gravava uma preferência
+  que nenhuma parte do sistema usava.
+
 ### 10/11/2026 — Navegação do Processo Eletrônico
 - O Processo Eletrônico entrou na barra de páginas do órgão (no alto da
   página), antes do Painel Administrativo.

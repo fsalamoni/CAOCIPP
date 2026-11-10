@@ -99,7 +99,7 @@ export default function ProcessoEletronico() {
                 <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Processo Eletrônico desativado</h1>
                 <p className="text-slate-600 dark:text-slate-300">
                     {estado?.isAdmin
-                        ? 'Ative e configure o módulo no Painel Administrativo do órgão, aba Processo Eletrônico.'
+                        ? 'Ative e configure o módulo no Painel Administrativo do órgão, seção Processo Eletrônico.'
                         : 'Peça ao administrador do órgão para ativar o Processo Eletrônico.'}
                 </p>
                 {/* Quem não é admin não vê o Painel Administrativo: vai para a página inicial do órgão. */}

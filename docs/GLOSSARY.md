@@ -58,7 +58,7 @@ Tipo de registro criado pelo próprio órgão (`entityTypes` + `customRecords`),
 com campos, fases, Kanban e lista genéricos.
 
 ### Métrica
-Indicador configurável sem código em *Painel Administrativo → Métricas*
+Indicador configurável sem código em *Painel Administrativo → Métricas das páginas*
 (`dashboardConfig`), exibido em *Informações Gerais*.
 
 ---

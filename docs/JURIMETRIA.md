@@ -36,7 +36,7 @@ O módulo só aparece quando **as duas** condições são verdadeiras:
 1. **Plataforma** — o super-admin liga `jurimetria_enabled` em
    *Administração & Custos → Funcionalidades*.
 2. **Órgão** — o administrador liga **Jurimetria** em
-   *Painel Administrativo → Páginas e Módulos* (exige a flag `custom_entities`,
+   *Painel Administrativo → Páginas e módulos* (exige a flag `custom_entities`,
    que é o que habilita essa tela).
 
 Essa é a mesma **defesa em profundidade** do módulo de Parcerias: com a flag
@@ -420,7 +420,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 | Ligar/desligar a flag na plataforma | Super-admin |
 
 `configure_jurimetria` é delegável pelo criador em
-*Painel Administrativo → Atribuições*, como as demais permissões.
+*Painel Administrativo → Atribuições especiais*, como as demais permissões.
 
 ---
 
@@ -444,7 +444,7 @@ fórmulas em planilhas (mesma mitigação de `lib/tableExport.js`).
 
 - **Informações Gerais** — a página de Jurimetria vira uma fonte de métricas
   (`getJurisPageSchema`), com a espécie de resultado no lugar da "fase". O
-  admin monta cartões próprios em *Painel Administrativo → Métricas*.
+  admin monta cartões próprios em *Painel Administrativo → Métricas das páginas*.
 - **Busca global** (`global_search`) — encontra júris por número do processo,
   comarca ou promotor, e leva direto à aba. Só consulta a coleção quando a flag
   do módulo está ligada.
