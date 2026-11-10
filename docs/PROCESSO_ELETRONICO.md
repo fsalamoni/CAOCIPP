@@ -13,7 +13,10 @@ Até nov/2026 o módulo se chamava **Secretaria Processual**. Os nomes internos
 foram mantidos para não migrar dados; só o nome visível mudou.
 
 O projeto completo e as decisões estão no documento de projeto (fora do
-repositório).
+repositório). **Antes de mudar o módulo, leia o
+[guia de lógica processual](./LOGICA_PROCESSUAL.md)**: ele explica o que é
+ato do processo e o que é trabalho interno, e por que a tela e os autos são
+organizados assim.
 
 ## Ativação
 
@@ -238,7 +241,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{descricao, partes ("opcional" \| "obrigatorio" \| "oculto"), campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
-| `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor, visivel_partes}], sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
+| `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor, visivel_partes}], origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
@@ -270,7 +273,7 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
-| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar`, `tramitar` (opcionais `fase_id` e `orientacao`), `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
+| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`), `tramitar` (opcionais `fase_id` e `orientacao`), `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar` e `resolve_pendencia_id`), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
@@ -347,8 +350,8 @@ Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
   evento, quem e folhas; filtros Todos, Atos de usuários, Sistema e Com
   documentos; busca; ordem. `obter` devolve em cada movimento `origem`,
   `titulo`, `folhas` e `documento_id` (`extrasDoEvento`). "Ler os autos"
-  usa o `LeitorAutos` evento a evento. O cartão lateral mostra só os seis
-  últimos eventos e leva à tabela.
+  usa o `LeitorAutos` evento a evento. A tabela fica na aba **Eventos** da
+  tela do processo; a **Capa** mostra a cronologia dos atos dos autos.
 - **Seleção** (`selecao` em `secretariaExportarPdf` e em `secretariaPortal`
   ação `exportar`; `sanitizeSelecao` e `selecionar`): `modo` `integral`,
   `apenas` ou `exceto` (com `eventos`: lista de `seq`) ou `intervalo`
@@ -356,6 +359,39 @@ Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
   um documento); `capa` e `indice` ligam ou desligam essas páginas. A
   parte só alcança o que já vê: o servidor filtra movimentos e documentos
   antes de aplicar a seleção.
+
+## Tela do processo: Capa, Andamento, Autos e Eventos (nov/2026)
+
+A tela do processo (`ProcessoView.jsx`) separa o que **informa** do que
+**age**, como explica o [guia de lógica processual](./LOGICA_PROCESSUAL.md)
+(seções 3 e 4). O cabeçalho (número, assunto, fase, situação, com quem está,
+urgência, sigilo, integridade) aparece em todas as abas.
+
+| Aba | Conteúdo | Ações |
+|---|---|---|
+| **Capa** (`CapaProcesso.jsx`) | Identificação (número, tipo, assunto, rito, autuação, descrição, campos do tipo); origem e quem solicitou (origem, referência, unidade de autuação, requerentes com representantes, ou "De ofício"); tramitação (situação, fase, com quem está e desde quando, responsável, urgência com motivo, sigilo); partes por polo, com representantes e quem acompanha pelo portal; cronologia dos atos dos autos (só eventos de origem `usuario`, com folhas; título que abre o documento no leitor) e a conferência da cadeia | Nenhuma |
+| **Andamento** | Orientação recebida, Nesta fase, minutas, pendências e prazos, comunicações às partes, **Partes no portal** (convidar, representante, revogar) e os atalhos | Barra de ações (botão da fase, Novo documento, Mais), só nesta aba |
+| **Autos** | Documentos juntados com folhas, assinaturas e conferência | Ler em sequência, ver nos autos, baixar original, PDF dos autos |
+| **Eventos** | `EventosAutos.jsx` | Filtros e PDF com seleção |
+
+- **Aba inicial:** Andamento para quem tem o processo e pode movimentá-lo;
+  Capa para os demais (consulta, processo arquivado). A escolha não vai para
+  o endereço.
+- **Mais** ganhou "Corrigir os dados do processo" (abre o mesmo diálogo de
+  `alterarDados`); antes, o botão ficava no cartão de dados.
+- O atalho `J` abre o Andamento e rola até as pendências. A linha de contexto
+  do gabinete e a barra fixa do celular aparecem só no Andamento.
+- **Origem do processo.** No "Novo processo", campo **Origem** (opcional):
+  requerimento do interessado, representação ou denúncia, ofício ou
+  comunicação de outro órgão, de ofício, derivado de outro processo ou outra,
+  com **referência** livre (até 200 caracteres). O servidor grava
+  `secProcessos.origem` (`{ tipo, descricao }`, `sanitizeOrigem` em
+  `functions-v2/src/shared/secretaria.ts`; tipo desconhecido vira `outro`, nada
+  informado não grava o campo) e o põe nos `dados` do movimento de autuação,
+  não na descrição. `obter` devolve `origem` e `unidade_autuacao` (primeira
+  unidade de `unidades_historico`). O PDF da equipe traz a linha "Origem" na
+  capa; o portal das partes não mostra a origem. Processos antigos não têm
+  origem: a capa mostra "Não informado".
 
 ## Urgência (nov/2026)
 
@@ -627,7 +663,7 @@ misturam dentro de um processo.
 
 ## Equipe e decisor (etapa 5, nov/2026)
 
-- **Nesta fase:** cartão fixo no topo do processo com o nome da fase, para
+- **Nesta fase:** cartão no topo da aba Andamento com o nome da fase, para
   onde segue, quem faz e em que unidade corre, a orientação do rito, as ações
   como caixas de marcar (`marcarAcao`, movimento interno `acao_fase`, guardado
   em `acoes_feitas`) e os modelos indicados como botões "Redigir X", que abrem
@@ -670,8 +706,8 @@ misturam dentro de um processo.
   "Ler em sequência" ou clicando no título; marca de lido no navegador.
 - **Atalhos:** `N` novo documento, `T` enviar para outra unidade, `J` ir às
   pendências (fora de campos de texto e com nada aberto).
-- Para o gabinete, uma linha de contexto no topo: partes, tipo, dias em
-  tramitação e último documento.
+- Para o gabinete, uma linha de contexto no topo do Andamento: partes, tipo,
+  dias em tramitação e último documento.
 
 ## Avisos, celular e acessibilidade (etapa 6, nov/2026)
 
@@ -696,7 +732,7 @@ misturam dentro de um processo.
   `resumo`: o job diário (`secretariaAlertaPrazos`, `enviarResumosDiarios`)
   manda um e-mail com os avisos não lidos das últimas 24 horas, por órgão.
   O alerta diário de prazos por e-mail não depende da preferência.
-- **Celular:** na tela do processo o botão principal e "Novo documento" ficam
+- **Celular:** na aba Andamento o botão principal e "Novo documento" ficam
   numa barra fixa embaixo (`sm:hidden`, respeita `safe-area-inset-bottom`);
   "Fotografar um documento" (`<input capture="environment">`) em Novo
   documento e no Peticionar do portal.
@@ -840,8 +876,9 @@ admin define, em cada tipo, o que quem autua preenche:
   tipo do campo. Mudar o tipo de processo depois não altera processos já
   autuados; um campo retirado do tipo continua no processo como foi gravado.
   Os valores entram no movimento de autuação (cadeia de hashes), aparecem em
-  "Dados do processo" e contam na busca da lista (`campos_resumo`).
-- **Correção:** "Editar dados" (`alterarDados`, exige a posse do processo)
+  "Identificação", na Capa, e contam na busca da lista (`campos_resumo`).
+- **Correção:** Mais › "Corrigir os dados do processo", no Andamento
+  (`alterarDados`, exige a posse do processo)
   corrige a descrição e os campos próprios. O movimento `dados` registra o que
   mudou (de/para) e o motivo, e não aparece para as partes.
 - **Portal:** as partes veem só os campos marcados "mostrar às partes".

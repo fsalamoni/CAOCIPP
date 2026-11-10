@@ -25,6 +25,7 @@
 | [JURIMETRIA.md](./JURIMETRIA.md) | Base de júris, importação, relatórios e exportação |
 | [PANORAMA.md](./PANORAMA.md) | Bases analíticas de qualquer área a partir de planilhas |
 | [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md) | Processo Eletrônico: processo eletrônico com ritos, unidades, documentos, assinatura, folhas, portal das partes e conferência pública |
+| [LOGICA_PROCESSUAL.md](./LOGICA_PROCESSUAL.md) | Guia de domínio do Processo Eletrônico: ato do processo × trabalho interno, o que vai para os autos, o que a capa mostra. **Leia antes de mexer no módulo** |
 
 ## Técnica
 

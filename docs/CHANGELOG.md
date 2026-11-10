@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Capa do processo e guia de lógica processual
+- **Guia de domínio** [LOGICA_PROCESSUAL.md](./LOGICA_PROCESSUAL.md): o que é
+  ato do processo e o que é trabalho interno, o que vai para os autos, o que a
+  capa deve mostrar. Leitura obrigatória antes de mexer no Processo Eletrônico.
+- **Tela do processo em abas**: Capa (só informação, sem botões de ato),
+  Andamento (onde se age: fase, minutas, pendências, prazos, intimações,
+  partes no portal), Autos e Eventos. Quem tem o processo abre no Andamento;
+  os demais, na Capa.
+- **Origem do processo** no "Novo processo" (requerimento, representação,
+  ofício, de ofício, derivado de outro processo), com referência. A capa
+  mostra a origem, a unidade de autuação e quem solicitou; o PDF da equipe
+  também.
+
 ### 10/11/2026 — Acabamento: órgão para a equipe, modelos por órgão e textos prontos
 - **Estrutura visível para a equipe**: a aba Unidades do Processo Eletrônico
   mostra o organograma com as competências de cada órgão, o titular e as
