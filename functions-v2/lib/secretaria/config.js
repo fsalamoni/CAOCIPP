@@ -18,6 +18,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
+const camposProcesso_1 = require("../shared/camposProcesso");
 const context_1 = require("./context");
 const documentoConfig_1 = require("./documentoConfig");
 const importarModelo_1 = require("./importarModelo");
@@ -179,6 +180,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
+                    formulario: (0, camposProcesso_1.formularioDe)(t),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             documento,
@@ -557,8 +559,16 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const unidadeInicial = String(t.unidade_inicial || '');
         if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial))
             throw new https_1.HttpsError('invalid-argument', 'Unidade inicial inválida');
+        // Campos do "Novo processo" deste tipo: os padrões e os próprios do órgão.
+        let formulario;
+        try {
+            formulario = (0, camposProcesso_1.sanitizeFormulario)(t.formulario);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
         const dados = {
-            nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id),
+            nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario,
             sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: unidadeInicial || null,
             ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
@@ -574,7 +584,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido');
             p.id = (await col.add(Object.assign(Object.assign({}, dados), { organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
         }
-        await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome });
+        await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome, campos: formulario.campos.length });
         return { success: true, id: p.id };
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

@@ -230,6 +230,9 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             orgao: org.name || '',
             processo: {
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao,
+                // Só os campos que o órgão marcou para as partes verem.
+                campos: ((data.campos || []) as Array<{ rotulo: string; tipo: string; valor: unknown; visivel_partes?: boolean }>)
+                    .filter((x) => x.visivel_partes === true).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor })),
                 fase_nome: (data.fases || []).find((f: { id: string }) => f.id === data.fase_atual)?.nome || data.fase_atual,
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),

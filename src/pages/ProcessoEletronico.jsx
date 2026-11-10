@@ -23,6 +23,8 @@ import ErroQuery from '@/components/secretaria/ErroQuery';
 import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
 import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/UnidadesDoUsuario';
 import FluxoRito from '@/components/secretaria/FluxoRito';
+import { CamposProcesso } from '@/components/secretaria/CamposProcesso';
+import { faltando, formularioDe } from '@/lib/camposProcesso';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
 import { STATUS_ROTULO, NativeSelect } from '@/components/secretaria/comum';
@@ -230,7 +232,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     const fases = [...new Set(todos.map((p) => p.fase_nome).filter(Boolean))].sort();
     const lista = todos
-        .filter((p) => !termo || norm(`${p.numero} ${p.assunto} ${p.tipo_nome || ''} ${p.partes_resumo || ''}`).includes(termo)
+        .filter((p) => !termo || norm(`${p.numero} ${p.assunto} ${p.tipo_nome || ''} ${p.partes_resumo || ''} ${p.campos_resumo || ''}`).includes(termo)
             || (termoDig.length >= 3 && String(p.partes_resumo || '').replace(/\D/g, '').includes(termoDig)))
         .filter((p) => !f.tipo || p.tipo_id === f.tipo)
         .filter((p) => !f.unidade || p.unidade_atual === f.unidade)
@@ -349,14 +351,14 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     const [salvando, setSalvando] = useState(false);
     const ritosAtivos = estado.ritos.filter((r) => r.ativo);
     const tiposAtivos = (estado.tipos || []).filter((t) => t.ativo && ritosAtivos.some((r) => r.id === t.rito_id));
-    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', partes: [] };
+    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', partes: [], campos: {} };
     const [f, setF] = useState(vazio);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     // Escolher o tipo preenche rito, sigilo e unidade sugerida (se a pessoa está lotada nela).
     const escolherTipo = (id) => {
         const t = tiposAtivos.find((x) => x.id === id);
         setF((x) => ({
-            ...x, tipo_id: id,
+            ...x, tipo_id: id, campos: {},
             ...(t ? {
                 rito_id: t.rito_id, sigilo: t.sigilo_padrao,
                 ...(t.unidade_inicial && estado.minhasUnidades.includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial } : {}),
@@ -365,6 +367,10 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     };
     const tipoSel = tiposAtivos.find((t) => t.id === f.tipo_id);
     const ritoSel = estado.ritos.find((r) => r.id === f.rito_id);
+    // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
+    const form = formularioDe(tipoSel);
+    const falta = faltando(form, f);
+    const req = (uso) => (uso === 'obrigatorio' ? <span className="text-red-600 dark:text-red-400" aria-hidden> *</span> : null);
 
     if (estado.minhasUnidades.length === 0) return null; // só quem está lotado autua
 
@@ -397,8 +403,9 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                             {tipoSel?.descricao && <p className="text-xs text-slate-600 mt-1">{tipoSel.descricao}</p>}
                         </div>
                     )}
-                    <div><Label htmlFor="sec-assunto">Assunto</Label><Input id="sec-assunto" value={f.assunto} onChange={(e) => set('assunto', e.target.value)} maxLength={200} /></div>
-                    <div><Label htmlFor="sec-desc">Descrição</Label><Textarea id="sec-desc" value={f.descricao} onChange={(e) => set('descricao', e.target.value)} rows={3} /></div>
+                    <div><Label htmlFor="sec-assunto">Assunto<span className="text-red-600 dark:text-red-400" aria-hidden> *</span></Label><Input id="sec-assunto" value={f.assunto} onChange={(e) => set('assunto', e.target.value)} maxLength={200} /></div>
+                    {form.descricao !== 'oculto' && <div><Label htmlFor="sec-desc">Descrição{req(form.descricao)}</Label><Textarea id="sec-desc" value={f.descricao} onChange={(e) => set('descricao', e.target.value)} rows={3} aria-required={form.descricao === 'obrigatorio' || undefined} /></div>}
+                    <CamposProcesso campos={form.campos} valores={f.campos} onChange={(id, v) => setF((x) => ({ ...x, campos: { ...x.campos, [id]: v } }))} />
                     <div className="grid sm:grid-cols-3 gap-3">
                         {tipoSel
                             ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>
@@ -414,9 +421,9 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                             <FluxoRito fases={ritoSel.fases} unidades={estado.unidades} className="mt-2" />
                         </details>
                     )}
-                    <div className="space-y-2">
+                    {form.partes !== 'oculto' && <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <Label>Partes e interessados</Label>
+                            <Label>Partes e interessados{req(form.partes)}</Label>
                             <Button type="button" size="sm" variant="outline" onClick={() => set('partes', [...f.partes, { nome: '', documento: '', polo: 'requerente' }])}>Adicionar</Button>
                         </div>
                         {f.partes.map((pa, i) => (
@@ -431,11 +438,14 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                                 <Button type="button" variant="ghost" size="sm" className="sm:col-span-1" onClick={() => set('partes', f.partes.filter((_, j) => j !== i))} aria-label="Remover parte">×</Button>
                             </div>
                         ))}
-                    </div>
+                    </div>}
+                    {f.assunto.trim() && falta.length > 0 && (
+                        <p className="text-sm text-amber-800 dark:text-amber-300" role="status">Para autuar: {falta.join('; ')}.</p>
+                    )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setAberto(false)}>Cancelar</Button>
-                    <Button onClick={salvar} disabled={salvando || !f.assunto.trim() || !f.rito_id}>
+                    <Button onClick={salvar} disabled={salvando || !f.assunto.trim() || !f.rito_id || falta.length > 0}>
                         {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Autuar
                     </Button>
                 </DialogFooter>

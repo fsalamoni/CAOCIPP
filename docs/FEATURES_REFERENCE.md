@@ -162,7 +162,7 @@ corridos com vencimento pelo CPC, com selos e filtros na lista. Fase 3:
 portal das partes (`/Portal`), com convite por link ou e-mail, login próprio
 (Google ou e-mail e senha), consulta aos documentos visíveis às partes e
 petição a qualquer tempo, juntada na hora com pendência para o decisor. Fase 4:
-tipos de processo (rito, sigilo e unidade sugerida), ritos com ramificações,
+tipos de processo (rito, sigilo, unidade sugerida e formulário próprio do "Novo processo", com campos padrão e campos do órgão gravados nos dados do processo), ritos com ramificações,
 fase final e orientação por fase, editor visual com diagrama ao vivo, modelos
 prontos, importação e exportação por planilha (.xlsx/.csv) e diagrama Mermaid,
 e mudança de fase guiada pelo fluxo (fora do fluxo exige motivo). Importação

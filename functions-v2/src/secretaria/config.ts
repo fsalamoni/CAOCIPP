@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { MAX_TEXTO_LONGO, Rito, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
+import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
 import { sanitizeDocumentoConfig } from './documentoConfig';
 import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
@@ -201,6 +202,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
+                    formulario: formularioDe(t),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             documento,
@@ -538,8 +540,11 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         if (!rito || rito.organization_id !== orgId) throw new HttpsError('invalid-argument', 'Escolha o rito do tipo de processo');
         const unidadeInicial = String(t.unidade_inicial || '');
         if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial)) throw new HttpsError('invalid-argument', 'Unidade inicial inválida');
+        // Campos do "Novo processo" deste tipo: os padrões e os próprios do órgão.
+        let formulario;
+        try { formulario = sanitizeFormulario(t.formulario); } catch (e) { erroUsuario(e); }
         const dados = {
-            nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id),
+            nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario,
             sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: unidadeInicial || null,
             ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
@@ -552,7 +557,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             if ((await col.where('organization_id', '==', orgId).get()).size >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de tipos atingido');
             p.id = (await col.add({ ...dados, organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
         }
-        await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome });
+        await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome, campos: formulario!.campos.length });
         return { success: true, id: p.id };
     }
 

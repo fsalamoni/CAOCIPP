@@ -209,6 +209,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             orgao: org.name || '',
             processo: {
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao,
+                // Só os campos que o órgão marcou para as partes verem.
+                campos: (data.campos || [])
+                    .filter((x) => x.visivel_partes === true).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor })),
                 fase_nome: ((_d = (data.fases || []).find((f) => f.id === data.fase_atual)) === null || _d === void 0 ? void 0 : _d.nome) || data.fase_atual,
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),

@@ -15,6 +15,8 @@ import { NativeSelect, TIPOS_UNIDADE } from './comum';
 import RitoEditor from './RitoEditor';
 import PropostaRito from './PropostaRito';
 import FluxoRito from './FluxoRito';
+import { EditorFormulario } from './CamposProcesso';
+import { formularioDe, formularioPadrao, problemasFormulario } from '@/lib/camposProcesso';
 import ConfiguracaoDocumentos from './ConfiguracaoDocumentos';
 import ConfiguracaoCalendario from './ConfiguracaoCalendario';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
@@ -173,17 +175,17 @@ function Tipos({ orgId, estado }) {
             <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
                 <div>
                     <CardTitle className="text-base">Tipos de processo</CardTitle>
-                    <CardDescription>O que se autua no órgão (ex.: Requerimento, Sindicância). Cada tipo já escolhe o rito, o sigilo e a unidade de entrada.</CardDescription>
+                    <CardDescription>O que se autua no órgão (ex.: Requerimento, Sindicância). Cada tipo já escolhe o rito, o sigilo, a unidade de entrada e os campos do “Novo processo”.</CardDescription>
                 </div>
                 <Button size="sm" className="gap-1 shrink-0" disabled={!estado.ritos.length}
-                    onClick={() => setTipo({ nome: '', sigla: '', descricao: '', rito_id: estado.ritos.find((r) => r.ativo)?.id || '', sigilo_padrao: 'normal', unidade_inicial: '', ativo: true })}>
+                    onClick={() => setTipo({ nome: '', sigla: '', descricao: '', rito_id: estado.ritos.find((r) => r.ativo)?.id || '', sigilo_padrao: 'normal', unidade_inicial: '', ativo: true, formulario: formularioPadrao() })}>
                     <Plus className="w-4 h-4" /> Novo tipo
                 </Button>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {tipos.length === 0 && <p className="text-sm text-slate-600">Sem tipos, quem autua escolhe o rito diretamente.</p>}
                 {tipos.map((t) => (
-                    <button key={t.id} onClick={() => setTipo({ ...t, unidade_inicial: t.unidade_inicial || '' })} className={item}>
+                    <button key={t.id} onClick={() => setTipo({ ...t, unidade_inicial: t.unidade_inicial || '', formulario: formularioDe(t) })} className={item}>
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{t.nome}</span>
                             {t.sigla && <span className="text-xs text-slate-600">{t.sigla}</span>}
@@ -191,6 +193,7 @@ function Tipos({ orgId, estado }) {
                             {!t.ativo && <Badge variant="secondary">Inativo</Badge>}
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
+                        {formularioDe(t).campos.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Campos próprios: {formularioDe(t).campos.map((c) => c.rotulo).join(', ')}</p>}
                     </button>
                 ))}
             </CardContent>
@@ -199,7 +202,7 @@ function Tipos({ orgId, estado }) {
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                     <DialogHeader>
                         <DialogTitle>{tipo?.id ? 'Editar tipo de processo' : 'Novo tipo de processo'}</DialogTitle>
-                        <DialogDescription>Ao autuar, quem escolhe este tipo já recebe o rito, o sigilo e a unidade abaixo.</DialogDescription>
+                        <DialogDescription>Ao autuar, quem escolhe este tipo já recebe o rito, o sigilo, a unidade e os campos abaixo.</DialogDescription>
                     </DialogHeader>
                     {tipo && (
                         <div className="space-y-3">
@@ -216,18 +219,24 @@ function Tipos({ orgId, estado }) {
                                 <NativeSelect id="tp-unidade" label="Unidade sugerida para autuar" value={tipo.unidade_inicial} onChange={(v) => setTipo({ ...tipo, unidade_inicial: v })}
                                     options={[['', 'A de quem autua'], ...estado.unidades.filter((u) => u.ativa).map((u) => [u.id, u.nome])]} />
                             </div>
+                            <EditorFormulario form={tipo.formulario} onChange={(formulario) => setTipo({ ...tipo, formulario })} />
+                            {problemasFormulario(tipo.formulario).length > 0 && (
+                                <ul className="text-sm text-amber-800 dark:text-amber-300 list-disc pl-5" role="alert">
+                                    {problemasFormulario(tipo.formulario).map((m) => <li key={m}>{m}</li>)}
+                                </ul>
+                            )}
                             {estado.ritos.find((r) => r.id === tipo.rito_id) && (
-                                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
-                                    <p className="text-sm font-medium mb-2">Fluxo deste tipo</p>
-                                    <FluxoRito fases={estado.ritos.find((r) => r.id === tipo.rito_id).fases} unidades={estado.unidades} />
-                                </div>
+                                <details className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
+                                    <summary className="text-sm font-medium cursor-pointer">Fluxo deste tipo</summary>
+                                    <FluxoRito fases={estado.ritos.find((r) => r.id === tipo.rito_id).fases} unidades={estado.unidades} className="mt-2" />
+                                </details>
                             )}
                             {tipo.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={tipo.ativo} onCheckedChange={(c) => setTipo({ ...tipo, ativo: c === true })} /> Disponível para novas autuações</label>}
                         </div>
                     )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setTipo(null)}>Cancelar</Button>
-                        <Button disabled={salvando || !tipo?.nome?.trim() || !tipo?.rito_id} onClick={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)}>
+                        <Button disabled={salvando || !tipo?.nome?.trim() || !tipo?.rito_id || problemasFormulario(tipo.formulario).length > 0} onClick={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)}>
                             {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar
                         </Button>
                     </DialogFooter>

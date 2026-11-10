@@ -7,10 +7,11 @@ import {
     fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
+import { CampoValor, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorTexto } from '../shared/camposProcesso';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import {
-    COL, REGION, carregarContexto, conferirVersao, exigirAuth, exigirPosse, lerProcesso,
+    COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarMovimento,
 } from './context';
 
@@ -24,7 +25,7 @@ interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
-        | 'marcarAcao' | 'concluirOrientacao' | 'contadores';
+        | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados';
     // listar paginado (sem `limite`, devolve até 1000 como antes)
     limite?: number;
     cursor?: number;
@@ -59,6 +60,8 @@ interface ProcRequest {
     unidade_id?: string;
     sigilo?: string;
     partes?: unknown;
+    /** Valores dos campos próprios do tipo de processo: { id do campo: valor }. */
+    campos?: unknown;
     // movimentações
     unidade_destino?: string;
     responsavel_uid?: string | null;
@@ -108,6 +111,7 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         // Pesquisa e painéis.
         rito_id: d.rito_id || null,
         autuado_em: d.autuado_em || null,
+        campos_resumo: ((d.campos || []) as CampoValor[]).map((x) => valorTexto(x)).join(' · ').slice(0, 500),
         partes_resumo: (d.partes || []).map((x: { nome?: string; documento?: string }) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
         pendencia_desde: ((d.pendencias || []) as Pendencia[])
             .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
@@ -200,6 +204,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             processo: {
                 ...resumo(ref.id, data),
                 descricao: data.descricao,
+                campos: data.campos || [],
                 partes: (data.partes || []).map(({ convite_hash, uid, representantes, ...x }: Record<string, unknown>) => ({
                     ...x, portal: uid ? 'ativo' : convite_hash ? 'convidado' : null,
                     representantes: ((representantes || []) as Array<Record<string, unknown>>).map(({ convite_hash: ch, uid: u, nome, email }) => ({
@@ -243,6 +248,12 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             throw new HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
         const sigilo = (p.sigilo || tipo?.sigilo_padrao) === 'restrito' ? 'restrito' : 'normal';
+        // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
+        const form = formularioDe(tipo);
+        const descricao = form.descricao === 'oculto' ? '' : texto(p.descricao, MAX_TEXTO_LONGO);
+        const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes);
+        let campos: CampoValor[] = [];
+        try { validarPadrao(form, descricao, partes); campos = validarCampos(form, p.campos); } catch (e) { erroUsuario(e); }
         const ano = new Date().getFullYear();
         const contadorRef = db.collection(COL.contadores).doc(`${orgId}_${ano}`);
         const procRef = db.collection(COL.processos).doc();
@@ -256,8 +267,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 organization_id: orgId,
                 numero,
                 assunto,
-                descricao: texto(p.descricao, MAX_TEXTO_LONGO),
-                partes: sanitizePartes(p.partes),
+                descricao,
+                partes,
+                campos,
                 sigilo,
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {}),
                 status: 'em_tramitacao',
@@ -283,7 +295,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
                 `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`,
-                { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId });
+                { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId,
+                    ...(campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, valorTexto(x)])) } : {}) });
             tx.set(procRef, { ...base, ...mov });
             return numero;
         });
@@ -341,6 +354,30 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     : FieldValue.delete(),
             });
             recebeu = { unidadeId: destino.id, proc: data };
+            return mov;
+        }
+
+        if (p.action === 'alterarDados') {
+            // Corrige a descrição e os campos próprios; o que mudou fica no histórico.
+            const tipo = data.tipo_id ? (await tx.get(db.collection(COL.tipos).doc(String(data.tipo_id)))).data() : null;
+            const form = formularioDe(tipo && tipo.organization_id === orgId ? tipo : null);
+            const antes = (data.campos || []) as CampoValor[];
+            const descricao = form.descricao === 'oculto' ? String(data.descricao || '') : texto(p.descricao, MAX_TEXTO_LONGO);
+            let campos: CampoValor[] = [];
+            try {
+                validarPadrao({ ...form, partes: 'opcional' }, descricao, []);
+                campos = validarCampos(form, p.campos);
+            } catch (e) { erroUsuario(e); }
+            // Campo que o tipo deixou de ter continua no processo como foi gravado.
+            const idsForm = new Set(form.campos.map((x) => x.id));
+            campos = [...campos, ...antes.filter((x) => !idsForm.has(x.id))];
+            const mudou = diferencasCampos(antes, campos);
+            if (descricao !== String(data.descricao || '')) mudou.unshift('Descrição alterada');
+            if (!mudou.length) throw new HttpsError('invalid-argument', 'Nada foi alterado');
+            const mov = registrarMovimento(tx, c, ref, data, 'dados',
+                `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, MAX_TEXTO_LONGO),
+                { campos: mudou.length, visivel_partes: false });
+            tx.update(ref, { ...mov, descricao, campos });
             return mov;
         }
 
