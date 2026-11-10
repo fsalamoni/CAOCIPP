@@ -5,6 +5,8 @@ import {
     MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, sha256, texto,
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
+import type { Fase } from '../shared/secretaria';
+import { Cumpridas, pendentesDaFase, reconhecer } from '../shared/exigencias';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { lotacoesDe } from '../shared/secretaria';
@@ -51,6 +53,10 @@ interface DocRequest {
     pendencia?: string;
     /** Juntada: false deixa o documento fora do portal das partes. */
     visivel_partes?: boolean;
+    /** Juntada: chaves das exigências do rito que o documento cumpre (sem isso, reconhece pelo modelo ou tipo). */
+    atende?: string[];
+    /** criarMinuta/upload: modelo de onde a minuta nasceu. */
+    modelo_id?: string;
 }
 
 export function caminhoArquivo(orgId: string, procId: string, docId: string) {
@@ -122,6 +128,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 autor_nome: c.userName,
                 criado_em: agoraIso,
                 assinaturas: [],
+                ...(texto(p.modelo_id, 40) ? { modelo_id: texto(p.modelo_id, 40) } : {}),
             };
             if (p.action === 'criarMinuta') {
                 let conteudo;
@@ -271,9 +278,28 @@ export const secretariaDocumento = onCall<DocRequest>(
                 } as Pendencia] : [];
                 const resolvida = pendenciaAlvo ? ((atual.pendencias || []) as Pendencia[]).find((x) => x.id === pendenciaAlvo.id && x.status === 'aberta') : null;
                 if (pendenciaAlvo && !resolvida) throw new HttpsError('aborted', 'A pendência já foi apreciada por outra pessoa');
+                // Documento exigido pelo rito na fase (ou numa ação dela): a juntada o cumpre.
+                const fase = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual);
+                const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined);
+                let cumpre: string[] = [];
+                try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id }, p.atende); } catch (e) { erroUsuario(e); }
+                const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
-                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`,
-                    { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}) });
+                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`
+                    + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
+                    { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}),
+                        ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
+                const exig: Record<string, unknown> = {};
+                if (fase && cumpridas.length) {
+                    const ja = ((atual.exigencias_cumpridas || {}) as Cumpridas)[fase.id] || {};
+                    exig.exigencias_cumpridas = { ...(atual.exigencias_cumpridas || {}), [fase.id]: { ...ja, ...Object.fromEntries(cumpridas.map((e) => [e.chave, { documento_id: ref.id, ordem }])) } };
+                    const acoes = cumpridas.filter((e) => typeof e.acao_idx === 'number').map((e) => e.acao_idx as number);
+                    if (acoes.length) {
+                        const feitas = new Set<number>(((atual.acoes_feitas || {}) as Record<string, number[]>)[fase.id] || []);
+                        acoes.forEach((i) => feitas.add(i));
+                        exig.acoes_feitas = { ...(atual.acoes_feitas || {}), [fase.id]: [...feitas].sort((a, b) => a - b) };
+                    }
+                }
                 const juntado = {
                     status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName,
                     paginas, folha_inicial: folha, folha_final: folha + paginas - 1,
@@ -291,7 +317,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 ];
                 const mexeuPendencias = pend.length > 0 || !!resolvida;
                 tx.update(pr, {
-                    ...mov, doc_seq: ordem, folhas_seq: folha + paginas - 1,
+                    ...mov, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1,
                     ...(mexeuPendencias ? { pendencias, ...derivados(pendencias, (atual.prazos || []) as Prazo[]) } : {}),
                     ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
                 });

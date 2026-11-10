@@ -51,6 +51,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
     const [confirmarSaida, setConfirmarSaida] = useState(false);
     const [pdf, setPdf] = useState(null);
     const conteudo = useRef(null);
+    const modeloUsado = useRef(null); // o servidor guarda, e o rito reconhece o documento pelo modelo
 
     useEffect(() => {
         if (!aberto || !inicial) return;
@@ -59,6 +60,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
         setDocId(inicial.docId || null);
         setConteudoInicial(inicial.conteudo || null);
         conteudo.current = inicial.conteudo || null;
+        modeloUsado.current = null;
         setSujo(false);
         setConfirmarSaida(false);
         setVersaoEditor((v) => v + 1);
@@ -82,6 +84,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
             const doc = preencherCampos(m.conteudo, valoresCampos || {});
             setConteudoInicial(doc);
             conteudo.current = doc;
+            modeloUsado.current = id;
             if (m.tipo_documento) setTipo(m.tipo_documento);
             if (!titulo.trim()) setTitulo(m.nome);
             setSujo(true);
@@ -94,7 +97,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
         if (!titulo.trim()) { toast.error('Dê um título ao documento'); return null; }
         setOcupado(true);
         try {
-            const id = await onSalvar({ docId, titulo: titulo.trim(), tipo, conteudo: conteudo.current || { type: 'doc', content: [{ type: 'paragraph' }] } });
+            const id = await onSalvar({ docId, titulo: titulo.trim(), tipo, conteudo: conteudo.current || { type: 'doc', content: [{ type: 'paragraph' }] }, modeloId: modeloUsado.current });
             setDocId(id);
             setSujo(false);
             toast.success('Minuta salva');

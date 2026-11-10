@@ -125,7 +125,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
     const { incluidos, recorte } = selecionar(movimentos as never, docsPorId, sel);
     const escolhidos = movimentos.filter((m) => incluidos.has(m.seq));
     const atos = escolhidos.filter((m) => origemEvento(m as never) === 'usuario');
-    const sistema = escolhidos.filter((m) => origemEvento(m as never) === 'sistema');
+    const sistema = escolhidos.filter((m) => origemEvento(m as never) !== 'usuario');
     const parcial = sel.modo !== 'integral';
     if (!escolhidos.length) throw new HttpsError('failed-precondition', 'Nenhum evento dos autos corresponde à seleção');
     const folhasTxt = (m: admin.firestore.DocumentData) => {
@@ -227,8 +227,8 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
     // Registros do sistema, todos numa só seção.
     if (sistema.length) {
         const w = new Escritor(pdf, font, bold, rodape);
-        w.texto('Extrato de registros do sistema', { size: 14, bold: true, espaco: 4 });
-        w.texto('Registros automáticos e de controle interno, em ordem cronológica. Não ocupam folhas dos autos.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
+        w.texto('Extrato de registros internos e do sistema', { size: 14, bold: true, espaco: 4 });
+        w.texto('Registros automáticos, de controle interno e os que o rito deixa fora dos autos, em ordem cronológica. Não ocupam folhas dos autos.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
         for (const m of sistema) {
             w.texto(`Evento ${m.seq} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
             w.texto(String(m.descricao), { size: 9, espaco: 0 });

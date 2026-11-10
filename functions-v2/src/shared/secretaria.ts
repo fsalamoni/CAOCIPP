@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { Exigencia, RegraAcao, Registro, sanitizeRegras } from './exigencias';
 
 // ============================================================================
 // Processo Eletrônico (antiga Secretaria Processual; os nomes internos
@@ -46,6 +47,12 @@ export interface Fase {
     modelos?: string[];
     /** Condição de cada saída: { id da próxima fase: "se deferido" }. */
     condicoes?: Record<string, string>;
+    /** O que vai aos autos (ver shared/exigencias.ts). Ausente = tudo. */
+    registro?: Registro;
+    /** Regras de cada ação, alinhadas a `acoes`: certidão nos autos e documento exigido. */
+    acoes_regras?: Array<RegraAcao | null>;
+    /** Documentos exigidos para concluir a fase. */
+    documentos?: Exigencia[];
 }
 export interface Rito { nome: string; descricao: string; fases: Fase[] }
 
@@ -170,7 +177,11 @@ export function sanitizeRito(input: unknown): Rito {
             : [];
         const unidade = texto(fo.unidade_id, 40);
         const agente = texto(fo.agente, 80);
-        const acoes = (Array.isArray(fo.acoes) ? fo.acoes : []).map((a) => texto(a, 200)).filter(Boolean).slice(0, MAX_ACOES);
+        // Linhas vazias saem; as regras de cada ação acompanham a ação que ficou.
+        const mantidas = (Array.isArray(fo.acoes) ? fo.acoes : []).map((a, i) => [texto(a, 200), i] as const).filter(([a]) => a).slice(0, MAX_ACOES);
+        const acoes = mantidas.map(([a]) => a);
+        const regrasBrutas = Array.isArray(fo.acoes_regras) ? fo.acoes_regras : [];
+        const regrasAlinhadas = mantidas.map(([, i]) => regrasBrutas[i]);
         const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, MAX_MODELOS_FASE);
         // Condições só para saídas que existem (referência pelo id do cliente ou final).
         const condicoes: Record<string, string> = {};
@@ -193,6 +204,7 @@ export function sanitizeRito(input: unknown): Rito {
             ...(acoes.length ? { acoes } : {}),
             ...(modelos.length ? { modelos } : {}),
             ...(Object.keys(condicoes).length ? { condicoes } : {}),
+            ...sanitizeRegras({ ...fo, acoes_regras: regrasAlinhadas }, acoes),
         };
     });
     return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases };

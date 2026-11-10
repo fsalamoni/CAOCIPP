@@ -237,13 +237,13 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}}], versao, ativo, origem? ('importacao')` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro? (remessas_fora \| interno), acoes_regras?[{autos?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?}] (até 5)}], versao, ativo, origem? ('importacao')` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{descricao, partes ("opcional" \| "obrigatorio" \| "oculto"), campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
-| `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor, visivel_partes}], origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
+| `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor, visivel_partes}], origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
-| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
+| `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, modelo_id?, paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
 | `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, versao, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
@@ -273,9 +273,9 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
-| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`), `tramitar` (opcionais `fase_id` e `orientacao`), `atribuir`, `avancarFase`, `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
+| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`), `tramitar` (opcionais `fase_id` e `orientacao`; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
-| `secretariaDocumento` | `criarMinuta`, `editarMinuta`, `upload`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar` e `resolve_pendencia_id`), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
+| `secretariaDocumento` | `criarMinuta` e `upload` (opcional `modelo_id`), `editarMinuta`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar`, `resolve_pendencia_id` e `atende`, as exigências do rito que o documento cumpre), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
 | `secretariaPlataforma` | (só administração da plataforma) `resumo`, `suspender` |
 | `secretariaConferir` | (pública, sem login) consulta um documento juntado pelo código de conferência |
@@ -335,10 +335,14 @@ Regras comuns:
 Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
 
 - **Evento** é o movimento gravado (`movimentos/{seq}`, cadeia de hash
-  inalterada). `shared/autos.ts` classifica cada um pela origem:
-  **sistema** (`TIPOS_SISTEMA`: `atribuicao`, `acao_fase`,
-  `orientacao_concluida`, `convite`, ou `dados.automatico === true`) ou
-  **usuário** (todo o resto).
+  inalterada). `shared/autos.ts` classifica cada um pela origem
+  (`origemEvento`): **interno** (`dados.interno === true`: ato que o rito
+  manda deixar fora dos autos), **sistema** (`TIPOS_SISTEMA`: `atribuicao`,
+  `acao_fase`, `orientacao_concluida`, `convite`, ou
+  `dados.automatico === true`) ou **usuário** (todo o resto, e também a
+  `acao_fase` com `dados.nos_autos`, a certidão de cumprimento). Interno e
+  sistema não ganham termo nem folha, saem no extrato do PDF e não aparecem
+  às partes (`visivelParaPartes`).
 - **Termo.** Ato de usuário que não juntou documento (`geraTermo`) tem como
   página um termo de uma folha, gerado do próprio movimento (título por tipo
   em `tituloEvento`, descrição, autor, unidade, data, hora e hash). A partir
@@ -347,8 +351,8 @@ Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
   `folha`: o termo sai sem número de folha e nada é renumerado. Processo
   antigo com documentos e sem `folhas_seq` também fica sem folha no termo.
 - **Tela.** `EventosAutos.jsx` (equipe e portal): tabela com nº, data e hora,
-  evento, quem e folhas; filtros Todos, Atos de usuários, Sistema e Com
-  documentos; busca; ordem. `obter` devolve em cada movimento `origem`,
+  evento, quem e folhas; filtros Todos, Atos de usuários, Internos, Sistema e
+  Com documentos (Internos e Sistema só quando há eventos assim); busca; ordem. `obter` devolve em cada movimento `origem`,
   `titulo`, `folhas` e `documento_id` (`extrasDoEvento`). "Ler os autos"
   usa o `LeitorAutos` evento a evento. A tabela fica na aba **Eventos** da
   tela do processo; a **Capa** mostra a cronologia dos atos dos autos.
@@ -392,6 +396,65 @@ urgência, sigilo, integridade) aparece em todas as abas.
   unidade de `unidades_historico`). O PDF da equipe traz a linha "Origem" na
   capa; o portal das partes não mostra a origem. Processos antigos não têm
   origem: a capa mostra "Não informado".
+
+## Registro nos autos e documentos exigidos (nov/2026)
+
+Quem monta o rito decide, fase a fase, o que vira ato dos autos e que
+documento a fase ou uma ação exige. Fundamento: [guia de lógica
+processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
+`functions-v2/src/shared/exigencias.ts` (testes em
+`functions-v2/test/exigencias.test.js`); o espelho da tela, em
+`src/lib/exigencias.js`.
+
+- **Registro nos autos da fase** (`fase.registro`, editor do rito › Detalhes):
+  - vazio (padrão, como sempre foi): tudo vai aos autos;
+  - `remessas_fora`: entrar e sair da fase vão aos autos, mas as remessas
+    entre unidades **durante** a fase ficam no registro interno;
+  - `interno`: entrar, remeter dentro e sair da fase ficam no registro
+    interno (ex.: distribuição entre assessorias).
+  O movimento continua gravado na cadeia de hash, com autor e hora, com
+  `dados.interno: true` (`movimentoInterno`): sem termo, sem folha, no
+  extrato do PDF, fora do portal. Mudança de fase é interna se a fase de
+  onde sai **ou** a para onde vai é `interno`. Remessa entre órgãos vai
+  sempre aos autos. Documento juntado vai sempre aos autos.
+- **Ações da fase** (`fase.acoes_regras`, alinhadas a `acoes`; linhas vazias
+  do editor saem com a regra da linha):
+  - padrão: a caixa de marcar gera `acao_fase` interna (como antes);
+  - `autos: true`: marcar gera **Certidão de cumprimento** nos autos, com
+    folha, visível às partes (`dados.nos_autos`);
+  - `documento`: a ação não se marca à mão (`marcarAcao` recusa); ela se
+    cumpre quando um documento é juntado para ela, e fica marcada em
+    `acoes_feitas`.
+- **Documentos exigidos na fase** (`fase.documentos`, até 5): descrição,
+  forma (`redigir`: produzido no órgão, pelo editor ou por modelo; `juntar`:
+  arquivo recebido; `qualquer`), tipo de documento e modelo indicado
+  (opcionais). Modelo de fora do órgão é retirado ao salvar
+  (`filtrarRefsRito`).
+- **Cumprimento.** Na juntada (`juntar`), o servidor calcula as exigências
+  pendentes da fase atual (chaves `d0..d4` da fase e `a{idx}` das ações) e
+  reconhece as que o documento cumpre (`reconhecer`): com `atende` (as
+  marcadas no diálogo "Este documento cumpre o que o rito exige?"), valida
+  cada uma (pendente e da forma certa); sem `atende`, reconhece pelo modelo
+  usado (`modelo_id`, gravado por `criarMinuta` e `upload` quando a minuta
+  nasce de modelo) ou pelo tipo do documento. Grava
+  `exigencias_cumpridas[faseId][chave] = {documento_id, ordem}` e acrescenta
+  à juntada "Cumpre o exigido pelo rito: …".
+- **Dispensa.** Sair da fase (`avancarFase`, ou `tramitar` com `fase_id`) com
+  exigência pendente exige `motivo`: sem ele, `failed-precondition` com a
+  lista do que falta. Com ele, o movimento registra "Dispensado o documento
+  exigido pelo rito: …", o motivo e `dados.dispensadas`, e vai sempre aos
+  autos, mesmo que a fase seja de registro interno. Arquivar com exigência pendente
+  registra os documentos não produzidos no próprio movimento (o motivo já é
+  obrigatório).
+- **Tela.** Em "Nesta fase", a ação que exige documento mostra a situação
+  (pendente, com "Redigir {modelo}" ou "Novo documento"; ou "cumprido com o
+  documento nº N"); os documentos da fase aparecem em "Documentos exigidos
+  nesta fase"; a regra de registro aparece numa nota. O diálogo de mudar a
+  fase (e o de remeter mudando de fase) mostra o que falta e pede o "Motivo
+  da dispensa". A prévia do rito mostra as regras.
+- **Compatibilidade.** Ritos e processos antigos não têm esses campos e
+  funcionam como antes. Processo guarda a cópia das fases da autuação: mudar
+  o rito vale para os próximos processos.
 
 ## Urgência (nov/2026)
 

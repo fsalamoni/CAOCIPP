@@ -3,7 +3,8 @@ import { Prazo, hojeBrasil, somarDias } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
 import { APP_URL } from './autos';
 import { COL } from './context';
-import { AVISOS_PARTE, AvisosParte, COL_ACESSOS, MOVIMENTOS_INTERNOS } from './portal';
+import { AVISOS_PARTE, AvisosParte, COL_ACESSOS } from './portal';
+import { visivelParaPartes } from '../shared/autos';
 
 /**
  * Avisos por e-mail às partes habilitadas no portal. Chamado depois da
@@ -57,7 +58,7 @@ async function avisarDoMovimento(db: admin.firestore.Firestore, procId: string, 
         const ref = db.collection(COL.processos).doc(procId);
         if (!(proc.partes_uids || []).length) return;
         const mov = (await ref.collection('movimentos').doc(String(seq).padStart(6, '0')).get()).data();
-        if (!mov || MOVIMENTOS_INTERNOS.includes(mov.tipo) || mov.dados?.visivel_partes === false) return;
+        if (!mov || !visivelParaPartes(mov as never)) return;
         if (['convite', 'habilitacao', 'acesso_revogado'].includes(mov.tipo)) return; // já têm e-mail próprio ou não interessam
         const org = (await db.collection('organizations').doc(proc.organization_id).get()).data();
         const dest = await destinatarios(db, proc, (pref) => pref === 'tudo' || (pref === 'prazos' && TIPOS_PRAZOS_DECISOES.includes(mov.tipo)));

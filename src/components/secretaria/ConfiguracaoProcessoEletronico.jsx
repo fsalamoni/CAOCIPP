@@ -172,7 +172,7 @@ function Ritos({ orgId, estado, onIr }) {
                 ))}
             </CardContent>
             {rito && (
-                <RitoEditor rito={rito} onChange={setRito} onClose={() => setRito(null)} salvando={salvando} unidades={estado.unidades}
+                <RitoEditor rito={rito} onChange={setRito} onClose={() => setRito(null)} salvando={salvando} unidades={estado.unidades} modelos={estado.modelos || []}
                     onSalvar={() => salvar('salvarRito', { id: rito.id, rito, ativo: rito.ativo }, setRito)}
                     extra={rito.id && <VersoesDialog orgId={orgId} colecao="rito" id={rito.id} nome={rito.nome} estado={estado} onRestaurado={() => setRito(null)} />} />
             )}

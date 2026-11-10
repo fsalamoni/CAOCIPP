@@ -16,8 +16,25 @@ export interface Evento {
 
 export interface PecaFolhas { folha_inicial?: number | null; folha_final?: number | null }
 
-export const origemEvento = (m: Evento): 'sistema' | 'usuario' =>
-    (TIPOS_SISTEMA.includes(m.tipo) || m.dados?.automatico === true ? 'sistema' : 'usuario');
+/**
+ * usuario: ato do processo (termo com folha, salvo se juntou documento);
+ * interno: ato que o rito manda deixar fora dos autos (`dados.interno`);
+ * sistema: controle interno ou automático. Ação da fase marcada como
+ * "certidão nos autos" no rito (`dados.nos_autos`) é ato de usuário.
+ */
+export function origemEvento(m: Evento): 'sistema' | 'usuario' | 'interno' {
+    if (m.dados?.interno === true) return 'interno';
+    if (m.tipo === 'acao_fase' && m.dados?.nos_autos === true) return 'usuario';
+    return TIPOS_SISTEMA.includes(m.tipo) || m.dados?.automatico === true ? 'sistema' : 'usuario';
+}
+
+/** Movimentos que o portal nunca mostra às partes (além dos marcados `visivel_partes: false`). */
+export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
+
+/** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
+export const visivelParaPartes = (m: Evento): boolean =>
+    m.dados?.visivel_partes !== false && origemEvento(m) !== 'interno'
+    && (!MOVIMENTOS_INTERNOS.includes(m.tipo) || origemEvento(m) === 'usuario');
 
 /** Id do documento que o evento juntou aos autos (juntada, petição). */
 export const documentoDoEvento = (m: Evento): string | null =>
@@ -51,7 +68,14 @@ const TITULOS: Record<string, string> = {
     orientacao_concluida: 'Orientação concluída',
     convite: 'Convite',
 };
-export const tituloEvento = (m: Evento): string => TITULOS[m.tipo] || 'Certidão';
+export function tituloEvento(m: Evento): string {
+    if (m.tipo === 'acao_fase' && m.dados?.nos_autos === true) return 'Certidão de cumprimento';
+    const t = TITULOS[m.tipo] || 'Certidão';
+    // Fora dos autos não há termo nem certidão: "Termo de remessa" vira "Remessa (registro interno)".
+    if (m.dados?.interno !== true) return t;
+    const ato = t.replace(/^(Certidão|Termo) de /, '');
+    return `${ato.charAt(0).toUpperCase()}${ato.slice(1)} (registro interno)`;
+}
 
 /** Folhas que o evento ocupa nos autos: as do documento juntado ou a do termo. */
 export function folhasDoEvento(m: Evento, docs: Map<string, PecaFolhas>): [number, number] | null {

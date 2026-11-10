@@ -7,6 +7,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
+const exigencias_1 = require("../shared/exigencias");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const secretaria_2 = require("../shared/secretaria");
@@ -73,16 +74,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         if (!titulo)
             throw new https_1.HttpsError('invalid-argument', 'Informe o título do documento');
         const ref = docsCol.doc();
-        const base = {
-            titulo,
-            tipo: (0, secretaria_1.texto)(p.tipo, 60) || 'Documento',
-            status: 'minuta',
-            unidade_origem: proc.unidade_atual,
-            autor_uid: auth.uid,
-            autor_nome: c.userName,
-            criado_em: agoraIso,
-            assinaturas: [],
-        };
+        const base = Object.assign({ titulo, tipo: (0, secretaria_1.texto)(p.tipo, 60) || 'Documento', status: 'minuta', unidade_origem: proc.unidade_atual, autor_uid: auth.uid, autor_nome: c.userName, criado_em: agoraIso, assinaturas: [] }, ((0, secretaria_1.texto)(p.modelo_id, 40) ? { modelo_id: (0, secretaria_1.texto)(p.modelo_id, 40) } : {}));
         if (p.action === 'criarMinuta') {
             let conteudo;
             try {
@@ -243,7 +235,30 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             const resolvida = pendenciaAlvo ? (atual.pendencias || []).find((x) => x.id === pendenciaAlvo.id && x.status === 'aberta') : null;
             if (pendenciaAlvo && !resolvida)
                 throw new https_1.HttpsError('aborted', 'A pendência já foi apreciada por outra pessoa');
-            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`, Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})));
+            // Documento exigido pelo rito na fase (ou numa ação dela): a juntada o cumpre.
+            const fase = (atual.fases || []).find((f) => f.id === atual.fase_atual);
+            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas);
+            let cumpre = [];
+            try {
+                cumpre = (0, exigencias_1.reconhecer)(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id }, p.atende);
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+            const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
+            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`
+                + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
+            const exig = {};
+            if (fase && cumpridas.length) {
+                const ja = (atual.exigencias_cumpridas || {})[fase.id] || {};
+                exig.exigencias_cumpridas = Object.assign(Object.assign({}, (atual.exigencias_cumpridas || {})), { [fase.id]: Object.assign(Object.assign({}, ja), Object.fromEntries(cumpridas.map((e) => [e.chave, { documento_id: ref.id, ordem }]))) });
+                const acoes = cumpridas.filter((e) => typeof e.acao_idx === 'number').map((e) => e.acao_idx);
+                if (acoes.length) {
+                    const feitas = new Set((atual.acoes_feitas || {})[fase.id] || []);
+                    acoes.forEach((i) => feitas.add(i));
+                    exig.acoes_feitas = Object.assign(Object.assign({}, (atual.acoes_feitas || {})), { [fase.id]: [...feitas].sort((a, b) => a - b) });
+                }
+            }
             const juntado = Object.assign({ status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }, (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
             const codigo = (0, autos_1.novoCodigo)();
             tx.set(c.db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(c.orgId, String(c.org.name || ''), pr.id, atual, ref.id, Object.assign(Object.assign({}, doc), juntado)));
@@ -254,7 +269,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                 ...pend,
             ];
             const mexeuPendencias = pend.length > 0 || !!resolvida;
-            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
+            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
             return { ordem, version: mov.version, folha_inicial: folha, paginas };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id);

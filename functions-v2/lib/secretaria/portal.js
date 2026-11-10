@@ -27,7 +27,8 @@ const meusProcessos_1 = require("../shared/meusProcessos");
  * visíveis às partes. O que a parte faz: peticiona a qualquer tempo. A petição
  * é juntada na hora (protocolo eletrônico) e abre pendência para o decisor.
  */
-exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
+var autos_3 = require("../shared/autos");
+Object.defineProperty(exports, "MOVIMENTOS_INTERNOS", { enumerable: true, get: function () { return autos_3.MOVIMENTOS_INTERNOS; } });
 const TIPOS_PETICAO = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
 exports.TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
@@ -269,7 +270,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
             },
-            movimentos: todos.filter((m) => { var _a; return !exports.MOVIMENTOS_INTERNOS.includes(m.tipo) && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false; })
+            movimentos: todos.filter((m) => (0, autos_2.visivelParaPartes)(m))
                 .map((m) => (Object.assign({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm }, (0, autos_2.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
             minhas_peticoes: peticoesDaParte(data, documentos, uid),
@@ -285,7 +286,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             ref.collection('movimentos').orderBy('seq').get(),
             ref.collection('documentos').where('status', '==', 'juntado').get(),
         ]);
-        const movimentos = movs.docs.map((d) => d.data()).filter((m) => { var _a; return !exports.MOVIMENTOS_INTERNOS.includes(m.tipo) && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false; });
+        const movimentos = movs.docs.map((d) => d.data()).filter((m) => (0, autos_2.visivelParaPartes)(m));
         const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
         const bytes = await (0, exportar_1.montarPdfAutos)({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
@@ -297,7 +298,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         // Uma folha: situação atual e últimos movimentos públicos, com data e hora.
         const { ref, data: proc, org } = await lerComoParte(db, uid, p.processoId);
         const movs = (await ref.collection('movimentos').orderBy('seq', 'desc').limit(40).get()).docs.map((d) => d.data())
-            .filter((m) => { var _a; return !exports.MOVIMENTOS_INTERNOS.includes(m.tipo) && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false; }).slice(0, 10);
+            .filter((m) => (0, autos_2.visivelParaPartes)(m)).slice(0, 10);
         const fase = ((_f = (proc.fases || []).find((f) => f.id === proc.fase_atual)) === null || _f === void 0 ? void 0 : _f.nome) || proc.fase_atual;
         const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status] || proc.status;
         const parte = parteDoUsuario(proc, uid);

@@ -11,11 +11,12 @@ import { dataHora } from './comum';
 import LeitorAutos from './LeitorAutos';
 
 const textoFolhas = (f) => (f ? (f[1] > f[0] ? `fls. ${f[0]}–${f[1]}` : `fl. ${f[0]}`) : '');
-const FILTROS = [['todos', 'Todos'], ['usuario', 'Atos de usuários'], ['sistema', 'Sistema'], ['docs', 'Com documentos']];
+// Internos: atos que o rito deixa fora dos autos (sem termo nem folha).
+const FILTROS = [['todos', 'Todos'], ['usuario', 'Atos de usuários'], ['interno', 'Internos'], ['sistema', 'Sistema'], ['docs', 'Com documentos']];
 
 function IconeEvento({ m }) {
-    const I = m.origem === 'sistema' ? Cpu : m.documento_id ? FileText : Stamp;
-    return <I className={`w-4 h-4 shrink-0 ${m.origem === 'sistema' ? 'text-slate-400' : 'text-indigo-600 dark:text-indigo-400'}`} aria-hidden />;
+    const I = m.origem !== 'usuario' ? Cpu : m.documento_id ? FileText : Stamp;
+    return <I className={`w-4 h-4 shrink-0 ${m.origem !== 'usuario' ? 'text-slate-400' : 'text-indigo-600 dark:text-indigo-400'}`} aria-hidden />;
 }
 
 /**
@@ -32,7 +33,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
     const [leitura, setLeitura] = useState(null);
     const [pdfAberto, setPdfAberto] = useState(false);
 
-    const temSistema = movimentos.some((m) => m.origem === 'sistema');
+    const temOrigem = (o) => movimentos.some((m) => m.origem === o);
     const ultimaFolha = movimentos.reduce((n, m) => Math.max(n, m.folhas?.[1] || 0), 0);
     const visiveis = useMemo(() => {
         const t = busca.trim().toLowerCase();
@@ -65,7 +66,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-2">
                     <div role="group" aria-label="Filtrar eventos" className="flex flex-wrap gap-1">
-                        {FILTROS.filter(([v]) => v !== 'sistema' || temSistema).map(([v, l]) => (
+                        {FILTROS.filter(([v]) => !['sistema', 'interno'].includes(v) || temOrigem(v)).map(([v, l]) => (
                             <button key={v} type="button" aria-pressed={filtro === v} onClick={() => setFiltro(v)}
                                 className={`rounded-full border px-2.5 py-1 text-xs ${filtro === v ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{l}</button>
                         ))}
@@ -101,7 +102,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                                             <button type="button" onClick={() => setLeitura(m.seq)} className="text-left group">
                                                 <span className="flex items-center gap-1.5 font-medium group-hover:underline"><IconeEvento m={m} /> {m.titulo}
                                                     {m.novo && <Badge className="bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}
-                                                    {m.origem === 'sistema' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">sistema</Badge>}
+                                                    {m.origem !== 'usuario' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{m.origem === 'interno' ? 'interno' : 'sistema'}</Badge>}
                                                 </span>
                                                 <span className="block text-slate-700 dark:text-slate-300">{m.descricao}</span>
                                             </button>
@@ -153,7 +154,7 @@ function GerarPdf({ marcados, total, ultimaFolha, gerarPdf, onFechar }) {
             <DialogContent className="max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Gerar PDF dos autos</DialogTitle>
-                    <DialogDescription>Cada ato de usuário sai na sua página, com a folha carimbada. Os registros do sistema saem reunidos num extrato ao fim.</DialogDescription>
+                    <DialogDescription>Cada ato de usuário sai na sua página, com a folha carimbada. Os registros internos e do sistema saem reunidos num extrato ao fim.</DialogDescription>
                 </DialogHeader>
                 <fieldset className="space-y-2">
                     <legend className="sr-only">O que entra no PDF</legend>

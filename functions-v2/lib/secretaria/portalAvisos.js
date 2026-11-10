@@ -8,6 +8,7 @@ const email_1 = require("../shared/email");
 const autos_1 = require("./autos");
 const context_1 = require("./context");
 const portal_1 = require("./portal");
+const autos_2 = require("../shared/autos");
 /**
  * Avisos por e-mail às partes habilitadas no portal. Chamado depois da
  * transação que registrou o movimento (nunca dentro dela) e sempre com
@@ -62,13 +63,12 @@ async function avisarPartesDoMovimento(db, procId, autorUid, ultimos = 1) {
         await avisarDoMovimento(db, procId, proc, seq, autorUid);
 }
 async function avisarDoMovimento(db, procId, proc, seq, autorUid) {
-    var _a;
     try {
         const ref = db.collection(context_1.COL.processos).doc(procId);
         if (!(proc.partes_uids || []).length)
             return;
         const mov = (await ref.collection('movimentos').doc(String(seq).padStart(6, '0')).get()).data();
-        if (!mov || portal_1.MOVIMENTOS_INTERNOS.includes(mov.tipo) || ((_a = mov.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) === false)
+        if (!mov || !(0, autos_2.visivelParaPartes)(mov))
             return;
         if (['convite', 'habilitacao', 'acesso_revogado'].includes(mov.tipo))
             return; // já têm e-mail próprio ou não interessam

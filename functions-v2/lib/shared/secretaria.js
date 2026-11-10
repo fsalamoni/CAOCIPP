@@ -31,6 +31,7 @@ exports.sanitizeLotacoes = sanitizeLotacoes;
 exports.lotacoesDe = lotacoesDe;
 exports.documentoEfetivo = documentoEfetivo;
 const crypto_1 = require("crypto");
+const exigencias_1 = require("./exigencias");
 exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
 exports.MAX_LOTACOES = 200;
 /**
@@ -140,7 +141,11 @@ function sanitizeRito(input) {
             : [];
         const unidade = texto(fo.unidade_id, 40);
         const agente = texto(fo.agente, 80);
-        const acoes = (Array.isArray(fo.acoes) ? fo.acoes : []).map((a) => texto(a, 200)).filter(Boolean).slice(0, exports.MAX_ACOES);
+        // Linhas vazias saem; as regras de cada ação acompanham a ação que ficou.
+        const mantidas = (Array.isArray(fo.acoes) ? fo.acoes : []).map((a, i) => [texto(a, 200), i]).filter(([a]) => a).slice(0, exports.MAX_ACOES);
+        const acoes = mantidas.map(([a]) => a);
+        const regrasBrutas = Array.isArray(fo.acoes_regras) ? fo.acoes_regras : [];
+        const regrasAlinhadas = mantidas.map(([, i]) => regrasBrutas[i]);
         const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, exports.MAX_MODELOS_FASE);
         // Condições só para saídas que existem (referência pelo id do cliente ou final).
         const condicoes = {};
@@ -152,7 +157,7 @@ function sanitizeRito(input) {
                     condicoes[alvo] = rot;
             }
         }
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (0, exigencias_1.sanitizeRegras)(Object.assign(Object.assign({}, fo), { acoes_regras: regrasAlinhadas }), acoes));
     });
     return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases };
 }
