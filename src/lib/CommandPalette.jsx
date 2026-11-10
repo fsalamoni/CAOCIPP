@@ -25,7 +25,7 @@ import {
     CommandShortcut,
 } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { LayoutDashboard, User, HelpCircle, FileText, ShieldCheck, Building2, Search, Loader2 } from 'lucide-react';
+import { LayoutDashboard, User, HelpCircle, FileText, ShieldCheck, Building2, Search, Loader2, Gavel } from 'lucide-react';
 
 function isTypingTarget(el) {
     if (!el) return false;
@@ -200,6 +200,12 @@ export default function CommandPalette() {
                                 <CommandItem key={org.id} onSelect={() => goTo(`${createPageUrl('Organization')}?id=${org.id}`)}>
                                     <Building2 className="w-4 h-4 mr-2" />
                                     {org.name}
+                                </CommandItem>
+                            ))}
+                            {displayOrgs.filter((org) => org.secretariaConfig?.enabled === true).map((org) => (
+                                <CommandItem key={`pe-${org.id}`} onSelect={() => goTo(`${createPageUrl('ProcessoEletronico')}?org=${org.id}`)}>
+                                    <Gavel className="w-4 h-4 mr-2" />
+                                    Processo Eletrônico · {org.name}
                                 </CommandItem>
                             ))}
                         </CommandGroup>

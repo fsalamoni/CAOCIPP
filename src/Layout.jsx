@@ -6,9 +6,8 @@ import { useOrganizations, useOrganizationRealtime } from '@/hooks/useFirestore'
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
-import { getOrganizationTabs } from '@/lib/organizationModules';
-import { hasAnyAdminPermission } from '@/constants/orgPermissions';
-import { useEntityTypes } from '@/hooks/useCustomEntities';
+import { orgTabUrl } from '@/lib/organizationModules';
+import { useOrganizationTabs } from '@/hooks/useOrganizationTabs';
 import { formatPersonName } from '@/utils/nameUtils';
 import { cn } from '@/lib/utils';
 import Logo from '@/components/Logo';
@@ -24,7 +23,6 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  Gavel,
   Scale
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,6 +40,7 @@ import NotificationBell from '@/lib/NotificationBell';
 import { useLocation } from 'react-router-dom';
 
 const publicPages = ['Landing', 'Help', 'Terms', 'Portal', 'Conferir'];
+const PAGES_WITH_MENU_WHEN_LOGGED = ['Help', 'Terms'];
 
 /* Campos do documento do órgão que decidem quais abas aparecem. São os únicos
    que o documento em tempo real sobrepõe ao objeto vindo do vínculo — tudo o
@@ -54,12 +53,26 @@ function pickOrgConfig(liveOrg) {
   if (liveOrg.secretariaConfig !== undefined) out.secretariaConfig = liveOrg.secretariaConfig;
   return out;
 }
+// Título da barra superior (desktop). Sem entrada, mostra o nome da rota.
+const PAGE_TITLES = {
+  Dashboard: 'Painel de Consultas',
+  Profile: 'Meu Perfil',
+  Organization: 'Órgão',
+  ProcessoEletronico: 'Processo Eletrônico',
+  Admin: 'Administração & Custos',
+  Help: 'Ajuda',
+  Terms: 'Termos de Uso',
+};
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'caocipp_sidebar_collapsed';
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const activeOrgId = searchParams.get('id');
+  // Páginas do órgão: /Organization?id=… e o Processo Eletrônico (?org=…), que
+  // tem página própria mas pertence ao mesmo órgão — o sub-menu dele continua
+  // aberto ali.
+  const isOrgPage = currentPageName === 'Organization' || currentPageName === 'ProcessoEletronico';
+  const activeOrgId = currentPageName === 'ProcessoEletronico' ? searchParams.get('org') : searchParams.get('id');
   const activeTab = searchParams.get('tab') || 'info';
 
   const { user, userProfile, signOut, isAuthenticated } = useAuth();
@@ -71,7 +84,10 @@ export default function Layout({ children, currentPageName }) {
     window.addEventListener('keydown', fechar);
     return () => window.removeEventListener('keydown', fechar);
   }, [sidebarOpen]);
-  const isPublicPage = publicPages.includes(currentPageName);
+  // Ajuda e Termos são públicas, mas quem está logado chega nelas pelo menu (e
+  // pelo "?" do Processo Eletrônico): sem o menu, a pessoa ficava sem saída.
+  const isPublicPage = publicPages.includes(currentPageName)
+    && !(isAuthenticated && PAGES_WITH_MENU_WHEN_LOGGED.includes(currentPageName));
 
   /* Novo design (V2): sidebar colapsável, ficando apenas com os ícones. */
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
@@ -114,21 +130,10 @@ export default function Layout({ children, currentPageName }) {
   /* Super-admin de plataforma (controla a página Administração & Custos) */
   const { isPlatformAdmin } = usePlatformAdmin();
 
-  /* Páginas/processos personalizados (liga/desliga de módulos por órgão) */
-  const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
-  const parceriasOn = useFlag(FEATURE_FLAGS.PARCERIAS.key);
-
-  /* Módulo de Jurimetria (base de júris do órgão). */
-  const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
-  const panoramaOn = useFlag(FEATURE_FLAGS.PANORAMA.key);
-
-  /* Calendário de vencimentos (aba extra no sub-menu do órgão). */
-  const deadlineCalendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
-
-  /* Tipos de entidade personalizados do órgão ativo (só quando a flag liga). */
-  const { entityTypes: activeOrgCustomTypes } = useEntityTypes(
-    customEntitiesOn ? activeOrgId : null
-  );
+  /* Abas do órgão ativo (as mesmas da barra horizontal). O sub-menu só é
+     desenhado para ele. */
+  const activeOrg = isOrgPage ? organizations.find((o) => o.id === activeOrgId) : null;
+  const activeOrgTabs = useOrganizationTabs(activeOrg, { role: activeOrg?.userRole, permissions: activeOrg?.userPermissions });
 
   const handleLogout = async () => {
     await signOut();
@@ -154,7 +159,8 @@ export default function Layout({ children, currentPageName }) {
       <CommandPalette />
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 z-50">
-        <h1 className="text-xl font-bold text-slate-800 dark:text-white">Processos</h1>
+        {/* Mesmo título da barra do desktop; antes era sempre "Processos". */}
+        <h1 className="text-xl font-bold text-slate-800 dark:text-white truncate min-w-0">{PAGE_TITLES[currentPageName] || 'SIGO'}</h1>
         <div className="flex items-center gap-2">
           <ThemeToggleButton />
           <NotificationBell variant="mobile" />
@@ -235,7 +241,7 @@ export default function Layout({ children, currentPageName }) {
                   {isCollapsed && <div className="mt-6" />}
                   <div className="space-y-1">
                     {organizations.map(org => {
-                      const isOrgActive = currentPageName === 'Organization' && activeOrgId === org.id;
+                      const isOrgActive = isOrgPage && activeOrgId === org.id;
 
                       return (
                         <div key={org.id}>
@@ -261,32 +267,16 @@ export default function Layout({ children, currentPageName }) {
                                   leitura ao vivo falhar, vale a cópia — melhor que menu nenhum. */}
                               {activeOrgResolvedId !== org.id ? (
                                 <SubNavSkeleton />
-                              ) : getOrganizationTabs(org, { customEntitiesOn, customTypes: isOrgActive ? activeOrgCustomTypes : [], deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
-                                .filter((tab) => !tab.creatorOnly || org.userRole === 'creator' || hasAnyAdminPermission({ role: org.userRole, permissions: org.userPermissions }))
-                                .map((tab) => {
-                                  const TabIcon = tab.icon;
-                                  return (
-                                    <SubNavItem
-                                      key={tab.key}
-                                      to="Organization"
-                                      params={`?id=${org.id}&tab=${tab.key}`}
-                                      icon={TabIcon}
-                                      label={tab.label}
-                                      active={activeTab === tab.key}
-                                      onClick={() => setSidebarOpen(false)}
-                                    />
-                                  );
-                                })}
-                              {activeOrgResolvedId === org.id && org.secretariaConfig?.enabled === true && (
+                              ) : activeOrgTabs.map((tab) => (
                                 <SubNavItem
-                                  to="ProcessoEletronico"
-                                  params={`?org=${org.id}`}
-                                  icon={Gavel}
-                                  label="Processo Eletrônico"
-                                  active={false}
+                                  key={tab.key}
+                                  href={orgTabUrl(tab, org.id)}
+                                  icon={tab.icon}
+                                  label={tab.label}
+                                  active={tab.page ? currentPageName === tab.page : currentPageName === 'Organization' && activeTab === tab.key}
                                   onClick={() => setSidebarOpen(false)}
                                 />
-                              )}
+                              ))}
                             </div>
                           )}
                         </div>
@@ -387,10 +377,7 @@ export default function Layout({ children, currentPageName }) {
         {/* Top Bar - Desktop */}
         <div className="hidden lg:flex h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 items-center justify-between px-6 sticky top-0 z-30">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
-            {currentPageName === 'Dashboard' ? 'Painel de Consultas' :
-              currentPageName === 'Profile' ? 'Meu Perfil' :
-                currentPageName === 'Organization' ? 'Órgão' :
-                  currentPageName}
+            {PAGE_TITLES[currentPageName] || currentPageName}
           </h2>
           <div className="flex items-center gap-1">
           <ThemeToggleButton />
@@ -469,11 +456,12 @@ function SubNavSkeleton() {
   );
 }
 
-function SubNavItem({ to, params = '', icon: Icon, label, active, onClick }) {
+function SubNavItem({ href, icon: Icon, label, active, onClick }) {
   return (
     <Link
-      to={createPageUrl(to) + params}
+      to={href}
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={`
         flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-all text-xs
         ${active

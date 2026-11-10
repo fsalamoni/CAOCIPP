@@ -122,7 +122,7 @@ export default function Help() {
       </Card>
 
       {/* Processo Eletrônico */}
-      <Card id="processo-eletronico" className="shadow-sm border-slate-200 dark:border-slate-700 scroll-mt-6">
+      <Card id="processo-eletronico" className="shadow-sm border-slate-200 dark:border-slate-700 scroll-mt-24">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Gavel className="w-5 h-5" />
@@ -132,7 +132,9 @@ export default function Help() {
         <CardContent className="space-y-6">
           <p className="text-sm text-slate-600 dark:text-slate-300">
             Módulo opcional do órgão para tramitar processos próprios: autuação, ritos com fases, documentos assinados e numerados,
-            prazos, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo em Administração, seção Processo Eletrônico.
+            prazos, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo no Painel Administrativo, aba Processo Eletrônico.
+            Ligado, ele aparece entre as páginas do órgão, na barra do alto e no menu lateral, e as abas internas
+            (Meu trabalho, Caixa, Todos, Painel, Unidades) ficam no endereço: recarregar ou compartilhar o link mantém a aba.
           </p>
           <div className="grid md:grid-cols-2 gap-6">
             <FeatureCard

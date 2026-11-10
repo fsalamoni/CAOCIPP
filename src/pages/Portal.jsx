@@ -14,6 +14,7 @@ import { auth } from '@/config/firebase';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations } from '@/hooks/useFirestore';
 import { createPageUrl } from '@/utils';
+import { ThemeToggleButton } from '@/lib/ThemeSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -85,9 +86,11 @@ export default function Portal() {
             <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-20">
                 <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
                     <button type="button" onClick={() => ir(null)} className="flex items-center gap-2 font-semibold"><Gavel className="w-5 h-5 text-indigo-600" aria-hidden /> Portal das partes</button>
+                    {!isAuthenticated && <ThemeToggleButton />}
                     {isAuthenticated && (
                         <div className="flex items-center gap-1 text-sm min-w-0">
-                            <span className="truncate text-slate-600 hidden md:inline max-w-[14rem]">{user?.email}</span>
+                            <span className="truncate text-slate-600 dark:text-slate-400 hidden md:inline max-w-[14rem]">{user?.email}</span>
+                            <ThemeToggleButton />
                             <VoltarAoSigo uid={user?.uid} />
                             <Avisos />
                             <Button variant="ghost" size="sm" className="gap-1" onClick={() => signOut()}><LogOut className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Sair</span></Button>

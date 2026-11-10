@@ -4,7 +4,8 @@ import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses, useExpedientes, useParcerias, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
-import { isTabVisible, getOrganizationTabs } from '@/lib/organizationModules';
+import { isTabVisible, PROCESSO_ELETRONICO_TAB } from '@/lib/organizationModules';
+import { useOrganizationTabs } from '@/hooks/useOrganizationTabs';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
 import { useJuris } from '@/hooks/useJuris';
 import { hasAnyAdminPermission } from '@/constants/orgPermissions';
@@ -175,22 +176,20 @@ export default function Organization() {
 
   // Abas internas do órgão para a barra de navegação em página (Novo design
   // V2) — mesma fonte e mesmo filtro de permissão usados no sub-menu da sidebar.
-  const orgTabs = React.useMemo(() => {
-    // Só com o documento ao vivo DESTE órgão: logo após trocar de órgão, o
-    // estado ainda guarda o anterior por um render, e as páginas dele (que
-    // podem estar desligadas aqui) apareceriam por um instante.
-    if (!isV2 || !organization || organization.id !== selectedOrgId) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
-      .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [isV2, organization, selectedOrgId, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn, userRole, userMembership]);
+  // Só com o documento ao vivo DESTE órgão: logo após trocar de órgão, o
+  // estado ainda guarda o anterior por um render, e as páginas dele (que
+  // podem estar desligadas aqui) apareceriam por um instante.
+  // O tour de onboarding (flag `onboarding_tour`) usa a mesma lista, com ou sem V2.
+  const tourTabs = useOrganizationTabs(organization?.id === selectedOrgId ? organization : null, userMembership);
+  const orgTabs = isV2 ? tourTabs : [];
 
-  // Abas para o tour de onboarding (flag `onboarding_tour`): independente do
-  // design V2, já que a navegação existe (via sidebar) em qualquer um deles.
-  const tourTabs = React.useMemo(() => {
-    if (!organization) return [];
-    return getOrganizationTabs(organization, { customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn })
-      .filter((tab) => !tab.creatorOnly || userRole === 'creator' || hasAnyAdminPermission(userMembership));
-  }, [organization, customEntitiesOn, customTypes, deadlineCalendarOn, parceriasOn, jurimetriaOn, panoramaOn, userRole, userMembership]);
+  // O Processo Eletrônico tem página própria: um link antigo ou digitado com
+  // ?tab=processo-eletronico vai para ela em vez de mostrar a área vazia.
+  useEffect(() => {
+    if (activeTab === PROCESSO_ELETRONICO_TAB && selectedOrgId) {
+      navigate(`/ProcessoEletronico?org=${selectedOrgId}`, { replace: true });
+    }
+  }, [activeTab, selectedOrgId, navigate]);
 
   // Guarda de aba (flag CUSTOM_ENTITIES): se a aba ativa pertence a um módulo
   // desligado, volta para "Informações Gerais". Com a flag OFF, isTabVisible

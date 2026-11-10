@@ -24,6 +24,7 @@ const TAB_DESCRIPTIONS = {
     expedientes: 'Lista completa de Expedientes, com filtros, busca e exportação.',
     summary: 'Indicadores e gráficos consolidados do órgão.',
     calendar: 'Calendário mensal com as datas relevantes de Consultas e Expedientes.',
+    'processo-eletronico': 'Processos com rito, tramitação entre unidades, documentos assinados e prazos. Abre em página própria, com a mesma navegação do órgão.',
     admin: 'Configurações do órgão: membros, permissões, matérias e módulos.',
 };
 

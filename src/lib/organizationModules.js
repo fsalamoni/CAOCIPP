@@ -29,7 +29,20 @@ import {
     CalendarDays,
     Scale,
     Telescope,
+    Gavel,
 } from 'lucide-react';
+
+/** Chave da aba do Processo Eletrônico (página própria, fora de /Organization). */
+export const PROCESSO_ELETRONICO_TAB = 'processo-eletronico';
+
+/**
+ * Endereço de uma aba do órgão. As abas comuns vivem em /Organization?tab=…;
+ * as que têm página própria (`page`, hoje só o Processo Eletrônico) abrem nela.
+ */
+export function orgTabUrl(tab, orgId) {
+    if (tab.page === 'ProcessoEletronico') return `/ProcessoEletronico?org=${orgId}`;
+    return `/Organization?id=${orgId}&tab=${tab.key}`;
+}
 
 // Chaves de módulo built-in (cada módulo pode gerar 1+ abas).
 export const BUILTIN_MODULES = {
@@ -204,6 +217,14 @@ export function getOrganizationTabs(organization, opts = {}) {
                 tabs.push({ key: `cpanel:${t.id}`, label: `Painel de ${t.label_plural || t.label_singular || 'Personalizado'}`, icon: LayoutDashboard, custom: true, typeId: t.id });
                 tabs.push({ key: `clist:${t.id}`, label: t.label_plural || t.label_singular || 'Personalizado', icon: FileText, custom: true, typeId: t.id });
             });
+    }
+
+    // Processo Eletrônico: tem página própria (/ProcessoEletronico), mas entra
+    // na mesma navegação do órgão (barra horizontal e sub-menu lateral). Aparece
+    // quando o admin do órgão ativa o módulo (secretariaConfig.enabled); não
+    // depende de moduleConfig nem de flag global.
+    if (organization?.secretariaConfig?.enabled === true) {
+        tabs.push({ key: PROCESSO_ELETRONICO_TAB, label: 'Processo Eletrônico', icon: Gavel, module: 'secretaria', page: 'ProcessoEletronico' });
     }
 
     // Página obrigatória e permanente (somente Criador).
