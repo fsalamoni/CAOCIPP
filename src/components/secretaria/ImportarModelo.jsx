@@ -35,7 +35,7 @@ async function lerArquivo(file) {
  * automáticos e o papel timbrado achado; a pessoa escolhe guardar como modelo
  * editável (abre no editor para revisar) ou manter o arquivo original.
  */
-export default function ImportarModelo({ aberto, orgId, estado, unidadeId, onEditar, onSalvo, onFechar }) {
+export default function ImportarModelo({ aberto, orgId, estado, unidadeId, orgaoId = null, onEditar, onSalvo, onFechar }) {
     const [arquivo, setArquivo] = useState(null);
     const [proposta, setProposta] = useState(null);
     const [lendo, setLendo] = useState(false);
@@ -89,7 +89,7 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, onEdi
         try {
             if (aplicarTimbre && proposta.timbrado) await aplicarTimbrado();
             if (modo === 'original') {
-                await secConfig(orgId, 'salvarModelo', { modelo: { nome: nome.trim(), formato: 'original', unidade_id: unidadeId || null, ativo: true, arquivo } });
+                await secConfig(orgId, 'salvarModelo', { modelo: { nome: nome.trim(), formato: 'original', unidade_id: unidadeId || null, orgao_id: orgaoId, ativo: true, arquivo } });
                 toast.success('Modelo guardado no arquivo original');
                 onSalvo();
                 fechar();
@@ -97,7 +97,7 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, onEdi
             }
             if (aplicarTimbre && proposta.timbrado) toast.success('Papel timbrado atualizado');
             onSalvo();
-            onEditar({ nome: nome.trim(), tipo_documento: '', descricao: `Importado de ${arquivo.nome}`, ativo: true, conteudo: proposta.conteudo, unidade_id: unidadeId || null });
+            onEditar({ nome: nome.trim(), tipo_documento: '', descricao: `Importado de ${arquivo.nome}`, ativo: true, conteudo: proposta.conteudo, unidade_id: unidadeId || null, orgao_id: orgaoId });
             fechar();
         } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
     };

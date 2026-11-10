@@ -13,6 +13,8 @@ import { useAuth } from '@/lib/FirebaseAuthContext';
 import { secConfig } from '@/services/secretariaService';
 import { TIPOS_UNIDADE, dataHora } from './comum';
 import GestaoUnidade from './GestaoUnidade';
+import { Organograma } from './Orgaos';
+import { nomeOrgao } from '@/lib/orgaos';
 
 /**
  * Aba "Unidades" do Processo Eletrônico: quem é quem em cada unidade,
@@ -61,6 +63,18 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
                 </Card>
             )}
 
+            {(estado.orgaos || []).length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Estrutura de {estado.orgao || 'entidade'}</CardTitle>
+                        <CardDescription>Os órgãos internos, o que compete a cada um, quem responde e por quais unidades os processos passam.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Organograma detalhado nos={estado.orgaos.filter((o) => o.ativo !== false)} unidadesDe={(o) => ativas.filter((u) => u.orgao_id === o.id)} nomeTitular={(o) => nome(o.titular_uid)} />
+                    </CardContent>
+                </Card>
+            )}
+
             <Card>
                 <CardHeader>
                     <CardTitle className="text-base">Unidades do órgão</CardTitle>
@@ -78,7 +92,9 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
                                     <Badge variant="outline">{TIPOS_UNIDADE[u.tipo]?.rotulo}</Badge>
                                     {lotado && <Badge className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100 dark:bg-emerald-900 dark:text-emerald-100">Você está lotado</Badge>}
                                 </div>
+                                {nomeOrgao(estado, u.orgao_id) && <p className="text-xs text-slate-600 dark:text-slate-400">Órgão: {nomeOrgao(estado, u.orgao_id)}</p>}
                                 {u.descricao && <p className="text-sm text-slate-600 dark:text-slate-300">{u.descricao}</p>}
+                                {(u.competencias || []).length > 0 && <ul className="list-disc pl-5 text-sm text-slate-700 dark:text-slate-300">{u.competencias.map((c) => <li key={c}>{c}</li>)}</ul>}
                                 <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-0.5">
                                     {(u.lotacoes || []).filter((l) => nome(l.uid)).map((l) => (
                                         <li key={l.uid}>{nome(l.uid)}{l.atribuicao && <span className="text-slate-600"> · {l.atribuicao}</span>}{l.gestor && <span className="text-amber-700 dark:text-amber-300"> · gestão</span>}</li>

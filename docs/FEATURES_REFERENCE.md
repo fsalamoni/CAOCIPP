@@ -162,6 +162,7 @@ corridos com vencimento pelo CPC, com selos e filtros na lista. Fase 3:
 portal das partes (`/Portal`), com convite por link ou e-mail, login próprio
 (Google ou e-mail e senha), consulta aos documentos visíveis às partes e
 petição a qualquer tempo, juntada na hora com pendência para o decisor. Fase 4:
+textos prontos de intimações e comunicações, modelos de documento por órgão interno, organograma com competências para a equipe,
 órgãos internos da entidade (estrutura em árvore com organograma, competências, titular, unidades por órgão, assistente com estruturas de exemplo, remessa entre órgãos e tipos de processo por órgão),
 página Meus Processos Eletrônicos (planilha dos processos em que a pessoa é parte ou representante, com o que fazer agora e cores para prazo vencido, aberto e por abrir),
 comunicações às partes (intimação, notificação, citação, ciência e comunicação expedidas pela secretaria; aviso ao entrar com botão de ciência; prazo aberto na ciência; ciência por decurso configurável; registro de comunicação feita por outro meio),

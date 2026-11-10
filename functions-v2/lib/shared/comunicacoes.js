@@ -1,10 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.limiteCiencia = exports.textoPrazo = exports.cienciaDias = exports.MAX_COMUNICACOES = exports.MAX_CIENCIA_DIAS = exports.CIENCIA_DIAS_PADRAO = exports.ESPECIES = void 0;
+exports.MAX_TEXTOS_PRONTOS = exports.limiteCiencia = exports.textoPrazo = exports.cienciaDias = exports.MAX_COMUNICACOES = exports.MAX_CIENCIA_DIAS = exports.CIENCIA_DIAS_PADRAO = exports.ESPECIES = void 0;
 exports.sanitizePedido = sanitizePedido;
 exports.aplicarCiencia = aplicarCiencia;
 exports.derivadosComunicacoes = derivadosComunicacoes;
 exports.destinatario = destinatario;
+exports.sanitizeTextosProntos = sanitizeTextosProntos;
+exports.textosProntosDe = textosProntosDe;
 /**
  * Comunicações processuais (intimação, notificação, citação, ciência,
  * comunicação): a secretaria expede, o destinatário dá ciência (ou ela se dá
@@ -90,5 +92,38 @@ function derivadosComunicacoes(lista) {
 function destinatario(c, partes, uid) {
     const p = partes[c.parte_idx];
     return !!p && (p.uid === uid || (p.representantes || []).some((r) => r.uid === uid));
+}
+exports.MAX_TEXTOS_PRONTOS = 40;
+function sanitizeTextosProntos(raw) {
+    const lista = Array.isArray(raw) ? raw : [];
+    if (lista.length > exports.MAX_TEXTOS_PRONTOS)
+        throw new Error(`São até ${exports.MAX_TEXTOS_PRONTOS} textos prontos`);
+    const ids = new Set();
+    return lista.map((x, i) => {
+        const t = (x && typeof x === 'object' ? x : {});
+        const nome = (0, secretaria_1.texto)(t.nome, 80);
+        const corpo = (0, secretaria_1.texto)(t.texto, 2000);
+        if (!nome || !corpo)
+            throw new Error('Cada texto pronto precisa de nome e de texto');
+        let id = /^[A-Za-z0-9_-]{1,40}$/.test(String(t.id || '')) ? String(t.id) : `t${i}`;
+        while (ids.has(id))
+            id += 'x';
+        ids.add(id);
+        const dias = Number(t.dias);
+        return {
+            id, nome, texto: corpo, especie: exports.ESPECIES[String(t.especie)] ? String(t.especie) : '',
+            dias: Number.isInteger(dias) && dias > 0 && dias <= secretaria_1.MAX_PRAZO_DIAS ? dias : 0,
+            contagem: t.contagem === 'corridos' ? 'corridos' : 'uteis',
+        };
+    });
+}
+/** Lê o que está gravado sem lançar. */
+function textosProntosDe(raw) {
+    try {
+        return sanitizeTextosProntos(Array.isArray(raw) ? raw.slice(0, exports.MAX_TEXTOS_PRONTOS) : []);
+    }
+    catch (_a) {
+        return [];
+    }
 }
 //# sourceMappingURL=comunicacoes.js.map

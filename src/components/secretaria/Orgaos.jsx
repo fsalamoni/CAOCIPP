@@ -14,6 +14,7 @@ import { secConfig } from '@/services/secretariaService';
 import { CARGOS, ESTRUTURAS, NATUREZAS, descendentes, emArvore, problemasEstrutura, rotuloNatureza, unidadesDoOrgao } from '@/lib/orgaos';
 import { ListaTextos, NativeSelect, rotuloUnidade } from './comum';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
+import { ListaModelos } from './ConfiguracaoDocumentos';
 
 const DECISOES = [['singular', 'O titular decide'], ['colegiada', 'O colegiado decide']];
 const sel = 'mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
@@ -23,7 +24,7 @@ const sel = 'mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 
  * `nos` já vem na ordem de leitura, com `nivel`; `unidadesDe(no)` devolve as
  * unidades do órgão ({ nome, tipo }).
  */
-export function Organograma({ nos, unidadesDe, nomeTitular, onAbrir, chave = 'id' }) {
+export function Organograma({ nos, unidadesDe, nomeTitular, onAbrir, chave = 'id', detalhado = false }) {
     return (
         <ul className="space-y-2">
             {nos.map((o) => {
@@ -39,8 +40,11 @@ export function Organograma({ nos, unidadesDe, nomeTitular, onAbrir, chave = 'id
                         </span>
                         <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1">
                             {o.decisao === 'colegiada' ? 'Decisão colegiada' : 'Decisão do titular'}{titular ? ` · ${titular}` : ''}
-                            {(o.competencias || []).length > 0 ? ` · ${o.competencias.length} competência${o.competencias.length > 1 ? 's' : ''}` : ''}
+                            {!detalhado && (o.competencias || []).length > 0 ? ` · ${o.competencias.length} competência${o.competencias.length > 1 ? 's' : ''}` : ''}
                         </span>
+                        {detalhado && (o.competencias || []).length > 0 && (
+                            <ul className="mt-1 list-disc pl-5 text-sm text-slate-700 dark:text-slate-300">{o.competencias.map((c) => <li key={c}>{c}</li>)}</ul>
+                        )}
                         <span className="flex flex-wrap gap-1 mt-1.5">
                             {unidades.length === 0 && <span className="text-xs text-amber-800 dark:text-amber-300">Sem unidades: ninguém recebe processos neste órgão</span>}
                             {unidades.map((u, i) => (
@@ -222,6 +226,13 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                                 {unidades.map((u) => <Button key={u.id} type="button" size="sm" variant="outline" className="gap-1" onClick={() => onAbrirUnidade(u.id)}><Building2 className="w-4 h-4" aria-hidden /> {u.nome} · {rotuloUnidade(u.tipo).toLowerCase()}</Button>)}
                                 <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={() => onNovaUnidade(o.id)}><Plus className="w-4 h-4" /> Nova unidade neste órgão</Button>
                             </div>
+                        </section>
+                    )}
+                    {o.id && (
+                        <section aria-labelledby="og-modelos" className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                            <h3 id="og-modelos" className="text-sm font-semibold">Modelos de documento deste órgão</h3>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">Só as unidades deste órgão usam estes modelos, além dos modelos da entidade e dos de cada unidade.</p>
+                            <ListaModelos orgId={orgId} estado={estado} unidadeId={null} orgaoId={o.id} semCartao />
                         </section>
                     )}
                     {o.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={o.ativo !== false} onCheckedChange={(c) => set('ativo', c === true)} /> Órgão ativo</label>}

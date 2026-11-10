@@ -5,6 +5,7 @@ import ErroQuery from './ErroQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { secProcesso } from '@/services/secretariaService';
 import { rotuloUnidade } from './comum';
+import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 
 const hojeBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somar = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -19,7 +20,9 @@ const br = (iso) => iso.split('-').reverse().join('/');
 export default function PainelSecretaria({ orgId, estado, onAbrir }) {
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'todos'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'todos' }) });
     const [unidade, setUnidade] = useState(estado.minhasUnidades.length === 1 ? estado.minhasUnidades[0] : '');
-    const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '—';
+    const nomeUnidade = (id) => unidadeComOrgao(estado, id);
+    const temOrgaos = (estado.orgaos || []).length > 0;
+    const orgaoDaUnidade = (id) => nomeOrgao(estado, estado.unidades.find((u) => u.id === id)?.orgao_id) || 'Direto na entidade';
 
     const m = useMemo(() => {
         const hoje = hojeBR();
@@ -36,6 +39,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
             vencidos: ativos.filter((p) => p.proximo_vencimento && p.proximo_vencimento < hoje),
             semana: ativos.filter((p) => p.proximo_vencimento && p.proximo_vencimento >= hoje && p.proximo_vencimento <= semana),
             porUnidade: contar(ativos, (p) => nomeUnidade(p.unidade_atual)),
+            porOrgao: contar(ativos, (p) => orgaoDaUnidade(p.unidade_atual)),
             porFase: contar(ativos, (p) => p.fase_nome || '—').slice(0, 10),
             porTipo: contar(ativos, (p) => p.tipo_nome || 'Sem tipo').slice(0, 10),
             pendentes: ativos.filter((p) => p.pendencia_desde).sort((a, b) => a.pendencia_desde.localeCompare(b.pendencia_desde)).slice(0, 8),
@@ -62,7 +66,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 <select aria-label="Unidade do painel" value={unidade} onChange={(e) => setUnidade(e.target.value)}
                     className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
                     <option value="">Todas as unidades</option>
-                    {estado.unidades.filter((u) => u.ativa).map((u) => <option key={u.id} value={u.id}>{u.nome} ({rotuloUnidade(u.tipo).toLowerCase()})</option>)}
+                    {estado.unidades.filter((u) => u.ativa).map((u) => <option key={u.id} value={u.id}>{nomeUnidade(u.id)} ({rotuloUnidade(u.tipo).toLowerCase()})</option>)}
                 </select>
                 <p className="text-sm text-slate-600 dark:text-slate-400">Idade média dos processos em tramitação: {m.idadeMedia} dias</p>
             </div>
@@ -76,6 +80,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 ))}
             </div>
             <div className="grid lg:grid-cols-3 gap-4 [&>*]:min-w-0">
+                {temOrgaos && !unidade && <Barras titulo="Em tramitação por órgão interno" dados={m.porOrgao} />}
                 <Barras titulo="Em tramitação por unidade" dados={m.porUnidade} />
                 <Barras titulo="Por fase" dados={m.porFase} />
                 <Barras titulo="Por tipo de processo" dados={m.porTipo} />

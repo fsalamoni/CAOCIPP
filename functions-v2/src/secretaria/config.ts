@@ -5,7 +5,7 @@ import { MAX_TEXTO_LONGO, Rito, documentoEfetivo, lotacoesDe, sanitizeCalendario
 import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
-import { cienciaDias } from '../shared/comunicacoes';
+import { cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
 import { emArvore, orgaosDe, sanitizeCompetencias } from '../shared/orgaos';
 import { criarEstrutura, lerOrgaos, removerOrgao, salvarOrgao } from './orgaos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
@@ -108,7 +108,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
-    | 'versoes' | 'restaurarVersao' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura';
+    | 'versoes' | 'restaurarVersao' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -134,6 +134,7 @@ interface ConfigRequest extends Record<string, unknown> {
     proposta?: unknown;
     orgao?: unknown;
     orgaos?: unknown;
+    textos?: unknown;
 }
 
 export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async (request) => {
@@ -160,7 +161,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             db.collection(COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(COL.tipos).where('organization_id', '==', orgId).get(),
             db.collection(COL.config).doc(orgId).get(),
-            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'formato', 'arquivo_nome').get(),
+            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome').get(),
             db.collection('userOrganizations').where('organization_id', '==', orgId).get(),
             minhas.length ? db.getAll(...minhas.map((id) => db.collection(COL.unidadeConfig).doc(id))) : Promise.resolve([]),
             convitesPendentes(c),
@@ -220,11 +221,12 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             calendario: sanitizeCalendario(cfgSnap.data()?.calendario),
             alerta_prazos: cfgSnap.data()?.alerta_prazos === true,
             ciencia_dias: cienciaDias(cfgSnap.data()?.ciencia_dias),
+            textos_comunicacao: textosProntosDe(cfgSnap.data()?.textos_comunicacao),
             modelos: modelosSnap.docs.map((d) => {
                 const m = d.data();
                 return {
                     id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false,
-                    unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
+                    unidade_id: m.unidade_id || null, orgao_id: m.orgao_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             suspensa_plataforma: c.org.secretariaConfig?.suspensa_plataforma === true,
@@ -240,7 +242,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         if (!m || m.organization_id !== orgId) throw new HttpsError('not-found', 'Modelo não encontrado');
         return {
             id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo,
-            ativo: m.ativo !== false, unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
+            ativo: m.ativo !== false, unidade_id: m.unidade_id || null, orgao_id: m.orgao_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
         };
     }
 
@@ -299,6 +301,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         }
         const nome = texto(m.nome, 120);
         if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao modelo');
+        // Modelo da entidade pode ser só de um órgão interno (vale para as unidades dele).
+        const orgaoModelo = unidadeId ? '' : String(m.orgao_id || '');
+        if (orgaoModelo && !(await lerOrgaos(db, orgId)).some((o) => o.id === orgaoModelo)) throw new HttpsError('invalid-argument', 'Órgão do modelo inválido');
         // Formato: 'editor' (conteúdo do editor) ou 'original' (arquivo DOCX/PDF guardado).
         const formato = (p.id ? atual?.formato : m.formato) === 'original' ? 'original' : 'editor';
         const arquivo = formato === 'original' && (m.arquivo || !p.id) ? arquivoRecebido(m.arquivo, MIMES_ORIGINAL) : null;
@@ -310,7 +315,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             }
         }
         const dados: Record<string, unknown> = {
-            nome, tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo, unidade_id: unidadeId,
+            nome, tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo, unidade_id: unidadeId, ...('orgao_id' in m || unidadeId ? { orgao_id: orgaoModelo || null } : {}),
             ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
         const ref = p.id ? col.doc(p.id) : col.doc();
@@ -420,6 +425,14 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const dias = cienciaDias(p.ciencia_dias);
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, ciencia_dias: dias, updated_at: agora, updated_by: auth.uid }, { merge: true });
         await audit('SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe, ciencia_dias: dias });
+        return { success: true };
+    }
+
+    if (p.action === 'salvarTextosComunicacao') {
+        let textos;
+        try { textos = sanitizeTextosProntos(p.textos); } catch (e) { erroUsuario(e); }
+        await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, textos_comunicacao: textos, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await audit('SECRETARIA_TEXTOS_COMUNICACAO', { textos: textos!.length });
         return { success: true };
     }
 

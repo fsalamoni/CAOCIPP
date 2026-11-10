@@ -24,6 +24,7 @@ import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
 import HistoricoConfiguracao from './HistoricoConfiguracao';
 import VersoesDialog from './VersoesDialog';
 import EstruturaOrgaos from './Orgaos';
+import { TextosComunicacao } from './Comunicacoes';
 
 const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400';
 
@@ -53,11 +54,18 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
             <TabsContent value="unidades"><Unidades orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} /></TabsContent>
-            <TabsContent value="documentos"><ConfiguracaoDocumentos orgId={orgId} estado={estado} /></TabsContent>
+            <TabsContent value="documentos" className="space-y-4"><ConfiguracaoDocumentos orgId={orgId} estado={estado} /><TextosProntos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="calendario"><ConfiguracaoCalendario orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="historico">{atual === 'historico' && <HistoricoConfiguracao orgId={orgId} />}</TabsContent>
         </Tabs>
     );
+}
+
+function TextosProntos({ orgId, estado }) {
+    const { salvar, salvando } = useSalvar(orgId);
+    // Devolve se salvou, para o diálogo saber se fecha.
+    const onSalvar = (textos) => new Promise((ok) => { let fechou = false; salvar('salvarTextosComunicacao', { textos }, () => { fechou = true; }).then(() => ok(fechou)); });
+    return <TextosComunicacao estado={estado} salvando={salvando} onSalvar={onSalvar} />;
 }
 
 function useSalvar(orgId) {

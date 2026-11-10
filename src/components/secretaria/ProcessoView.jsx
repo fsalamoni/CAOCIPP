@@ -532,7 +532,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     onSalvar={(dados) => mov('alterarDados', dados, 'Dados do processo alterados')} />
             )}
 
-            <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} ocupado={ocupado}
+            <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} textosProntos={estado.textos_comunicacao || []} ocupado={ocupado}
                 onFechar={() => setAcao(null)} onExpedir={(comunicacao) => mov('expedirComunicacao', { comunicacao }, comunicacao.meio === 'outro' ? 'Ciência registrada nos autos' : 'Comunicação expedida')} />
 
             <AcaoDialog acao={['dados', 'comunicar'].includes(acao?.tipo) ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} convidar={convidar}
