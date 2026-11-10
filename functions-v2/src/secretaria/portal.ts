@@ -2,8 +2,9 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    MAX_TEXTO_LONGO, MAX_UPLOAD_BYTES, Pendencia, Prazo, derivados, hojeBrasil, jsonCanonico, sha256, texto, verificarCadeia,
+    Fase, MAX_TEXTO_LONGO, MAX_UPLOAD_BYTES, Pendencia, Prazo, derivados, hojeBrasil, jsonCanonico, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
+import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer } from '../shared/exigencias';
 import { COL, Contexto, REGION, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
 import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
@@ -437,9 +438,17 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             };
             const pendencias = [...((proc.pendencias || []) as Pendencia[]), pend];
             const c = contextoParte(db, proc, uid, `${parte.assina} (parte)`);
+            // Petição pode cumprir documento que o rito exige de fora (ex.: defesa prévia), pelo tipo.
+            const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
+            const pendentes = pendentesDaFase(fase, proc.exigencias_cumpridas as Cumpridas | undefined);
+            const chaves = new Set([tipoPeticao, 'Petição'].filter(Boolean)
+                .flatMap((tipo) => reconhecer(pendentes, { origem: buf ? 'upload' : 'editor', tipo, peticao: true })));
+            const cumpridas = pendentes.filter((e) => chaves.has(e.chave));
             const mov = registrarMovimento(tx, c, procRef, proc, 'peticao',
-                `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${textoFolhas(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`,
-                { documento_id: docRef.id, ordem, folha_inicial: folha, paginas });
+                `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${textoFolhas(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`
+                + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
+                { documento_id: docRef.id, ordem, folha_inicial: folha, paginas, ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
+            const exig = fase ? camposDoCumprimento(proc, fase.id, cumpridas, docRef.id, ordem) : {};
             const codigo = novoCodigo();
             const dadosDoc = {
                 titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem,
@@ -456,7 +465,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(COL.verificacao).doc(codigo),
                 registroVerificacao(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
-            tx.update(procRef, { ...mov, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]) });
+            tx.update(procRef, { ...mov, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]) });
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
         });
         void avisarPartesDoMovimento(db, procRef.id, uid);

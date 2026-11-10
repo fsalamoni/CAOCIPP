@@ -440,14 +440,26 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
   usado (`modelo_id`, gravado por `criarMinuta` e `upload` quando a minuta
   nasce de modelo) ou pelo tipo do documento. Grava
   `exigencias_cumpridas[faseId][chave] = {documento_id, ordem}` e acrescenta
-  à juntada "Cumpre o exigido pelo rito: …".
+  à juntada "Cumpre o exigido pelo rito: …" (`camposDoCumprimento`).
+  A **petição da parte** (`peticionar` no portal) também cumpre: conta como
+  documento recebido de fora (`peticao: true` em `atende`), então atende
+  exigência `juntar` ou `qualquer` cujo tipo seja o tipo da petição (ex.:
+  "Manifestação"), nunca a `redigir`.
+- **Fase que volta.** Ao entrar numa fase (`avancarFase` ou `tramitar` com
+  `fase_id`), inclusive voltando a uma já percorrida, as marcas de
+  `exigencias_cumpridas` e `acoes_feitas` dessa fase são apagadas
+  (`camposAoEntrarNaFase`): a nova rodada exige de novo. A rodada anterior
+  continua nos autos e nos movimentos.
+- **Editor do rito.** Ao apagar, inserir ou reordenar linhas de ações, cada
+  regra acompanha o texto da sua ação (`realinharRegras` em
+  `src/lib/exigencias.js`); corrigir o texto de uma linha mantém a regra.
 - **Dispensa.** Sair da fase (`avancarFase`, ou `tramitar` com `fase_id`) com
   exigência pendente exige `motivo`: sem ele, `failed-precondition` com a
   lista do que falta. Com ele, o movimento registra "Dispensado o documento
   exigido pelo rito: …", o motivo e `dados.dispensadas`, e vai sempre aos
   autos, mesmo que a fase seja de registro interno. Arquivar com exigência pendente
   registra os documentos não produzidos no próprio movimento (o motivo já é
-  obrigatório).
+  obrigatório); o diálogo de situação avisa antes, ao escolher "Arquivado".
 - **Tela.** Em "Nesta fase", a ação que exige documento mostra a situação
   (pendente, com "Redigir {modelo}" ou "Novo documento"; ou "cumprido com o
   documento nº N"); os documentos da fase aparecem em "Documentos exigidos

@@ -252,17 +252,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
             const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
-            const exig = {};
-            if (fase && cumpridas.length) {
-                const ja = (atual.exigencias_cumpridas || {})[fase.id] || {};
-                exig.exigencias_cumpridas = Object.assign(Object.assign({}, (atual.exigencias_cumpridas || {})), { [fase.id]: Object.assign(Object.assign({}, ja), Object.fromEntries(cumpridas.map((e) => [e.chave, { documento_id: ref.id, ordem }]))) });
-                const acoes = cumpridas.filter((e) => typeof e.acao_idx === 'number').map((e) => e.acao_idx);
-                if (acoes.length) {
-                    const feitas = new Set((atual.acoes_feitas || {})[fase.id] || []);
-                    acoes.forEach((i) => feitas.add(i));
-                    exig.acoes_feitas = Object.assign(Object.assign({}, (atual.acoes_feitas || {})), { [fase.id]: [...feitas].sort((a, b) => a - b) });
-                }
-            }
+            const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, ordem) : {};
             const juntado = Object.assign({ status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }, (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
             const codigo = (0, autos_1.novoCodigo)();
             tx.set(c.db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(c.orgId, String(c.org.name || ''), pr.id, atual, ref.id, Object.assign(Object.assign({}, doc), juntado)));

@@ -7,7 +7,7 @@ import {
     fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, numeroProcesso, podeAgir, podeVer, proximaFase, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
-import { Cumpridas, movimentoInterno, pendentesDaFase } from '../shared/exigencias';
+import { Cumpridas, camposAoEntrarNaFase, movimentoInterno, pendentesDaFase } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
 import { CampoValor, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorTexto } from '../shared/camposProcesso';
 import { avisarPartesDoMovimento } from './portalAvisos';
@@ -424,7 +424,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 unidades_historico: FieldValue.arrayUnion(destino.id),
                 responsavel_uid: null,
                 recebido_em: new Date().toISOString(),
-                ...(novaFase ? { fase_atual: novaFase.id } : {}),
+                ...(novaFase ? { fase_atual: novaFase.id, ...camposAoEntrarNaFase(data, novaFase.id) } : {}),
                 orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: nomeUnidade(c, data.unidade_atual) }
                     : FieldValue.delete(),
@@ -520,7 +520,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const mov = registrarMovimento(tx, c, ref, data, 'fase',
                 `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`,
                 { de: data.fase_atual, para: alvo.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(dispensadas.length ? { dispensadas } : {}), ...(interno ? { interno: true } : {}) });
-            tx.update(ref, { ...mov, fase_atual: alvo.id });
+            tx.update(ref, { ...mov, fase_atual: alvo.id, ...camposAoEntrarNaFase(data, alvo.id) });
             return mov;
         }
 

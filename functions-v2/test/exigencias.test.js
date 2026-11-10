@@ -5,6 +5,28 @@ const x = require('../lib/shared/exigencias');
 const a = require('../lib/shared/autos');
 const s = require('../lib/shared/secretaria');
 
+test('cumprimento grava exigência e marca a ação; reentrada na fase recomeça', () => {
+    const proc = { exigencias_cumpridas: { f0: { d0: { documento_id: 'z', ordem: 1 } } }, acoes_feitas: { f1: [2] } };
+    const c = x.camposDoCumprimento(proc, 'f1', [{ chave: 'd0' }, { chave: 'a0', acao_idx: 0 }], 'doc1', 4);
+    assert.deepEqual(c.exigencias_cumpridas.f1, { d0: { documento_id: 'doc1', ordem: 4 }, a0: { documento_id: 'doc1', ordem: 4 } });
+    assert.ok(c.exigencias_cumpridas.f0);
+    assert.deepEqual(c.acoes_feitas.f1, [0, 2]);
+    assert.deepEqual(x.camposDoCumprimento(proc, 'f1', [], 'doc1', 4), {});
+    const volta = x.camposAoEntrarNaFase({ ...proc, ...c }, 'f1');
+    assert.deepEqual(Object.keys(volta.exigencias_cumpridas), ['f0']);
+    assert.deepEqual(volta.acoes_feitas, {});
+    assert.deepEqual(x.camposAoEntrarNaFase(proc, 'f9'), {});
+});
+
+test('petição da parte conta como documento recebido de fora', () => {
+    const redigir = { descricao: 'R', forma: 'redigir' };
+    const juntar = { descricao: 'J', forma: 'juntar', tipo: 'Contestação' };
+    const pet = { origem: 'editor', tipo: 'Contestação', peticao: true };
+    assert.equal(x.atende(redigir, pet), false);
+    assert.equal(x.atende(juntar, pet), true);
+    assert.deepEqual(x.reconhecer([{ ...juntar, chave: 'd0' }, { ...redigir, tipo: 'Contestação', chave: 'd1' }], pet), ['d0']);
+});
+
 test('sanitizeRegras alinha regras às ações e descarta lixo', () => {
     const r = x.sanitizeRegras({
         registro: 'interno',

@@ -6,7 +6,7 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
-import { Cumpridas, pendentesDaFase, reconhecer } from '../shared/exigencias';
+import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer } from '../shared/exigencias';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { lotacoesDe } from '../shared/secretaria';
@@ -292,17 +292,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
                     { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}),
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
-                const exig: Record<string, unknown> = {};
-                if (fase && cumpridas.length) {
-                    const ja = ((atual.exigencias_cumpridas || {}) as Cumpridas)[fase.id] || {};
-                    exig.exigencias_cumpridas = { ...(atual.exigencias_cumpridas || {}), [fase.id]: { ...ja, ...Object.fromEntries(cumpridas.map((e) => [e.chave, { documento_id: ref.id, ordem }])) } };
-                    const acoes = cumpridas.filter((e) => typeof e.acao_idx === 'number').map((e) => e.acao_idx as number);
-                    if (acoes.length) {
-                        const feitas = new Set<number>(((atual.acoes_feitas || {}) as Record<string, number[]>)[fase.id] || []);
-                        acoes.forEach((i) => feitas.add(i));
-                        exig.acoes_feitas = { ...(atual.acoes_feitas || {}), [fase.id]: [...feitas].sort((a, b) => a - b) };
-                    }
-                }
+                const exig = fase ? camposDoCumprimento(atual, fase.id, cumpridas, ref.id, ordem) : {};
                 const juntado = {
                     status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName,
                     paginas, folha_inicial: folha, folha_final: folha + paginas - 1,
