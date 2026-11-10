@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.campoConhecido = exports.MAX_MODELO_BYTES = exports.MIMES_ORIGINAL = exports.MIMES_MODELO = exports.MIME_PDF = void 0;
+exports.MIME_BIZAGI = exports.campoConhecido = exports.MAX_MODELO_BYTES = exports.MIMES_ORIGINAL = exports.MIMES_MODELO = exports.MIME_PDF = void 0;
 exports.normalizarCampos = normalizarCampos;
 exports.linhasXml = linhasXml;
 exports.preencherDocx = preencherDocx;
 exports.textoDePdf = textoDePdf;
+exports.diagramasDoPacote = diagramasDoPacote;
 exports.textoParaRito = textoParaRito;
 exports.interpretarModelo = interpretarModelo;
 const mammoth = require("mammoth");
@@ -205,11 +206,17 @@ async function linhasPdf(buf) {
                 continue;
             const y = Math.round(it.transform[5]);
             const chave = (_a = [...porY.keys()].find((k) => Math.abs(k - y) <= 2)) !== null && _a !== void 0 ? _a : y;
-            porY.set(chave, [...(porY.get(chave) || []), { x: it.transform[4], s: it.str, h: it.height || Math.abs(it.transform[3]) }]);
+            porY.set(chave, [...(porY.get(chave) || []), { x: it.transform[4], w: it.width || 0, s: it.str, h: it.height || Math.abs(it.transform[3]) }]);
         }
         paginas.push([...porY.entries()].sort((a, b) => b[0] - a[0]).map(([y, ps]) => {
             ps.sort((a, b) => a.x - b.x);
-            return { y, x: ps[0].x, texto: ps.map((p) => p.s).join('').replace(/\s+/g, ' ').trim(), altura: Math.max(...ps.map((p) => p.h)) };
+            // Pedaços separados por um vão visível ganham espaço ("2." + "Nome" → "2. Nome").
+            const texto = ps.reduce((acc, p, i) => {
+                const ant = ps[i - 1];
+                const vao = ant ? p.x - (ant.x + ant.w) : 0;
+                return acc + (ant && vao > Math.max(1, p.h * 0.15) && !/\s$/.test(acc) && !/^\s/.test(p.s) ? ' ' : '') + p.s;
+            }, '');
+            return { y, x: ps[0].x, texto: texto.replace(/\s+/g, ' ').trim(), altura: Math.max(...ps.map((p) => p.h)) };
         }).filter((l) => l.texto));
     }
     await doc.destroy();
@@ -251,13 +258,75 @@ async function interpretarPdf(buf, avisos) {
     const timbrado = cab.length || rod.length ? { cabecalho_linhas: cab.slice(0, 4), brasao: null, rodape: rod.join(' · ').slice(0, 200) } : null;
     return { doc: { type: 'doc', content: blocos.length ? blocos : [{ type: 'paragraph' }] }, timbrado };
 }
-/** Texto de um PDF, uma linha por linha visual e página separada por linha vazia. */
+/**
+ * Texto de um PDF, uma linha por linha visual e página separada por linha
+ * vazia. Cabeçalho e rodapé que se repetem nas páginas (data de impressão,
+ * endereço, "1/8") e números de página saem, para não virarem orientação.
+ */
 async function textoDePdf(buf) {
-    const { paginas } = await linhasPdf(buf);
-    return paginas.map((p) => p.map((l) => l.texto).join('\n')).join('\n\n');
+    const { paginas, alturaPagina } = await linhasPdf(buf);
+    const borda = (l) => l.y >= alturaPagina * 0.9 || l.y <= alturaPagina * 0.1;
+    const semNumeros = (t) => t.replace(/\d+/g, '#');
+    const vezes = new Map();
+    for (const p of paginas)
+        for (const t of new Set(p.filter(borda).map((l) => semNumeros(l.texto))))
+            vezes.set(t, (vezes.get(t) || 0) + 1);
+    const repete = (l) => borda(l) && (ehNumeroPagina(l.texto) || (paginas.length > 1 && (vezes.get(semNumeros(l.texto)) || 0) >= 2));
+    return paginas.map((p) => p.filter((l) => !repete(l)).map((l) => l.texto).join('\n')).join('\n\n');
+}
+exports.MIME_BIZAGI = 'application/x-bizagi-bpm';
+const MAX_DIAGRAMAS = 40;
+const MAX_XML_TOTAL = 6 * 1024 * 1024;
+/**
+ * Diagramas de um pacote do Bizagi Modeler (.bpm). O .bpm é um ZIP; dentro,
+ * cada diagrama (página) costuma ser outro ZIP (.diag) com um Diagram.xml em
+ * XPDL. Abre os ZIPs aninhados (até 3 níveis) e devolve os XML que parecem
+ * BPMN ou XPDL, na ordem do pacote. Limites contra arquivo malicioso: número
+ * de entradas e tamanho total descompactado.
+ */
+async function diagramasDoPacote(buf) {
+    const out = [];
+    let total = 0;
+    let entradas = 0;
+    const abrir = async (b, prefixo, nivel) => {
+        let zip;
+        try {
+            zip = await JSZip.loadAsync(b);
+        }
+        catch (_a) {
+            if (nivel === 0)
+                throw new Error('O arquivo do Bizagi (.bpm) não pôde ser aberto. Exporte o diagrama em BPMN ou XPDL e envie esse arquivo.');
+            return;
+        }
+        for (const f of Object.values(zip.files)) {
+            if (f.dir || ++entradas > 500 || out.length >= MAX_DIAGRAMAS)
+                continue;
+            const nome = prefixo + f.name;
+            if (/\.(diag|bpm|zip)$/i.test(f.name)) {
+                if (nivel < 3)
+                    await abrir(await f.async('nodebuffer'), `${nome}/`, nivel + 1);
+                continue;
+            }
+            if (!/\.(xml|bpmn|xpdl)$/i.test(f.name))
+                continue;
+            const conteudo = await f.async('nodebuffer');
+            if (total + conteudo.length > MAX_XML_TOTAL)
+                throw new Error('O pacote do Bizagi é grande demais (mais de 6 MB de diagramas).');
+            const xml = conteudo.toString('utf8').replace(/^﻿/, '');
+            if (!/<(\w+:)?(definitions|Package|WorkflowProcess)\b/.test(xml))
+                continue;
+            total += conteudo.length;
+            out.push({ nome, xml });
+        }
+    };
+    await abrir(buf, '', 0);
+    if (!out.length)
+        throw new Error('Não achei diagramas no arquivo do Bizagi. No Bizagi Modeler, use Exportar > BPMN ou XPDL e envie o arquivo gerado.');
+    return out;
 }
 /**
- * Texto e tabelas de um arquivo que descreve um rito (Word, PDF ou TXT), para
+ * Texto e tabelas de um arquivo que descreve um rito (Word, PDF ou TXT), ou os
+ * diagramas de um pacote do Bizagi (.bpm), para
  * a leitura de fases no navegador (src/lib/propostaRito.js).
  */
 async function textoParaRito(buf, mime) {
@@ -266,8 +335,14 @@ async function textoParaRito(buf, mime) {
         const tabelas = (html.value.match(/<table[\s\S]*?<\/table>/g) || []).slice(0, 10).map((t) => (t.match(/<tr[\s\S]*?<\/tr>/g) || []).slice(0, 200).map((tr) => (tr.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/g) || []).slice(0, 20).map((c) => desXml(c.replace(/<\/p>/g, '\n').replace(/<[^>]+>/g, '')).replace(/[ \t]+/g, ' ').trim())));
         return { texto: raw.value, tabelas };
     }
-    if (mime === exports.MIME_PDF)
-        return { texto: await textoDePdf(buf), tabelas: [] };
+    if (mime === exports.MIME_PDF) {
+        const texto = await textoDePdf(buf);
+        if (!texto.trim())
+            throw new Error('O PDF não tem texto selecionável (parece imagem digitalizada). Envie o Word, a planilha ou o diagrama original, ou um PDF salvo pelo editor de texto.');
+        return { texto, tabelas: [] };
+    }
+    if (mime === exports.MIME_BIZAGI)
+        return { texto: '', tabelas: [], diagramas: await diagramasDoPacote(buf) };
     return { texto: buf.toString('utf8'), tabelas: [] };
 }
 // ---------- entrada ----------

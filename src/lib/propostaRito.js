@@ -1,7 +1,9 @@
 // ============================================================================
 // Proposta de rito a partir de arquivos (etapa 3), sem IA: planilha com
-// colunas ricas, BPMN (Camunda, Bizagi, bpmn.io), draw.io (diagrams.net),
-// Mermaid e texto corrido (Word, PDF, TXT). Tudo vira a mesma proposta:
+// colunas ricas e várias abas, BPMN (Camunda, Bizagi, bpmn.io), XPDL e o
+// pacote .bpm do Bizagi (várias páginas, subprocessos, paralelos), draw.io
+// (diagrams.net), Mermaid e texto corrido (Word, PDF, TXT). Tudo vira a mesma
+// proposta:
 //
 //   { nome, descricao, fases: [{ id, nome, prazo_dias?, orientacao?, proximas?,
 //     final?, unidade?, agente?, acoes?: [], modelos?: [nomes], condicoes?:
@@ -121,28 +123,43 @@ function* etiquetas(xml) {
 }
 
 const ATIVIDADES_BPMN = /^(task|userTask|manualTask|serviceTask|scriptTask|sendTask|receiveTask|businessRuleTask|subProcess|callActivity|adHocSubProcess|transaction)$/;
+const SUBPROCESSOS_BPMN = /^(subProcess|adHocSubProcess|transaction)$/;
 const DECISOES_BPMN = /^(exclusiveGateway|inclusiveGateway|complexGateway|eventBasedGateway)$/;
 const PASSAGEM_BPMN = /^(parallelGateway|intermediateThrowEvent|intermediateCatchEvent|boundaryEvent)$/;
 
-/** BPMN 2.0 (XML): tarefas viram fases, raias (lanes) e piscinas viram unidades. */
-export function propostaDeBpmn(xml) {
+/*
+ * Os leitores de diagrama (BPMN e XPDL) devolvem um "modelo" com níveis:
+ *   { nos: [{ chave, nome, tipo, container, sub?, paralelo?, unidade?, documentos, orientacao? }],
+ *     arestas: [{ de, para, rotulo? }], containers: [{ id, nome }], avisos }
+ * `container` é o processo (piscina/página) ou subprocesso em que o nó está;
+ * `sub` é o container que a atividade detalha (subprocesso embutido, página
+ * de subprocesso do Bizagi, callActivity). `propostaDeModelos` junta vários
+ * modelos (as páginas de um pacote do Bizagi), abre os subprocessos no lugar
+ * da atividade, encadeia processos soltos e põe ramos paralelos em sequência,
+ * porque o processo eletrônico anda uma fase por vez.
+ */
+
+/** BPMN 2.0 (XML) → modelo com níveis. Tarefas viram fases; raias e piscinas, unidades. */
+export function modeloDeBpmn(xml) {
     const avisos = [];
     const nos = new Map();
     const arestas = [];
+    const containers = [];
     const raiaDe = new Map();
     const piscinaDoProcesso = new Map();
     const docs = new Map(); // id do dataObjectReference -> nome
     const docsDaTarefa = []; // [tarefa, idDoc]
     const notas = new Map(); // id da textAnnotation -> texto
     const associacoes = [];
+    const pilha = []; // processo e subprocessos abertos
     let raia = null;
-    let processo = null;
     let tarefa = null; // dentro de uma tarefa (para dataInput/OutputAssociation)
     let assoc = null;
     let campo = null; // etiqueta de texto que estamos lendo
     let fluxo = null;
     let notaAtual = null;
     let fluxoNoRef = false;
+    let docNo = null; // nó cuja <documentation> estamos lendo
     for (const e of etiquetas(String(xml || ''))) {
         if (e.texto !== undefined) {
             const t = limpar(e.texto);
@@ -151,34 +168,46 @@ export function propostaDeBpmn(xml) {
             else if (campo === 'sourceRef' && assoc) assoc.origem = t;
             else if (campo === 'conditionExpression' && fluxo && !fluxo.rotulo) fluxo.rotulo = t;
             else if (campo === 'text' && notaAtual) notas.set(notaAtual, t);
+            else if (campo === 'documentation' && docNo && t) docNo.orientacao = [docNo.orientacao, t].filter(Boolean).join(' ').slice(0, 2000);
             continue;
         }
         const { nome, attrs } = e;
         if (e.fecha) {
             if (nome === 'flowNodeRef') fluxoNoRef = false;
             if (nome === 'lane') raia = null;
+            if (nome === 'process' || SUBPROCESSOS_BPMN.test(nome)) pilha.pop();
             if (ATIVIDADES_BPMN.test(nome)) tarefa = null;
             if (/^data(Input|Output)Association$/.test(nome) && assoc) { if (tarefa) docsDaTarefa.push([tarefa, nome === 'dataOutputAssociation' ? assoc.alvo : assoc.origem]); assoc = null; }
             if (nome === 'sequenceFlow') fluxo = null;
             if (nome === 'textAnnotation') notaAtual = null;
+            if (nome === 'documentation') docNo = null;
             campo = null;
             continue;
         }
+        const container = pilha[pilha.length - 1] || '';
         if (nome === 'participant' && attrs.processRef) piscinaDoProcesso.set(attrs.processRef, limpar(attrs.name));
-        else if (nome === 'process') processo = attrs.id;
+        else if (nome === 'process') { if (!e.auto) pilha.push(attrs.id); containers.push({ id: attrs.id, nome: limpar(attrs.name) }); }
         else if (nome === 'lane') { raia = limpar(attrs.name) || null; }
         else if (nome === 'flowNodeRef') fluxoNoRef = !e.auto;
         else if (ATIVIDADES_BPMN.test(nome) || DECISOES_BPMN.test(nome) || PASSAGEM_BPMN.test(nome) || nome === 'startEvent' || nome === 'endEvent') {
             const tipo = ATIVIDADES_BPMN.test(nome) ? 'atividade' : DECISOES_BPMN.test(nome) ? 'decisao' : nome === 'startEvent' ? 'inicio' : nome === 'endEvent' ? 'fim' : 'passa';
-            nos.set(attrs.id, { chave: attrs.id, nome: limpar(attrs.name), tipo, processo, documentos: [] });
+            const no = { chave: attrs.id, nome: limpar(attrs.name), tipo, container, documentos: [] };
+            if (nome === 'parallelGateway') no.paralelo = true;
+            if (SUBPROCESSOS_BPMN.test(nome)) no.sub = attrs.id;
+            if (nome === 'callActivity' && attrs.calledElement) no.sub = attrs.calledElement;
+            nos.set(attrs.id, no);
+            if (!e.auto) docNo = no;
             if (tipo === 'atividade' && !e.auto) tarefa = attrs.id;
+            if (SUBPROCESSOS_BPMN.test(nome) && !e.auto) { pilha.push(attrs.id); containers.push({ id: attrs.id, nome: no.nome }); }
             // Evento de borda (prazo, erro) sai da tarefa a que está preso.
             if (nome === 'boundaryEvent' && attrs.attachedToRef) arestas.push({ de: attrs.attachedToRef, para: attrs.id, rotulo: limpar(attrs.name) });
-        } else if (nome === 'sequenceFlow') {
-            fluxo = { de: attrs.sourceRef, para: attrs.targetRef, rotulo: limpar(attrs.name) };
+        } else if (nome === 'sequenceFlow' || nome === 'messageFlow') {
+            // Mensagem entre piscinas também passa o processo adiante.
+            fluxo = { de: attrs.sourceRef, para: attrs.targetRef, rotulo: limpar(attrs.name), ...(nome === 'messageFlow' ? { mensagem: true } : {}) };
             arestas.push(fluxo);
             if (e.auto) fluxo = null;
         } else if (nome === 'conditionExpression' || nome === 'targetRef' || nome === 'sourceRef' || nome === 'text') campo = nome;
+        else if (nome === 'documentation' && docNo) campo = nome;
         else if (/^data(Input|Output)Association$/.test(nome)) assoc = {};
         else if (nome === 'dataObjectReference' || nome === 'dataStoreReference') docs.set(attrs.id, limpar(attrs.name));
         else if (nome === 'textAnnotation') notaAtual = attrs.id;
@@ -189,9 +218,250 @@ export function propostaDeBpmn(xml) {
         const [no, nota] = notas.has(b) ? [a, b] : [b, a];
         if (nos.get(no) && notas.get(nota)) nos.get(no).orientacao = [nos.get(no).orientacao, notas.get(nota)].filter(Boolean).join(' ').slice(0, 2000);
     }
-    for (const n of nos.values()) n.unidade = raiaDe.get(n.chave) || piscinaDoProcesso.get(n.processo) || undefined;
+    for (const n of nos.values()) n.unidade = raiaDe.get(n.chave) || piscinaDoProcesso.get(n.container) || undefined;
+    for (const c of containers) if (!c.nome && piscinaDoProcesso.get(c.id)) c.nome = piscinaDoProcesso.get(c.id);
     if (!nos.size) avisos.push('Não parece um BPMN: nenhuma tarefa ou evento encontrado');
-    return propostaDeGrafo([...nos.values()], arestas, avisos);
+    return { nos: [...nos.values()], arestas, containers, avisos };
+}
+
+/**
+ * XPDL 2.x (exportação do Bizagi, e o Diagram.xml de cada página do .bpm).
+ * Atividade com Event é início/fim/intermediário; com Route é desvio
+ * (Parallel/AND = paralelo); com BlockActivity ou SubFlow é subprocesso.
+ * A raia vem do LaneId do desenho; o documento, de Artifact DataObject.
+ */
+export function modeloDeXpdl(xml) {
+    const avisos = [];
+    const nos = [];
+    const arestas = [];
+    const containers = [];
+    const raias = new Map(); // id -> nome
+    const piscinaDoProcesso = new Map();
+    const participantes = new Map();
+    const artefatos = new Map(); // id -> { doc?: nome, nota?: texto }
+    const associacoes = [];
+    const pilha = [];
+    let at = null; // atividade aberta
+    let trans = null;
+    let campo = null;
+    let dentroDeEvento = false;
+    for (const e of etiquetas(String(xml || ''))) {
+        if (e.texto !== undefined) {
+            const t = limpar(e.texto);
+            if (campo === 'Description' && at && t) at.orientacao = [at.orientacao, t].filter(Boolean).join(' ').slice(0, 2000);
+            else if (campo === 'Performer' && at && t) at.performer = t;
+            else if (campo === 'Expression' && trans && !trans.rotulo) trans.rotulo = t;
+            continue;
+        }
+        const { nome, attrs } = e;
+        if (e.fecha) {
+            if (nome === 'WorkflowProcess' || nome === 'ActivitySet') pilha.pop();
+            if (nome === 'Activity' && at) { nos.push(fecharAtividadeXpdl(at)); at = null; }
+            if (nome === 'Event') dentroDeEvento = false;
+            if (nome === 'Transition') trans = null;
+            campo = null;
+            continue;
+        }
+        const container = pilha[pilha.length - 1] || '';
+        if (nome === 'Pool' && attrs.Process) piscinaDoProcesso.set(attrs.Process, limpar(attrs.Name));
+        else if (nome === 'Lane' && attrs.Id) raias.set(attrs.Id, limpar(attrs.Name));
+        else if (nome === 'Participant' && attrs.Id) participantes.set(attrs.Id, limpar(attrs.Name));
+        else if (nome === 'WorkflowProcess' || nome === 'ActivitySet') {
+            containers.push({ id: attrs.Id, nome: limpar(attrs.Name) });
+            if (!e.auto) pilha.push(attrs.Id);
+        } else if (nome === 'Activity') {
+            at = { chave: attrs.Id, nome: limpar(attrs.Name), tipo: 'atividade', container, documentos: [] };
+            if (e.auto) { nos.push(fecharAtividadeXpdl(at)); at = null; }
+        } else if (at && nome === 'Event') dentroDeEvento = true;
+        else if (at && dentroDeEvento && /^(StartEvent|EndEvent|IntermediateEvent)$/.test(nome)) {
+            at.evento = nome;
+            // Evento preso à borda de uma atividade (prazo, erro).
+            if (nome === 'IntermediateEvent' && attrs.Target) arestas.push({ de: attrs.Target, para: at.chave, rotulo: at.nome });
+        } else if (at && nome === 'Route') at.route = String(attrs.GatewayType || attrs.ExclusiveType || 'Exclusive');
+        else if (at && nome === 'SubFlow' && attrs.Id) at.sub = attrs.Id;
+        else if (at && nome === 'BlockActivity' && attrs.ActivitySetId) at.sub = attrs.ActivitySetId;
+        else if (at && nome === 'NodeGraphicsInfo' && attrs.LaneId && !at.lane) at.lane = attrs.LaneId;
+        else if (at && (nome === 'Description' || nome === 'Performer')) { campo = nome; if (nome === 'Description' && attrs.Value) at.orientacao = limpar(attrs.Value); }
+        else if (nome === 'Transition') { trans = { de: attrs.From, para: attrs.To, rotulo: limpar(attrs.Name) }; arestas.push(trans); if (e.auto) trans = null; }
+        else if (trans && nome === 'Expression') campo = nome;
+        else if (nome === 'MessageFlow' && attrs.Source && attrs.Target) arestas.push({ de: attrs.Source, para: attrs.Target, rotulo: limpar(attrs.Name), mensagem: true });
+        else if (nome === 'Artifact' && attrs.Id) {
+            if (/DataObject/i.test(attrs.ArtifactType || '')) artefatos.set(attrs.Id, { doc: limpar(attrs.Name) });
+            else if (/Annotation/i.test(attrs.ArtifactType || '')) artefatos.set(attrs.Id, { nota: limpar(attrs.TextAnnotation || attrs.Name) });
+        } else if (nome === 'Association' && attrs.Source && attrs.Target) associacoes.push([attrs.Source, attrs.Target]);
+    }
+    const porChave = new Map(nos.map((n) => [n.chave, n]));
+    for (const [a, b] of associacoes) {
+        const [no, art] = artefatos.has(b) ? [porChave.get(a), artefatos.get(b)] : [porChave.get(b), artefatos.get(a)];
+        if (!no || !art) continue;
+        if (art.doc) no.documentos.push(art.doc);
+        if (art.nota) no.orientacao = [no.orientacao, art.nota].filter(Boolean).join(' ').slice(0, 2000);
+    }
+    for (const n of nos) {
+        n.unidade = raias.get(n.lane) || participantes.get(n.performer) || piscinaDoProcesso.get(n.container) || undefined;
+        delete n.lane;
+        delete n.performer;
+    }
+    for (const c of containers) if (!c.nome && piscinaDoProcesso.get(c.id)) c.nome = piscinaDoProcesso.get(c.id);
+    if (!nos.length) avisos.push('Não parece um XPDL: nenhuma atividade encontrada');
+    return { nos, arestas, containers, avisos };
+}
+
+function fecharAtividadeXpdl(at) {
+    const { evento, route, ...n } = at;
+    if (evento) n.tipo = evento === 'StartEvent' ? 'inicio' : evento === 'EndEvent' ? 'fim' : 'passa';
+    else if (route) {
+        if (/^(parallel|and)$/i.test(route)) { n.tipo = 'passa'; n.paralelo = true; } else n.tipo = 'decisao';
+    }
+    if (n.tipo !== 'atividade') delete n.sub;
+    return n;
+}
+
+/** Abre a atividade-subprocesso no lugar dela: entra no início de dentro, sai pelo fim de dentro. */
+function abrirSubprocessos(nos, arestas, avisos) {
+    const abertos = new Set();
+    for (let volta = 0; volta < 5; volta++) {
+        const pendentes = nos.filter((n) => n.sub && n.tipo === 'atividade');
+        if (!pendentes.length) break;
+        for (const s of pendentes) {
+            const dentro = nos.filter((n) => n.container === s.sub);
+            if (!dentro.some((n) => n.tipo === 'atividade') || abertos.has(s.sub) || s.container === s.sub) {
+                if (abertos.has(s.sub)) avisos.push(`O subprocesso "${s.nome}" aparece mais de uma vez; as etapas dele ficaram só no primeiro uso.`);
+                delete s.sub;
+                continue;
+            }
+            abertos.add(s.sub);
+            const saida = { chave: `${s.chave}#saida`, nome: '', tipo: 'passa', container: s.container };
+            nos.push(saida);
+            for (const a of arestas) if (a.de === s.chave) a.de = saida.chave;
+            const chaves = new Set(dentro.map((n) => n.chave));
+            const entra = new Set(arestas.filter((a) => chaves.has(a.para) && chaves.has(a.de)).map((a) => a.para));
+            const sai = new Set(arestas.filter((a) => chaves.has(a.de)).map((a) => a.de));
+            const inicios = dentro.filter((n) => n.tipo === 'inicio');
+            for (const n of inicios.length ? inicios : dentro.filter((x) => !entra.has(x.chave) && x.tipo !== 'fim')) arestas.push({ de: s.chave, para: n.chave });
+            for (const n of dentro) {
+                if (n.tipo === 'inicio') n.tipo = 'passa';
+                if (n.tipo === 'fim') { n.tipo = 'passa'; arestas.push({ de: n.chave, para: saida.chave }); }
+                else if (n.tipo === 'atividade' && !sai.has(n.chave)) arestas.push({ de: n.chave, para: saida.chave });
+                if (n.tipo === 'atividade') {
+                    n.etapaDe = n.etapaDe ? `${s.nome} › ${n.etapaDe}` : s.nome;
+                    if (!n.unidade && s.unidade) n.unidade = s.unidade;
+                }
+            }
+            s.tipo = 'passa';
+            delete s.sub;
+        }
+    }
+}
+
+/**
+ * Ramos paralelos (desvio AND) ficam em sequência: o fim de cada ramo segue
+ * para o começo do próximo e o último segue para depois da junção. Cada fase
+ * ganha a anotação de com quem corria em paralelo.
+ */
+function sequenciarParalelos(nos, arestas, avisos) {
+    const porChave = new Map(nos.map((n) => [n.chave, n]));
+    const saem = (k) => arestas.filter((a) => a.de === k);
+    const entram = (k) => arestas.filter((a) => a.para === k).length;
+    for (const p of nos.filter((n) => n.paralelo && saem(n.chave).length > 1)) {
+        // Junções contadas antes de mexer nas setas deste desvio.
+        const juncoes = new Set(nos.filter((n) => n.paralelo && entram(n.chave) > 1).map((n) => n.chave));
+        const ehJuncao = (k) => juncoes.has(k);
+        const ramos = saem(p.chave);
+        const percorrer = (inicio) => {
+            const vistos = new Set();
+            const fila = [inicio];
+            while (fila.length && vistos.size < 500) {
+                const k = fila.shift();
+                if (vistos.has(k) || k === p.chave || ehJuncao(k)) continue;
+                vistos.add(k);
+                fila.push(...saem(k).map((a) => a.para));
+            }
+            return vistos;
+        };
+        const membros = ramos.map((r) => percorrer(r.para));
+        const nomesRamo = membros.map((m) => [...m].map((k) => porChave.get(k)).filter((n) => n?.tipo === 'atividade' && n.nome).map((n) => n.nome));
+        membros.forEach((m, i) => {
+            const outros = nomesRamo.filter((_x, j) => j !== i).flat();
+            for (const k of m) {
+                const n = porChave.get(k);
+                if (n?.tipo === 'atividade' && outros.length) n.paraleloCom = unicos([...(n.paraleloCom || []), ...outros]);
+            }
+        });
+        for (let i = 0; i < ramos.length - 1; i++) {
+            const proximo = ramos[i + 1].para;
+            // Saídas do ramo i que vão para a junção (ou para um fim) passam a ir para o ramo seguinte.
+            for (const a of arestas) {
+                if (!membros[i].has(a.de) || membros[i].has(a.para)) continue;
+                if (ehJuncao(a.para) || porChave.get(a.para)?.tipo === 'fim') a.para = proximo;
+            }
+        }
+        for (const r of ramos.slice(1)) arestas.splice(arestas.indexOf(r), 1);
+        if (nomesRamo.flat().length > 1) avisos.push(`Etapas paralelas no arquivo (${nomesRamo.map((n) => n.join(', ')).filter(Boolean).join(' | ')}) ficaram em sequência, porque o processo anda uma fase por vez. Confira a ordem.`);
+    }
+}
+
+/**
+ * Junta um ou mais modelos (BPMN/XPDL, páginas de um pacote) numa proposta.
+ * Processos que nenhum outro chama são os principais; se houver vários sem
+ * mensagem ligando um ao outro, ficam em sequência na ordem do arquivo.
+ */
+export function propostaDeModelos(modelos) {
+    const nos = [];
+    const arestas = [];
+    const containers = [];
+    const avisos = [];
+    for (const m of modelos) { nos.push(...m.nos); arestas.push(...m.arestas); containers.push(...m.containers); avisos.push(...m.avisos); }
+    if (modelos.length > 1) avisos.splice(0, avisos.length, ...avisos.filter((a) => !/^Não parece/.test(a)));
+    const chamados = new Set(nos.map((n) => n.sub).filter(Boolean));
+    const raizes = unicos(containers.map((c) => c.id)).filter((id) => !chamados.has(id) && nos.some((n) => n.container === id && n.tipo === 'atividade'));
+    abrirSubprocessos(nos, arestas, avisos);
+    // Processos principais soltos: o fim de um segue para o início do próximo.
+    const porChave = new Map(nos.map((n) => [n.chave, n]));
+    const recebeMensagem = (id) => arestas.some((a) => a.mensagem && porChave.get(a.para)?.container === id);
+    const nomeDe = (id) => containers.find((c) => c.id === id)?.nome || 'processo sem nome';
+    let anterior = null;
+    const encadeados = [];
+    for (const id of raizes) {
+        if (anterior && !recebeMensagem(id)) {
+            const inicios = nos.filter((n) => n.container === id && n.tipo === 'inicio');
+            const fins = nos.filter((n) => n.container === anterior && n.tipo === 'fim');
+            if (inicios.length && fins.length) {
+                for (const f of fins) { f.tipo = 'passa'; for (const i of inicios) arestas.push({ de: f.chave, para: i.chave }); }
+                for (const i of inicios) i.tipo = 'passa';
+                encadeados.push(nomeDe(id));
+            }
+        }
+        // Só o primeiro processo principal começa o rito; os outros são alcançados por mensagem ou encadeamento.
+        if (anterior) for (const n of nos) if (n.container === id && n.tipo === 'inicio') n.tipo = 'passa';
+        anterior = id;
+    }
+    if (encadeados.length) avisos.push(`${raizes.length} processos do arquivo não se ligam por fluxo; foram postos em sequência (${[nomeDe(raizes[0]), ...encadeados].join(' → ')}). Confira.`);
+    sequenciarParalelos(nos, arestas, avisos);
+    for (const n of nos) {
+        const notas = [n.etapaDe ? `Parte do subprocesso "${n.etapaDe}".` : '', n.paraleloCom?.length ? `No diagrama, corre em paralelo com: ${n.paraleloCom.join(', ')}.` : ''].filter(Boolean);
+        if (notas.length) n.orientacao = [...notas, n.orientacao].filter(Boolean).join(' ').slice(0, 2000);
+    }
+    return propostaDeGrafo(nos, arestas, avisos);
+}
+
+/** BPMN 2.0 (XML): tarefas viram fases, raias (lanes) e piscinas viram unidades. */
+export function propostaDeBpmn(xml) {
+    return propostaDeModelos([modeloDeBpmn(xml)]);
+}
+
+/** XPDL (Bizagi e outros). */
+export function propostaDeXpdl(xml) {
+    return propostaDeModelos([modeloDeXpdl(xml)]);
+}
+
+/** Vários diagramas (as páginas de um pacote do Bizagi): BPMN ou XPDL, juntos. */
+export function propostaDeDiagramas(lista) {
+    const modelos = (lista || []).map(({ xml }) => (/<(\w+:)?definitions\b/.test(xml) ? modeloDeBpmn(xml) : modeloDeXpdl(xml)));
+    if (!modelos.length) return { fases: [], avisos: ['Nenhum diagrama no arquivo'] };
+    const r = propostaDeModelos(modelos);
+    if (lista.length > 1) r.avisos.unshift(`Lidas ${lista.length} páginas do diagrama.`);
+    return r;
 }
 
 /** Texto do <diagram> do draw.io comprimido (deflate cru + base64 + URI). */
@@ -314,6 +584,10 @@ const COLUNAS = {
     proximas: ['proximas', 'proximas fases', 'segue para', 'proxima', 'proxima fase', 'destino', 'encaminhamento', 'encaminhamentos'],
     condicao: ['condicao', 'condicoes', 'se', 'quando', 'decisao', 'alternativa', 'alternativas', 'opcao', 'opcoes'],
     orientacao: ['orientacao', 'orientacoes', 'descricao', 'instrucoes', 'observacao', 'observacoes', 'obs'],
+    // Níveis: a linha é etapa de outra fase (que vira grupo) ou abre a aba de mesmo nome.
+    pai: ['fase pai', 'fase principal', 'etapa principal', 'macroetapa', 'macrofase', 'macroprocesso', 'parte de', 'subprocesso de', 'pertence a', 'grupo'],
+    sub: ['subprocesso', 'sub-processo', 'detalhamento', 'detalhado em', 'ver aba'],
+    paralela: ['paralela', 'paralelo', 'em paralelo', 'paralela com', 'paralelo com', 'simultanea', 'simultanea com', 'concomitante', 'concomitante com'],
 };
 
 /** "Cumprimento (se deferido)", "se deferido: Cumprimento", "Deferido -> Cumprimento". */
@@ -326,23 +600,21 @@ function refComCondicao(ref, nomes) {
     return { alvo: ref, condicao: '' };
 }
 
-/**
- * Planilha (matriz de células). Cabeçalho com qualquer das colunas de COLUNAS,
- * em qualquer ordem. Várias linhas da mesma fase (ou com a célula da fase
- * vazia) somam ações, modelos e saídas. Sem cabeçalho reconhecido, a ordem é
- * Fase | Prazo | Próximas | Orientação.
- */
-export function propostaDeTabela(linhas) {
+/** Fases brutas de uma aba (com as saídas ainda em texto), ou null se a aba não tem cabeçalho de fases. */
+function fasesDaAba(linhas, aceitarSemCabecalho) {
     const rows = (linhas || []).map((r) => (r || []).map((c) => String(c ?? '').trim())).filter((r) => r.some(Boolean));
-    if (!rows.length) return { fases: [], avisos: ['A planilha está vazia'] };
-    const cab = rows[0].map(sem);
+    if (!rows.length) return null;
+    // O cabeçalho pode estar abaixo de um título: vale a primeira das 5 linhas com a coluna da fase.
+    const iCab = rows.slice(0, 5).findIndex((r) => r.map(sem).some((c) => COLUNAS.nome.includes(c)));
+    const temCab = iCab >= 0;
+    if (!temCab && !aceitarSemCabecalho) return null;
+    const cab = temCab ? rows[iCab].map(sem) : [];
     const idx = Object.fromEntries(Object.entries(COLUNAS).map(([k, nomes]) => [k, cab.findIndex((c) => nomes.includes(c))]));
-    const temCab = idx.nome >= 0;
-    const col = temCab ? idx : { nome: 0, prazo: 1, proximas: 2, orientacao: 3, unidade: -1, agente: -1, acoes: -1, modelos: -1, condicao: -1 };
+    const col = temCab ? idx : { nome: 0, prazo: 1, proximas: 2, orientacao: 3 };
     const cel = (r, k) => (col[k] >= 0 ? r[col[k]] || '' : '');
     const fases = [];
     let atual = null;
-    for (const r of temCab ? rows.slice(1) : rows) {
+    for (const r of temCab ? rows.slice(iCab + 1) : rows) {
         const nomeCel = cel(r, 'nome');
         if (nomeCel) {
             const { nome, prazo_dias } = nomeEPrazo(nomeCel);
@@ -355,6 +627,10 @@ export function propostaDeTabela(linhas) {
         if (prazo > 0 && !atual.prazo_dias) atual.prazo_dias = prazo;
         if (cel(r, 'unidade') && !atual.unidade) atual.unidade = cel(r, 'unidade');
         if (cel(r, 'agente') && !atual.agente) atual.agente = cel(r, 'agente');
+        if (cel(r, 'pai') && !atual._pai) atual._pai = cel(r, 'pai');
+        if (cel(r, 'sub') && !atual._sub) atual._sub = cel(r, 'sub');
+        const par = cel(r, 'paralela');
+        if (par && !/^(nao|n|nenhuma|-)$/.test(sem(par))) atual._paralela = /^(sim|s|x)$/.test(sem(par)) ? 'sim' : par;
         atual.acoes.push(...lista(cel(r, 'acoes')));
         atual.modelos.push(...lista(cel(r, 'modelos')).flatMap((m) => m.split(/\s*,\s*/)));
         if (cel(r, 'orientacao')) atual._orient.push(cel(r, 'orientacao'));
@@ -362,9 +638,86 @@ export function propostaDeTabela(linhas) {
         const conds = lista(cel(r, 'condicao'));
         refs.forEach((ref, i) => atual._saidas.push({ ref, condicao: conds[i] || (refs.length === 1 ? conds.join(' ') : '') }));
     }
+    return fases;
+}
+
+/** Planilha de uma aba só (matriz de células). Ver `propostaDeAbas`. */
+export function propostaDeTabela(linhas) {
+    return propostaDeAbas([{ nome: '', linhas }]);
+}
+
+/**
+ * Planilha (uma ou várias abas, ou as várias tabelas de um Word). Cabeçalho
+ * com qualquer das colunas de COLUNAS, em qualquer ordem (até a 5ª linha).
+ * Várias linhas da mesma fase (ou com a célula da fase vazia) somam ações,
+ * modelos e saídas. Sem cabeçalho reconhecido, só numa aba única, a ordem é
+ * Fase | Prazo | Próximas | Orientação.
+ *
+ * Com várias abas, todas são lidas:
+ * - aba com o nome de uma fase de outra aba (ou citada na coluna
+ *   "Subprocesso") detalha essa fase: as etapas dela entram no lugar da fase;
+ * - a coluna "Fase principal"/"Macroetapa" faz o mesmo dentro da aba;
+ * - "Segue para" pode citar fase de qualquer aba, ou o nome de uma aba;
+ * - abas principais sem ligação entre si ficam em sequência, na ordem;
+ * - a coluna "Paralela" vira anotação (o processo anda uma fase por vez).
+ */
+export function propostaDeAbas(abas) {
     const avisos = [];
-    const nomes = new Set(fases.map((f) => sem(f.nome)));
-    const porNome = new Map(fases.map((f) => [sem(f.nome), f.id]));
+    const lidas = [];
+    const validas = (abas || []).filter((a) => (a.linhas || []).some((r) => (r || []).some((c) => String(c ?? '').trim())));
+    for (const aba of validas) {
+        const fases = fasesDaAba(aba.linhas, validas.length === 1);
+        if (fases?.length) lidas.push({ nome: String(aba.nome || ''), fases });
+    }
+    if (!lidas.length) return { fases: [], avisos: [validas.length ? 'Nenhuma aba com fases. A primeira linha precisa ter os títulos das colunas (Fase, Unidade, Responsável, Prazo, Ações, Documentos, Segue para, Condição).' : 'A planilha está vazia'] };
+    const todas = lidas.flatMap((a) => a.fases.map((f) => Object.assign(f, { _aba: a })));
+    const porNome = new Map();
+    for (const f of todas) if (!porNome.has(sem(f.nome))) porNome.set(sem(f.nome), f);
+    const abaPorNome = new Map(lidas.map((a) => [sem(a.nome), a]));
+    // Níveis: filhos de cada fase (coluna "Fase principal" e abas de detalhamento).
+    const filhos = new Map();
+    const grupos = new Map(); // fase -> nome do grupo que não é fase (só anotação)
+    const abasUsadas = new Set();
+    for (const f of todas) {
+        if (!f._pai) continue;
+        const pai = porNome.get(sem(f._pai));
+        if (pai && pai !== f) { if (!filhos.has(pai)) filhos.set(pai, []); filhos.get(pai).push(f); f._temPai = true; } else grupos.set(f, f._pai);
+    }
+    for (const f of todas) {
+        const aba = abaPorNome.get(sem(f._sub || '')) || (lidas.length > 1 ? lidas.find((a) => a !== f._aba && sem(a.nome) === sem(f.nome)) : null);
+        if (!aba || aba === f._aba || abasUsadas.has(aba)) continue;
+        abasUsadas.add(aba);
+        const etapas = aba.fases.filter((x) => !x._temPai && x !== f);
+        if (!filhos.has(f)) filhos.set(f, []);
+        for (const x of etapas) { filhos.get(f).push(x); x._temPai = true; }
+    }
+    const principais = lidas.filter((a) => !abasUsadas.has(a));
+    // Ordem final: cada grupo é trocado pelas etapas dele, recursivamente.
+    const fases = [];
+    const vistos = new Set();
+    const caminho = new Map(); // fase folha -> nomes dos grupos acima
+    const emitir = (f, acima) => {
+        if (vistos.has(f)) return;
+        vistos.add(f);
+        if (filhos.has(f)) { for (const c of filhos.get(f)) emitir(c, [...acima, f]); return; }
+        if (acima.length) caminho.set(f, acima);
+        fases.push(f);
+    };
+    for (const a of lidas) for (const f of a.fases) if (!f._temPai) emitir(f, []);
+    for (const f of todas) if (!vistos.has(f)) emitir(f, []); // ciclo de "fase principal": entra solto
+    const primeira = (f) => (filhos.has(f) && filhos.get(f).length ? primeira(filhos.get(f)[0]) : f);
+    const ultima = (f) => (filhos.has(f) && filhos.get(f).length ? ultima(filhos.get(f)[filhos.get(f).length - 1]) : f);
+    // As saídas do grupo passam para a última etapa dele (se ela não tem as suas).
+    for (const g of filhos.keys()) {
+        const u = ultima(g);
+        if (u !== g && !u._saidas.length && !u.final) u._saidas.push(...g._saidas);
+        for (const c of fases) if (caminho.get(c)?.includes(g)) {
+            if (!c.unidade && g.unidade) c.unidade = g.unidade;
+            if (!c.agente && g.agente) c.agente = g.agente;
+        }
+    }
+    const nomes = new Set([...porNome.keys()]);
+    const idDe = (f) => primeira(f).id;
     for (const f of fases) {
         const proximas = [];
         const condicoes = {};
@@ -372,22 +725,34 @@ export function propostaDeTabela(linhas) {
             if (/^(fim|final|encerra(mento)?|encerrar|-)$/.test(sem(s.ref))) { if (!f._saidas.some((x) => x !== s && porNome.has(sem(refComCondicao(x.ref, nomes).alvo)))) f.final = true; continue; }
             const n = Number(s.ref);
             const { alvo, condicao } = refComCondicao(s.ref, nomes);
-            const id = Number.isInteger(n) && fases[n - 1] ? fases[n - 1].id : porNome.get(sem(alvo));
-            if (!id) { avisos.push(`"${f.nome}" segue para "${s.ref}", que não está na planilha`); continue; }
+            const daAba = f._aba.fases;
+            const destino = Number.isInteger(n) && daAba[n - 1] ? daAba[n - 1] : porNome.get(sem(alvo)) || abaPorNome.get(sem(alvo))?.fases[0];
+            if (!destino) { avisos.push(`"${f.nome}" segue para "${s.ref}", que não está na planilha`); continue; }
+            const id = idDe(destino);
+            if (id === f.id) continue;
             if (!proximas.includes(id)) proximas.push(id);
             const c = s.condicao || condicao;
             if (c) condicoes[id] = c.slice(0, 80);
         }
         f.proximas = proximas;
         if (Object.keys(condicoes).length) f.condicoes = condicoes;
-        if (f._orient.length) f.orientacao = unicos(f._orient).join('\n');
+        const notas = [];
+        if (caminho.has(f)) notas.push(`Parte de "${caminho.get(f).map((g) => g.nome).join(' › ')}".`);
+        if (grupos.has(f)) notas.push(`Etapa: ${grupos.get(f)}.`);
+        if (f._paralela) notas.push(f._paralela === 'sim' ? 'Pode correr em paralelo com outras etapas.' : `Corre em paralelo com: ${f._paralela}.`);
+        const orient = [...notas, ...unicos(f._orient)];
+        if (orient.length) f.orientacao = orient.join('\n').slice(0, 2000);
         f.acoes = unicos(f.acoes);
         f.modelos = unicos(f.modelos);
         if (!f.acoes.length) delete f.acoes;
         if (!f.modelos.length) delete f.modelos;
-        delete f._saidas;
-        delete f._orient;
+        for (const k of ['_saidas', '_orient', '_aba', '_pai', '_sub', '_paralela', '_temPai']) delete f[k];
     }
+    if (lidas.length > 1) {
+        avisos.unshift(`Lidas ${lidas.length} abas: ${lidas.map((a) => a.nome || 'sem nome').join(', ')}.`);
+        if (principais.length > 1) avisos.push(`As abas ${principais.map((a) => `"${a.nome}"`).join(', ')} ficaram em sequência, nessa ordem. Confira se é isso.`);
+    }
+    if (fases.some((f) => /em paralelo/.test(f.orientacao || ''))) avisos.push('Etapas marcadas como paralelas ficaram em sequência, porque o processo anda uma fase por vez. A anotação fica na orientação da fase.');
     return { fases: simplificar(fases), avisos };
 }
 
@@ -395,7 +760,8 @@ export function propostaDeTabela(linhas) {
 
 const CABECALHO_FASE = [
     /^(?:#{1,4}\s*)?(?:fase|etapa|passo)\s*(?:n[ºo°.]?\s*)?(\d{1,2}|[ivxl]{1,5})?\s*[-–—:.)]?\s*(.+)$/i,
-    /^(?:#{1,4}\s*)?(\d{1,2})\s*[.)–—-]\s+(.{2,120})$/,
+    // "1. Nome", "1) Nome" e "1.Nome" (o PDF às vezes perde o espaço); "1.1 Nome" não é fase.
+    /^(?:#{1,4}\s*)?(\d{1,2})\s*[.)–—-]\s*(?=[A-Za-zÀ-ÿ"“(])(.{2,120})$/,
     /^#{1,4}\s+(.{2,120})$/,
 ];
 const CHAVES = [
@@ -503,6 +869,7 @@ export async function propostaDeConteudo(texto, nomeArquivo = '') {
     const t = String(texto || '');
     const ext = (nomeArquivo.split('.').pop() || '').toLowerCase();
     if (/<(\w+:)?definitions\b[\s\S]*bpmn/i.test(t) || ext === 'bpmn') return { ...propostaDeBpmn(t), origem: 'BPMN' };
+    if (/<(\w+:)?(Package|WorkflowProcesses)\b/.test(t) || ext === 'xpdl') return { ...propostaDeXpdl(t), origem: 'XPDL' };
     if (/<mxfile\b|<mxGraphModel\b/.test(t) || ext === 'drawio') return { ...(await propostaDeDrawio(t)), origem: 'draw.io' };
     if (/^\s*(flowchart|graph)\s+(TD|TB|BT|LR|RL)\b/im.test(t) || ext === 'mmd') return { ...propostaDeMermaid(t), origem: 'Mermaid' };
     // Tabela colada (separada por tabulação) com cabeçalho reconhecível.

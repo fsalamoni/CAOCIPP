@@ -43,7 +43,7 @@ function ehParte(proc, uid) {
 exports.MAX_TEXTO_CURTO = 200;
 exports.MAX_TEXTO_LONGO = 4000;
 exports.MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-exports.MAX_FASES = 30;
+exports.MAX_FASES = 60;
 exports.MAX_ACOES = 20;
 exports.MAX_MODELOS_FASE = 10;
 exports.TIPOS_ARQUIVO_PERMITIDOS = {

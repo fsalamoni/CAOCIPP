@@ -12,15 +12,17 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
-import { propostaDeConteudo, propostaDeTabela, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
+import { propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
 import { modelosDeRito, novoIdFase } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 import { baixarPlanilha } from './RitoEditor';
 import { TIPOS_UNIDADE } from './comum';
 
 const MAX_MB = 5;
-const ACEITOS = '.xlsx,.xls,.csv,.ods,.docx,.pdf,.txt,.md,.bpmn,.xml,.drawio,.mmd';
+const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
+const ACEITOS = '.xlsx,.xlsm,.xls,.csv,.ods,.docx,.pdf,.txt,.md,.bpm,.bpmn,.xpdl,.xml,.drawio,.mmd';
 const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const MIME_BIZAGI = 'application/x-bizagi-bpm';
 const campo = 'h-9 rounded-md border border-input bg-transparent dark:bg-slate-900 px-2 text-sm';
 const chaveRascunho = (orgId) => `rito-rascunho-${orgId}`;
 const lerRascunho = (orgId) => { try { return JSON.parse(localStorage.getItem(chaveRascunho(orgId)) || 'null'); } catch { return null; } };
@@ -29,6 +31,7 @@ const lerRascunho = (orgId) => { try { return JSON.parse(localStorage.getItem(ch
 export function pendenciasDaProposta(p) {
     const out = [];
     const ids = new Set(p.fases.map((f) => f.id));
+    if (p.fases.length > MAX_FASES) out.push({ fase: p.fases[MAX_FASES].id, grave: true, texto: `O rito tem ${p.fases.length} fases; o máximo é ${MAX_FASES}. Junte ou remova fases (os detalhes podem virar ações de uma fase).` });
     p.fases.forEach((f, i) => {
         const rot = f.nome.trim() || `Fase ${i + 1}`;
         if (!f.nome.trim()) out.push({ fase: f.id, grave: true, texto: `${rot} está sem nome.` });
@@ -49,23 +52,25 @@ export function pendenciasDaProposta(p) {
 /** Lê o arquivo e devolve a proposta (sem vínculo com o órgão). */
 async function lerArquivo(file, orgId) {
     const ext = file.name.split('.').pop().toLowerCase();
-    if (['xlsx', 'xls', 'csv', 'ods'].includes(ext)) {
+    if (['xlsx', 'xlsm', 'xls', 'csv', 'ods'].includes(ext)) {
         const XLSX = await import('xlsx');
         const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-        for (const nome of wb.SheetNames) {
-            const r = propostaDeTabela(XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, raw: false, blankrows: false, defval: '' }));
-            if (r.fases.length) return { ...r, origem: `planilha (aba ${nome})` };
-        }
-        return { fases: [], avisos: ['Nenhuma aba com fases. A primeira linha precisa ter os títulos das colunas (Fase, Unidade, Responsável, Prazo, Ações, Documentos, Segue para, Condição).'] };
+        // Todas as abas: as que detalham uma fase entram no lugar dela; as demais, em sequência.
+        const abas = wb.SheetNames.map((nome) => ({ nome, linhas: XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, raw: false, blankrows: false, defval: '' }) }));
+        const r = propostaDeAbas(abas);
+        return { ...r, origem: abas.length > 1 ? `planilha (${abas.length} abas)` : 'planilha' };
     }
-    if (ext === 'docx' || ext === 'pdf') {
-        const r = await secConfig(orgId, 'extrairTextoRito', { arquivo: { base64: await arquivoParaBase64(file), mime: ext === 'pdf' ? 'application/pdf' : MIME_DOCX, nome: file.name } });
-        // Tabela do Word com coluna "Fase" vale mais que o texto corrido.
-        for (const t of r.tabelas || []) {
-            const p = propostaDeTabela(t);
-            if (p.fases.length > 1) return { ...p, origem: 'tabela do Word' };
-        }
-        return { ...propostaDeTexto(r.texto), origem: ext === 'pdf' ? 'texto do PDF' : 'texto do Word' };
+    if (ext === 'docx' || ext === 'pdf' || ext === 'bpm') {
+        const mime = ext === 'pdf' ? 'application/pdf' : ext === 'bpm' ? MIME_BIZAGI : MIME_DOCX;
+        const r = await secConfig(orgId, 'extrairTextoRito', { arquivo: { base64: await arquivoParaBase64(file), mime, nome: file.name } });
+        if (ext === 'bpm') return { ...propostaDeDiagramas(r.diagramas || []), origem: 'Bizagi' };
+        // Tabelas do Word com coluna "Fase" valem mais que o texto corrido (todas, como abas).
+        const tabelas = (r.tabelas || []).map((linhas, i) => ({ nome: `Tabela ${i + 1}`, linhas }));
+        const p = tabelas.length ? propostaDeAbas(tabelas) : { fases: [] };
+        if (p.fases.length > 1) return { ...p, origem: 'tabela do Word' };
+        const t = propostaDeTexto(r.texto);
+        if (!t.fases.length && ext === 'pdf') t.avisos = ['Li o PDF, mas não achei fases. Use títulos como "Fase 1 – Autuação" ou "1. Autuação" (um por fase), ou envie o diagrama (Bizagi, BPMN) ou uma planilha.'];
+        return { ...t, origem: ext === 'pdf' ? 'texto do PDF' : 'texto do Word' };
     }
     return propostaDeConteudo(await file.text(), file.name);
 }
@@ -145,12 +150,12 @@ export default function PropostaRito({ aberto, orgId, estado, onFechar, onIr }) 
                             <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center cursor-pointer border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-400 ${lendo ? 'opacity-60 pointer-events-none' : ''}`}>
                                 {lendo ? <Loader2 className="w-7 h-7 animate-spin text-indigo-600" aria-hidden /> : <FileUp className="w-7 h-7 text-indigo-600" aria-hidden />}
                                 <span className="font-medium">{lendo ? 'Lendo…' : 'Escolher arquivo'}</span>
-                                <span className="text-xs text-slate-600">Planilha (Excel, CSV), Word, PDF, BPMN, draw.io, Mermaid ou texto · até {MAX_MB} MB</span>
+                                <span className="text-xs text-slate-600">Planilha (Excel, CSV, todas as abas), Word, PDF, Bizagi (.bpm), BPMN, XPDL, draw.io, Mermaid ou texto · até {MAX_MB} MB</span>
                                 <input type="file" accept={ACEITOS} className="sr-only" onChange={escolher} disabled={lendo} />
                             </label>
                             <div className="grid sm:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-300">
-                                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3"><b className="block mb-1">Planilha</b>Uma linha por fase ou por atividade. Colunas: Fase, Unidade, Responsável, Prazo, Ações, Documentos, Segue para, Condição, Orientação.</div>
-                                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3"><b className="block mb-1">Diagrama</b>BPMN (Bizagi, Camunda, bpmn.io), draw.io ou Mermaid. Raias viram unidades; losangos, alternativas com a condição da seta.</div>
+                                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3"><b className="block mb-1">Planilha</b>Uma linha por fase ou por atividade. Colunas: Fase, Unidade, Responsável, Prazo, Ações, Documentos, Segue para, Condição, Orientação. Todas as abas são lidas: a aba com o nome de uma fase detalha essa fase.</div>
+                                <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3"><b className="block mb-1">Diagrama</b>Bizagi (.bpm, com todas as páginas), BPMN, XPDL, draw.io ou Mermaid. Raias viram unidades; losangos, alternativas; subprocessos se abrem em etapas.</div>
                                 <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3"><b className="block mb-1">Texto</b>Word, PDF ou TXT com "Fase 1 – Nome", "Unidade:", "Responsável:", "Prazo de N dias", itens e "Se…, segue para…".</div>
                             </div>
                             <div>

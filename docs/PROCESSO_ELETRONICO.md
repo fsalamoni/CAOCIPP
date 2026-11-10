@@ -138,26 +138,58 @@ Em Ritos, **Importar de arquivo** lê o desenho do rito e propõe o rito
 completo: fases, unidade de cada fase, quem faz, ações, modelos de documento,
 encaminhamentos e alternativas com condição. Nada é gravado até o admin
 revisar e confirmar. A leitura é estruturada, sem IA
-(`src/lib/propostaRito.js`, testada em `src/lib/propostaRito.test.js`).
+(`src/lib/propostaRito.js`, testada em `src/lib/propostaRito.test.js` e
+`src/lib/propostaRitoNiveis.test.js`; a parte do servidor em
+`functions-v2/test/importarRito.test.js`).
 
-- **Planilha** (.xlsx, .xls, .ods, .csv, lida no navegador): colunas com
-  cabeçalho, em qualquer ordem, entre Fase, Unidade/Setor, Responsável/Quem
-  faz, Ações, Documentos/Modelos, Segue para, Condição, Prazo e Orientação.
-  Linhas seguidas com o mesmo nome de fase são juntadas (uma linha por
-  encaminhamento ou por ação). "Segue para" aceita nome ou número da linha e
-  "Se X: Fase Y".
+- **Planilha** (.xlsx, .xlsm, .xls, .ods, .csv, lida no navegador): colunas com
+  cabeçalho (na 1ª linha ou até a 5ª, abaixo de um título), em qualquer ordem,
+  entre Fase/Etapa, Unidade/Setor, Responsável/Quem faz, Ações,
+  Documentos/Modelos, Segue para, Condição, Prazo, Orientação, Fase principal
+  (ou Macroetapa), Subprocesso e Paralela. Linhas seguidas com o mesmo nome de
+  fase são juntadas (uma linha por encaminhamento ou por ação). "Segue para"
+  aceita nome ou número da linha, "Se X: Fase Y", fase de outra aba ou o nome
+  de uma aba (vai para a primeira fase dela).
+  **Todas as abas são lidas** (`propostaDeAbas`); abas sem a coluna de fase
+  (legenda, instruções) são puladas. Níveis: a aba com o nome de uma fase de
+  outra aba (ou citada na coluna Subprocesso) detalha essa fase, e as etapas
+  dela entram no lugar da fase; a coluna Fase principal faz o mesmo dentro da
+  aba. As etapas herdam unidade e quem faz do grupo, as saídas do grupo passam
+  para a última etapa e a orientação diz "Parte de "Instrução › Requisições"".
+  Abas principais sem ligação entre si ficam em sequência, na ordem, com aviso.
 - **Word e PDF** (texto extraído pela function `extrairTextoRito`): se o Word
-  tem tabela com coluna de fase, ela é lida como planilha. Senão, o texto: "Fase
-  1 – Nome", "1. Nome" ou títulos abrem fase; linhas "Unidade:", "Responsável:",
-  "Documentos:", "Segue para:", "Prazo:" e "Orientação:" preenchem a fase;
-  marcadores viram ações; "Se X, segue para Y" vira alternativa. A primeira
-  linha antes de qualquer fase vira o nome do rito.
-- **Diagramas:** BPMN 2.0 (.bpmn, Camunda, Bizagi; raias viram unidades,
-  tarefas viram fases, gateways viram alternativas com o rótulo da seta como
-  condição, objetos de dados viram modelos, anotações viram orientação),
-  draw.io (.drawio, inclusive comprimido; raias, losangos de decisão, formas de
-  documento) e Mermaid (`subgraph` vira unidade, `{}` vira decisão, rótulo da
-  seta vira condição). Também dá para colar o texto.
+  tem tabelas com coluna de fase, todas são lidas como abas de uma planilha.
+  Senão, o texto: "Fase 1 – Nome", "1. Nome" (também "1.Nome", como o PDF
+  costuma sair) ou títulos abrem fase; "1.1 Nome" e marcadores viram ações;
+  linhas "Unidade:", "Responsável:", "Documentos:", "Segue para:", "Prazo:" e
+  "Orientação:" preenchem a fase; "Se X, segue para Y" vira alternativa. A
+  primeira linha antes de qualquer fase vira o nome do rito. No PDF (todas as
+  páginas, até 30), pedaços de texto separados por um vão ganham espaço e o
+  cabeçalho e o rodapé que se repetem nas páginas (data de impressão, endereço,
+  "1/8") saem. PDF sem texto (digitalizado) e PDF sem fases dão mensagem que diz
+  o que enviar no lugar.
+- **Diagramas:** BPMN 2.0 (.bpmn, Camunda, Bizagi, bpmn.io), XPDL 2.x (.xpdl,
+  exportação do Bizagi e de outras ferramentas) e o **pacote do Bizagi Modeler
+  (.bpm)**: a function `extrairTextoRito` abre o ZIP e os ZIPs das páginas
+  (`.diag`, até 3 níveis, até 500 entradas, 40 diagramas e 6 MB de XML) e
+  devolve os `Diagram.xml`; o navegador lê **todas as páginas juntas**
+  (`propostaDeDiagramas`). Raias viram unidades, tarefas viram fases, desvios
+  exclusivos e inclusivos viram alternativas com o rótulo da seta como
+  condição, objetos de dados viram modelos, anotações e descrições viram
+  orientação. Níveis e páginas (`propostaDeModelos`): subprocesso embutido
+  (`subProcess`, `BlockActivity`) e chamada de subprocesso de outra página
+  (`callActivity`, `SubFlow`) se abrem no lugar da atividade (entra pelo
+  início de dentro, sai pelo fim de dentro, com "Parte do subprocesso" na
+  orientação); mensagens entre piscinas ligam um processo ao outro; processos
+  principais soltos ficam em sequência, com aviso. Também: draw.io (.drawio,
+  inclusive comprimido; raias, losangos de decisão, formas de documento) e
+  Mermaid (`subgraph` vira unidade, `{}` vira decisão, rótulo da seta vira
+  condição). Também dá para colar o texto ou o XML.
+- **Etapas paralelas:** o processo eletrônico anda uma fase por vez, então
+  ramos paralelos (desvio paralelo/AND no diagrama, coluna Paralela na
+  planilha) ficam em sequência: o fim de cada ramo segue para o começo do
+  próximo e o último segue para depois da junção. A fase ganha "corre em
+  paralelo com: …" na orientação e a revisão mostra um aviso.
 
 **Revisão** (`PropostaRito.jsx`): cada fase em cartão, com nome, prazo,
 unidade (existente, nova ou nenhuma), quem faz, ações, modelos, encaminhamentos
@@ -719,8 +751,14 @@ O portal das partes mostra o diagrama sem as orientações internas.
   de texto (limite do mammoth); do PDF só vem texto, até 30 páginas. Campo que
   o Word dividiu entre parágrafos não é preenchido no original. Desativar um
   modelo original não apaga o arquivo do Storage (trocar o arquivo sobrescreve).
-- Importação de ritos: até 30 unidades e 60 modelos novos por implantação. Do
-  PDF só vem o texto (sem tabelas nem desenhos); fluxograma em imagem ou PDF
-  desenhado não é lido, só BPMN, draw.io e Mermaid. Unidades criadas pelo rito
+- Importação de ritos: até 60 fases por rito (`MAX_FASES`; a revisão aponta
+  o excesso), 30 unidades e 60 modelos novos por implantação. Do PDF só vem o
+  texto (sem tabelas nem desenhos); fluxograma em imagem ou PDF desenhado
+  (inclusive o PDF de documentação do Bizagi) não é lido como fluxo, só
+  Bizagi (.bpm), BPMN, XPDL, draw.io e Mermaid. Etapas paralelas viram
+  sequência (não há tramitação em paralelo). O formato interno do .bpm não é
+  publicado pelo Bizagi: a leitura segue o pacote conhecido (ZIP com `.diag` e
+  `Diagram.xml` em XPDL); se uma versão gravar diferente, a mensagem pede a
+  exportação em BPMN ou XPDL. Visio (.vsdx) e ODT não são lidos. Unidades criadas pelo rito
   nascem sem equipe e os modelos criados são esqueletos para completar. A
   unidade da fase é sugestão: tramitar continua sendo um ato da equipe.
