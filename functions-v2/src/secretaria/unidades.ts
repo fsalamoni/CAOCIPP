@@ -8,6 +8,8 @@ import { sendEmail } from '../shared/email';
 import { COL, Contexto, erroUsuario, exigirAdmin, exigirGestor } from './context';
 import { APP_URL } from './autos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
+import { sanitizeCompetencias } from '../shared/orgaos';
+import { lerOrgaos } from './orgaos';
 
 /**
  * Unidades de lotação do Processo Eletrônico: dados, equipe (lotações com
@@ -40,12 +42,18 @@ export async function salvarUnidade(c: Contexto, p: Payload, uid: string, audita
     const lotacoes = sanitizeLotacoes(u.lotacoes ?? (Array.isArray(u.membros_uids) ? u.membros_uids.map((x) => ({ uid: x })) : []));
     await exigirMembros(c, lotacoes.map((l) => l.uid));
     const agora = FieldValue.serverTimestamp();
+    // Órgão interno a que a unidade pertence (vazio = ligada direto à entidade).
+    const orgaoId = String(u.orgao_id || '');
+    if (c.ctx.isAdmin && orgaoId && !(await lerOrgaos(c.db, c.orgId)).some((o) => o.id === orgaoId)) {
+        throw new HttpsError('invalid-argument', 'Órgão interno inválido');
+    }
+    const competencias = sanitizeCompetencias(u.competencias);
     if (p.id) {
         const atual = exigirGestor(c, p.id);
         // O gestor (sem ser admin) cuida da equipe e da descrição; nome, tipo
         // e ativação são do admin do órgão.
         const dados: Record<string, unknown> = c.ctx.isAdmin
-            ? { nome: texto(u.nome) || atual.nome, sigla: texto(u.sigla, 20), tipo: tipoUnidade(u.tipo), ativa: u.ativa !== false }
+            ? { nome: texto(u.nome) || atual.nome, sigla: texto(u.sigla, 20), tipo: tipoUnidade(u.tipo), ativa: u.ativa !== false, ...('orgao_id' in u ? { orgao_id: orgaoId || null } : {}) }
             : {};
         if (c.ctx.isAdmin && !texto(u.nome)) throw new HttpsError('invalid-argument', 'A unidade precisa de um nome');
         // Gestor não tira a própria gestão (evita unidade sem ninguém que a gerencie por engano).
@@ -53,7 +61,7 @@ export async function salvarUnidade(c: Contexto, p: Payload, uid: string, audita
             throw new HttpsError('failed-precondition', 'Você não pode tirar a sua própria gestão da unidade; peça ao admin do órgão');
         }
         await c.db.collection(COL.unidades).doc(atual.id).update({
-            ...dados, descricao: texto(u.descricao, 500), ...camposLotacao(lotacoes), updated_at: agora, updated_by: uid,
+            ...dados, descricao: texto(u.descricao, 500), ...('competencias' in u ? { competencias } : {}), ...camposLotacao(lotacoes), updated_at: agora, updated_by: uid,
         });
         await auditar('SECRETARIA_UNIDADE_SALVA', { unidade_id: atual.id, nome: dados.nome || atual.nome, lotacoes: lotacoes.length });
         return { success: true, id: atual.id };
@@ -64,7 +72,7 @@ export async function salvarUnidade(c: Contexto, p: Payload, uid: string, audita
     if (c.unidades.length >= MAX_UNIDADES) throw new HttpsError('resource-exhausted', 'Limite de unidades atingido');
     const ref = await c.db.collection(COL.unidades).add({
         organization_id: c.orgId, nome, sigla: texto(u.sigla, 20), tipo: tipoUnidade(u.tipo), descricao: texto(u.descricao, 500),
-        ativa: u.ativa !== false, ...camposLotacao(lotacoes), pedidos: [], created_at: agora, created_by: uid,
+        orgao_id: orgaoId || null, competencias, ativa: u.ativa !== false, ...camposLotacao(lotacoes), pedidos: [], created_at: agora, created_by: uid,
     });
     await auditar('SECRETARIA_UNIDADE_SALVA', { unidade_id: ref.id, nome, lotacoes: lotacoes.length });
     return { success: true, id: ref.id };

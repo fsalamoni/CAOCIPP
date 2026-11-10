@@ -415,6 +415,38 @@ Intimação, notificação, citação, ciência e comunicação. Lógica pura em
   tem `portal_partes` e na página do Portal).
 - **Testes:** `functions-v2/test/comunicacoes.test.js`.
 
+## Órgãos internos (nov/2026)
+
+A entidade é **singular** (sem órgãos internos; as unidades ficam ligadas
+direto a ela) ou **composta** por órgãos em árvore.
+
+- **Dados:** `secConfig/{orgId}.orgaos`, lista de até 60 órgãos e 6 níveis:
+  `id, nome, sigla, natureza, pai_id, decisao (singular|colegiada),
+  titular_cargo, titular_uid, competencias[], descricao, ordem, ativo`. A
+  unidade (`secUnidades`) ganhou `orgao_id` e `competencias[]`; o tipo de
+  processo (`secTipos`) ganhou `orgao_id`. O processo não guarda o órgão:
+  ele é o da unidade atual.
+- **Regras puras:** `functions-v2/src/shared/orgaos.ts` (`sanitizeOrgao`,
+  `validarEstrutura`: sem ciclo, superior existente, nome único entre irmãos,
+  limites; `emArvore`; `sanitizeProposta`). A lista é validada inteira, em
+  transação, a cada gravação (`functions-v2/src/secretaria/orgaos.ts`).
+- **Ações de `secretariaConfig`** (só admin): `salvarOrgao {id?, orgao}`,
+  `removerOrgao {id}` (recusa órgão com unidades ou subordinados) e
+  `criarEstrutura {orgaos: [{chave, pai_chave, ..., unidades: [{nome, tipo}]}]}`
+  (assistente; soma aos existentes). `estado` devolve `orgaos` na ordem do
+  organograma, com `nivel`. `salvarUnidade` e `salvarTipo` validam
+  `orgao_id` e só o alteram quando o campo vem no pedido.
+- **Processo:** `autuar` recusa tipo de um órgão por unidade de outro;
+  `tramitar` entre órgãos diferentes escreve "Remetido de Órgão › Unidade
+  para Órgão › Unidade" e grava `orgao_de`/`orgao_para` nos dados do
+  movimento.
+- **Telas:** `src/components/secretaria/Orgaos.jsx` (aba Estrutura,
+  organograma, formulário do órgão, assistente) e `src/lib/orgaos.js`
+  (rótulos, estruturas de exemplo, `unidadeComOrgao`).
+- **Fora desta entrega:** modelos de documento por órgão (hoje são da
+  entidade ou da unidade) e painel por órgão.
+- **Testes:** `functions-v2/test/orgaos.test.js`, `src/lib/orgaos.test.js`.
+
 ## Meus Processos Eletrônicos (nov/2026)
 
 Página `src/pages/MeusProcessosEletronicos.jsx` (rota

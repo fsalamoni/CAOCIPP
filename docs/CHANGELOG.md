@@ -5,6 +5,27 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Órgãos internos da entidade
+- Nova aba **Estrutura** na configuração do Processo Eletrônico. A entidade
+  pode continuar singular (só com as suas unidades) ou ser composta por
+  **órgãos internos** em árvore (conselhos, presidência, diretorias,
+  comissões), cada um com natureza, órgão superior, quem decide (titular ou
+  colegiado), cargo e pessoa titular, competências e as próprias unidades.
+- **Organograma** em lista recuada, com as unidades de cada órgão e aviso de
+  órgão sem unidade. **Assistente "Montar estrutura"**: parte de um exemplo
+  (federação ou associação, colegiado com câmaras, instituição com
+  departamentos, ou em branco), ajusta os órgãos vendo a prévia e cria órgãos
+  e unidades de uma vez.
+- Unidades: campo **Órgão interno a que pertence** e **Atribuições da
+  unidade**. A aba Unidades e equipes agrupa por órgão.
+- **Remessa entre órgãos**: o destino aparece como "Órgão › Unidade", a tela
+  avisa quando a remessa sai de um órgão para outro e o termo registra os
+  dois. Listas, filtros e o processo mostram a unidade com o órgão.
+- **Tipo de processo de um órgão**: só as unidades daquele órgão autuam; o
+  "Novo processo" já filtra tipos e unidades.
+- Órgão só é removido quando vazio (sem unidades e sem subordinados); pode
+  ser desativado. Nada muda para quem não cria órgãos internos.
+
 ### 10/11/2026 — Meus Processos Eletrônicos
 - Nova página **Meus Processos Eletrônicos**, logo abaixo de Meu Perfil no
   menu, para quem é parte ou representante em algum processo (de qualquer

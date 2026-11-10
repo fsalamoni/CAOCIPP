@@ -25,6 +25,7 @@ import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
+import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 
 const MAX_MB = 5;
@@ -84,7 +85,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const unidadeAtual = estado.unidades.find((u) => u.id === p.unidade_atual);
     const noGabinete = unidadeAtual?.tipo === 'gabinete';
     const naSecretaria = (unidadeAtual?.tipo || 'secretaria') === 'secretaria';
-    const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || id;
+    const nomeUnidade = (id) => unidadeComOrgao(estado, id, id);
     const atualizar = () => {
         qc.invalidateQueries({ queryKey: ['sec-proc', orgId, procId] });
         qc.invalidateQueries({ queryKey: ['sec-processos', orgId] });
@@ -770,11 +771,14 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
         const uDest = estado.unidades.find((u) => u.id === destino);
         const recebem = uDest ? estado.membros.filter((m) => uDest.membros_uids.includes(m.uid)) : [];
         const faseNova = acao.fase_id ? p.fases.find((f) => f.id === acao.fase_id) : null;
-        const rot = (u) => `${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})${u.id === acao.destino ? ' · indicada pelo rito' : passou.includes(u.id) ? ' · já passou por aqui' : ''}`;
+        const orgaoAtual = estado.unidades.find((u) => u.id === p.unidade_atual)?.orgao_id || null;
+        const outroOrgao = !!uDest && (uDest.orgao_id || null) !== orgaoAtual && (estado.orgaos || []).length > 0;
+        const rot = (u) => `${nomeOrgao(estado, u.orgao_id) ? `${nomeOrgao(estado, u.orgao_id)} › ` : ''}${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})${u.id === acao.destino ? ' · indicada pelo rito' : passou.includes(u.id) ? ' · já passou por aqui' : ''}`;
         campo = (
             <div className="space-y-2">
                 {faseNova && <p className="text-sm text-slate-700 dark:text-slate-300">A fase passa de <b>{p.fase_nome}</b> para <b>{faseNova.nome}</b> no mesmo ato.</p>}
                 <NativeSelect label="Destino" value={destino} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, rot(u)])]} />
+                {outroOrgao && <p className="text-sm text-indigo-800 dark:text-indigo-200">Remessa para outro órgão: de <b>{nomeOrgao(estado, orgaoAtual) || estado.orgao || 'entidade'}</b> para <b>{nomeOrgao(estado, uDest.orgao_id) || estado.orgao || 'entidade'}</b>. O termo de remessa registra os dois órgãos.</p>}
                 {uDest && (
                     <p className="text-xs text-slate-600">
                         {recebem.length ? `Quem recebe: ${recebem.map((m) => m.nome).join(', ')}. Serão avisados por e-mail.` : 'Atenção: ninguém está lotado nessa unidade.'}

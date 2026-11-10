@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, FileUp, GitBranch, History, Loader2, Plus, Shapes, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, FileUp, GitBranch, History, Loader2, Network, Plus, Shapes, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -17,11 +17,13 @@ import PropostaRito from './PropostaRito';
 import FluxoRito from './FluxoRito';
 import { EditorFormulario } from './CamposProcesso';
 import { formularioDe, formularioPadrao, problemasFormulario } from '@/lib/camposProcesso';
+import { nomeOrgao } from '@/lib/orgaos';
 import ConfiguracaoDocumentos from './ConfiguracaoDocumentos';
 import ConfiguracaoCalendario from './ConfiguracaoCalendario';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
 import HistoricoConfiguracao from './HistoricoConfiguracao';
 import VersoesDialog from './VersoesDialog';
+import EstruturaOrgaos from './Orgaos';
 
 const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400';
 
@@ -39,6 +41,7 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
     return (
         <Tabs value={atual} onValueChange={mudar} className="space-y-4">
             <TabsList className="flex-wrap h-auto justify-start">
+                <TabsTrigger value="estrutura" className="gap-2"><Network className="w-4 h-4" /> Estrutura</TabsTrigger>
                 <TabsTrigger value="unidades" className="gap-2"><Building2 className="w-4 h-4" /> Unidades e equipes</TabsTrigger>
                 <TabsTrigger value="tipos" className="gap-2"><Shapes className="w-4 h-4" /> Tipos de processo</TabsTrigger>
                 <TabsTrigger value="ritos" className="gap-2"><GitBranch className="w-4 h-4" /> Ritos</TabsTrigger>
@@ -46,6 +49,7 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
                 <TabsTrigger value="calendario" className="gap-2"><CalendarDays className="w-4 h-4" /> Calendário</TabsTrigger>
                 <TabsTrigger value="historico" className="gap-2"><History className="w-4 h-4" /> Histórico</TabsTrigger>
             </TabsList>
+            <TabsContent value="estrutura"><EstruturaOrgaos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="unidades"><Unidades orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} /></TabsContent>
@@ -103,7 +107,12 @@ function Unidades({ orgId, estado }) {
     // Carga por unidade contada no servidor (não traz processos).
     const cargaQ = useQuery({ queryKey: ['sec-contadores', orgId], queryFn: () => secProcesso(orgId, 'contadores'), staleTime: 60_000 });
     const carga = cargaQ.data?.por_unidade;
-    const grupos = Object.keys(TIPOS_UNIDADE).map((t) => [t, estado.unidades.filter((u) => (u.tipo || 'secretaria') === t)]).filter(([, l]) => l.length);
+    // Entidade composta: agrupa por órgão interno; singular: por papel da unidade.
+    const orgaos = estado.orgaos || [];
+    const grupos = (orgaos.length
+        ? [...orgaos.map((o) => [o.nome, estado.unidades.filter((u) => u.orgao_id === o.id)]), ['Ligadas direto à entidade', estado.unidades.filter((u) => !orgaos.some((o) => o.id === u.orgao_id))]]
+        : Object.keys(TIPOS_UNIDADE).map((t) => [null, estado.unidades.filter((u) => (u.tipo || 'secretaria') === t), t])
+    ).filter(([, l]) => l.length);
     return (
         <Card>
             <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
@@ -115,9 +124,9 @@ function Unidades({ orgId, estado }) {
             </CardHeader>
             <CardContent className="space-y-4">
                 {estado.unidades.length === 0 && <p className="text-sm text-slate-600">Nenhuma unidade. Crie a secretaria e os gabinetes do órgão.</p>}
-                {grupos.map(([tipo, lista]) => (
-                    <div key={tipo}>
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">{TIPOS_UNIDADE[tipo].rotulo}{lista.length > 1 ? 's' : ''}</h3>
+                {grupos.map(([nome, lista, tipo]) => (
+                    <div key={nome || tipo}>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-2">{nome || `${TIPOS_UNIDADE[tipo].rotulo}${lista.length > 1 ? 's' : ''}`}</h3>
                         <div className="grid md:grid-cols-2 gap-2">
                             {lista.map((u) => <CartaoUnidade key={u.id} u={u} estado={estado} carga={carga ? carga[u.id] || 0 : undefined} onAbrir={() => setAberta(u.id)} />)}
                         </div>
@@ -125,7 +134,7 @@ function Unidades({ orgId, estado }) {
                 ))}
             </CardContent>
             {aberta && <GestaoUnidade orgId={orgId} estado={estado} unidadeId={aberta} onFechar={() => setAberta(null)} />}
-            <NovaUnidade orgId={orgId} aberto={nova} onFechar={() => setNova(false)} onCriada={(id) => { setNova(false); setAberta(id); }} />
+            <NovaUnidade orgId={orgId} orgaos={orgaos} aberto={nova} onFechar={() => setNova(false)} onCriada={(id) => { setNova(false); setAberta(id); }} />
         </Card>
     );
 }
@@ -178,14 +187,14 @@ function Tipos({ orgId, estado }) {
                     <CardDescription>O que se autua no órgão (ex.: Requerimento, Sindicância). Cada tipo já escolhe o rito, o sigilo, a unidade de entrada e os campos do “Novo processo”.</CardDescription>
                 </div>
                 <Button size="sm" className="gap-1 shrink-0" disabled={!estado.ritos.length}
-                    onClick={() => setTipo({ nome: '', sigla: '', descricao: '', rito_id: estado.ritos.find((r) => r.ativo)?.id || '', sigilo_padrao: 'normal', unidade_inicial: '', ativo: true, formulario: formularioPadrao() })}>
+                    onClick={() => setTipo({ nome: '', sigla: '', descricao: '', rito_id: estado.ritos.find((r) => r.ativo)?.id || '', sigilo_padrao: 'normal', unidade_inicial: '', orgao_id: '', ativo: true, formulario: formularioPadrao() })}>
                     <Plus className="w-4 h-4" /> Novo tipo
                 </Button>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {tipos.length === 0 && <p className="text-sm text-slate-600">Sem tipos, quem autua escolhe o rito diretamente.</p>}
                 {tipos.map((t) => (
-                    <button key={t.id} onClick={() => setTipo({ ...t, unidade_inicial: t.unidade_inicial || '', formulario: formularioDe(t) })} className={item}>
+                    <button key={t.id} onClick={() => setTipo({ ...t, unidade_inicial: t.unidade_inicial || '', orgao_id: t.orgao_id || '', formulario: formularioDe(t) })} className={item}>
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{t.nome}</span>
                             {t.sigla && <span className="text-xs text-slate-600">{t.sigla}</span>}
@@ -193,7 +202,7 @@ function Tipos({ orgId, estado }) {
                             {t.urgente && <SeloUrgente />}
                             {!t.ativo && <Badge variant="secondary">Inativo</Badge>}
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{nomeOrgao(estado, t.orgao_id) ? ` · só de ${nomeOrgao(estado, t.orgao_id)}` : ''}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
                         {formularioDe(t).campos.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Campos próprios: {formularioDe(t).campos.map((c) => c.rotulo).join(', ')}</p>}
                     </button>
                 ))}
@@ -220,6 +229,13 @@ function Tipos({ orgId, estado }) {
                                 <NativeSelect id="tp-unidade" label="Unidade sugerida para autuar" value={tipo.unidade_inicial} onChange={(v) => setTipo({ ...tipo, unidade_inicial: v })}
                                     options={[['', 'A de quem autua'], ...estado.unidades.filter((u) => u.ativa).map((u) => [u.id, u.nome])]} />
                             </div>
+                            {(estado.orgaos || []).length > 0 && (
+                                <div>
+                                    <NativeSelect id="tp-orgao" label="Órgão interno deste tipo" value={tipo.orgao_id || ''} onChange={(v) => setTipo({ ...tipo, orgao_id: v })}
+                                        options={[['', 'Qualquer órgão pode autuar'], ...estado.orgaos.map((o) => [o.id, `${'— '.repeat((o.nivel || 1) - 1)}${o.nome}`])]} />
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Escolhendo um órgão, só as unidades dele autuam processos deste tipo.</p>
+                                </div>
+                            )}
                             <label className="flex items-start gap-2 text-sm">
                                 <input type="checkbox" className="mt-1" checked={tipo.urgente === true} onChange={(e) => setTipo({ ...tipo, urgente: e.target.checked })} />
                                 <span><span className="font-medium">Todo processo deste tipo é urgente</span><span className="block text-xs text-slate-600 dark:text-slate-400">Já nasce com o selo de urgência e aparece primeiro nas listas.</span></span>

@@ -21,6 +21,8 @@ const documento_1 = require("../shared/documento");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const context_1 = require("./context");
 const comunicacoes_1 = require("../shared/comunicacoes");
+const orgaos_1 = require("../shared/orgaos");
+const orgaos_2 = require("./orgaos");
 const documentoConfig_1 = require("./documentoConfig");
 const importarModelo_1 = require("./importarModelo");
 const conversao_1 = require("./conversao");
@@ -111,7 +113,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
@@ -166,10 +168,12 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             uid: c.ctx.uid,
             minhasUnidades: minhas,
             gestorDe: c.gestorDe,
+            // Órgãos internos, na ordem do organograma (vazio = entidade singular).
+            orgaos: (0, orgaos_1.emArvore)((0, orgaos_1.orgaosDe)((_d = cfgSnap.data()) === null || _d === void 0 ? void 0 : _d.orgaos)),
             unidades: c.unidades.map((u) => {
                 const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
                 const lotacoes = (0, secretaria_1.lotacoesDe)(u);
-                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '', ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes }, (gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {})), { pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x) => x.uid === auth.uid) });
+                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '', orgao_id: u.orgao_id || null, competencias: (0, orgaos_1.sanitizeCompetencias)(u.competencias), ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes }, (gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {})), { pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x) => x.uid === auth.uid) });
             }).sort((a, b) => String(a.nome).localeCompare(String(b.nome))),
             convitesEquipe: convites,
             ritos: ritosSnap.docs.map((d) => {
@@ -181,14 +185,14 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
-                    formulario: (0, camposProcesso_1.formularioDe)(t),
+                    orgao_id: t.orgao_id || null, formulario: (0, camposProcesso_1.formularioDe)(t),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             documento,
             documentoUnidades,
-            calendario: (0, secretaria_1.sanitizeCalendario)((_d = cfgSnap.data()) === null || _d === void 0 ? void 0 : _d.calendario),
-            alerta_prazos: ((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.alerta_prazos) === true,
-            ciencia_dias: (0, comunicacoes_1.cienciaDias)((_f = cfgSnap.data()) === null || _f === void 0 ? void 0 : _f.ciencia_dias),
+            calendario: (0, secretaria_1.sanitizeCalendario)((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.calendario),
+            alerta_prazos: ((_f = cfgSnap.data()) === null || _f === void 0 ? void 0 : _f.alerta_prazos) === true,
+            ciencia_dias: (0, comunicacoes_1.cienciaDias)((_g = cfgSnap.data()) === null || _g === void 0 ? void 0 : _g.ciencia_dias),
             modelos: modelosSnap.docs.map((d) => {
                 const m = d.data();
                 return {
@@ -196,8 +200,8 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                     unidade_id: m.unidade_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
-            suspensa_plataforma: ((_g = c.org.secretariaConfig) === null || _g === void 0 ? void 0 : _g.suspensa_plataforma) === true,
-            motivo_suspensao: ((_h = c.org.secretariaConfig) === null || _h === void 0 ? void 0 : _h.motivo_suspensao) || '',
+            suspensa_plataforma: ((_h = c.org.secretariaConfig) === null || _h === void 0 ? void 0 : _h.suspensa_plataforma) === true,
+            motivo_suspensao: ((_j = c.org.secretariaConfig) === null || _j === void 0 ? void 0 : _j.motivo_suspensao) || '',
             orgao: String(c.org.name || ''),
             membros,
         };
@@ -235,6 +239,12 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
     // Gestão de unidade: admin do órgão ou gestor da unidade.
     if (p.action === 'salvarUnidade')
         return (0, unidades_1.salvarUnidade)(c, p, auth.uid, audit);
+    if (p.action === 'salvarOrgao')
+        return (0, orgaos_2.salvarOrgao)(c, p, auth.uid, audit);
+    if (p.action === 'removerOrgao')
+        return (0, orgaos_2.removerOrgao)(c, p, auth.uid, audit);
+    if (p.action === 'criarEstrutura')
+        return (0, orgaos_2.criarEstrutura)(c, p, auth.uid, audit);
     if (p.action === 'obterUnidadeDocumento')
         return (0, unidades_1.obterUnidadeDocumento)(c, p);
     if (p.action === 'salvarUnidadeDocumento')
@@ -511,7 +521,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             tipoId = ref.id;
             batch.set(ref, {
                 nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id,
-                sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_j = rito.fases[0]) === null || _j === void 0 ? void 0 : _j.unidade_id) || null,
+                sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_k = rito.fases[0]) === null || _k === void 0 ? void 0 : _k.unidade_id) || null,
                 ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
             });
         }
@@ -535,12 +545,12 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_k = snap.data()) === null || _k === void 0 ? void 0 : _k.organization_id) !== orgId)
+            if (!snap.exists || ((_l = snap.data()) === null || _l === void 0 ? void 0 : _l.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos. A versão anterior fica guardada.
             await guardarVersao(ref, snap.data(), CAMPOS_RITO);
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_l = snap.data()) === null || _l === void 0 ? void 0 : _l.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_m = snap.data()) === null || _m === void 0 ? void 0 : _m.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).get()).size;
@@ -563,6 +573,10 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const unidadeInicial = String(t.unidade_inicial || '');
         if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial))
             throw new https_1.HttpsError('invalid-argument', 'Unidade inicial inválida');
+        // Tipo próprio de um órgão interno: só as unidades dele autuam.
+        const orgaoId = String(t.orgao_id || '');
+        if (orgaoId && !(await (0, orgaos_2.lerOrgaos)(db, orgId)).some((o) => o.id === orgaoId))
+            throw new https_1.HttpsError('invalid-argument', 'Órgão do tipo de processo inválido');
         // Campos do "Novo processo" deste tipo: os padrões e os próprios do órgão.
         let formulario;
         try {
@@ -571,15 +585,11 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         catch (e) {
             (0, context_1.erroUsuario)(e);
         }
-        const dados = {
-            nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario,
-            sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null,
-            ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
-        };
+        const dados = Object.assign(Object.assign({ nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null }, ('orgao_id' in t ? { orgao_id: orgaoId || null } : {})), { ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid });
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if (((_m = (await ref.get()).data()) === null || _m === void 0 ? void 0 : _m.organization_id) !== orgId)
+            if (((_o = (await ref.get()).data()) === null || _o === void 0 ? void 0 : _o.organization_id) !== orgId)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
             await ref.update(dados);
         }

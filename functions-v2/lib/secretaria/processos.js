@@ -20,6 +20,8 @@ const autos_1 = require("../shared/autos");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const portalAvisos_1 = require("./portalAvisos");
+const orgaos_1 = require("../shared/orgaos");
+const orgaos_2 = require("./orgaos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
 const context_1 = require("./context");
@@ -181,6 +183,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             tipo = (await db.collection(context_1.COL.tipos).doc(String(p.tipo_id)).get()).data() || null;
             if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false)
                 throw new https_1.HttpsError('invalid-argument', 'Escolha um tipo de processo ativo');
+            if (tipo.orgao_id && tipo.orgao_id !== (unidade.orgao_id || null)) {
+                const dono = (0, orgaos_1.nomeOrgao)(await (0, orgaos_2.lerOrgaos)(db, orgId), tipo.orgao_id);
+                // Órgão removido deixa o tipo livre; órgão existente restringe.
+                if (dono)
+                    throw new https_1.HttpsError('failed-precondition', `${tipo.nome} é um tipo de processo de ${dono}. Autue por uma unidade desse órgão.`);
+            }
         }
         const ritoSnap = await db.collection(context_1.COL.ritos).doc(String((tipo === null || tipo === void 0 ? void 0 : tipo.rito_id) || p.rito_id || '_')).get();
         const rito = ritoSnap.data();
@@ -239,7 +247,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     let recebeu = null;
     let pendenciaAberta = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d, _e, _f, _g;
+        var _a, _b, _d, _e, _f, _g, _h;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -269,9 +277,15 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', `${novaFase.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const orientacao = (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO);
             const faseDe = ((_a = fases.find((f) => f.id === data.fase_atual)) === null || _a === void 0 ? void 0 : _a.nome) || data.fase_atual;
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + (0, context_1.nomeUnidade)(c, data.unidade_atual) + ' para'} ${destino.nome}.`
+            // Remessa entre órgãos internos: o termo diz de qual órgão para qual.
+            const orgaoDe = ((_b = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _b === void 0 ? void 0 : _b.orgao_id) || null;
+            const orgaoPara = destino.orgao_id || null;
+            const entreOrgaos = orgaoDe !== orgaoPara;
+            const orgaos = entreOrgaos ? await (0, orgaos_2.lerOrgaos)(db, orgId, tx) : [];
+            const com = (nome, orgaoId) => ((0, orgaos_1.nomeOrgao)(orgaos, orgaoId) ? `${(0, orgaos_1.nomeOrgao)(orgaos, orgaoId)} › ${nome}` : nome);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + com((0, context_1.nomeUnidade)(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
-                + `${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign({ de: data.unidade_atual, para: destino.id }, (novaFase ? Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})) : {})));
+                + `${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})) : {})));
             tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? { fase_atual: novaFase.id } : {})), { orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
                     : firestore_1.FieldValue.delete() }));
@@ -315,7 +329,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             // Caixa de marcar das ações da fase: movimento interno leve, sem documento.
             const fase = (data.fases || []).find((f) => f.id === data.fase_atual);
             const idx = Number(p.acao_idx);
-            const acao = (_b = fase === null || fase === void 0 ? void 0 : fase.acoes) === null || _b === void 0 ? void 0 : _b[idx];
+            const acao = (_d = fase === null || fase === void 0 ? void 0 : fase.acoes) === null || _d === void 0 ? void 0 : _d[idx];
             if (!fase || !acao)
                 throw new https_1.HttpsError('invalid-argument', 'Ação da fase inválida');
             const feitas = Object.assign({}, (data.acoes_feitas || {}));
@@ -335,7 +349,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (alvo && !((unidade === null || unidade === void 0 ? void 0 : unidade.membros_uids) || []).includes(alvo)) {
                 throw new https_1.HttpsError('invalid-argument', 'A pessoa precisa estar lotada na unidade que tem o processo');
             }
-            const nomeAlvo = alvo ? ((_d = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _d === void 0 ? void 0 : _d.user_name) || 'membro' : '';
+            const nomeAlvo = alvo ? ((_e = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _e === void 0 ? void 0 : _e.user_name) || 'membro' : '';
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'atribuicao', alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', { responsavel_uid: alvo });
             tx.update(ref, Object.assign(Object.assign({}, mov), { responsavel_uid: alvo }));
             return mov;
@@ -356,7 +370,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const foraDoFluxo = !(0, secretaria_1.fasesSeguintes)(fases, data.fase_atual).some((f) => f.id === alvo.id);
             if (foraDoFluxo && !motivo)
                 throw new https_1.HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
-            const de = ((_e = fases.find((f) => f.id === data.fase_atual)) === null || _e === void 0 ? void 0 : _e.nome) || data.fase_atual;
+            const de = ((_f = fases.find((f) => f.id === data.fase_atual)) === null || _f === void 0 ? void 0 : _f.nome) || data.fase_atual;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})));
             tx.update(ref, Object.assign(Object.assign({}, mov), { fase_atual: alvo.id }));
             return mov;
@@ -375,7 +389,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (p.action === 'expedirComunicacao') {
             if (data.status !== 'em_tramitacao')
                 throw new https_1.HttpsError('failed-precondition', 'O processo não está em tramitação');
-            const lista = (_f = p.comunicacao) === null || _f === void 0 ? void 0 : _f.partes_idx;
+            const lista = (_g = p.comunicacao) === null || _g === void 0 ? void 0 : _g.partes_idx;
             expedidas = Array.isArray(lista) ? new Set(lista).size || 1 : 1;
             return (0, comunicacoes_1.expedir)(tx, c, ref, data, p.comunicacao, cfgCom);
         }
@@ -417,7 +431,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }
         if (p.action === 'resolverPendencia') {
             // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (((_g = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _g === void 0 ? void 0 : _g.tipo) !== 'gabinete') {
+            if (((_h = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _h === void 0 ? void 0 : _h.tipo) !== 'gabinete') {
                 throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');

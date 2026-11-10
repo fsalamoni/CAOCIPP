@@ -1,5 +1,7 @@
-import React from 'react';
-import { Siren } from 'lucide-react';
+import React, { useState } from 'react';
+import { Siren, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 
@@ -54,4 +56,35 @@ export function NativeSelect({ label, value, onChange, options, id }) {
 export function dataHora(iso) {
     if (!iso) return '';
     return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+/** Lista de frases curtas (competências, atribuições): digita, Enter ou Adicionar; remove no X. */
+export function ListaTextos({ id, rotulo, ajuda, itens = [], onChange, placeholder, max = 20 }) {
+    const [novo, setNovo] = useState('');
+    const incluir = () => {
+        const t = novo.trim();
+        if (t && !itens.includes(t) && itens.length < max) onChange([...itens, t]);
+        setNovo('');
+    };
+    return (
+        <div>
+            <Label htmlFor={id}>{rotulo}</Label>
+            {ajuda && <p className="text-xs text-slate-600 dark:text-slate-400">{ajuda}</p>}
+            {itens.length > 0 && (
+                <ul className="mt-1 space-y-1">
+                    {itens.map((t) => (
+                        <li key={t} className="flex items-start gap-2 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-sm">
+                            <span className="flex-1">{t}</span>
+                            <button type="button" aria-label={`Remover: ${t}`} className="text-slate-600 hover:text-red-700 dark:text-slate-300" onClick={() => onChange(itens.filter((x) => x !== t))}><X className="w-4 h-4" /></button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <div className="mt-1 flex gap-2">
+                <Input id={id} value={novo} maxLength={300} placeholder={placeholder} onChange={(e) => setNovo(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); incluir(); } }} />
+                <Button type="button" variant="outline" disabled={!novo.trim() || itens.length >= max} onClick={incluir}>Adicionar</Button>
+            </div>
+        </div>
+    );
 }

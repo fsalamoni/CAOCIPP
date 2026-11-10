@@ -25,6 +25,7 @@ import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/Unidad
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import { CamposProcesso } from '@/components/secretaria/CamposProcesso';
 import { faltando, formularioDe } from '@/lib/camposProcesso';
+import { unidadeComOrgao } from '@/lib/orgaos';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
 import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
@@ -246,7 +247,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
             || (f.situacao === 'pendencia' && p.pendencias_abertas > 0)
             || (f.situacao === 'vencido' && p.proximo_vencimento && p.proximo_vencimento < hoje)
             || (f.situacao === 'prazo' && p.proximo_vencimento));
-    const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '—';
+    const nomeUnidade = (id) => unidadeComOrgao(estado, id);
     const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome;
     const ativos = Object.entries(f).filter(([k, v]) => v !== FILTROS_VAZIOS[k]).length;
 
@@ -274,7 +275,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     <Campo rotulo="Unidade atual">
                         <select value={f.unidade} onChange={(e) => set('unidade', e.target.value)} className={`${sel} w-full`}>
                             <option value="">Todas</option>
-                            {estado.unidades.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                            {estado.unidades.map((u) => <option key={u.id} value={u.id}>{unidadeComOrgao(estado, u.id)}</option>)}
                         </select>
                     </Campo>
                     <Campo rotulo="Fase">
@@ -353,7 +354,11 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     const [aberto, setAberto] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const ritosAtivos = estado.ritos.filter((r) => r.ativo);
-    const tiposAtivos = (estado.tipos || []).filter((t) => t.ativo && ritosAtivos.some((r) => r.id === t.rito_id));
+    // Tipo próprio de um órgão interno: só aparece para quem está lotado em unidade dele.
+    const orgaoDe = (unidadeId) => estado.unidades.find((u) => u.id === unidadeId)?.orgao_id || null;
+    const restrito = (t) => (t?.orgao_id && (estado.orgaos || []).some((o) => o.id === t.orgao_id) ? t.orgao_id : null);
+    const unidadesPara = (t) => estado.minhasUnidades.filter((id) => !restrito(t) || orgaoDe(id) === restrito(t));
+    const tiposAtivos = (estado.tipos || []).filter((t) => t.ativo && ritosAtivos.some((r) => r.id === t.rito_id) && unidadesPara(t).length > 0);
     const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', urgente: false, motivo_urgencia: '', partes: [], campos: {} };
     const [f, setF] = useState(vazio);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
@@ -364,7 +369,8 @@ function NovoProcesso({ orgId, estado, onCriado }) {
             ...x, tipo_id: id, campos: {},
             ...(t ? {
                 rito_id: t.rito_id, sigilo: t.sigilo_padrao, urgente: t.urgente === true,
-                ...(t.unidade_inicial && estado.minhasUnidades.includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial } : {}),
+                ...(t.unidade_inicial && unidadesPara(t).includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial }
+                    : unidadesPara(t).includes(x.unidade_id) ? {} : { unidade_id: unidadesPara(t)[0] }),
             } : {}),
         }));
     };
@@ -414,7 +420,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                             ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>
                             : <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)} options={ritosAtivos.map((r) => [r.id, r.nome])} />}
                         <NativeSelect label="Unidade" value={f.unidade_id} onChange={(v) => set('unidade_id', v)}
-                            options={estado.minhasUnidades.map((id) => [id, estado.unidades.find((u) => u.id === id)?.nome])} />
+                            options={unidadesPara(tipoSel).map((id) => [id, unidadeComOrgao(estado, id)])} />
                         <NativeSelect label="Sigilo" value={f.sigilo} onChange={(v) => set('sigilo', v)}
                             options={[['normal', 'Normal'], ['restrito', 'Restrito às unidades por onde passar']]} />
                     </div>
