@@ -17,6 +17,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const email_1 = require("../shared/email");
+const camposProcesso_1 = require("../shared/camposProcesso");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const context_1 = require("./context");
@@ -59,6 +60,7 @@ function resumo(id, d) {
         // Pesquisa e painéis.
         rito_id: d.rito_id || null,
         autuado_em: d.autuado_em || null,
+        campos_resumo: (d.campos || []).map((x) => (0, camposProcesso_1.valorTexto)(x)).join(' · ').slice(0, 500),
         partes_resumo: (d.partes || []).map((x) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
         pendencia_desde: (d.pendencias || [])
             .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
@@ -144,7 +146,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
-            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, partes: (data.partes || []).map((_a) => {
+            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, campos: data.campos || [], partes: (data.partes || []).map((_a) => {
                     var { convite_hash, uid, representantes } = _a, x = __rest(_a, ["convite_hash", "uid", "representantes"]);
                     return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null, representantes: (representantes || []).map(({ convite_hash: ch, uid: u, nome, email }) => ({
                             nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null,
@@ -181,6 +183,18 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             throw new https_1.HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
         const sigilo = (p.sigilo || (tipo === null || tipo === void 0 ? void 0 : tipo.sigilo_padrao)) === 'restrito' ? 'restrito' : 'normal';
+        // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
+        const form = (0, camposProcesso_1.formularioDe)(tipo);
+        const descricao = form.descricao === 'oculto' ? '' : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
+        const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes);
+        let campos = [];
+        try {
+            (0, camposProcesso_1.validarPadrao)(form, descricao, partes);
+            campos = (0, camposProcesso_1.validarCampos)(form, p.campos);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
         const ano = new Date().getFullYear();
         const contadorRef = db.collection(context_1.COL.contadores).doc(`${orgId}_${ano}`);
         const procRef = db.collection(context_1.COL.processos).doc();
@@ -192,8 +206,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const numero = (0, secretaria_1.numeroProcesso)(ano, seq);
             const fases = rito.fases;
             const base = Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero,
-                assunto, descricao: (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO), partes: sanitizePartes(p.partes), sigilo }, (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
-            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`, { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId });
+                assunto,
+                descricao,
+                partes,
+                campos,
+                sigilo }, (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`, Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
             tx.set(procRef, Object.assign(Object.assign({}, base), mov));
             return numero;
         });
@@ -246,6 +264,32 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
                     : firestore_1.FieldValue.delete() }));
             recebeu = { unidadeId: destino.id, proc: data };
+            return mov;
+        }
+        if (p.action === 'alterarDados') {
+            // Corrige a descrição e os campos próprios; o que mudou fica no histórico.
+            const tipo = data.tipo_id ? (await tx.get(db.collection(context_1.COL.tipos).doc(String(data.tipo_id)))).data() : null;
+            const form = (0, camposProcesso_1.formularioDe)(tipo && tipo.organization_id === orgId ? tipo : null);
+            const antes = (data.campos || []);
+            const descricao = form.descricao === 'oculto' ? String(data.descricao || '') : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
+            let campos = [];
+            try {
+                (0, camposProcesso_1.validarPadrao)(Object.assign(Object.assign({}, form), { partes: 'opcional' }), descricao, []);
+                campos = (0, camposProcesso_1.validarCampos)(form, p.campos);
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+            // Campo que o tipo deixou de ter continua no processo como foi gravado.
+            const idsForm = new Set(form.campos.map((x) => x.id));
+            campos = [...campos, ...antes.filter((x) => !idsForm.has(x.id))];
+            const mudou = (0, camposProcesso_1.diferencasCampos)(antes, campos);
+            if (descricao !== String(data.descricao || ''))
+                mudou.unshift('Descrição alterada');
+            if (!mudou.length)
+                throw new https_1.HttpsError('invalid-argument', 'Nada foi alterado');
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'dados', `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, secretaria_1.MAX_TEXTO_LONGO), { campos: mudou.length, visivel_partes: false });
+            tx.update(ref, Object.assign(Object.assign({}, mov), { descricao, campos }));
             return mov;
         }
         if (p.action === 'concluirOrientacao') {

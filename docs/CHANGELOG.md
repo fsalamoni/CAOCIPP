@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Tipo de processo define os campos do "Novo processo"
+- Em cada tipo de processo, o admin define o formulário de autuação:
+  Descrição e Partes opcionais, obrigatórias ou não usadas, e até 20 campos
+  próprios (texto, texto longo, número, data, lista de opções, sim ou não),
+  com obrigatório, orientação e "mostrar às partes no portal". Há prévia.
+- O "Novo processo" mostra os campos do tipo escolhido e diz o que falta; o
+  servidor valida de novo.
+- Os valores ficam nos dados do processo, entram no movimento de autuação,
+  contam na busca e podem ser corrigidos em "Editar dados", com o que mudou
+  registrado no histórico. As partes veem no portal só o que o órgão marcar.
+
 ### 10/11/2026 — Rito: diagramas unidos e fluxo no formato do Bizagi
 - Importação: diagramas desenhados em páginas separadas são unidos sozinhos
   onde um termina e o outro começa (atividade com o nome do outro diagrama,

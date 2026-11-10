@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { secPortal, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
 import { STATUS_ROTULO, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
+import { DadosCampos } from '@/components/secretaria/CamposProcesso';
 import LeitorAutos from '@/components/secretaria/LeitorAutos';
 import { etapasAteOFim } from '@/lib/secretariaRito';
 
@@ -437,6 +438,12 @@ function ProcessoParte({ id, onVoltar }) {
                     <Button variant="outline" className="gap-2" disabled={!!ocupado} onClick={certidao}>{ocupado === 'certidao' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <FileCheck className="w-4 h-4" aria-hidden />} Certidão de andamento</Button>
                 </div>
             </div>
+
+            {p.campos?.length > 0 && (
+                <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3" aria-label="Dados do processo">
+                    <DadosCampos campos={p.campos} />
+                </section>
+            )}
 
             <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                 <details>

@@ -16,6 +16,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
 import { NativeSelect, STATUS_ROTULO, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
+import { CamposProcesso, DadosCampos } from './CamposProcesso';
+import { faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
 import LeitorAutos from './LeitorAutos';
 import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
@@ -446,10 +448,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     </Card>
 
                     <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-base">Dados do processo</CardTitle></CardHeader>
+                        <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
+                            <CardTitle className="text-base">Dados do processo</CardTitle>
+                            <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'dados' })}>Editar dados</Button>
+                        </CardHeader>
                         <CardContent className="text-sm space-y-1 text-slate-700 dark:text-slate-300">
                             <p>Rito: {p.rito_nome} · autuado em {dataHora(p.autuado_em)} por {p.autuado_por}</p>
                             {p.descricao && <p className="whitespace-pre-wrap">{p.descricao}</p>}
+                            <DadosCampos campos={p.campos} className="pt-2" />
                             {p.partes.length > 0 && (
                                 <div className="pt-1">
                                     <p>Partes</p>
@@ -504,7 +510,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </Card>
             </div>
 
-            <AcaoDialog acao={acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} convidar={convidar}
+            {acao?.tipo === 'dados' && (
+                <EditarDados p={p} tipo={(estado.tipos || []).find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
+                    onSalvar={(dados) => mov('alterarDados', dados, 'Dados do processo alterados')} />
+            )}
+
+            <AcaoDialog acao={acao?.tipo === 'dados' ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} convidar={convidar}
                 noGabinete={noGabinete} orgId={orgId} procId={procId}
                 onDespacho={(pend) => { setAcao(null); setEditor({ titulo: `Despacho: ${pend.descricao}`.slice(0, 200), tipo: 'Despacho', conteudo: null, modeloId: modelos.find((m) => /despacho/i.test(m.nome) && m.formato !== 'original')?.id }); }} />
 
@@ -810,6 +821,50 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
                     <Button disabled={ocupado || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); }}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {tipo === 'resolver' ? 'Registrar a decisão' : 'Confirmar'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/** Corrige a descrição e os campos próprios do tipo; o que mudou vai para o histórico. */
+function EditarDados({ p, tipo, ocupado, onFechar, onSalvar }) {
+    const form = formularioDe(tipo);
+    const [descricao, setDescricao] = useState(p.descricao || '');
+    const [campos, setCampos] = useState(() => valoresDe(p.campos));
+    const [motivo, setMotivo] = useState('');
+    const falta = faltando({ ...form, partes: 'opcional' }, { descricao, campos });
+    // Campos que o tipo deixou de ter continuam gravados, só para leitura.
+    const antigos = (p.campos || []).filter((c) => !form.campos.some((d) => d.id === c.id));
+    return (
+        <Dialog open onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader>
+                    <DialogTitle>Editar dados do processo</DialogTitle>
+                    <DialogDescription>A alteração fica registrada no histórico do processo, com o que mudou.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                    {form.descricao !== 'oculto' && (
+                        <div>
+                            <Label htmlFor="ed-desc">Descrição{form.descricao === 'obrigatorio' && <span className="text-red-600 dark:text-red-400" aria-hidden> *</span>}</Label>
+                            <Textarea id="ed-desc" className="mt-1" rows={3} maxLength={4000} value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+                        </div>
+                    )}
+                    <CamposProcesso prefixo="ed" campos={form.campos} valores={campos} onChange={(id, v) => setCampos((x) => ({ ...x, [id]: v }))} />
+                    {antigos.length > 0 && (
+                        <div className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 p-3">
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Campos que este tipo de processo não usa mais (mantidos como foram gravados)</p>
+                            <DadosCampos campos={antigos} />
+                        </div>
+                    )}
+                    <div><Label htmlFor="ed-motivo">Motivo da alteração</Label><Input id="ed-motivo" className="mt-1" maxLength={200} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Opcional" /></div>
+                    {falta.length > 0 && <p className="text-sm text-amber-800 dark:text-amber-300" role="status">Para salvar: {falta.join('; ')}.</p>}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onFechar}>Cancelar</Button>
+                    <Button disabled={ocupado || falta.length > 0} onClick={() => onSalvar({ descricao, campos, motivo })}>
+                        {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar
                     </Button>
                 </DialogFooter>
             </DialogContent>
