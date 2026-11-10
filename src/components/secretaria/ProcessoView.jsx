@@ -942,7 +942,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     } else if (tipo === 'situacao') {
         titulo = 'Alterar a situação';
         const status = valor || acao.status || '';
-        campo = <NativeSelect label="Situação" value={status} onChange={setValor} options={[['', 'Escolha…'], ...Object.entries(STATUS_ROTULO).filter(([k]) => k !== p.status)]} />;
+        campo = (
+            <>
+                <NativeSelect label="Situação" value={status} onChange={setValor} options={[['', 'Escolha…'], ...Object.entries(STATUS_ROTULO).filter(([k]) => k !== p.status)]} />
+                {status === 'arquivado' && avisoDispensa}
+            </>
+        );
         exigeValor = !status;
         enviar = () => mov('alterarStatus', { status, motivo }, 'Situação alterada');
     }

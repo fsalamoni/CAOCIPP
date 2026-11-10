@@ -5,6 +5,17 @@
 // espelho em src/lib/exigencias.js (só para a tela; quem decide é o servidor).
 // Fundamento: docs/LOGICA_PROCESSUAL.md, seções 5 e 6.
 // ============================================================================
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_DOCUMENTOS_FASE = exports.FORMAS = exports.REGISTROS = void 0;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -13,6 +24,8 @@ exports.exigenciasDaFase = exigenciasDaFase;
 exports.pendentesDaFase = pendentesDaFase;
 exports.atende = atende;
 exports.reconhecer = reconhecer;
+exports.camposDoCumprimento = camposDoCumprimento;
+exports.camposAoEntrarNaFase = camposAoEntrarNaFase;
 exports.movimentoInterno = movimentoInterno;
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
@@ -68,9 +81,9 @@ function pendentesDaFase(f, cumpridas) {
     const feitas = (f && (cumpridas === null || cumpridas === void 0 ? void 0 : cumpridas[f.id])) || {};
     return exigenciasDaFase(f).filter((e) => !feitas[e.chave]);
 }
-/** Redigir = produzido pelo órgão (editor ou modelo); juntar = arquivo recebido. */
+/** Redigir = produzido pelo órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
 function atende(e, d) {
-    const redigido = d.origem === 'editor' || !!d.modelo_id;
+    const redigido = !d.peticao && (d.origem === 'editor' || !!d.modelo_id);
     if (e.forma === 'redigir' && !redigido)
         return false;
     if (e.forma === 'juntar' && redigido)
@@ -98,6 +111,39 @@ function reconhecer(pendentes, d, escolhidas) {
     return pendentes
         .filter((e) => atende(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
         .map((e) => e.chave);
+}
+/**
+ * Campos do processo a gravar quando a juntada cumpre exigências da fase:
+ * `exigencias_cumpridas` e, para as de ação, a ação marcada em `acoes_feitas`.
+ */
+function camposDoCumprimento(proc, faseId, cumpridas, documentoId, ordem) {
+    if (!cumpridas.length)
+        return {};
+    const todas = (proc.exigencias_cumpridas || {});
+    const out = {
+        exigencias_cumpridas: Object.assign(Object.assign({}, todas), { [faseId]: Object.assign(Object.assign({}, (todas[faseId] || {})), Object.fromEntries(cumpridas.map((e) => [e.chave, { documento_id: documentoId, ordem }]))) }),
+    };
+    const acoes = cumpridas.filter((e) => typeof e.acao_idx === 'number').map((e) => e.acao_idx);
+    if (acoes.length) {
+        const feitasTodas = (proc.acoes_feitas || {});
+        out.acoes_feitas = Object.assign(Object.assign({}, feitasTodas), { [faseId]: [...new Set([...(feitasTodas[faseId] || []), ...acoes])].sort((a, b) => a - b) });
+    }
+    return out;
+}
+/** Ao entrar numa fase (inclusive voltando a ela), o que ela exige recomeça: a rodada anterior fica nos movimentos. */
+function camposAoEntrarNaFase(proc, faseId) {
+    const out = {};
+    const ex = (proc.exigencias_cumpridas || {});
+    const ac = (proc.acoes_feitas || {});
+    if (faseId in ex) {
+        const _a = ex, _b = faseId, _x = _a[_b], resto = __rest(_a, [typeof _b === "symbol" ? _b : _b + ""]);
+        out.exigencias_cumpridas = resto;
+    }
+    if (faseId in ac) {
+        const _c = ac, _d = faseId, _y = _c[_d], resto = __rest(_c, [typeof _d === "symbol" ? _d : _d + ""]);
+        out.acoes_feitas = resto;
+    }
+    return out;
 }
 /**
  * O ato vai só para o registro interno? Mudança de fase: se a fase de onde

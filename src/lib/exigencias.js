@@ -24,9 +24,9 @@ export function situacaoDaFase(f, cumpridas) {
 
 export const pendentesDaFase = (f, cumpridas) => situacaoDaFase(f, cumpridas).filter((e) => !e.cumprida);
 
-/** Redigir = produzido no órgão (editor ou modelo); juntar = arquivo recebido. */
+/** Redigir = produzido no órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
 export function atende(e, d) {
-    const redigido = d.origem === 'editor' || !!d.modelo_id;
+    const redigido = !d.peticao && (d.origem === 'editor' || !!d.modelo_id);
     if (e.forma === 'redigir') return redigido;
     if (e.forma === 'juntar') return !redigido;
     return true;
@@ -38,3 +38,22 @@ const igual = (a, b) => !!a && !!b && a.localeCompare(b, 'pt-BR', { sensitivity:
 export const sugeridas = (pendentes, d) => pendentes
     .filter((e) => atende(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
     .map((e) => e.chave);
+
+/**
+ * Quando a lista de ações muda, cada regra acompanha o texto da sua ação:
+ * apagar ou reordenar linhas não passa a regra para outra ação. Se só o texto
+ * de uma linha mudou (mesma quantidade de linhas), a regra fica na posição.
+ */
+export function realinharRegras(antigas = [], regras = [], novas = []) {
+    if (!regras.some(Boolean)) return undefined;
+    const usadas = new Set();
+    const out = novas.map((a, i) => {
+        const t = a.trim();
+        let j = t ? antigas.findIndex((x, k) => !usadas.has(k) && x.trim() === t) : -1;
+        if (j < 0 && novas.length === antigas.length && !usadas.has(i)) j = i;
+        if (j < 0) return null;
+        usadas.add(j);
+        return regras[j] || null;
+    });
+    return out.some(Boolean) ? out : undefined;
+}

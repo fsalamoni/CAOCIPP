@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const exigencias_1 = require("../shared/exigencias");
 const context_1 = require("./context");
 const documentos_1 = require("./documentos");
 const autos_1 = require("./autos");
@@ -410,12 +411,20 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             };
             const pendencias = [...(proc.pendencias || []), pend];
             const c = contextoParte(db, proc, uid, `${parte.assina} (parte)`);
-            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, proc, 'peticao', `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${(0, autos_1.textoFolhas)(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`, { documento_id: docRef.id, ordem, folha_inicial: folha, paginas });
+            // Petição pode cumprir documento que o rito exige de fora (ex.: defesa prévia), pelo tipo.
+            const fase = (proc.fases || []).find((f) => f.id === proc.fase_atual);
+            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, proc.exigencias_cumpridas);
+            const chaves = new Set([tipoPeticao, 'Petição'].filter(Boolean)
+                .flatMap((tipo) => (0, exigencias_1.reconhecer)(pendentes, { origem: buf ? 'upload' : 'editor', tipo, peticao: true })));
+            const cumpridas = pendentes.filter((e) => chaves.has(e.chave));
+            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, proc, 'peticao', `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${(0, autos_1.textoFolhas)(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`
+                + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign({ documento_id: docRef.id, ordem, folha_inicial: folha, paginas }, (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
+            const exig = fase ? (0, exigencias_1.camposDoCumprimento)(proc, fase.id, cumpridas, docRef.id, ordem) : {};
             const codigo = (0, autos_1.novoCodigo)();
             const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? { mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
-            tx.update(procRef, Object.assign(Object.assign(Object.assign({}, mov), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))));
+            tx.update(procRef, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))));
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(db, procRef.id, uid);

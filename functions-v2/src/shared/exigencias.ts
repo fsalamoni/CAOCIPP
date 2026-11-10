@@ -89,11 +89,11 @@ export function pendentesDaFase(f: FaseRegras | undefined, cumpridas: Cumpridas 
     return exigenciasDaFase(f).filter((e) => !feitas[e.chave]);
 }
 
-export interface DocJuntado { origem: string; tipo?: string; modelo_id?: string }
+export interface DocJuntado { origem: string; tipo?: string; modelo_id?: string; peticao?: boolean }
 
-/** Redigir = produzido pelo órgão (editor ou modelo); juntar = arquivo recebido. */
+/** Redigir = produzido pelo órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
 export function atende(e: Exigencia, d: DocJuntado): boolean {
-    const redigido = d.origem === 'editor' || !!d.modelo_id;
+    const redigido = !d.peticao && (d.origem === 'editor' || !!d.modelo_id);
     if (e.forma === 'redigir' && !redigido) return false;
     if (e.forma === 'juntar' && redigido) return false;
     return true;
@@ -119,6 +119,37 @@ export function reconhecer(pendentes: Array<Exigencia & { chave: string }>, d: D
     return pendentes
         .filter((e) => atende(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
         .map((e) => e.chave);
+}
+
+/**
+ * Campos do processo a gravar quando a juntada cumpre exigências da fase:
+ * `exigencias_cumpridas` e, para as de ação, a ação marcada em `acoes_feitas`.
+ */
+export function camposDoCumprimento(
+    proc: { exigencias_cumpridas?: unknown; acoes_feitas?: unknown },
+    faseId: string, cumpridas: Array<{ chave: string; acao_idx?: number }>, documentoId: string, ordem: number,
+): Record<string, unknown> {
+    if (!cumpridas.length) return {};
+    const todas = (proc.exigencias_cumpridas || {}) as Cumpridas;
+    const out: Record<string, unknown> = {
+        exigencias_cumpridas: { ...todas, [faseId]: { ...(todas[faseId] || {}), ...Object.fromEntries(cumpridas.map((e) => [e.chave, { documento_id: documentoId, ordem }])) } },
+    };
+    const acoes = cumpridas.filter((e) => typeof e.acao_idx === 'number').map((e) => e.acao_idx as number);
+    if (acoes.length) {
+        const feitasTodas = (proc.acoes_feitas || {}) as Record<string, number[]>;
+        out.acoes_feitas = { ...feitasTodas, [faseId]: [...new Set([...(feitasTodas[faseId] || []), ...acoes])].sort((a, b) => a - b) };
+    }
+    return out;
+}
+
+/** Ao entrar numa fase (inclusive voltando a ela), o que ela exige recomeça: a rodada anterior fica nos movimentos. */
+export function camposAoEntrarNaFase(proc: { exigencias_cumpridas?: unknown; acoes_feitas?: unknown }, faseId: string): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    const ex = (proc.exigencias_cumpridas || {}) as Record<string, unknown>;
+    const ac = (proc.acoes_feitas || {}) as Record<string, unknown>;
+    if (faseId in ex) { const { [faseId]: _x, ...resto } = ex; out.exigencias_cumpridas = resto; }
+    if (faseId in ac) { const { [faseId]: _y, ...resto } = ac; out.acoes_feitas = resto; }
+    return out;
 }
 
 /**

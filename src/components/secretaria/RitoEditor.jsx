@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     modelosDeRito, novoIdFase, ritoDeMermaid, ritoDeTabela, ritoParaMermaid, ritoParaTabela,
 } from '@/lib/secretariaRito';
-import { FORMAS, REGISTROS } from '@/lib/exigencias';
+import { FORMAS, REGISTROS, realinharRegras } from '@/lib/exigencias';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
 
@@ -165,7 +165,7 @@ function FaseCard({ f, i, fases, unidades, modelos, mudar, mover, remover, abert
                     </div>
                     <div>
                         <Label htmlFor={`ac-${f.id}`}>Ações (uma por linha)</Label>
-                        <Textarea id={`ac-${f.id}`} rows={2} value={(f.acoes || []).join('\n')} onChange={(e) => mudar({ acoes: e.target.value.split('\n') })} placeholder="Aparecem como lista na tela do processo" />
+                        <Textarea id={`ac-${f.id}`} rows={2} value={(f.acoes || []).join('\n')} onChange={(e) => { const acoes = e.target.value.split('\n'); mudar({ acoes, acoes_regras: realinharRegras(f.acoes, f.acoes_regras, acoes) }); }} placeholder="Aparecem como lista na tela do processo" />
                     </div>
                     <RegrasDaFase f={f} modelos={modelos} mudar={mudar} />
                     <div>

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { atende, pendentesDaFase, situacaoDaFase, sugeridas } from './exigencias.js';
+import { atende, pendentesDaFase, realinharRegras, situacaoDaFase, sugeridas } from './exigencias.js';
 
 const fase = { id: 'f1', acoes: ['Despachar', 'Certificar'], documentos: [{ descricao: 'Parecer', forma: 'juntar', tipo: 'Parecer' }],
     acoes_regras: [{ documento: { descricao: 'Despachar', forma: 'redigir', modelo_id: 'm1' } }, { autos: true }] };
@@ -18,4 +18,19 @@ test('sugere pelo modelo ou tipo, respeitando a forma', () => {
     assert.deepEqual(sugeridas(pend, { origem: 'upload', tipo: 'PARECER' }), ['d0']);
     assert.equal(atende({ forma: 'juntar' }, { origem: 'editor' }), false);
     assert.equal(atende({ forma: 'qualquer' }, { origem: 'upload' }), true);
+    assert.equal(atende({ forma: 'juntar' }, { origem: 'editor', peticao: true }), true);
+});
+
+test('regras seguem o texto da ação ao editar a lista', () => {
+    const r = [{ autos: true }, null, { documento: { descricao: 'C' } }];
+    // apagar a primeira linha: a regra de "C" continua em "C"
+    assert.deepEqual(realinharRegras(['A', 'B', 'C'], r, ['B', 'C']), [null, r[2]]);
+    // reordenar
+    assert.deepEqual(realinharRegras(['A', 'B', 'C'], r, ['C', 'A', 'B']), [r[2], r[0], null]);
+    // corrigir o texto de uma linha mantém a posição
+    assert.deepEqual(realinharRegras(['A', 'B', 'C'], r, ['Ax', 'B', 'C']), r);
+    // linha nova em branco no fim
+    assert.deepEqual(realinharRegras(['A', 'B', 'C'], r, ['A', 'B', 'C', '']), [...r, null]);
+    assert.equal(realinharRegras(['A'], undefined, ['B']), undefined);
+    assert.equal(realinharRegras(['A', 'B'], [{ autos: true }, null], ['B']), undefined);
 });

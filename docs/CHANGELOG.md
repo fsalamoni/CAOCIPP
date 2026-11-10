@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Ajustes nas exigências do rito
+- Petição da parte do tipo pedido (ex.: "Manifestação") cumpre o documento
+  que a fase exige receber de fora.
+- Fase que volta recomeça: o que ela exige e as ações marcadas valem para a
+  nova rodada; a anterior continua nos autos.
+- No editor do rito, apagar ou reordenar ações não troca a regra de ação.
+- Arquivar com documento exigido em aberto avisa, no diálogo, que a falta
+  fica registrada.
+
 ### 10/11/2026 — Minutas seguem com o processo
 - Na remessa, as minutas da unidade aparecem marcadas em "Minutas que seguem
   com o processo". A unidade que recebe (ex.: o gabinete) lê, revisa, assina
