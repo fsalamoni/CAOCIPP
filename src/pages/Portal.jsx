@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secPortal, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
-import { STATUS_ROTULO, dataHora } from '@/components/secretaria/comum';
+import { STATUS_ROTULO, SeloUrgente, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import { DadosCampos } from '@/components/secretaria/CamposProcesso';
 import LeitorAutos from '@/components/secretaria/LeitorAutos';
@@ -357,7 +357,9 @@ function MeusProcessos({ onAbrir }) {
                                 <button type="button" onClick={() => onAbrir(p.id)} className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="font-mono text-sm">{p.numero}</span>
-                                        <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
+                                        {p.urgente && <SeloUrgente />}
+                                        {p.urgente && <SeloUrgente />}
+                        <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
                                         {p.novidades && <Badge className="bg-indigo-600 hover:bg-indigo-600">Novidades</Badge>}
                                         {p.como === 'representante' && <Badge variant="outline">Representante</Badge>}
                                         {!orgao && <span className="text-xs text-slate-600">{p.orgao}</span>}
@@ -572,6 +574,7 @@ const MAX_MB = 5;
 const MODELOS_PETICAO = {
     'Manifestação': { texto: 'Venho me manifestar sobre ', dica: 'Diga sobre o que se manifesta e o que pede ao final.' },
     'Juntada de documento': { texto: 'Junto aos autos o documento anexo, ', dica: 'Anexe o arquivo e diga em poucas palavras o que ele é e por que o junta.' },
+    'Pedido de urgência': { texto: 'Solicito a tramitação urgente deste processo, porque ', dica: 'Explique o risco da demora. O pedido será apreciado por quem decide.' },
     'Pedido de prazo': { texto: 'Solicito a prorrogação do prazo por ____ dias, porque ', dica: 'Informe quantos dias precisa e o motivo.' },
     'Pedido de vista': { texto: 'Solicito vista dos autos ', dica: 'Se precisar de documento específico, diga qual.' },
     'Recurso': { texto: 'Recorro da decisão de ____, pelos motivos a seguir: ', dica: 'Indique a decisão e os motivos. Anexe o que sustenta o recurso.' },

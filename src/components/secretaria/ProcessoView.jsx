@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
-import { NativeSelect, STATUS_ROTULO, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
+import { NativeSelect, STATUS_ROTULO, SeloUrgente, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
 import { faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
@@ -221,6 +221,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <Badge variant="secondary">{STATUS_ROTULO[p.status]}</Badge>
                         <Badge variant="outline">Com: {nomeUnidade(p.unidade_atual)}</Badge>
                         {p.responsavel_uid && <Badge variant="outline">Responsável: {estado.membros.find((m) => m.uid === p.responsavel_uid)?.nome || '—'}</Badge>}
+                        {p.urgente && <SeloUrgente motivo={p.urgencia?.motivo} />}
                         {p.sigilo === 'restrito' && <Badge variant="outline">Restrito</Badge>}
                         {cadeiaQuebradaEm === null
                             ? <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><ShieldCheck className="w-4 h-4" /> Integridade conferida</span>
@@ -250,6 +251,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'atribuir' })}>Atribuir a alguém da unidade</DropdownMenuItem>
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'pendencia' })}>Abrir pendência para o decisor</DropdownMenuItem>
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'prazo' })}>Abrir prazo</DropdownMenuItem>
+                                    <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'urgencia' })}>{p.urgente ? 'Retirar a urgência' : 'Marcar como urgente'}</DropdownMenuItem>
                                     <DropdownMenuItem onSelect={() => setAcao({ tipo: 'situacao' })}>Alterar a situação</DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                 </>
@@ -810,7 +812,15 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
         exigeValor = !status;
         enviar = () => mov('alterarStatus', { status, motivo }, 'Situação alterada');
     }
-    if (tipo === 'situacao') { exigeTexto = true; rotuloTexto = 'Motivo'; }
+    else if (tipo === 'urgencia') {
+        titulo = p.urgente ? 'Retirar a urgência' : 'Marcar como urgente';
+        campo = <p className="text-sm text-slate-600 dark:text-slate-300">{p.urgente
+            ? `Urgente desde ${dataHora(p.urgencia?.em)}, por ${p.urgencia?.por || 'alguém da equipe'}: ${p.urgencia?.motivo || ''}`
+            : 'O processo passa a aparecer primeiro nas listas, com selo vermelho, e os avisos saem marcados como urgentes.'}</p>;
+        exigeValor = false;
+        enviar = () => mov('urgencia', { urgente: !p.urgente, motivo }, p.urgente ? 'Urgência retirada' : 'Processo marcado como urgente');
+    }
+    if (tipo === 'situacao' || tipo === 'urgencia') { exigeTexto = true; rotuloTexto = 'Motivo'; }
     const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'convidar' || tipo === 'pedirAssinatura';
 
     return (

@@ -46,6 +46,8 @@ function resumo(id, d) {
         assunto: d.assunto,
         status: d.status,
         sigilo: d.sigilo,
+        urgente: d.urgente === true,
+        urgencia: d.urgente === true ? d.urgencia || null : null,
         fase_atual: d.fase_atual,
         fase_nome: ((_a = (d.fases || []).find((f) => f.id === d.fase_atual)) === null || _a === void 0 ? void 0 : _a.nome) || d.fase_atual,
         unidade_atual: d.unidade_atual,
@@ -86,10 +88,10 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (p.cursor)
             q = q.startAfter(firestore_1.Timestamp.fromMillis(Number(p.cursor)));
         const snap = await q.limit(limite).get();
-        const processos = snap.docs
+        const processos = (0, autos_1.urgentesPrimeiro)(snap.docs
             .filter((d) => (0, secretaria_1.podeVer)(d.data(), c.ctx))
             .filter((d) => p.escopo !== 'caixa' || (0, secretaria_1.podeAgir)(d.data(), c.ctx))
-            .map((d) => resumo(d.id, d.data()));
+            .map((d) => resumo(d.id, d.data())));
         const ultimo = snap.docs[snap.docs.length - 1];
         return { processos, cursor: ((_b = (_a = ultimo === null || ultimo === void 0 ? void 0 : ultimo.data().updated_at) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) || null, mais: snap.size === limite };
     }
@@ -121,7 +123,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             var { _t } = _a, r = __rest(_a, ["_t"]);
             return r;
         });
-        return { processos: lista };
+        return { processos: (0, autos_1.urgentesPrimeiro)(lista) };
     }
     if (p.action === 'obter') {
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id);
@@ -184,6 +186,11 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             throw new https_1.HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
         const sigilo = (p.sigilo || (tipo === null || tipo === void 0 ? void 0 : tipo.sigilo_padrao)) === 'restrito' ? 'restrito' : 'normal';
+        // Urgência: marcada por quem autua (com motivo) ou herdada do tipo de processo.
+        const urgente = p.urgente === true || (tipo === null || tipo === void 0 ? void 0 : tipo.urgente) === true;
+        const motivoUrgencia = (0, secretaria_1.texto)(p.motivo_urgencia, secretaria_1.MAX_TEXTO_LONGO) || ((tipo === null || tipo === void 0 ? void 0 : tipo.urgente) === true ? `Tipo de processo urgente (${tipo.nome})` : '');
+        if (urgente && !motivoUrgencia)
+            throw new https_1.HttpsError('invalid-argument', 'Informe o motivo da urgência');
         // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
         const form = (0, camposProcesso_1.formularioDe)(tipo);
         const descricao = form.descricao === 'oculto' ? '' : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
@@ -206,13 +213,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             tx.set(contadorRef, { organization_id: orgId, ano, seq }, { merge: true });
             const numero = (0, secretaria_1.numeroProcesso)(ano, seq);
             const fases = rito.fases;
-            const base = Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero,
+            const base = Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero,
                 assunto,
                 descricao,
                 partes,
                 campos,
-                sigilo }, (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
-            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`, Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
+                sigilo }, (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}`, Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
             tx.set(procRef, Object.assign(Object.assign({}, base), mov));
             return numero;
         });
@@ -348,6 +355,16 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const de = ((_e = fases.find((f) => f.id === data.fase_atual)) === null || _e === void 0 ? void 0 : _e.nome) || data.fase_atual;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})));
             tx.update(ref, Object.assign(Object.assign({}, mov), { fase_atual: alvo.id }));
+            return mov;
+        }
+        if (p.action === 'urgencia') {
+            const urgente = p.urgente === true;
+            if (urgente === (data.urgente === true))
+                throw new https_1.HttpsError('invalid-argument', urgente ? 'O processo já está marcado como urgente' : 'O processo não está marcado como urgente');
+            if (!motivo)
+                throw new https_1.HttpsError('invalid-argument', 'Informe o motivo');
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'urgencia', `${urgente ? 'Processo marcado como urgente' : 'Urgência retirada'}. Motivo: ${motivo}`, { urgente });
+            tx.update(ref, Object.assign(Object.assign({}, mov), { urgente, urgencia: urgente ? { motivo, por: c.userName, em: new Date().toISOString() } : firestore_1.FieldValue.delete() }));
             return mov;
         }
         if (p.action === 'alterarStatus') {

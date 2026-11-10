@@ -201,7 +201,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 const t = d.data();
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
-                    sigilo_padrao: t.sigilo_padrao || 'normal', unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
+                    sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                     formulario: formularioDe(t),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
@@ -545,7 +545,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         try { formulario = sanitizeFormulario(t.formulario); } catch (e) { erroUsuario(e); }
         const dados = {
             nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario,
-            sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: unidadeInicial || null,
+            sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null,
             ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
         const col = db.collection(COL.tipos);

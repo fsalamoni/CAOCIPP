@@ -150,6 +150,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
             ['Situação', situacao],
             ['Unidade atual', o.nomeUnidade(String(proc.unidade_atual || ''))],
             ['Sigilo', proc.sigilo === 'restrito' ? 'Restrito' : 'Normal'],
+            ...(proc.urgente === true ? [['Tramitação', `URGENTE${proc.urgencia?.motivo ? ` (${proc.urgencia.motivo})` : ''}`]] : []),
             ['Autuado em', `${quandoBR(proc.autuado_em)} por ${proc.autuado_por_nome}`],
         ]) w.texto(`${k}: ${v}`);
         if (proc.descricao) w.texto(`\n${proc.descricao}`);

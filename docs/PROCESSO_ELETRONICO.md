@@ -357,6 +357,24 @@ Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
   parte só alcança o que já vê: o servidor filtra movimentos e documentos
   antes de aplicar a seleção.
 
+## Urgência (nov/2026)
+
+- **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
+  (`{ motivo, por, em }`); `secTipos.urgente` faz o processo nascer urgente
+  (motivo "Tipo de processo urgente (nome)").
+- **Ações:** `autuar` aceita `urgente` e `motivo_urgencia` (obrigatório
+  quando a urgência não vem do tipo); `urgencia` (`urgente`, `motivo`
+  obrigatório) marca ou retira, exige a posse e grava o movimento `urgencia`
+  (ato de usuário, com termo "Certidão de urgência").
+- **Efeitos:** `resumo` devolve `urgente` e `urgencia`; `listar` põe os
+  urgentes primeiro (`urgentesPrimeiro`, mantendo a ordem dentro de cada
+  grupo; na lista paginada, dentro de cada página). Selo `SeloUrgente` nas
+  listas, no processo, no portal e nos tipos; grupo "Urgentes" no Meu
+  trabalho; filtro "Urgentes"; linha "Tramitação: URGENTE" na capa do PDF;
+  "URGENTE:" no título do aviso de processo recebido.
+- **Parte:** tipo de manifestação "Pedido de urgência" no portal; a decisão é
+  do gabinete, e a secretaria marca a urgência.
+
 ## Exportação em PDF
 
 Gerada no servidor com `pdf-lib` e `pdfmake`: capa (dados, partes,

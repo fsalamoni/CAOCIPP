@@ -27,7 +27,7 @@ import { CamposProcesso } from '@/components/secretaria/CamposProcesso';
 import { faltando, formularioDe } from '@/lib/camposProcesso';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
-import { STATUS_ROTULO, NativeSelect } from '@/components/secretaria/comum';
+import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
 
 export default function ProcessoEletronico() {
     const [params, setParams] = useSearchParams();
@@ -242,6 +242,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
         .filter((p) => !f.de || (p.autuado_em || '').slice(0, 10) >= f.de)
         .filter((p) => !f.ate || (p.autuado_em || '').slice(0, 10) <= f.ate)
         .filter((p) => f.situacao === 'todos'
+            || (f.situacao === 'urgente' && p.urgente)
             || (f.situacao === 'pendencia' && p.pendencias_abertas > 0)
             || (f.situacao === 'vencido' && p.proximo_vencimento && p.proximo_vencimento < hoje)
             || (f.situacao === 'prazo' && p.proximo_vencimento));
@@ -255,6 +256,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                 <Input placeholder="Número, assunto, parte ou CPF/CNPJ" aria-label="Buscar processos" value={f.texto} onChange={(e) => set('texto', e.target.value)} className="max-w-sm" />
                 <select aria-label="Filtrar por situação" value={f.situacao} onChange={(e) => set('situacao', e.target.value)} className={sel}>
                     <option value="todos">Qualquer situação</option>
+                    <option value="urgente">Urgentes</option>
                     <option value="pendencia">Com pendência para o decisor</option>
                     <option value="prazo">Com prazo aberto</option>
                     <option value="vencido">Com prazo vencido</option>
@@ -318,6 +320,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                             <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300">{p.numero}</span>
                             <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-600">{p.tipo_nome}</span>}</span>
                             <span className="text-sm text-slate-600 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}{p.responsavel_uid ? ` · ${nomeMembro(p.responsavel_uid) || ''}` : ''}</span>
+                            {p.urgente && <SeloUrgente motivo={p.urgencia?.motivo} />}
                             <Badge variant={p.status === 'em_tramitacao' ? 'secondary' : 'outline'}>{STATUS_ROTULO[p.status]}</Badge>
                             {p.sigilo === 'restrito' && <Badge variant="outline">Restrito</Badge>}
                             {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}{p.fase_suspensa ? ' · fase interrompida' : ''}</Badge>}
@@ -351,7 +354,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     const [salvando, setSalvando] = useState(false);
     const ritosAtivos = estado.ritos.filter((r) => r.ativo);
     const tiposAtivos = (estado.tipos || []).filter((t) => t.ativo && ritosAtivos.some((r) => r.id === t.rito_id));
-    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', partes: [], campos: {} };
+    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', urgente: false, motivo_urgencia: '', partes: [], campos: {} };
     const [f, setF] = useState(vazio);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     // Escolher o tipo preenche rito, sigilo e unidade sugerida (se a pessoa está lotada nela).
@@ -360,7 +363,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
         setF((x) => ({
             ...x, tipo_id: id, campos: {},
             ...(t ? {
-                rito_id: t.rito_id, sigilo: t.sigilo_padrao,
+                rito_id: t.rito_id, sigilo: t.sigilo_padrao, urgente: t.urgente === true,
                 ...(t.unidade_inicial && estado.minhasUnidades.includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial } : {}),
             } : {}),
         }));
@@ -414,6 +417,18 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                             options={estado.minhasUnidades.map((id) => [id, estado.unidades.find((u) => u.id === id)?.nome])} />
                         <NativeSelect label="Sigilo" value={f.sigilo} onChange={(v) => set('sigilo', v)}
                             options={[['normal', 'Normal'], ['restrito', 'Restrito às unidades por onde passar']]} />
+                    </div>
+                    <div className={`rounded-lg border px-3 py-2 space-y-2 ${f.urgente ? 'border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                            <input type="checkbox" checked={f.urgente} disabled={tipoSel?.urgente === true} onChange={(e) => set('urgente', e.target.checked)} />
+                            Tramitação urgente
+                            {tipoSel?.urgente === true && <span className="font-normal text-xs text-slate-600 dark:text-slate-400">(este tipo de processo é sempre urgente)</span>}
+                        </label>
+                        {f.urgente && tipoSel?.urgente !== true && (
+                            <div><Label htmlFor="sec-urg">Motivo da urgência<span className="text-red-600 dark:text-red-400" aria-hidden> *</span></Label>
+                                <Input id="sec-urg" value={f.motivo_urgencia} onChange={(e) => set('motivo_urgencia', e.target.value)} maxLength={300} placeholder="Ex.: risco de perecimento do direito, prazo legal curto" aria-required /></div>
+                        )}
+                        {!f.urgente && <p className="text-xs text-slate-600 dark:text-slate-400">O processo urgente aparece primeiro nas listas, com selo vermelho, e os avisos saem marcados como urgentes.</p>}
                     </div>
                     {ritoSel && (
                         <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">

@@ -8,6 +8,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MODOS_SELECAO = exports.tituloEvento = exports.geraTermo = exports.documentoDoEvento = exports.origemEvento = exports.TIPOS_SISTEMA = void 0;
 exports.folhasDoEvento = folhasDoEvento;
 exports.extrasDoEvento = extrasDoEvento;
+exports.urgentesPrimeiro = urgentesPrimeiro;
 exports.sanitizeSelecao = sanitizeSelecao;
 exports.selecionar = selecionar;
 /** Registros de controle interno ou automáticos: não geram termo próprio. */
@@ -33,6 +34,7 @@ const TITULOS = {
     habilitacao: 'Termo de habilitação',
     acesso_revogado: 'Certidão de revogação de acesso',
     dados: 'Certidão de alteração de dados',
+    urgencia: 'Certidão de urgência',
     juntada: 'Juntada de documento',
     peticao: 'Petição',
     atribuicao: 'Atribuição',
@@ -55,6 +57,10 @@ function folhasDoEvento(m, docs) {
 /** O que a tela precisa saber de cada evento, além do movimento gravado. */
 function extrasDoEvento(m, docs) {
     return { origem: (0, exports.origemEvento)(m), titulo: (0, exports.tituloEvento)(m), folhas: folhasDoEvento(m, docs), documento_id: (0, exports.documentoDoEvento)(m) };
+}
+/** Urgentes primeiro, mantendo a ordem que a lista já tinha. */
+function urgentesPrimeiro(lista) {
+    return [...lista.filter((x) => x.urgente === true), ...lista.filter((x) => x.urgente !== true)];
 }
 exports.MODOS_SELECAO = ['integral', 'exceto', 'apenas', 'intervalo'];
 const MAX_EVENTOS = 5000;

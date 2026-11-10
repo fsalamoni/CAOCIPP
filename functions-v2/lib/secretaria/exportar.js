@@ -102,7 +102,7 @@ async function termoPdf(orgNome, numero, m, unidade) {
 }
 /** Monta o PDF único dos autos. A equipe passa tudo; o portal passa só o que a parte pode ver. */
 async function montarPdfAutos(o) {
-    var _a;
+    var _a, _b;
     const { proc, movimentos, docs } = o;
     const quebra = (0, secretaria_1.verificarCadeia)(movimentos);
     const unid = (id) => { const n = o.nomeUnidade(String(id || '')); return n ? ` (${n})` : ''; };
@@ -145,6 +145,7 @@ async function montarPdfAutos(o) {
             ['Situação', situacao],
             ['Unidade atual', o.nomeUnidade(String(proc.unidade_atual || ''))],
             ['Sigilo', proc.sigilo === 'restrito' ? 'Restrito' : 'Normal'],
+            ...(proc.urgente === true ? [['Tramitação', `URGENTE${((_b = proc.urgencia) === null || _b === void 0 ? void 0 : _b.motivo) ? ` (${proc.urgencia.motivo})` : ''}`]] : []),
             ['Autuado em', `${quandoBR(proc.autuado_em)} por ${proc.autuado_por_nome}`],
         ])
             w.texto(`${k}: ${v}`);

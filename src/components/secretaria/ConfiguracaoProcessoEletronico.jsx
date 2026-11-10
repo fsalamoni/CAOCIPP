@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig, secProcesso } from '@/services/secretariaService';
-import { NativeSelect, TIPOS_UNIDADE } from './comum';
+import { NativeSelect, SeloUrgente, TIPOS_UNIDADE } from './comum';
 import RitoEditor from './RitoEditor';
 import PropostaRito from './PropostaRito';
 import FluxoRito from './FluxoRito';
@@ -190,6 +190,7 @@ function Tipos({ orgId, estado }) {
                             <span className="font-medium">{t.nome}</span>
                             {t.sigla && <span className="text-xs text-slate-600">{t.sigla}</span>}
                             {t.sigilo_padrao === 'restrito' && <Badge variant="outline">Restrito</Badge>}
+                            {t.urgente && <SeloUrgente />}
                             {!t.ativo && <Badge variant="secondary">Inativo</Badge>}
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
@@ -219,6 +220,10 @@ function Tipos({ orgId, estado }) {
                                 <NativeSelect id="tp-unidade" label="Unidade sugerida para autuar" value={tipo.unidade_inicial} onChange={(v) => setTipo({ ...tipo, unidade_inicial: v })}
                                     options={[['', 'A de quem autua'], ...estado.unidades.filter((u) => u.ativa).map((u) => [u.id, u.nome])]} />
                             </div>
+                            <label className="flex items-start gap-2 text-sm">
+                                <input type="checkbox" className="mt-1" checked={tipo.urgente === true} onChange={(e) => setTipo({ ...tipo, urgente: e.target.checked })} />
+                                <span><span className="font-medium">Todo processo deste tipo é urgente</span><span className="block text-xs text-slate-600 dark:text-slate-400">Já nasce com o selo de urgência e aparece primeiro nas listas.</span></span>
+                            </label>
                             <EditorFormulario form={tipo.formulario} onChange={(formulario) => setTipo({ ...tipo, formulario })} />
                             {problemasFormulario(tipo.formulario).length > 0 && (
                                 <ul className="text-sm text-amber-800 dark:text-amber-300 list-disc pl-5" role="alert">

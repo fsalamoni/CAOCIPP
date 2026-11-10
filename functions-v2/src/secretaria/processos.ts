@@ -6,7 +6,7 @@ import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
     fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
-import { extrasDoEvento } from '../shared/autos';
+import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import { sendEmail } from '../shared/email';
 import { CampoValor, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorTexto } from '../shared/camposProcesso';
 import { avisarPartesDoMovimento } from './portalAvisos';
@@ -26,7 +26,10 @@ interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
-        | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados';
+        | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia';
+    /** Urgência: na autuação (com `motivo_urgencia`) e na ação `urgencia` (com `motivo`). */
+    urgente?: boolean;
+    motivo_urgencia?: string;
     // listar paginado (sem `limite`, devolve até 1000 como antes)
     limite?: number;
     cursor?: number;
@@ -97,6 +100,8 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         assunto: d.assunto,
         status: d.status,
         sigilo: d.sigilo,
+        urgente: d.urgente === true,
+        urgencia: d.urgente === true ? d.urgencia || null : null,
         fase_atual: d.fase_atual,
         fase_nome: (d.fases || []).find((f: Fase) => f.id === d.fase_atual)?.nome || d.fase_atual,
         unidade_atual: d.unidade_atual,
@@ -137,10 +142,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         let q = db.collection(COL.processos).where('organization_id', '==', orgId).orderBy('updated_at', 'desc');
         if (p.cursor) q = q.startAfter(Timestamp.fromMillis(Number(p.cursor)));
         const snap = await q.limit(limite).get();
-        const processos = snap.docs
+        const processos = urgentesPrimeiro(snap.docs
             .filter((d) => podeVer(d.data() as never, c.ctx))
             .filter((d) => p.escopo !== 'caixa' || podeAgir(d.data() as never, c.ctx))
-            .map((d) => resumo(d.id, d.data()));
+            .map((d) => resumo(d.id, d.data())));
         const ultimo = snap.docs[snap.docs.length - 1];
         return { processos, cursor: ultimo?.data().updated_at?.toMillis?.() || null, mais: snap.size === limite };
     }
@@ -171,7 +176,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             .map((d) => ({ ...resumo(d.id, d.data()), _t: d.data().updated_at?.toMillis?.() || 0 }))
             .sort((a, b) => b._t - a._t)
             .map(({ _t, ...r }) => r);
-        return { processos: lista };
+        return { processos: urgentesPrimeiro(lista) };
     }
 
     if (p.action === 'obter') {
@@ -249,6 +254,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             throw new HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
         const sigilo = (p.sigilo || tipo?.sigilo_padrao) === 'restrito' ? 'restrito' : 'normal';
+        // Urgência: marcada por quem autua (com motivo) ou herdada do tipo de processo.
+        const urgente = p.urgente === true || tipo?.urgente === true;
+        const motivoUrgencia = texto(p.motivo_urgencia, MAX_TEXTO_LONGO) || (tipo?.urgente === true ? `Tipo de processo urgente (${tipo.nome})` : '');
+        if (urgente && !motivoUrgencia) throw new HttpsError('invalid-argument', 'Informe o motivo da urgência');
         // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
         const form = formularioDe(tipo);
         const descricao = form.descricao === 'oculto' ? '' : texto(p.descricao, MAX_TEXTO_LONGO);
@@ -272,6 +281,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 partes,
                 campos,
                 sigilo,
+                ...(urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {}),
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {}),
                 status: 'em_tramitacao',
                 rito_id: ritoSnap.id,
@@ -295,8 +305,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 ...derivados([], []),
             };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
-                `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.`,
-                { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId,
+                `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}`,
+                { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId, ...(urgente ? { urgente: true } : {}),
                     ...(campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, valorTexto(x)])) } : {}) });
             tx.set(procRef, { ...base, ...mov });
             return numero;
@@ -437,6 +447,16 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${motivo ? ` ${motivo}` : ''}`,
                 { de: data.fase_atual, para: alvo.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}) });
             tx.update(ref, { ...mov, fase_atual: alvo.id });
+            return mov;
+        }
+
+        if (p.action === 'urgencia') {
+            const urgente = p.urgente === true;
+            if (urgente === (data.urgente === true)) throw new HttpsError('invalid-argument', urgente ? 'O processo já está marcado como urgente' : 'O processo não está marcado como urgente');
+            if (!motivo) throw new HttpsError('invalid-argument', 'Informe o motivo');
+            const mov = registrarMovimento(tx, c, ref, data, 'urgencia',
+                `${urgente ? 'Processo marcado como urgente' : 'Urgência retirada'}. Motivo: ${motivo}`, { urgente });
+            tx.update(ref, { ...mov, urgente, urgencia: urgente ? { motivo, por: c.userName, em: new Date().toISOString() } : FieldValue.delete() });
             return mov;
         }
 

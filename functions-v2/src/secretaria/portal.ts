@@ -28,7 +28,7 @@ import { avisarPeticao } from './avisosEquipe';
 export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
 const TIPOS_PETICAO: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
-export const TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de vista', 'Recurso', 'Outro'];
+export const TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
 export const AVISOS_PARTE = ['tudo', 'prazos', 'nenhum'] as const;
 export type AvisosParte = typeof AVISOS_PARTE[number];
 /** Dados do portal por conta de parte: último acesso a cada processo e preferência de aviso. */
@@ -201,7 +201,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             }
             if (novidades) paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: x.ultimo_movimento.descricao, em: x.ultimo_movimento.em });
             return {
-                id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, orgao: ativo.get(x.organization_id)?.nome,
+                id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: ativo.get(x.organization_id)?.nome,
                 fase_nome: (x.fases || []).find((f: { id: string }) => f.id === x.fase_atual)?.nome || x.fase_atual,
                 polo: parte?.polo, parte_nome: parte?.nome || null, como: parte?.como || 'parte', representante: parte?.representante || null,
                 ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null,
@@ -231,7 +231,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         return {
             orgao: org.name || '',
             processo: {
-                id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao,
+                id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true,
                 // Só os campos que o órgão marcou para as partes verem.
                 campos: ((data.campos || []) as Array<{ rotulo: string; tipo: string; valor: unknown; visivel_partes?: boolean }>)
                     .filter((x) => x.visivel_partes === true).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor })),

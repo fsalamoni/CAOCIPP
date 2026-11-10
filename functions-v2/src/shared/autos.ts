@@ -39,6 +39,7 @@ const TITULOS: Record<string, string> = {
     habilitacao: 'Termo de habilitação',
     acesso_revogado: 'Certidão de revogação de acesso',
     dados: 'Certidão de alteração de dados',
+    urgencia: 'Certidão de urgência',
     juntada: 'Juntada de documento',
     peticao: 'Petição',
     atribuicao: 'Atribuição',
@@ -62,6 +63,11 @@ export function folhasDoEvento(m: Evento, docs: Map<string, PecaFolhas>): [numbe
 /** O que a tela precisa saber de cada evento, além do movimento gravado. */
 export function extrasDoEvento(m: Evento, docs: Map<string, PecaFolhas>) {
     return { origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: documentoDoEvento(m) };
+}
+
+/** Urgentes primeiro, mantendo a ordem que a lista já tinha. */
+export function urgentesPrimeiro<T extends { urgente?: boolean }>(lista: T[]): T[] {
+    return [...lista.filter((x) => x.urgente === true), ...lista.filter((x) => x.urgente !== true)];
 }
 
 export const MODOS_SELECAO = ['integral', 'exceto', 'apenas', 'intervalo'] as const;
