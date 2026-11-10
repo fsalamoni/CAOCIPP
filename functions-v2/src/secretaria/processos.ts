@@ -11,6 +11,7 @@ import { sendEmail } from '../shared/email';
 import { CampoValor, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorTexto } from '../shared/camposProcesso';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
+import { configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
     COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarMovimento,
@@ -26,7 +27,10 @@ interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
-        | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia';
+        | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia' | 'expedirComunicacao' | 'tornarSemEfeito';
+    /** Comunicação a expedir (espécie, texto, destinatários, prazo, meio). */
+    comunicacao?: unknown;
+    comunicacao_id?: string;
     /** Urgência: na autuação (com `motivo_urgencia`) e na ação `urgencia` (com `motivo`). */
     urgente?: boolean;
     motivo_urgencia?: string;
@@ -114,6 +118,7 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         pendencias_abertas: d.pendencias_abertas || 0,
         fase_suspensa: d.fase_suspensa === true,
         proximo_vencimento: d.proximo_vencimento || null,
+        comunicacoes_aguardando: d.comunicacoes_aguardando || 0,
         // Pesquisa e painéis.
         rito_id: d.rito_id || null,
         autuado_em: d.autuado_em || null,
@@ -223,6 +228,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 autuado_por: data.autuado_por_nome,
                 pendencias: data.pendencias || [],
                 prazos: data.prazos || [],
+                comunicacoes: data.comunicacoes || [],
                 acoes_feitas: data.acoes_feitas || {},
             },
             hoje: hojeBrasil(),
@@ -320,6 +326,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     const calendario: CalendarioOrgao | undefined = p.action === 'abrirPrazo'
         ? sanitizeCalendario((await db.collection(COL.config).doc(orgId).get()).data()?.calendario)
         : undefined;
+    const cfgCom = p.action === 'expedirComunicacao' ? await configComunicacoes(db, orgId) : null;
+    let expedidas = 1;
     const convite = { token: '', email: '', parte: '', numero: '', representaQuem: '' };
     let recebeu: { unidadeId: string; proc: admin.firestore.DocumentData } | null = null;
     let pendenciaAberta: { proc: admin.firestore.DocumentData; descricao: string } | null = null;
@@ -459,6 +467,15 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             tx.update(ref, { ...mov, urgente, urgencia: urgente ? { motivo, por: c.userName, em: new Date().toISOString() } : FieldValue.delete() });
             return mov;
         }
+
+        // ---- Comunicações às partes (intimação, notificação...) ---------------
+        if (p.action === 'expedirComunicacao') {
+            if (data.status !== 'em_tramitacao') throw new HttpsError('failed-precondition', 'O processo não está em tramitação');
+            const lista = (p.comunicacao as { partes_idx?: unknown[] } | undefined)?.partes_idx;
+            expedidas = Array.isArray(lista) ? new Set(lista).size || 1 : 1;
+            return expedir(tx, c, ref, data, p.comunicacao, cfgCom!);
+        }
+        if (p.action === 'tornarSemEfeito') return tornarSemEfeito(tx, c, ref, data, p.comunicacao_id, motivo);
 
         if (p.action === 'alterarStatus') {
             const status = String(p.status || '');
@@ -614,7 +631,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         throw new HttpsError('invalid-argument', 'Ação desconhecida');
     });
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
-    void avisarPartesDoMovimento(db, String(p.id));
+    void avisarPartesDoMovimento(db, String(p.id), undefined, expedidas);
     const r = recebeu as { unidadeId: string; proc: admin.firestore.DocumentData } | null;
     if (r) void avisarUnidadeRecebeu(c, r.unidadeId, r.proc, String(p.id), motivo || texto(p.orientacao, MAX_TEXTO_LONGO));
     const pa = pendenciaAberta as { proc: admin.firestore.DocumentData; descricao: string } | null;

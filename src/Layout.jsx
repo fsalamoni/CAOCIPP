@@ -37,7 +37,10 @@ import { ThemeToggleButton } from '@/lib/ThemeSwitcher';
 import CommandPalette from '@/lib/CommandPalette';
 import NotificationBell from '@/lib/NotificationBell';
 
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+// Só carrega para quem é parte em algum processo.
+const ComunicacoesPendentes = React.lazy(() => import('@/components/secretaria/ComunicacoesPendentes'));
 
 const publicPages = ['Landing', 'Help', 'Terms', 'Portal', 'Conferir'];
 const PAGES_WITH_MENU_WHEN_LOGGED = ['Help', 'Terms'];
@@ -67,6 +70,7 @@ const SIDEBAR_COLLAPSED_STORAGE_KEY = 'caocipp_sidebar_collapsed';
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   // Páginas do órgão: /Organization?id=… e o Processo Eletrônico (?org=…), que
   // tem página própria mas pertence ao mesmo órgão — o sub-menu dele continua
@@ -387,6 +391,11 @@ export default function Layout({ children, currentPageName }) {
 
         {/* Page Content */}
         <main className="p-6 mt-16 lg:mt-0">
+          {userProfile?.portal_partes && (
+            <React.Suspense fallback={null}>
+              <ComunicacoesPendentes onAbrirProcesso={(id) => navigate(`${createPageUrl('Portal')}?p=${id}`)} />
+            </React.Suspense>
+          )}
           {children}
         </main>
       </div>

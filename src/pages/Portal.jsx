@@ -28,6 +28,8 @@ import FluxoRito from '@/components/secretaria/FluxoRito';
 import { DadosCampos } from '@/components/secretaria/CamposProcesso';
 import LeitorAutos from '@/components/secretaria/LeitorAutos';
 import EventosAutos from '@/components/secretaria/EventosAutos';
+import ComunicacoesPendentes from '@/components/secretaria/ComunicacoesPendentes';
+import { SeloComunicacao } from '@/components/secretaria/Comunicacoes';
 import { etapasAteOFim } from '@/lib/secretariaRito';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
@@ -59,6 +61,7 @@ export function frasePolo(polo) {
 const ICONE_MOV = {
     juntada: FileText, peticao: Send, fase: GitBranch, situacao: Flag, prazo: CalendarClock, prazo_encerrado: CalendarCheck,
     pendencia_resolvida: Gavel, autuacao: FilePlus, habilitacao: UserCheck, convite: Mail,
+    comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck,
 };
 
 export default function Portal() {
@@ -100,6 +103,7 @@ export default function Portal() {
                     )}
                 </div>
             </header>
+            {isAuthenticated && !convite && <ComunicacoesPendentes onAbrirProcesso={ir} />}
             <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6">
                 {isLoadingAuth ? <Carregando texto="Carregando…" />
                     : !isAuthenticated ? <Entrar convite={!!convite} />
@@ -308,6 +312,7 @@ function MeusProcessos({ onAbrir }) {
                             <li key={i}>
                                 <button type="button" onClick={() => onAbrir(x.processoId)} className="w-full text-left text-sm rounded-md px-2 py-1.5 hover:bg-amber-100 dark:hover:bg-amber-900 flex flex-wrap items-baseline gap-x-2">
                                     <span className="font-mono text-xs">{x.numero}</span>
+                                    {x.tipo === 'comunicacao' && <span><b className="text-sky-800 dark:text-sky-200">Aguarda a sua ciência:</b> {x.descricao}{x.prazo ? ` (prazo de ${x.prazo} a contar da ciência)` : ''}</span>}
                                     {x.tipo === 'prazo' && <span>{x.vencido ? <b className="text-red-700 dark:text-red-300">Prazo vencido em {brData(x.vence_em)}</b> : <b>Prazo vence em {brData(x.vence_em)}{diasAte(x.vence_em) <= 3 ? ` (${diasAte(x.vence_em) === 0 ? 'hoje' : `${diasAte(x.vence_em)} dias`})` : ''}</b>}: {x.descricao}</span>}
                                     {x.tipo === 'peticao' && <span>Sua manifestação aguarda apreciação desde {dataHora(x.desde)}</span>}
                                     {x.tipo === 'novidade' && <span><b>Novidade:</b> {x.descricao}</span>}
@@ -384,6 +389,16 @@ function ProcessoParte({ id, onVoltar }) {
     const [ocupado, setOcupado] = useState('');
     const [responderPrazo, setResponderPrazo] = useState(null);
     const formRef = useRef(null);
+    const darCiencia = async (c) => {
+        setOcupado(c.id);
+        try {
+            const r = await secPortal('darCiencia', { processoId: id, comunicacaoId: c.id });
+            toast.success(r.vence_em ? `Ciência registrada. Seu prazo vence em ${brData(r.vence_em)}.` : 'Ciência registrada.');
+            qc.invalidateQueries({ queryKey: ['portal-proc', id] });
+            qc.invalidateQueries({ queryKey: ['portal-processos'] });
+            qc.invalidateQueries({ queryKey: ['portal-comunicacoes'] });
+        } catch (e) { toast.error(e?.message || 'Não foi possível registrar a ciência'); } finally { setOcupado(''); }
+    };
 
     if (q.isLoading) return <Carregando texto="Carregando processo…" />;
     if (q.error) return <div role="alert" className="text-red-700 dark:text-red-400">{q.error.message} <Button variant="link" size="sm" className="gap-1 px-1" onClick={() => q.refetch()}><RefreshCw className="w-3 h-3" aria-hidden /> Tentar de novo</Button><Button variant="link" size="sm" onClick={onVoltar}>Voltar</Button></div>;
@@ -462,6 +477,31 @@ function ProcessoParte({ id, onVoltar }) {
 
             <div className="grid lg:grid-cols-5 gap-5">
                 <div className="lg:col-span-3 space-y-5">
+                    {p.comunicacoes?.length > 0 && (
+                        <Card className={p.comunicacoes.some((x) => x.status === 'aguardando') ? 'border-sky-300 dark:border-sky-800' : ''}>
+                            <CardHeader className="pb-2"><CardTitle className="text-base">Intimações e comunicações para você</CardTitle></CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                                {[...p.comunicacoes].reverse().map((c) => (
+                                    <div key={c.id} className="space-y-1 border-b last:border-0 border-slate-100 dark:border-slate-800 pb-2 last:pb-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="font-medium">{c.especie_nome}</span>
+                                            <SeloComunicacao status={c.status} />
+                                            {c.status === 'aguardando' && <Button size="sm" className="ml-auto" disabled={!!ocupado} onClick={() => darCiencia(c)}>{ocupado === c.id ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : 'Dar ciência'}</Button>}
+                                        </div>
+                                        <p className="whitespace-pre-wrap">{c.texto}</p>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                                            Expedida em {dataHora(c.expedida_em)}{c.documento_titulo ? ` · ${c.documento_titulo}` : ''}
+                                            {c.status === 'aguardando' && (c.prazo ? ` · prazo de ${c.prazo} a contar da ciência` : ' · sem prazo de resposta')}
+                                            {c.status === 'aguardando' && c.limite_ciencia && ` · sem ciência até ${brData(c.limite_ciencia)}, vale por decurso`}
+                                            {c.ciencia_em && ` · ciência em ${dataHora(c.ciencia_em)}`}
+                                            {c.vence_em && ` · prazo vence em ${brData(c.vence_em)}`}
+                                        </p>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {p.prazos.length > 0 && (
                         <Card className={p.prazos.some((x) => x.meu) ? 'border-amber-300 dark:border-amber-700' : ''}>
                             <CardHeader className="pb-2"><CardTitle className="text-base">Prazos em aberto</CardTitle></CardHeader>

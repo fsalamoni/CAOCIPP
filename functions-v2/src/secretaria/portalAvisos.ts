@@ -14,7 +14,7 @@ import { AVISOS_PARTE, AvisosParte, COL_ACESSOS, MOVIMENTOS_INTERNOS } from './p
  * "prazos" (só prazos, decisões e situação) ou "nenhum".
  */
 
-const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida', 'situacao', 'fase'];
+const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso'];
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso: string) => iso.split('-').reverse().join('/');
 
@@ -46,12 +46,16 @@ async function destinatarios(db: admin.firestore.Firestore, proc: admin.firestor
 const rodape = (procId: string) => `<p><a href="${APP_URL}/Portal?p=${procId}">Abrir o processo no portal das partes</a></p><p style="color:#64748b;font-size:12px">Você recebe este aviso porque acompanha o processo pelo portal. Para mudar, abra o portal e ajuste "Avisos por e-mail".</p>`;
 
 /** Avisa as partes sobre o último movimento público do processo. */
-export async function avisarPartesDoMovimento(db: admin.firestore.Firestore, procId: string, autorUid?: string): Promise<void> {
+export async function avisarPartesDoMovimento(db: admin.firestore.Firestore, procId: string, autorUid?: string, ultimos = 1): Promise<void> {
+    const proc = (await db.collection(COL.processos).doc(procId).get().catch(() => null))?.data();
+    const fim = Number(proc?.mov_seq) || 0;
+    for (let seq = Math.max(1, fim - ultimos + 1); seq <= fim; seq++) await avisarDoMovimento(db, procId, proc!, seq, autorUid);
+}
+
+async function avisarDoMovimento(db: admin.firestore.Firestore, procId: string, proc: admin.firestore.DocumentData, seq: number, autorUid?: string): Promise<void> {
     try {
         const ref = db.collection(COL.processos).doc(procId);
-        const proc = (await ref.get()).data();
-        if (!proc || !(proc.partes_uids || []).length) return;
-        const seq = Number(proc.mov_seq) || 0;
+        if (!(proc.partes_uids || []).length) return;
         const mov = (await ref.collection('movimentos').doc(String(seq).padStart(6, '0')).get()).data();
         if (!mov || MOVIMENTOS_INTERNOS.includes(mov.tipo) || mov.dados?.visivel_partes === false) return;
         if (['convite', 'habilitacao', 'acesso_revogado'].includes(mov.tipo)) return; // já têm e-mail próprio ou não interessam
@@ -73,7 +77,7 @@ export async function avisarPartesDoMovimento(db: admin.firestore.Firestore, pro
 function rotulo(tipo: string): string {
     return ({
         juntada: 'novo documento nos autos', peticao: 'petição protocolada', fase: 'o processo mudou de fase', situacao: 'a situação do processo mudou',
-        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
+        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', comunicacao: 'comunicação expedida, aguardando ciência', ciencia_decurso: 'ciência registrada por decurso', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
     } as Record<string, string>)[tipo] || 'novo andamento';
 }
 

@@ -5,6 +5,27 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Intimações e demais comunicações, com ciência e prazo
+- A secretaria **intima, notifica, cita, dá ciência ou comunica** uma ou mais
+  partes pelo processo (cartão "Comunicações às partes" ou Mais → Intimar ou
+  comunicar uma parte). O formulário pede a espécie, a quem, o texto, o
+  documento a que se refere (opcional), o prazo e o meio.
+- **Prazo:** vem sugerido da fase do rito quando ela tem prazo; se não tem,
+  quem expede precisa dizer os dias ou marcar "não abre prazo".
+- **Pela plataforma:** a parte (ou o representante) vê um aviso ao entrar no
+  SIGO ou no portal, com o texto, o prazo que será aberto e a data limite, e
+  clica em **Dar ciência**. A ciência é certificada nos autos (Termo de
+  ciência) e o prazo de resposta abre nessa hora. "Ver depois" adia o aviso
+  só naquela sessão. A parte também recebe e-mail.
+- **Ciência por decurso:** sem ciência em 10 dias corridos (o órgão muda o
+  número, ou desliga com zero, em Painel Administrativo → Processo
+  Eletrônico), a rotina diária certifica a ciência e abre o prazo.
+- **Por outro meio:** comunicação já feita por correio, pessoalmente ou
+  edital é registrada com o meio e a data da ciência; o prazo abre na hora,
+  contado dessa data. Serve para parte sem conta no portal.
+- Antes da ciência, a secretaria pode **tornar a comunicação sem efeito**,
+  com motivo certificado.
+
 ### 10/11/2026 — Urgência nos processos
 - O processo pode ser **urgente**, sempre com motivo: na autuação, depois
   (Mais → Marcar como urgente / Retirar a urgência, pela unidade que tem o

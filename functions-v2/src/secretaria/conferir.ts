@@ -7,6 +7,7 @@ import { APP_URL, normalizarCodigo } from './autos';
 import { COL, REGION } from './context';
 import { lembrarPrazosDasPartes } from './portalAvisos';
 import { enviarResumosDiarios, notificarPessoas } from './avisosEquipe';
+import { cienciaPorDecurso } from './comunicacoes';
 
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
@@ -40,6 +41,8 @@ export const secretariaAlertaPrazos = onSchedule(
     { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: REGION },
     async () => {
         const db = admin.firestore();
+        // Antes dos alertas: a ciência por decurso abre prazos que entram neles.
+        await cienciaPorDecurso(db).catch((e) => console.warn('[comunicacoes] ciência por decurso falhou', e));
         const hoje = hojeBrasil();
         const limite = somarDias(hoje, DIAS_ALERTA);
         // Só campo único em faixa: dispensa índice composto.

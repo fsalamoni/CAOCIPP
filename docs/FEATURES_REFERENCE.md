@@ -162,6 +162,7 @@ corridos com vencimento pelo CPC, com selos e filtros na lista. Fase 3:
 portal das partes (`/Portal`), com convite por link ou e-mail, login próprio
 (Google ou e-mail e senha), consulta aos documentos visíveis às partes e
 petição a qualquer tempo, juntada na hora com pendência para o decisor. Fase 4:
+comunicações às partes (intimação, notificação, citação, ciência e comunicação expedidas pela secretaria; aviso ao entrar com botão de ciência; prazo aberto na ciência; ciência por decurso configurável; registro de comunicação feita por outro meio),
 urgência do processo (com motivo, na autuação, depois ou por padrão do tipo; selo, urgentes primeiro nas listas, filtro e pedido de urgência pela parte),
 tabela de eventos numerados do processo (atos de usuários e registros do sistema, com filtros e busca), termo de uma folha para cada ato de usuário, leitura dos autos evento a evento e PDF integral ou parcial (apenas os marcados, todos exceto os marcados, intervalo de folhas),
 tipos de processo (rito, sigilo, unidade sugerida e formulário próprio do "Novo processo", com campos padrão e campos do órgão gravados nos dados do processo), ritos com ramificações,

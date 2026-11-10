@@ -5,6 +5,7 @@ import { MAX_TEXTO_LONGO, Rito, documentoEfetivo, lotacoesDe, sanitizeCalendario
 import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
+import { cienciaDias } from '../shared/comunicacoes';
 import { sanitizeDocumentoConfig } from './documentoConfig';
 import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
 import { MIME_DOCX } from './conversao';
@@ -116,6 +117,8 @@ interface ConfigRequest extends Record<string, unknown> {
     modelo?: unknown;
     tipo?: unknown;
     peticao_interrompe?: boolean;
+    /** Dias corridos até a ciência por decurso (0 desliga). */
+    ciencia_dias?: number;
     enabled?: boolean;
     id?: string;
     unidadeId?: string;
@@ -209,6 +212,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             documentoUnidades,
             calendario: sanitizeCalendario(cfgSnap.data()?.calendario),
             alerta_prazos: cfgSnap.data()?.alerta_prazos === true,
+            ciencia_dias: cienciaDias(cfgSnap.data()?.ciencia_dias),
             modelos: modelosSnap.docs.map((d) => {
                 const m = d.data();
                 return {
@@ -403,7 +407,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             'secretariaConfig.updated_at': agora,
             'secretariaConfig.updated_by': auth.uid,
         });
-        await audit('SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe });
+        const dias = cienciaDias(p.ciencia_dias);
+        await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, ciencia_dias: dias, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await audit('SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe, ciencia_dias: dias });
         return { success: true };
     }
 

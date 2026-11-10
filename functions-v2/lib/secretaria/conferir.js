@@ -10,6 +10,7 @@ const autos_1 = require("./autos");
 const context_1 = require("./context");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
+const comunicacoes_1 = require("./comunicacoes");
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
  * impresso nas folhas. Responde só os dados da juntada: quem tem o código
@@ -42,6 +43,8 @@ exports.DIAS_ALERTA = 2;
 exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: context_1.REGION }, async () => {
     var _a, _b, _c, _d;
     const db = admin.firestore();
+    // Antes dos alertas: a ciência por decurso abre prazos que entram neles.
+    await (0, comunicacoes_1.cienciaPorDecurso)(db).catch((e) => console.warn('[comunicacoes] ciência por decurso falhou', e));
     const hoje = (0, secretaria_1.hojeBrasil)();
     const limite = (0, secretaria_1.somarDias)(hoje, exports.DIAS_ALERTA);
     // Só campo único em faixa: dispensa índice composto.

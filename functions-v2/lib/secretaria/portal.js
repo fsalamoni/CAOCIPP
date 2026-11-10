@@ -13,6 +13,8 @@ const exportar_1 = require("./exportar");
 const autos_2 = require("../shared/autos");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
+const comunicacoes_1 = require("../shared/comunicacoes");
+const comunicacoes_2 = require("./comunicacoes");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -38,6 +40,15 @@ function prazosDaParte(proc, parte) {
     const nome = ((parte === null || parte === void 0 ? void 0 : parte.nome) || '').toLowerCase();
     return (proc.prazos || []).filter((x) => x.status === 'aberto'
         && (!x.destinatario || String(x.destinatario).toLowerCase().includes(nome)));
+}
+/** Comunicações dirigidas a esta conta (à parte dela), como o portal mostra. */
+function comunicacoesDaConta(proc, uid) {
+    return (proc.comunicacoes || []).filter((x) => x.status !== 'sem_efeito' && (0, comunicacoes_1.destinatario)(x, proc.partes || [], uid)).map((x) => ({
+        id: x.id, especie: x.especie, especie_nome: comunicacoes_1.ESPECIES[x.especie] || 'Comunicação', texto: x.texto, parte_nome: x.parte_nome,
+        documento_id: x.documento_id || null, documento_titulo: x.documento_titulo || null,
+        prazo: (0, comunicacoes_1.textoPrazo)(x), expedida_em: x.expedida_em, limite_ciencia: x.limite_ciencia, status: x.status,
+        ciencia_em: x.ciencia_em || null, ciencia_meio: x.ciencia_meio || null, vence_em: x.vence_em || null,
+    }));
 }
 /** Fases vistas pela parte: só o que não é interno da equipe. */
 function fasesPublicas(proc) {
@@ -152,6 +163,34 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         await db.collection(exports.COL_ACESSOS).doc(uid).set({ avisos, email: auth.token.email || null, updated_at: new Date().toISOString() }, { merge: true });
         return { success: true, avisos };
     }
+    if (p.action === 'comunicacoes') {
+        // O que aguarda a ciência desta conta, em todos os processos (para o aviso ao entrar).
+        const snap = await db.collection(context_1.COL.processos).where('partes_uids', 'array-contains', uid).limit(200).get();
+        const com = snap.docs.filter((d) => (d.data().comunicacoes_aguardando || 0) > 0);
+        const orgIds = [...new Set(com.map((d) => String(d.data().organization_id)))];
+        const orgs = orgIds.length ? await db.getAll(...orgIds.map((id) => db.collection('organizations').doc(id))) : [];
+        const nome = new Map(orgs.filter((o) => { var _a, _b; return ((_b = (_a = o.data()) === null || _a === void 0 ? void 0 : _a.secretariaConfig) === null || _b === void 0 ? void 0 : _b.enabled) === true; }).map((o) => { var _a; return [o.id, String(((_a = o.data()) === null || _a === void 0 ? void 0 : _a.name) || '')]; }));
+        return {
+            comunicacoes: com.filter((d) => nome.has(d.data().organization_id)).flatMap((d) => comunicacoesDaConta(d.data(), uid)
+                .filter((x) => x.status === 'aguardando')
+                .map((x) => (Object.assign(Object.assign({}, x), { processoId: d.id, numero: d.data().numero, assunto: d.data().assunto, orgao: nome.get(d.data().organization_id), urgente: d.data().urgente === true }))))
+                .sort((a, b) => a.expedida_em.localeCompare(b.expedida_em)),
+        };
+    }
+    if (p.action === 'darCiencia') {
+        const antes = await lerComoParte(db, uid, p.processoId);
+        const cfg = await (0, comunicacoes_2.configComunicacoes)(db, antes.data.organization_id);
+        const r = await db.runTransaction(async (tx) => {
+            const { ref, data: proc } = await lerComoParte(db, uid, p.processoId, tx);
+            const alvo = (proc.comunicacoes || []).find((x) => x.id === p.comunicacaoId);
+            // Só a parte destinatária (ou representante dela) dá ciência.
+            if (!alvo || !(0, comunicacoes_1.destinatario)(alvo, proc.partes || [], uid))
+                throw new https_1.HttpsError('not-found', 'Comunicação não encontrada');
+            const parte = parteDoUsuario(proc, uid);
+            return (0, comunicacoes_2.registrarCiencia)(tx, contextoParte(db, proc, uid, `${parte.assina} (parte)`), ref, proc, alvo.id, 'plataforma', cfg, parte.rotulo).comunicacao;
+        });
+        return { success: true, ciencia_em: r.ciencia_em, vence_em: r.vence_em || null, prazo: (0, comunicacoes_1.textoPrazo)(r) };
+    }
     if (p.action === 'meusProcessos') {
         const [snap, acessosSnap] = await Promise.all([
             db.collection(context_1.COL.processos).where('partes_uids', 'array-contains', uid).limit(200).get(),
@@ -174,6 +213,10 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             for (const pr of prazosDaParte(x, parte)) {
                 paraVoce.push({ tipo: 'prazo', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pr.descricao, vence_em: pr.vence_em, vencido: pr.vence_em < hoje, prazo_id: pr.id });
             }
+            const aguardando = comunicacoesDaConta(x, uid).filter((q) => q.status === 'aguardando');
+            for (const co of aguardando) {
+                paraVoce.push({ tipo: 'comunicacao', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: `${co.especie_nome}: ${co.texto}`.slice(0, 300), em: co.expedida_em, comunicacao_id: co.id, prazo: co.prazo, limite_ciencia: co.limite_ciencia });
+            }
             for (const pe of (x.pendencias || []).filter((q) => q.tipo === 'peticao' && q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${parte === null || parte === void 0 ? void 0 : parte.nome} (`))) {
                 paraVoce.push({ tipo: 'peticao', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pe.descricao, desde: pe.aberta_em });
             }
@@ -183,10 +226,10 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: (_b = ativo.get(x.organization_id)) === null || _b === void 0 ? void 0 : _b.nome,
                 fase_nome: ((_c = (x.fases || []).find((f) => f.id === x.fase_atual)) === null || _c === void 0 ? void 0 : _c.nome) || x.fase_atual,
                 polo: parte === null || parte === void 0 ? void 0 : parte.polo, parte_nome: (parte === null || parte === void 0 ? void 0 : parte.nome) || null, como: (parte === null || parte === void 0 ? void 0 : parte.como) || 'parte', representante: (parte === null || parte === void 0 ? void 0 : parte.representante) || null,
-                ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null,
+                ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length,
             };
         });
-        const ordem = { prazo: 0, peticao: 1, novidade: 2 };
+        const ordem = { comunicacao: -1, prazo: 0, peticao: 1, novidade: 2 };
         paraVoce.sort((a, b) => (ordem[a.tipo] - ordem[b.tipo]) || String(a.vence_em || a.em || '').localeCompare(String(b.vence_em || b.em || '')));
         return { processos, para_voce: paraVoce, avisos: ((_b = acessosSnap.data()) === null || _b === void 0 ? void 0 : _b.avisos) || 'tudo' };
     }
@@ -220,6 +263,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 prazos: (data.prazos || []).filter((x) => x.status === 'aberto')
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
+                comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
             },
             movimentos: todos.filter((m) => { var _a; return !exports.MOVIMENTOS_INTERNOS.includes(m.tipo) && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false; })

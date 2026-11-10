@@ -74,7 +74,21 @@ export default function ProcessoEletronicoAdmin({ organization }) {
                                 <p className="font-medium text-slate-800 dark:text-slate-100">Petição da parte interrompe a fase</p>
                                 <p>Ligado, cada petição pelo portal das partes suspende a fase até o gabinete apreciá-la. Desligado, a petição abre pendência e a fase segue.</p>
                             </div>
-                            <Switch checked={estado.peticao_interrompe === true} disabled={saving} onCheckedChange={(v) => salvar('salvarPreferencias', { peticao_interrompe: v }, 'Preferência salva')} aria-label="Petição da parte interrompe a fase" />
+                            <Switch checked={estado.peticao_interrompe === true} disabled={saving} onCheckedChange={(v) => salvar('salvarPreferencias', { peticao_interrompe: v, ciencia_dias: estado.ciencia_dias }, 'Preferência salva')} aria-label="Petição da parte interrompe a fase" />
+                        </div>
+                    )}
+                    {enabled && estado && (
+                        <div className="flex flex-wrap items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
+                            <div className="flex-1 min-w-[14rem]">
+                                <label htmlFor="ciencia-dias" className="font-medium text-slate-800 dark:text-slate-100">Ciência por decurso</label>
+                                <p>Intimação ou outra comunicação feita pela plataforma que a parte não abrir neste número de dias corridos é dada por ciente, e o prazo começa a contar. Zero desliga: só a parte dá ciência.</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input id="ciencia-dias" key={estado.ciencia_dias} type="number" min={0} max={90} defaultValue={estado.ciencia_dias ?? 10} disabled={saving}
+                                    className="h-9 w-20 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900"
+                                    onBlur={(e) => { const n = Math.max(0, Math.min(90, Math.round(Number(e.target.value) || 0))); if (n !== estado.ciencia_dias) salvar('salvarPreferencias', { peticao_interrompe: estado.peticao_interrompe === true, ciencia_dias: n }, 'Preferência salva'); }} />
+                                <span>dias</span>
+                            </div>
                         </div>
                     )}
                     {enabled && (
