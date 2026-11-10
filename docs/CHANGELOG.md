@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Urgência nos processos
+- O processo pode ser **urgente**, sempre com motivo: na autuação, depois
+  (Mais → Marcar como urgente / Retirar a urgência, pela unidade que tem o
+  processo) ou por padrão do tipo de processo ("todo processo deste tipo é
+  urgente"). Cada marcação vira evento nos autos (Certidão de urgência).
+- Urgentes aparecem primeiro na caixa, em Todos e no Meu trabalho (grupo
+  "Urgentes"), com selo vermelho; há o filtro "Urgentes". O selo aparece
+  também no processo, no portal da parte e na capa do PDF. O aviso de
+  processo recebido sai com "URGENTE" no assunto.
+- No portal, a parte tem o tipo de manifestação "Pedido de urgência", que
+  segue para apreciação do decisor.
+
 ### 10/11/2026 — Eventos do processo, termos com folha e PDF integral ou parcial
 - O processo ganhou a tabela **Eventos**: tudo o que aconteceu, numerado, com
   o que foi feito, por quem, em que unidade, data, hora e as folhas que ocupa.

@@ -27,7 +27,7 @@ const avisosEquipe_1 = require("./avisosEquipe");
 exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
 const TIPOS_PETICAO = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
-exports.TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de vista', 'Recurso', 'Outro'];
+exports.TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
 exports.AVISOS_PARTE = ['tudo', 'prazos', 'nenhum'];
 /** Dados do portal por conta de parte: último acesso a cada processo e preferência de aviso. */
 exports.COL_ACESSOS = 'secPortalAcessos';
@@ -180,7 +180,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             if (novidades)
                 paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: x.ultimo_movimento.descricao, em: x.ultimo_movimento.em });
             return {
-                id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, orgao: (_b = ativo.get(x.organization_id)) === null || _b === void 0 ? void 0 : _b.nome,
+                id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: (_b = ativo.get(x.organization_id)) === null || _b === void 0 ? void 0 : _b.nome,
                 fase_nome: ((_c = (x.fases || []).find((f) => f.id === x.fase_atual)) === null || _c === void 0 ? void 0 : _c.nome) || x.fase_atual,
                 polo: parte === null || parte === void 0 ? void 0 : parte.polo, parte_nome: (parte === null || parte === void 0 ? void 0 : parte.nome) || null, como: (parte === null || parte === void 0 ? void 0 : parte.como) || 'parte', representante: (parte === null || parte === void 0 ? void 0 : parte.representante) || null,
                 ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null,
@@ -209,7 +209,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         return {
             orgao: org.name || '',
             processo: {
-                id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao,
+                id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true,
                 // Só os campos que o órgão marcou para as partes verem.
                 campos: (data.campos || [])
                     .filter((x) => x.visivel_partes === true).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor })),

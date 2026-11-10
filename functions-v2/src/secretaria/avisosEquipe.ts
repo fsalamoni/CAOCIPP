@@ -105,7 +105,7 @@ export async function avisarUnidadeRecebeu(c: Contexto, unidadeId: string, proc:
     if (!unidade) return;
     await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidadeId, unidade)), {
         subtipo: 'recebido', procId,
-        titulo: `Processo ${proc.numero} chegou em ${unidade.nome}`,
+        titulo: `${proc.urgente === true ? 'URGENTE: ' : ''}Processo ${proc.numero} chegou em ${unidade.nome}`,
         mensagem: `${c.userName} remeteu: ${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}`.slice(0, 300),
         html: `<p>${escapar(c.userName)} remeteu o processo <b>${escapar(String(proc.numero))}</b> (${escapar(String(proc.assunto || ''))}) para <b>${escapar(String(unidade.nome))}</b>.</p>${motivo ? `<blockquote style="border-left:3px solid #6366f1;margin:0;padding:4px 12px;color:#1e293b">${escapar(motivo)}</blockquote>` : ''}`,
     }, c.ctx.uid);

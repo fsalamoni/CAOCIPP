@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { origemEvento, geraTermo, documentoDoEvento, folhasDoEvento, extrasDoEvento, sanitizeSelecao, selecionar, tituloEvento } = require('../lib/shared/autos');
+const { origemEvento, geraTermo, documentoDoEvento, folhasDoEvento, extrasDoEvento, sanitizeSelecao, selecionar, tituloEvento, urgentesPrimeiro } = require('../lib/shared/autos');
 
 const movs = [
     { seq: 1, tipo: 'autuacao', dados: {}, folha: 1 },
@@ -38,6 +38,11 @@ test('seleção: integral, exceto, apenas e intervalo de folhas', () => {
     assert.deepEqual([...r.incluidos], [3, 4]);
     assert.deepEqual(r.recorte.get(3), [3, 4]); // só as folhas 3 e 4 do documento
     assert.deepEqual(r.recorte.get(4), [5, 5]);
+});
+
+test('urgentes primeiro, sem embaralhar o resto', () => {
+    const l = [{ id: 'a' }, { id: 'b', urgente: true }, { id: 'c' }, { id: 'd', urgente: true }];
+    assert.deepEqual(urgentesPrimeiro(l).map((x) => x.id), ['b', 'd', 'a', 'c']);
 });
 
 test('seleção inválida é recusada com mensagem', () => {

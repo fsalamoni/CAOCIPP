@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertCircle, CalendarClock, Inbox, Loader2, PenLine, Undo2, UserCheck } from 'lucide-react';
+import { AlertCircle, CalendarClock, Inbox, Loader2, PenLine, Siren, Undo2, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ErroQuery from './ErroQuery';
 import { Badge } from '@/components/ui/badge';
 import { secProcesso } from '@/services/secretariaService';
-import { STATUS_ROTULO } from './comum';
+import { STATUS_ROTULO, SeloUrgente } from './comum';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somarDias = (iso, n) => new Date(new Date(`${iso}T12:00:00`).getTime() + n * 86400000).toLocaleDateString('en-CA');
@@ -24,6 +24,7 @@ export function gruposDeTrabalho(processos, estado) {
     const minhas = new Set(estado.minhasUnidades);
     const ativos = processos.filter((p) => p.status === 'em_tramitacao' && minhas.has(p.unidade_atual));
     const grupos = [
+        { id: 'urgentes', titulo: 'Urgentes', icone: Siren, itens: ativos.filter((p) => p.urgente) },
         { id: 'assinar', titulo: 'Pediram sua assinatura', icone: PenLine, itens: ativos.filter((p) => (p.assinaturas_pendentes || []).some((x) => x.uid === estado.uid)) },
         { id: 'orientacao', titulo: 'Orientação do gabinete', icone: Undo2, itens: ativos.filter((p) => p.orientacao) },
         { id: 'comigo', titulo: 'Comigo', icone: UserCheck, itens: ativos.filter((p) => p.responsavel_uid === estado.uid) },
@@ -79,6 +80,8 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
                                     <span className="text-xs text-slate-600 dark:text-slate-400">
                                         {p.fase_nome} · {nomeUnidade(p.unidade_atual)}{naUnidade != null ? ` ${ha(naUnidade)}` : ''}{p.responsavel_uid && p.responsavel_uid !== estado.uid ? ` · ${nomeMembro(p.responsavel_uid)}` : ''}
                                     </span>
+                                    {p.urgente && g.id !== 'urgentes' && <SeloUrgente motivo={p.urgencia?.motivo} />}
+                                    {g.id === 'urgentes' && p.urgencia?.motivo && <span className="text-xs text-red-800 dark:text-red-200 max-w-md truncate" title={p.urgencia.motivo}>{p.urgencia.motivo}</span>}
                                     {g.id === 'assinar' && <Badge className="bg-amber-500 hover:bg-amber-500">{(p.assinaturas_pendentes || []).filter((x) => x.uid === estado.uid).map((x) => x.titulo).join(', ')}</Badge>}
                                     {g.id === 'orientacao' && p.orientacao && <span className="text-xs text-amber-800 dark:text-amber-200 max-w-md truncate" title={p.orientacao.texto}>{p.orientacao.texto}</span>}
                                     {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}</Badge>}

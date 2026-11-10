@@ -1,5 +1,16 @@
 import React from 'react';
+import { Siren } from 'lucide-react';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+
+/** Selo de processo urgente: cor, ícone e texto (não depende só da cor). */
+export function SeloUrgente({ motivo, className = '' }) {
+    return (
+        <Badge title={motivo ? `Urgente: ${motivo}` : undefined} className={`gap-1 bg-red-600 text-white hover:bg-red-600 dark:bg-red-700 ${className}`}>
+            <Siren className="w-3 h-3" aria-hidden /> Urgente
+        </Badge>
+    );
+}
 
 export const STATUS_ROTULO = {
     em_tramitacao: 'Em tramitação',
