@@ -415,6 +415,27 @@ Intimação, notificação, citação, ciência e comunicação. Lógica pura em
   tem `portal_partes` e na página do Portal).
 - **Testes:** `functions-v2/test/comunicacoes.test.js`.
 
+## Meus Processos Eletrônicos (nov/2026)
+
+Página `src/pages/MeusProcessosEletronicos.jsx` (rota
+`/MeusProcessosEletronicos`, dentro do menu do SIGO, abaixo de Meu Perfil).
+Mostrada a quem tem `users/{uid}.portal_partes`: a marca é ligada ao aceitar
+um convite e desligada quando `meusProcessos` não encontra processo algum.
+
+- **Dados:** `secretariaPortal.meusProcessos` devolve, por processo, além do
+  que já devolvia: `tipo_nome`, `autuado_em`, `prazos` (os abertos dirigidos
+  à parte), `peticoes_aguardando`, `comunicacoes_aguardando` e o resultado de
+  `situacaoDaParte` (`functions-v2/src/shared/meusProcessos.ts`):
+  `situacao`, `prioridade`, `frase` e `data`. A resposta traz também `hoje`.
+- **Situações, em ordem:** `vencido` (prazo da parte passou), `ciencia`
+  (comunicação aguardando ciência e nenhum prazo aberto: prazo por abrir),
+  `prazo` (prazo aberto), `apreciacao` (manifestação da parte aguardando o
+  órgão), `acompanhar` e `encerrado` (arquivado).
+- A frase é montada por regra, sem IA. Só entram processos em que a conta é
+  parte ou representante (`partes_uids`); a atuação como membro de órgão não
+  aparece aqui.
+- **Testes:** `functions-v2/test/meusProcessos.test.js`.
+
 ## Exportação em PDF
 
 Gerada no servidor com `pdf-lib` e `pdfmake`: capa (dados, partes,

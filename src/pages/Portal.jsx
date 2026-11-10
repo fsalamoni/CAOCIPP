@@ -363,8 +363,7 @@ function MeusProcessos({ onAbrir }) {
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="font-mono text-sm">{p.numero}</span>
                                         {p.urgente && <SeloUrgente />}
-                                        {p.urgente && <SeloUrgente />}
-                        <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
+                                        <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
                                         {p.novidades && <Badge className="bg-indigo-600 hover:bg-indigo-600">Novidades</Badge>}
                                         {p.como === 'representante' && <Badge variant="outline">Representante</Badge>}
                                         {!orgao && <span className="text-xs text-slate-600">{p.orgao}</span>}

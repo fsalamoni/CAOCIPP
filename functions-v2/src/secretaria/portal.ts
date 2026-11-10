@@ -14,6 +14,7 @@ import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comunicacoes';
 import { configComunicacoes, registrarCiencia } from './comunicacoes';
+import { situacaoDaParte } from '../shared/meusProcessos';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -222,6 +223,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             db.collection(COL.processos).where('partes_uids', 'array-contains', uid).limit(200).get(),
             db.collection(COL_ACESSOS).doc(uid).get(),
         ]);
+        // Sem nenhum processo (acessos revogados), o menu "Meus Processos Eletrônicos" some.
+        if (snap.empty) await db.collection('users').doc(uid).set({ portal_partes: false }, { merge: true }).catch(() => undefined);
         const acessos = (acessosSnap.data()?.processos || {}) as Record<string, string>;
         const orgIds = [...new Set(snap.docs.map((d) => d.data().organization_id))];
         const orgs = orgIds.length ? await db.getAll(...orgIds.map((id) => db.collection('organizations').doc(id))) : [];
@@ -235,14 +238,16 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const parte = parteDoUsuario(x, uid);
             const visto = acessos[d.id] || '';
             const novidades = x.ultimo_movimento?.em && x.ultimo_movimento.em > visto;
-            for (const pr of prazosDaParte(x, parte)) {
+            const meusPrazos = prazosDaParte(x, parte);
+            const minhasPeticoes = ((x.pendencias || []) as Pendencia[]).filter((q) => q.tipo === 'peticao' && q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${parte?.nome} (`));
+            for (const pr of meusPrazos) {
                 paraVoce.push({ tipo: 'prazo', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pr.descricao, vence_em: pr.vence_em, vencido: pr.vence_em < hoje, prazo_id: pr.id });
             }
             const aguardando = comunicacoesDaConta(x, uid).filter((q) => q.status === 'aguardando');
             for (const co of aguardando) {
                 paraVoce.push({ tipo: 'comunicacao', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: `${co.especie_nome}: ${co.texto}`.slice(0, 300), em: co.expedida_em, comunicacao_id: co.id, prazo: co.prazo, limite_ciencia: co.limite_ciencia });
             }
-            for (const pe of ((x.pendencias || []) as Pendencia[]).filter((q) => q.tipo === 'peticao' && q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${parte?.nome} (`))) {
+            for (const pe of minhasPeticoes) {
                 paraVoce.push({ tipo: 'peticao', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pe.descricao, desde: pe.aberta_em });
             }
             if (novidades) paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: x.ultimo_movimento.descricao, em: x.ultimo_movimento.em });
@@ -251,11 +256,16 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 fase_nome: (x.fases || []).find((f: { id: string }) => f.id === x.fase_atual)?.nome || x.fase_atual,
                 polo: parte?.polo, parte_nome: parte?.nome || null, como: parte?.como || 'parte', representante: parte?.representante || null,
                 ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length,
+                // Planilha "Meus Processos Eletrônicos": o que fazer, prazos abertos e por abrir.
+                tipo_nome: x.tipo_nome || null, autuado_em: x.autuado_em || null,
+                prazos: meusPrazos.map((q) => ({ id: q.id, descricao: q.descricao, vence_em: q.vence_em })).sort((a, b) => a.vence_em.localeCompare(b.vence_em)),
+                peticoes_aguardando: minhasPeticoes.length,
+                ...situacaoDaParte({ status: x.status, prazos: meusPrazos.map((q) => ({ descricao: q.descricao, vence_em: q.vence_em })), aguardando, peticoes: minhasPeticoes.length }, hoje),
             };
         });
         const ordem = { comunicacao: -1, prazo: 0, peticao: 1, novidade: 2 } as Record<string, number>;
         paraVoce.sort((a, b) => (ordem[a.tipo as string] - ordem[b.tipo as string]) || String(a.vence_em || a.em || '').localeCompare(String(b.vence_em || b.em || '')));
-        return { processos, para_voce: paraVoce, avisos: acessosSnap.data()?.avisos || 'tudo' };
+        return { hoje, processos, para_voce: paraVoce, avisos: acessosSnap.data()?.avisos || 'tudo' };
     }
 
     if (p.action === 'obter') {

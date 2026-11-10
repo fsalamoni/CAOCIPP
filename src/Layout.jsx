@@ -62,6 +62,7 @@ const PAGE_TITLES = {
   Profile: 'Meu Perfil',
   Organization: 'Órgão',
   ProcessoEletronico: 'Processo Eletrônico',
+  MeusProcessosEletronicos: 'Meus Processos Eletrônicos',
   Admin: 'Administração & Custos',
   Help: 'Ajuda',
   Terms: 'Termos de Uso',
@@ -222,10 +223,10 @@ export default function Layout({ children, currentPageName }) {
                     separado das ferramentas dos órgãos: lá a pessoa não é o órgão. */}
                 {userProfile?.portal_partes && (
                   <NavItem
-                    to="Portal"
+                    to="MeusProcessosEletronicos"
                     icon={Scale}
-                    label="Processos em que sou parte"
-                    active={false}
+                    label="Meus Processos Eletrônicos"
+                    active={currentPageName === 'MeusProcessosEletronicos'}
                     onClick={() => setSidebarOpen(false)}
                     collapsed={isCollapsed}
                   />
