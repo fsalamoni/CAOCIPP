@@ -1,11 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateOrganization = void 0;
+exports.sanitizeContactInfo = sanitizeContactInfo;
 const admin = require("firebase-admin");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 const jurimetria_1 = require("../shared/jurimetria");
 exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
@@ -42,13 +45,14 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         thirdPartyPhaseEnabledConsultas: 'manage_matters',
         moduleConfig: 'manage_modules',
         dashboardConfig: 'manage_metrics',
+        contactInfo: 'edit_details',
         summarySettings: null,
-        goalsConfig: null,
-        escalationConfig: null,
-        reportsConfig: null,
+        goalsConfig: 'configure_automation',
+        escalationConfig: 'configure_automation',
+        reportsConfig: 'configure_automation',
         retentionConfig: null,
         webhookConfig: null,
-        stageTimeConfig: null,
+        stageTimeConfig: 'configure_automation',
     };
     if (!isCreator) {
         for (const field of Object.keys(data || {})) {
@@ -63,10 +67,16 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
     // 3. Update Organization
     // Only allow specific fields to be updated
     const updates = {};
-    if (data.name !== undefined)
-        updates.name = data.name;
+    if (data.name !== undefined) {
+        const name = String((_a = data.name) !== null && _a !== void 0 ? _a : '').trim().slice(0, 150);
+        if (!name)
+            throw new https_1.HttpsError('invalid-argument', 'O nome do órgão não pode ficar vazio.');
+        updates.name = name;
+    }
     if (data.description !== undefined)
-        updates.description = data.description;
+        updates.description = String((_b = data.description) !== null && _b !== void 0 ? _b : '').trim().slice(0, 2000);
+    if (data.contactInfo !== undefined)
+        updates.contactInfo = sanitizeContactInfo(data.contactInfo);
     if (data.matterSettings !== undefined)
         updates.matterSettings = data.matterSettings;
     if (data.summarySettings !== undefined)
@@ -111,7 +121,7 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         updates.webhookConfig = sanitizeWebhookConfig(data.webhookConfig);
     if (data.stageTimeConfig !== undefined)
         updates.stageTimeConfig = sanitizeStageTimeConfig(data.stageTimeConfig);
-    updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
+    updates.updated_at = firestore_1.FieldValue.serverTimestamp();
     if (Object.keys(updates).length === 0) {
         return { success: true, message: 'No changes detected' };
     }
@@ -125,10 +135,26 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
         details: {
             fields_updated: Object.keys(updates).filter(k => k !== 'updated_at')
         },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: firestore_1.FieldValue.serverTimestamp()
     });
     return { success: true, message: 'Organization updated successfully' };
 });
+// Identidade e contato do órgão (Painel Administrativo → Identidade e contato):
+// sigla, e-mail, telefone, endereço e site, exibidos em Informações Gerais.
+// Tudo opcional; valor inválido vira vazio em vez de ser gravado.
+function sanitizeContactInfo(input) {
+    const src = (input && typeof input === 'object' ? input : {});
+    const str = (v, max) => String(v !== null && v !== void 0 ? v : '').trim().slice(0, max);
+    const email = str(src.email, 120);
+    const website = str(src.website, 200);
+    return {
+        acronym: str(src.acronym, 20),
+        email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '',
+        phone: str(src.phone, 40),
+        address: str(src.address, 300),
+        website: /^https?:\/\/[^\s]+$/i.test(website) ? website : '',
+    };
+}
 // Metas de conclusão por assessor (flag `assessor_goals`): percentual-alvo de
 // processos concluídos/dentro-do-prazo em até N dias úteis.
 function sanitizeGoalsConfig(input) {

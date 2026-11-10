@@ -1,22 +1,25 @@
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Save } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowDown, ArrowUp, Loader2, Save } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { updateOrganization } from '@/services/functionsService';
-import { BUILTIN_MODULE_META, BUILTIN_MODULES, resolveBuiltinModules } from '@/lib/organizationModules';
+import { BUILTIN_MODULE_META, BUILTIN_MODULES, resolveBuiltinModules, getModuleOrder } from '@/lib/organizationModules';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { logger } from '@/utils/logger';
 import EntityTypesManager from './EntityTypesManager';
 
-// Painel de administração: liga/desliga os módulos (páginas) do órgão.
-// Visível apenas quando a flag CUSTOM_ENTITIES está ligada (controlado pelo pai).
+const META = Object.fromEntries(BUILTIN_MODULE_META.map((m) => [m.key, m]));
+
+// Painel Administrativo → Páginas e módulos: liga, desliga e ordena as páginas
+// do órgão. Visível apenas com a flag CUSTOM_ENTITIES ligada (controlado pelo pai).
 export default function ModulesManager({ organization }) {
     const initial = useMemo(() => resolveBuiltinModules(organization), [organization]);
+    const initialOrder = useMemo(() => getModuleOrder(organization), [organization]);
     const [enabled, setEnabled] = useState(initial);
+    const [order, setOrder] = useState(initialOrder);
     const [isSaving, setIsSaving] = useState(false);
 
     // Módulos que dependem de uma flag global da plataforma: enquanto a flag
@@ -26,43 +29,45 @@ export default function ModulesManager({ organization }) {
     const jurimetriaOn = useFlag(FEATURE_FLAGS.JURIMETRIA.key);
     const panoramaOn = useFlag(FEATURE_FLAGS.PANORAMA.key);
     const calendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
-    const visibleModules = useMemo(() => {
+    const visibleKeys = useMemo(() => {
         const flagDoModulo = {
             [BUILTIN_MODULES.JURIMETRIA]: jurimetriaOn,
             [BUILTIN_MODULES.PANORAMA]: panoramaOn,
             [BUILTIN_MODULES.CALENDAR]: calendarOn,
         };
-        return BUILTIN_MODULE_META.filter((mod) => flagDoModulo[mod.key] !== false);
-    }, [jurimetriaOn, panoramaOn, calendarOn]);
+        return order.filter((key) => flagDoModulo[key] !== false);
+    }, [order, jurimetriaOn, panoramaOn, calendarOn]);
 
-    // Compara módulo a módulo com o estado original, para garantir que QUALQUER
-    // toggle (incluindo Parcerias) marque o formulário como "sujo" e habilite
-    // o botão Salvar. Omitir parcerias aqui era o bug que impedia o admin de
-    // persistir a ativação do módulo no órgão.
-    const dirty = useMemo(() => {
-        return visibleModules.some(
-            (mod) => enabled[mod.key] !== initial[mod.key]
-        );
-    }, [enabled, initial, visibleModules]);
+    const dirty = useMemo(
+        () => visibleKeys.some((key) => enabled[key] !== initial[key]) || order.join() !== initialOrder.join(),
+        [enabled, initial, visibleKeys, order, initialOrder]
+    );
 
-    const toggle = (key) => {
-        setEnabled((prev) => ({ ...prev, [key]: !prev[key] }));
+    const toggle = (key) => setEnabled((prev) => ({ ...prev, [key]: !prev[key] }));
+
+    // Troca o módulo com o vizinho VISÍVEL (os ocultos por flag mantêm o lugar).
+    const move = (key, delta) => {
+        const vizinho = visibleKeys[visibleKeys.indexOf(key) + delta];
+        if (!vizinho) return;
+        setOrder((prev) => {
+            const next = [...prev];
+            const a = next.indexOf(key);
+            const b = next.indexOf(vizinho);
+            [next[a], next[b]] = [next[b], next[a]];
+            return next;
+        });
     };
 
     const handleSave = async () => {
         try {
             setIsSaving(true);
             // Envia TODOS os módulos built-in (não apenas os alterados), para que
-            // o sanitizeModuleConfig do backend receba um payload completo e o
-            // moduleConfig do órgão não perca chaves.
+            // o sanitizeModuleConfig do backend receba um payload completo.
             const moduleConfig = {};
-            for (const mod of BUILTIN_MODULE_META) {
-                moduleConfig[mod.key] = { enabled: enabled[mod.key] === true };
-            }
-            await updateOrganization({
-                organizationId: organization.id,
-                data: { moduleConfig },
+            order.forEach((key, index) => {
+                moduleConfig[key] = { enabled: enabled[key] === true, order: index };
             });
+            await updateOrganization({ organizationId: organization.id, data: { moduleConfig } });
             toast.success('Páginas atualizadas com sucesso!');
         } catch (error) {
             logger.error('Erro ao salvar módulos:', error);
@@ -74,55 +79,59 @@ export default function ModulesManager({ organization }) {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Páginas e Módulos</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Escolha quais páginas aparecem para este órgão. Desligar uma página apenas a oculta da navegação —
-                    nenhum dado é apagado, e você pode religar a qualquer momento.
-                </p>
-            </div>
-
             <Alert>
                 <AlertDescription>
-                    As páginas <strong>Informações Gerais</strong> e <strong>Painel Administrativo</strong> são fixas e
-                    estão sempre disponíveis.
+                    Desligar uma página só a esconde da navegação: nenhum dado é apagado e você pode religar quando quiser.
+                    Use as setas para definir a ordem em que as páginas aparecem. <strong>Informações Gerais</strong> vem
+                    sempre primeiro; páginas personalizadas, <strong>Processo Eletrônico</strong> e{' '}
+                    <strong>Painel Administrativo</strong> vêm sempre depois destas.
                 </AlertDescription>
             </Alert>
 
-            <div className="space-y-3">
-                {visibleModules.map((mod) => {
+            <ol className="space-y-2">
+                {visibleKeys.map((key, index) => {
+                    const mod = META[key];
                     const ModIcon = mod.icon;
+                    const on = enabled[key] === true;
                     return (
-                        <Card key={mod.key} className="border-slate-200 dark:border-slate-700">
-                            <CardHeader className="pb-3">
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="flex items-start gap-3 min-w-0">
-                                        <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center shrink-0">
-                                            <ModIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <CardTitle className="text-base">{mod.label}</CardTitle>
-                                            <CardDescription>{mod.description}</CardDescription>
-                                        </div>
-                                    </div>
-                                    <Switch
-                                        checked={enabled[mod.key] === true}
-                                        onCheckedChange={() => toggle(mod.key)}
-                                        aria-label={`Ativar ${mod.label}`}
-                                    />
-                                </div>
-                            </CardHeader>
-                            <CardContent className="pt-0">
-                                <p className="text-xs text-slate-400 dark:text-slate-500">
-                                    {enabled[mod.key] ? 'Visível na navegação do órgão.' : 'Oculto (os dados permanecem salvos).'}
+                        <li
+                            key={key}
+                            className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:p-4"
+                        >
+                            <div className="flex flex-col shrink-0">
+                                <Button
+                                    variant="ghost" size="icon" className="h-7 w-7"
+                                    onClick={() => move(key, -1)} disabled={index === 0}
+                                    aria-label={`Subir ${mod.label}`}
+                                >
+                                    <ArrowUp className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost" size="icon" className="h-7 w-7"
+                                    onClick={() => move(key, 1)} disabled={index === visibleKeys.length - 1}
+                                    aria-label={`Descer ${mod.label}`}
+                                >
+                                    <ArrowDown className="w-4 h-4" />
+                                </Button>
+                            </div>
+                            <div className={`hidden sm:flex w-9 h-9 rounded-lg items-center justify-center shrink-0 ${on ? 'bg-indigo-50 dark:bg-indigo-950' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                                <ModIcon className={`w-5 h-5 ${on ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-slate-900 dark:text-white">{mod.label}</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{mod.description}</p>
+                                <p className="text-xs mt-1 text-slate-500 dark:text-slate-400">
+                                    {on ? 'Visível na navegação do órgão.' : 'Oculta (os dados permanecem salvos).'}
                                 </p>
-                            </CardContent>
-                        </Card>
+                            </div>
+                            <Switch checked={on} onCheckedChange={() => toggle(key)} aria-label={`Ativar ${mod.label}`} />
+                        </li>
                     );
                 })}
-            </div>
+            </ol>
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-3">
+                {dirty && <span className="text-sm text-amber-700 dark:text-amber-400">Há alterações não salvas.</span>}
                 <Button onClick={handleSave} disabled={!dirty || isSaving} className="gap-2">
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     Salvar páginas

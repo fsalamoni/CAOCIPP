@@ -18,7 +18,7 @@ repositório).
 ## Ativação
 
 - Quem ativa: o **admin do órgão** (criador ou quem tem a permissão
-  `configure_secretaria`), em Painel Administrativo → aba Processo Eletrônico.
+  `configure_secretaria`), em Painel Administrativo → Processo Eletrônico.
   Ali fica **toda a configuração**: ativação, preferências, unidades e equipes,
   tipos de processo, ritos, documentos e modelos do órgão e calendário.
 - Não depende de flag da plataforma. O estado fica em

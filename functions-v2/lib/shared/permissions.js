@@ -23,6 +23,7 @@ exports.ORG_PERMISSION_KEYS = [
     'configure_secretaria',
     'manage_metrics',
     'manage_modules',
+    'configure_automation',
     'bulk_standardize',
     'delete_records',
 ];

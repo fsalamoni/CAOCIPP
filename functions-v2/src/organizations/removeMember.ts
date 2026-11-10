@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 interface RemoveMemberRequest {
@@ -58,13 +59,13 @@ export const removeMember = onCall<RemoveMemberRequest>(
         // Instead of deleting, we mark as inactive and set left_at
         await targetMembershipRef.update({
             active: false,
-            left_at: admin.firestore.FieldValue.serverTimestamp()
+            left_at: FieldValue.serverTimestamp()
         });
 
         // 4. Update stats
         const orgRef = db.collection('organizations').doc(organizationId);
         await orgRef.update({
-            'stats.members_count': admin.firestore.FieldValue.increment(-1)
+            'stats.members_count': FieldValue.increment(-1)
         });
 
         // 5. Audit log
@@ -74,7 +75,7 @@ export const removeMember = onCall<RemoveMemberRequest>(
             user_name: request.auth.token.name || '',
             action: 'REMOVE_MEMBER',
             details: { removed_user_id: userIdToRemove },
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: FieldValue.serverTimestamp()
         });
 
         return { success: true, message: 'Membro removido com sucesso' };

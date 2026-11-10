@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { hasOrgPermission, MembershipLike, OrgPermissionKey } from '../shared/permissions';
 import { sanitizeJurimetriaSettings } from '../shared/jurimetria';
@@ -8,6 +9,7 @@ interface UpdateOrganizationRequest {
     data: {
         name?: string;
         description?: string;
+        contactInfo?: Record<string, unknown>;
         matterSettings?: {
             custom: boolean;
             categories: string[];
@@ -119,13 +121,14 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             thirdPartyPhaseEnabledConsultas: 'manage_matters',
             moduleConfig: 'manage_modules',
             dashboardConfig: 'manage_metrics',
+            contactInfo: 'edit_details',
             summarySettings: null,
-            goalsConfig: null,
-            escalationConfig: null,
-            reportsConfig: null,
+            goalsConfig: 'configure_automation',
+            escalationConfig: 'configure_automation',
+            reportsConfig: 'configure_automation',
             retentionConfig: null,
             webhookConfig: null,
-            stageTimeConfig: null,
+            stageTimeConfig: 'configure_automation',
         };
 
         if (!isCreator) {
@@ -141,8 +144,13 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         // 3. Update Organization
         // Only allow specific fields to be updated
         const updates: any = {};
-        if (data.name !== undefined) updates.name = data.name;
-        if (data.description !== undefined) updates.description = data.description;
+        if (data.name !== undefined) {
+            const name = String(data.name ?? '').trim().slice(0, 150);
+            if (!name) throw new HttpsError('invalid-argument', 'O nome do órgão não pode ficar vazio.');
+            updates.name = name;
+        }
+        if (data.description !== undefined) updates.description = String(data.description ?? '').trim().slice(0, 2000);
+        if (data.contactInfo !== undefined) updates.contactInfo = sanitizeContactInfo(data.contactInfo);
         if (data.matterSettings !== undefined) updates.matterSettings = data.matterSettings;
         if (data.summarySettings !== undefined) updates.summarySettings = data.summarySettings;
         if (data.expedienteSettings !== undefined) updates.expedienteSettings = data.expedienteSettings;
@@ -172,7 +180,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         if (data.webhookConfig !== undefined) updates.webhookConfig = sanitizeWebhookConfig(data.webhookConfig);
         if (data.stageTimeConfig !== undefined) updates.stageTimeConfig = sanitizeStageTimeConfig(data.stageTimeConfig);
 
-        updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
+        updates.updated_at = FieldValue.serverTimestamp();
 
         if (Object.keys(updates).length === 0) {
             return { success: true, message: 'No changes detected' };
@@ -189,12 +197,31 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
             details: {
                 fields_updated: Object.keys(updates).filter(k => k !== 'updated_at')
             },
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: FieldValue.serverTimestamp()
         });
 
         return { success: true, message: 'Organization updated successfully' };
     }
 );
+
+// Identidade e contato do órgão (Painel Administrativo → Identidade e contato):
+// sigla, e-mail, telefone, endereço e site, exibidos em Informações Gerais.
+// Tudo opcional; valor inválido vira vazio em vez de ser gravado.
+export function sanitizeContactInfo(input: unknown): {
+    acronym: string; email: string; phone: string; address: string; website: string;
+} {
+    const src = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
+    const email = str(src.email, 120);
+    const website = str(src.website, 200);
+    return {
+        acronym: str(src.acronym, 20),
+        email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '',
+        phone: str(src.phone, 40),
+        address: str(src.address, 300),
+        website: /^https?:\/\/[^\s]+$/i.test(website) ? website : '',
+    };
+}
 
 // Metas de conclusão por assessor (flag `assessor_goals`): percentual-alvo de
 // processos concluídos/dentro-do-prazo em até N dias úteis.

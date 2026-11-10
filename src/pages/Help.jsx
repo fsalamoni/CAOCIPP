@@ -132,7 +132,7 @@ export default function Help() {
         <CardContent className="space-y-6">
           <p className="text-sm text-slate-600 dark:text-slate-300">
             Módulo opcional do órgão para tramitar processos próprios: autuação, ritos com fases, documentos assinados e numerados,
-            prazos, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo no Painel Administrativo, aba Processo Eletrônico.
+            prazos, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo no Painel Administrativo, seção Processo Eletrônico.
             Ligado, ele aparece entre as páginas do órgão, na barra do alto e no menu lateral, e as abas internas
             (Meu trabalho, Caixa, Todos, Painel, Unidades) ficam no endereço: recarregar ou compartilhar o link mantém a aba.
           </p>

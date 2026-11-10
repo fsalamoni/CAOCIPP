@@ -75,7 +75,7 @@ CAOCIPP/
 │   ├── Layout.jsx            Barra lateral, cabeçalho e navegação por órgão
 │   ├── components/
 │   │   ├── organization/     Módulos do órgão (Consultas, Expedientes, Parcerias…)
-│   │   │   ├── admin/        Abas do Painel Administrativo
+│   │   │   ├── admin/        Seções do Painel Administrativo (mapa em lib/adminSections.js)
 │   │   │   ├── custom/       Páginas personalizadas (componentes genéricos)
 │   │   │   ├── jurimetria/   Módulo Jurimetria
 │   │   │   └── panorama/     Módulo Panorama

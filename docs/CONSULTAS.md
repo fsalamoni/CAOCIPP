@@ -36,7 +36,7 @@ preenchidas, sempre da mais avançada para a menos avançada
 
 A fase "Aguarda retorno de terceiros" pode ser desligada pelo órgão
 (`organization.thirdPartyPhaseEnabledConsultas = false`, em *Painel
-Administrativo → Classificação (Matérias)*). Mesmo desligada, um registro que
+Administrativo → Consultas*). Mesmo desligada, um registro que
 já tenha a data preenchida continua mostrando a etapa — dado gravado nunca é
 escondido.
 
@@ -108,7 +108,7 @@ totalmente vazias são ignoradas.
 
 ## 6. Configuração (Painel Administrativo)
 
-- **Classificação (Matérias)** — permissão `manage_matters`: lista de matérias
+- **Consultas** (seção do painel) — permissão `manage_matters`: lista de matérias
   gerais e específicas do órgão (`organization.matterSettings`), lista de
   terceiros (`thirdPartiesSettingsConsultas`) e o liga/desliga da fase de
   terceiros.

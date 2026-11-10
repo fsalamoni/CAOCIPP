@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { sanitizePermissions } from '../shared/permissions';
 
@@ -70,9 +71,9 @@ export const updateMember = onCall<UpdateMemberRequest>(
         // 3. Update
         const updates: any = {};
         if (newRole) updates.role = newRole;
-        if (newFunction !== undefined) updates.function = newFunction;
+        if (newFunction !== undefined) updates.function = String(newFunction ?? '').trim().slice(0, 60);
         if (permissions !== undefined) updates.permissions = sanitizePermissions(permissions);
-        updates.updated_at = admin.firestore.FieldValue.serverTimestamp();
+        updates.updated_at = FieldValue.serverTimestamp();
 
         await targetRef.update(updates);
 
@@ -83,7 +84,7 @@ export const updateMember = onCall<UpdateMemberRequest>(
             user_name: request.auth.token.name || '',
             action: 'UPDATE_MEMBER',
             details: { updated_user_id: userIdToUpdate, changes: updates },
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: FieldValue.serverTimestamp()
         });
 
         return { success: true };
