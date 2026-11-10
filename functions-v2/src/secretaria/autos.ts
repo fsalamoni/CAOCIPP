@@ -167,7 +167,7 @@ export async function garantirCodigo(
 export async function anexarCarimbado(
     destino: PDFDocument,
     origem: Uint8Array,
-    info: { processo: string; folha: number | null; ordem?: number; titulo: string; juntadoEm?: string; juntadoPor?: string; sha256?: string; codigo?: string | null },
+    info: { processo: string; folha: number | null; ordem?: number; titulo: string; juntadoEm?: string; juntadoPor?: string; sha256?: string; codigo?: string | null; paginas?: [number, number] },
 ): Promise<number> {
     let src: PDFDocument;
     try { src = await PDFDocument.load(origem, { ignoreEncryption: true }); } catch {
@@ -175,8 +175,11 @@ export async function anexarCarimbado(
     }
     const font = await destino.embedFont(StandardFonts.Helvetica);
     const qr = info.codigo ? await destino.embedPng(await QRCode.toBuffer(urlConferencia(info.codigo), { margin: 0, width: 96, errorCorrectionLevel: 'M' })) : null;
-    const paginas = await destino.copyPages(src, src.getPageIndices());
-    paginas.forEach((pg, i) => {
+    // `paginas`: só essas páginas do documento (índices a partir de 0), no PDF parcial por folhas.
+    const indices = info.paginas ? src.getPageIndices().slice(info.paginas[0], info.paginas[1] + 1) : src.getPageIndices();
+    const paginas = await destino.copyPages(src, indices);
+    paginas.forEach((pg, n) => {
+        const i = indices[n];
         destino.addPage(pg);
         const { width, height } = pg.getSize();
         const topo = winAnsi(`Processo nº ${info.processo}${info.folha ? ` · fls. ${info.folha + i}` : ''}`);

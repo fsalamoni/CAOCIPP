@@ -198,8 +198,11 @@ async function anexarCarimbado(destino, origem, info) {
     }
     const font = await destino.embedFont(pdf_lib_1.StandardFonts.Helvetica);
     const qr = info.codigo ? await destino.embedPng(await QRCode.toBuffer((0, exports.urlConferencia)(info.codigo), { margin: 0, width: 96, errorCorrectionLevel: 'M' })) : null;
-    const paginas = await destino.copyPages(src, src.getPageIndices());
-    paginas.forEach((pg, i) => {
+    // `paginas`: só essas páginas do documento (índices a partir de 0), no PDF parcial por folhas.
+    const indices = info.paginas ? src.getPageIndices().slice(info.paginas[0], info.paginas[1] + 1) : src.getPageIndices();
+    const paginas = await destino.copyPages(src, indices);
+    paginas.forEach((pg, n) => {
+        const i = indices[n];
         destino.addPage(pg);
         const { width, height } = pg.getSize();
         const topo = (0, pdfDocumento_1.winAnsi)(`Processo nº ${info.processo}${info.folha ? ` · fls. ${info.folha + i}` : ''}`);

@@ -19,6 +19,7 @@ import FluxoRito from './FluxoRito';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
 import { faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
 import LeitorAutos from './LeitorAutos';
+import EventosAutos from './EventosAutos';
 import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -41,6 +42,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [novoDoc, setNovoDoc] = useState(false);
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
     const pendenciasRef = useRef(null);
+    const eventosRef = useRef(null);
 
     const p = q.data?.processo;
     const posse = q.data?.posse;
@@ -495,19 +497,25 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </div>
 
                 <Card className="lg:col-span-2 h-fit">
-                    <CardHeader className="pb-2"><CardTitle className="text-base">Linha do tempo</CardTitle></CardHeader>
+                    <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                        <CardTitle className="text-base">Últimos eventos</CardTitle>
+                        <Button size="sm" variant="link" className="h-auto p-0" onClick={() => eventosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Ver todos ({movimentos.length})</Button>
+                    </CardHeader>
                     <CardContent>
                         <ol className="space-y-3">
-                            {[...movimentos].reverse().map((m) => (
+                            {[...movimentos].reverse().slice(0, 6).map((m) => (
                                 <li key={m.seq} className="border-l-2 border-indigo-200 dark:border-indigo-800 pl-3">
                                     <p className="text-xs text-slate-600 dark:text-slate-400">#{m.seq} · {dataHora(m.em)} · {m.autor_nome} · {nomeUnidade(m.unidade_id)}</p>
                                     <p className="text-sm text-slate-800 dark:text-slate-200">{m.descricao}</p>
-                                    <p className="text-[10px] font-mono text-slate-400 truncate" title={m.hash}>{m.hash}</p>
                                 </li>
                             ))}
                         </ol>
                     </CardContent>
                 </Card>
+            </div>
+
+            <div ref={eventosRef} className="scroll-mt-4">
+                <EventosAutos movimentos={movimentos} nomeUnidade={nomeUnidade} gerarPdf={(selecao) => secExportarPdf(orgId, procId, selecao)} />
             </div>
 
             {acao?.tipo === 'dados' && (

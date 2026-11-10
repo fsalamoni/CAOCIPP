@@ -15,6 +15,7 @@ const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const autos_1 = require("../shared/autos");
 exports.REGION = 'southamerica-east1';
 exports.COL = {
     processos: 'secProcessos',
@@ -136,14 +137,12 @@ function registrarMovimento(tx, c, procRef, proc, tipo, descricao, dados = {}) {
         hash_anterior: String(proc.ultimo_hash || ''),
     };
     const hash = (0, secretaria_1.hashMovimento)(base);
-    tx.set(procRef.collection('movimentos').doc(String(seq).padStart(6, '0')), Object.assign(Object.assign({}, base), { hash }));
-    return {
-        mov_seq: seq,
-        ultimo_hash: hash,
-        version: (Number(proc.version) || 0) + 1,
-        updated_at: firestore_1.FieldValue.serverTimestamp(),
-        ultimo_movimento: { tipo, descricao, em: base.em },
-    };
+    // Ato de usuário sem documento ocupa uma folha dos autos (o termo). Processo
+    // antigo, com documentos e sem contagem de folhas, fica sem folha no termo.
+    const semContagem = typeof proc.folhas_seq !== 'number' && Number(proc.doc_seq) > 0;
+    const folha = (0, autos_1.geraTermo)(base) && !semContagem ? (Number(proc.folhas_seq) || 0) + 1 : null;
+    tx.set(procRef.collection('movimentos').doc(String(seq).padStart(6, '0')), Object.assign(Object.assign(Object.assign({}, base), { hash }), (folha ? { folha } : {})));
+    return Object.assign(Object.assign({}, (folha ? { folhas_seq: folha } : {})), { mov_seq: seq, ultimo_hash: hash, version: (Number(proc.version) || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp(), ultimo_movimento: { tipo, descricao, em: base.em } });
 }
 function nomeUnidade(c, id) {
     const u = c.unidades.find((x) => x.id === id);

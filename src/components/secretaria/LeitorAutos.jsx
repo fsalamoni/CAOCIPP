@@ -16,7 +16,7 @@ const guardarLidos = (chave, set) => { try { localStorage.setItem(chave, JSON.st
  * `carregar(doc)` devolve `{ base64, nome }` do PDF carimbado; o resultado
  * fica em cache enquanto o leitor está aberto.
  */
-export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, titulo, chaveLido }) {
+export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, titulo, chaveLido, prefixo = 'Doc. nº' }) {
     const [atual, setAtual] = useState(abertoId);
     const [listaAberta, setListaAberta] = useState(false);
     const [carregando, setCarregando] = useState(false);
@@ -65,7 +65,7 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
                 <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-3 py-2">
                     <Button size="sm" variant="ghost" className="lg:hidden" onClick={() => setListaAberta((v) => !v)} aria-expanded={listaAberta} aria-label="Lista de documentos"><List className="w-4 h-4" /></Button>
                     <div className="min-w-0 flex-1">
-                        <DialogTitle className="text-base truncate">{doc ? `Doc. nº ${doc.ordem} · ${doc.titulo}` : titulo || 'Autos'}</DialogTitle>
+                        <DialogTitle className="text-base truncate">{doc ? `${prefixo} ${doc.ordem} · ${doc.titulo}` : titulo || 'Autos'}</DialogTitle>
                         <DialogDescription className="text-xs truncate">{doc ? [doc.tipo, folhas(doc), dataHora(doc.juntado_em)].filter(Boolean).join(' · ') : 'Leitura dos documentos dos autos'}</DialogDescription>
                     </div>
                     <span className="hidden sm:inline text-xs text-slate-600 tabular-nums">{idx + 1} de {documentos.length}</span>
@@ -85,8 +85,8 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
                                         className={`w-full text-left px-3 py-2 border-b border-slate-100 dark:border-slate-800 text-sm ${d.id === atual ? 'bg-indigo-50 dark:bg-indigo-950' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                                         <span className="flex items-baseline gap-2">
                                             <span className="font-mono text-xs text-slate-600 w-6 shrink-0">{d.ordem}</span>
-                                            <span className={`flex-1 min-w-0 truncate ${lidos.has(d.id) ? 'text-slate-600 dark:text-slate-300' : 'font-medium'}`}>{d.titulo}</span>
-                                            {!lidos.has(d.id) && <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" aria-label="Não lido" />}
+                                            <span className={`flex-1 min-w-0 truncate ${chaveLido && !lidos.has(d.id) ? 'font-medium' : 'text-slate-700 dark:text-slate-300'}`}>{d.titulo}</span>
+                                            {chaveLido && !lidos.has(d.id) && <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" aria-label="Não lido" />}
                                         </span>
                                         <span className="block text-xs text-slate-600 pl-8">{[d.tipo, folhas(d)].filter(Boolean).join(' · ')}</span>
                                     </button>

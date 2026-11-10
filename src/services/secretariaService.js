@@ -29,8 +29,9 @@ export const secProcesso = (organizationId, action, extra = {}) =>
 export const secDocumento = (organizationId, processoId, action, extra = {}) =>
     call('secretariaDocumento', { organizationId, processoId, action, ...extra }, { timeout: 120000 });
 
-export const secExportarPdf = (organizationId, processoId) =>
-    call('secretariaExportarPdf', { organizationId, processoId }, { timeout: 180000 });
+/** `selecao`: `{ modo: 'integral' | 'apenas' | 'exceto' | 'intervalo', eventos, folha_de, folha_a, capa, indice }`. */
+export const secExportarPdf = (organizationId, processoId, selecao) =>
+    call('secretariaExportarPdf', { organizationId, processoId, ...(selecao ? { selecao } : {}) }, { timeout: 180000 });
 
 /** Portal das partes: sem organizationId; o servidor confere a habilitação. */
 export const secPortal = (action, extra = {}) =>

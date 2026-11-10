@@ -8,7 +8,8 @@ import { COL, Contexto, REGION, exigirAuth, registrarMovimento } from './context
 import { caminhoArquivo } from './documentos';
 import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
-import { montarPdfAutos } from './exportar';
+import { montarPdfAutos, selecaoOuErro } from './exportar';
+import { extrasDoEvento } from '../shared/autos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPeticao } from './avisosEquipe';
 
@@ -37,6 +38,7 @@ interface PortalRequest {
     action: 'aceitarConvite' | 'meusProcessos' | 'obter' | 'baixar' | 'pdf' | 'peticionar' | 'exportar' | 'certidao' | 'comprovante' | 'preferencias';
     convite?: string;
     processoId?: string;
+    selecao?: unknown;
     docId?: string;
     titulo?: string;
     texto?: string;
@@ -243,7 +245,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 autuado_em: data.autuado_em || null,
             },
             movimentos: todos.filter((m) => !MOVIMENTOS_INTERNOS.includes(m.tipo) && m.dados?.visivel_partes !== false)
-                .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm })),
+                .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
             documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
             minhas_peticoes: peticoesDaParte(data, documentos, uid),
             tipos_peticao: TIPOS_PETICAO_PORTAL,
@@ -263,7 +265,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const documentos = docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData)).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
         const bytes = await montarPdfAutos({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
-            geradoPor: `${parteDoUsuario(proc, uid)?.assina || nomeConta} (parte)`, nomeUnidade: () => '',
+            geradoPor: `${parteDoUsuario(proc, uid)?.assina || nomeConta} (parte)`, nomeUnidade: () => '', selecao: selecaoOuErro(p.selecao),
         });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
     }
