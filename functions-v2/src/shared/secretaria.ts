@@ -77,7 +77,7 @@ export function ehParte(proc: Pick<ProcessoAcesso, 'partes_uids'>, uid: string):
 export const MAX_TEXTO_CURTO = 200;
 export const MAX_TEXTO_LONGO = 4000;
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-export const MAX_FASES = 30;
+export const MAX_FASES = 60;
 export const MAX_ACOES = 20;
 export const MAX_MODELOS_FASE = 10;
 

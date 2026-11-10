@@ -5,6 +5,23 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Importação de rito por arquivo
+- PDF: o texto saía colado ("2.Nome", "1.Autuação") e as fases numeradas não
+  eram achadas; agora os pedaços separados ganham espaço, "1.Nome" abre fase e
+  cabeçalho e rodapé repetidos (data de impressão, endereço) saem. PDF
+  digitalizado ou sem fases explica o que enviar no lugar.
+- Bizagi: o pacote do Bizagi Modeler (.bpm) é aceito, com todas as páginas;
+  também XPDL (.xpdl), a exportação do Bizagi e de outras ferramentas.
+- Planilha: todas as abas são lidas (antes, só a primeira com fases). A aba
+  com o nome de uma fase detalha essa fase; colunas novas Fase principal,
+  Subprocesso e Paralela; "Segue para" pode citar outra aba. Word com várias
+  tabelas: todas são lidas.
+- Diagramas: subprocessos (embutidos ou em outra página) se abrem em etapas no
+  lugar da atividade; mensagens entre piscinas ligam os processos; ramos
+  paralelos ficam em sequência com anotação, porque o processo anda uma fase
+  por vez.
+- Rito aceita até 60 fases (antes 30).
+
 ### 10/11/2026 — Painel Administrativo reorganizado
 - O painel abre numa visão geral, com as seções agrupadas em Órgão, Pessoas e
   acesso, Módulos de trabalho, Regras e automação e Dados e segurança. Menu

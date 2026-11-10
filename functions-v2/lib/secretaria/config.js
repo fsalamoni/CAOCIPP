@@ -411,12 +411,18 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         return { success: true };
     }
     if (p.action === 'extrairTextoRito') {
-        const a = arquivoRecebido(p.arquivo, [conversao_1.MIME_DOCX, 'application/pdf', 'text/plain']);
+        const a = arquivoRecebido(p.arquivo, [conversao_1.MIME_DOCX, 'application/pdf', 'text/plain', importarModelo_1.MIME_BIZAGI]);
+        if (a.mime === importarModelo_1.MIME_BIZAGI && a.buf.subarray(0, 2).toString('latin1') !== 'PK') {
+            throw new https_1.HttpsError('invalid-argument', 'O arquivo não é um pacote do Bizagi (.bpm). Exporte o diagrama em BPMN ou XPDL e envie esse arquivo.');
+        }
         try {
             return await (0, importarModelo_1.textoParaRito)(a.buf, a.mime);
         }
-        catch (_m) {
-            throw new https_1.HttpsError('invalid-argument', 'Não foi possível ler o arquivo');
+        catch (e) {
+            // Mensagens nossas (PDF digitalizado, pacote sem diagrama) vão para a tela; o resto fica genérico.
+            const msg = e instanceof Error && /^(O PDF|O arquivo|Não achei|O pacote)/.test(e.message) ? e.message : 'Não foi possível ler o arquivo';
+            console.warn('extrairTextoRito', a.mime, e instanceof Error ? e.message : e);
+            throw new https_1.HttpsError('invalid-argument', msg);
         }
     }
     if (p.action === 'aplicarPropostaRito') {

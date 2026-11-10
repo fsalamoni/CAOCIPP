@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 import {
-    propostaDeBpmn, propostaDeConteudo, propostaDeDrawio, propostaDeMermaid, propostaDeTabela, propostaDeTexto, tipoProvavel, vincularProposta,
+    propostaDeAbas, propostaDeBpmn, propostaDeConteudo, propostaDeDiagramas, propostaDeDrawio, propostaDeMermaid, propostaDeTabela, propostaDeTexto, propostaDeXpdl, tipoProvavel, vincularProposta,
 } from './propostaRito.js';
 import { seguintes } from './secretariaRito.js';
 

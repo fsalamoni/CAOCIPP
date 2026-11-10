@@ -5,7 +5,7 @@ import { MAX_TEXTO_LONGO, Rito, documentoEfetivo, lotacoesDe, sanitizeCalendario
 import { sanitizeDoc } from '../shared/documento';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
 import { sanitizeDocumentoConfig } from './documentoConfig';
-import { MAX_MODELO_BYTES, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
+import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
 import { MIME_DOCX } from './conversao';
 import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
@@ -406,11 +406,17 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
     }
 
     if (p.action === 'extrairTextoRito') {
-        const a = arquivoRecebido(p.arquivo, [MIME_DOCX, 'application/pdf', 'text/plain']);
+        const a = arquivoRecebido(p.arquivo, [MIME_DOCX, 'application/pdf', 'text/plain', MIME_BIZAGI]);
+        if (a.mime === MIME_BIZAGI && a.buf.subarray(0, 2).toString('latin1') !== 'PK') {
+            throw new HttpsError('invalid-argument', 'O arquivo não é um pacote do Bizagi (.bpm). Exporte o diagrama em BPMN ou XPDL e envie esse arquivo.');
+        }
         try {
             return await textoParaRito(a.buf, a.mime);
-        } catch {
-            throw new HttpsError('invalid-argument', 'Não foi possível ler o arquivo');
+        } catch (e) {
+            // Mensagens nossas (PDF digitalizado, pacote sem diagrama) vão para a tela; o resto fica genérico.
+            const msg = e instanceof Error && /^(O PDF|O arquivo|Não achei|O pacote)/.test(e.message) ? e.message : 'Não foi possível ler o arquivo';
+            console.warn('extrairTextoRito', a.mime, e instanceof Error ? e.message : e);
+            throw new HttpsError('invalid-argument', msg);
         }
     }
 
