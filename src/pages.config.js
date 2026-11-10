@@ -57,6 +57,7 @@ import Admin from './pages/Admin';
 import Secretaria from './pages/Secretaria';
 import ProcessoEletronico from './pages/ProcessoEletronico';
 import Portal from './pages/Portal';
+import MeusProcessosEletronicos from './pages/MeusProcessosEletronicos';
 import Conferir from './pages/Conferir';
 import __Layout from './Layout.jsx';
 
@@ -72,6 +73,7 @@ export const PAGES = {
     "ProcessoEletronico": ProcessoEletronico,
     "Secretaria": Secretaria,
     "Portal": Portal,
+    "MeusProcessosEletronicos": MeusProcessosEletronicos,
     "Conferir": Conferir,
 }
 

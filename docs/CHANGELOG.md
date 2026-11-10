@@ -5,6 +5,23 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Meus Processos Eletrônicos
+- Nova página **Meus Processos Eletrônicos**, logo abaixo de Meu Perfil no
+  menu, para quem é parte ou representante em algum processo (de qualquer
+  órgão ou entidade). O que a pessoa faz como membro de um órgão continua na
+  página do órgão. O item some do menu quando a pessoa não tem processos.
+- Planilha com situação, processo e fase, órgão e posição (parte ou
+  representante, com o polo), prazo com contagem de dias, **o que fazer
+  agora** em uma frase, último andamento e o botão da ação (Dar ciência,
+  Responder ou Abrir). No celular vira lista de cartões.
+- Cores, sempre com ícone e texto: vermelho para prazo vencido, azul para
+  prazo por abrir (comunicação aguardando ciência), âmbar para prazo aberto e
+  cinza para o que não pede nada. Ordem: o que pede ação primeiro. Filtros por
+  situação e por órgão, e busca.
+- Substitui o item "Processos em que sou parte". O processo abre no portal
+  das partes, como antes.
+- Corrigido o selo "Urgente" que aparecia duas vezes na lista do portal.
+
 ### 10/11/2026 — Intimações e demais comunicações, com ciência e prazo
 - A secretaria **intima, notifica, cita, dá ciência ou comunica** uma ou mais
   partes pelo processo (cartão "Comunicações às partes" ou Mais → Intimar ou
