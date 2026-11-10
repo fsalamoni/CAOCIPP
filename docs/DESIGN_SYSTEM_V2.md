@@ -224,14 +224,17 @@ do card de cabeçalho), para que a navegação entre Informações Gerais,
 Painel de Consultas, Consultas, Expedientes, Resumos e Administração
 continue possível com a sidebar em modo ícone.
 
-O layout usa CSS Grid (`grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))`)
-em vez de uma lista simples ou de rolagem horizontal: os itens se
-distribuem igualmente pela largura disponível e quebram para uma nova
-linha sozinhos quando não cabem mais — se adapta ao número de abas
-(varia de 3 a 8+ conforme os módulos habilitados e páginas
-personalizadas do órgão) e a qualquer largura de tela, sem esconder
-nenhuma opção atrás de scroll. Use o mesmo padrão para qualquer nova
-barra de navegação cuja quantidade de itens seja variável:
+A partir de `sm`, o layout usa CSS Grid (`grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))`):
+os itens se distribuem igualmente pela largura disponível e quebram para
+uma nova linha sozinhos quando não cabem mais — se adapta ao número de
+abas (de 3 a 10+ conforme os módulos habilitados e páginas
+personalizadas do órgão) sem esconder nenhuma opção atrás de scroll. No
+celular, vira uma faixa única com rolagem horizontal, já posicionada na
+página atual (em grade, 10+ itens ocupavam a primeira tela inteira). O
+item atual leva `aria-current="page"`. A mesma barra aparece no
+Processo Eletrônico, que é uma página do órgão com endereço próprio.
+Use o mesmo padrão para qualquer nova barra de navegação cuja
+quantidade de itens seja variável:
 
 ```jsx
 import OrgTabBar from '@/components/organization/OrgTabBar';

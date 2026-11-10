@@ -5,6 +5,26 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 10/11/2026 — Navegação do Processo Eletrônico
+- O Processo Eletrônico entrou na barra de páginas do órgão (no alto da
+  página), antes do Painel Administrativo.
+- Dentro do módulo, o sub-menu lateral do órgão continua aberto, com o
+  Processo Eletrônico marcado, e a barra de páginas aparece também ali.
+- Abas internas do módulo no endereço (`&aba=`): recarregar, voltar de um
+  processo ou compartilhar o link mantém a aba.
+- Módulo desligado: "Ir para o órgão" leva quem não é admin à página inicial
+  do órgão (antes ia para o Painel Administrativo, que essa pessoa não vê).
+  Erro ao carregar o módulo ganhou "Tentar de novo".
+- Celular: a barra de páginas do órgão virou uma faixa com rolagem lateral
+  (antes ocupava a primeira tela inteira); o topo mostra o nome da página em
+  vez de "Processos"; a área invisível dos avisos (toasts) não bloqueia mais
+  o toque no menu e no sino.
+- Ajuda e Termos abrem com o menu lateral para quem está logado (antes a
+  pessoa ficava sem menu); o link de ajuda do módulo não esconde mais o
+  título sob a barra do topo.
+- Paleta de comandos (Ctrl+K): atalho "Processo Eletrônico · órgão".
+- Portal das partes: botão de tema claro/escuro, como no resto do SIGO.
+
 ### 09/11/2026 — Convivência com outros apps do projeto Firebase
 - Functions no codebase `sigo`: o deploy do SIGO não apaga mais functions de
   outros apps do projeto.

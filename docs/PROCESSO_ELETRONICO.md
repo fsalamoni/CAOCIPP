@@ -28,10 +28,19 @@ repositório).
   a unidade "Secretaria" (com o admin lotado como gestor) e o "Rito comum" (Autuação →
   Instrução → Decisão → Cumprimento → Encerramento).
 - Desativar esconde a página e bloqueia as functions. Nada é apagado.
-- Página: `/ProcessoEletronico?org=<id>`; processo aberto: `&p=<processoId>`.
-  Links antigos `/Secretaria?...` redirecionam. O link aparece no submenu do
-  órgão quando o módulo está ativo. Na página, o admin tem o botão
-  **Configurar**, que abre o Painel Administrativo na aba do módulo.
+- Página: `/ProcessoEletronico?org=<id>`; aba interna: `&aba=meu|caixa|mesa|todos|painel|unidades`
+  (sem ela, ou com uma aba que a pessoa não tem, abre a padrão do perfil);
+  processo aberto: `&p=<processoId>`. Links antigos `/Secretaria?...` redirecionam,
+  e `/Organization?id=<id>&tab=processo-eletronico` também leva à página.
+- Navegação: com o módulo ativo, o Processo Eletrônico é uma das páginas do
+  órgão em `getOrganizationTabs` (chave `processo-eletronico`, antes do Painel
+  Administrativo), com endereço próprio dado por `orgTabUrl`. Por isso aparece
+  na barra horizontal (`OrgTabBar`) e no sub-menu lateral, e as duas continuam
+  visíveis e com o item marcado dentro do módulo (o `Layout` trata
+  `?org=` da página como o órgão ativo). Também aparece na paleta de comandos
+  (Ctrl+K) como "Processo Eletrônico · órgão". Na página, o admin tem o botão
+  **Configurar**, que abre o Painel Administrativo na aba do módulo; quem não
+  é admin, com o módulo desligado, é levado à página inicial do órgão.
 
 ## Perfis
 

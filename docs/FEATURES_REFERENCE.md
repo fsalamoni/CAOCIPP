@@ -52,6 +52,7 @@ As abas visíveis são calculadas em `getOrganizationTabs`
 | **Resumos Inteligentes** (`summary`) | Indicadores por período de Consultas e Expedientes (taxa de conclusão, tempo médio, urgentes, localidade, status, temporalidade em dias úteis, comparação com o período anterior). |
 | **Calendário de Vencimentos** (`calendar`) | Prazos dos três módulos de fluxo. Aparece se ao menos um deles estiver ativo. |
 | Páginas personalizadas (`cpanel:`/`clist:`) | Ver seção 5. |
+| **Processo Eletrônico** (`processo-eletronico`) | Página própria (`/ProcessoEletronico?org=`), listada aqui quando o módulo está ativo no órgão. Ver [PROCESSO_ELETRONICO.md](PROCESSO_ELETRONICO.md). |
 | **Painel Administrativo** (`admin`) | Configuração do órgão (seção 4). |
 
 **Ligar e desligar módulos.** `organization.moduleConfig.<módulo>.enabled`.

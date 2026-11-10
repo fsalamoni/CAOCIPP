@@ -11,7 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { createPageUrl } from '@/utils';
-import { useOrganizations } from '@/hooks/useFirestore';
+import { useOrganizations, useOrganizationRealtime } from '@/hooks/useFirestore';
+import { useOrganizationTabs } from '@/hooks/useOrganizationTabs';
+import { PROCESSO_ELETRONICO_TAB } from '@/lib/organizationModules';
+import { useFlag } from '@/lib/FeatureFlagsContext';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import OrgTabBar from '@/components/organization/OrgTabBar';
 import { secConfig, secProcesso } from '@/services/secretariaService';
 import ProcessoView from '@/components/secretaria/ProcessoView';
 import ErroQuery from '@/components/secretaria/ErroQuery';
@@ -30,6 +35,20 @@ export default function ProcessoEletronico() {
     const procId = params.get('p');
     const { organizations } = useOrganizations();
     const org = organizations.find((o) => o.id === orgId);
+    // Mesma barra de páginas do órgão (Novo design V2), com o Processo
+    // Eletrônico marcado: dá para ir às outras páginas sem voltar ao órgão.
+    const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
+    const { organization: orgAoVivo, resolvedId } = useOrganizationRealtime(orgId);
+    const orgTabs = useOrganizationTabs(resolvedId === orgId ? orgAoVivo : null, { role: org?.userRole, permissions: org?.userPermissions });
+    const barra = isV2 && <OrgTabBar tabs={orgTabs} activeTab={PROCESSO_ELETRONICO_TAB} orgId={orgId} />;
+    // A aba interna fica no endereço (?aba=): voltar de um processo, recarregar
+    // ou compartilhar o link mantém a pessoa onde estava.
+    const abaUrl = params.get('aba');
+    const trocarAba = (v) => {
+        const next = new URLSearchParams(params);
+        next.set('aba', v);
+        setParams(next, { replace: true });
+    };
 
     const estadoQ = useQuery({
         queryKey: ['sec-estado', orgId],
@@ -55,35 +74,40 @@ export default function ProcessoEletronico() {
         return <div className="p-8 text-slate-600">Escolha um órgão no menu lateral.</div>;
     }
     if (estadoQ.isLoading) {
-        return <div className="p-8 flex items-center gap-2 text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o Processo Eletrônico…</div>;
+        return <>{barra}<div role="status" className="py-6 flex items-center gap-2 text-slate-600 dark:text-slate-300"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando o Processo Eletrônico…</div></>;
     }
     if (estadoQ.error) {
-        return <div className="p-8 text-red-600">{estadoQ.error.message}</div>;
+        return <>{barra}<ErroQuery q={estadoQ} /></>;
     }
     if (estado?.enabled && estado.suspensa_plataforma) {
         return (
-            <div className="p-8 space-y-3 max-w-xl" role="alert">
+            <>{barra}
+            <div className="py-2 space-y-3 max-w-xl" role="alert">
                 <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Processo Eletrônico suspenso</h1>
                 <p className="text-slate-600 dark:text-slate-300">
                     A administração da plataforma suspendeu o módulo neste órgão. Nada foi apagado; os processos voltam a ficar disponíveis quando a suspensão for retirada.
                 </p>
                 {estado.motivo_suspensao && <p className="text-sm text-slate-600 dark:text-slate-300">Motivo informado: {estado.motivo_suspensao}</p>}
             </div>
+            </>
         );
     }
     if (!estado?.enabled) {
         return (
-            <div className="p-8 space-y-3 max-w-xl">
+            <>{barra}
+            <div className="py-2 space-y-3 max-w-xl">
                 <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Processo Eletrônico desativado</h1>
                 <p className="text-slate-600 dark:text-slate-300">
                     {estado?.isAdmin
                         ? 'Ative e configure o módulo no Painel Administrativo do órgão, aba Processo Eletrônico.'
                         : 'Peça ao administrador do órgão para ativar o Processo Eletrônico.'}
                 </p>
-                <Button variant="outline" onClick={() => navigate(`${createPageUrl('Organization')}?id=${orgId}&tab=admin${estado?.isAdmin ? '&secao=secretaria' : ''}`)}>
+                {/* Quem não é admin não vê o Painel Administrativo: vai para a página inicial do órgão. */}
+                <Button variant="outline" onClick={() => navigate(`${createPageUrl('Organization')}?id=${orgId}${estado?.isAdmin ? '&tab=admin&secao=secretaria' : ''}`)}>
                     {estado?.isAdmin ? 'Abrir a configuração' : 'Ir para o órgão'}
                 </Button>
             </div>
+            </>
         );
     }
 
@@ -96,8 +120,14 @@ export default function ProcessoEletronico() {
     const gabinetes = estado.unidades.filter((u) => u.tipo === 'gabinete' && estado.minhasUnidades.includes(u.id)).map((u) => u.id);
     const paraDecidir = gabinetes.length ? caixa.filter((p) => gabinetes.includes(p.unidade_atual) && p.status !== 'arquivado').reduce((n, p) => n + (p.pendencias_abertas || 0), 0) : 0;
 
+    const abaPadrao = estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : 'unidades';
+    const abasValidas = ['caixa', 'todos', 'painel', 'unidades', ...(estado.minhasUnidades.length ? ['meu'] : []), ...(gabinetes.length ? ['mesa'] : [])];
+    const aba = abasValidas.includes(abaUrl) ? abaUrl : abaPadrao;
+
     return (
-        <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
+        <>
+        {barra}
+        <div className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                     <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="text-slate-600 hover:text-slate-800 dark:hover:text-slate-200" aria-label="Voltar ao órgão">
@@ -136,7 +166,7 @@ export default function ProcessoEletronico() {
             {procId ? (
                 <ProcessoView orgId={orgId} procId={procId} estado={estado} onVoltar={() => abrir(null)} />
             ) : (
-                <Tabs defaultValue={estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : 'unidades'}>
+                <Tabs value={aba} onValueChange={trocarAba}>
                     <TabsList className="flex-wrap h-auto">
                         {estado.minhasUnidades.length > 0 && (
                             <TabsTrigger value="meu" className="gap-2">
@@ -167,6 +197,7 @@ export default function ProcessoEletronico() {
                 </Tabs>
             )}
         </div>
+        </>
     );
 }
 

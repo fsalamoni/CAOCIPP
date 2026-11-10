@@ -186,7 +186,16 @@ roteador, `NavigationTracker` e `TwoFactorGate`.
 As rotas são geradas de `src/pages.config.js` (uma rota `/<NomeDaPágina>` por
 página). Dentro do órgão, a aba ativa vive em `?tab=`, o que permite
 compartilhar links e recarregar sem perder o lugar. A lista de abas vem de
-`getOrganizationTabs` (`src/lib/organizationModules.js`).
+`getOrganizationTabs` (`src/lib/organizationModules.js`), lida pelo hook
+`useOrganizationTabs` (`src/hooks/useOrganizationTabs.js`, que aplica as flags
+e o filtro do Painel Administrativo). A mesma lista alimenta a barra
+horizontal (`OrgTabBar`), o sub-menu lateral e o tour. Uma aba pode ter página
+própria (`page`): hoje só o Processo Eletrônico, cujo endereço `orgTabUrl`
+devolve; no `Layout`, essa página conta como página do órgão (sub-menu aberto,
+órgão ativo vindo de `?org=`).
+
+Ajuda e Termos são públicas, mas para quem está logado abrem dentro do
+`Layout`, com o menu. Landing, Portal e Conferir seguem sem o menu.
 
 > Use sempre `useAuth` de `@/lib/FirebaseAuthContext`. O arquivo
 > `src/lib/AuthContext.jsx` é um resto da versão Base44 e seu provider não é
