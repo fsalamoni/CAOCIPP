@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    fasesSeguintes, hojeBrasil, numeroProcesso, podeAgir, podeVer, proximaFase, sanitizeOrigem, sha256, texto, verificarCadeia,
+    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, numeroProcesso, podeAgir, podeVer, proximaFase, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import { Cumpridas, movimentoInterno, pendentesDaFase } from '../shared/exigencias';
@@ -38,6 +38,8 @@ interface ProcRequest {
     urgente?: boolean;
     motivo_urgencia?: string;
     origem?: { tipo?: string; descricao?: string };
+    /** tramitar: minutas que seguem com o processo para a unidade de destino. */
+    minutas?: string[];
     // listar paginado (sem `limite`, devolve até 1000 como antes)
     limite?: number;
     cursor?: number;
@@ -215,7 +217,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             ref.collection('documentos').select(
                 'titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem',
                 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
-                'assinaturas_pedidas', 'peticao_tipo', 'modelo_id',
+                'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso',
             ).get(),
         ]);
         const movimentos = movs.docs.map((d) => d.data());
@@ -223,7 +225,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const documentos = docs.docs
             .map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
             // Minuta só é vista pela unidade que a redigiu; juntado = autos.
-            .filter((d) => d.status === 'juntado' || c.ctx.unidadeIds.includes(d.unidade_origem))
+            .filter((d) => d.status === 'juntado' || minutaAcessivel(d, c.ctx.unidadeIds))
             .map((d) => ({
                 id: d.id, titulo: d.titulo, tipo: d.tipo, origem: d.origem, status: d.status,
                 mime: d.mime || null, nome_arquivo: d.nome_arquivo || null, tamanho: d.tamanho || null,
@@ -231,7 +233,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
                 assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [],
                 peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false,
-                paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null,
+                paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null, unidades_acesso: d.unidades_acesso || [],
             }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
@@ -396,6 +398,15 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const entreOrgaos = orgaoDe !== orgaoPara;
             const orgaos = entreOrgaos ? await lerOrgaos(db, orgId, tx) : [];
             const com = (nome: string, orgaoId: unknown) => (nomeOrgao(orgaos, orgaoId) ? `${nomeOrgao(orgaos, orgaoId)} › ${nome}` : nome);
+            // Minutas que seguem com o processo (ex.: a da assessoria para o gabinete revisar e assinar).
+            const idsMinutas = [...new Set((Array.isArray(p.minutas) ? p.minutas : []).map(String))].slice(0, MAX_MINUTAS_REMESSA);
+            const minutas = await Promise.all(idsMinutas.map((id) => tx.get(ref.collection('documentos').doc(id))));
+            for (const s of minutas) {
+                const d = s.data();
+                if (!d || d.status !== 'minuta' || !minutaAcessivel(d, [String(data.unidade_atual)])) {
+                    throw new HttpsError('invalid-argument', 'Só seguem com o processo minutas que estão com a unidade que remete');
+                }
+            }
             const dispensadas = novaFase ? dispensarExigencias(data, motivo) : [];
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
@@ -405,7 +416,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
                 + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`,
                 { de: data.unidade_atual, para: destino.id, ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}) } : {}),
-                    ...(dispensadas.length ? { dispensadas } : {}), ...(interno ? { interno: true } : {}) });
+                    ...(dispensadas.length ? { dispensadas } : {}), ...(interno ? { interno: true } : {}), ...(idsMinutas.length ? { minutas: idsMinutas } : {}) });
+            minutas.forEach((s) => tx.update(s.ref, { unidades_acesso: FieldValue.arrayUnion(destino.id) }));
             tx.update(ref, {
                 ...mov,
                 unidade_atual: destino.id,
