@@ -7,6 +7,7 @@ import ErroQuery from './ErroQuery';
 import { Badge } from '@/components/ui/badge';
 import { secProcesso } from '@/services/secretariaService';
 import { STATUS_ROTULO, SeloUrgente } from './comum';
+import { unidadeComOrgao } from '@/lib/orgaos';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somarDias = (iso, n) => new Date(new Date(`${iso}T12:00:00`).getTime() + n * 86400000).toLocaleDateString('en-CA');
@@ -43,7 +44,7 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
     if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <ErroQuery q={q} />;
     const { grupos, hoje } = gruposDeTrabalho(q.data?.processos || [], estado);
-    const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '—';
+    const nomeUnidade = (id) => unidadeComOrgao(estado, id);
     const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome || '';
 
     const assumir = async (p) => {
@@ -108,7 +109,7 @@ export function MesaDecisao({ orgId, estado, onAbrir }) {
     const lista = (q.data?.processos || [])
         .filter((p) => gabinetes.has(p.unidade_atual) && p.pendencias_abertas > 0 && p.status !== 'arquivado')
         .sort((a, b) => String(a.pendencia_desde || '').localeCompare(String(b.pendencia_desde || '')));
-    const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '—';
+    const nomeUnidade = (id) => unidadeComOrgao(estado, id);
     if (lista.length === 0) {
         return <p className="py-8 text-slate-600 dark:text-slate-300">Nenhuma pendência para decidir nos seus gabinetes. Processos conclusos sem pendência estão na Caixa da unidade.</p>;
     }

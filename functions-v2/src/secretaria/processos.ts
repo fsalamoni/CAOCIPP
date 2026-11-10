@@ -10,6 +10,8 @@ import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import { sendEmail } from '../shared/email';
 import { CampoValor, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorTexto } from '../shared/camposProcesso';
 import { avisarPartesDoMovimento } from './portalAvisos';
+import { nomeOrgao } from '../shared/orgaos';
+import { lerOrgaos } from './orgaos';
 import { avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
@@ -253,6 +255,11 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         if (p.tipo_id) {
             tipo = (await db.collection(COL.tipos).doc(String(p.tipo_id)).get()).data() || null;
             if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false) throw new HttpsError('invalid-argument', 'Escolha um tipo de processo ativo');
+            if (tipo.orgao_id && tipo.orgao_id !== (unidade.orgao_id || null)) {
+                const dono = nomeOrgao(await lerOrgaos(db, orgId), tipo.orgao_id);
+                // Órgão removido deixa o tipo livre; órgão existente restringe.
+                if (dono) throw new HttpsError('failed-precondition', `${tipo.nome} é um tipo de processo de ${dono}. Autue por uma unidade desse órgão.`);
+            }
         }
         const ritoSnap = await db.collection(COL.ritos).doc(String(tipo?.rito_id || p.rito_id || '_')).get();
         const rito = ritoSnap.data();
@@ -356,11 +363,17 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${novaFase!.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const orientacao = texto(p.orientacao, MAX_TEXTO_LONGO);
             const faseDe = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
+            // Remessa entre órgãos internos: o termo diz de qual órgão para qual.
+            const orgaoDe = c.unidades.find((u) => u.id === data.unidade_atual)?.orgao_id || null;
+            const orgaoPara = destino.orgao_id || null;
+            const entreOrgaos = orgaoDe !== orgaoPara;
+            const orgaos = entreOrgaos ? await lerOrgaos(db, orgId, tx) : [];
+            const com = (nome: string, orgaoId: unknown) => (nomeOrgao(orgaos, orgaoId) ? `${nomeOrgao(orgaos, orgaoId)} › ${nome}` : nome);
             const mov = registrarMovimento(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao',
-                `${conclusao ? 'Conclusos a' : 'Remetido de ' + nomeUnidade(c, data.unidade_atual) + ' para'} ${destino.nome}.`
+                `${conclusao ? 'Conclusos a' : 'Remetido de ' + com(nomeUnidade(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
                 + `${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`,
-                { de: data.unidade_atual, para: destino.id, ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}) } : {}) });
+                { de: data.unidade_atual, para: destino.id, ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}) } : {}) });
             tx.update(ref, {
                 ...mov,
                 unidade_atual: destino.id,

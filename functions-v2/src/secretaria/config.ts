@@ -6,6 +6,8 @@ import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
 import { cienciaDias } from '../shared/comunicacoes';
+import { emArvore, orgaosDe, sanitizeCompetencias } from '../shared/orgaos';
+import { criarEstrutura, lerOrgaos, removerOrgao, salvarOrgao } from './orgaos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
 import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
 import { MIME_DOCX } from './conversao';
@@ -106,7 +108,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
-    | 'versoes' | 'restaurarVersao';
+    | 'versoes' | 'restaurarVersao' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -130,6 +132,8 @@ interface ConfigRequest extends Record<string, unknown> {
     arquivo?: unknown;
     valores?: unknown;
     proposta?: unknown;
+    orgao?: unknown;
+    orgaos?: unknown;
 }
 
 export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async (request) => {
@@ -185,11 +189,14 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             uid: c.ctx.uid,
             minhasUnidades: minhas,
             gestorDe: c.gestorDe,
+            // Órgãos internos, na ordem do organograma (vazio = entidade singular).
+            orgaos: emArvore(orgaosDe(cfgSnap.data()?.orgaos)),
             unidades: c.unidades.map((u) => {
                 const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
                 const lotacoes = lotacoesDe(u);
                 return {
                     id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '',
+                    orgao_id: u.orgao_id || null, competencias: sanitizeCompetencias(u.competencias),
                     ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes,
                     ...(gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {}),
                     pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x: { uid: string }) => x.uid === auth.uid),
@@ -205,7 +212,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
-                    formulario: formularioDe(t),
+                    orgao_id: t.orgao_id || null, formulario: formularioDe(t),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             documento,
@@ -258,6 +265,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
 
     // Gestão de unidade: admin do órgão ou gestor da unidade.
     if (p.action === 'salvarUnidade') return salvarUnidade(c, p, auth.uid, audit);
+    if (p.action === 'salvarOrgao') return salvarOrgao(c, p, auth.uid, audit);
+    if (p.action === 'removerOrgao') return removerOrgao(c, p, auth.uid, audit);
+    if (p.action === 'criarEstrutura') return criarEstrutura(c, p, auth.uid, audit);
     if (p.action === 'obterUnidadeDocumento') return obterUnidadeDocumento(c, p);
     if (p.action === 'salvarUnidadeDocumento') return salvarUnidadeDocumento(c, p, auth.uid, audit);
     if (p.action === 'convidarEquipe') { exigirAtivo(); return convidarEquipe(c, p, auth.uid, audit); }
@@ -546,12 +556,15 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         if (!rito || rito.organization_id !== orgId) throw new HttpsError('invalid-argument', 'Escolha o rito do tipo de processo');
         const unidadeInicial = String(t.unidade_inicial || '');
         if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial)) throw new HttpsError('invalid-argument', 'Unidade inicial inválida');
+        // Tipo próprio de um órgão interno: só as unidades dele autuam.
+        const orgaoId = String(t.orgao_id || '');
+        if (orgaoId && !(await lerOrgaos(db, orgId)).some((o) => o.id === orgaoId)) throw new HttpsError('invalid-argument', 'Órgão do tipo de processo inválido');
         // Campos do "Novo processo" deste tipo: os padrões e os próprios do órgão.
         let formulario;
         try { formulario = sanitizeFormulario(t.formulario); } catch (e) { erroUsuario(e); }
         const dados = {
             nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario,
-            sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null,
+            sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null, ...('orgao_id' in t ? { orgao_id: orgaoId || null } : {}),
             ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
         const col = db.collection(COL.tipos);

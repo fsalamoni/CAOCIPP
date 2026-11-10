@@ -11,19 +11,23 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
-import { TIPOS_UNIDADE, dataHora } from './comum';
+import { ListaTextos, NativeSelect, TIPOS_UNIDADE, dataHora } from './comum';
 import { DocumentosDaUnidade, ListaModelos } from './ConfiguracaoDocumentos';
 
 const ATRIBUICOES = ['Chefe de secretaria', 'Analista', 'Técnico', 'Estagiário', 'Assessor', 'Promotor de Justiça', 'Procurador de Justiça', 'Servidor', 'Gestor'];
 
 /** Dados básicos da unidade (admin do órgão): nome, sigla, tipo, descrição, ativa. */
-function DadosUnidade({ u, setU, idPrefixo }) {
+function DadosUnidade({ u, setU, idPrefixo, orgaos = [] }) {
     return (
         <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2"><Label htmlFor={`${idPrefixo}-nome`}>Nome</Label><Input id={`${idPrefixo}-nome`} value={u.nome} onChange={(e) => setU({ ...u, nome: e.target.value })} placeholder="Ex.: Gabinete do Promotor" /></div>
                 <div><Label htmlFor={`${idPrefixo}-sigla`}>Sigla</Label><Input id={`${idPrefixo}-sigla`} value={u.sigla || ''} maxLength={20} onChange={(e) => setU({ ...u, sigla: e.target.value })} /></div>
             </div>
+            {orgaos.length > 0 && (
+                <NativeSelect id={`${idPrefixo}-orgao`} label="Órgão interno a que pertence" value={u.orgao_id || ''} onChange={(v) => setU({ ...u, orgao_id: v })}
+                    options={[['', 'Nenhum (ligada direto à entidade)'], ...orgaos.map((o) => [o.id, `${'— '.repeat((o.nivel || 1) - 1)}${o.nome}`])]} />
+            )}
             <fieldset>
                 <legend className="text-sm font-medium mb-2">Papel no processo</legend>
                 <div className="grid sm:grid-cols-2 gap-2">
@@ -36,17 +40,20 @@ function DadosUnidade({ u, setU, idPrefixo }) {
                 </div>
             </fieldset>
             <div><Label htmlFor={`${idPrefixo}-desc`}>Descrição (opcional)</Label><Textarea id={`${idPrefixo}-desc`} rows={2} maxLength={500} value={u.descricao || ''} onChange={(e) => setU({ ...u, descricao: e.target.value })} placeholder="O que a unidade faz, horário, contato…" /></div>
+            <ListaTextos id={`${idPrefixo}-comp`} rotulo="Atribuições da unidade (opcional)" ajuda="O que cabe a esta unidade fazer. Uma por linha." itens={u.competencias || []} onChange={(competencias) => setU({ ...u, competencias })} placeholder="Ex.: Expedir intimações e controlar prazos" />
             {u.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={u.ativa !== false} onCheckedChange={(c) => setU({ ...u, ativa: c === true })} /> Unidade ativa (inativa não recebe processos e ninguém atua por ela)</label>}
         </div>
     );
 }
 
 /** Criação de unidade (admin). Depois de criada, abre a gestão completa. */
-export function NovaUnidade({ orgId, aberto, onFechar, onCriada }) {
+export function NovaUnidade({ orgId, aberto, onFechar, onCriada, orgaos = [], orgaoId = '' }) {
     const qc = useQueryClient();
-    const [u, setU] = useState({ nome: '', sigla: '', tipo: 'gabinete', descricao: '' });
+    const vazia = () => ({ nome: '', sigla: '', tipo: 'gabinete', descricao: '', orgao_id: orgaoId || '', competencias: [] });
+    const [u, setU] = useState(vazia);
     const [salvando, setSalvando] = useState(false);
-    useEffect(() => { if (aberto) setU({ nome: '', sigla: '', tipo: 'gabinete', descricao: '' }); }, [aberto]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { if (aberto) setU(vazia()); }, [aberto, orgaoId]);
     const salvar = async () => {
         setSalvando(true);
         try {
@@ -63,7 +70,7 @@ export function NovaUnidade({ orgId, aberto, onFechar, onCriada }) {
                     <DialogTitle>Nova unidade de lotação</DialogTitle>
                     <DialogDescription>Secretaria, gabinete, assessoria ou outra. A equipe, o papel timbrado e os modelos se ajustam em seguida.</DialogDescription>
                 </DialogHeader>
-                <DadosUnidade u={u} setU={setU} idPrefixo="nova-un" />
+                <DadosUnidade u={u} setU={setU} idPrefixo="nova-un" orgaos={orgaos} />
                 <DialogFooter>
                     <Button variant="outline" onClick={onFechar}>Cancelar</Button>
                     <Button disabled={salvando || !u.nome.trim()} onClick={salvar}>{salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Criar unidade</Button>
@@ -113,12 +120,12 @@ function CorpoGestao({ orgId, estado, unidade }) {
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Modelos que só esta unidade usa (além dos do órgão). Saem com o papel timbrado da unidade.</p>
                 <ListaModelos orgId={orgId} estado={estado} unidadeId={unidade.id} semCartao />
             </TabsContent>
-            {estado.isAdmin && <TabsContent value="dados" className="pt-3"><EditarDados orgId={orgId} unidade={unidade} /></TabsContent>}
+            {estado.isAdmin && <TabsContent value="dados" className="pt-3"><EditarDados orgId={orgId} unidade={unidade} orgaos={estado.orgaos || []} /></TabsContent>}
         </Tabs>
     );
 }
 
-function EditarDados({ orgId, unidade }) {
+function EditarDados({ orgId, unidade, orgaos }) {
     const qc = useQueryClient();
     const [u, setU] = useState({ ...unidade });
     const [salvando, setSalvando] = useState(false);
@@ -132,7 +139,7 @@ function EditarDados({ orgId, unidade }) {
     };
     return (
         <div className="space-y-4">
-            <DadosUnidade u={u} setU={setU} idPrefixo={`un-${unidade.id}`} />
+            <DadosUnidade u={u} setU={setU} idPrefixo={`un-${unidade.id}`} orgaos={orgaos} />
             <Button className="gap-1" disabled={salvando || !u.nome?.trim()} onClick={salvar}>{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar dados</Button>
         </div>
     );
