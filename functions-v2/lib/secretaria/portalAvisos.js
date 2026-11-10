@@ -16,7 +16,7 @@ const portal_1 = require("./portal");
  * Preferência por conta (secPortalAcessos/{uid}.avisos): "tudo" (padrão),
  * "prazos" (só prazos, decisões e situação) ou "nenhum".
  */
-const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida', 'situacao', 'fase'];
+const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso'];
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso) => iso.split('-').reverse().join('/');
 async function destinatarios(db, proc, filtro) {
@@ -54,14 +54,19 @@ async function destinatarios(db, proc, filtro) {
 }
 const rodape = (procId) => `<p><a href="${autos_1.APP_URL}/Portal?p=${procId}">Abrir o processo no portal das partes</a></p><p style="color:#64748b;font-size:12px">Você recebe este aviso porque acompanha o processo pelo portal. Para mudar, abra o portal e ajuste "Avisos por e-mail".</p>`;
 /** Avisa as partes sobre o último movimento público do processo. */
-async function avisarPartesDoMovimento(db, procId, autorUid) {
+async function avisarPartesDoMovimento(db, procId, autorUid, ultimos = 1) {
+    var _a;
+    const proc = (_a = (await db.collection(context_1.COL.processos).doc(procId).get().catch(() => null))) === null || _a === void 0 ? void 0 : _a.data();
+    const fim = Number(proc === null || proc === void 0 ? void 0 : proc.mov_seq) || 0;
+    for (let seq = Math.max(1, fim - ultimos + 1); seq <= fim; seq++)
+        await avisarDoMovimento(db, procId, proc, seq, autorUid);
+}
+async function avisarDoMovimento(db, procId, proc, seq, autorUid) {
     var _a;
     try {
         const ref = db.collection(context_1.COL.processos).doc(procId);
-        const proc = (await ref.get()).data();
-        if (!proc || !(proc.partes_uids || []).length)
+        if (!(proc.partes_uids || []).length)
             return;
-        const seq = Number(proc.mov_seq) || 0;
         const mov = (await ref.collection('movimentos').doc(String(seq).padStart(6, '0')).get()).data();
         if (!mov || portal_1.MOVIMENTOS_INTERNOS.includes(mov.tipo) || ((_a = mov.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) === false)
             return;
@@ -86,7 +91,7 @@ async function avisarPartesDoMovimento(db, procId, autorUid) {
 function rotulo(tipo) {
     return {
         juntada: 'novo documento nos autos', peticao: 'petição protocolada', fase: 'o processo mudou de fase', situacao: 'a situação do processo mudou',
-        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
+        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', comunicacao: 'comunicação expedida, aguardando ciência', ciencia_decurso: 'ciência registrada por decurso', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
     }[tipo] || 'novo andamento';
 }
 /**

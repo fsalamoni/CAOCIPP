@@ -375,6 +375,46 @@ Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
 - **Parte:** tipo de manifestação "Pedido de urgência" no portal; a decisão é
   do gabinete, e a secretaria marca a urgência.
 
+## Comunicações às partes (nov/2026)
+
+Intimação, notificação, citação, ciência e comunicação. Lógica pura em
+`functions-v2/src/shared/comunicacoes.ts`; gravação em
+`functions-v2/src/secretaria/comunicacoes.ts`.
+
+- **Dados:** `secProcessos.comunicacoes[]` (`id, especie, texto, parte_idx,
+  parte_nome, documento_id?, dias (0 = sem prazo), contagem, expedida_em,
+  expedida_por, unidade_id, limite_ciencia, status, ciencia_em?, ciencia_por?,
+  ciencia_meio?, prazo_id?, vence_em?, sem_efeito_motivo?`), mais os derivados
+  `comunicacoes_aguardando` (número) e `ciencia_limite` (a data limite mais
+  próxima, que a rotina diária consulta). `secConfig/{orgId}.ciencia_dias`
+  (padrão 10, máximo 90, 0 desliga o decurso).
+- **Situações:** `aguardando`, `ciente`, `decurso`, `sem_efeito`.
+- **Ações da equipe** (`secretariaProcesso`): `expedirComunicacao`
+  (`comunicacao: { especie, texto, partes_idx, documento_id?, dias, contagem |
+  sem_prazo, meio: 'outro', outro_meio, ciencia_data }`) exige a posse, o
+  processo em tramitação e a unidade atual do tipo secretaria; o prazo precisa
+  ser dito (dias ou `sem_prazo`); pela plataforma, cada destinatário precisa
+  ter conta habilitada (a parte ou um representante). Uma comunicação e um
+  movimento `comunicacao` por destinatário. `tornarSemEfeito`
+  (`comunicacao_id`, `motivo`) só enquanto aguarda ciência.
+- **Ações da parte** (`secretariaPortal`): `comunicacoes` (o que aguarda a
+  ciência da conta, em todos os processos) e `darCiencia` (`processoId`,
+  `comunicacaoId`), só para a parte destinatária ou representante dela.
+  `obter` devolve `processo.comunicacoes` da conta e `meusProcessos` inclui
+  itens `comunicacao` em "Para você".
+- **Ciência:** grava o movimento `ciencia` (ou `ciencia_decurso`, pela
+  rotina `secretariaAlertaPrazos`, autor "Sistema") e abre o prazo
+  "Responder à intimação" com `destinatario` = nome da parte e
+  `comunicacao_id`. O prazo conta do dia da ciência (o primeiro dia contado é
+  o seguinte) com o calendário do órgão. Por outro meio, a ciência vale na
+  data informada.
+- **Eventos nos autos:** Certidão de comunicação, Termo de ciência, Certidão
+  de ciência por decurso e Certidão de comunicação sem efeito, todos com folha.
+- **Telas:** `Comunicacoes.jsx` (cartão e formulário de expedição) e
+  `ComunicacoesPendentes.jsx` (aviso ao entrar, montado no `Layout` para quem
+  tem `portal_partes` e na página do Portal).
+- **Testes:** `functions-v2/test/comunicacoes.test.js`.
+
 ## Exportação em PDF
 
 Gerada no servidor com `pdf-lib` e `pdfmake`: capa (dados, partes,

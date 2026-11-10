@@ -20,6 +20,7 @@ import { CamposProcesso, DadosCampos } from './CamposProcesso';
 import { faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
 import LeitorAutos from './LeitorAutos';
 import EventosAutos from './EventosAutos';
+import { CartaoComunicacoes, ExpedirComunicacao, nomeEspecie } from './Comunicacoes';
 import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -82,6 +83,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const { movimentos, documentos, cadeiaQuebradaEm, hoje } = q.data;
     const unidadeAtual = estado.unidades.find((u) => u.id === p.unidade_atual);
     const noGabinete = unidadeAtual?.tipo === 'gabinete';
+    const naSecretaria = (unidadeAtual?.tipo || 'secretaria') === 'secretaria';
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || id;
     const atualizar = () => {
         qc.invalidateQueries({ queryKey: ['sec-proc', orgId, procId] });
@@ -251,6 +253,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'atribuir' })}>Atribuir a alguém da unidade</DropdownMenuItem>
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'pendencia' })}>Abrir pendência para o decisor</DropdownMenuItem>
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'prazo' })}>Abrir prazo</DropdownMenuItem>
+                                    <DropdownMenuItem disabled={!podeMexer || !naSecretaria || p.status !== 'em_tramitacao'} onSelect={() => setAcao({ tipo: 'comunicar' })}>Intimar ou comunicar uma parte</DropdownMenuItem>
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'urgencia' })}>{p.urgente ? 'Retirar a urgência' : 'Marcar como urgente'}</DropdownMenuItem>
                                     <DropdownMenuItem onSelect={() => setAcao({ tipo: 'situacao' })}>Alterar a situação</DropdownMenuItem>
                                     <DropdownMenuSeparator />
@@ -451,6 +454,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </CardContent>
                     </Card>
 
+                    <CartaoComunicacoes p={p} posse={posse} podeMexer={podeMexer && p.status === 'em_tramitacao'} naSecretaria={naSecretaria} ocupado={ocupado}
+                        onNova={() => setAcao({ tipo: 'comunicar' })} onSemEfeito={(c) => setAcao({ tipo: 'semEfeito', comunicacao: c })} />
+
                     <Card>
                         <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
                             <CardTitle className="text-base">Dados do processo</CardTitle>
@@ -525,7 +531,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     onSalvar={(dados) => mov('alterarDados', dados, 'Dados do processo alterados')} />
             )}
 
-            <AcaoDialog acao={acao?.tipo === 'dados' ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} convidar={convidar}
+            <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} ocupado={ocupado}
+                onFechar={() => setAcao(null)} onExpedir={(comunicacao) => mov('expedirComunicacao', { comunicacao }, comunicacao.meio === 'outro' ? 'Ciência registrada nos autos' : 'Comunicação expedida')} />
+
+            <AcaoDialog acao={['dados', 'comunicar'].includes(acao?.tipo) ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} mov={mov} doc={doc} convidar={convidar}
                 noGabinete={noGabinete} orgId={orgId} procId={procId}
                 onDespacho={(pend) => { setAcao(null); setEditor({ titulo: `Despacho: ${pend.descricao}`.slice(0, 200), tipo: 'Despacho', conteudo: null, modeloId: modelos.find((m) => /despacho/i.test(m.nome) && m.formato !== 'original')?.id }); }} />
 
@@ -673,6 +682,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, mov, doc, conv
         );
         enviar = () => mov('resolverPendencia', { pendencia_id: acao.pendencia.id, resolucao: motivo }, 'Pendência apreciada');
         rodape = <Button variant="outline" className="gap-1 mr-auto" disabled={ocupado} onClick={() => onDespacho(acao.pendencia)}><FilePen className="w-4 h-4" /> Decidir por despacho</Button>;
+    } else if (tipo === 'semEfeito') {
+        titulo = `Tornar sem efeito: ${nomeEspecie(acao.comunicacao.especie).toLowerCase()} a ${acao.comunicacao.parte_nome}`;
+        rotuloTexto = 'Motivo (fica certificado nos autos)';
+        exigeTexto = true;
+        campo = <p className="text-sm text-slate-700 dark:text-slate-300">A parte deixa de ver o aviso e nenhum prazo é aberto. Só é possível enquanto ela não deu ciência.</p>;
+        enviar = () => mov('tornarSemEfeito', { comunicacao_id: acao.comunicacao.id, motivo }, 'Comunicação tornada sem efeito');
     } else if (tipo === 'prazo') {
         titulo = 'Abrir prazo';
         rotuloTexto = 'Para quê (ex.: manifestação sobre o laudo)';

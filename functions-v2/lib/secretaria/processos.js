@@ -21,6 +21,7 @@ const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
+const comunicacoes_1 = require("./comunicacoes");
 const context_1 = require("./context");
 const CONVITE_DIAS = 7;
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
@@ -60,6 +61,7 @@ function resumo(id, d) {
         pendencias_abertas: d.pendencias_abertas || 0,
         fase_suspensa: d.fase_suspensa === true,
         proximo_vencimento: d.proximo_vencimento || null,
+        comunicacoes_aguardando: d.comunicacoes_aguardando || 0,
         // Pesquisa e painéis.
         rito_id: d.rito_id || null,
         autuado_em: d.autuado_em || null,
@@ -154,7 +156,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                     return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null, representantes: (representantes || []).map(({ convite_hash: ch, uid: u, nome, email }) => ({
                             nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null,
                         })) }));
-                }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], acoes_feitas: data.acoes_feitas || {} }),
+                }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], acoes_feitas: data.acoes_feitas || {} }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,
@@ -231,11 +233,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const calendario = p.action === 'abrirPrazo'
         ? (0, secretaria_1.sanitizeCalendario)((_d = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _d === void 0 ? void 0 : _d.calendario)
         : undefined;
+    const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
+    let expedidas = 1;
     const convite = { token: '', email: '', parte: '', numero: '', representaQuem: '' };
     let recebeu = null;
     let pendenciaAberta = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d, _e, _f;
+        var _a, _b, _d, _e, _f, _g;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -367,6 +371,16 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             tx.update(ref, Object.assign(Object.assign({}, mov), { urgente, urgencia: urgente ? { motivo, por: c.userName, em: new Date().toISOString() } : firestore_1.FieldValue.delete() }));
             return mov;
         }
+        // ---- Comunicações às partes (intimação, notificação...) ---------------
+        if (p.action === 'expedirComunicacao') {
+            if (data.status !== 'em_tramitacao')
+                throw new https_1.HttpsError('failed-precondition', 'O processo não está em tramitação');
+            const lista = (_f = p.comunicacao) === null || _f === void 0 ? void 0 : _f.partes_idx;
+            expedidas = Array.isArray(lista) ? new Set(lista).size || 1 : 1;
+            return (0, comunicacoes_1.expedir)(tx, c, ref, data, p.comunicacao, cfgCom);
+        }
+        if (p.action === 'tornarSemEfeito')
+            return (0, comunicacoes_1.tornarSemEfeito)(tx, c, ref, data, p.comunicacao_id, motivo);
         if (p.action === 'alterarStatus') {
             const status = String(p.status || '');
             if (!['em_tramitacao', 'sobrestado', 'arquivado'].includes(status)) {
@@ -403,7 +417,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }
         if (p.action === 'resolverPendencia') {
             // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (((_f = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _f === void 0 ? void 0 : _f.tipo) !== 'gabinete') {
+            if (((_g = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _g === void 0 ? void 0 : _g.tipo) !== 'gabinete') {
                 throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
@@ -525,7 +539,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
     });
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
-    void (0, portalAvisos_1.avisarPartesDoMovimento)(db, String(p.id));
+    void (0, portalAvisos_1.avisarPartesDoMovimento)(db, String(p.id), undefined, expedidas);
     const r = recebeu;
     if (r)
         void (0, avisosEquipe_1.avisarUnidadeRecebeu)(c, r.unidadeId, r.proc, String(p.id), motivo || (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO));
