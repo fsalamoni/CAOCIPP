@@ -64,6 +64,15 @@ async function salvarUnidade(c, p, uid, auditar) {
             ? Object.assign({ nome: (0, secretaria_1.texto)(u.nome) || atual.nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), ativa: u.ativa !== false }, ('orgao_id' in u ? { orgao_id: orgaoId || null } : {})) : {};
         if (c.ctx.isAdmin && !(0, secretaria_1.texto)(u.nome))
             throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
+        // Unidade inativa não movimenta: desativar com processo em andamento deixaria o processo preso.
+        if (dados.ativa === false && atual.ativa !== false) {
+            const base = c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', atual.id);
+            const [todos, arquivados] = await Promise.all([base.count().get(), base.where('status', '==', 'arquivado').count().get()]);
+            const presos = todos.data().count - arquivados.data().count;
+            if (presos > 0) {
+                throw new https_1.HttpsError('failed-precondition', `A unidade tem ${presos} processo(s) em andamento. Envie-os para outra unidade antes de desativá-la.`);
+            }
+        }
         // Gestor não tira a própria gestão (evita unidade sem ninguém que a gerencie por engano).
         if (!c.ctx.isAdmin && !lotacoes.some((l) => l.uid === uid && l.gestor)) {
             throw new https_1.HttpsError('failed-precondition', 'Você não pode tirar a sua própria gestão da unidade; peça ao admin do órgão');

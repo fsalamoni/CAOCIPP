@@ -91,6 +91,9 @@ livre, ex.: "Chefe de secretaria") e pode ser **gestora** da unidade.
   recusa.
 - O gestor não cria nem desativa unidades, não muda tipo, nome ou sigla e não
   retira a própria marca de gestor (evita unidade sem gestor por engano).
+- **Desativar unidade** (admin): só passa quando a unidade não tem processo em
+  andamento nem sobrestado; processos arquivados não impedem. O servidor
+  informa quantos processos precisam ser enviados a outra unidade antes.
 - **Timbrado e tipos da unidade:** a unidade usa o papel timbrado do órgão ou
   um próprio (cabeçalho, brasão, rodapé, fonte). Os tipos de documento da
   unidade se somam aos do órgão. O documento redigido sai com o timbrado da

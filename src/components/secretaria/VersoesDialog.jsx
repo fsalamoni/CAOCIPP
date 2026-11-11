@@ -30,7 +30,7 @@ export default function VersoesDialog({ orgId, colecao, id, nome, estado, onRest
         <>
             <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={() => setAberto(true)}><History className="w-4 h-4" aria-hidden /> Versões</Button>
             <Dialog open={aberto} onOpenChange={setAberto}>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                     <DialogHeader>
                         <DialogTitle>Versões de {nome}</DialogTitle>
                         <DialogDescription>Cada salvamento guarda a versão anterior (até 20). Restaurar cria uma versão nova com o conteúdo antigo; {colecao === 'rito' ? 'processos em andamento continuam com a versão com que foram autuados' : 'documentos já redigidos não mudam'}.</DialogDescription>

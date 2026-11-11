@@ -181,7 +181,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             const m = d.data();
             return {
                 uid: String(m.user_id || d.id.split('_')[0]),
-                nome: String(m.user_name || m.user_email || 'Membro'),
+                // Sem nome cadastrado, o e-mail só serve de nome para quem já pode vê-lo.
+                nome: String(m.user_name || (veEmail && m.user_email) || 'Membro'),
                 email: veEmail ? String(m.user_email || '') : '',
                 funcao: String(m.function || ''),
             };

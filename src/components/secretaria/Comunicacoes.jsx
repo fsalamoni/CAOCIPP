@@ -142,7 +142,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
 
     return (
         <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
-            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
                     <DialogTitle>Intimar ou comunicar uma parte</DialogTitle>
                     <DialogDescription>A comunicação fica certificada nos autos. O prazo de resposta só começa a contar quando a parte toma ciência.</DialogDescription>

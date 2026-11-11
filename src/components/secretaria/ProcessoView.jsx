@@ -596,7 +596,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 modelosDaFase={modelosDaFase} modelos={modelos} onModelo={usarModelo} onEmBranco={redigirEmBranco} onArquivo={enviarArquivo} ocupado={ocupado} />
 
             <Dialog open={!!linkConvite} onOpenChange={(o) => !o && setLinkConvite(null)}>
-                <DialogContent>
+                <DialogContent className="max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                     <DialogHeader><DialogTitle>Convite gerado</DialogTitle></DialogHeader>
                     <div className="space-y-2 text-sm">
                         <p>{linkConvite?.emailEnviado ? 'O convite foi enviado por e-mail. Você também pode copiar o link abaixo.' : 'Envie este link à parte pelo meio que preferir. Ele não será mostrado de novo.'}</p>
@@ -627,7 +627,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onFechar={() => setEditor(null)}
             />
             <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                     <DialogHeader><DialogTitle>{confirmar?.titulo}</DialogTitle><DialogDescription>{confirmar?.texto}</DialogDescription></DialogHeader>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setConfirmar(null)}>Cancelar</Button>
@@ -649,7 +649,7 @@ function NovoDocumento({ aberto, onFechar, tipos, tipoPadrao, modelosDaFase, mod
     const lista = [...new Set([...tipos, tipoPadrao].filter(Boolean))];
     return (
         <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
                     <DialogTitle>Novo documento</DialogTitle>
                     <DialogDescription>Nasce como minuta da sua unidade. Depois você assina e junta aos autos.</DialogDescription>

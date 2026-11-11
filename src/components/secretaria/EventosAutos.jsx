@@ -151,7 +151,7 @@ function GerarPdf({ marcados, total, ultimaFolha, gerarPdf, onFechar }) {
     };
     return (
         <Dialog open onOpenChange={(o) => !o && onFechar()}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
                     <DialogTitle>Gerar PDF dos autos</DialogTitle>
                     <DialogDescription>Cada ato de usuário sai na sua página, com a folha carimbada. Os registros internos e do sistema saem reunidos num extrato ao fim.</DialogDescription>

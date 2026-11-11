@@ -276,8 +276,11 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
 function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
     const [salvando, setSalvando] = useState(false);
     const conteudo = useRef(null);
-    useEffect(() => { if (!modelo) conteudo.current = null; }, [modelo]);
+    const sujo = useRef(false);
+    useEffect(() => { if (!modelo) { conteudo.current = null; sujo.current = false; } }, [modelo]);
     if (!modelo) return null;
+    // Texto de modelo costuma ser longo: fechar sem salvar pede confirmação.
+    const fechar = () => { if (!sujo.current || window.confirm('O texto do modelo tem alterações não salvas. Fechar sem salvar?')) setModelo(null); };
     const docCfg = modelo.unidade_id ? documentoDaUnidade(estado, modelo.unidade_id) : (estado.documento || {});
     const tipos = docCfg.tipos_documento || [];
     const salvar = async () => {
@@ -287,12 +290,13 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
             const { _k, ...dados } = modelo;
             const r = await secConfig(orgId, 'salvarModelo', { id: modelo.id, modelo: { ...dados, conteudo: texto } });
             toast.success('Modelo salvo');
+            sujo.current = false;
             setModelo({ ...modelo, id: r.id, conteudo: texto });
             onSalvo();
         } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
     };
     return (
-        <Dialog open onOpenChange={(o) => !o && setModelo(null)}>
+        <Dialog open onOpenChange={(o) => !o && fechar()}>
             <DialogContent className="max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[96vh] sm:max-w-[1240px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden">
                 <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-3 py-2">
                     <DialogTitle className="sr-only">{modelo.id ? 'Editar modelo' : 'Novo modelo'}</DialogTitle>
@@ -313,12 +317,12 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
                             </Button>
                         )}
                         <Button size="sm" className="gap-1" disabled={salvando || !modelo.nome.trim()} onClick={salvar}>{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setModelo(null)} aria-label="Fechar"><X className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={fechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                     </div>
                 </div>
                 <div className="flex-1 min-h-0 p-0 sm:p-2">
                     <EditorDocumento key={modelo._k} conteudo={modelo.conteudo} config={docCfg} campos={CAMPOS_MODELO}
-                        onChange={(j) => { conteudo.current = j; }} onSalvar={salvar} autoFocus rotulo="Texto do modelo" />
+                        onChange={(j) => { conteudo.current = j; sujo.current = true; }} onSalvar={salvar} autoFocus rotulo="Texto do modelo" />
                 </div>
             </DialogContent>
         </Dialog>

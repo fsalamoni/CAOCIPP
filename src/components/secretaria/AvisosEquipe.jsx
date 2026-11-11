@@ -28,7 +28,7 @@ export default function AvisosEquipe() {
             <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2"><BellRing className="w-4 h-4" aria-hidden /> Avisos</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
                     <DialogTitle>Como avisar você</DialogTitle>
                     <DialogDescription>Vale para todos os órgãos em que você está lotado. Alertas de prazo vencendo saem sempre por e-mail.</DialogDescription>
