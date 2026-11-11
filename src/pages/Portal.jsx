@@ -41,6 +41,9 @@ import { etapasAteOFim } from '@/lib/secretariaRito';
 const CHAVE_EMAIL = 'portal-email';
 const brData = (iso) => (iso || '').split('-').reverse().join('/');
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const copiar = (texto) => (navigator.clipboard ? navigator.clipboard.writeText(texto) : Promise.reject(new Error('sem área de transferência')))
+    .then(() => toast.success('Link de conferência copiado'))
+    .catch(() => toast.message('Copie o link de conferência', { description: texto, duration: 15000 }));
 const diasAte = (iso) => Math.round((new Date(`${iso}T12:00:00`) - new Date(`${hojeIso()}T12:00:00`)) / 86400000);
 
 /** O papel da parte dito em uma frase, sem jargão. */
@@ -340,6 +343,7 @@ function MeusProcessos({ onAbrir }) {
                             <option value="todos">Todos</option>
                             <option value="novidades">Com novidades</option>
                             <option value="em_tramitacao">Em andamento</option>
+                            <option value="sobrestado">Sobrestados</option>
                             <option value="arquivado">Arquivados</option>
                         </select>
                     </>
@@ -456,6 +460,11 @@ function ProcessoParte({ id, onVoltar }) {
                 </div>
             </div>
 
+            <div className="sm:hidden flex flex-wrap gap-x-4 gap-y-1 -mt-2">
+                <Button variant="link" className="h-auto p-0 gap-1" disabled={!!ocupado} onClick={certidao}>{ocupado === 'certidao' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <FileCheck className="w-4 h-4" aria-hidden />} Certidão de andamento</Button>
+                <Button variant="link" className="h-auto p-0 gap-1" disabled={!!ocupado} onClick={() => integra(true)}><Printer className="w-4 h-4" aria-hidden /> Imprimir</Button>
+            </div>
+
             {p.campos?.length > 0 && (
                 <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3" aria-label="Dados do processo">
                     <DadosCampos campos={p.campos} />
@@ -513,7 +522,7 @@ function ProcessoParte({ id, onVoltar }) {
                                             <span className="flex-1 min-w-[10rem]">
                                                 {x.descricao}{x.destinatario ? ` (${x.destinatario})` : ''} · <span className={dias < 0 ? 'text-red-700 dark:text-red-300 font-medium' : ''}>{dias < 0 ? `venceu em ${brData(x.vence_em)}` : dias === 0 ? 'vence hoje' : `vence em ${brData(x.vence_em)} (${dias} dias)`}</span>
                                             </span>
-                                            {x.meu && p.status === 'em_tramitacao' && <Button size="sm" variant="outline" onClick={() => irParaManifestar(x)}>Responder</Button>}
+                                            {x.meu && <Button size="sm" variant="outline" onClick={() => irParaManifestar(x)}>Responder</Button>}
                                         </div>
                                     );
                                 })}
@@ -537,7 +546,7 @@ function ProcessoParte({ id, onVoltar }) {
                                     </div>
                                     {d.codigo_verificacao && (
                                         <Button variant="ghost" size="sm" title="Copiar o link de conferência pública deste documento" aria-label={`Copiar link de conferência de ${d.titulo}`}
-                                            onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/Conferir?c=${d.codigo_verificacao}`).then(() => toast.success('Link de conferência copiado'))}>
+                                            onClick={() => copiar(`${window.location.origin}/Conferir?c=${d.codigo_verificacao}`)}>
                                             <ShieldCheck className="w-4 h-4" aria-hidden />
                                         </Button>
                                     )}
@@ -548,9 +557,8 @@ function ProcessoParte({ id, onVoltar }) {
                     </Card>
 
                     <div ref={formRef}>
-                        {p.status === 'em_tramitacao'
-                            ? <Peticionar id={id} prazos={p.prazos.filter((x) => x.meu)} tipos={tipos} prazoInicial={responderPrazo} onFeito={atualizar} onComprovante={comprovante} />
-                            : <Card><CardContent className="pt-6 text-sm text-slate-600 dark:text-slate-300">Este processo está {STATUS_ROTULO[p.status]?.toLowerCase() || p.status}. Não é possível se manifestar agora; se precisar, procure o órgão responsável.</CardContent></Card>}
+                        <Peticionar id={id} prazos={p.prazos.filter((x) => x.meu)} tipos={tipos} prazoInicial={responderPrazo} onFeito={atualizar} onComprovante={comprovante}
+                            aviso={p.status === 'em_tramitacao' ? '' : `Este processo está ${STATUS_ROTULO[p.status]?.toLowerCase() || p.status}. Você ainda pode se manifestar: o pedido entra nos autos e vai para quem decide, que avalia se o processo volta a andar.`} />
                     </div>
 
                     {peticoes?.length > 0 && (
@@ -573,7 +581,7 @@ function ProcessoParte({ id, onVoltar }) {
                     )}
                 </div>
 
-                <Card className="lg:col-span-2 h-fit">
+                <Card className={`lg:col-span-2 h-fit ${movimentos.some((m) => m.novo) ? '' : 'hidden lg:block'}`}>
                     <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
                         <CardTitle className="text-base">Últimos andamentos</CardTitle>
                         <Button size="sm" variant="link" className="h-auto p-0" onClick={() => document.getElementById('portal-eventos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Ver todos ({movimentos.length})</Button>
@@ -582,7 +590,7 @@ function ProcessoParte({ id, onVoltar }) {
                         <ol className="space-y-3">
                             {[...movimentos].reverse().slice(0, 6).map((m) => (
                                 <li key={m.seq} className={`border-l-2 pl-3 ${m.novo ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'}`}>
-                                    <p className="text-xs text-slate-600 flex items-center gap-1.5"><Icone tipo={m.tipo} /> {dataHora(m.em)} · {m.autor_nome}{m.novo && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}</p>
+                                    <div className="text-xs text-slate-600 flex items-center gap-1.5"><Icone tipo={m.tipo} /> {dataHora(m.em)} · {m.autor_nome}{m.novo && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}</div>
                                     <p className="text-sm">{m.descricao}</p>
                                 </li>
                             ))}
@@ -596,12 +604,10 @@ function ProcessoParte({ id, onVoltar }) {
             </div>
 
             {/* Celular: as duas ações mais usadas ficam sempre à mão. */}
-            {p.status === 'em_tramitacao' && (
-                <div className="sm:hidden fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="gap-2" disabled={!!ocupado} onClick={() => integra(false)}><Download className="w-4 h-4" aria-hidden /> Processo (PDF)</Button>
+            <div className="sm:hidden fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="gap-2" disabled={!!ocupado} onClick={() => integra(false)}>{ocupado === 'exportar' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />} Processo (PDF)</Button>
                     <Button className="gap-2" onClick={() => irParaManifestar(null)}><Send className="w-4 h-4" aria-hidden /> Manifestar-se</Button>
-                </div>
-            )}
+            </div>
 
             <LeitorAutos documentos={documentos} abertoId={leitura} onFechar={() => setLeitura(null)} chaveLido={`portal-lidos-${id}`}
                 carregar={(d) => secPortal('pdf', { processoId: id, docId: d.id })} titulo={`Processo ${p.numero}`} />
@@ -620,7 +626,7 @@ const MODELOS_PETICAO = {
     'Outro': { texto: '', dica: '' },
 };
 
-function Peticionar({ id, prazos, tipos = [], prazoInicial, onFeito, onComprovante }) {
+function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, onFeito, onComprovante }) {
     const chave = `portal-rascunho-${id}`;
     const rascunho = useMemo(() => { try { return JSON.parse(localStorage.getItem(chave) || 'null'); } catch { return null; } }, [chave]);
     const [tipo, setTipo] = useState(rascunho?.tipo || '');
@@ -678,6 +684,7 @@ function Peticionar({ id, prazos, tipos = [], prazoInicial, onFeito, onComprovan
         <Card id="manifestar">
             <CardHeader className="pb-2"><CardTitle className="text-base">Manifestar-se neste processo</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+                {aviso && <p className="text-sm rounded-md bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-100 px-3 py-2">{aviso}</p>}
                 {protocolo && (
                     <div role="status" className="rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 p-3 text-sm space-y-2">
                         <p>Protocolado sob nº <b>{protocolo.protocolo}</b> em {dataHora(protocolo.em)} e incluído nos autos como documento nº {protocolo.ordem}. Quem decide foi avisado.</p>

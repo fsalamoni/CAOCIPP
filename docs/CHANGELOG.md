@@ -5,6 +5,23 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 11/11/2026 — Pente fino do Processo Eletrônico, etapa 3: portal e diálogos
+- **Portal no celular**: a parte de processo sobrestado ou arquivado voltou a
+  ter o PDF do processo, a certidão de andamento e a impressão ao alcance (a
+  barra inferior sumia fora da tramitação), e pode se manifestar, com aviso de
+  que o pedido vai para quem decide. O servidor já aceitava; a tela escondia.
+- O resumo "Últimos andamentos" só aparece no celular quando há novidade (a
+  lista completa vem logo abaixo); filtro "Sobrestados" na lista da parte;
+  copiar o link de conferência não quebra em navegador sem área de
+  transferência.
+- **Diálogos da equipe**: ato recusado pelo servidor (por exemplo, outra pessoa
+  movimentou o processo antes) não apaga mais o que foi digitado; todo diálogo
+  de ação rola por dentro no celular; "Abrir prazo" sugere as partes como
+  destinatário (é pelo nome que o portal reconhece o prazo da parte) e não
+  confirma com dias inválidos.
+- O contador da aba "Mesa de decisão" passou a incluir o arquivado com
+  pendência, como a própria Mesa.
+
 ### 11/11/2026 — Pente fino do Processo Eletrônico
 - **Sigilo do trabalho interno no portal das partes**: a pendência aberta à
   mão para o decisor voltou a ficar fora do portal, e a lista de processos da

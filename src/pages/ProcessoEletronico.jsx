@@ -121,7 +121,7 @@ export default function ProcessoEletronico() {
     const caixa = caixaQ.data?.processos || [];
     const meuTrabalho = gruposDeTrabalho(caixa, estado).total;
     const gabinetes = estado.unidades.filter((u) => u.tipo === 'gabinete' && estado.minhasUnidades.includes(u.id)).map((u) => u.id);
-    const paraDecidir = gabinetes.length ? caixa.filter((p) => gabinetes.includes(p.unidade_atual) && p.status !== 'arquivado').reduce((n, p) => n + (p.pendencias_abertas || 0), 0) : 0;
+    const paraDecidir = gabinetes.length ? caixa.filter((p) => gabinetes.includes(p.unidade_atual)).reduce((n, p) => n + (p.pendencias_abertas || 0), 0) : 0;
 
     const abaPadrao = estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : 'unidades';
     const abasValidas = ['caixa', 'todos', 'painel', 'unidades', ...(estado.minhasUnidades.length ? ['meu'] : []), ...(gabinetes.length ? ['mesa'] : [])];
