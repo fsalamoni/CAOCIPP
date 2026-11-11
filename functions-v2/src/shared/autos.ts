@@ -34,7 +34,8 @@ export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'ori
 /** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
 export const visivelParaPartes = (m: Evento): boolean =>
     m.dados?.visivel_partes !== false && origemEvento(m) !== 'interno'
-    && (!MOVIMENTOS_INTERNOS.includes(m.tipo) || origemEvento(m) === 'usuario');
+    // Pendência aberta à mão é assunto entre a equipe e o decisor, mesmo com termo nos autos.
+    && (!MOVIMENTOS_INTERNOS.includes(m.tipo) || (m.tipo === 'acao_fase' && m.dados?.nos_autos === true));
 
 /** Id do documento que o evento juntou aos autos (juntada, petição). */
 export const documentoDoEvento = (m: Evento): string | null =>

@@ -46,6 +46,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [pdf, setPdf] = useState(null); // {base64, nome, titulo}
     const [novoDoc, setNovoDoc] = useState(false);
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
+    const [confirmar, setConfirmar] = useState(null); // {titulo, texto, rotulo, fn}: ato que não se desfaz
     const [vista, setVista] = useState(null); // capa | andamento | autos | eventos (null = padrão do perfil)
     const pendenciasRef = useRef(null);
     const eventosRef = useRef(null);
@@ -236,7 +237,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1 min-w-0">
                     <Button variant="ghost" size="sm" className="gap-1 -ml-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" /> Processos</Button>
-                    <h2 className="text-2xl font-semibold text-slate-900 dark:text-white"><span className="font-mono">{p.numero}</span> · {p.assunto}</h2>
+                    <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white break-words"><span className="font-mono">{p.numero}</span> · {p.assunto}</h2>
                     <div className="flex flex-wrap gap-2 text-sm">
                         <Badge>{p.fase_nome}</Badge>
                         <Badge variant="secondary">{STATUS_ROTULO[p.status]}</Badge>
@@ -422,7 +423,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             {membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
                                             <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>
                                             {/* Quem recebeu a minuta com o processo não apaga o trabalho da outra unidade. */}
-                                            {(d.unidade_origem === p.unidade_atual || !posse) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída')} aria-label="Excluir minuta"><Trash2 className="w-4 h-4" /></Button>}
+                                            {(d.unidade_origem === p.unidade_atual || !posse) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => setConfirmar({ titulo: 'Excluir a minuta?', texto: `"${d.titulo}" será apagada de vez. Minuta não fica nos autos, então não há como recuperar.`, rotulo: 'Excluir minuta', fn: () => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída') })} aria-label={`Excluir a minuta ${d.titulo}`}><Trash2 className="w-4 h-4" /></Button>}
                                         </div>
                                     );
                                 })}
@@ -510,7 +511,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             </div>
                                             <div className="flex flex-wrap gap-1">
                                                 {x.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x })}>{x.portal ? 'Novo convite' : 'Convidar'}</Button>}
-                                                {x.portal && <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i }, 'Acesso revogado')}>Revogar</Button>}
+                                                {x.portal && <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => setConfirmar({ titulo: 'Revogar o acesso ao portal?', texto: `${x.nome} deixa de ver o processo e de peticionar pelo portal. A revogação fica registrada nos autos. Você pode convidar de novo depois.`, rotulo: 'Revogar acesso', fn: () => mov('revogarParte', { parte_idx: i }, 'Acesso revogado') })}>Revogar</Button>}
                                                 <Button size="sm" variant="ghost" className="gap-1" disabled={!podeMexer || ocupado} title={`Advogado, procurador ou preposto que fala por ${x.nome}`} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, novoRep: true })}><UserPlus className="w-4 h-4" /> Representante</Button>
                                             </div>
                                             {(x.representantes || []).length > 0 && (
@@ -521,7 +522,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                             {r.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
                                                             {r.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
                                                             {r.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, representante: r, representante_idx: k })}>{r.portal ? 'Novo convite' : 'Convidar'}</Button>}
-                                                            <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => mov('revogarParte', { parte_idx: i, representante_idx: k }, r.portal ? 'Acesso revogado' : 'Representante retirado')}>{r.portal ? 'Revogar' : 'Retirar'}</Button>
+                                                            <Button size="sm" variant="ghost" disabled={!podeMexer || ocupado} onClick={() => setConfirmar({ titulo: 'Retirar o representante?', texto: `${r.nome} deixa de constar como representante de ${x.nome}${r.portal ? ' e perde o acesso ao portal' : ''}. O ato fica registrado.`, rotulo: r.portal ? 'Revogar e retirar' : 'Retirar', fn: () => mov('revogarParte', { parte_idx: i, representante_idx: k }, r.portal ? 'Acesso revogado' : 'Representante retirado') })}>{r.portal ? 'Revogar' : 'Retirar'}</Button>
                                                         </li>
                                                     ))}
                                                 </ul>
@@ -532,7 +533,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             </CardContent>
                         </Card>
                     )}
-                    {posse && <p className="text-xs text-slate-600 dark:text-slate-400">Atalhos: <kbd>N</kbd> novo documento · <kbd>T</kbd> enviar para outra unidade · <kbd>J</kbd> ir às pendências</p>}
+                    {posse && <p className="hidden sm:block text-xs text-slate-600 dark:text-slate-400">Atalhos: <kbd>N</kbd> novo documento · <kbd>T</kbd> enviar para outra unidade · <kbd>J</kbd> ir às pendências</p>}
                 </div>
             </div>
             </TabsContent>
@@ -549,10 +550,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     <CardContent className="space-y-2">
                         {autos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
                         {autos.map((d) => (
-                            <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
+                            <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
                                 <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
-                                <div className="flex-1 min-w-0">
-                                    <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}</button>
+                                <div className="flex-1 min-w-[11rem]">
+                                    <button type="button" className="font-medium block max-w-full text-left break-words hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}</button>
                                     <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
                                     {d.codigo_verificacao && (
                                         <a href={`/Conferir?c=${d.codigo_verificacao}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-700 dark:text-indigo-300 hover:underline" title="Abrir a conferência pública deste documento">
@@ -623,6 +624,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onPdf={(docId) => secDocumento(orgId, procId, 'pdf', { docId })}
                 onFechar={() => setEditor(null)}
             />
+            <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>{confirmar?.titulo}</DialogTitle><DialogDescription>{confirmar?.texto}</DialogDescription></DialogHeader>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setConfirmar(null)}>Cancelar</Button>
+                        <Button variant="destructive" disabled={ocupado} onClick={() => { const f = confirmar.fn; setConfirmar(null); f(); }}>{confirmar?.rotulo}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <VisualizadorPdf pdf={pdf} onFechar={() => setPdf(null)} />
             <LeitorAutos documentos={autos} abertoId={leitura} onFechar={() => setLeitura(null)} titulo={`Processo ${p.numero}`} chaveLido={`autos-lidos-${procId}`}
                 carregar={(d) => secDocumento(orgId, procId, 'pdf', { docId: d.id })} />

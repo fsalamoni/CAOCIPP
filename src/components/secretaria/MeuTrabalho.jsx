@@ -107,7 +107,8 @@ export function MesaDecisao({ orgId, estado, onAbrir }) {
     if (q.error) return <ErroQuery q={q} />;
     const gabinetes = new Set(estado.unidades.filter((u) => u.tipo === 'gabinete' && estado.minhasUnidades.includes(u.id)).map((u) => u.id));
     const lista = (q.data?.processos || [])
-        .filter((p) => gabinetes.has(p.unidade_atual) && p.pendencias_abertas > 0 && p.status !== 'arquivado')
+        // Arquivado com pendência aberta (ex.: a parte peticionou depois) também aparece: alguém precisa ver.
+        .filter((p) => gabinetes.has(p.unidade_atual) && p.pendencias_abertas > 0)
         .sort((a, b) => String(a.pendencia_desde || '').localeCompare(String(b.pendencia_desde || '')));
     const nomeUnidade = (id) => unidadeComOrgao(estado, id);
     if (lista.length === 0) {
@@ -122,6 +123,7 @@ export function MesaDecisao({ orgId, estado, onAbrir }) {
                         <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300">{p.numero}</span>
                         <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-600">{p.tipo_nome}</span>}</span>
                         <span className="text-sm text-slate-600 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}</span>
+                        {p.status !== 'em_tramitacao' && <Badge variant="outline">{STATUS_ROTULO[p.status]}{p.status === 'arquivado' ? ': reative para apreciar' : ''}</Badge>}
                         <Badge className={`${espera > 10 ? 'bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100 hover:bg-red-100' : 'bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100'}`}>
                             {p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''} · espera {ha(espera) || 'desde hoje'}{p.fase_suspensa ? ' · fase interrompida' : ''}
                         </Badge>

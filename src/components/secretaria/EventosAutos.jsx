@@ -86,10 +86,10 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                                 <tr className="text-left text-xs text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                                     <th className="py-1.5 pr-2 w-6"><input type="checkbox" checked={todosMarcados} onChange={marcarTodos} aria-label="Marcar todos os eventos listados" /></th>
                                     <th className="py-1.5 pr-3 font-medium">Nº</th>
-                                    <th className="py-1.5 pr-3 font-medium">Data e hora</th>
+                                    <th className="py-1.5 pr-3 font-medium hidden sm:table-cell">Data e hora</th>
                                     <th className="py-1.5 pr-3 font-medium">Evento</th>
                                     <th className="py-1.5 pr-3 font-medium hidden md:table-cell">Quem</th>
-                                    <th className="py-1.5 font-medium text-right">Folhas</th>
+                                    <th className="py-1.5 font-medium text-right hidden sm:table-cell">Folhas</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -97,19 +97,19 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                                     <tr key={m.seq} className={`border-b border-slate-100 dark:border-slate-800 align-top ${marcados.has(m.seq) ? 'bg-indigo-50/60 dark:bg-indigo-950/40' : ''}`}>
                                         <td className="py-2 pr-2"><input type="checkbox" checked={marcados.has(m.seq)} onChange={() => marcar(m.seq)} aria-label={`Marcar o evento ${m.seq}`} /></td>
                                         <td className="py-2 pr-3 font-mono text-xs tabular-nums" title={m.hash ? `SHA-256 ${m.hash}` : undefined}>{m.seq}</td>
-                                        <td className="py-2 pr-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">{dataHora(m.em)}</td>
-                                        <td className="py-2 pr-3 min-w-[14rem]">
+                                        <td className="py-2 pr-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400 hidden sm:table-cell">{dataHora(m.em)}</td>
+                                        <td className="py-2 pr-3 sm:min-w-[14rem] break-words">
                                             <button type="button" onClick={() => setLeitura(m.seq)} className="text-left group">
-                                                <span className="flex items-center gap-1.5 font-medium group-hover:underline"><IconeEvento m={m} /> {m.titulo}
+                                                <span className="flex flex-wrap items-center gap-1.5 font-medium group-hover:underline"><IconeEvento m={m} /> {m.titulo}
                                                     {m.novo && <Badge className="bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}
                                                     {m.origem !== 'usuario' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{m.origem === 'interno' ? 'interno' : 'sistema'}</Badge>}
                                                 </span>
                                                 <span className="block text-slate-700 dark:text-slate-300">{m.descricao}</span>
                                             </button>
-                                            <span className="md:hidden block text-xs text-slate-600 dark:text-slate-400">{[m.autor_nome, unidade(m)].filter(Boolean).join(' · ')}</span>
+                                            <span className="md:hidden block text-xs text-slate-600 dark:text-slate-400"><span className="sm:hidden">{[dataHora(m.em), textoFolhas(m.folhas)].filter(Boolean).join(' · ')} · </span>{[m.autor_nome, unidade(m)].filter(Boolean).join(' · ')}</span>
                                         </td>
                                         <td className="py-2 pr-3 hidden md:table-cell text-xs"><span className="block">{m.autor_nome}</span><span className="text-slate-600 dark:text-slate-400">{unidade(m)}</span></td>
-                                        <td className="py-2 text-right whitespace-nowrap text-xs tabular-nums">{textoFolhas(m.folhas) || <span className="text-slate-400">—</span>}</td>
+                                        <td className="py-2 text-right whitespace-nowrap text-xs tabular-nums hidden sm:table-cell">{textoFolhas(m.folhas) || <span className="text-slate-400">—</span>}</td>
                                     </tr>
                                 ))}
                             </tbody>

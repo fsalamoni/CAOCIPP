@@ -18,6 +18,13 @@ test('cumprimento grava exigência e marca a ação; reentrada na fase recomeça
     assert.deepEqual(x.camposAoEntrarNaFase(proc, 'f9'), {});
 });
 
+test('pendência aberta à mão não aparece para as partes, mesmo com termo nos autos', () => {
+    assert.equal(a.visivelParaPartes({ seq: 1, tipo: 'pendencia' }), false);
+    assert.equal(a.visivelParaPartes({ seq: 1, tipo: 'atribuicao' }), false);
+    assert.equal(a.visivelParaPartes({ seq: 1, tipo: 'pendencia_resolvida' }), true);
+    assert.equal(a.visivelParaPartes({ seq: 1, tipo: 'peticao' }), true);
+});
+
 test('petição da parte conta como documento recebido de fora', () => {
     const redigir = { descricao: 'R', forma: 'redigir' };
     const juntar = { descricao: 'J', forma: 'juntar', tipo: 'Contestação' };

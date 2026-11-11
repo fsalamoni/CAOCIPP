@@ -15,6 +15,8 @@ const context_1 = require("./context");
  */
 // Data no fuso do Brasil (um instante ISO à noite cairia no dia seguinte em UTC).
 const br = (iso) => (iso.length > 10 ? (0, secretaria_1.hojeBrasil)(new Date(iso)) : iso).split('-').reverse().join('/');
+/** O texto entra no meio da certidão: sem o ponto final dele, para não dobrar. */
+const semPonto = (s) => s.replace(/[.\s]+$/, '');
 /** Calendário do órgão (para o prazo) e dias até a ciência por decurso. */
 async function configComunicacoes(db, orgId) {
     const d = (await db.collection(context_1.COL.config).doc(orgId).get()).data() || {};
@@ -74,10 +76,10 @@ async function expedir(tx, c, ref, data, raw, cfg) {
             com = r.comunicacao;
             if (r.prazo)
                 prazos = [...prazos, r.prazo];
-            descricao = `${nomeEspecie} de ${parte.nome} (${parte.polo}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${ped.texto}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
+            descricao = `${nomeEspecie} de ${parte.nome} (${parte.polo}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
         }
         else {
-            descricao = `${nomeEspecie} expedida a ${parte.nome} (${parte.polo}) pela plataforma: ${ped.texto}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
+            descricao = `${nomeEspecie} expedida a ${parte.nome} (${parte.polo}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
         }
         lista = [...lista, com];
         const mov = (0, context_1.registrarMovimento)(tx, c, ref, atual, 'comunicacao', descricao.slice(0, secretaria_1.MAX_TEXTO_LONGO), { comunicacao_id: com.id, especie: com.especie, parte_idx: idx });

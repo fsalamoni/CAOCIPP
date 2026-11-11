@@ -65,6 +65,20 @@ function prazosDaParte(proc: admin.firestore.DocumentData, parte: { nome: string
         && (!x.destinatario || String(x.destinatario).toLowerCase().includes(nome)));
 }
 
+/**
+ * Último andamento que a parte pode ver. Processo anterior ao campo
+ * `ultimo_movimento_publico` usa o último movimento só se o tipo for público.
+ */
+function ultimoPublico(proc: admin.firestore.DocumentData): { tipo: string; descricao: string; em: string } | null {
+    if (proc.ultimo_movimento_publico) return proc.ultimo_movimento_publico;
+    const u = proc.ultimo_movimento;
+    return u && visivelParaPartes({ seq: 0, tipo: String(u.tipo) }) ? u : null;
+}
+
+const orgaoAtivo = (o: admin.firestore.DocumentData | undefined) => o?.secretariaConfig?.enabled === true && o?.secretariaConfig?.suspensa_plataforma !== true;
+/** Petições por conta e processo em 24 horas: freio contra abuso, longe do uso normal. */
+const MAX_PETICOES_DIA = 20;
+
 /** Comunicações dirigidas a esta conta (à parte dela), como o portal mostra. */
 function comunicacoesDaConta(proc: admin.firestore.DocumentData, uid: string) {
     return ((proc.comunicacoes || []) as Comunicacao[]).filter((x) => x.status !== 'sem_efeito' && destinatario(x, proc.partes || [], uid)).map((x) => ({
@@ -196,7 +210,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const com = snap.docs.filter((d) => (d.data().comunicacoes_aguardando || 0) > 0);
         const orgIds = [...new Set(com.map((d) => String(d.data().organization_id)))];
         const orgs = orgIds.length ? await db.getAll(...orgIds.map((id) => db.collection('organizations').doc(id))) : [];
-        const nome = new Map(orgs.filter((o) => o.data()?.secretariaConfig?.enabled === true).map((o) => [o.id, String(o.data()?.name || '')]));
+        const nome = new Map(orgs.filter((o) => orgaoAtivo(o.data())).map((o) => [o.id, String(o.data()?.name || '')]));
         return {
             comunicacoes: com.filter((d) => nome.has(d.data().organization_id)).flatMap((d) => comunicacoesDaConta(d.data(), uid)
                 .filter((x) => x.status === 'aguardando')
@@ -229,7 +243,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const acessos = (acessosSnap.data()?.processos || {}) as Record<string, string>;
         const orgIds = [...new Set(snap.docs.map((d) => d.data().organization_id))];
         const orgs = orgIds.length ? await db.getAll(...orgIds.map((id) => db.collection('organizations').doc(id))) : [];
-        const ativo = new Map(orgs.map((o) => [o.id, { on: o.data()?.secretariaConfig?.enabled === true, nome: o.data()?.name || '' }]));
+        const ativo = new Map(orgs.map((o) => [o.id, { on: orgaoAtivo(o.data()), nome: o.data()?.name || '' }]));
         const visiveis = snap.docs.filter((d) => ativo.get(d.data().organization_id)?.on);
         const hoje = hojeBrasil();
         // "Para você": o que pede atenção da parte, em todos os processos.
@@ -238,7 +252,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const x = d.data();
             const parte = parteDoUsuario(x, uid);
             const visto = acessos[d.id] || '';
-            const novidades = x.ultimo_movimento?.em && x.ultimo_movimento.em > visto;
+            const ultimo = ultimoPublico(x);
+            const novidades = !!ultimo && ultimo.em > visto;
             const meusPrazos = prazosDaParte(x, parte);
             const minhasPeticoes = ((x.pendencias || []) as Pendencia[]).filter((q) => q.tipo === 'peticao' && q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${parte?.nome} (`));
             for (const pr of meusPrazos) {
@@ -251,12 +266,12 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             for (const pe of minhasPeticoes) {
                 paraVoce.push({ tipo: 'peticao', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pe.descricao, desde: pe.aberta_em });
             }
-            if (novidades) paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: x.ultimo_movimento.descricao, em: x.ultimo_movimento.em });
+            if (novidades) paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: ultimo!.descricao, em: ultimo!.em });
             return {
                 id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: ativo.get(x.organization_id)?.nome,
                 fase_nome: (x.fases || []).find((f: { id: string }) => f.id === x.fase_atual)?.nome || x.fase_atual,
                 polo: parte?.polo, parte_nome: parte?.nome || null, como: parte?.como || 'parte', representante: parte?.representante || null,
-                ultimo_movimento: x.ultimo_movimento || null, novidades: !!novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length,
+                ultimo_movimento: ultimo, novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length,
                 // Planilha "Meus Processos Eletrônicos": o que fazer, prazos abertos e por abrir.
                 tipo_nome: x.tipo_nome || null, autuado_em: x.autuado_em || null,
                 prazos: meusPrazos.map((q) => ({ id: q.id, descricao: q.descricao, vence_em: q.vence_em })).sort((a, b) => a.vence_em.localeCompare(b.vence_em)),
@@ -399,6 +414,11 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         }
         // Confere acesso antes de gravar o arquivo.
         const { ref: procRef, data: procAntes } = await lerComoParte(db, uid, p.processoId);
+        const ontem = new Date(Date.now() - 86400000).toISOString();
+        const minhas = await procRef.collection('documentos').where('autor_uid', '==', uid).select('criado_em', 'peticao').get();
+        if (minhas.docs.filter((d) => d.data().peticao === true && String(d.data().criado_em) > ontem).length >= MAX_PETICOES_DIA) {
+            throw new HttpsError('resource-exhausted', `São até ${MAX_PETICOES_DIA} petições por dia neste processo. Tente de novo amanhã ou procure a secretaria.`);
+        }
         const docRef = procRef.collection('documentos').doc();
         let path: string | null = null;
         if (buf) {
@@ -429,11 +449,11 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const hoje = hojeBrasil();
             // Se a parte disse a qual prazo responde, a tempestividade é só desse.
             const prazos = prazosDaParte(proc, parte).filter((x) => !prazoId || x.id === prazoId);
-            const tempest = prazos.map((x) => `prazo "${x.descricao}" vence em ${x.vence_em.split('-').reverse().join('/')}: ${hoje <= x.vence_em ? 'tempestiva' : 'intempestiva'}`).join('; ');
+            const tempest = prazos.map((x, i) => `${i ? 'prazo' : 'Prazo'} "${x.descricao}" vence em ${x.vence_em.split('-').reverse().join('/')}: ${hoje <= x.vence_em ? 'tempestiva' : 'intempestiva'}`).join('; ');
             const interrompe = org.secretariaConfig?.peticao_interrompe === true;
             const pend: Pendencia = {
                 id: procRef.collection('_').doc().id, tipo: 'peticao', interrompe, status: 'aberta',
-                descricao: `Apreciar petição nº ${ordem} de ${parte.rotulo}${tipoPeticao ? ` [${tipoPeticao}]` : ''}: ${titulo}${tempest ? `. ${tempest}` : ''}`,
+                descricao: `Apreciar petição nº ${ordem} de ${parte.rotulo}${tipoPeticao && tipoPeticao !== titulo ? ` [${tipoPeticao}]` : ''}: ${titulo}${tempest ? `. ${tempest}` : ''}`,
                 documento_id: docRef.id, aberta_em: agora, aberta_por: parte.como === 'representante' ? `${parte.nome} (parte, por ${parte.representante})` : `${parte.nome} (parte)`,
             };
             const pendencias = [...((proc.pendencias || []) as Pendencia[]), pend];
@@ -445,7 +465,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 .flatMap((tipo) => reconhecer(pendentes, { origem: buf ? 'upload' : 'editor', tipo, peticao: true })));
             const cumpridas = pendentes.filter((e) => chaves.has(e.chave));
             const mov = registrarMovimento(tx, c, procRef, proc, 'peticao',
-                `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${textoFolhas(folha, paginas)}.${tempest ? ` ${tempest[0].toUpperCase()}${tempest.slice(1)}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`
+                `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${textoFolhas(folha, paginas)}.${tempest ? ` ${tempest}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
                 { documento_id: docRef.id, ordem, folha_inicial: folha, paginas, ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
             const exig = fase ? camposDoCumprimento(proc, fase.id, cumpridas, docRef.id, ordem) : {};
