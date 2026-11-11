@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 11/11/2026 — Pente fino do Processo Eletrônico, etapa 5: unidades e modelos
+- **Desativar unidade**: o servidor recusa enquanto a unidade tiver processo
+  em andamento ou sobrestado (antes o processo ficava preso numa unidade que
+  não movimenta). A mensagem diz quantos são e pede para enviá-los antes.
+- **Privacidade**: membro sem nome cadastrado aparecia para os colegas com o
+  e-mail no lugar do nome. Agora o e-mail só serve de nome para quem já pode
+  vê-lo (admin e gestor); os demais veem "Membro".
+- **Editor de modelo**: fechar com o texto alterado e não salvo pede
+  confirmação.
+- No celular, as janelas de versões, importação de modelo, modelo em arquivo,
+  seleção de eventos dos autos, comunicações pendentes, textos prontos, avisos
+  da equipe, convite da parte e novo documento passam a caber na tela e rolar
+  por dentro.
+
 ### 11/11/2026 — Pente fino do Processo Eletrônico, etapa 4: configuração
 - **Editor de rito**: fechar com alteração não salva e carregar um modelo,
   planilha ou diagrama por cima das fases já montadas agora pedem

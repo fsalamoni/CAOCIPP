@@ -51,7 +51,7 @@ export default function ComunicacoesPendentes({ onAbrirProcesso }) {
 
     return (
         <Dialog open onOpenChange={(o) => { if (!o) { if (feita) setFeita(null); else pular(); } }}>
-            <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
+            <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 {feita ? (
                     <>
                         <DialogHeader>

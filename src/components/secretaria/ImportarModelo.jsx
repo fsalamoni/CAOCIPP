@@ -108,7 +108,7 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, orgao
 
     return (
         <Dialog open={aberto} onOpenChange={(o) => !o && fechar()}>
-            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
                     <DialogTitle>Importar modelo de arquivo</DialogTitle>
                     <DialogDescription>
@@ -220,7 +220,7 @@ export function EditorOriginal({ modelo, setModelo, orgId, tipos, onSalvo }) {
     };
     return (
         <Dialog open onOpenChange={(o) => !o && setModelo(null)}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
                     <DialogTitle>Modelo em arquivo</DialogTitle>
                     <DialogDescription>{rotuloFormatoOriginal(modelo.arquivo_nome)}: {modelo.arquivo_nome}. Quem redige escolhe este modelo na lista de minutas do processo.</DialogDescription>

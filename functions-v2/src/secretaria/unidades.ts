@@ -56,6 +56,15 @@ export async function salvarUnidade(c: Contexto, p: Payload, uid: string, audita
             ? { nome: texto(u.nome) || atual.nome, sigla: texto(u.sigla, 20), tipo: tipoUnidade(u.tipo), ativa: u.ativa !== false, ...('orgao_id' in u ? { orgao_id: orgaoId || null } : {}) }
             : {};
         if (c.ctx.isAdmin && !texto(u.nome)) throw new HttpsError('invalid-argument', 'A unidade precisa de um nome');
+        // Unidade inativa não movimenta: desativar com processo em andamento deixaria o processo preso.
+        if (dados.ativa === false && atual.ativa !== false) {
+            const base = c.db.collection(COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', atual.id);
+            const [todos, arquivados] = await Promise.all([base.count().get(), base.where('status', '==', 'arquivado').count().get()]);
+            const presos = todos.data().count - arquivados.data().count;
+            if (presos > 0) {
+                throw new HttpsError('failed-precondition', `A unidade tem ${presos} processo(s) em andamento. Envie-os para outra unidade antes de desativá-la.`);
+            }
+        }
         // Gestor não tira a própria gestão (evita unidade sem ninguém que a gerencie por engano).
         if (!c.ctx.isAdmin && !lotacoes.some((l) => l.uid === uid && l.gestor)) {
             throw new HttpsError('failed-precondition', 'Você não pode tirar a sua própria gestão da unidade; peça ao admin do órgão');
