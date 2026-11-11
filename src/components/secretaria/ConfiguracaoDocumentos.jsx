@@ -260,8 +260,8 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
     if (semCartao) return <div className="space-y-3"><div className="flex justify-end">{novo}</div>{corpo}{editor}</div>;
     return (
         <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-                <div>
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                <div className="min-w-[14rem] flex-1">
                     <CardTitle className="text-base">Modelos de documento do órgão</CardTitle>
                     <CardDescription>Textos prontos para todas as unidades. Campos como {'{{numero}}'} e {'{{partes}}'} se preenchem sozinhos com os dados do processo. Crie no editor ou importe de um Word ou PDF. Cada unidade também pode ter os seus.</CardDescription>
                 </div>

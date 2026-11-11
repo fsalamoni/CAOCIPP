@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 11/11/2026 — Pente fino do Processo Eletrônico, etapa 4: configuração
+- **Editor de rito**: fechar com alteração não salva e carregar um modelo,
+  planilha ou diagrama por cima das fases já montadas agora pedem
+  confirmação (antes o trabalho se perdia sem aviso). O campo de ações cresce
+  com a lista.
+- **Equipe da unidade**: voltar à aba do navegador não apaga mais a edição não
+  salva (a tela só ressincroniza quando a equipe mudou de fato no servidor);
+  admitir ou recusar pedido de lotação pede para salvar a equipe antes.
+- Ritos e Tipos de processo ganharam orientação quando estão vazios.
+- No celular, o cabeçalho dos cartões de Modelos, Textos prontos, Unidades e
+  Tipos não espreme mais o título nem cria rolagem lateral.
+- Copiar link (convite, conferência, diagrama do rito) usa uma função única
+  (`copiarTexto`, em `secretaria/comum.jsx`): quando o navegador não deixa
+  copiar, mostra o texto para copiar à mão em vez de dizer que copiou.
+
 ### 11/11/2026 — Pente fino do Processo Eletrônico, etapa 3: portal e diálogos
 - **Portal no celular**: a parte de processo sobrestado ou arquivado voltou a
   ter o PDF do processo, a certidão de andamento e a impressão ao alcance (a

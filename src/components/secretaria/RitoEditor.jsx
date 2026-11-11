@@ -15,7 +15,7 @@ import {
 } from '@/lib/secretariaRito';
 import { FORMAS, REGISTROS, realinharRegras } from '@/lib/exigencias';
 import FluxoRito from './FluxoRito';
-import { NativeSelect } from './comum';
+import { NativeSelect, copiarTexto } from './comum';
 
 // Editor de rito do admin do órgão: lista de fases à esquerda, diagrama ao
 // vivo à direita (abaixo, no celular). Dá para começar de um modelo, importar
@@ -24,7 +24,12 @@ import { NativeSelect } from './comum';
 export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando, unidades = [], modelos = [], extra = null }) {
     const [importar, setImportar] = useState(!rito?.id && rito?.fases?.length <= 1 && !rito?.fases?.[0]?.nome);
     const [abertas, setAbertas] = useState({}); // fase id -> orientação aberta
+    // Como o rito chegou: fechar com alteração não salva pede confirmação.
+    const [inicial] = useState(() => JSON.stringify(rito));
+    const [confirma, setConfirma] = useState(null); // { texto, rotulo, fazer }
     if (!rito) return null;
+    const fechar = () => (JSON.stringify(rito) === inicial ? onClose()
+        : setConfirma({ texto: 'Há alterações não salvas neste rito.', rotulo: 'Descartar alterações', fazer: onClose }));
     const fases = rito.fases;
     const setFases = (fs) => onChange({ ...rito, fases: fs });
     const mudar = (i, patch) => setFases(fases.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -33,8 +38,13 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
         const id = fases[i].id;
         setFases(fases.filter((_, j) => j !== i).map((f) => (f.proximas ? { ...f, proximas: f.proximas.filter((p) => p !== id) } : f)));
     };
-    const substituir = (novas, origem, avisos = []) => {
+    const substituir = (novas, origem, avisos = [], confirmado = false) => {
         if (!novas.length) { toast.error(avisos[0] || 'Nenhuma fase encontrada'); return; }
+        const comNome = fases.filter((x) => x.nome?.trim()).length;
+        if (comNome && !confirmado) {
+            setConfirma({ texto: `Carregar ${novas.length} fases substitui as ${comNome} que estão no editor.`, rotulo: 'Substituir as fases', fazer: () => substituir(novas, origem, avisos, true) });
+            return;
+        }
         onChange({ ...rito, fases: novas, nome: rito.nome || (origem.nome ?? rito.nome), descricao: rito.descricao || origem.descricao || '' });
         setImportar(false);
         toast.success(`${novas.length} fases carregadas. Revise e salve.`);
@@ -43,7 +53,7 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
     const semNome = fases.some((f) => !f.nome?.trim());
 
     return (
-        <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <Dialog open onOpenChange={(o) => !o && fechar()}>
             <DialogContent className="max-w-6xl w-[calc(100vw-1rem)] max-h-[94vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 grid-cols-1 [&>*]:min-w-0">
                 <DialogHeader>
                     <DialogTitle>{rito.id ? 'Editar rito' : 'Novo rito'}</DialogTitle>
@@ -89,9 +99,16 @@ export default function RitoEditor({ rito, onChange, onClose, onSalvar, salvando
                 {rito.id && (
                     <label className="flex items-center gap-2 text-sm"><Checkbox checked={rito.ativo} onCheckedChange={(c) => onChange({ ...rito, ativo: c === true })} /> Disponível para novas autuações</label>
                 )}
+                {confirma && (
+                    <div role="alertdialog" aria-label="Confirmar" className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+                        <span className="flex-1 min-w-[12rem]">{confirma.texto}</span>
+                        <Button size="sm" variant="outline" autoFocus onClick={() => setConfirma(null)}>Continuar editando</Button>
+                        <Button size="sm" variant="destructive" onClick={() => { const fazer = confirma.fazer; setConfirma(null); fazer(); }}>{confirma.rotulo}</Button>
+                    </div>
+                )}
                 <DialogFooter className="gap-2 sm:gap-0">
                     {extra && <div className="sm:mr-auto">{extra}</div>}
-                    <Button variant="outline" onClick={onClose}>Cancelar</Button>
+                    <Button variant="outline" onClick={fechar}>Cancelar</Button>
                     <Button disabled={salvando || !rito.nome?.trim() || semNome || !fases.length} onClick={onSalvar}>
                         {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar rito
                     </Button>
@@ -165,7 +182,7 @@ function FaseCard({ f, i, fases, unidades, modelos, mudar, mover, remover, abert
                     </div>
                     <div>
                         <Label htmlFor={`ac-${f.id}`}>Ações (uma por linha)</Label>
-                        <Textarea id={`ac-${f.id}`} rows={2} value={(f.acoes || []).join('\n')} onChange={(e) => { const acoes = e.target.value.split('\n'); mudar({ acoes, acoes_regras: realinharRegras(f.acoes, f.acoes_regras, acoes) }); }} placeholder="Aparecem como lista na tela do processo" />
+                        <Textarea id={`ac-${f.id}`} rows={Math.min(8, Math.max(2, (f.acoes || []).length + 1))} value={(f.acoes || []).join('\n')} onChange={(e) => { const acoes = e.target.value.split('\n'); mudar({ acoes, acoes_regras: realinharRegras(f.acoes, f.acoes_regras, acoes) }); }} placeholder="Aparecem como lista na tela do processo" />
                     </div>
                     <RegrasDaFase f={f} modelos={modelos} mudar={mudar} />
                     <div>
@@ -354,7 +371,7 @@ function Importar({ fases, nomeRito, onCarregar }) {
             {temFases && (
                 <TabsContent value="exportar" className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" className="gap-1" onClick={() => baixarPlanilha(fases, nomeRito)}><FileSpreadsheet className="w-4 h-4" /> Baixar como planilha</Button>
-                    <Button variant="outline" size="sm" className="gap-1" onClick={() => navigator.clipboard?.writeText(ritoParaMermaid(fases)).then(() => toast.success('Diagrama copiado em Mermaid'))}><Copy className="w-4 h-4" /> Copiar como diagrama</Button>
+                    <Button variant="outline" size="sm" className="gap-1" onClick={() => copiarTexto(ritoParaMermaid(fases), 'Diagrama copiado em Mermaid')}><Copy className="w-4 h-4" /> Copiar como diagrama</Button>
                 </TabsContent>
             )}
         </Tabs>

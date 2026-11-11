@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
-import { ListaTextos, NativeSelect, TIPOS_UNIDADE, dataHora } from './comum';
+import { ListaTextos, NativeSelect, TIPOS_UNIDADE, copiarTexto, dataHora } from './comum';
 import { DocumentosDaUnidade, ListaModelos } from './ConfiguracaoDocumentos';
 
 const ATRIBUICOES = ['Chefe de secretaria', 'Analista', 'Técnico', 'Estagiário', 'Assessor', 'Promotor de Justiça', 'Procurador de Justiça', 'Servidor', 'Gestor'];
@@ -154,7 +154,8 @@ function Equipe({ orgId, estado, unidade }) {
     const [convite, setConvite] = useState({ email: '', atribuicao: '', gestor: false });
     const [link, setLink] = useState(null);
     const [admissao, setAdmissao] = useState({}); // uid -> atribuição
-    useEffect(() => { setLot(unidade.lotacoes || []); setSujo(false); }, [unidade.lotacoes]);
+    const lotacoesServidor = JSON.stringify(unidade.lotacoes || []);
+    useEffect(() => { setLot(unidade.lotacoes || []); setSujo(false); }, [lotacoesServidor]);
 
     const membro = (uid) => estado.membros.find((m) => m.uid === uid);
     const disponiveis = estado.membros.filter((m) => !lot.some((l) => l.uid === m.uid));
@@ -183,10 +184,11 @@ function Equipe({ orgId, estado, unidade }) {
                         <div key={p.uid} className="flex flex-wrap items-center gap-2 text-sm">
                             <span className="flex-1 min-w-[12rem]"><b>{p.nome}</b>{p.email && <span className="text-slate-600"> · {p.email}</span>}{p.mensagem && <span className="block text-slate-600 dark:text-slate-300">“{p.mensagem}”</span>}<span className="block text-xs text-slate-600">{dataHora(p.em)}</span></span>
                             <Input list="atribuicoes-sugeridas" aria-label={`Atribuição de ${p.nome}`} placeholder="Atribuição" className="h-8 w-44" value={admissao[p.uid] || ''} onChange={(e) => setAdmissao({ ...admissao, [p.uid]: e.target.value })} />
-                            <Button size="sm" className="gap-1" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: true, atribuicao: admissao[p.uid] || '' }), `${p.nome} admitido`)}><Check className="w-4 h-4" /> Admitir</Button>
-                            <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: false }), 'Pedido recusado')}>Recusar</Button>
+                            <Button size="sm" className="gap-1" disabled={ocupado || sujo} title={sujo ? 'Salve a equipe antes de decidir o pedido' : undefined} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: true, atribuicao: admissao[p.uid] || '' }), `${p.nome} admitido`)}><Check className="w-4 h-4" /> Admitir</Button>
+                            <Button size="sm" variant="ghost" disabled={ocupado || sujo} onClick={() => rodar(() => secConfig(orgId, 'decidirPedido', { unidadeId: unidade.id, uid: p.uid, admitir: false }), 'Pedido recusado')}>Recusar</Button>
                         </div>
                     ))}
+                    {sujo && <p className="text-xs text-amber-900 dark:text-amber-100">Salve a equipe abaixo antes de decidir os pedidos.</p>}
                 </section>
             )}
 
@@ -238,7 +240,7 @@ function Equipe({ orgId, estado, unidade }) {
                 {link && (
                     <div role="status" className="rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-2 text-sm space-y-1">
                         <p>{link.emailEnviado ? 'Convite enviado por e-mail.' : 'O envio de e-mail não está configurado; copie o link e envie à pessoa.'}</p>
-                        <div className="flex gap-2"><Input readOnly value={link.link} aria-label="Link do convite" className="h-8" onFocus={(e) => e.target.select()} /><Button size="sm" variant="outline" className="gap-1" onClick={() => { navigator.clipboard?.writeText(link.link); toast.success('Link copiado'); }}><Copy className="w-4 h-4" /> Copiar</Button><Button size="sm" variant="ghost" aria-label="Fechar" onClick={() => setLink(null)}><X className="w-4 h-4" /></Button></div>
+                        <div className="flex gap-2"><Input readOnly value={link.link} aria-label="Link do convite" className="h-8" onFocus={(e) => e.target.select()} /><Button size="sm" variant="outline" className="gap-1" onClick={() => copiarTexto(link.link, 'Link copiado')}><Copy className="w-4 h-4" /> Copiar</Button><Button size="sm" variant="ghost" aria-label="Fechar" onClick={() => setLink(null)}><X className="w-4 h-4" /></Button></div>
                     </div>
                 )}
                 {convites.length > 0 && (

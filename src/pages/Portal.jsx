@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secPortal, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
-import { STATUS_ROTULO, SeloUrgente, dataHora } from '@/components/secretaria/comum';
+import { STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import { DadosCampos } from '@/components/secretaria/CamposProcesso';
 import LeitorAutos from '@/components/secretaria/LeitorAutos';
@@ -41,9 +41,6 @@ import { etapasAteOFim } from '@/lib/secretariaRito';
 const CHAVE_EMAIL = 'portal-email';
 const brData = (iso) => (iso || '').split('-').reverse().join('/');
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-const copiar = (texto) => (navigator.clipboard ? navigator.clipboard.writeText(texto) : Promise.reject(new Error('sem área de transferência')))
-    .then(() => toast.success('Link de conferência copiado'))
-    .catch(() => toast.message('Copie o link de conferência', { description: texto, duration: 15000 }));
 const diasAte = (iso) => Math.round((new Date(`${iso}T12:00:00`) - new Date(`${hojeIso()}T12:00:00`)) / 86400000);
 
 /** O papel da parte dito em uma frase, sem jargão. */
@@ -546,7 +543,7 @@ function ProcessoParte({ id, onVoltar }) {
                                     </div>
                                     {d.codigo_verificacao && (
                                         <Button variant="ghost" size="sm" title="Copiar o link de conferência pública deste documento" aria-label={`Copiar link de conferência de ${d.titulo}`}
-                                            onClick={() => copiar(`${window.location.origin}/Conferir?c=${d.codigo_verificacao}`)}>
+                                            onClick={() => copiarTexto(`${window.location.origin}/Conferir?c=${d.codigo_verificacao}`, 'Link de conferência copiado')}>
                                             <ShieldCheck className="w-4 h-4" aria-hidden />
                                         </Button>
                                     )}
