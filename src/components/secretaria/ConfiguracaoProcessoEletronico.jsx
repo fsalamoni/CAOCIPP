@@ -123,8 +123,8 @@ function Unidades({ orgId, estado }) {
     ).filter(([, l]) => l.length);
     return (
         <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-                <div>
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                <div className="min-w-[14rem] flex-1">
                     <CardTitle className="text-base">Unidades de lotação</CardTitle>
                     <CardDescription>Secretarias autuam e cumprem; gabinetes decidem; assessorias estudam e minutam. Só quem está lotado na unidade que tem o processo o movimenta. Cada unidade tem equipe, gestores, papel timbrado, tipos de documento e modelos próprios.</CardDescription>
                 </div>
@@ -164,6 +164,7 @@ function Ritos({ orgId, estado, onIr }) {
                 </div>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
+                {estado.ritos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400 md:col-span-2">Nenhum rito ainda. Sem rito não dá para autuar: comece por <b>Novo rito</b> (há modelos prontos) ou importe o fluxo de um arquivo.</p>}
                 {estado.ritos.map((r) => (
                     <button key={r.id} onClick={() => setRito({ ...r, fases: r.fases.map((f) => ({ ...f })) })} className={item}>
                         <div className="flex items-center gap-2"><span className="font-medium">{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
@@ -189,8 +190,8 @@ function Tipos({ orgId, estado }) {
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome;
     return (
         <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-                <div>
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                <div className="min-w-[14rem] flex-1">
                     <CardTitle className="text-base">Tipos de processo</CardTitle>
                     <CardDescription>O que se autua no órgão (ex.: Requerimento, Sindicância). Cada tipo já escolhe o rito, o sigilo, a unidade de entrada e os campos do “Novo processo”.</CardDescription>
                 </div>
@@ -200,7 +201,7 @@ function Tipos({ orgId, estado }) {
                 </Button>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
-                {tipos.length === 0 && <p className="text-sm text-slate-600">Sem tipos, quem autua escolhe o rito diretamente.</p>}
+                {tipos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400 md:col-span-2">{estado.ritos.length ? 'Sem tipos, quem autua escolhe o rito diretamente.' : 'Crie primeiro um rito na aba Ritos: todo tipo de processo aponta para um.'}</p>}
                 {tipos.map((t) => (
                     <button key={t.id} onClick={() => setTipo({ ...t, unidade_inicial: t.unidade_inicial || '', orgao_id: t.orgao_id || '', formulario: formularioDe(t) })} className={item}>
                         <div className="flex flex-wrap items-center gap-2">

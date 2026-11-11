@@ -1,9 +1,20 @@
 import React, { useState } from 'react';
 import { Siren, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+
+/**
+ * Copia para a área de transferência e avisa. Sem a API (http, navegador
+ * antigo) ou com a permissão negada, mostra o texto para copiar à mão.
+ */
+export function copiarTexto(texto, ok = 'Copiado') {
+    return (navigator.clipboard ? navigator.clipboard.writeText(texto) : Promise.reject(new Error('sem área de transferência')))
+        .then(() => toast.success(ok))
+        .catch(() => toast.message('Não foi possível copiar. Selecione e copie:', { description: texto, duration: 20000 }));
+}
 
 /** Selo de processo urgente: cor, ícone e texto (não depende só da cor). */
 export function SeloUrgente({ motivo, className = '' }) {

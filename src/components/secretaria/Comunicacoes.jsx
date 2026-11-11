@@ -280,8 +280,8 @@ export function TextosComunicacao({ estado, salvando, onSalvar }) {
     };
     return (
         <Card>
-            <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-                <div>
+            <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                <div className="min-w-[14rem] flex-1">
                     <CardTitle className="text-base">Textos prontos de intimações e comunicações</CardTitle>
                     <CardDescription>Frases que a secretaria usa sempre. Ao intimar ou comunicar, ela escolhe um texto pronto, ajusta o que precisar e expede. O prazo sugerido já vem preenchido.</CardDescription>
                 </div>

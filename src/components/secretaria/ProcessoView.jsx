@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
-import { NativeSelect, STATUS_ROTULO, SeloUrgente, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
+import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
 import { faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
@@ -604,7 +604,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <p className="text-xs text-slate-600">Vale por 7 dias e só pode ser aceito por uma conta. Quem aceitar vê os documentos marcados como visíveis às partes e pode peticionar.</p>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => navigator.clipboard?.writeText(linkConvite?.link || '').then(() => toast.success('Link copiado'))}>Copiar link</Button>
+                        <Button variant="outline" onClick={() => copiarTexto(linkConvite?.link || '', 'Link copiado')}>Copiar link</Button>
                         <Button onClick={() => setLinkConvite(null)}>Fechar</Button>
                     </DialogFooter>
                 </DialogContent>
