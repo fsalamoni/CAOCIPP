@@ -642,14 +642,22 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   aberto, documentos juntados marcados como visíveis e a linha do tempo sem
   atribuições internas, pendências e juntadas ocultas. Na juntada, a equipe
   escolhe "Visível às partes" (padrão) ou "Só para a equipe". Minutas nunca
-  aparecem.
+  aparecem. A regra única é `visivelParaPartes` (`shared/autos.ts`): ficam de
+  fora os tipos de `MOVIMENTOS_INTERNOS` (a pendência aberta à mão inclusive,
+  mesmo tendo termo nos autos; só a ação de fase com certidão nos autos
+  aparece), os atos de fase interna e os marcados `visivel_partes: false`. A
+  lista de processos da parte usa `ultimo_movimento_publico`, gravado por
+  `registrarMovimento` só quando o ato é visível; processo anterior ao campo
+  mostra o último movimento apenas se o tipo for público.
 - **Petição a qualquer tempo:** texto e/ou um anexo PDF, PNG ou JPG até 5 MB.
   É juntada na hora com número de ordem e assinatura simples da parte, gera o
   movimento `peticao` (com a tempestividade diante dos prazos abertos para ela
   ou sem destinatário) e abre pendência para o decisor. Se o admin ligar
   "Petição da parte interrompe a fase" (Painel Administrativo → Processo
   Eletrônico), a pendência suspende a fase até o gabinete apreciá-la. Vale
-  também com o processo sobrestado ou arquivado.
+  também com o processo sobrestado ou arquivado (a Mesa do decisor mostra o
+  arquivado com pendência, para alguém reativar e apreciar). Freio contra
+  abuso: 20 petições por conta, por processo, em 24 horas.
 - **Revogação:** Revogar tira a conta de `partes_uids`, invalida o convite e
   grava `acesso_revogado`. A parte deixa de ver o processo na hora.
 

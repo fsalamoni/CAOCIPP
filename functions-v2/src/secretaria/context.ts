@@ -10,7 +10,7 @@ import {
     podeAgir,
     podeVer,
 } from '../shared/secretaria';
-import { geraTermo } from '../shared/autos';
+import { geraTermo, visivelParaPartes } from '../shared/autos';
 
 export const REGION = 'southamerica-east1';
 
@@ -177,6 +177,8 @@ export function registrarMovimento(
         version: (Number(proc.version) || 0) + 1,
         updated_at: FieldValue.serverTimestamp(),
         ultimo_movimento: { tipo, descricao, em: base.em },
+        // O que o portal mostra às partes como último andamento: nunca um ato interno.
+        ...(visivelParaPartes(base) ? { ultimo_movimento_publico: { tipo, descricao, em: base.em } } : {}),
     };
 }
 

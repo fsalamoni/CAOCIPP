@@ -33,9 +33,10 @@ function origemEvento(m) {
 exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
 /** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
 const visivelParaPartes = (m) => {
-    var _a;
+    var _a, _b;
     return ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false && origemEvento(m) !== 'interno'
-        && (!exports.MOVIMENTOS_INTERNOS.includes(m.tipo) || origemEvento(m) === 'usuario');
+        // Pendência aberta à mão é assunto entre a equipe e o decisor, mesmo com termo nos autos.
+        && (!exports.MOVIMENTOS_INTERNOS.includes(m.tipo) || (m.tipo === 'acao_fase' && ((_b = m.dados) === null || _b === void 0 ? void 0 : _b.nos_autos) === true));
 };
 exports.visivelParaPartes = visivelParaPartes;
 /** Id do documento que o evento juntou aos autos (juntada, petição). */

@@ -476,6 +476,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (regra?.documento) throw new HttpsError('failed-precondition', `"${acao}" se cumpre com a juntada do documento. Redija ou envie o documento e junte-o aos autos.`);
             const feitas: Record<string, number[]> = { ...(data.acoes_feitas || {}) };
             const lista = new Set<number>(feitas[fase.id] || []);
+            // Duas pessoas marcando a mesma caixa: a segunda não gera movimento repetido.
+            if (lista.has(idx) === (p.feita !== false)) throw new HttpsError('aborted', p.feita === false ? 'Esta ação já estava desmarcada' : 'Esta ação já estava marcada como feita');
             if (p.feita === false) lista.delete(idx); else lista.add(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
             // "Certidão nos autos" no rito: marcar (ou desmarcar) a ação é ato do processo, com termo.
@@ -663,6 +665,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (alvo.convite_hash) tx.set(db.collection(COL.convites).doc(alvo.convite_hash), { revogado: true }, { merge: true });
             if (p.action === 'revogarParte') {
                 const antigo = alvo.uid;
+                // A parte continua no processo; sem conta nem convite, não há o que revogar.
+                if (ridx < 0 && !antigo && !alvo.convite_hash) throw new HttpsError('failed-precondition', `${parte.nome} não tem acesso nem convite pendente no portal`);
                 if (ridx >= 0) {
                     reps.splice(ridx, 1);
                     partes[idx] = { ...parte, representantes: reps };

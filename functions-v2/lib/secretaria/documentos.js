@@ -123,6 +123,10 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         // Quem recebeu a minuta com o processo revisa e junta, mas não apaga o trabalho de outra unidade.
         if (!c.ctx.unidadeIds.includes(doc.unidade_origem))
             throw new https_1.HttpsError('permission-denied', 'Só a unidade que redigiu a minuta pode excluí-la');
+        // Minuta que seguiu com o processo está sendo revista por quem o recebeu: não some no meio da revisão.
+        if (Array.isArray(doc.unidades_acesso) && doc.unidades_acesso.length && !c.ctx.unidadeIds.includes(proc.unidade_atual)) {
+            throw new https_1.HttpsError('failed-precondition', 'Esta minuta seguiu com o processo para outra unidade. Ela só pode ser excluída quando o processo voltar à sua unidade.');
+        }
         await ref.delete();
         if ((proc.assinaturas_pendentes || []).some((x) => x.docId === ref.id)) {
             await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });

@@ -5,6 +5,25 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 11/11/2026 — Pente fino do Processo Eletrônico
+- **Sigilo do trabalho interno no portal das partes**: a pendência aberta à
+  mão para o decisor voltou a ficar fora do portal, e a lista de processos da
+  parte só mostra como "último andamento" um ato que ela pode ver (antes
+  aparecia qualquer movimento, inclusive atribuição e remessa interna).
+- **Celular**: a lista de eventos e a lista dos autos cabem na tela sem cortar
+  texto; título do processo menor; atalhos de teclado só no computador.
+- **Confirmação** antes de excluir minuta, revogar acesso ao portal e retirar
+  representante.
+- Minuta que seguiu com o processo só pode ser excluída quando ele volta à
+  unidade que a redigiu. Marcar a mesma ação duas vezes não repete o registro.
+  Revogar acesso de quem não tem acesso nem convite é recusado.
+- A Mesa do decisor mostra também processo arquivado com pendência aberta
+  (petição que chegou depois do arquivamento).
+- Portal: até 20 petições por conta, por processo, em 24 horas; órgão suspenso
+  pela plataforma some das listas da parte.
+- Sino de prazo avisa até o dia seguinte ao vencimento (o e-mail diário
+  continua listando os atrasos). Textos das certidões sem ponto dobrado.
+
 ### 10/11/2026 — Ajustes nas exigências do rito
 - Petição da parte do tipo pedido (ex.: "Manifestação") cumpre o documento
   que a fase exige receber de fora.

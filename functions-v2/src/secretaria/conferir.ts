@@ -72,7 +72,8 @@ export const secretariaAlertaPrazos = onSchedule(
             }
             // Sino: um aviso por processo com prazo vencendo ou vencido (sem e-mail, que vai abaixo).
             for (const [uid, itens] of sinoPorPessoa) {
-                for (const it of itens.slice(0, 20)) {
+                // O sino avisa até o dia seguinte ao vencimento; depois, só o e-mail diário lista o atraso.
+                for (const it of itens.filter((x) => x.venc >= somarDias(hoje, -1)).slice(0, 20)) {
                     await notificarPessoas(db, orgId, [uid], {
                         subtipo: 'prazo', procId: it.id, soSino: true,
                         titulo: `Prazo ${it.venc < hoje ? 'vencido' : 'vencendo'} no processo ${it.numero}`,
