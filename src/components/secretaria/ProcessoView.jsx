@@ -106,9 +106,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             if (okMsg) toast.success(okMsg);
             setAcao(null);
             atualizar();
+            return true;
         } catch (e) {
             toast.error(e?.message || 'Não foi possível concluir');
             if (e?.code === 'functions/aborted') atualizar();
+            return false;
         } finally {
             setOcupado(false);
         }
@@ -784,10 +786,14 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         rotuloTexto = 'Para quê (ex.: manifestação sobre o laudo)';
         exigeTexto = true;
         campo = (
-            <div className="grid grid-cols-3 gap-3">
-                <div><Label htmlFor="prazo-dias">Dias</Label><Input id="prazo-dias" type="number" min={1} value={dias} onChange={(e) => setDias(e.target.value)} /></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div><Label htmlFor="prazo-dias">Dias</Label><Input id="prazo-dias" type="number" inputMode="numeric" min={1} max={3650} value={dias} onChange={(e) => setDias(e.target.value)} /></div>
                 <NativeSelect label="Contagem" value={contagem} onChange={setContagem} options={[['uteis', 'Dias úteis'], ['corridos', 'Dias corridos']]} />
-                <div><Label htmlFor="prazo-dest">Destinatário</Label><Input id="prazo-dest" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder="Opcional" /></div>
+                <div className="col-span-2 sm:col-span-1">
+                    <Label htmlFor="prazo-dest">Destinatário</Label>
+                    <Input id="prazo-dest" list="prazo-partes" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder="Opcional" />
+                    <datalist id="prazo-partes">{(p.partes || []).map((x, i) => <option key={i} value={x.nome} />)}</datalist>
+                </div>
             </div>
         );
         enviar = () => mov('abrirPrazo', { descricao: motivo, dias: Number(dias), contagem, destinatario }, 'Prazo aberto');
@@ -937,7 +943,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                     </fieldset>
                 ) : <p className="text-sm text-slate-600 dark:text-slate-300">Esta é a fase final do rito.</p>}
                 {avisoDispensa}
-                <NativeSelect id="fase-fora"label="Ou ir para outra fase (fora do caminho previsto no rito, exige motivo)" value={fora ? escolhida : ''} onChange={(v) => setValor(v || '')}
+                <NativeSelect id="fase-fora" label="Ou ir para outra fase (fora do caminho previsto no rito, exige motivo)" value={fora ? escolhida : ''} onChange={(v) => setValor(v || '')}
                     options={[['', '—'], ...p.fases.filter((f) => f.id !== p.fase_atual && !noFluxo.includes(f.id)).map((f) => [f.id, f.nome])]} />
             </div>
         );
@@ -970,11 +976,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         enviar = () => mov('urgencia', { urgente: !p.urgente, motivo }, p.urgente ? 'Urgência retirada' : 'Processo marcado como urgente');
     }
     if (tipo === 'situacao' || tipo === 'urgencia') { exigeTexto = true; rotuloTexto = 'Motivo'; }
+    const diasInvalidos = tipo === 'prazo' && !(Number(dias) >= 1);
     const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'convidar' || tipo === 'pedirAssinatura';
 
     return (
         <Dialog open={!!acao} onOpenChange={(o) => !o && reset()}>
-            <DialogContent className={largo ? 'max-w-4xl max-h-[92vh] overflow-y-auto' : undefined}>
+            <DialogContent className={`max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full ${largo ? 'max-w-4xl' : ''}`}>
                 <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
                     {campo}
@@ -986,7 +993,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <DialogFooter className="flex-row flex-wrap gap-2">
                     {rodape}
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
-                    <Button disabled={ocupado || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { await enviar(); setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); }}>
+                    <Button disabled={ocupado || diasInvalidos || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { if (await enviar() === false) return; setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); }}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {tipo === 'resolver' ? 'Registrar a decisão' : 'Confirmar'}
                     </Button>
                 </DialogFooter>

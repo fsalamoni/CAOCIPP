@@ -656,7 +656,8 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   "Petição da parte interrompe a fase" (Painel Administrativo → Processo
   Eletrônico), a pendência suspende a fase até o gabinete apreciá-la. Vale
   também com o processo sobrestado ou arquivado (a Mesa do decisor mostra o
-  arquivado com pendência, para alguém reativar e apreciar). Freio contra
+  arquivado com pendência, para alguém reativar e apreciar; o portal avisa a
+  parte de que o pedido vai para quem decide). Freio contra
   abuso: 20 petições por conta, por processo, em 24 horas.
 - **Revogação:** Revogar tira a conta de `partes_uids`, invalida o convite e
   grava `acesso_revogado`. A parte deixa de ver o processo na hora.
