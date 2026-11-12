@@ -166,6 +166,37 @@ export function problemasFormulario(form, faseIds = null) {
     return out;
 }
 
+/**
+ * O valor da tela como o servidor gravaria (null = vazio ou inválido): para a
+ * prévia mostrar o que as partes veriam. Espelho de valorDe no servidor.
+ */
+export function valorComoGravado(c, v) {
+    if (vazio(v)) return null;
+    const opcoes = c.opcoes || [];
+    if (c.tipo === 'multipla') {
+        const l = [...new Set((Array.isArray(v) ? v : [v]).map(String))];
+        return l.every((x) => opcoes.includes(x)) ? opcoes.filter((x) => l.includes(x)) : null;
+    }
+    if (c.tipo === 'sim_nao') return v === 'sim' || v === true ? true : v === 'nao' || v === false ? false : null;
+    if (Array.isArray(v)) return null;
+    const s = String(v).trim();
+    if (c.tipo === 'lista') return opcoes.includes(s) ? s : null;
+    if (c.tipo === 'data') return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+    if (erroDeFormato(c, s)) return null;
+    if (c.tipo === 'numero') {
+        const n = Number(s.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+        return c.formato === 'moeda' ? Math.round(n * 100) / 100 : n;
+    }
+    if (c.tipo !== 'texto') return s;
+    if (c.formato === 'email') return s.toLowerCase();
+    if (c.formato === 'link') return new URL(/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(s) ? s : `https://${s}`).href;
+    if (c.formato === 'cpf_cnpj') {
+        const d = s.toUpperCase().replace(/[\s./-]/g, '');
+        return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+    }
+    return s;
+}
+
 /** Valor gravado, como texto para mostrar. */
 export function valorTexto(c) {
     if (Array.isArray(c.valor)) return c.valor.join(', ');

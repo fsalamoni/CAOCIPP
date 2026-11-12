@@ -1230,9 +1230,16 @@ admin define, em cada tipo, o que quem autua preenche:
   processo se chama pelo nome do tipo. Tipos antigos seguem como antes
   (assunto obrigatório, o resto opcional). O formulário não pode ficar sem
   assunto, descrição, partes e campos próprios ao mesmo tempo.
+- **Editor do tipo em tela cheia** (`EditorTipo.jsx`): abas Dados (nome,
+  sigla, rito, sigilo, unidade, órgão, urgência, situação e o fluxo do rito),
+  Formulário e Numeração, com a prévia ao lado no computador e atrás do botão
+  Prévia no celular. A aba com ajuste pendente leva um ponto, e o rodapé diz
+  quantos ajustes faltam (o link leva à aba).
 - **Uma só tela de autuação** (`FormularioAutuacao.jsx`): o "Novo processo"
   e a prévia no editor do tipo usam o mesmo componente, então a prévia é
-  exatamente o que quem autua vê.
+  exatamente o que quem autua vê. Abaixo dela, "O que as partes veem no
+  portal" mostra, com o que for preenchido na prévia, os campos marcados para
+  as partes.
 - **Campos próprios** (até 40): nome, tipo (texto curto, texto longo, número,
   data, lista que escolhe uma, lista que marca várias (`multipla`, valor em
   lista de textos, na ordem das opções), sim ou não), obrigatório, orientação

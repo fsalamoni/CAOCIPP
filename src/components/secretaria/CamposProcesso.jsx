@@ -235,7 +235,7 @@ function ExigirEm({ c, fases, onChange }) {
  * Configuração do formulário de autuação de um tipo de processo. `tipo` serve à
  * prévia (urgência e sigilo); `fases`, as do rito do tipo, a "Exigir para sair das fases".
  */
-export function EditorFormulario({ form, onChange, tipo = null, fases = [] }) {
+export function EditorFormulario({ form, onChange, tipo = null, fases = [], previa: comPrevia = true }) {
     const [aberto, setAberto] = useState(null);
     const [previa, setPrevia] = useState(PREVIA_VAZIA);
     const campos = form.campos;
@@ -330,14 +330,14 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [] }) {
                 })}
             </div>
 
-            <details className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2">
+            {comPrevia && <details className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2">
                 <summary className="flex items-center gap-2 text-sm cursor-pointer"><Eye className="w-4 h-4" aria-hidden /> Ver como fica para quem autua</summary>
                 <div className="pt-3">
                     <FormularioAutuacao prefixo="previa" tipo={tipo} f={{ ...previa, sigilo: form.sigilo === 'oculto' ? tipo?.sigilo_padrao || 'normal' : previa.sigilo, urgente: tipo?.urgente === true || previa.urgente }} setF={setPrevia}
                         form={{ ...form, polos: form.polos.length ? form.polos : POLOS.map(([x]) => x), campos: campos.map((c) => ({ ...c, opcoes: (c.opcoes || []).map((o) => o.trim()).filter(Boolean) })) }}
                         unidades={[['u', 'A unidade de quem autua']]} />
                 </div>
-            </details>
+            </details>}
         </div>
     );
 }

@@ -88,3 +88,16 @@ test('revisão: CNPJ alfanumérico, link, fases que sumiram e valor que mudou de
     const form = { campos: [{ id: 'l', tipo: 'multipla', opcoes: ['X', 'Y'] }, { id: 'u', tipo: 'lista', opcoes: ['X', 'Y'] }] };
     assert.deepEqual(valoresDe([{ id: 'l', tipo: 'lista', valor: 'X' }, { id: 'u', tipo: 'multipla', valor: ['Z', 'Y'] }], form), { l: ['X'], u: 'Y' });
 });
+
+test('prévia: valor como o servidor gravaria', async () => {
+    const { valorComoGravado: g } = await import('./camposProcesso.js');
+    assert.equal(g({ tipo: 'texto', formato: 'cpf_cnpj' }, '52998224725'), '529.982.247-25');
+    assert.equal(g({ tipo: 'texto', formato: 'cpf_cnpj' }, '52998224726'), null);
+    assert.equal(g({ tipo: 'texto', formato: 'email' }, 'A@B.org'), 'a@b.org');
+    assert.equal(g({ tipo: 'texto', formato: 'link' }, 'exemplo.org'), 'https://exemplo.org/');
+    assert.equal(g({ tipo: 'numero', formato: 'moeda' }, '1.234,567'), 1234.57);
+    assert.equal(g({ tipo: 'sim_nao' }, 'abc'), null);
+    assert.equal(g({ tipo: 'lista', opcoes: ['A'] }, 'B'), null);
+    assert.deepEqual(g({ tipo: 'multipla', opcoes: ['A', 'B'] }, ['B', 'A']), ['A', 'B']);
+    assert.equal(g({ tipo: 'multipla', opcoes: ['A'] }, ['C']), null);
+});
