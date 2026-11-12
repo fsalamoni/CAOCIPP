@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: uma só tela para criar e editar rito; excluir rito
+- **Editar usa a tela de criar**: clicar num rito abre a mesma tela do "Novo
+  rito", com o fluxo desenhado, as fases em cartões, as ações e suas regras,
+  unidades e modelos novos, exportar e versões. Salvar gera nova versão;
+  processos em andamento seguem com a versão com que foram autuados.
+- **Novo rito** começa em branco, de um modelo pronto ou de um arquivo, tudo
+  no mesmo lugar (o botão "Importar de arquivo" foi unido a ele).
+- **Excluir rito**: some das listas e não autua mais; recusado enquanto algum
+  tipo de processo o usa. Os processos já autuados não mudam.
+- Rascunho guardado no navegador para cada rito em edição, com a opção de
+  recuperar ou descartar ao reabrir.
+
 ### 12/11/2026 — Processo Eletrônico: cada ação do rito pede o que precisa e fica onde deve
 - **Ações da fase com dado**: no rito, cada ação diz o que pede (só confirmar,
   texto, texto longo, número, data, escolha numa lista, sim ou não, ou um

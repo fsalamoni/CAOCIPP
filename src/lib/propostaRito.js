@@ -994,3 +994,37 @@ export function tipoDocumentoDe(nome, estado) {
     const n = sem(nome);
     return (estado.documento?.tipos_documento || []).find((t) => n.startsWith(sem(t)) || n.includes(` ${sem(t)}`)) || '';
 }
+
+/** Rito gravado (ou modelo pronto) no formato da tela: unidade e modelos por referência. */
+export function deRito(r) {
+    return {
+        ...(r.id ? { id: r.id, versao: r.versao, ativo: r.ativo !== false } : {}),
+        nome: r.nome || '', descricao: r.descricao || '',
+        fases: (r.fases || []).map(({ unidade_id: un, modelos: ms, ...f }) => ({ ...f, unidade_ref: un || null, modelos_ref: ms || [] })),
+        unidades: [], modelos: [],
+    };
+}
+
+/** Só vai o que as fases usam; refs "+N" viram ids no servidor. */
+export function montarPayload(p, tipo) {
+    const usadosUn = new Set(p.fases.map((f) => f.unidade_ref).filter(Boolean));
+    const usadosMod = new Set(p.fases.flatMap((f) => f.modelos_ref || []));
+    const modelos = p.modelos.filter((m) => usadosMod.has(m.ref));
+    modelos.forEach((m) => m.unidade_ref && usadosUn.add(m.unidade_ref));
+    return {
+        rito: {
+            nome: p.nome, descricao: p.descricao,
+            fases: p.fases.map((f) => ({
+                id: f.id, nome: f.nome, prazo_dias: f.prazo_dias, orientacao: f.orientacao, final: f.final === true,
+                proximas: f.final ? [] : (f.proximas || []).filter((id) => id !== f.id && p.fases.some((x) => x.id === id)),
+                condicoes: f.condicoes, agente: f.agente, acoes: f.acoes, acoes_regras: f.acoes_regras,
+                registro_atos: f.registro_atos, registro: f.registro, documentos: f.documentos,
+                unidade_ref: f.unidade_ref, modelos_ref: f.modelos_ref,
+            })),
+        },
+        ...(p.id ? { rito_id: p.id, ativo: p.ativo !== false } : {}),
+        unidades: p.unidades.filter((u) => usadosUn.has(u.ref)),
+        modelos,
+        tipo_processo: tipo.criar && (tipo.nome || p.nome || '').trim() ? { nome: (tipo.nome || p.nome).trim(), sigla: tipo.sigla.trim() } : null,
+    };
+}

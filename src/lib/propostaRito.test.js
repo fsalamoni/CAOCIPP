@@ -201,3 +201,23 @@ test('vínculo: casa unidades e modelos existentes e lista o que será criado', 
     assert.deepEqual(v.modelos.map((m) => [m.nome, m.unidade_ref, m.tipo_documento]), [['Parecer técnico', '+0', 'Parecer'], ['Ofício de requisição', '+0', 'Ofício']]);
     assert.equal(tipoProvavel('Gabinete da Promotoria'), 'gabinete');
 });
+
+test('rito gravado abre na tela de criar e volta com as regras das ações', async () => {
+    const m = await import('./propostaRito.js');
+    const rito = { id: 'r1', versao: 3, ativo: false, nome: 'Consultas', descricao: '', fases: [
+        { id: 'a', nome: 'Autuação', unidade_id: 'u1', modelos: ['m1'], acoes: ['Registrar no SIM'], acoes_regras: [{ pede: 'numero', destino: 'autos' }], registro_atos: { fase: 'evento' }, documentos: [{ descricao: 'Ofício', forma: 'redigir' }] },
+        { id: 'b', nome: 'Fim', final: true },
+    ] };
+    const p = m.deRito(rito);
+    assert.equal(p.fases[0].unidade_ref, 'u1');
+    assert.deepEqual(p.fases[0].modelos_ref, ['m1']);
+    assert.equal(p.fases[0].unidade_id, undefined);
+    const pay = m.montarPayload(p, { criar: false, nome: '', sigla: '' });
+    assert.equal(pay.rito_id, 'r1');
+    assert.equal(pay.ativo, false);
+    assert.deepEqual(pay.rito.fases[0].acoes_regras, [{ pede: 'numero', destino: 'autos' }]);
+    assert.deepEqual(pay.rito.fases[0].registro_atos, { fase: 'evento' });
+    assert.equal(pay.rito.fases[0].documentos.length, 1);
+    assert.equal(pay.tipo_processo, null);
+    assert.equal(m.montarPayload(m.deRito({ nome: 'Novo', fases: [] }), { criar: true, nome: 'X', sigla: '' }).rito_id, undefined);
+});

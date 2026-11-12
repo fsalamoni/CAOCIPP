@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, ChevronDown, Download, FileText, FileUp, GitBranch, Loader2, Plus, Rocket, Shapes, Trash2, Users, X,
+    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, ChevronDown, Copy, Download, FilePlus2, FileSpreadsheet, FileText, FileUp, GitBranch, LayoutTemplate, Loader2, Plus, Rocket, Save, Shapes, Trash2, Users, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,12 +11,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
-import { propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
-import { modelosDeRito, novoIdFase } from '@/lib/secretariaRito';
+import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
+import { modelosDeRito, novoIdFase, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
-import { baixarPlanilha } from './RitoEditor';
-import { TIPOS_UNIDADE } from './comum';
+import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
+import { TIPOS_UNIDADE, copiarTexto } from './comum';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -24,17 +27,35 @@ const ACEITOS = '.xlsx,.xlsm,.xls,.csv,.ods,.docx,.pdf,.txt,.md,.bpm,.bpmn,.xpdl
 const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MIME_BIZAGI = 'application/x-bizagi-bpm';
 const campo = 'h-9 rounded-md border border-input bg-transparent dark:bg-slate-900 px-2 text-sm';
-const chaveRascunho = (orgId) => `rito-rascunho-${orgId}`;
-const lerRascunho = (orgId) => { try { return JSON.parse(localStorage.getItem(chaveRascunho(orgId)) || 'null'); } catch { return null; } };
+// Rascunho por rito: o de um rito novo e o de cada rito em edição não se misturam.
+const chaveRascunho = (orgId, id) => (id ? `rito-rascunho-${orgId}-${id}` : `rito-rascunho-${orgId}`);
+const lerRascunho = (orgId, id) => { try { return JSON.parse(localStorage.getItem(chaveRascunho(orgId, id)) || 'null'); } catch { return null; } };
+const apagarRascunho = (orgId, id) => { try { localStorage.removeItem(chaveRascunho(orgId, id)); } catch { /* ignora */ } };
+
+export async function baixarPlanilha(fases, nome) {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(ritoParaTabela(fases));
+    ws['!cols'] = [{ wch: 28 }, { wch: 12 }, { wch: 32 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Rito');
+    XLSX.writeFile(wb, `${(nome || 'rito').replace(/[^\w\- ]+/g, '').trim() || 'rito'}.xlsx`);
+}
 
 /** Pendências que travam ou enfraquecem a implantação, com a fase para ir até ela. */
 export function pendenciasDaProposta(p) {
     const out = [];
     const ids = new Set(p.fases.map((f) => f.id));
+    if (!p.fases.length) out.push({ fase: null, grave: true, texto: 'O rito precisa de ao menos uma fase.' });
     if (p.fases.length > MAX_FASES) out.push({ fase: p.fases[MAX_FASES].id, grave: true, texto: `O rito tem ${p.fases.length} fases; o máximo é ${MAX_FASES}. Junte ou remova fases (os detalhes podem virar ações de uma fase).` });
     p.fases.forEach((f, i) => {
         const rot = f.nome.trim() || `Fase ${i + 1}`;
         if (!f.nome.trim()) out.push({ fase: f.id, grave: true, texto: `${rot} está sem nome.` });
+        (f.acoes || []).forEach((a, k) => {
+            const r = f.acoes_regras?.[k];
+            if (a.trim() && r?.pede === 'lista' && (r.opcoes || []).filter((o) => o.trim()).length < 2) {
+                out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede uma escolha: informe ao menos duas opções.` });
+            }
+        });
         if (!f.unidade_ref) out.push({ fase: f.id, texto: `${rot} não tem unidade: a fase vai correr na unidade que estiver com o processo.` });
         if (!f.final) {
             const saidas = (f.proximas || []).filter((id) => id !== f.id);
@@ -76,34 +97,58 @@ async function lerArquivo(file, orgId) {
 }
 
 /**
- * Importação de rito: lê planilha, Word, PDF, BPMN, draw.io, Mermaid ou texto,
- * monta a proposta (fases com unidade, agente, ações, modelos e saídas com
- * condição) e deixa o admin revisar tudo antes de implantar. Implantar cria,
- * de uma vez, as unidades e os modelos que faltam, o rito e o tipo de processo.
+ * Tela única do rito, para criar e para editar. Criar: em branco, de um modelo
+ * pronto ou lendo planilha, Word, PDF, BPMN, draw.io, Mermaid ou texto (o
+ * sistema monta a proposta com unidades, ações, modelos e alternativas).
+ * Editar: abre o rito gravado nesta mesma tela; salvar gera nova versão.
+ * Implantar cria, de uma vez, as unidades e os modelos que faltam, o rito e,
+ * se pedido, o tipo de processo. Monte com `key` por rito: o estado nasce das props.
  */
-export default function PropostaRito({ aberto, orgId, estado, onFechar, onIr }) {
+export default function PropostaRito({ aberto, orgId, estado, rito = null, onFechar, onIr, extra = null }) {
     const qc = useQueryClient();
+    const editando = !!rito?.id;
     const [lendo, setLendo] = useState(false);
     const [colado, setColado] = useState('');
-    const [p, setP] = useState(null); // proposta vinculada
-    const [tipo, setTipo] = useState({ criar: true, nome: '', sigla: '' });
+    const [p, setP] = useState(() => (editando ? deRito(rito) : null)); // proposta vinculada
+    const [inicial] = useState(() => (editando ? JSON.stringify(deRito(rito)) : null));
+    const [tipo, setTipo] = useState({ criar: !editando, nome: '', sigla: '' });
     const [confirmar, setConfirmar] = useState(false);
     const [implantando, setImplantando] = useState(false);
     const [criado, setCriado] = useState(null); // resumo após implantar
-    const [rascunho, setRascunho] = useState(() => lerRascunho(orgId));
+    const [rascunho, setRascunho] = useState(() => lerRascunho(orgId, rito?.id));
+    // Editando com rascunho guardado: a pessoa decide antes de o rascunho ser sobrescrito.
+    const [decidirRascunho, setDecidirRascunho] = useState(() => editando && !!rascunho?.p);
 
     // Rascunho da revisão fica no navegador: fechar ou cair não perde o trabalho.
     useEffect(() => {
-        if (!p) return;
-        try { localStorage.setItem(chaveRascunho(orgId), JSON.stringify({ p, tipo, em: Date.now() })); } catch { /* sem espaço: segue sem rascunho */ }
-    }, [p, tipo, orgId]);
-    const descartarRascunho = () => { try { localStorage.removeItem(chaveRascunho(orgId)); } catch { /* ignora */ } setRascunho(null); };
-    const continuarRascunho = () => { setP(rascunho.p); setTipo(rascunho.tipo || { criar: true, nome: rascunho.p.nome, sigla: '' }); setConfirmar(false); };
+        if (!p || criado) return;
+        const igual = inicial && JSON.stringify(p) === inicial;
+        if (decidirRascunho) {
+            // Mexer no rito sem recuperar o rascunho antigo é recusar o rascunho.
+            if (igual) return;
+            setDecidirRascunho(false);
+        }
+        if (igual) { apagarRascunho(orgId, rito?.id); return; }
+        try { localStorage.setItem(chaveRascunho(orgId, rito?.id), JSON.stringify({ p, tipo, em: Date.now(), versao: rito?.versao })); } catch { /* sem espaço: segue sem rascunho */ }
+    }, [p, tipo, orgId, rito, inicial, criado, decidirRascunho]);
+    const descartarRascunho = () => { apagarRascunho(orgId, rito?.id); setRascunho(null); setDecidirRascunho(false); };
+    // Recuperar o rascunho mantém a versão atual: salvar não pode voltar a versão.
+    const continuarRascunho = () => { setP({ ...rascunho.p, ...(editando ? { id: rito.id, versao: rito.versao } : {}) }); setTipo(rascunho.tipo || { criar: !editando, nome: rascunho.p.nome, sigla: '' }); setConfirmar(false); setDecidirRascunho(false); };
 
-    const fechar = () => { if (p && !criado) setRascunho(lerRascunho(orgId)); setP(null); setColado(''); setConfirmar(false); setCriado(null); onFechar(); };
+    const fechar = () => { setP(null); setColado(''); setConfirmar(false); setCriado(null); onFechar(); };
+    // Editando, "Substituir fases" reabre o início: troca só as fases, o rito segue o mesmo.
+    const [trocar, setTrocar] = useState(false);
+    const manter = () => ({ id: p.id, versao: p.versao, ativo: p.ativo, nome: p.nome, descricao: p.descricao });
+    const comecar = (r, criarTipo = true) => {
+        if (trocar) { setP({ ...deRito(r), ...manter() }); setTrocar(false); setConfirmar(false); return; }
+        setP(deRito(r));
+        setTipo({ criar: criarTipo, nome: r.nome || '', sigla: '' });
+        setConfirmar(false);
+    };
     const carregar = (r, nomePadrao) => {
         if (!r.fases.length) { toast.error(r.avisos?.[0] || 'Não achei fases'); return; }
         const v = vincularProposta(r, estado);
+        if (trocar) { setP({ ...v, ...manter() }); setTrocar(false); setConfirmar(false); return; }
         const nome = r.nome || nomePadrao || 'Rito importado';
         setP({ ...v, nome, descricao: `Importado de ${r.origem || 'arquivo'}.` });
         setTipo({ criar: true, nome, sigla: '' });
@@ -127,26 +172,54 @@ export default function PropostaRito({ aberto, orgId, estado, onFechar, onIr }) 
             <DialogContent className="max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[94vh] sm:max-w-[1400px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden">
                 <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
                     <GitBranch className="w-5 h-5 text-indigo-600" aria-hidden />
-                    <DialogTitle className="text-base">Importar rito de arquivo</DialogTitle>
-                    <DialogDescription className="sr-only">Leia um arquivo, revise a proposta e implante o rito</DialogDescription>
+                    <DialogTitle className="text-base truncate">{editando ? `Editar rito: ${rito.nome}` : 'Novo rito'}</DialogTitle>
+                    {editando && <Badge variant="outline" className="font-normal">versão {rito.versao}</Badge>}
+                    <DialogDescription className="sr-only">{editando ? 'Ajuste as fases, as ações e o que cada uma registra; salvar gera nova versão' : 'Comece em branco, de um modelo ou de um arquivo, revise e implante o rito'}</DialogDescription>
                     <Button size="sm" variant="ghost" className="ml-auto" onClick={fechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                 </div>
                 {criado ? (
                     <ResumoImplantacao r={criado} onIr={(aba) => { fechar(); onIr?.(aba); }} onFechar={fechar} />
-                ) : !p ? (
+                ) : !p || trocar ? (
                     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                         <div className="max-w-3xl mx-auto space-y-6">
-                            <p className="text-sm text-slate-600 dark:text-slate-300">
-                                O sistema lê o arquivo e monta uma <b>proposta de rito</b>: fases, unidades, quem faz, ações, documentos, prazos,
-                                encaminhamentos e alternativas. Você revisa e ajusta tudo antes de implantar. Nada é criado até você confirmar.
-                            </p>
-                            {rascunho?.p && (
+                            {trocar ? (
+                                <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/40 p-3 text-sm">
+                                    <span className="flex-1 min-w-[12rem]">As fases de <b>{p.nome}</b> serão trocadas pelas do modelo ou arquivo escolhido. O nome, a situação e as versões do rito continuam; nada é salvo até você confirmar.</span>
+                                    <Button size="sm" variant="outline" onClick={() => setTrocar(false)}>Voltar sem trocar</Button>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-600 dark:text-slate-300">
+                                    Comece em branco, de um modelo pronto ou de um arquivo que descreve o fluxo. Em todos os casos você revisa e ajusta
+                                    tudo nesta mesma tela antes de implantar: fases, unidades, ações (e o que cada uma pede e registra), documentos,
+                                    prazos e alternativas. Nada é criado até você confirmar.
+                                </p>
+                            )}
+                            {!trocar && rascunho?.p && (
                                 <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/40 p-3 text-sm">
                                     <span className="flex-1 min-w-[12rem]">Há uma revisão não implantada: <b>{rascunho.p.nome}</b> ({rascunho.p.fases.length} fases), de {new Date(rascunho.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.</span>
                                     <Button size="sm" onClick={continuarRascunho}>Continuar a revisão</Button>
                                     <Button size="sm" variant="ghost" onClick={descartarRascunho}>Descartar</Button>
                                 </div>
                             )}
+                            <section aria-labelledby="comecar-titulo" className="space-y-2">
+                                <h3 id="comecar-titulo" className="text-sm font-semibold">Começar sem arquivo</h3>
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    <button type="button" onClick={() => comecar({ nome: '', descricao: '', fases: [{ id: novoIdFase(), nome: '', proximas: [] }] })}
+                                        className="text-left rounded-md border border-slate-200 dark:border-slate-700 p-3 hover:border-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                                        <p className="font-medium text-sm flex items-center gap-1.5"><FilePlus2 className="w-4 h-4 text-indigo-600" aria-hidden /> Em branco</p>
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">Uma fase vazia para montar do zero.</p>
+                                    </button>
+                                    {modelosDeRito().map((m) => (
+                                        <button key={m.nome} type="button" onClick={() => comecar(m)}
+                                            className="text-left rounded-md border border-slate-200 dark:border-slate-700 p-3 hover:border-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                                            <p className="font-medium text-sm flex items-center gap-1.5"><LayoutTemplate className="w-4 h-4 text-indigo-600" aria-hidden /> {m.nome}</p>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{m.descricao}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{m.fases.map((f) => f.nome).join(' · ')}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </section>
+                            <h3 className="text-sm font-semibold">Ou a partir de um arquivo</h3>
                             <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center cursor-pointer border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-400 ${lendo ? 'opacity-60 pointer-events-none' : ''}`}>
                                 {lendo ? <Loader2 className="w-7 h-7 animate-spin text-indigo-600" aria-hidden /> : <FileUp className="w-7 h-7 text-indigo-600" aria-hidden />}
                                 <span className="font-medium">{lendo ? 'Lendo…' : 'Escolher arquivo'}</span>
@@ -171,18 +244,36 @@ export default function PropostaRito({ aberto, orgId, estado, onFechar, onIr }) 
                     </div>
                 ) : (
                     <Revisao p={p} setP={setP} estado={estado} tipo={tipo} setTipo={setTipo} confirmar={confirmar} setConfirmar={setConfirmar}
-                        implantando={implantando} onVoltar={() => setP(null)}
+                        implantando={implantando} editando={editando} extra={extra}
+                        rascunho={decidirRascunho ? rascunho : null} onContinuarRascunho={continuarRascunho} onDescartarRascunho={descartarRascunho}
+                        onVoltar={() => { setRascunho(lerRascunho(orgId)); setP(null); }}
+                        onTrocarFases={() => setTrocar(true)}
+                        onExcluir={async () => {
+                            try {
+                                await secConfig(orgId, 'excluirRito', { id: rito.id });
+                                toast.success('Rito excluído');
+                                qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
+                                apagarRascunho(orgId, rito.id);
+                                fechar();
+                            } catch (e) { toast.error(e?.message || 'Não foi possível excluir o rito'); }
+                        }}
                         onImplantar={async () => {
                             setImplantando(true);
                             try {
                                 const payload = montarPayload(p, tipo);
                                 const r = await secConfig(orgId, 'aplicarPropostaRito', { proposta: payload });
-                                toast.success('Rito implantado');
                                 qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
-                                descartarRascunho();
-                                setCriado({ nome: p.nome, fases: p.fases.length, unidades: payload.unidades.map((u) => u.nome), modelos: payload.modelos.map((m) => m.nome), tipo: payload.tipo_processo?.nome || null, ...r });
+                                apagarRascunho(orgId, rito?.id);
+                                setRascunho(null);
+                                if (editando && !payload.unidades.length && !payload.modelos.length && !payload.tipo_processo) {
+                                    toast.success(`Rito salvo (versão ${r.versao}). Processos em andamento seguem com a versão com que foram autuados.`);
+                                    fechar();
+                                    return;
+                                }
+                                toast.success(editando ? `Rito salvo (versão ${r.versao})` : 'Rito implantado');
+                                setCriado({ nome: p.nome, fases: p.fases.length, unidades: payload.unidades.map((u) => u.nome), modelos: payload.modelos.map((m) => m.nome), tipo: payload.tipo_processo?.nome || null, editado: editando, ativo: p.ativo !== false, ...r });
                                 setP(null);
-                            } catch (e) { toast.error(e?.message || 'Não foi possível implantar'); setConfirmar(false); } finally { setImplantando(false); }
+                            } catch (e) { toast.error(e?.message || (editando ? 'Não foi possível salvar o rito' : 'Não foi possível implantar')); setConfirmar(false); } finally { setImplantando(false); }
                         }} />
                 )}
             </DialogContent>
@@ -199,8 +290,8 @@ function ResumoImplantacao({ r, onIr, onFechar }) {
                 <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" aria-hidden />
                     <div>
-                        <h3 className="text-lg font-semibold">Rito “{r.nome}” implantado</h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">Foram criados: 1 rito com {n(r.fases, 'fase', 'fases')}{r.unidades.length ? `, ${n(r.unidades.length, 'unidade', 'unidades')}` : ''}{r.modelos.length ? `, ${n(r.modelos.length, 'modelo', 'modelos')}` : ''}{r.tipo ? ', 1 tipo de processo' : ''}.</p>
+                        <h3 className="text-lg font-semibold">Rito “{r.nome}” {r.editado ? `salvo (versão ${r.versao})` : 'implantado'}</h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{r.editado ? `Rito com ${n(r.fases, 'fase', 'fases')}` : `Foram criados: 1 rito com ${n(r.fases, 'fase', 'fases')}`}{r.unidades.length ? `, ${n(r.unidades.length, 'unidade', 'unidades')}` : ''}{r.modelos.length ? `, ${n(r.modelos.length, 'modelo', 'modelos')}` : ''}{r.tipo ? ', 1 tipo de processo' : ''}.</p>
                     </div>
                 </div>
                 <ul className="space-y-3 text-sm">
@@ -227,8 +318,8 @@ function ResumoImplantacao({ r, onIr, onFechar }) {
                     )}
                     <li className="rounded-md border border-slate-200 dark:border-slate-700 p-3 flex flex-wrap items-center gap-2">
                         <GitBranch className="w-4 h-4 text-indigo-600 shrink-0" aria-hidden />
-                        <span className="flex-1 min-w-[12rem]">O rito está ativo. Use “Ver como a equipe e a parte” no topo para conferir cada fase.</span>
-                        <Button size="sm" variant="outline" onClick={() => onIr('ritos')}>Abrir o rito</Button>
+                        <span className="flex-1 min-w-[12rem]">{r.ativo ? 'O rito está ativo. Use “Ver como a equipe e a parte” no topo para conferir cada fase.' : 'O rito está inativo: não aparece para novas autuações até ser marcado como disponível.'}</span>
+                        {!r.editado && <Button size="sm" variant="outline" onClick={() => onIr('ritos')}>Abrir o rito</Button>}
                     </li>
                 </ul>
                 <Button onClick={onFechar}>Fechar</Button>
@@ -237,28 +328,12 @@ function ResumoImplantacao({ r, onIr, onFechar }) {
     );
 }
 
-/** Só vai o que as fases usam; refs "+N" viram ids no servidor. */
-function montarPayload(p, tipo) {
-    const usadosUn = new Set(p.fases.map((f) => f.unidade_ref).filter(Boolean));
-    const usadosMod = new Set(p.fases.flatMap((f) => f.modelos_ref || []));
-    const modelos = p.modelos.filter((m) => usadosMod.has(m.ref));
-    modelos.forEach((m) => m.unidade_ref && usadosUn.add(m.unidade_ref));
-    return {
-        rito: {
-            nome: p.nome, descricao: p.descricao,
-            fases: p.fases.map((f) => ({
-                id: f.id, nome: f.nome, prazo_dias: f.prazo_dias, orientacao: f.orientacao, final: f.final === true,
-                proximas: f.final ? [] : (f.proximas || []).filter((id) => id !== f.id && p.fases.some((x) => x.id === id)),
-                condicoes: f.condicoes, agente: f.agente, acoes: f.acoes, unidade_ref: f.unidade_ref, modelos_ref: f.modelos_ref,
-            })),
-        },
-        unidades: p.unidades.filter((u) => usadosUn.has(u.ref)),
-        modelos,
-        tipo_processo: tipo.criar && tipo.nome.trim() ? { nome: tipo.nome.trim(), sigla: tipo.sigla.trim() } : null,
-    };
-}
-
-function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, implantando, onVoltar, onImplantar }) {
+function Revisao({
+    p, setP, estado, tipo, setTipo, confirmar, setConfirmar, implantando, onVoltar, onImplantar,
+    editando = false, extra = null, rascunho = null, onContinuarRascunho, onDescartarRascunho, onExcluir, onTrocarFases,
+}) {
+    const [excluir, setExcluir] = useState(false);
+    const tiposDoRito = editando ? (estado.tipos || []).filter((t) => t.rito_id === p.id) : [];
     const existentes = estado.unidades.filter((u) => u.ativa !== false);
     const nomeUnidade = (ref) => existentes.find((u) => u.id === ref)?.nome || p.unidades.find((u) => u.ref === ref)?.nome || '';
     const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || ref;
@@ -317,6 +392,13 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
         <>
             <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="p-4 pb-0 space-y-3">
+                    {rascunho?.p && (
+                        <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/40 p-3 text-sm">
+                            <span className="flex-1 min-w-[12rem]">Há alterações não salvas deste rito, de {new Date(rascunho.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{rascunho.versao && rascunho.versao !== p.versao ? `, feitas sobre a versão ${rascunho.versao} (a atual é a ${p.versao})` : ''}.</span>
+                            <Button size="sm" onClick={onContinuarRascunho}>Recuperar as alterações</Button>
+                            <Button size="sm" variant="ghost" onClick={onDescartarRascunho}>Descartar</Button>
+                        </div>
+                    )}
                     <div className="grid sm:grid-cols-2 gap-3">
                         <div><Label htmlFor="pr-nome">Nome do rito</Label><Input id="pr-nome" value={p.nome} onChange={(e) => setP({ ...p, nome: e.target.value })} /></div>
                         <div><Label htmlFor="pr-desc">Descrição</Label><Input id="pr-desc" value={p.descricao} onChange={(e) => setP({ ...p, descricao: e.target.value })} /></div>
@@ -343,12 +425,12 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                         )}
                         {pendencias.length > 0 && (
                             <section aria-label="Pendências" className="rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3">
-                                <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" aria-hidden /> {pendencias.length} pendência{pendencias.length > 1 ? 's' : ''} antes de implantar</h3>
+                                <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" aria-hidden /> {pendencias.length} pendência{pendencias.length > 1 ? 's' : ''} {editando ? 'antes de salvar' : 'antes de implantar'}</h3>
                                 <ul className="mt-1.5 space-y-1 text-xs text-amber-900 dark:text-amber-100">
                                     {pendencias.slice(0, 10).map((x, k) => (
                                         <li key={k} className="flex flex-wrap items-center gap-2">
                                             <span className="flex-1 min-w-[10rem]">{x.grave ? <b>Impede: </b> : ''}{x.texto}</span>
-                                            <button type="button" className="underline underline-offset-2 font-medium" onClick={() => irParaFase(x.fase)}>Ir</button>
+                                            <button type="button" className="underline underline-offset-2 font-medium" onClick={() => irParaFase(x.fase)} hidden={!x.fase}>Ir</button>
                                         </li>
                                     ))}
                                     {pendencias.length > 10 && <li>e mais {pendencias.length - 10}…</li>}
@@ -362,13 +444,32 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                         {p.fases.map((f, i) => (
                             <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
                                 aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
-                                nomeModelo={nomeModelo} mudar={(d) => mudarFase(f.id, d)} mover={(d) => mover(i, d)} remover={() => remover(f.id)}
+                                nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d) => mudarFase(f.id, d)} mover={(d) => mover(i, d)} remover={() => remover(f.id)}
                                 novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} />
                         ))}
                         <Button variant="outline" size="sm" className="gap-1" onClick={() => { const id = novoIdFase(); setP({ ...p, fases: [...p.fases, { id, nome: '', proximas: [] }] }); setAbertas((s) => new Set(s).add(id)); }}><Plus className="w-4 h-4" /> Adicionar fase</Button>
                     </div>
 
                     <aside className="space-y-4 lg:sticky lg:top-0 self-start">
+                        {editando && (
+                            <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                                <h3 className="text-sm font-semibold">Situação</h3>
+                                <label className="flex items-center gap-2 text-sm"><Checkbox checked={p.ativo !== false} onCheckedChange={(c) => setP({ ...p, ativo: c === true })} /> Disponível para novas autuações</label>
+                                <p className="text-xs text-slate-600 dark:text-slate-300">
+                                    {tiposDoRito.length ? `Usado por: ${tiposDoRito.map((t) => t.nome).join(', ')}.` : 'Nenhum tipo de processo usa este rito.'} Processos em andamento seguem com a versão com que foram autuados.
+                                </p>
+                                {extra}
+                            </section>
+                        )}
+                        {p.fases.some((f) => f.nome.trim()) && (
+                            <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                                <h3 className="text-sm font-semibold">Exportar</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button size="sm" variant="outline" className="gap-1" onClick={() => baixarPlanilha(p.fases, p.nome)}><FileSpreadsheet className="w-4 h-4" aria-hidden /> Planilha</Button>
+                                    <Button size="sm" variant="outline" className="gap-1" onClick={() => copiarTexto(ritoParaMermaid(p.fases), 'Diagrama copiado em Mermaid')}><Copy className="w-4 h-4" aria-hidden /> Diagrama (Mermaid)</Button>
+                                </div>
+                            </section>
+                        )}
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5"><Building2 className="w-4 h-4" aria-hidden /> Unidades novas ({unNovas.length})</h3>
                             {unNovas.length === 0 && <p className="text-xs text-slate-600">Todas as unidades citadas já existem no órgão.</p>}
@@ -415,7 +516,7 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                             <label className="flex items-center gap-2 text-sm font-semibold"><Checkbox checked={tipo.criar} onCheckedChange={(c) => setTipo({ ...tipo, criar: c === true })} /> Criar tipo de processo com este rito</label>
                             {tipo.criar && (
                                 <div className="flex gap-2">
-                                    <Input aria-label="Nome do tipo de processo" value={tipo.nome} onChange={(e) => setTipo({ ...tipo, nome: e.target.value })} className="h-8" />
+                                    <Input aria-label="Nome do tipo de processo" placeholder={p.nome} value={tipo.nome} onChange={(e) => setTipo({ ...tipo, nome: e.target.value })} className="h-8" />
                                     <Input aria-label="Sigla" placeholder="Sigla" value={tipo.sigla} onChange={(e) => setTipo({ ...tipo, sigla: e.target.value })} className="h-8 w-24" />
                                 </div>
                             )}
@@ -425,25 +526,46 @@ function Revisao({ p, setP, estado, tipo, setTipo, confirmar, setConfirmar, impl
                 </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50 dark:bg-slate-900">
-                <Button variant="ghost" onClick={onVoltar}>Outro arquivo</Button>
+                {editando
+                    ? <Button variant="ghost" className="gap-1 text-red-700 dark:text-red-300" onClick={() => setExcluir(true)}><Trash2 className="w-4 h-4" aria-hidden /> Excluir rito</Button>
+                    : <Button variant="ghost" onClick={onVoltar}>Voltar ao início</Button>}
+                {editando && <Button variant="ghost" className="gap-1" onClick={onTrocarFases}><FileUp className="w-4 h-4" aria-hidden /> Substituir fases</Button>}
                 <span className="text-xs text-slate-600 dark:text-slate-300">Rascunho salvo neste navegador.</span>
                 <p className="text-xs text-slate-600 dark:text-slate-300 ml-auto text-right">
-                    Será criado: 1 rito ({p.fases.length} fases){unNovas.length ? `, ${unNovas.length} unidade${unNovas.length > 1 ? 's' : ''}` : ''}{modNovos.length ? `, ${modNovos.length} modelo${modNovos.length > 1 ? 's' : ''}` : ''}{tipo.criar && tipo.nome.trim() ? ', 1 tipo de processo' : ''}.
+                    {editando ? `Será salvo como versão ${(p.versao || 1) + 1} (${p.fases.length} fases)` : `Será criado: 1 rito (${p.fases.length} fases)`}{unNovas.length ? `, ${unNovas.length} unidade${unNovas.length > 1 ? 's' : ''} nova${unNovas.length > 1 ? 's' : ''}` : ''}{modNovos.length ? `, ${modNovos.length} modelo${modNovos.length > 1 ? 's' : ''} novo${modNovos.length > 1 ? 's' : ''}` : ''}{tipo.criar && (tipo.nome || p.nome).trim() ? ', 1 tipo de processo' : ''}.
                 </p>
                 {confirmar ? (
                     <>
                         <Button variant="outline" onClick={() => setConfirmar(false)} disabled={implantando}>Revisar mais</Button>
-                        <Button className="gap-1" onClick={onImplantar} disabled={implantando}>{implantando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Confirmar implantação</Button>
+                        <Button className="gap-1" onClick={onImplantar} disabled={implantando}>{implantando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {editando ? 'Confirmar e salvar' : 'Confirmar implantação'}</Button>
                     </>
                 ) : (
-                    <Button className="gap-1" disabled={semNome || !p.nome.trim()} onClick={() => setConfirmar(true)} title={semNome ? 'Resolva as pendências marcadas como "Impede"' : undefined}><Rocket className="w-4 h-4" /> Implantar rito</Button>
+                    <Button className="gap-1" disabled={semNome || !p.nome.trim()} onClick={() => setConfirmar(true)} title={semNome ? 'Resolva as pendências marcadas como "Impede"' : !p.nome.trim() ? 'Dê um nome ao rito' : undefined}>
+                        {editando ? <><Save className="w-4 h-4" /> Salvar alterações</> : <><Rocket className="w-4 h-4" /> Implantar rito</>}
+                    </Button>
                 )}
             </div>
+            <AlertDialog open={excluir} onOpenChange={setExcluir}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir o rito “{p.nome}”?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {tiposDoRito.length
+                                ? `Ele é usado por ${tiposDoRito.map((t) => t.nome).join(', ')}. Troque o rito desses tipos de processo antes de excluir.`
+                                : 'O rito sai das listas e não pode mais ser usado em novas autuações. Os processos já autuados seguem com as fases que copiaram dele, e o histórico fica guardado. Se só quer parar de usá-lo por um tempo, desmarque "Disponível para novas autuações".'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        {!tiposDoRito.length && <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white" onClick={onExcluir}>Excluir rito</AlertDialogAction>}
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }
 
-function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo, mudar, mover, remover, novaUnidade, addModelo, aberta, onAlternar, selecionada, pendente, unidadeNome }) {
+function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo, modelos, mudar, mover, remover, novaUnidade, addModelo, aberta, onAlternar, selecionada, pendente, unidadeNome }) {
     const [novoModelo, setNovoModelo] = useState('');
     const outras = fases.filter((x) => x.id !== f.id);
     const saidas = f.proximas || [];
@@ -457,6 +579,7 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
         mudar({ proximas: [...new Set(novas.filter(Boolean))], condicoes });
     };
     const nomeDe = (id) => fases.find((x) => x.id === id)?.nome || '?';
+    const nAcoes = (f.acoes || []).filter((a) => a.trim()).length;
     const resumo = f.final ? 'Fim do processo' : saidas.length > 1 ? `${saidas.length} saídas` : saidas.length === 1 ? `→ ${nomeDe(saidas[0])}` : proxLista ? `→ ${proxLista}` : 'Sem saída';
     return (
         <div id={`fase-${f.id}`} className={`rounded-lg border bg-white dark:bg-slate-900 scroll-mt-4 ${selecionada ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'}`}>
@@ -466,7 +589,7 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 <span className="min-w-0 flex-1">
                     <span className={`block truncate text-sm font-medium ${f.nome.trim() ? '' : 'text-red-700 dark:text-red-300'}`}>{f.nome.trim() || 'Fase sem nome'}</span>
                     <span className="block truncate text-xs text-slate-600 dark:text-slate-300">
-                        {[unidadeNome || 'Sem unidade', f.prazo_dias ? `${f.prazo_dias} dias` : '', resumo].filter(Boolean).join(' · ')}
+                        {[unidadeNome || 'Sem unidade', f.prazo_dias ? `${f.prazo_dias} dias` : '', nAcoes ? `${nAcoes} ${nAcoes > 1 ? 'ações' : 'ação'}` : '', resumo].filter(Boolean).join(' · ')}
                     </span>
                 </span>
                 {pendente && <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" aria-label="Tem pendência" />}
@@ -480,7 +603,7 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 <div className="flex">
                     <Button size="icon" variant="ghost" className="h-8 w-8" disabled={i === 0} onClick={() => mover(-1)} aria-label="Subir fase"><ArrowUp className="w-4 h-4" /></Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8" disabled={i === total - 1} onClick={() => mover(1)} aria-label="Descer fase"><ArrowDown className="w-4 h-4" /></Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={remover} aria-label={`Remover a fase ${f.nome || i + 1}`}><Trash2 className="w-4 h-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" disabled={total === 1} onClick={remover} aria-label={`Remover a fase ${f.nome || i + 1}`}><Trash2 className="w-4 h-4" /></Button>
                 </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -498,10 +621,8 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                     <Input id={`ag-${f.id}`} value={f.agente || ''} onChange={(e) => mudar({ agente: e.target.value })} placeholder="Ex.: Analista, Promotor" className="h-9" />
                 </div>
             </div>
-            <div>
-                <Label htmlFor={`ac-${f.id}`} className="text-xs">Ações (uma por linha)</Label>
-                <Textarea id={`ac-${f.id}`} rows={Math.min(5, Math.max(2, (f.acoes || []).length))} value={(f.acoes || []).join('\n')} onChange={(e) => mudar({ acoes: e.target.value.split('\n') })} placeholder="O que a equipe faz nesta fase" />
-            </div>
+            <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
+            <RegistroEDocumentos f={f} modelos={modelos} mudar={mudar} />
             <div>
                 <p className="text-xs font-medium mb-1">Modelos de documento</p>
                 <div className="flex flex-wrap gap-1.5 items-center">
