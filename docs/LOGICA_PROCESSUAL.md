@@ -126,6 +126,20 @@ art. 47) ou quando a decisão adota o parecer da assessoria como
 fundamento. Por isso quem cria o rito decide, fase a fase, o que gera
 registro nos autos.
 
+**Três lugares para um registro.** Nem todo registro interno precisa sair em
+papel. O rito escolhe, para cada ação e para os atos de tramitação de cada
+fase, um destes:
+
+| Destino | Folha | Sai na impressão | Partes veem | Serve para |
+|---|---|---|---|---|
+| Nos autos | sim | sim, como termo ou certidão | sim, salvo se o rito disser que não | atos que passam no teste acima |
+| Evento no extrato | não | sim, no extrato ao fim do PDF | não | controle que vale ver junto com os autos (distribuição, conferência) |
+| Só no sistema | não | não | só se o rito disser | dados de gestão (número em outro sistema, origem da demanda, checklist) |
+
+Os três ficam na cadeia de hash, com autor e hora. Um dado informado numa
+ação (texto, número, data, escolha) aparece nas informações do processo,
+com a fase em que foi registrado; se for nos autos, também na certidão.
+
 ## 6. Documentação exigida por fase e por ação
 
 Cada fase do rito tem um **produto**: a admissibilidade produz um despacho; a
@@ -143,6 +157,18 @@ precisa, o sistema pode:
 A forma do documento importa: **redigir** (ato próprio do órgão: despacho,
 decisão, certidão, ofício), **juntar** (documento recebido de fora:
 comprovante, laudo, ofício respondido) ou **qualquer um**.
+
+**Documento que não é peça do processo.** Às vezes a ação pede um documento
+só para controle (uma planilha de conferência, um print de outro sistema).
+Ele não passa no teste dos autos, mas precisa ser guardado. O rito marca esse
+documento como guardado fora dos autos: a equipe o vê e baixa, ele não recebe
+folha, não sai no PDF dos autos e a parte não o vê.
+
+**Ação que pede um dado.** A ação pode pedir só a confirmação ("conferir a
+qualificação"), um dado ("informar o número no SIM", "informar o sistema de
+origem", com lista de opções) ou um documento. O rito diz o nome do dado,
+se a ação é obrigatória para a fase seguir e se as partes veem o que foi
+informado.
 
 ## 7. Tramitação
 

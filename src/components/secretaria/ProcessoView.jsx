@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
     AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Download, Eye, FilePen, Loader2, MoreHorizontal,
-    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera,
+    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +25,8 @@ import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
-import { FORMAS, pendentesDaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
+import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
@@ -48,6 +49,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
     const [confirmar, setConfirmar] = useState(null); // {titulo, texto, rotulo, fn}: ato que não se desfaz
     const [vista, setVista] = useState(null); // capa | andamento | autos | eventos (null = padrão do perfil)
+    const [registrar, setRegistrar] = useState(null); // ação da fase que pede um dado: {idx, acao, r, fase}
     const pendenciasRef = useRef(null);
     const eventosRef = useRef(null);
 
@@ -90,7 +92,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     }
     if (q.error) return <ErroQuery q={q}><Button variant="ghost" size="sm" onClick={onVoltar}>Voltar</Button></ErroQuery>;
 
-    const { movimentos, documentos, cadeiaQuebradaEm, hoje } = q.data;
+    const { movimentos, documentos, cadeiaQuebradaEm, hoje, informacoes = [] } = q.data;
     const unidadeAtual = estado.unidades.find((u) => u.id === p.unidade_atual);
     const noGabinete = unidadeAtual?.tipo === 'gabinete';
     const naSecretaria = (unidadeAtual?.tipo || 'secretaria') === 'secretaria';
@@ -142,7 +144,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     const abrirMinuta = (d) => executar(async () => {
         const r = await secDocumento(orgId, procId, 'baixar', { docId: d.id });
-        setEditor({ docId: d.id, titulo: r.titulo, tipo: d.tipo, conteudo: r.conteudo, somenteLeitura: (d.assinaturas || []).length > 0 });
+        setEditor({ docId: d.id, titulo: r.titulo, tipo: d.tipo, conteudo: r.conteudo, somenteLeitura: d.status === 'controle' || (d.assinaturas || []).length > 0 });
     });
 
     const agora = new Date();
@@ -181,6 +183,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     const minutas = documentos.filter((d) => d.status === 'minuta');
     const autos = documentos.filter((d) => d.status === 'juntado');
+    // Documentos de controle: guardados no processo, fora dos autos e da impressão.
+    const controles = documentos.filter((d) => d.status === 'controle');
     const iAtual = p.fases.findIndex((f) => f.id === p.fase_atual);
     const faseAtual = p.fases[iAtual];
     const proximas = seguintes(p.fases, iAtual).map((id) => p.fases.find((f) => f.id === id)).filter(Boolean);
@@ -197,6 +201,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             onModelo={usarModelo} onNovo={() => setNovoDoc(true)} />
     );
     const pendenciasAbertas = p.pendencias.filter((x) => x.status === 'aberta');
+    const niveis = niveisDaFase(faseAtual);
+    // Informação registrada nesta rodada da fase, por ação (a última de cada uma).
+    const infoDaAcao = (i) => [...informacoes].reverse().find((x) => x.fase_id === p.fase_atual && x.acao_idx === i);
+    const temControlePendente = exigencias.some((e) => e.destino && !e.cumprida);
 
     // Botão único da fase: o que o rito espera agora.
     let principal = null;
@@ -308,7 +316,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             </div>
 
             <TabsContent value="capa" className="mt-4">
-                <CapaProcesso p={p} movimentos={movimentos} estado={estado} nomeUnidade={nomeUnidade} cadeiaQuebradaEm={cadeiaQuebradaEm}
+                <CapaProcesso p={p} movimentos={movimentos} informacoes={informacoes} estado={estado} nomeUnidade={nomeUnidade} cadeiaQuebradaEm={cadeiaQuebradaEm}
                     onLer={(id) => setLeitura(id)} onVerEventos={() => setVista('eventos')} />
             </TabsContent>
 
@@ -348,17 +356,22 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     {faseAtual?.acoes?.length > 0 && (
                         <ul className="space-y-1">
                             {faseAtual.acoes.map((a, i) => {
-                                // Ação que pede documento: cumpre-se com a juntada, não com a caixa.
+                                // Ação que pede documento: cumpre-se com a juntada (ou guardando-o), não aqui.
                                 const exig = exigencias.find((e) => e.acao_idx === i);
                                 if (exig) return <li key={i}>{itemExigencia(exig)}</li>;
+                                const r = faseAtual.acoes_regras?.[i] || null;
+                                const desfazer = () => setConfirmar({
+                                    titulo: 'Desfazer a ação?',
+                                    texto: `"${a}" volta a ficar pendente${pedidoDaAcao(r) !== 'confirmar' ? ' e a informação registrada sai das informações do processo' : ''}. O desfazimento fica registrado${r?.destino === 'autos' || r?.autos ? ' nos autos, em certidão' : ' nos eventos'}.`,
+                                    rotulo: 'Desfazer',
+                                    fn: () => mov('marcarAcao', { acao_idx: i, feita: false }, 'Ação desfeita'),
+                                });
                                 return (
                                     <li key={i}>
-                                        <label className={`flex items-start gap-2 text-sm ${podeMexer ? 'cursor-pointer' : ''}`}>
-                                            <input type="checkbox" className="mt-1" checked={feitas.has(i)} disabled={!podeMexer || ocupado}
-                                                onChange={(e) => mov('marcarAcao', { acao_idx: i, feita: e.target.checked })} />
-                                            <span className={feitas.has(i) ? 'line-through text-slate-600' : ''}>{a}</span>
-                                            {faseAtual.acoes_regras?.[i]?.autos && <span className="text-xs text-slate-600 dark:text-slate-400">· certidão nos autos</span>}
-                                        </label>
+                                        <AcaoDaFase acao={a} r={r} feita={feitas.has(i)} info={infoDaAcao(i)} podeMexer={podeMexer} ocupado={ocupado}
+                                            onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
+                                            onRegistrar={() => setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version })}
+                                            onDesfazer={desfazer} />
                                     </li>
                                 );
                             })}
@@ -370,11 +383,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <ul className="space-y-1 mt-1">{docsDaFase.map((e) => <li key={e.chave}>{itemExigencia(e)}</li>)}</ul>
                         </div>
                     )}
-                    {faseAtual?.registro && (
+                    {(niveis.fase !== 'autos' || niveis.remessas !== 'autos') && (
                         <p className="text-xs text-slate-600 dark:text-slate-400">
-                            {faseAtual.registro === 'interno'
-                                ? 'Pelo rito, entrar, trabalhar e sair desta fase fica só no registro interno, sem termo nos autos. Documento juntado continua nos autos.'
-                                : 'Pelo rito, as remessas entre unidades durante esta fase ficam só no registro interno; a entrada e a saída da fase vão aos autos.'}
+                            Pelo rito, entrar e sair desta fase fica {niveis.fase === 'autos' ? 'nos autos' : ROTULO_DESTINO[niveis.fase]}, e as remessas entre unidades durante ela,
+                            {' '}{niveis.remessas === 'autos' ? 'nos autos' : ROTULO_DESTINO[niveis.remessas]}. Documento juntado continua nos autos.
                         </p>
                     )}
                     {modelosDaFase.length > 0 && podeMexer && (
@@ -430,6 +442,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
                                             {membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
                                             <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>
+                                            <Button size="sm" variant={temControlePendente ? 'outline' : 'ghost'} className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'guardar', documento: d })} title="Guardar no processo como documento de controle: fica com a equipe, fora dos autos e da impressão; não pode ser desfeito"><Archive className="w-4 h-4" /> <span className={temControlePendente ? '' : 'hidden sm:inline'}>Guardar fora dos autos</span></Button>
                                             {/* Quem recebeu a minuta com o processo não apaga o trabalho da outra unidade. */}
                                             {(d.unidade_origem === p.unidade_atual || !posse) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => setConfirmar({ titulo: 'Excluir a minuta?', texto: `"${d.titulo}" será apagada de vez. Minuta não fica nos autos, então não há como recuperar.`, rotulo: 'Excluir minuta', fn: () => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída') })} aria-label={`Excluir a minuta ${d.titulo}`}><Trash2 className="w-4 h-4" /></Button>}
                                         </div>
@@ -579,12 +592,40 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </Card>
             </TabsContent>
 
+            {controles.length > 0 && (
+                <TabsContent value="autos" className="mt-4">
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base">Documentos guardados fora dos autos ({controles.length})</CardTitle>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">Documentos de controle: a equipe vê, as partes não. Não têm folha e não saem no PDF dos autos.</p>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            {controles.map((d) => (
+                                <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
+                                    <Archive className="w-4 h-4 text-slate-400" aria-hidden />
+                                    <div className="flex-1 min-w-[11rem]">
+                                        <p className="font-medium break-words">{d.titulo}</p>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, d.guardado_em && `guardado em ${dataHora(d.guardado_em)}`, d.guardado_por, d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : ''].filter(Boolean).join(' · ')}</p>
+                                    </div>
+                                    {d.origem === 'editor'
+                                        ? <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => abrirMinuta(d)} aria-label={`Ler ${d.titulo}`}><Eye className="w-4 h-4" /></Button>
+                                        : <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar ${d.titulo}`}><Download className="w-4 h-4" /></Button>}
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            )}
+
             <TabsContent value="eventos" className="mt-4">
                 <div ref={eventosRef} className="scroll-mt-4">
                     <EventosAutos movimentos={movimentos} nomeUnidade={nomeUnidade} gerarPdf={(selecao) => secExportarPdf(orgId, procId, selecao)} />
                 </div>
             </TabsContent>
             </Tabs>
+
+            <RegistrarAcao alvo={registrar} ocupado={ocupado} onFechar={() => setRegistrar(null)}
+                onEnviar={async (valor) => { const ok = await mov('marcarAcao', { acao_idx: registrar.idx, feita: true, valor, version: registrar.version }, 'Ação registrada'); if (ok) setRegistrar(null); return ok; }} />
 
             {acao?.tipo === 'dados' && (
                 <EditarDados p={p} tipo={(estado.tipos || []).find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
@@ -735,14 +776,14 @@ function ItemExigencia({ e, podeMexer, ocupado, modelo, onModelo, onNovo }) {
         return (
             <p className="flex items-start gap-2 text-sm">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden />
-                <span><span className="line-through text-slate-600">{e.descricao}</span> <span className="text-xs text-slate-600 dark:text-slate-400">· cumprido com o documento nº {e.cumprida.ordem}</span></span>
+                <span><span className="line-through text-slate-600">{e.descricao}</span> <span className="text-xs text-slate-600 dark:text-slate-400">· {e.cumprida.ordem ? `cumprido com o documento nº ${e.cumprida.ordem}` : 'cumprido com documento guardado fora dos autos'}</span></span>
             </p>
         );
     }
     return (
         <div className="flex flex-wrap items-start gap-2 text-sm">
             <FilePen className="w-4 h-4 mt-0.5 text-amber-700 dark:text-amber-400 shrink-0" aria-hidden />
-            <span className="flex-1 min-w-[10rem]">{e.descricao} <span className="text-xs text-slate-600 dark:text-slate-400">· exige documento ({[forma?.toLowerCase(), e.tipo].filter(Boolean).join(', ')}); cumpre-se ao juntar</span></span>
+            <span className="flex-1 min-w-[10rem]">{e.descricao} <span className="text-xs text-slate-600 dark:text-slate-400">· exige documento ({[forma?.toLowerCase(), e.tipo].filter(Boolean).join(', ')}); {e.destino ? `cumpre-se guardando-o fora dos autos (${ROTULO_DESTINO[e.destino]})` : 'cumpre-se ao juntar'}</span></span>
             {podeMexer && e.forma !== 'juntar' && modelo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => onModelo(modelo)}>Redigir {modelo.nome}</Button>}
             {podeMexer && !(e.forma !== 'juntar' && modelo) && <Button size="sm" variant="outline" disabled={ocupado} onClick={onNovo}>Novo documento</Button>}
         </div>
@@ -764,11 +805,13 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     const tipo = acao?.tipo;
     const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setAssinar(true); setResolve(''); setAtende(null); setLevar(null); onClose(); };
     const pendenciasAbertas = p.pendencias.filter((x) => x.status === 'aberta');
-    const exigPendentes = pendentesDaFase(p.fases.find((f) => f.id === p.fase_atual), p.exigencias_cumpridas);
-    // Sair da fase com documento exigido em aberto: o motivo vira a dispensa, registrada.
+    const faseDoProc = p.fases.find((f) => f.id === p.fase_atual);
+    const exigDocs = pendentesDaFase(faseDoProc, p.exigencias_cumpridas);
+    // Sair da fase com exigência em aberto (documento ou ação obrigatória): o motivo vira a dispensa, registrada.
+    const exigPendentes = faltaNaFase(faseDoProc, p.exigencias_cumpridas, p.acoes_feitas?.[p.fase_atual]);
     const avisoDispensa = exigPendentes.length > 0 && (
         <p className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-3 py-2" role="status">
-            O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Junte antes o documento ou informe abaixo o motivo da dispensa, que fica registrado.
+            O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa, que fica registrado.
         </p>
     );
 
@@ -849,13 +892,14 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     } else if (tipo === 'juntar') {
         titulo = `Juntar aos autos: ${acao.documento.titulo}`;
         const decideAlguma = noGabinete && pendenciasAbertas.length > 0;
-        const marcadas = atende ?? sugeridas(exigPendentes, acao.documento);
+        const exigAutos = exigDocs.filter((e) => !e.destino);
+        const marcadas = atende ?? sugeridas(exigAutos, acao.documento);
         campo = (
             <>
-                {exigPendentes.length > 0 && (
+                {exigAutos.length > 0 && (
                     <fieldset>
                         <legend className="text-sm font-medium mb-1">Este documento cumpre o que o rito exige?</legend>
-                        {exigPendentes.map((e) => (
+                        {exigAutos.map((e) => (
                             <label key={e.chave} className="flex items-start gap-2 text-sm">
                                 <input type="checkbox" className="mt-1" checked={marcadas.includes(e.chave)}
                                     onChange={(ev) => setAtende(ev.target.checked ? [...marcadas, e.chave] : marcadas.filter((k) => k !== e.chave))} />
@@ -878,8 +922,33 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         enviar = () => doc('juntar', {
             docId: acao.documento.id, version: p.version, pendencia: resolve ? 'nao' : (valor || 'nao'), visivel_partes: visivel === 'sim',
             assinar: !acao.assinei && assinar, ...(resolve ? { resolve_pendencia_id: resolve } : {}),
-            ...(exigPendentes.length ? { atende: marcadas } : {}),
+            ...(exigAutos.length ? { atende: marcadas } : {}),
         },resolve ? 'Documento juntado e pendência decidida' : 'Documento juntado aos autos');
+    } else if (tipo === 'guardar') {
+        titulo = `Guardar fora dos autos: ${acao.documento.titulo}`;
+        const exigControle = exigDocs.filter((e) => e.destino);
+        const marcadas = atende ?? sugeridas(exigControle, { ...acao.documento, controle: true });
+        campo = (
+            <>
+                <p className="text-sm text-slate-700 dark:text-slate-300">
+                    O documento fica guardado no processo como documento de controle: a equipe vê, as partes não, e ele não ganha folha nem sai no PDF dos autos.
+                    Depois de guardado, não se edita nem se apaga.
+                </p>
+                {exigControle.length > 0 && (
+                    <fieldset>
+                        <legend className="text-sm font-medium mb-1">Este documento cumpre o que o rito pede?</legend>
+                        {exigControle.map((e) => (
+                            <label key={e.chave} className="flex items-start gap-2 text-sm">
+                                <input type="checkbox" className="mt-1" checked={marcadas.includes(e.chave)}
+                                    onChange={(ev) => setAtende(ev.target.checked ? [...marcadas, e.chave] : marcadas.filter((k) => k !== e.chave))} />
+                                <span>{e.descricao}{e.tipo ? ` (${e.tipo})` : ''}</span>
+                            </label>
+                        ))}
+                    </fieldset>
+                )}
+            </>
+        );
+        enviar = () => doc('guardar', { docId: acao.documento.id, version: p.version, ...(exigControle.length ? { atende: marcadas } : {}) }, 'Documento guardado fora dos autos');
     } else if (tipo === 'pedirAssinatura') {
         titulo = `Pedir assinatura: ${acao.documento.titulo}`;
         exigeValor = true;
@@ -954,7 +1023,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         );
         exigeValor = !destino;
         if (devolver) { exigeTexto = true; rotuloTexto = 'Orientação para a secretaria (fica em destaque no processo até ser concluída)'; }
-        else if (faseNova && exigPendentes.length) { exigeTexto = true; rotuloTexto = 'Motivo da dispensa do documento exigido'; }
+        else if (faseNova && exigPendentes.length) { exigeTexto = true; rotuloTexto = 'Motivo da dispensa do que o rito exige'; }
         enviar = () => mov('tramitar', { unidade_destino: destino, ...(devolver ? { orientacao: motivo } : { motivo }), ...(acao.fase_id ? { fase_id: acao.fase_id } : {}),
             ...(!devolver && levarIds.length ? { minutas: levarIds } : {}) }, devolver ? 'Processo devolvido com orientação' : 'Processo remetido');
     } else if (tipo === 'fase') {
@@ -987,7 +1056,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             </div>
         );
         if (fora) { exigeTexto = true; rotuloTexto = 'Motivo para sair do caminho previsto'; }
-        if (exigPendentes.length) { exigeTexto = true; rotuloTexto = fora ? 'Motivo para sair do caminho previsto e dispensar o documento exigido' : 'Motivo da dispensa do documento exigido'; }
+        if (exigPendentes.length) { exigeTexto = true; rotuloTexto = fora ? 'Motivo para sair do caminho previsto e dispensar o que o rito exige' : 'Motivo da dispensa do que o rito exige'; }
         exigeValor = !escolhida;
         enviar = () => mov('avancarFase', { fase_id: escolhida, motivo }, 'Fase alterada');
     } else if (tipo === 'atribuir') {
@@ -1016,7 +1085,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     }
     if (tipo === 'situacao' || tipo === 'urgencia') { exigeTexto = true; rotuloTexto = 'Motivo'; }
     const diasInvalidos = tipo === 'prazo' && !(Number(dias) >= 1);
-    const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'convidar' || tipo === 'pedirAssinatura';
+    const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'guardar' || tipo === 'convidar' || tipo === 'pedirAssinatura';
 
     return (
         <Dialog open={!!acao} onOpenChange={(o) => !o && reset()}>

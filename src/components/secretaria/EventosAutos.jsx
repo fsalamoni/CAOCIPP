@@ -51,7 +51,8 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
     });
     const unidade = (m) => (nomeUnidade && m.unidade_id ? nomeUnidade(m.unidade_id) : '');
     // O leitor percorre os eventos em ordem cronológica, cada um na sua página.
-    const pecas = useMemo(() => movimentos.map((m) => ({
+    // O que o rito deixou só no sistema não tem página para ler: não sai em impressão.
+    const pecas = useMemo(() => movimentos.filter((m) => !m.dados?.fora_impressao).map((m) => ({
         id: m.seq, ordem: m.seq, titulo: m.titulo, tipo: m.autor_nome, juntado_em: m.em,
         folha_inicial: m.folhas?.[0], folha_final: m.folhas?.[1],
     })), [movimentos]);
@@ -99,10 +100,10 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                                         <td className="py-2 pr-3 font-mono text-xs tabular-nums" title={m.hash ? `SHA-256 ${m.hash}` : undefined}>{m.seq}</td>
                                         <td className="py-2 pr-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400 hidden sm:table-cell">{dataHora(m.em)}</td>
                                         <td className="py-2 pr-3 sm:min-w-[14rem] break-words">
-                                            <button type="button" onClick={() => setLeitura(m.seq)} className="text-left group">
+                                            <button type="button" onClick={() => !m.dados?.fora_impressao && setLeitura(m.seq)} className="text-left group" title={m.dados?.fora_impressao ? 'Registro só no sistema: não sai em impressão' : undefined}>
                                                 <span className="flex flex-wrap items-center gap-1.5 font-medium group-hover:underline"><IconeEvento m={m} /> {m.titulo}
                                                     {m.novo && <Badge className="bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}
-                                                    {m.origem !== 'usuario' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{m.origem === 'interno' ? 'interno' : 'sistema'}</Badge>}
+                                                    {m.origem !== 'usuario' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{m.dados?.fora_impressao ? 'só no sistema' : m.origem === 'interno' ? 'interno' : 'sistema'}</Badge>}
                                                 </span>
                                                 <span className="block text-slate-700 dark:text-slate-300">{m.descricao}</span>
                                             </button>

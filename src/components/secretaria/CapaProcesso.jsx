@@ -49,7 +49,9 @@ function Parte({ x }) {
     );
 }
 
-export default function CapaProcesso({ p, movimentos, estado, nomeUnidade, cadeiaQuebradaEm, onLer, onVerEventos }) {
+const ONDE = { autos: 'nos autos', evento: 'evento no extrato', informacao: 'só no sistema' };
+
+export default function CapaProcesso({ p, movimentos, informacoes = [], estado, nomeUnidade, cadeiaQuebradaEm, onLer, onVerEventos }) {
     const responsavel = p.responsavel_uid ? estado.membros.find((m) => m.uid === p.responsavel_uid)?.nome : null;
     const requerentes = p.partes.filter((x) => x.polo === 'requerente');
     const ordemPolo = Object.keys(POLOS);
@@ -101,6 +103,21 @@ export default function CapaProcesso({ p, movimentos, estado, nomeUnidade, cadei
                         <Item rotulo="Sigilo">{p.sigilo === 'restrito' ? 'Restrito: só as unidades por onde passou e a administração' : 'Normal: visível à equipe do órgão'}</Item>
                     </dl>
                 </Bloco>
+
+                {informacoes.length > 0 && (
+                    <Bloco titulo="Informações registradas no andamento" className="md:col-span-2">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Dados que as ações do rito pediram, na ordem em que foram registrados.</p>
+                        <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                            {informacoes.map((i) => (
+                                <div key={i.seq}>
+                                    <dt className="text-xs text-slate-600 dark:text-slate-400">{i.rotulo} <span className="whitespace-nowrap">· {i.fase_nome}</span></dt>
+                                    <dd className="text-sm text-slate-900 dark:text-slate-100 break-words whitespace-pre-wrap">{i.valor_texto}</dd>
+                                    <dd className="text-xs text-slate-600 dark:text-slate-400">{i.por}, {dataHora(i.em)} · {ONDE[i.destino]}{i.visivel_partes ? ' · partes veem' : ''}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    </Bloco>
+                )}
 
                 <Bloco titulo={`Partes (${p.partes.length})`}>
                     {partes.length

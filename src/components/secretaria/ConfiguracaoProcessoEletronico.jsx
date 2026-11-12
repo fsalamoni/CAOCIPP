@@ -154,7 +154,7 @@ function Ritos({ orgId, estado, onIr }) {
     return (
         <Card>
             <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[14rem] flex-1">
                     <CardTitle className="text-base">Ritos</CardTitle>
                     <CardDescription>O caminho do processo, fase a fase. Monte do zero, parta de um modelo ou importe de planilha, Word, PDF ou diagrama (BPMN, draw.io, Mermaid): o sistema propõe o rito completo, com unidades, ações, modelos e alternativas, para você revisar e implantar.</CardDescription>
                 </div>

@@ -1,13 +1,90 @@
 // ============================================================================
-// Espelho, para a tela, das exigências do rito (functions-v2/src/shared/
-// exigencias.ts). Quem decide é o servidor; aqui é só para mostrar o que
-// falta e pré-marcar o que um documento cumpre. Testado em exigencias.test.js.
+// Espelho, para a tela, das regras do rito (functions-v2/src/shared/
+// exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
+// documentos a fase exige. Quem decide é o servidor; aqui é só para montar o
+// editor, mostrar o que falta e pré-marcar o que um documento cumpre.
+// Testado em exigencias.test.js.
 // ============================================================================
 
 export const FORMAS = [['qualquer', 'Redigir ou juntar'], ['redigir', 'Redigido no órgão'], ['juntar', 'Arquivo recebido']];
-export const REGISTROS = [['', 'Tudo vai aos autos'], ['remessas_fora', 'Remessas internas da fase fora dos autos'], ['interno', 'Fase toda só no registro interno']];
 
-/** Exigências da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
+/** Onde um ato fica: autos (impresso, com folha), evento (extrato impresso, sem folha) ou só no sistema. */
+export const DESTINOS = [
+    ['autos', 'Nos autos: certidão com folha, sai na impressão'],
+    ['evento', 'Evento no extrato: sai ao fim da impressão, sem folha'],
+    ['informacao', 'Só no sistema: fica nas informações, não imprime'],
+];
+export const DESTINOS_DOCUMENTO = [
+    ['autos', 'Juntado aos autos: peça com folha, sai na impressão'],
+    ['evento', 'Guardado fora dos autos, com evento no extrato impresso'],
+    ['informacao', 'Guardado fora dos autos, só no sistema (não imprime)'],
+];
+export const DESTINOS_FASE = [
+    ['autos', 'Nos autos (termo com folha)'],
+    ['evento', 'Evento no extrato (sem folha)'],
+    ['informacao', 'Só no sistema (não imprime)'],
+];
+export const ROTULO_DESTINO = { autos: 'nos autos', evento: 'evento no extrato', informacao: 'só no sistema' };
+
+/** O que a ação pede a quem a cumpre. */
+export const PEDIDOS = [
+    ['confirmar', 'Só confirmar (caixa de marcar)'],
+    ['texto', 'Um texto curto'],
+    ['texto_longo', 'Um texto longo'],
+    ['numero', 'Um número'],
+    ['data', 'Uma data'],
+    ['lista', 'Uma escolha numa lista'],
+    ['sim_nao', 'Sim ou não'],
+    ['documento', 'Um documento'],
+];
+export const ROTULO_PEDIDO = Object.fromEntries(PEDIDOS);
+
+export const destinoDaAcao = (r) => (r?.documento ? r.documento.destino || 'autos' : r?.destino || (r?.autos ? 'autos' : 'evento'));
+export const pedidoDaAcao = (r) => (r?.documento ? 'documento' : r?.pede || 'confirmar');
+// Ação de só confirmar fora dos autos não tem o que mostrar às partes (nem certidão, nem dado).
+export const partesVeem = (r) => (r?.partes === true || (r?.partes === undefined && r?.autos === true))
+    && (pedidoDaAcao(r) !== 'confirmar' || destinoDaAcao(r) === 'autos');
+export const pedeDado = (r) => !['confirmar', 'documento'].includes(pedidoDaAcao(r));
+
+/** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo `registro`). */
+export function niveisDaFase(f) {
+    if (!f) return { fase: 'autos', remessas: 'autos' };
+    if (f.registro_atos) return { fase: f.registro_atos.fase || 'autos', remessas: f.registro_atos.remessas || 'autos' };
+    if (f.registro === 'interno') return { fase: 'evento', remessas: 'evento' };
+    if (f.registro === 'remessas_fora') return { fase: 'autos', remessas: 'evento' };
+    return { fase: 'autos', remessas: 'autos' };
+}
+
+/** Regra nova a partir de outra, trocando o que a ação pede (mantém destino, quem vê e obrigatoriedade). */
+export function regraComPedido(r, pede, acao) {
+    const dest = destinoDaAcao(r);
+    // Documento novo vai aos autos, salvo se o criador já tinha escolhido outro destino para a ação.
+    const escolhido = r?.documento?.destino || r?.destino;
+    if (pede === 'documento') return { documento: { descricao: acao, forma: r?.documento?.forma || 'qualquer', ...(escolhido && escolhido !== 'autos' ? { destino: escolhido } : {}) } };
+    const base = {
+        ...(pede !== 'confirmar' ? { pede } : {}),
+        ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),
+        ...(pede === 'lista' ? { opcoes: r?.opcoes || [] } : {}),
+        ...(dest !== 'evento' ? { destino: dest } : {}),
+        ...(partesVeem(r) ? { partes: true } : {}),
+        ...(r?.obrigatoria ? { obrigatoria: true } : {}),
+    };
+    return Object.keys(base).length ? base : null;
+}
+
+/** Frase do que a ação faz, para o editor e a prévia. */
+export function resumoDaAcao(r) {
+    const pede = pedidoDaAcao(r);
+    const dest = destinoDaAcao(r);
+    if (pede === 'documento') {
+        return dest === 'autos' ? 'documento juntado aos autos' : `documento guardado fora dos autos (${dest === 'evento' ? 'evento no extrato' : 'só no sistema'})`;
+    }
+    const oque = pede === 'confirmar' ? 'confirmação' : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
+    const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];
+    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${r?.obrigatoria ? '; obrigatória' : ''}`;
+}
+
+/** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
 export function exigenciasDaFase(f) {
     if (!f) return [];
     return [
@@ -24,8 +101,19 @@ export function situacaoDaFase(f, cumpridas) {
 
 export const pendentesDaFase = (f, cumpridas) => situacaoDaFase(f, cumpridas).filter((e) => !e.cumprida);
 
-/** Redigir = produzido no órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
+/** Ações obrigatórias (sem documento) ainda não feitas. */
+export function acoesObrigatoriasPendentes(f, feitas = []) {
+    if (!f) return [];
+    const ok = new Set(feitas);
+    return (f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) ? [{ descricao: a, acao_idx: i }] : []));
+}
+
+/** Tudo o que falta para a fase seguir sem dispensa: documentos e ações obrigatórias. */
+export const faltaNaFase = (f, cumpridas, feitas) => [...pendentesDaFase(f, cumpridas), ...acoesObrigatoriasPendentes(f, feitas)];
+
+/** Redigir = produzido no órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). `d.controle`: guardado fora dos autos. */
 export function atende(e, d) {
+    if (!!e.destino !== (d.controle === true)) return false;
     const redigido = !d.peticao && (d.origem === 'editor' || !!d.modelo_id);
     if (e.forma === 'redigir') return redigido;
     if (e.forma === 'juntar') return !redigido;

@@ -21,6 +21,7 @@ const autos_1 = require("../shared/autos");
 const exigencias_1 = require("../shared/exigencias");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
+const informacoes_1 = require("../shared/informacoes");
 const portalAvisos_1 = require("./portalAvisos");
 const orgaos_1 = require("../shared/orgaos");
 const orgaos_2 = require("./orgaos");
@@ -44,23 +45,44 @@ function sanitizePartes(input) {
     })
         .filter((p) => p.nome);
 }
-/** Documentos que o rito exige na fase atual e ainda não foram juntados. */
+/** O que o rito exige na fase atual e ainda falta: documentos e ações obrigatórias. */
 function exigenciasAbertas(proc) {
     const fase = (proc.fases || []).find((f) => f.id === proc.fase_atual);
-    return (0, exigencias_1.pendentesDaFase)(fase, proc.exigencias_cumpridas);
+    return [
+        ...(0, exigencias_1.pendentesDaFase)(fase, proc.exigencias_cumpridas),
+        ...(0, exigencias_1.acoesObrigatoriasPendentes)(fase, (proc.acoes_feitas || {})[String(proc.fase_atual)]),
+    ];
 }
 /**
- * Sair da fase com documento exigido em aberto: sem motivo, recusa; com
- * motivo, a dispensa fica no movimento (e nos autos). Devolve o que foi dispensado.
+ * Sair da fase com exigência em aberto: sem motivo, recusa; com motivo, a
+ * dispensa fica no movimento (e nos autos). Devolve o que foi dispensado.
  */
 function dispensarExigencias(proc, motivo) {
     const abertas = exigenciasAbertas(proc).map((e) => e.descricao);
     if (abertas.length && !motivo) {
-        throw new https_1.HttpsError('failed-precondition', `O rito exige nesta fase: ${abertas.join('; ')}. Junte o documento ou informe o motivo da dispensa.`);
+        throw new https_1.HttpsError('failed-precondition', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta ou informe o motivo da dispensa.`);
     }
     return abertas;
 }
-const textoDispensa = (d) => (d.length ? ` Dispensado o documento exigido pelo rito: ${d.join('; ')}.` : '');
+const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
+/** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
+function valorDaAcao(regra, acao, bruto) {
+    const pede = (0, exigencias_1.pedidoDaAcao)(regra);
+    if (pede === 'confirmar' || pede === 'documento')
+        return null;
+    const rotulo = (regra === null || regra === void 0 ? void 0 : regra.rotulo) || acao;
+    const tipo = pede;
+    let valor = null;
+    try {
+        valor = (0, camposProcesso_1.valorDe)({ rotulo, tipo, opcoes: (regra === null || regra === void 0 ? void 0 : regra.opcoes) || [] }, bruto);
+    }
+    catch (e) {
+        (0, context_1.erroUsuario)(e);
+    }
+    if (valor === null)
+        throw new https_1.HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
+    return { rotulo, tipo, valor, valor_texto: (0, camposProcesso_1.valorTexto)({ tipo, valor }) };
+}
 function resumo(id, d) {
     var _a;
     return {
@@ -230,14 +252,14 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
-            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso').get(),
+            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome').get(),
         ]);
         const movimentos = movs.docs.map((d) => d.data());
         const posse = (0, secretaria_1.podeAgir)(data, c.ctx);
         const documentos = docs.docs
             .map((d) => (Object.assign({ id: d.id }, d.data())))
-            // Minuta só é vista pela unidade que a redigiu; juntado = autos.
-            .filter((d) => d.status === 'juntado' || (0, secretaria_1.minutaAcessivel)(d, c.ctx.unidadeIds))
+            // Minuta só é vista pela unidade que a redigiu; juntado = autos; controle = guardado fora dos autos (toda a equipe).
+            .filter((d) => d.status === 'juntado' || d.status === 'controle' || (0, secretaria_1.minutaAcessivel)(d, c.ctx.unidadeIds))
             .map((d) => ({
             id: d.id, titulo: d.titulo, tipo: d.tipo, origem: d.origem, status: d.status,
             mime: d.mime || null, nome_arquivo: d.nome_arquivo || null, tamanho: d.tamanho || null,
@@ -246,6 +268,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [],
             peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false,
             paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null, unidades_acesso: d.unidades_acesso || [],
+            guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null,
         }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         return {
@@ -260,6 +283,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,
+            informacoes: (0, informacoes_1.informacoesDoAndamento)(movimentos, data.fases || []),
             cadeiaQuebradaEm: (0, secretaria_1.verificarCadeia)(movimentos),
             posse,
             pode_excluir: (0, secretaria_1.podeExcluirProcesso)(data, movimentos, c.ctx),
@@ -395,10 +419,10 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const dispensadas = novaFase ? dispensarExigencias(data, motivo) : [];
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
-            const interno = !entreOrgaos && !dispensadas.length && (0, exigencias_1.movimentoInterno)(fases, data.fase_atual, novaFase === null || novaFase === void 0 ? void 0 : novaFase.id);
+            const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, novaFase === null || novaFase === void 0 ? void 0 : novaFase.id);
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + com((0, context_1.nomeUnidade)(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
-                + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})) : {})), (dispensadas.length ? { dispensadas } : {})), (interno ? { interno: true } : {})), (idsMinutas.length ? { minutas: idsMinutas } : {})));
+                + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})) : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)), (idsMinutas.length ? { minutas: idsMinutas } : {})));
             minutas.forEach((s) => tx.update(s.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(destino.id) }));
             tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? Object.assign({ fase_atual: novaFase.id }, (0, exigencias_1.camposAoEntrarNaFase)(data, novaFase.id)) : {})), { orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
@@ -447,23 +471,31 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (!fase || !acao)
                 throw new https_1.HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = (_e = fase.acoes_regras) === null || _e === void 0 ? void 0 : _e[idx];
-            // Ação que o rito liga a um documento se cumpre na juntada, não na caixa de marcar.
-            if (regra === null || regra === void 0 ? void 0 : regra.documento)
-                throw new https_1.HttpsError('failed-precondition', `"${acao}" se cumpre com a juntada do documento. Redija ou envie o documento e junte-o aos autos.`);
+            // Ação que o rito liga a um documento se cumpre na juntada (ou guardando o documento), não aqui.
+            if (regra === null || regra === void 0 ? void 0 : regra.documento) {
+                throw new https_1.HttpsError('failed-precondition', regra.documento.destino
+                    ? `"${acao}" se cumpre guardando o documento no processo. Redija ou envie o documento e use "Guardar fora dos autos".`
+                    : `"${acao}" se cumpre com a juntada do documento. Redija ou envie o documento e junte-o aos autos.`);
+            }
+            const feita = p.feita !== false;
             const feitas = Object.assign({}, (data.acoes_feitas || {}));
             const lista = new Set(feitas[fase.id] || []);
             // Duas pessoas marcando a mesma caixa: a segunda não gera movimento repetido.
-            if (lista.has(idx) === (p.feita !== false))
-                throw new https_1.HttpsError('aborted', p.feita === false ? 'Esta ação já estava desmarcada' : 'Esta ação já estava marcada como feita');
-            if (p.feita === false)
-                lista.delete(idx);
-            else
+            if (lista.has(idx) === feita)
+                throw new https_1.HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
+            // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
+            const dado = feita ? valorDaAcao(regra, acao, p.valor) : null;
+            if (feita)
                 lista.add(idx);
+            else
+                lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
-            // "Certidão nos autos" no rito: marcar (ou desmarcar) a ação é ato do processo, com termo.
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', (regra === null || regra === void 0 ? void 0 : regra.autos)
-                ? `Certifico que ${p.feita === false ? 'foi desfeita' : 'foi cumprida'} a providência "${acao}", da fase ${fase.nome}.`
-                : `${p.feita === false ? 'Desmarcada' : 'Feita'} a ação "${acao}" da fase ${fase.nome}.`, Object.assign({ fase_id: fase.id, acao_idx: idx, feita: p.feita !== false }, ((regra === null || regra === void 0 ? void 0 : regra.autos) ? { nos_autos: true } : {})));
+            // O rito diz onde fica: certidão nos autos (com folha), evento no extrato ou só no sistema.
+            const dest = (0, exigencias_1.destinoDaAcao)(regra);
+            const comDado = dado ? ` ${dado.rotulo}: ${dado.valor_texto}.` : '';
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', dest === 'autos'
+                ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
+                : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {})), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: (0, exigencias_1.partesVeem)(regra) }));
             tx.update(ref, Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }));
             return mov;
         }
@@ -496,8 +528,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const de = ((_g = fases.find((f) => f.id === data.fase_atual)) === null || _g === void 0 ? void 0 : _g.nome) || data.fase_atual;
             const dispensadas = dispensarExigencias(data, motivo);
-            const interno = !dispensadas.length && (0, exigencias_1.movimentoInterno)(fases, data.fase_atual, alvo.id);
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`, Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (dispensadas.length ? { dispensadas } : {})), (interno ? { interno: true } : {})));
+            const destinoMov = dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, alvo.id);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`, Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { fase_atual: alvo.id }), (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id)));
             return mov;
         }

@@ -29,7 +29,7 @@ export function origemEvento(m: Evento): 'sistema' | 'usuario' | 'interno' {
 }
 
 /** Movimentos que o portal nunca mostra às partes (além dos marcados `visivel_partes: false`). */
-export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
+export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida', 'guarda'];
 
 /** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
 export const visivelParaPartes = (m: Evento): boolean =>
@@ -68,6 +68,7 @@ const TITULOS: Record<string, string> = {
     acao_fase: 'Ação da fase',
     orientacao_concluida: 'Orientação concluída',
     convite: 'Convite',
+    guarda: 'Documento guardado fora dos autos',
     exclusao: 'Termo de exclusão',
     restauracao: 'Termo de restauração',
 };

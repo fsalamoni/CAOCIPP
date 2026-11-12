@@ -145,7 +145,9 @@ function registrarMovimento(tx, c, procRef, proc, tipo, descricao, dados = {}) {
     const semContagem = typeof proc.folhas_seq !== 'number' && Number(proc.doc_seq) > 0;
     const folha = (0, autos_1.geraTermo)(base) && !semContagem ? (Number(proc.folhas_seq) || 0) + 1 : null;
     tx.set(procRef.collection('movimentos').doc(String(seq).padStart(6, '0')), Object.assign(Object.assign(Object.assign({}, base), { hash }), (folha ? { folha } : {})));
-    return Object.assign(Object.assign(Object.assign({}, (folha ? { folhas_seq: folha } : {})), { mov_seq: seq, ultimo_hash: hash, version: (Number(proc.version) || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp(), ultimo_movimento: { tipo, descricao, em: base.em } }), ((0, autos_1.visivelParaPartes)(base) ? { ultimo_movimento_publico: { tipo, descricao, em: base.em } } : {}));
+    return Object.assign(Object.assign(Object.assign({}, (folha ? { folhas_seq: folha } : {})), { mov_seq: seq, ultimo_hash: hash, version: (Number(proc.version) || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp(), 
+        // `publico` deixa o portal saber se pode usar este movimento quando falta o último público.
+        ultimo_movimento: { tipo, descricao, em: base.em, publico: (0, autos_1.visivelParaPartes)(base) } }), ((0, autos_1.visivelParaPartes)(base) ? { ultimo_movimento_publico: { tipo, descricao, em: base.em } } : {}));
 }
 function nomeUnidade(c, id) {
     const u = c.unidades.find((x) => x.id === id);

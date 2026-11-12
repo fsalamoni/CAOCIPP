@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     modelosDeRito, novoIdFase, ritoDeMermaid, ritoDeTabela, ritoParaMermaid, ritoParaTabela,
 } from '@/lib/secretariaRito';
-import { FORMAS, REGISTROS, realinharRegras } from '@/lib/exigencias';
+import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
 import FluxoRito from './FluxoRito';
 import { NativeSelect, copiarTexto } from './comum';
 
@@ -144,7 +144,7 @@ function FaseCard({ f, i, fases, unidades, modelos, mudar, mover, remover, abert
                         ...(ultima ? [] : [['fim', 'Encerra o fluxo']]),
                     ]} />
                 <button type="button" onClick={alternar} className="text-left text-sm text-indigo-700 dark:text-indigo-300 self-end py-2" aria-expanded={aberta}>
-                    {aberta ? 'Ocultar detalhes' : (f.orientacao || f.unidade_id || f.agente || f.acoes?.length || f.registro || f.documentos?.length) ? 'Ver detalhes (unidade, ações, documentos, registro nos autos)' : 'Detalhes: unidade, ações, documentos, registro nos autos'}
+                    {aberta ? 'Ocultar detalhes' : (f.orientacao || f.unidade_id || f.agente || f.acoes?.length || f.registro || f.registro_atos || f.documentos?.length) ? 'Ver detalhes (unidade, ações, documentos, registro nos autos)' : 'Detalhes: unidade, ações, documentos, registro nos autos'}
                 </button>
             </div>
             {modo === 'escolher' && (
@@ -180,95 +180,14 @@ function FaseCard({ f, i, fases, unidades, modelos, mudar, mover, remover, abert
                             <Input id={`ag-${f.id}`} value={f.agente || ''} onChange={(e) => mudar({ agente: e.target.value })} placeholder="Cargo ou papel (opcional)" />
                         </div>
                     </div>
-                    <div>
-                        <Label htmlFor={`ac-${f.id}`}>Ações (uma por linha)</Label>
-                        <Textarea id={`ac-${f.id}`} rows={Math.min(8, Math.max(2, (f.acoes || []).length + 1))} value={(f.acoes || []).join('\n')} onChange={(e) => { const acoes = e.target.value.split('\n'); mudar({ acoes, acoes_regras: realinharRegras(f.acoes, f.acoes_regras, acoes) }); }} placeholder="Aparecem como lista na tela do processo" />
-                    </div>
-                    <RegrasDaFase f={f} modelos={modelos} mudar={mudar} />
+                    <AcoesDaFase f={f} modelos={modelos} mudar={mudar} />
+                    <RegistroEDocumentos f={f} modelos={modelos} mudar={mudar} />
                     <div>
                         <Label htmlFor={`ori-${f.id}`}>Orientação</Label>
                         <Textarea id={`ori-${f.id}`} rows={2} value={f.orientacao || ''} onChange={(e) => mudar({ orientacao: e.target.value })} placeholder="O que a equipe deve fazer nesta fase. Aparece na tela do processo." />
                     </div>
                 </div>
             )}
-        </div>
-    );
-}
-
-const MAX_DOCUMENTOS_FASE = 5;
-
-/** Campos de um documento exigido: forma, tipo e modelo (a descrição fica com quem chama). */
-function CamposExigencia({ id, e, modelos, onChange }) {
-    return (
-        <div className="grid sm:grid-cols-3 gap-2">
-            <NativeSelect id={`${id}-forma`} label="Como" value={e.forma || 'qualquer'} onChange={(v) => onChange({ ...e, forma: v })} options={FORMAS} />
-            <div>
-                <Label htmlFor={`${id}-tipo`}>Tipo de documento</Label>
-                <Input id={`${id}-tipo`} value={e.tipo || ''} maxLength={60} onChange={(ev) => onChange({ ...e, tipo: ev.target.value })} placeholder="Ex.: Parecer (opcional)" />
-            </div>
-            <NativeSelect id={`${id}-modelo`} label="Modelo indicado" value={e.modelo_id || ''} onChange={(v) => onChange({ ...e, modelo_id: v || undefined })}
-                options={[['', 'Nenhum'], ...modelos.map((m) => [m.id, m.nome])]} />
-        </div>
-    );
-}
-
-/**
- * O que a fase deixa nos autos e que documentos exige. Fundamento e exemplos:
- * docs/LOGICA_PROCESSUAL.md, seções 5 e 6.
- */
-function RegrasDaFase({ f, modelos, mudar }) {
-    const acoes = (f.acoes || []).map((a) => a.trim());
-    const regras = f.acoes_regras || [];
-    const setRegra = (i, r) => {
-        const novas = acoes.map((_, j) => (j === i ? r : regras[j] || null));
-        mudar({ acoes_regras: novas.some(Boolean) ? novas : undefined });
-    };
-    const docs = f.documentos || [];
-    const setDocs = (ds) => mudar({ documentos: ds.length ? ds : undefined });
-    const modoAcao = (r) => (r?.documento ? 'documento' : r?.autos ? 'autos' : '');
-    return (
-        <div className="space-y-3 rounded-md border border-slate-200 dark:border-slate-700 p-3">
-            <NativeSelect id={`reg-${f.id}`} label="Registro nos autos" value={f.registro || ''} onChange={(v) => mudar({ registro: v || undefined })} options={REGISTROS} />
-            <p className="text-xs text-slate-600 dark:text-slate-400 -mt-2">
-                Fora dos autos, o ato fica no registro interno (aba Eventos, filtro Internos), com autor e hora, mas não ganha termo nem folha e as partes não veem.
-                Use para trabalho interno, como a distribuição entre assessorias. Documento juntado vai sempre aos autos.
-            </p>
-            {acoes.some(Boolean) && (
-                <fieldset className="space-y-2">
-                    <legend className="text-sm font-medium">Ao concluir cada ação</legend>
-                    {acoes.map((a, i) => (a ? (
-                        <div key={i} className="space-y-2">
-                            <NativeSelect id={`acr-${f.id}-${i}`} label={a} value={modoAcao(regras[i])}
-                                onChange={(v) => setRegra(i, v === 'autos' ? { autos: true } : v === 'documento' ? { documento: { descricao: a, forma: 'qualquer' } } : null)}
-                                options={[['', 'Só marcar como feita (registro interno)'], ['autos', 'Marcar e certificar nos autos'], ['documento', 'Exige documento juntado aos autos']]} />
-                            {regras[i]?.documento && (
-                                <div className="pl-4 border-l-2 border-indigo-200 dark:border-indigo-800">
-                                    <CamposExigencia id={`acd-${f.id}-${i}`} e={regras[i].documento} modelos={modelos} onChange={(d) => setRegra(i, { documento: { ...d, descricao: a } })} />
-                                </div>
-                            )}
-                        </div>
-                    ) : null))}
-                </fieldset>
-            )}
-            <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Documentos exigidos na fase</legend>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Para sair da fase sem eles, é preciso informar o motivo da dispensa, que fica registrado.</p>
-                {docs.map((d, k) => (
-                    <div key={k} className="space-y-2 pl-4 border-l-2 border-indigo-200 dark:border-indigo-800">
-                        <div className="flex gap-2 items-end">
-                            <div className="flex-1">
-                                <Label htmlFor={`dex-${f.id}-${k}`}>Documento</Label>
-                                <Input id={`dex-${f.id}-${k}`} value={d.descricao || ''} maxLength={200} onChange={(e) => setDocs(docs.map((x, j) => (j === k ? { ...x, descricao: e.target.value } : x)))} placeholder="Ex.: Parecer da assessoria" />
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => setDocs(docs.filter((_, j) => j !== k))} aria-label={`Remover o documento exigido ${k + 1}`}><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                        <CamposExigencia id={`dex-${f.id}-${k}`} e={d} modelos={modelos} onChange={(n) => setDocs(docs.map((x, j) => (j === k ? n : x)))} />
-                    </div>
-                ))}
-                {docs.length < MAX_DOCUMENTOS_FASE && (
-                    <Button variant="outline" size="sm" className="gap-1" onClick={() => setDocs([...docs, { descricao: '', forma: 'qualquer' }])}><Plus className="w-4 h-4" /> Exigir documento</Button>
-                )}
-            </fieldset>
         </div>
     );
 }
