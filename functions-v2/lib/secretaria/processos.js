@@ -16,6 +16,7 @@ const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const config_1 = require("./config");
 const autos_1 = require("../shared/autos");
 const exigencias_1 = require("../shared/exigencias");
 const email_1 = require("../shared/email");
@@ -27,6 +28,7 @@ const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
 const context_1 = require("./context");
 const CONVITE_DIAS = 7;
+const MAX_LISTA = 5000;
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const POLOS = ['requerente', 'requerido', 'interessado', 'terceiro'];
@@ -111,7 +113,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             q = q.startAfter(firestore_1.Timestamp.fromMillis(Number(p.cursor)));
         const snap = await q.limit(limite).get();
         const processos = (0, autos_1.urgentesPrimeiro)(snap.docs
-            .filter((d) => (0, secretaria_1.podeVer)(d.data(), c.ctx))
+            .filter((d) => d.data().status !== 'excluido' && (0, secretaria_1.podeVer)(d.data(), c.ctx))
             .filter((d) => p.escopo !== 'caixa' || (0, secretaria_1.podeAgir)(d.data(), c.ctx))
             .map((d) => resumo(d.id, d.data())));
         const ultimo = snap.docs[snap.docs.length - 1];
@@ -122,22 +124,41 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         // no servidor: não traz documentos.
         const base = db.collection(context_1.COL.processos).where('organization_id', '==', orgId);
         const conta = async (q) => (await q.count().get()).data().count;
-        const [total, arquivados, porUnidade] = await Promise.all([
+        const [total, arquivados, excluidos, porUnidade] = await Promise.all([
             conta(base),
             conta(base.where('status', '==', 'arquivado')),
+            conta(base.where('status', '==', 'excluido')),
             Promise.all(c.unidades.map(async (u) => {
                 const [t, a] = await Promise.all([conta(base.where('unidade_atual', '==', u.id)), conta(base.where('unidade_atual', '==', u.id).where('status', '==', 'arquivado'))]);
                 return [u.id, t - a];
             })),
         ]);
-        return { total, arquivados, ativos: total - arquivados, por_unidade: Object.fromEntries(porUnidade) };
+        return { total: total - excluidos, arquivados, ativos: total - arquivados - excluidos, por_unidade: Object.fromEntries(porUnidade) };
     }
     if (p.action === 'listar') {
-        // ponytail: lê até 1000 processos do órgão e filtra/ordena em memória
-        // (sem índice composto). A lista com filtros usa a versão paginada acima.
-        const snap = await db.collection(context_1.COL.processos).where('organization_id', '==', orgId).limit(1000).get();
-        const lista = snap.docs
-            .filter((d) => (0, secretaria_1.podeVer)(d.data(), c.ctx))
+        // Lista inteira (Meu trabalho, Mesa, Painel). A caixa lê só as unidades
+        // da pessoa; "todos" percorre o órgão em páginas de 500. O teto evita
+        // resposta grande demais e é avisado em `truncado`.
+        const docs = [];
+        const base = db.collection(context_1.COL.processos).where('organization_id', '==', orgId);
+        if (p.escopo === 'caixa') {
+            for (let i = 0; i < c.ctx.unidadeIds.length; i += 30) {
+                docs.push(...(await base.where('unidade_atual', 'in', c.ctx.unidadeIds.slice(i, i + 30)).limit(MAX_LISTA).get()).docs);
+            }
+        }
+        else {
+            let q = base.orderBy('updated_at', 'desc').limit(500);
+            for (;;) {
+                const snap = await q.get();
+                docs.push(...snap.docs);
+                if (snap.size < 500 || docs.length >= MAX_LISTA)
+                    break;
+                q = base.orderBy('updated_at', 'desc').startAfter(snap.docs[snap.size - 1]).limit(500);
+            }
+        }
+        const truncado = docs.length >= MAX_LISTA;
+        const lista = docs.slice(0, MAX_LISTA)
+            .filter((d) => d.data().status !== 'excluido' && (0, secretaria_1.podeVer)(d.data(), c.ctx))
             .filter((d) => p.escopo !== 'caixa' || (0, secretaria_1.podeAgir)(d.data(), c.ctx))
             .map((d) => { var _a, _b; return (Object.assign(Object.assign({}, resumo(d.id, d.data())), { _t: ((_b = (_a = d.data().updated_at) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) || 0 })); })
             .sort((a, b) => b._t - a._t)
@@ -145,7 +166,64 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             var { _t } = _a, r = __rest(_a, ["_t"]);
             return r;
         });
-        return { processos: (0, autos_1.urgentesPrimeiro)(lista) };
+        return { processos: (0, autos_1.urgentesPrimeiro)(lista), truncado };
+    }
+    if (p.action === 'excluidos') {
+        (0, context_1.exigirAdmin)(c);
+        const snap = await db.collection(context_1.COL.processos).where('organization_id', '==', orgId).where('status', '==', 'excluido').limit(500).get();
+        return {
+            processos: snap.docs.map((d) => {
+                var _a, _b, _d, _e, _f, _g, _h;
+                const x = d.data();
+                return {
+                    id: d.id, numero: x.numero, assunto: x.assunto, tipo_nome: x.tipo_nome || null,
+                    em: ((_a = x.excluido) === null || _a === void 0 ? void 0 : _a.em) || null, por: ((_b = x.excluido) === null || _b === void 0 ? void 0 : _b.por_nome) || '', motivo: ((_d = x.excluido) === null || _d === void 0 ? void 0 : _d.motivo) || '',
+                    unidade_anterior: ((_f = (_e = x.excluido) === null || _e === void 0 ? void 0 : _e.antes) === null || _f === void 0 ? void 0 : _f.unidade_atual) || null, status_anterior: ((_h = (_g = x.excluido) === null || _g === void 0 ? void 0 : _g.antes) === null || _h === void 0 ? void 0 : _h.status) || 'em_tramitacao',
+                };
+            }).sort((a, b) => String(b.em).localeCompare(String(a.em))),
+        };
+    }
+    if (p.action === 'excluir' || p.action === 'restaurar') {
+        const motivo = (0, secretaria_1.texto)(p.motivo, 500);
+        if (p.action === 'excluir' && motivo.length < 5)
+            throw new https_1.HttpsError('invalid-argument', 'Diga o motivo da exclusão (ao menos 5 letras)');
+        if (p.action === 'restaurar')
+            (0, context_1.exigirAdmin)(c);
+        const ref = db.collection(context_1.COL.processos).doc(String(p.id || '_'));
+        const numero = await db.runTransaction(async (tx) => {
+            var _a;
+            const snap = await tx.get(ref);
+            const data = snap.data();
+            if (!data || data.organization_id !== orgId)
+                throw new https_1.HttpsError('not-found', 'Processo não encontrado');
+            if (p.action === 'excluir') {
+                (0, context_1.conferirVersao)(data, p.version);
+                const movs = (await tx.get(ref.collection('movimentos').select('autor_uid'))).docs.map((d) => d.data());
+                if (!(0, secretaria_1.podeExcluirProcesso)(data, movs, c.ctx)) {
+                    throw new https_1.HttpsError('permission-denied', 'Só o admin do órgão exclui este processo. Quem autuou só exclui enquanto ninguém mais agiu nele.');
+                }
+                const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'exclusao', `Processo excluído. Motivo: ${motivo}`, { motivo });
+                // O que tira o processo das listas, do portal e das rotinas diárias; a restauração devolve.
+                const antes = {
+                    status: data.status, unidade_atual: data.unidade_atual, responsavel_uid: data.responsavel_uid || null,
+                    partes_uids: data.partes_uids || [], ciencia_limite: data.ciencia_limite || null, proximo_vencimento: data.proximo_vencimento || null,
+                };
+                tx.update(ref, Object.assign(Object.assign({}, mov), { status: 'excluido', unidade_atual: '', responsavel_uid: null, partes_uids: [], ciencia_limite: null, proximo_vencimento: null, excluido: { em: new Date().toISOString(), por_uid: c.ctx.uid, por_nome: c.userName, motivo, antes } }));
+                return String(data.numero);
+            }
+            if (data.status !== 'excluido')
+                throw new https_1.HttpsError('failed-precondition', 'O processo não está excluído');
+            const antes = ((_a = data.excluido) === null || _a === void 0 ? void 0 : _a.antes) || {};
+            const destinoId = String(p.unidade_destino || antes.unidade_atual || '');
+            const destino = c.unidades.find((u) => u.id === destinoId && u.ativa !== false);
+            if (!destino)
+                throw new https_1.HttpsError('invalid-argument', 'A unidade de antes não está mais ativa. Escolha para qual unidade o processo volta.');
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, Object.assign(Object.assign({}, data), { unidade_atual: destino.id }), 'restauracao', `Processo restaurado na unidade ${destino.nome}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ unidade: destino.id }, (motivo ? { motivo } : {})));
+            tx.update(ref, Object.assign(Object.assign({}, mov), { status: antes.status || 'em_tramitacao', unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: destino.id === antes.unidade_atual ? antes.responsavel_uid || null : null, partes_uids: antes.partes_uids || [], ciencia_limite: antes.ciencia_limite || null, proximo_vencimento: antes.proximo_vencimento || null, excluido: firestore_1.FieldValue.delete(), recebido_em: new Date().toISOString() }));
+            return String(data.numero);
+        });
+        await (0, config_1.auditar)(db, orgId, c.ctx.uid, c.userName, p.action === 'excluir' ? 'SECRETARIA_PROCESSO_EXCLUIDO' : 'SECRETARIA_PROCESSO_RESTAURADO', { processo_id: ref.id, numero, motivo });
+        return { success: true };
     }
     if (p.action === 'obter') {
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id);
@@ -184,6 +262,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             documentos,
             cadeiaQuebradaEm: (0, secretaria_1.verificarCadeia)(movimentos),
             posse,
+            pode_excluir: (0, secretaria_1.podeExcluirProcesso)(data, movimentos, c.ctx),
         };
     }
     if (p.action === 'autuar') {

@@ -69,6 +69,8 @@ const TITULOS = {
     acao_fase: 'Ação da fase',
     orientacao_concluida: 'Orientação concluída',
     convite: 'Convite',
+    exclusao: 'Termo de exclusão',
+    restauracao: 'Termo de restauração',
 };
 function tituloEvento(m) {
     var _a, _b;

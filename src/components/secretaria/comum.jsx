@@ -29,6 +29,7 @@ export const STATUS_ROTULO = {
     em_tramitacao: 'Em tramitação',
     sobrestado: 'Sobrestado',
     arquivado: 'Arquivado',
+    excluido: 'Excluído',
 };
 
 /** Origem do processo (espelho de ORIGENS em functions-v2/src/shared/secretaria.ts). */

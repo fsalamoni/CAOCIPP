@@ -91,6 +91,11 @@ livre, ex.: "Chefe de secretaria") e pode ser **gestora** da unidade.
   recusa.
 - O gestor não cria nem desativa unidades, não muda tipo, nome ou sigla e não
   retira a própria marca de gestor (evita unidade sem gestor por engano).
+- **Equipe salva por duas pessoas ao mesmo tempo:** a tela manda a equipe de
+  onde a edição partiu (`lotacoes_base`) e o servidor aplica só o que a pessoa
+  mudou sobre a equipe atual (`mesclarLotacoes`), sem desfazer admissões
+  feitas no meio-tempo. Quem sai da equipe deixa de ser responsável pelos
+  processos da unidade (registro de controle "Atribuição removida").
 - **Desativar unidade** (admin): só passa quando a unidade não tem processo em
   andamento nem sobrestado; processos arquivados não impedem. O servidor
   informa quantos processos precisam ser enviados a outra unidade antes.
@@ -574,6 +579,43 @@ direto a ela) ou **composta** por órgãos em árvore.
 - **Para a equipe:** `UnidadesDoUsuario` mostra o organograma detalhado
   (competências) e o painel soma os processos por órgão.
 - **Testes:** `functions-v2/test/orgaos.test.js`, `src/lib/orgaos.test.js`.
+
+## Exclusão de órgão, unidade e processo (nov/2026)
+
+Nada se apaga do banco: excluir tira o item de uso e de vista, e o que já
+está nos autos continua legível. Quem pode: o admin do órgão sempre; quem
+criou o item, nos casos sem efeito sobre o trabalho de outros.
+
+- **Processo** (`secretariaProcesso` `excluir {id, version, motivo}`):
+  motivo obrigatório (5+ letras), termo de exclusão nos autos e auditoria
+  `SECRETARIA_PROCESSO_EXCLUIDO`. O processo vai a `status: 'excluido'` com
+  `unidade_atual`, `partes_uids`, `responsavel_uid`, `ciencia_limite` e
+  `proximo_vencimento` zerados (o que havia fica em `excluido.antes`): some de
+  listas, contadores, caixa, portal, alertas e ciência por decurso, e
+  `lerProcesso` responde "não encontrado". O admin exclui qualquer um; quem
+  autuou exclui o próprio enquanto ele está na sua unidade, sem parte
+  habilitada e com todos os eventos praticados por ele
+  (`podeExcluirProcesso`, em `shared/secretaria.ts`; `obter` devolve
+  `pode_excluir`). `excluidos` lista para o admin e `restaurar {id,
+  unidade_destino?}` devolve situação, partes, prazos e unidade (outra ativa,
+  se a de antes não estiver), com termo de restauração. Tela: Mais › Excluir
+  processo; Processos › Todos › Excluídos (admin).
+- **Unidade** (`secretariaConfig` `excluirUnidade {id, sucessora?, simular?}`):
+  `simular` devolve o impacto (processos, arquivados, equipe, modelos). Com
+  processos, só o admin exclui e escolhe a unidade sucessora: cada processo
+  (em qualquer situação) vai para ela com termo de remessa "por exclusão da
+  unidade", sem responsável, e as minutas seguem (`unidades_acesso`). A
+  unidade fica `excluida: true`, inativa, sem equipe, pedidos e convites;
+  `estado` a tira de `unidades` e devolve `unidades_excluidas` (o nome
+  aparece como "Nome (excluída)" no que já passou por ela). Quem criou a
+  unidade (`criada_por_mim`) exclui a que não tem processo. Não há
+  restauração pela tela.
+- **Órgão interno** (`removerOrgao {id, destino?}`): unidades, órgãos
+  subordinados, tipos de processo e modelos do órgão passam para `destino`
+  (outro órgão fora da sua subárvore ou, vazio, direto na entidade); os
+  processos seguem nas mesmas unidades. Quem criou o órgão (`criado_por`,
+  gravado pelo servidor) exclui o órgão vazio.
+- **Testes:** `functions-v2/test/exclusao.test.js`.
 
 ## Meus Processos Eletrônicos (nov/2026)
 
@@ -1060,7 +1102,8 @@ O portal das partes mostra o diagrama sem as orientações internas.
   100 avisos não lidos por pessoa; os avisos de prazo no sino não são
   deduplicados entre dias (um por processo por dia).
 - Se a gravação da petição falhar depois do envio do anexo ao Storage, o
-  arquivo fica órfão no bucket (sem referência nos autos).
+  arquivo fica órfão no bucket (sem referência nos autos). No envio de
+  arquivo pela equipe, o arquivo é apagado se o registro falhar.
 - Assinatura só no nível simples. gov.br e ICP-Brasil dependem de credenciais
   externas (cadastro no gov.br e certificado/serviço de assinatura) e ainda não
   foram implementadas; o mesmo vale para pedir assinatura a outra pessoa.
@@ -1069,10 +1112,12 @@ O portal das partes mostra o diagrama sem as orientações internas.
   todos os órgãos.
 - A conferência pública mostra os metadados da juntada (inclusive título e
   número de processo restrito) a quem tem o código; o código só sai impresso
-  nas folhas do próprio documento.
-- `listar` sem `limite` lê até 1000 processos do órgão e filtra em memória
-  (Meu trabalho, Mesa de decisão, Painel e busca ainda usam essa forma); as
-  abas Caixa e Todos já paginam no servidor. Na forma paginada, a posse e o
+  nas folhas do próprio documento. Ela aceita 60 consultas por hora por
+  endereço de rede (`secLimites`, guardado como hash e apagado por TTL).
+- `listar` sem `limite` (Meu trabalho, Mesa de decisão, Painel e busca)
+  lê a caixa pelas unidades da pessoa e "todos" em páginas de 500, até 5000
+  processos (`truncado` avisa quando passa); as abas Caixa e Todos paginam no
+  servidor. Na forma paginada, a posse e o
   sigilo são filtrados depois da leitura, então uma página pode vir menor e
   os filtros da tela valem só sobre o que foi carregado.
 - Versões de rito e modelo: até 20 por item; a versão de um modelo guardado
@@ -1085,7 +1130,7 @@ O portal das partes mostra o diagrama sem as orientações internas.
 - DOC e ODT antigos não são convertidos (exigem LibreOffice num serviço à
   parte); viram folha de referência. No Word, caixas de texto, cabeçalhos e
   notas de rodapé do arquivo não entram nas folhas.
-- O Painel e a busca trabalham sobre a mesma lista de até 1000 processos.
+- O Painel e a busca trabalham sobre a mesma lista de até 5000 processos.
 - No PDF, as fontes Times e Courier só têm caracteres latinos (WinAnsi);
   outros símbolos saem como "?". Arial (Roboto) cobre mais caracteres.
 - Localizar e substituir não acha texto que atravessa mudança de formatação.

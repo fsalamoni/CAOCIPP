@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.salvarUnidade = salvarUnidade;
+exports.excluirUnidade = excluirUnidade;
 exports.obterUnidadeDocumento = obterUnidadeDocumento;
 exports.salvarUnidadeDocumento = salvarUnidadeDocumento;
 exports.convidarEquipe = convidarEquipe;
@@ -73,23 +74,105 @@ async function salvarUnidade(c, p, uid, auditar) {
                 throw new https_1.HttpsError('failed-precondition', `A unidade tem ${presos} processo(s) em andamento. Envie-os para outra unidade antes de desativá-la.`);
             }
         }
-        // Gestor não tira a própria gestão (evita unidade sem ninguém que a gerencie por engano).
-        if (!c.ctx.isAdmin && !lotacoes.some((l) => l.uid === uid && l.gestor)) {
-            throw new https_1.HttpsError('failed-precondition', 'Você não pode tirar a sua própria gestão da unidade; peça ao admin do órgão');
-        }
-        await c.db.collection(context_1.COL.unidades).doc(atual.id).update(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, dados), { descricao: (0, secretaria_1.texto)(u.descricao, 500) }), ('competencias' in u ? { competencias } : {})), camposLotacao(lotacoes)), { updated_at: agora, updated_by: uid }));
-        await auditar('SECRETARIA_UNIDADE_SALVA', { unidade_id: atual.id, nome: dados.nome || atual.nome, lotacoes: lotacoes.length });
-        return { success: true, id: atual.id };
+        // Quem salva parte da equipe que carregou (`lotacoes_base`): só o que essa
+        // pessoa mudou vale sobre a equipe atual, sem desfazer admissões feitas no meio-tempo.
+        const ref = c.db.collection(context_1.COL.unidades).doc(atual.id);
+        let removidos = [];
+        let total = 0;
+        await c.db.runTransaction(async (tx) => {
+            const atuais = (0, secretaria_1.lotacoesDe)((await tx.get(ref)).data() || {});
+            const final = (0, secretaria_1.sanitizeLotacoes)(Array.isArray(p.lotacoes_base) ? (0, secretaria_1.mesclarLotacoes)(atuais, (0, secretaria_1.sanitizeLotacoes)(p.lotacoes_base), lotacoes) : lotacoes);
+            // Gestor não tira a própria gestão (evita unidade sem ninguém que a gerencie por engano).
+            if (!c.ctx.isAdmin && !final.some((l) => l.uid === uid && l.gestor)) {
+                throw new https_1.HttpsError('failed-precondition', 'Você não pode tirar a sua própria gestão da unidade; peça ao admin do órgão');
+            }
+            removidos = atuais.filter((l) => !final.some((x) => x.uid === l.uid)).map((l) => l.uid);
+            total = final.length;
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, dados), { descricao: (0, secretaria_1.texto)(u.descricao, 500) }), ('competencias' in u ? { competencias } : {})), camposLotacao(final)), { updated_at: agora, updated_by: uid }));
+        });
+        const liberados = await liberarResponsaveis(c, atual.id, removidos);
+        await auditar('SECRETARIA_UNIDADE_SALVA', Object.assign({ unidade_id: atual.id, nome: dados.nome || atual.nome, lotacoes: total }, (liberados ? { atribuicoes_removidas: liberados } : {})));
+        return { success: true, id: atual.id, atribuicoes_removidas: liberados };
     }
     (0, context_1.exigirAdmin)(c);
     const nome = (0, secretaria_1.texto)(u.nome);
     if (!nome)
         throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
-    if (c.unidades.length >= MAX_UNIDADES)
+    if (c.unidades.filter((x) => !x.excluida).length >= MAX_UNIDADES)
         throw new https_1.HttpsError('resource-exhausted', 'Limite de unidades atingido');
     const ref = await c.db.collection(context_1.COL.unidades).add(Object.assign(Object.assign({ organization_id: c.orgId, nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), descricao: (0, secretaria_1.texto)(u.descricao, 500), orgao_id: orgaoId || null, competencias, ativa: u.ativa !== false }, camposLotacao(lotacoes)), { pedidos: [], created_at: agora, created_by: uid }));
     await auditar('SECRETARIA_UNIDADE_SALVA', { unidade_id: ref.id, nome, lotacoes: lotacoes.length });
     return { success: true, id: ref.id };
+}
+/**
+ * Quem saiu da equipe deixa de ser responsável pelos processos da unidade:
+ * a atribuição desfeita fica registrada (registro de controle, fora dos autos).
+ */
+async function liberarResponsaveis(c, unidadeId, uids) {
+    let n = 0;
+    for (let i = 0; i < uids.length; i += 30) {
+        const snap = await c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', unidadeId)
+            .where('responsavel_uid', 'in', uids.slice(i, i + 30)).limit(500).get();
+        for (const d of snap.docs) {
+            n += await c.db.runTransaction(async (tx) => {
+                const data = (await tx.get(d.ref)).data();
+                if (!data || data.unidade_atual !== unidadeId || !uids.includes(data.responsavel_uid))
+                    return 0;
+                const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'atribuicao', 'Atribuição removida: a pessoa responsável deixou a equipe da unidade.', { responsavel_uid: null, automatico: true });
+                tx.update(d.ref, Object.assign(Object.assign({}, mov), { responsavel_uid: null }));
+                return 1;
+            });
+        }
+    }
+    return n;
+}
+const MAX_SUCESSAO = 500;
+/**
+ * Exclui a unidade. Nada se apaga: ela some das listas e da escolha de destino,
+ * mas o nome continua nos autos. Processos dela (em qualquer situação) vão para
+ * a unidade sucessora, com termo de remessa e as minutas junto; a equipe, os
+ * pedidos e os convites em aberto deixam de valer. `simular` só devolve o impacto.
+ * Admin do órgão exclui qualquer unidade; quem a criou, só a que não tem processo.
+ */
+async function excluirUnidade(c, p, uid, auditar) {
+    const u = c.unidades.find((x) => x.id === String(p.id || '') && !x.excluida);
+    if (!u)
+        throw new https_1.HttpsError('not-found', 'Unidade não encontrada');
+    if (!c.ctx.isAdmin && u.created_by !== uid)
+        throw new https_1.HttpsError('permission-denied', 'Só o admin do órgão ou quem criou a unidade pode excluí-la');
+    const procs = await c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', u.id).limit(MAX_SUCESSAO + 1).get();
+    const arquivados = procs.docs.filter((d) => d.data().status === 'arquivado').length;
+    if (p.simular === true) {
+        const modelos = await c.db.collection(context_1.COL.modelos).where('organization_id', '==', c.orgId).where('unidade_id', '==', u.id).count().get();
+        return { processos: procs.size, arquivados, em_andamento: procs.size - arquivados, modelos: modelos.data().count, equipe: (0, secretaria_1.lotacoesDe)(u).length, pode_mover: c.ctx.isAdmin };
+    }
+    let sucessora = null;
+    if (procs.size) {
+        if (!c.ctx.isAdmin)
+            throw new https_1.HttpsError('permission-denied', 'A unidade tem processos. Só o admin do órgão pode excluí-la, enviando os processos para outra unidade.');
+        if (procs.size > MAX_SUCESSAO)
+            throw new https_1.HttpsError('resource-exhausted', `A unidade tem mais de ${MAX_SUCESSAO} processos. Envie parte deles antes de excluí-la.`);
+        sucessora = c.unidades.find((x) => x.id === String(p.sucessora || '') && x.id !== u.id && x.ativa !== false && !x.excluida) || null;
+        if (!sucessora)
+            throw new https_1.HttpsError('invalid-argument', `Escolha a unidade ativa que recebe os ${procs.size} processo(s) desta unidade.`);
+        for (const d of procs.docs) {
+            await c.db.runTransaction(async (tx) => {
+                const data = (await tx.get(d.ref)).data();
+                if (!data || data.unidade_atual !== u.id)
+                    return;
+                const minutas = (await tx.get(d.ref.collection('documentos').where('status', '==', 'minuta'))).docs
+                    .filter((m) => (0, secretaria_1.minutaAcessivel)(m.data(), [u.id]));
+                const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'tramitacao', `Remetido de ${u.nome} para ${sucessora.nome}, por exclusão da unidade.`, Object.assign({ de: u.id, para: sucessora.id, exclusao_unidade: true }, (minutas.length ? { minutas: minutas.map((m) => m.id) } : {})));
+                minutas.forEach((m) => tx.update(m.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(sucessora.id) }));
+                tx.update(d.ref, Object.assign(Object.assign({}, mov), { unidade_atual: sucessora.id, unidades_historico: firestore_1.FieldValue.arrayUnion(sucessora.id), responsavel_uid: null, recebido_em: new Date().toISOString() }));
+            });
+        }
+    }
+    await c.db.collection(context_1.COL.unidades).doc(u.id).update(Object.assign(Object.assign({ excluida: true, ativa: false }, camposLotacao([])), { pedidos: [], excluida_em: new Date().toISOString(), excluida_por: uid, updated_at: firestore_1.FieldValue.serverTimestamp(), updated_by: uid }));
+    const convites = await c.db.collection(context_1.COL.convitesEquipe).where('organization_id', '==', c.orgId).where('unidade_id', '==', u.id).get();
+    await Promise.all(convites.docs.filter((d) => !d.data().usado_por && !d.data().revogado).map((d) => d.ref.update({ revogado: true })));
+    await auditar('SECRETARIA_UNIDADE_EXCLUIDA', { unidade_id: u.id, nome: u.nome, processos: procs.size, sucessora: (sucessora === null || sucessora === void 0 ? void 0 : sucessora.id) || null });
+    return { success: true, processos: procs.size, sucessora: (sucessora === null || sucessora === void 0 ? void 0 : sucessora.nome) || null };
 }
 async function obterUnidadeDocumento(c, p) {
     const u = (0, context_1.exigirGestor)(c, p.unidadeId);

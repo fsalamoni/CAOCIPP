@@ -13,6 +13,7 @@ test('unidade com o órgão e unidades do assistente', () => {
     assert.equal(unidadeComOrgao(estado, 'u'), 'Presidência › Gabinete');
     assert.equal(unidadeComOrgao(estado, 's'), 'Protocolo');
     assert.equal(unidadeComOrgao(estado, 'nada'), '—');
+    assert.equal(unidadeComOrgao({ ...estado, unidades_excluidas: [{ id: 'velha', nome: 'Assessoria antiga' }] }, 'velha'), 'Assessoria antiga (excluída)');
     assert.deepEqual(unidadesDoOrgao({ nome: 'Presidência', sigla: 'PRES', unidades: { secretaria: true, assessoria: true } }).map((u) => u.nome), ['Secretaria (PRES)', 'Assessoria (PRES)']);
 });
 

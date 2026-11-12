@@ -68,6 +68,8 @@ const TITULOS: Record<string, string> = {
     acao_fase: 'Ação da fase',
     orientacao_concluida: 'Orientação concluída',
     convite: 'Convite',
+    exclusao: 'Termo de exclusão',
+    restauracao: 'Termo de restauração',
 };
 export function tituloEvento(m: Evento): string {
     if (m.tipo === 'acao_fase' && m.dados?.nos_autos === true) return 'Certidão de cumprimento';

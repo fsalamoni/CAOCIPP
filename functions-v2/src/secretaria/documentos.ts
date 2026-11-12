@@ -142,11 +142,19 @@ export const secretariaDocumento = onCall<DocRequest>(
             if (!buf.length) throw new HttpsError('invalid-argument', 'Arquivo vazio');
             if (buf.length > MAX_UPLOAD_BYTES) throw new HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
             const path = caminhoArquivo(c.orgId, procRef.id, ref.id);
-            await admin.storage().bucket().file(path).save(buf, { contentType: mime, resumable: false });
-            await ref.set({
-                ...base, origem: 'upload', mime, nome_arquivo: texto(p.nomeArquivo) || titulo,
-                tamanho: buf.length, sha256: sha256(buf), storage_path: path, paginas: await paginasDeArquivo(buf, mime),
-            });
+            const paginas = await paginasDeArquivo(buf, mime);
+            const arquivo = admin.storage().bucket().file(path);
+            await arquivo.save(buf, { contentType: mime, resumable: false });
+            try {
+                await ref.set({
+                    ...base, origem: 'upload', mime, nome_arquivo: texto(p.nomeArquivo) || titulo,
+                    tamanho: buf.length, sha256: sha256(buf), storage_path: path, paginas,
+                });
+            } catch (e) {
+                // Sem o registro, o arquivo ficaria no armazenamento sem dono.
+                await arquivo.delete({ ignoreNotFound: true }).catch(() => undefined);
+                throw e;
+            }
             return { success: true, id: ref.id };
         }
 
@@ -226,8 +234,15 @@ export const secretariaDocumento = onCall<DocRequest>(
             const mem = (await c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`).get()).data();
             const nome = String(mem?.user_name || mem?.user_email || 'Membro');
             const pedido = { uid, nome, por: c.userName, em: agoraIso };
-            await ref.update({ assinaturas_pedidas: [...((doc.assinaturas_pedidas || []) as unknown[]).filter((x) => (x as { uid: string }).uid !== uid), pedido] });
-            await procRef.update({ assinaturas_pendentes: [...semPedidos(proc.assinaturas_pendentes, ref.id, uid), { docId: ref.id, uid, titulo: doc.titulo }] });
+            // Documento e processo mudam juntos, lidos de novo: dois pedidos ao mesmo tempo não se apagam.
+            await c.db.runTransaction(async (tx) => {
+                const [dSnap, pSnap] = await Promise.all([tx.get(ref), tx.get(procRef)]);
+                const d = dSnap.data();
+                if (!d || d.status !== 'minuta') throw new HttpsError('failed-precondition', 'O documento não é mais uma minuta');
+                if (((d.assinaturas || []) as Array<{ uid: string }>).some((a) => a.uid === uid)) throw new HttpsError('already-exists', 'Essa pessoa já assinou');
+                tx.update(ref, { assinaturas_pedidas: [...((d.assinaturas_pedidas || []) as unknown[]).filter((x) => (x as { uid: string }).uid !== uid), pedido] });
+                tx.update(procRef, { assinaturas_pendentes: [...semPedidos(pSnap.data()?.assinaturas_pendentes, ref.id, uid), { docId: ref.id, uid, titulo: d.titulo }] });
+            });
             void avisarPedidoAssinatura(c, uid, proc, procRef.id, String(doc.titulo));
             return { success: true };
         }

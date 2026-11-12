@@ -1,7 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.secretariaAlertaPrazos = exports.DIAS_ALERTA = exports.secretariaConferir = void 0;
+exports.secretariaAlertaPrazos = exports.DIAS_ALERTA = exports.secretariaConferir = exports.CONFERENCIAS_POR_HORA = void 0;
 const admin = require("firebase-admin");
+const crypto_1 = require("crypto");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const secretaria_1 = require("../shared/secretaria");
@@ -11,14 +13,35 @@ const context_1 = require("./context");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
+exports.CONFERENCIAS_POR_HORA = 60;
+/**
+ * Chamada pública: no máximo `limite` por hora por endereço de rede (guardado
+ * só como hash). Freia quem tenta adivinhar códigos sem atrapalhar quem confere.
+ */
+async function limitarPorHora(chave, origem, limite) {
+    const db = admin.firestore();
+    const hora = new Date().toISOString().slice(0, 13);
+    const id = `${chave}_${(0, crypto_1.createHash)('sha256').update(origem || 'sem-origem').digest('hex').slice(0, 32)}_${hora}`;
+    const ref = db.collection(context_1.COL.limites).doc(id);
+    const n = await db.runTransaction(async (tx) => {
+        var _a;
+        const atual = Number(((_a = (await tx.get(ref)).data()) === null || _a === void 0 ? void 0 : _a.n) || 0) + 1;
+        tx.set(ref, { n: atual, expira_em: firestore_1.Timestamp.fromMillis(Date.now() + 2 * 3600 * 1000) });
+        return atual;
+    });
+    if (n > limite)
+        throw new https_1.HttpsError('resource-exhausted', 'Muitas consultas seguidas deste endereço. Tente de novo daqui a uma hora.');
+}
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
  * impresso nas folhas. Responde só os dados da juntada: quem tem o código
  * tem o próprio documento.
  */
 exports.secretariaConferir = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a;
-    const codigo = (0, autos_1.normalizarCodigo)((_a = request.data) === null || _a === void 0 ? void 0 : _a.codigo);
+    var _a, _b, _c, _d;
+    const ip = String(((_b = (_a = request.rawRequest) === null || _a === void 0 ? void 0 : _a.headers) === null || _b === void 0 ? void 0 : _b['x-forwarded-for']) || '').split(',')[0].trim() || ((_c = request.rawRequest) === null || _c === void 0 ? void 0 : _c.ip) || '';
+    await limitarPorHora('conferir', ip, exports.CONFERENCIAS_POR_HORA);
+    const codigo = (0, autos_1.normalizarCodigo)((_d = request.data) === null || _d === void 0 ? void 0 : _d.codigo);
     if (!codigo)
         throw new https_1.HttpsError('invalid-argument', 'Código inválido. Ele tem 16 letras e números, no formato XXXX-XXXX-XXXX-XXXX.');
     const v = (await admin.firestore().collection(context_1.COL.verificacao).doc(codigo).get()).data();
@@ -41,7 +64,7 @@ exports.DIAS_ALERTA = 2;
  * em até 2 dias. Um e-mail por pessoa, com a lista.
  */
 exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: context_1.REGION }, async () => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const db = admin.firestore();
     // Antes dos alertas: a ciência por decurso abre prazos que entram neles.
     await (0, comunicacoes_1.cienciaPorDecurso)(db).catch((e) => console.warn('[comunicacoes] ciência por decurso falhou', e));
@@ -86,14 +109,19 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
             }
         }
         for (const [uid, linhas] of porPessoa) {
-            const mem = (await db.collection('userOrganizations').doc(`${uid}_${orgId}`).get()).data();
+            const [memSnap, prefSnap] = await Promise.all([
+                db.collection('userOrganizations').doc(`${uid}_${orgId}`).get(),
+                db.collection('userPreferences').doc(uid).get(),
+            ]);
+            const mem = memSnap.data();
             const email = mem === null || mem === void 0 ? void 0 : mem.user_email;
-            if (!email)
+            // Quem escolheu "Nenhum e-mail" fica só com o sino; vínculo desativado não recebe nada.
+            if (!email || (mem === null || mem === void 0 ? void 0 : mem.active) === false || (0, avisosEquipe_1.prefDe)((_d = prefSnap.data()) === null || _d === void 0 ? void 0 : _d.notificationPreferences).email === 'nenhum')
                 continue;
             await (0, email_1.sendEmail)({
                 to: String(email),
                 subject: `Processo Eletrônico: ${linhas.length} prazo(s) vencendo ou vencido(s)`,
-                html: `<p>Processos com a sua unidade em ${escapar(String(((_d = org.data()) === null || _d === void 0 ? void 0 : _d.name) || ''))}:</p><ul>${linhas.slice(0, 50).join('')}</ul>${linhas.length > 50 ? `<p>… e mais ${linhas.length - 50}.</p>` : ''}<p><a href="${autos_1.APP_URL}/ProcessoEletronico?org=${orgId}">Abrir o Processo Eletrônico</a></p><p style="color:#64748b;font-size:12px">O administrador do órgão liga ou desliga este aviso em Painel Administrativo → Processo Eletrônico → Calendário.</p>`,
+                html: `<p>Processos com a sua unidade em ${escapar(String(((_e = org.data()) === null || _e === void 0 ? void 0 : _e.name) || ''))}:</p><ul>${linhas.slice(0, 50).join('')}</ul>${linhas.length > 50 ? `<p>… e mais ${linhas.length - 50}.</p>` : ''}<p><a href="${autos_1.APP_URL}/ProcessoEletronico?org=${orgId}">Abrir o Processo Eletrônico</a></p><p style="color:#64748b;font-size:12px">O administrador do órgão liga ou desliga este aviso em Painel Administrativo → Processo Eletrônico → Calendário.</p>`,
             }).catch(() => false);
         }
     }

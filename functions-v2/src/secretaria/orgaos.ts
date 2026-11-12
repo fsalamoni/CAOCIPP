@@ -47,29 +47,53 @@ export async function salvarOrgao(c: Contexto, p: Payload, uid: string, auditar:
     await mudar(c, uid, (atuais) => {
         const i = atuais.findIndex((o) => o.id === id);
         if (p.id && i < 0) throw new HttpsError('not-found', 'Órgão não encontrado');
-        if (i < 0) return [...atuais, { ...orgao, ordem: atuais.length }];
-        return atuais.map((o) => (o.id === id ? orgao : o));
+        if (i < 0) return [...atuais, { ...orgao, ordem: atuais.length, criado_por: uid }];
+        return atuais.map((o) => (o.id === id ? { ...orgao, criado_por: o.criado_por || null } : o));
     });
     await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao!.nome, superior: orgao!.pai_id });
     return { success: true, id };
 }
 
-/** Só remove órgão vazio: sem subordinados e sem unidades (nada se perde). */
+/**
+ * Exclui o órgão interno. O que estava nele (unidades, órgãos subordinados,
+ * tipos de processo e modelos) passa para `destino`: outro órgão ou, vazio,
+ * direto na entidade. Nada se apaga e os processos seguem nas mesmas unidades.
+ * O admin exclui qualquer órgão; quem o criou, só o vazio.
+ */
 export async function removerOrgao(c: Contexto, p: Payload, uid: string, auditar: Auditar) {
-    exigirAdmin(c);
     const id = String(p.id || '');
-    const comUnidades = c.unidades.filter((u) => u.orgao_id === id).length;
-    if (comUnidades) throw new HttpsError('failed-precondition', `Este órgão tem ${comUnidades} unidade(s). Mova-as para outro órgão antes de removê-lo, ou apenas desative-o.`);
+    const destino = p.destino ? String(p.destino) : null;
+    const unidades = c.unidades.filter((u) => u.orgao_id === id);
     let nome = '';
+    let subordinados = 0;
     await mudar(c, uid, (atuais) => {
         const alvo = atuais.find((o) => o.id === id);
         if (!alvo) throw new HttpsError('not-found', 'Órgão não encontrado');
-        if (atuais.some((o) => o.pai_id === id)) throw new HttpsError('failed-precondition', 'Este órgão tem órgãos subordinados. Mova-os ou remova-os antes.');
+        if (!c.ctx.isAdmin && alvo.criado_por !== uid) throw new HttpsError('permission-denied', 'Só o admin do órgão ou quem criou este órgão interno pode excluí-lo');
+        subordinados = atuais.filter((o) => o.pai_id === id).length;
+        if ((unidades.length || subordinados) && !c.ctx.isAdmin) {
+            throw new HttpsError('permission-denied', 'Este órgão tem unidades ou órgãos subordinados. Só o admin do órgão pode excluí-lo, levando-os para outro lugar.');
+        }
+        if (destino && (destino === id || !atuais.some((o) => o.id === destino))) throw new HttpsError('invalid-argument', 'Escolha um destino válido');
+        // Destino abaixo do próprio órgão criaria um ciclo na árvore.
+        for (let o = atuais.find((x) => x.id === destino); o; o = atuais.find((x) => x.id === o!.pai_id)) {
+            if (o.pai_id === id) throw new HttpsError('invalid-argument', 'O destino não pode ser um órgão subordinado a este');
+        }
         nome = alvo.nome;
-        return atuais.filter((o) => o.id !== id);
+        return atuais.filter((o) => o.id !== id).map((o) => (o.pai_id === id ? { ...o, pai_id: destino } : o));
     });
-    await auditar('SECRETARIA_ORGAO_REMOVIDO', { orgao_id: id, nome });
-    return { success: true };
+    const [tipos, modelos] = await Promise.all([
+        c.db.collection(COL.tipos).where('organization_id', '==', c.orgId).where('orgao_id', '==', id).get(),
+        c.db.collection(COL.modelos).where('organization_id', '==', c.orgId).where('orgao_id', '==', id).get(),
+    ]);
+    const refs = [...unidades.map((u) => c.db.collection(COL.unidades).doc(u.id)), ...tipos.docs.map((d) => d.ref), ...modelos.docs.map((d) => d.ref)];
+    for (let i = 0; i < refs.length; i += 400) {
+        const lote = c.db.batch();
+        refs.slice(i, i + 400).forEach((r) => lote.update(r, { orgao_id: destino }));
+        await lote.commit();
+    }
+    await auditar('SECRETARIA_ORGAO_REMOVIDO', { orgao_id: id, nome, destino, unidades: unidades.length, subordinados, tipos: tipos.size, modelos: modelos.size });
+    return { success: true, unidades: unidades.length, subordinados };
 }
 
 /** Assistente: cria de uma vez vários órgãos (somados aos que existem) e as unidades de cada um. */
@@ -86,7 +110,7 @@ export async function criarEstrutura(c: Contexto, p: Payload, uid: string, audit
             // O superior pode ser outro órgão da proposta (pela chave) ou um já existente (pelo id).
             const pai = o.pai_chave ? ids.get(o.pai_chave) || (atuais.some((a) => a.id === o.pai_chave) ? o.pai_chave : null) : null;
             if (o.pai_chave && !pai) throw new Error(`O órgão superior de "${String(o.orgao.nome || '')}" não existe`);
-            return { ...sanitizeOrgao({ ...o.orgao, titular_uid: null, pai_id: pai }, ids.get(o.chave)!), ordem: atuais.length + i };
+            return { ...sanitizeOrgao({ ...o.orgao, titular_uid: null, pai_id: pai }, ids.get(o.chave)!), ordem: atuais.length + i, criado_por: uid };
         });
         return [...atuais, ...criados];
     });

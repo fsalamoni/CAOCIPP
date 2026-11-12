@@ -295,6 +295,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             )}
                             <DropdownMenuItem disabled={!autos.length} onSelect={() => setLeitura(autos[0]?.id)}>Ler os autos em sequência</DropdownMenuItem>
                             <DropdownMenuItem onSelect={exportar}>Exportar PDF dos autos</DropdownMenuItem>
+                            {q.data?.pode_excluir && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-red-700 dark:text-red-400 focus:text-red-700" onSelect={() => setAcao({ tipo: 'excluir' })}>Excluir processo</DropdownMenuItem>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
@@ -588,7 +594,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} textosProntos={estado.textos_comunicacao || []} ocupado={ocupado}
                 onFechar={() => setAcao(null)} onExpedir={(comunicacao) => mov('expedirComunicacao', { comunicacao }, comunicacao.meio === 'outro' ? 'Ciência registrada nos autos' : 'Comunicação expedida')} />
 
-            <AcaoDialog acao={['dados', 'comunicar'].includes(acao?.tipo) ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} minutas={minutas} mov={mov} doc={doc} convidar={convidar}
+            {acao?.tipo === 'excluir' && (
+                <ExcluirProcesso p={p} admin={estado.isAdmin} ocupado={ocupado} onFechar={() => setAcao(null)}
+                    onExcluir={async (motivo) => { if (await mov('excluir', { motivo }, `Processo ${p.numero} excluído`)) onVoltar(); }} />
+            )}
+
+            <AcaoDialog acao={['dados', 'comunicar', 'excluir'].includes(acao?.tipo) ? null : acao} onClose={() => setAcao(null)} ocupado={ocupado} p={p} estado={estado} membros={membrosDaUnidade} minutas={minutas} mov={mov} doc={doc} convidar={convidar}
                 noGabinete={noGabinete} orgId={orgId} procId={procId}
                 onDespacho={(pend) => { setAcao(null); setEditor({ titulo: `Despacho: ${pend.descricao}`.slice(0, 200), tipo: 'Despacho', conteudo: null, modeloId: modelos.find((m) => /despacho/i.test(m.nome) && m.formato !== 'original')?.id }); }} />
 
@@ -643,6 +654,34 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 }
 
 /** Um só ponto de partida para redigir ou enviar: modelos da fase primeiro, depois os demais. */
+/** Exclusão: some das listas e do portal, com motivo nos autos; o admin do órgão restaura. */
+function ExcluirProcesso({ p, admin, ocupado, onFechar, onExcluir }) {
+    const [motivo, setMotivo] = useState('');
+    const curto = motivo.trim().length < 5;
+    return (
+        <Dialog open onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader>
+                    <DialogTitle>Excluir o processo {p.numero}?</DialogTitle>
+                    <DialogDescription>
+                        Use para processo autuado por engano ou em duplicidade. Ele sai de todas as listas, da caixa das unidades e do portal das partes; prazos e comunicações param de correr.
+                        Nada é apagado: o termo de exclusão fica nos autos e {admin ? 'você (ou outro admin)' : 'o admin do órgão'} pode restaurá-lo em Processos › Excluídos.
+                    </DialogDescription>
+                </DialogHeader>
+                <div>
+                    <Label htmlFor="excl-motivo">Motivo<span className="text-red-600 dark:text-red-400" aria-hidden> *</span></Label>
+                    <Textarea id="excl-motivo" rows={3} maxLength={500} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: autuado em duplicidade com o processo 000123/2026" aria-required />
+                    {curto && motivo && <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">Escreva um pouco mais (ao menos 5 letras).</p>}
+                </div>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={onFechar}>Cancelar</Button>
+                    <Button variant="destructive" disabled={ocupado || curto} onClick={() => onExcluir(motivo.trim())}>{ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Excluir processo</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function NovoDocumento({ aberto, onFechar, tipos, tipoPadrao, modelosDaFase, modelos, onModelo, onEmBranco, onArquivo, ocupado }) {
     const [tipo, setTipo] = useState('');
     const outros = modelos.filter((m) => !modelosDaFase.some((x) => x.id === m.id));
@@ -960,7 +999,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         const status = valor || acao.status || '';
         campo = (
             <>
-                <NativeSelect label="Situação" value={status} onChange={setValor} options={[['', 'Escolha…'], ...Object.entries(STATUS_ROTULO).filter(([k]) => k !== p.status)]} />
+                <NativeSelect label="Situação" value={status} onChange={setValor} options={[['', 'Escolha…'], ...Object.entries(STATUS_ROTULO).filter(([k]) => k !== p.status && k !== 'excluido')]} />
                 {status === 'arquivado' && avisoDispensa}
             </>
         );

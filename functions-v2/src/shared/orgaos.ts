@@ -30,6 +30,8 @@ export interface Orgao {
     descricao: string;
     ordem: number;
     ativo: boolean;
+    /** Quem criou (o servidor grava; nunca vem do formulário). */
+    criado_por?: string | null;
 }
 
 /** Lista de competências ou atribuições: textos curtos, sem repetição. */
@@ -58,6 +60,7 @@ export function sanitizeOrgao(raw: unknown, id: string, ordem = 0): Orgao {
         descricao: texto(o.descricao, 1000),
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,
+        criado_por: typeof o.criado_por === 'string' && o.criado_por ? o.criado_por.slice(0, 128) : null,
     };
 }
 

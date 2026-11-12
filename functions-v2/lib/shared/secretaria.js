@@ -31,6 +31,8 @@ exports.tipoUnidade = tipoUnidade;
 exports.sanitizeLotacoes = sanitizeLotacoes;
 exports.lotacoesDe = lotacoesDe;
 exports.documentoEfetivo = documentoEfetivo;
+exports.podeExcluirProcesso = podeExcluirProcesso;
+exports.mesclarLotacoes = mesclarLotacoes;
 const crypto_1 = require("crypto");
 const exigencias_1 = require("./exigencias");
 exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
@@ -438,5 +440,36 @@ function documentoEfetivo(orgao, unidade) {
     const doOrgao = orgao.tipos_documento || [];
     const tipos = [...new Set([...doOrgao, ...((unidade === null || unidade === void 0 ? void 0 : unidade.tipos_documento) || [])])];
     return Object.assign(Object.assign({}, base), { tipos_documento: tipos });
+}
+/**
+ * Exclusão de processo: some das listas e do portal, nada se apaga e o admin
+ * restaura. O admin do órgão exclui qualquer um. Quem autuou exclui o próprio
+ * enquanto ninguém mais agiu nele: ainda na sua unidade, sem parte habilitada
+ * no portal e com todos os eventos praticados por ele.
+ */
+function podeExcluirProcesso(proc, movimentos, ctx) {
+    if (proc.status === 'excluido' || ehParte(proc, ctx.uid))
+        return false;
+    if (ctx.isAdmin)
+        return true;
+    return proc.autuado_por === ctx.uid && podeAgir(proc, ctx) && !(proc.partes_uids || []).length
+        && movimentos.every((m) => m.autor_uid === ctx.uid);
+}
+/**
+ * Equipe salva por quem partiu de uma versão antiga: aplica só o que essa
+ * pessoa mudou (tirou, pôs ou alterou) sobre a equipe atual, sem desfazer quem
+ * foi admitido ou alterado nesse meio-tempo.
+ */
+function mesclarLotacoes(atual, base, minha) {
+    const igual = (a, b) => jsonCanonico(a !== null && a !== void 0 ? a : null) === jsonCanonico(b !== null && b !== void 0 ? b : null);
+    const naBase = new Map(base.map((l) => [l.uid, l]));
+    const naMinha = new Set(minha.map((l) => l.uid));
+    const removidos = new Set(base.filter((l) => !naMinha.has(l.uid)).map((l) => l.uid));
+    const mudados = new Map(minha.filter((l) => !igual(l, naBase.get(l.uid))).map((l) => [l.uid, l]));
+    const out = atual.filter((l) => !removidos.has(l.uid)).map((l) => mudados.get(l.uid) || l);
+    for (const [uid, l] of mudados)
+        if (!out.some((x) => x.uid === uid))
+            out.push(l);
+    return out;
 }
 //# sourceMappingURL=secretaria.js.map

@@ -13,7 +13,7 @@ import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preen
 import { MIME_DOCX } from './conversao';
 import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
-    revogarConviteEquipe, salvarUnidade, salvarUnidadeDocumento, verConviteEquipe,
+    excluirUnidade, revogarConviteEquipe, salvarUnidade, salvarUnidadeDocumento, verConviteEquipe,
 } from './unidades';
 
 export { TIPOS_DOCUMENTO_PADRAO } from './documentoConfig';
@@ -116,7 +116,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
-    | 'versoes' | 'restaurarVersao' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao';
+    | 'versoes' | 'restaurarVersao' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -201,7 +201,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             gestorDe: c.gestorDe,
             // Órgãos internos, na ordem do organograma (vazio = entidade singular).
             orgaos: emArvore(orgaosDe(cfgSnap.data()?.orgaos)),
-            unidades: c.unidades.map((u) => {
+            // Unidade excluída só empresta o nome ao que já está nos autos.
+            unidades_excluidas: c.unidades.filter((u) => u.excluida).map((u) => ({ id: u.id, nome: u.nome, sigla: u.sigla || '' })),
+            unidades: c.unidades.filter((u) => !u.excluida).map((u) => {
                 const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
                 const lotacoes = lotacoesDe(u);
                 return {
@@ -210,6 +212,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                     ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes,
                     ...(gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {}),
                     pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x: { uid: string }) => x.uid === auth.uid),
+                    criada_por_mim: u.created_by === auth.uid,
                 };
             }).sort((a, b) => String(a.nome).localeCompare(String(b.nome))),
             convitesEquipe: convites,
@@ -276,6 +279,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
 
     // Gestão de unidade: admin do órgão ou gestor da unidade.
     if (p.action === 'salvarUnidade') return salvarUnidade(c, p, auth.uid, audit);
+    if (p.action === 'excluirUnidade') return excluirUnidade(c, p, auth.uid, audit);
     if (p.action === 'salvarOrgao') return salvarOrgao(c, p, auth.uid, audit);
     if (p.action === 'removerOrgao') return removerOrgao(c, p, auth.uid, audit);
     if (p.action === 'criarEstrutura') return criarEstrutura(c, p, auth.uid, audit);

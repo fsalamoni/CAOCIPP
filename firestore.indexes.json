@@ -497,5 +497,7 @@
             ]
         }
     ],
-    "fieldOverrides": []
+    "fieldOverrides": [
+        { "collectionGroup": "secLimites", "fieldPath": "expira_em", "ttl": true, "indexes": [] }
+    ]
 }
