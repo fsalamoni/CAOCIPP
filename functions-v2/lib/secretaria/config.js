@@ -182,10 +182,12 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             gestorDe: c.gestorDe,
             // Órgãos internos, na ordem do organograma (vazio = entidade singular).
             orgaos: (0, orgaos_1.emArvore)((0, orgaos_1.orgaosDe)((_d = cfgSnap.data()) === null || _d === void 0 ? void 0 : _d.orgaos)),
-            unidades: c.unidades.map((u) => {
+            // Unidade excluída só empresta o nome ao que já está nos autos.
+            unidades_excluidas: c.unidades.filter((u) => u.excluida).map((u) => ({ id: u.id, nome: u.nome, sigla: u.sigla || '' })),
+            unidades: c.unidades.filter((u) => !u.excluida).map((u) => {
                 const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
                 const lotacoes = (0, secretaria_1.lotacoesDe)(u);
-                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '', orgao_id: u.orgao_id || null, competencias: (0, orgaos_1.sanitizeCompetencias)(u.competencias), ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes }, (gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {})), { pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x) => x.uid === auth.uid) });
+                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '', orgao_id: u.orgao_id || null, competencias: (0, orgaos_1.sanitizeCompetencias)(u.competencias), ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes }, (gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {})), { pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x) => x.uid === auth.uid), criada_por_mim: u.created_by === auth.uid });
             }).sort((a, b) => String(a.nome).localeCompare(String(b.nome))),
             convitesEquipe: convites,
             ritos: ritosSnap.docs.map((d) => {
@@ -252,6 +254,8 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
     // Gestão de unidade: admin do órgão ou gestor da unidade.
     if (p.action === 'salvarUnidade')
         return (0, unidades_1.salvarUnidade)(c, p, auth.uid, audit);
+    if (p.action === 'excluirUnidade')
+        return (0, unidades_1.excluirUnidade)(c, p, auth.uid, audit);
     if (p.action === 'salvarOrgao')
         return (0, orgaos_2.salvarOrgao)(c, p, auth.uid, audit);
     if (p.action === 'removerOrgao')

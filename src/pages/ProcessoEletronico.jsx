@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -213,8 +213,68 @@ const Campo = ({ rotulo, children }) => (
     <label className="text-sm space-y-1"><span className="block text-slate-600 dark:text-slate-300">{rotulo}</span>{children}</label>
 );
 
+/** Processos excluídos (só o admin): quem excluiu, quando e por quê, com Restaurar. */
+function ProcessosExcluidos({ orgId, estado, aberto, onFechar, onAbrir }) {
+    const qc = useQueryClient();
+    const q = useQuery({ queryKey: ['sec-processos', orgId, 'excluidos'], queryFn: () => secProcesso(orgId, 'excluidos'), enabled: aberto });
+    const [destino, setDestino] = useState({}); // id -> unidade escolhida
+    const [restaurando, setRestaurando] = useState('');
+    const ativas = estado.unidades.filter((u) => u.ativa);
+    const restaurar = async (x) => {
+        setRestaurando(x.id);
+        try {
+            await secProcesso(orgId, 'restaurar', { id: x.id, unidade_destino: destino[x.id] || undefined });
+            toast.success(`Processo ${x.numero} restaurado`);
+            await qc.invalidateQueries({ queryKey: ['sec-processos', orgId] });
+            onAbrir(x.id);
+        } catch (e) { toast.error(e?.message || 'Não foi possível restaurar'); } finally { setRestaurando(''); }
+    };
+    return (
+        <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader>
+                    <DialogTitle>Processos excluídos</DialogTitle>
+                    <DialogDescription>Ficam fora das listas e do portal, com o termo de exclusão nos autos. Restaurar devolve o processo à situação e à unidade de antes.</DialogDescription>
+                </DialogHeader>
+                {q.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
+                {q.error && <ErroQuery q={q} />}
+                {q.data && !q.data.processos.length && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum processo excluído.</p>}
+                <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {(q.data?.processos || []).map((x) => {
+                        const voltaPara = ativas.some((u) => u.id === x.unidade_anterior) ? x.unidade_anterior : '';
+                        const escolhida = destino[x.id] ?? voltaPara;
+                        return (
+                            <li key={x.id} className="py-3 space-y-2 text-sm">
+                                <div className="flex flex-wrap gap-x-3 items-baseline">
+                                    <span className="font-mono text-indigo-700 dark:text-indigo-300">{x.numero}</span>
+                                    <span className="font-medium flex-1 min-w-[10rem]">{x.assunto}</span>
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">{x.em ? new Date(x.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : ''}{x.por ? ` · ${x.por}` : ''}</span>
+                                </div>
+                                <p className="text-slate-700 dark:text-slate-300">Motivo: {x.motivo}</p>
+                                <div className="flex flex-wrap items-end gap-2">
+                                    <label className="text-xs space-y-1 flex-1 min-w-[12rem]">
+                                        <span className="block text-slate-600 dark:text-slate-300">Volta para{voltaPara ? '' : ' (a unidade de antes não está ativa)'}</span>
+                                        <select value={escolhida} onChange={(e) => setDestino({ ...destino, [x.id]: e.target.value })} className={`${sel} w-full`}>
+                                            <option value="">Escolha a unidade…</option>
+                                            {ativas.map((u) => <option key={u.id} value={u.id}>{unidadeComOrgao(estado, u.id)}</option>)}
+                                        </select>
+                                    </label>
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!!restaurando || !escolhida} onClick={() => restaurar(x)}>
+                                        {restaurando === x.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" aria-hidden />} Restaurar
+                                    </Button>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     const [f, setF] = useState(FILTROS_VAZIOS);
+    const [verExcluidos, setVerExcluidos] = useState(false);
     const [avancado, setAvancado] = useState(false);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     // Paginado pelo servidor, dos mais recentes para os mais antigos; os
@@ -269,7 +329,11 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     <Button variant="ghost" size="sm" className="gap-1" onClick={() => setF(FILTROS_VAZIOS)}><X className="w-4 h-4" /> Limpar filtros</Button>
                 )}
                 <span className="text-sm text-slate-600 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}{q.hasNextPage ? ' carregados' : ''}</span>
+                {escopo === 'todos' && estado.isAdmin && (
+                    <Button variant="ghost" size="sm" className="gap-1" onClick={() => setVerExcluidos(true)}><Trash2 className="w-4 h-4" aria-hidden /> Excluídos</Button>
+                )}
             </div>
+            {escopo === 'todos' && estado.isAdmin && <ProcessosExcluidos orgId={orgId} estado={estado} aberto={verExcluidos} onFechar={() => setVerExcluidos(false)} onAbrir={(id) => { setVerExcluidos(false); onAbrir(id); }} />}
             {avancado && (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900/50">
                     <Campo rotulo="Unidade atual">
@@ -293,7 +357,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     <Campo rotulo="Status">
                         <select value={f.status} onChange={(e) => set('status', e.target.value)} className={`${sel} w-full`}>
                             <option value="">Todos</option>
-                            {Object.entries(STATUS_ROTULO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                            {Object.entries(STATUS_ROTULO).filter(([k]) => k !== 'excluido').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                         </select>
                     </Campo>
                     <Campo rotulo="Sigilo">

@@ -89,7 +89,7 @@ export function NovaUnidade({ orgId, aberto, onFechar, onCriada, orgaos = [], or
 export default function GestaoUnidade({ orgId, estado, unidadeId, onFechar, embutido = false }) {
     const unidade = estado.unidades.find((x) => x.id === unidadeId);
     if (!unidade) return null;
-    const corpo = <CorpoGestao key={unidade.id} orgId={orgId} estado={estado} unidade={unidade} />;
+    const corpo = <CorpoGestao key={unidade.id} orgId={orgId} estado={estado} unidade={unidade} onExcluida={onFechar} />;
     if (embutido) return corpo;
     return (
         <Dialog open onOpenChange={(o) => !o && onFechar()}>
@@ -104,9 +104,10 @@ export default function GestaoUnidade({ orgId, estado, unidadeId, onFechar, embu
     );
 }
 
-function CorpoGestao({ orgId, estado, unidade }) {
+function CorpoGestao({ orgId, estado, unidade, onExcluida }) {
     const pedidos = unidade.pedidos || [];
     return (
+        <>
         <Tabs defaultValue="equipe">
             <TabsList className="flex-wrap h-auto">
                 <TabsTrigger value="equipe">Equipe{pedidos.length > 0 && <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">{pedidos.length}</Badge>}</TabsTrigger>
@@ -122,6 +123,75 @@ function CorpoGestao({ orgId, estado, unidade }) {
             </TabsContent>
             {estado.isAdmin && <TabsContent value="dados" className="pt-3"><EditarDados orgId={orgId} unidade={unidade} orgaos={estado.orgaos || []} /></TabsContent>}
         </Tabs>
+        {(estado.isAdmin || unidade.criada_por_mim) && <ExcluirUnidade orgId={orgId} estado={estado} unidade={unidade} onExcluida={onExcluida} />}
+        </>
+    );
+}
+
+/**
+ * Excluir a unidade: primeiro mostra o que muda (processos, equipe, modelos);
+ * havendo processos, o admin escolhe a unidade que os recebe.
+ */
+function ExcluirUnidade({ orgId, estado, unidade, onExcluida }) {
+    const qc = useQueryClient();
+    const [impacto, setImpacto] = useState(null);
+    const [sucessora, setSucessora] = useState('');
+    const [ocupado, setOcupado] = useState(false);
+    const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== unidade.id);
+    const abrir = async () => {
+        setOcupado(true);
+        try {
+            setImpacto(await secConfig(orgId, 'excluirUnidade', { id: unidade.id, simular: true }));
+            setSucessora('');
+        } catch (e) { toast.error(e?.message || 'Não foi possível consultar a unidade'); } finally { setOcupado(false); }
+    };
+    const excluir = async () => {
+        setOcupado(true);
+        try {
+            const r = await secConfig(orgId, 'excluirUnidade', { id: unidade.id, sucessora: sucessora || undefined });
+            toast.success(r.processos ? `Unidade excluída. ${r.processos} processo(s) foram para ${r.sucessora}.` : 'Unidade excluída');
+            setImpacto(null);
+            await qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
+            qc.invalidateQueries({ queryKey: ['sec-processos', orgId] });
+            onExcluida?.();
+        } catch (e) { toast.error(e?.message || 'Não foi possível excluir'); } finally { setOcupado(false); }
+    };
+    const precisaSucessora = impacto?.processos > 0;
+    return (
+        <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
+            <Button type="button" variant="ghost" className="gap-1 text-red-700 dark:text-red-400" disabled={ocupado} onClick={abrir}>
+                {ocupado && !impacto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Excluir unidade
+            </Button>
+            <Dialog open={!!impacto} onOpenChange={(o) => !o && setImpacto(null)}>
+                <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                    <DialogHeader>
+                        <DialogTitle>Excluir {unidade.nome}?</DialogTitle>
+                        <DialogDescription>A unidade some das listas e não recebe mais processos. O nome dela continua nos autos de tudo por onde ela passou. A exclusão não se desfaz por aqui.</DialogDescription>
+                    </DialogHeader>
+                    {impacto && (
+                        <div className="space-y-3 text-sm">
+                            <ul className="list-disc pl-5 space-y-1">
+                                <li>{impacto.processos ? <><b>{impacto.processos === 1 ? 'O processo que está com ela vai' : `Os ${impacto.processos} processos que estão com ela vão`}</b>{impacto.arquivados ? ` (${impacto.arquivados} arquivado${impacto.arquivados > 1 ? 's' : ''})` : ''} para a unidade escolhida abaixo, com termo de remessa e as minutas junto.</> : 'Nenhum processo está com ela.'}</li>
+                                <li>{impacto.equipe ? `${impacto.equipe} pessoa(s) deixam de estar lotadas nela.` : 'Ela não tem equipe.'} Convites e pedidos de lotação em aberto deixam de valer.</li>
+                                {impacto.modelos > 0 && <li>{impacto.modelos} modelo(s) próprio(s) da unidade deixam de aparecer para quem redige.</li>}
+                            </ul>
+                            {precisaSucessora && !impacto.pode_mover && <p role="alert" className="text-amber-800 dark:text-amber-300">Como a unidade tem processos, só o admin do órgão pode excluí-la.</p>}
+                            {precisaSucessora && impacto.pode_mover && (
+                                opcoes.length
+                                    ? <NativeSelect id={`suc-${unidade.id}`} label="Unidade que recebe os processos" value={sucessora} onChange={setSucessora} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, u.nome])]} />
+                                    : <p role="alert" className="text-amber-800 dark:text-amber-300">Não há outra unidade ativa para receber os processos. Crie uma antes.</p>
+                            )}
+                        </div>
+                    )}
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setImpacto(null)}>Cancelar</Button>
+                        <Button variant="destructive" disabled={ocupado || (precisaSucessora && (!impacto?.pode_mover || !sucessora))} onClick={excluir}>
+                            {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Excluir unidade
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 }
 
@@ -132,7 +202,7 @@ function EditarDados({ orgId, unidade, orgaos }) {
     const salvar = async () => {
         setSalvando(true);
         try {
-            await secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: u });
+            await secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: u, lotacoes_base: u.lotacoes || [] });
             toast.success('Unidade salva');
             qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
         } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
@@ -148,6 +218,8 @@ function EditarDados({ orgId, unidade, orgaos }) {
 function Equipe({ orgId, estado, unidade }) {
     const qc = useQueryClient();
     const [lot, setLot] = useState(unidade.lotacoes || []);
+    // Equipe de onde a edição partiu: o servidor aplica só o que mudou sobre ela.
+    const [base, setBase] = useState(unidade.lotacoes || []);
     const [sujo, setSujo] = useState(false);
     const [ocupado, setOcupado] = useState(false);
     const [novo, setNovo] = useState({ uid: '', atribuicao: '' });
@@ -155,7 +227,8 @@ function Equipe({ orgId, estado, unidade }) {
     const [link, setLink] = useState(null);
     const [admissao, setAdmissao] = useState({}); // uid -> atribuição
     const lotacoesServidor = JSON.stringify(unidade.lotacoes || []);
-    useEffect(() => { setLot(unidade.lotacoes || []); setSujo(false); }, [lotacoesServidor]);
+    // Chegou equipe nova do servidor: sem edição em curso, mostra a nova; com edição, mantém o que a pessoa fez.
+    useEffect(() => { if (!sujo) { setLot(unidade.lotacoes || []); setBase(unidade.lotacoes || []); } }, [lotacoesServidor]);
 
     const membro = (uid) => estado.membros.find((m) => m.uid === uid);
     const disponiveis = estado.membros.filter((m) => !lot.some((l) => l.uid === m.uid));
@@ -167,7 +240,11 @@ function Equipe({ orgId, estado, unidade }) {
         setOcupado(true);
         try { const r = await fn(); if (ok) toast.success(ok); recarregar(); return r; } catch (e) { toast.error(e?.message || 'Não foi possível concluir'); return null; } finally { setOcupado(false); }
     };
-    const salvarEquipe = () => rodar(() => secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: { ...unidade, lotacoes: lot } }), 'Equipe salva').then((r) => r && setSujo(false));
+    const salvarEquipe = () => rodar(async () => {
+        const r = await secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: { ...unidade, lotacoes: lot }, lotacoes_base: base });
+        if (r?.atribuicoes_removidas) toast.message(`${r.atribuicoes_removidas} processo(s) ficaram sem responsável porque a pessoa saiu da equipe.`);
+        return r;
+    }, 'Equipe salva').then((r) => { if (r) { setSujo(false); setBase(lot); } });
     const convidar = async () => {
         const r = await rodar(() => secConfig(orgId, 'convidarEquipe', { unidadeId: unidade.id, ...convite }), null);
         if (r) { setLink(r); setConvite({ email: '', atribuicao: '', gestor: false }); }

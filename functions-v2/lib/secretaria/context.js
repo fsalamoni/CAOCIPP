@@ -29,6 +29,8 @@ exports.COL = {
     modelos: 'secModelos',
     unidadeConfig: 'secUnidadeConfig',
     convitesEquipe: 'secConvitesEquipe',
+    /** Contadores de uso das chamadas públicas, por hora (apagáveis por TTL em `expira_em`). */
+    limites: 'secLimites',
 };
 function exigirAuth(request) {
     if (!request.auth)
@@ -85,7 +87,7 @@ function exigirAdmin(c) {
 }
 /** Admin do órgão ou gestor da unidade. */
 function exigirGestor(c, unidadeId) {
-    const u = c.unidades.find((x) => x.id === unidadeId);
+    const u = c.unidades.find((x) => x.id === unidadeId && !x.excluida);
     if (!u)
         throw new https_1.HttpsError('not-found', 'Unidade não encontrada');
     if (!c.ctx.isAdmin && !c.gestorDe.includes(u.id)) {
@@ -104,7 +106,8 @@ async function lerProcesso(c, id, tx) {
     if (data && data.organization_id === c.orgId && (0, secretaria_1.ehParte)(data, c.ctx.uid)) {
         throw new https_1.HttpsError('failed-precondition', 'Você é parte neste processo. Acompanhe-o pelo Portal das partes.');
     }
-    if (!snap.exists || !data || data.organization_id !== c.orgId || !(0, secretaria_1.podeVer)(data, c.ctx)) {
+    // Excluído só reaparece pela lista de excluídos do admin (restaurar).
+    if (!snap.exists || !data || data.organization_id !== c.orgId || data.status === 'excluido' || !(0, secretaria_1.podeVer)(data, c.ctx)) {
         throw new https_1.HttpsError('not-found', 'Processo não encontrado');
     }
     return { ref, data };

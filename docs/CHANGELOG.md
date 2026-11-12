@@ -5,6 +5,25 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: excluir órgão, unidade e processo
+- **Excluir processo** (Mais › Excluir processo): o admin do órgão exclui
+  qualquer um; quem autuou exclui o próprio enquanto ninguém mais agiu nele.
+  Pede motivo, deixa termo nos autos e tira o processo das listas, da caixa,
+  do portal das partes e dos alertas. Nada se apaga: o admin vê os excluídos
+  em Processos › Todos › Excluídos e restaura.
+- **Excluir unidade**: mostra antes o que muda; se houver processos, o admin
+  escolhe a unidade que os recebe (com termo de remessa e as minutas). O
+  nome continua nos autos. Quem criou a unidade exclui a que está vazia.
+- **Excluir órgão interno**: o que está nele (unidades, subordinados, tipos e
+  modelos) vai para o destino escolhido, por padrão o órgão superior.
+- Equipe salva por duas pessoas ao mesmo tempo não perde ninguém; quem sai da
+  equipe deixa de ser responsável pelos processos da unidade.
+- Listas de Meu trabalho, Mesa e Painel sem o teto de 1000 processos; processo
+  aparece uma vez só em Meu trabalho (os outros motivos viram selos).
+- E-mail diário de prazos respeita "Nenhum e-mail"; conferência pública com
+  limite de 60 consultas por hora; pedido de assinatura gravado de uma vez;
+  envio de arquivo que falha não deixa arquivo solto.
+
 ### 11/11/2026 — Pente fino do Processo Eletrônico, etapa 5: unidades e modelos
 - **Desativar unidade**: o servidor recusa enquanto a unidade tiver processo
   em andamento ou sobrestado (antes o processo ficava preso numa unidade que

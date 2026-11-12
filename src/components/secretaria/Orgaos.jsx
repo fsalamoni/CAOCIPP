@@ -158,6 +158,7 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
     const [o, setO] = useState(inicial);
     const [ocupado, setOcupado] = useState(false);
     const [confirmar, setConfirmar] = useState(false);
+    const [destino, setDestino] = useState(inicial.pai_id || '');
     const set = (k, v) => setO((x) => ({ ...x, [k]: v }));
     const orgaos = estado.orgaos || [];
     const proibidos = o.id ? descendentes(orgaos, o.id) : new Set();
@@ -237,12 +238,28 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                     )}
                     {o.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={o.ativo !== false} onCheckedChange={(c) => set('ativo', c === true)} /> Órgão ativo</label>}
                 </div>
+                {o.id && confirmar && (
+                    <section role="alertdialog" aria-labelledby="og-excluir" className="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 space-y-3 text-sm">
+                        <h3 id="og-excluir" className="font-semibold text-red-900 dark:text-red-100">Excluir {inicial.nome}?</h3>
+                        {unidades.length || subordinados ? (
+                            estado.isAdmin ? (
+                                <>
+                                    <p>Neste órgão estão {[unidades.length && `${unidades.length} unidade${unidades.length > 1 ? 's' : ''}`, subordinados && `${subordinados} órgão${subordinados > 1 ? 's' : ''} subordinado${subordinados > 1 ? 's' : ''}`].filter(Boolean).join(' e ')}. Eles, os tipos de processo e os modelos do órgão passam para o destino abaixo. Os processos seguem nas mesmas unidades.</p>
+                                    <NativeSelect id="og-destino" label="Para onde vai o que está neste órgão" value={destino} onChange={setDestino}
+                                        options={[['', `Direto na entidade (${estado.orgao || 'sem órgão'})`], ...orgaos.filter((x) => !proibidos.has(x.id)).map((x) => [x.id, `${'— '.repeat(x.nivel - 1)}${x.nome}`])]} />
+                                </>
+                            ) : <p role="alert" className="text-amber-800 dark:text-amber-300">Este órgão tem unidades ou órgãos subordinados. Só o admin do órgão pode excluí-lo.</p>
+                        ) : <p>O órgão está vazio. Tipos de processo e modelos ligados a ele passam a valer para a entidade inteira.</p>}
+                        <div className="flex flex-wrap gap-2 justify-end">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setConfirmar(false)}>Manter o órgão</Button>
+                            <Button type="button" variant="destructive" size="sm" disabled={ocupado || (!estado.isAdmin && (unidades.length || subordinados))}
+                                onClick={() => rodar('removerOrgao', { id: o.id, destino: destino || null }, 'Órgão excluído')}>{ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Excluir órgão</Button>
+                        </div>
+                    </section>
+                )}
                 <DialogFooter className="gap-2 sm:justify-between">
                     <div>
-                        {o.id && !confirmar && <Button type="button" variant="ghost" className="gap-1 text-red-700 dark:text-red-400" onClick={() => setConfirmar(true)}><Trash2 className="w-4 h-4" /> Remover</Button>}
-                        {o.id && confirmar && (unidades.length || subordinados
-                            ? <p className="text-sm text-amber-800 dark:text-amber-300 max-w-xs" role="alert">Só dá para remover órgão vazio. Este tem {unidades.length} unidade(s) e {subordinados} órgão(s) subordinado(s): mova-os antes, ou desmarque “Órgão ativo”.</p>
-                            : <Button type="button" variant="destructive" disabled={ocupado} onClick={() => rodar('removerOrgao', { id: o.id }, 'Órgão removido')}>Confirmar remoção</Button>)}
+                        {o.id && !confirmar && (estado.isAdmin || inicial.criado_por === estado.uid) && <Button type="button" variant="ghost" className="gap-1 text-red-700 dark:text-red-400" onClick={() => setConfirmar(true)}><Trash2 className="w-4 h-4" /> Excluir órgão</Button>}
                     </div>
                     <div className="flex gap-2 justify-end">
                         <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>

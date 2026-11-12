@@ -95,8 +95,17 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         if (buf.length > secretaria_1.MAX_UPLOAD_BYTES)
             throw new https_1.HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
         const path = caminhoArquivo(c.orgId, procRef.id, ref.id);
-        await admin.storage().bucket().file(path).save(buf, { contentType: mime, resumable: false });
-        await ref.set(Object.assign(Object.assign({}, base), { origem: 'upload', mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, sha256: (0, secretaria_1.sha256)(buf), storage_path: path, paginas: await (0, autos_1.paginasDeArquivo)(buf, mime) }));
+        const paginas = await (0, autos_1.paginasDeArquivo)(buf, mime);
+        const arquivo = admin.storage().bucket().file(path);
+        await arquivo.save(buf, { contentType: mime, resumable: false });
+        try {
+            await ref.set(Object.assign(Object.assign({}, base), { origem: 'upload', mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, sha256: (0, secretaria_1.sha256)(buf), storage_path: path, paginas }));
+        }
+        catch (e) {
+            // Sem o registro, o arquivo ficaria no armazenamento sem dono.
+            await arquivo.delete({ ignoreNotFound: true }).catch(() => undefined);
+            throw e;
+        }
         return { success: true, id: ref.id };
     }
     if (p.action === 'editarMinuta') {
@@ -179,8 +188,18 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         const mem = (await c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`).get()).data();
         const nome = String((mem === null || mem === void 0 ? void 0 : mem.user_name) || (mem === null || mem === void 0 ? void 0 : mem.user_email) || 'Membro');
         const pedido = { uid, nome, por: c.userName, em: agoraIso };
-        await ref.update({ assinaturas_pedidas: [...(doc.assinaturas_pedidas || []).filter((x) => x.uid !== uid), pedido] });
-        await procRef.update({ assinaturas_pendentes: [...semPedidos(proc.assinaturas_pendentes, ref.id, uid), { docId: ref.id, uid, titulo: doc.titulo }] });
+        // Documento e processo mudam juntos, lidos de novo: dois pedidos ao mesmo tempo não se apagam.
+        await c.db.runTransaction(async (tx) => {
+            var _a;
+            const [dSnap, pSnap] = await Promise.all([tx.get(ref), tx.get(procRef)]);
+            const d = dSnap.data();
+            if (!d || d.status !== 'minuta')
+                throw new https_1.HttpsError('failed-precondition', 'O documento não é mais uma minuta');
+            if ((d.assinaturas || []).some((a) => a.uid === uid))
+                throw new https_1.HttpsError('already-exists', 'Essa pessoa já assinou');
+            tx.update(ref, { assinaturas_pedidas: [...(d.assinaturas_pedidas || []).filter((x) => x.uid !== uid), pedido] });
+            tx.update(procRef, { assinaturas_pendentes: [...semPedidos((_a = pSnap.data()) === null || _a === void 0 ? void 0 : _a.assinaturas_pendentes, ref.id, uid), { docId: ref.id, uid, titulo: d.titulo }] });
+        });
         void (0, avisosEquipe_1.avisarPedidoAssinatura)(c, uid, proc, procRef.id, String(doc.titulo));
         return { success: true };
     }

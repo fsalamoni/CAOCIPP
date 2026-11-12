@@ -1,4 +1,6 @@
 import * as admin from 'firebase-admin';
+import { createHash } from 'crypto';
+import { Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { hojeBrasil, somarDias } from '../shared/secretaria';
@@ -6,8 +8,27 @@ import { sendEmail } from '../shared/email';
 import { APP_URL, normalizarCodigo } from './autos';
 import { COL, REGION } from './context';
 import { lembrarPrazosDasPartes } from './portalAvisos';
-import { enviarResumosDiarios, notificarPessoas } from './avisosEquipe';
+import { enviarResumosDiarios, notificarPessoas, prefDe } from './avisosEquipe';
 import { cienciaPorDecurso } from './comunicacoes';
+
+export const CONFERENCIAS_POR_HORA = 60;
+
+/**
+ * Chamada pública: no máximo `limite` por hora por endereço de rede (guardado
+ * só como hash). Freia quem tenta adivinhar códigos sem atrapalhar quem confere.
+ */
+async function limitarPorHora(chave: string, origem: string, limite: number) {
+    const db = admin.firestore();
+    const hora = new Date().toISOString().slice(0, 13);
+    const id = `${chave}_${createHash('sha256').update(origem || 'sem-origem').digest('hex').slice(0, 32)}_${hora}`;
+    const ref = db.collection(COL.limites).doc(id);
+    const n = await db.runTransaction(async (tx) => {
+        const atual = Number((await tx.get(ref)).data()?.n || 0) + 1;
+        tx.set(ref, { n: atual, expira_em: Timestamp.fromMillis(Date.now() + 2 * 3600 * 1000) });
+        return atual;
+    });
+    if (n > limite) throw new HttpsError('resource-exhausted', 'Muitas consultas seguidas deste endereço. Tente de novo daqui a uma hora.');
+}
 
 /**
  * Conferência pública (sem login) de um documento juntado pelo código
@@ -15,6 +36,8 @@ import { cienciaPorDecurso } from './comunicacoes';
  * tem o próprio documento.
  */
 export const secretariaConferir = onCall<{ codigo?: string }>({ region: REGION }, async (request) => {
+    const ip = String(request.rawRequest?.headers?.['x-forwarded-for'] || '').split(',')[0].trim() || request.rawRequest?.ip || '';
+    await limitarPorHora('conferir', ip, CONFERENCIAS_POR_HORA);
     const codigo = normalizarCodigo(request.data?.codigo);
     if (!codigo) throw new HttpsError('invalid-argument', 'Código inválido. Ele tem 16 letras e números, no formato XXXX-XXXX-XXXX-XXXX.');
     const v = (await admin.firestore().collection(COL.verificacao).doc(codigo).get()).data();
@@ -82,9 +105,14 @@ export const secretariaAlertaPrazos = onSchedule(
                 }
             }
             for (const [uid, linhas] of porPessoa) {
-                const mem = (await db.collection('userOrganizations').doc(`${uid}_${orgId}`).get()).data();
+                const [memSnap, prefSnap] = await Promise.all([
+                    db.collection('userOrganizations').doc(`${uid}_${orgId}`).get(),
+                    db.collection('userPreferences').doc(uid).get(),
+                ]);
+                const mem = memSnap.data();
                 const email = mem?.user_email;
-                if (!email) continue;
+                // Quem escolheu "Nenhum e-mail" fica só com o sino; vínculo desativado não recebe nada.
+                if (!email || mem?.active === false || prefDe(prefSnap.data()?.notificationPreferences).email === 'nenhum') continue;
                 await sendEmail({
                     to: String(email),
                     subject: `Processo Eletrônico: ${linhas.length} prazo(s) vencendo ou vencido(s)`,

@@ -50,7 +50,11 @@ export const nomeOrgao = (estado, orgaoId) => (estado?.orgaos || []).find((o) =>
 /** "Presidência › Secretaria": a unidade com o órgão interno dela, quando há. */
 export function unidadeComOrgao(estado, unidadeId, vazio = '—') {
     const u = (estado?.unidades || []).find((x) => x.id === unidadeId);
-    if (!u) return vazio;
+    if (!u) {
+        // Unidade excluída: o nome continua valendo para o que já está nos autos.
+        const ex = (estado?.unidades_excluidas || []).find((x) => x.id === unidadeId);
+        return ex ? `${ex.nome} (excluída)` : vazio;
+    }
     const o = nomeOrgao(estado, u.orgao_id);
     return o ? `${o} › ${u.nome}` : u.nome;
 }

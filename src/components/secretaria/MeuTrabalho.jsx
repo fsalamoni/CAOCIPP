@@ -32,9 +32,12 @@ export function gruposDeTrabalho(processos, estado) {
         { id: 'vencendo', titulo: 'Prazo vencendo em 7 dias', icone: CalendarClock, itens: ativos.filter((p) => p.proximo_vencimento && p.proximo_vencimento <= limite) },
         { id: 'chegaram', titulo: 'Chegaram hoje', icone: Inbox, itens: ativos.filter((p) => (p.recebido_em || '').slice(0, 10) === hoje && p.responsavel_uid !== estado.uid) },
         { id: 'semdono', titulo: 'Na minha unidade, sem responsável', icone: AlertCircle, itens: ativos.filter((p) => !p.responsavel_uid && (p.recebido_em || '').slice(0, 10) !== hoje) },
-    ].filter((g) => g.itens.length);
-    const total = new Set(grupos.flatMap((g) => g.itens.map((p) => p.id))).size;
-    return { grupos, total, hoje };
+    ];
+    // Cada processo aparece uma vez, no primeiro grupo em que cabe (a ordem acima é a prioridade);
+    // os outros motivos viram selos na própria linha.
+    const vistos = new Set();
+    for (const g of grupos) g.itens = g.itens.filter((p) => !vistos.has(p.id) && vistos.add(p.id));
+    return { grupos: grupos.filter((g) => g.itens.length), total: vistos.size, hoje };
 }
 
 export default function MeuTrabalho({ orgId, estado, onAbrir }) {
@@ -83,8 +86,9 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
                                     </span>
                                     {p.urgente && g.id !== 'urgentes' && <SeloUrgente motivo={p.urgencia?.motivo} />}
                                     {g.id === 'urgentes' && p.urgencia?.motivo && <span className="text-xs text-red-800 dark:text-red-200 max-w-md truncate" title={p.urgencia.motivo}>{p.urgencia.motivo}</span>}
-                                    {g.id === 'assinar' && <Badge className="bg-amber-500 hover:bg-amber-500">{(p.assinaturas_pendentes || []).filter((x) => x.uid === estado.uid).map((x) => x.titulo).join(', ')}</Badge>}
-                                    {g.id === 'orientacao' && p.orientacao && <span className="text-xs text-amber-800 dark:text-amber-200 max-w-md truncate" title={p.orientacao.texto}>{p.orientacao.texto}</span>}
+                                    {(p.assinaturas_pendentes || []).some((x) => x.uid === estado.uid) && <Badge className="bg-amber-500 hover:bg-amber-500 gap-1"><PenLine className="w-3 h-3" aria-hidden />Assinar: {(p.assinaturas_pendentes || []).filter((x) => x.uid === estado.uid).map((x) => x.titulo).join(', ')}</Badge>}
+                                    {p.orientacao && <span className="text-xs text-amber-800 dark:text-amber-200 max-w-md truncate" title={p.orientacao.texto}>Orientação: {p.orientacao.texto}</span>}
+                                    {p.responsavel_uid === estado.uid && g.id !== 'comigo' && <Badge variant="outline" className="gap-1"><UserCheck className="w-3 h-3" aria-hidden />Comigo</Badge>}
                                     {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}</Badge>}
                                     {p.proximo_vencimento && <Badge variant="outline" className={vencido ? 'border-red-400 text-red-700 dark:text-red-300' : ''}>Prazo {vencido ? 'vencido' : 'vence'} {p.proximo_vencimento.split('-').reverse().join('/')}</Badge>}
                                     {p.status !== 'em_tramitacao' && <Badge variant="outline">{STATUS_ROTULO[p.status]}</Badge>}

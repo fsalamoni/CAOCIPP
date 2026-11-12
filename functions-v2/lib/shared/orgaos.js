@@ -47,6 +47,7 @@ function sanitizeOrgao(raw, id, ordem = 0) {
         descricao: (0, secretaria_1.texto)(o.descricao, 1000),
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,
+        criado_por: typeof o.criado_por === 'string' && o.criado_por ? o.criado_por.slice(0, 128) : null,
     };
 }
 /** Lê a lista gravada, tolerando lixo (nunca lança). */

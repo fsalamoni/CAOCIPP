@@ -541,3 +541,36 @@ export function documentoEfetivo<T extends object>(
     const tipos = [...new Set([...doOrgao, ...(unidade?.tipos_documento || [])])];
     return { ...base, tipos_documento: tipos } as T & { tipos_documento: string[] };
 }
+
+/**
+ * Exclusão de processo: some das listas e do portal, nada se apaga e o admin
+ * restaura. O admin do órgão exclui qualquer um. Quem autuou exclui o próprio
+ * enquanto ninguém mais agiu nele: ainda na sua unidade, sem parte habilitada
+ * no portal e com todos os eventos praticados por ele.
+ */
+export function podeExcluirProcesso(
+    proc: ProcessoAcesso & { autuado_por?: string; status?: string },
+    movimentos: Array<{ autor_uid?: string }>,
+    ctx: ContextoUsuario,
+): boolean {
+    if (proc.status === 'excluido' || ehParte(proc, ctx.uid)) return false;
+    if (ctx.isAdmin) return true;
+    return proc.autuado_por === ctx.uid && podeAgir(proc, ctx) && !(proc.partes_uids || []).length
+        && movimentos.every((m) => m.autor_uid === ctx.uid);
+}
+
+/**
+ * Equipe salva por quem partiu de uma versão antiga: aplica só o que essa
+ * pessoa mudou (tirou, pôs ou alterou) sobre a equipe atual, sem desfazer quem
+ * foi admitido ou alterado nesse meio-tempo.
+ */
+export function mesclarLotacoes<T extends { uid: string }>(atual: T[], base: T[], minha: T[]): T[] {
+    const igual = (a: T | undefined, b: T | undefined) => jsonCanonico(a ?? null) === jsonCanonico(b ?? null);
+    const naBase = new Map(base.map((l) => [l.uid, l]));
+    const naMinha = new Set(minha.map((l) => l.uid));
+    const removidos = new Set(base.filter((l) => !naMinha.has(l.uid)).map((l) => l.uid));
+    const mudados = new Map(minha.filter((l) => !igual(l, naBase.get(l.uid))).map((l) => [l.uid, l]));
+    const out = atual.filter((l) => !removidos.has(l.uid)).map((l) => mudados.get(l.uid) || l);
+    for (const [uid, l] of mudados) if (!out.some((x) => x.uid === uid)) out.push(l);
+    return out;
+}
