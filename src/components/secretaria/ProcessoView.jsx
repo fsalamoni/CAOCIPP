@@ -17,7 +17,13 @@ import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, bas
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
-import { faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
+import { camposFaltandoNaFase, faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
+
+/** Formulário do tipo do processo hoje (também de tipo excluído); null se a tela não o conhece. */
+const formDoTipo = (estado, p) => {
+    const t = [...(estado.tipos || []), ...(estado.tipos_excluidos || [])].find((x) => x.id === p.tipo_id);
+    return t ? formularioDe(t) : null;
+};
 import LeitorAutos from './LeitorAutos';
 import EventosAutos from './EventosAutos';
 import { CartaoComunicacoes, ExpedirComunicacao, nomeEspecie } from './Comunicacoes';
@@ -196,6 +202,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     // Documentos que o rito exige na fase (dela ou de uma ação) e o que já foi juntado.
     const exigencias = situacaoDaFase(faseAtual, p.exigencias_cumpridas);
     const docsDaFase = exigencias.filter((e) => e.acao_idx === undefined);
+    // Dados que o tipo de processo exige para sair desta fase e ainda faltam.
+    const camposFalta = camposFaltandoNaFase(p, formDoTipo(estado, p));
     const itemExigencia = (e) => (
         <ItemExigencia e={e} podeMexer={podeMexer} ocupado={ocupado} modelo={(estado.modelos || []).find((m) => m.id === e.modelo_id)}
             onModelo={usarModelo} onNovo={() => setNovoDoc(true)} />
@@ -398,6 +406,19 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <ul className="space-y-1 mt-1">{docsDaFase.map((e) => <li key={e.chave}>{itemExigencia(e)}</li>)}</ul>
                         </div>
                     )}
+                    {camposFalta.length > 0 && (
+                        <div>
+                            <p className="text-sm font-medium">Dados exigidos para sair desta fase</p>
+                            <ul className="space-y-1 mt-1">
+                                {camposFalta.map((c) => (
+                                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-3 py-2 text-sm">
+                                        <span>Falta preencher <b>{c.rotulo}</b></span>
+                                        {podeMexer && <Button size="sm" variant="outline" className="min-h-[2.25rem]" disabled={ocupado} onClick={() => setAcao({ tipo: 'dados', foco: c.id })}>Preencher</Button>}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                     {(niveis.fase !== 'autos' || niveis.remessas !== 'autos') && (
                         <p className="text-xs text-slate-600 dark:text-slate-400">
                             {/* Mudança de fase: vale o mais reservado das duas; "sem evento" só se as duas pedem. */}
@@ -417,7 +438,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             {Object.entries(faseAtual.condicoes).map(([id, cond]) => <li key={id}>Se {cond}: segue para <b>{p.fases.find((f) => f.id === id)?.nome || id}</b></li>)}
                         </ul>
                     )}
-                    {!faseAtual?.acoes?.length && !modelosDaFase.length && !faseAtual?.orientacao && !exigencias.length && (
+                    {!faseAtual?.acoes?.length && !modelosDaFase.length && !faseAtual?.orientacao && !exigencias.length && !camposFalta.length && (
                         <p className="text-sm text-slate-600">O rito não detalha esta fase. {podeMexer ? 'Use Novo documento para redigir e o botão acima para seguir.' : ''}</p>
                     )}
                     <details className="group text-sm">
@@ -644,7 +665,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onEnviar={async (valor) => { const ok = await mov('marcarAcao', { acao_idx: registrar.idx, feita: true, valor, version: registrar.version }, 'Ação registrada'); if (ok) setRegistrar(null); return ok; }} />
 
             {acao?.tipo === 'dados' && (
-                <EditarDados p={p} tipo={[...(estado.tipos || []), ...(estado.tipos_excluidos || [])].find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
+                <EditarDados p={p} foco={acao.foco} tipo={[...(estado.tipos || []), ...(estado.tipos_excluidos || [])].find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
                     onSalvar={(dados) => mov('alterarDados', dados, 'Dados do processo alterados')} />
             )}
 
@@ -824,7 +845,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     const faseDoProc = p.fases.find((f) => f.id === p.fase_atual);
     const exigDocs = pendentesDaFase(faseDoProc, p.exigencias_cumpridas);
     // Sair da fase com exigência em aberto (documento ou ação obrigatória): o motivo vira a dispensa, registrada.
-    const exigPendentes = faltaNaFase(faseDoProc, p.exigencias_cumpridas, p.acoes_feitas?.[p.fase_atual]);
+    const exigPendentes = [...faltaNaFase(faseDoProc, p.exigencias_cumpridas, p.acoes_feitas?.[p.fase_atual]),
+        ...camposFaltandoNaFase(p, formDoTipo(estado, p)).map((c) => ({ descricao: `Preencher "${c.rotulo}"` }))];
     const avisoDispensa = exigPendentes.length > 0 && (
         <p className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-3 py-2" role="status">
             O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa, que fica registrado.
@@ -1127,10 +1149,16 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
 }
 
 /** Corrige a descrição e os campos próprios do tipo; o que mudou vai para o histórico. */
-function EditarDados({ p, tipo, ocupado, onFechar, onSalvar }) {
+function EditarDados({ p, tipo, foco, ocupado, onFechar, onSalvar }) {
     const form = formularioDe(tipo);
+    // Veio de "Preencher": leva direto ao campo que falta.
+    useEffect(() => {
+        if (!foco) return undefined;
+        const t = setTimeout(() => document.getElementById(`ed-${foco}`)?.focus(), 120);
+        return () => clearTimeout(t);
+    }, [foco]);
     const [descricao, setDescricao] = useState(p.descricao || '');
-    const [campos, setCampos] = useState(() => valoresDe(p.campos));
+    const [campos, setCampos] = useState(() => valoresDe(p.campos, form));
     const [motivo, setMotivo] = useState('');
     const falta = faltando({ ...form, assunto: 'opcional', partes: 'opcional', origem: 'opcional' }, { descricao, campos });
     // Campos que o tipo deixou de ter continuam gravados, só para leitura.

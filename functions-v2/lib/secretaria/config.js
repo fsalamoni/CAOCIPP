@@ -702,6 +702,17 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         catch (e) {
             (0, context_1.erroUsuario)(e);
         }
+        // "Exigido para sair das fases": só fases do rito escolhido.
+        const faseIds = new Set((rito.fases || []).map((f) => f.id));
+        formulario.campos = formulario.campos.map((_a) => {
+            var { exigir_em: ex } = _a, x = __rest(_a, ["exigir_em"]);
+            const l = (ex || []).filter((f) => faseIds.has(f));
+            // Todas as fases marcadas sumiram do rito: o campo ficaria sem exigência nenhuma sem ninguém ver.
+            if ((ex === null || ex === void 0 ? void 0 : ex.length) && !l.length) {
+                throw new https_1.HttpsError('invalid-argument', `"${x.rotulo}": as fases marcadas em "Exigir para sair das fases" não existem no rito deste tipo. Marque outras ou volte a torná-lo obrigatório.`);
+            }
+            return l.length ? Object.assign(Object.assign({}, x), { exigir_em: l }) : x;
+        });
         const dados = Object.assign(Object.assign({ nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao, sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null }, ('orgao_id' in t ? { orgao_id: orgaoId || null } : {})), { ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid });
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {

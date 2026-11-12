@@ -9,9 +9,16 @@
 
 import { MAX_TEXTO_CURTO, MAX_TEXTO_LONGO, texto } from './secretaria';
 
-export const TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao'] as const;
+export const TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'multipla', 'sim_nao'] as const;
 export type TipoCampo = typeof TIPOS_CAMPO[number];
-export const MAX_CAMPOS = 20;
+/** Formato que valida e mostra o valor: os de texto curto e, para número, moeda. */
+export const FORMATOS = ['email', 'telefone', 'cpf_cnpj', 'link', 'moeda'] as const;
+export type Formato = typeof FORMATOS[number];
+const FORMATO_DO_TIPO: Record<Formato, TipoCampo> = { email: 'texto', telefone: 'texto', cpf_cnpj: 'texto', link: 'texto', moeda: 'numero' };
+const COM_OPCOES: TipoCampo[] = ['lista', 'multipla'];
+/** Campos que podem decidir se outro aparece. */
+const CONDICIONANTES: TipoCampo[] = ['lista', 'multipla', 'sim_nao'];
+export const MAX_CAMPOS = 40;
 export const MAX_OPCOES = 30;
 const USOS = ['opcional', 'obrigatorio', 'oculto'] as const;
 export type UsoCampo = typeof USOS[number];
@@ -25,7 +32,15 @@ export interface CampoDef {
     opcoes: string[];
     /** Aparece para as partes no portal. Por padrão, não. */
     visivel_partes: boolean;
+    formato?: Formato;
+    /** Título de seção mostrado antes do primeiro campo dela. */
+    secao?: string;
+    /** Só aparece (e só vale) quando um campo anterior tem este valor. */
+    condicao?: Condicao;
+    /** Fases do rito que só se deixam com o campo preenchido (na autuação, opcional). */
+    exigir_em?: string[];
 }
+export interface Condicao { campo_id: string; valor: string | boolean }
 /** Campos padrão do "Novo processo". Os de escolha (sigilo, urgência, unidade) só se mostram ou não. */
 export const PADROES = ['assunto', 'descricao', 'partes', 'origem', 'sigilo', 'urgencia', 'unidade'] as const;
 export type Padrao = typeof PADROES[number];
@@ -54,12 +69,14 @@ export interface Formulario {
     polos: string[];
     campos: CampoDef[];
 }
+export type Valor = string | number | boolean | string[];
 export interface CampoValor {
     id: string;
     rotulo: string;
     tipo: TipoCampo;
-    valor: string | number | boolean;
+    valor: Valor;
     visivel_partes: boolean;
+    formato?: Formato;
 }
 
 const uso = (v: unknown, padrao: UsoCampo = 'opcional'): UsoCampo => (USOS.includes(v as UsoCampo) ? (v as UsoCampo) : padrao);
@@ -103,15 +120,34 @@ export function sanitizeFormulario(input: unknown): Formulario {
         const rotulo = texto(o.rotulo, 80);
         if (!rotulo) throw new Error(`Dê um nome ao campo ${i + 1}`);
         const tipo = TIPOS_CAMPO.includes(o.tipo as TipoCampo) ? (o.tipo as TipoCampo) : 'texto';
-        const opcoes = tipo === 'lista'
+        const opcoes = COM_OPCOES.includes(tipo)
             ? [...new Set((Array.isArray(o.opcoes) ? o.opcoes : []).map((s) => texto(s, 80)).filter(Boolean))].slice(0, MAX_OPCOES)
             : [];
-        if (tipo === 'lista' && opcoes.length < 2) throw new Error(`O campo "${rotulo}" é uma lista: informe ao menos duas opções`);
+        if (COM_OPCOES.includes(tipo) && opcoes.length < 2) throw new Error(`O campo "${rotulo}" é uma lista: informe ao menos duas opções`);
+        const formato = FORMATOS.includes(o.formato as Formato) && FORMATO_DO_TIPO[o.formato as Formato] === tipo ? (o.formato as Formato) : undefined;
+        const secao = texto(o.secao, 60);
+        const exigir = [...new Set((Array.isArray(o.exigir_em) ? o.exigir_em : []).map((s) => texto(s, 60)).filter(Boolean))].slice(0, 30);
         // O id identifica o campo nos processos já autuados: não muda quando o nome muda.
         let id = typeof o.id === 'string' && /^[a-z0-9_]{1,24}$/.test(o.id) ? o.id : '';
         if (!id || ids.has(id)) id = `c${Date.now().toString(36)}${i}`;
         ids.add(id);
-        return { id, rotulo, tipo, obrigatorio: o.obrigatorio === true, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true };
+        return {
+            id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true,
+            ...(formato ? { formato } : {}), ...(secao ? { secao } : {}), ...(exigir.length ? { exigir_em: exigir } : {}),
+            ...(o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao as Condicao } : {}),
+        };
+    });
+    // Condição: aponta um campo de escolha que vem antes, e um valor que ele aceita.
+    campos.forEach((c, i) => {
+        if (!c.condicao) return;
+        const alvo = campos.slice(0, i).find((d) => d.id === String(c.condicao!.campo_id));
+        if (!alvo || !CONDICIONANTES.includes(alvo.tipo)) {
+            throw new Error(`"${c.rotulo}" só pode depender de um campo de lista ou de sim ou não que venha antes dele`);
+        }
+        const v = c.condicao.valor;
+        const valor = alvo.tipo === 'sim_nao' ? (v === true || v === 'sim' ? true : v === false || v === 'nao' ? false : null) : typeof v === 'string' && alvo.opcoes.includes(texto(v, 80)) ? texto(v, 80) : null;
+        if (valor === null) throw new Error(`Escolha quando "${c.rotulo}" aparece: um valor de "${alvo.rotulo}"`);
+        c.condicao = { campo_id: alvo.id, valor };
     });
     const padroes = padroesDe(src);
     const reservados = [...Object.values(padroes.rotulos) as string[], 'assunto', 'descrição', 'descricao', 'partes'];
@@ -125,11 +161,74 @@ export function sanitizeFormulario(input: unknown): Formulario {
     return { ...padroes, campos };
 }
 
-const vazio = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && !v.trim());
+const vazio = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length);
+
+const digitos = (s: string) => s.replace(/\D/g, '');
+// Valor de cada caractere no cálculo: dígito vale o próprio número; letra (CNPJ alfanumérico) vale o código ASCII menos 48.
+function dv(base: string, pesos: number[]): number {
+    const r = pesos.reduce((t, p, i) => t + (base.charCodeAt(i) - 48) * p, 0) % 11;
+    return r < 2 ? 0 : 11 - r;
+}
+/**
+ * CPF (11 dígitos) ou CNPJ (14 posições; as 12 primeiras podem ter letras,
+ * IN RFB 2.229/2024), com os dígitos verificadores. Devolve formatado ou null.
+ */
+export function cpfCnpj(s: string): string | null {
+    const d = s.toUpperCase().replace(/[\s./-]/g, '');
+    if (/^(.)\1+$/.test(d)) return null;
+    if (/^\d{11}$/.test(d)) {
+        const ok = dv(d, [10, 9, 8, 7, 6, 5, 4, 3, 2]) === Number(d[9]) && dv(d, [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]) === Number(d[10]);
+        return ok ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : null;
+    }
+    if (/^[0-9A-Z]{12}\d{2}$/.test(d)) {
+        const ok = dv(d, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === Number(d[12]) && dv(d, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === Number(d[13]);
+        return ok ? `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}` : null;
+    }
+    return null;
+}
+
+/** Endereço da internet só http ou https; sem esquema, vale https (exemplo.org:8080 é porta, não esquema). */
+export function linkValido(s: string): string | null {
+    let u: URL | null = null;
+    const comEsquema = /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(s);
+    try { u = new URL(comEsquema ? s : `https://${s}`); } catch { u = null; }
+    if (!u || !['http:', 'https:'].includes(u.protocol) || !u.hostname.includes('.') || u.href.length > 500) return null;
+    return u.href;
+}
+
+/** Texto curto conforme o formato. Lança Error se não servir. */
+function comFormato(rotulo: string, formato: Formato | undefined, s: string): string {
+    if (formato === 'email') {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) || s.length > 120) throw new Error(`"${rotulo}" precisa ser um e-mail válido`);
+        return s.toLowerCase();
+    }
+    if (formato === 'telefone') {
+        const n = digitos(s).length;
+        if (!/^[\d\s()+.-]+$/.test(s) || s.length > 40 || n < 10 || n > 13) throw new Error(`"${rotulo}" precisa ser um telefone com DDD`);
+        return s;
+    }
+    if (formato === 'cpf_cnpj') {
+        const f = cpfCnpj(s);
+        if (!f) throw new Error(`"${rotulo}" precisa ser um CPF ou CNPJ válido`);
+        return f;
+    }
+    if (formato === 'link') {
+        const href = linkValido(s);
+        if (!href) throw new Error(`"${rotulo}" precisa ser um endereço da internet`);
+        return href;
+    }
+    return s;
+}
 
 /** Um valor, já no formato de gravar; null se veio vazio. Lança Error se inválido. */
-export function valorDe(c: Pick<CampoDef, 'rotulo' | 'tipo' | 'opcoes'>, v: unknown): string | number | boolean | null {
+export function valorDe(c: Pick<CampoDef, 'rotulo' | 'tipo' | 'opcoes'> & { formato?: Formato }, v: unknown): Valor | null {
     if (vazio(v)) return null;
+    if (c.tipo === 'multipla') {
+        const l = [...new Set((Array.isArray(v) ? v : [v]).map((x) => String(x ?? '').trim()).filter(Boolean))];
+        if (l.some((x) => !c.opcoes.includes(x))) throw new Error(`Escolha entre as opções de "${c.rotulo}"`);
+        // Na ordem das opções, para mostrar e comparar sempre igual.
+        return l.length ? c.opcoes.filter((x) => l.includes(x)) : null;
+    }
     if (c.tipo === 'sim_nao') {
         if (v === true || v === 'sim') return true;
         if (v === false || v === 'nao') return false;
@@ -139,7 +238,9 @@ export function valorDe(c: Pick<CampoDef, 'rotulo' | 'tipo' | 'opcoes'>, v: unkn
         const s = typeof v === 'number' ? String(v) : String(v).trim().replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
         const n = Number(s);
         if (!/^-?\d+(\.\d+)?$/.test(s) || !Number.isFinite(n)) throw new Error(`"${c.rotulo}" precisa ser um número`);
-        return n;
+        const r = c.formato === 'moeda' ? Math.round(n * 100) / 100 : n;
+        if (!Number.isFinite(r) || Math.abs(r) > 1e15) throw new Error(`"${c.rotulo}" está fora do limite`);
+        return r;
     }
     const s = String(v).trim();
     if (c.tipo === 'data') {
@@ -151,24 +252,84 @@ export function valorDe(c: Pick<CampoDef, 'rotulo' | 'tipo' | 'opcoes'>, v: unkn
         if (!c.opcoes.includes(s)) throw new Error(`Escolha uma das opções de "${c.rotulo}"`);
         return s;
     }
+    if (c.tipo === 'texto' && c.formato) return comFormato(c.rotulo, c.formato, s);
     return s.slice(0, c.tipo === 'texto_longo' ? MAX_TEXTO_LONGO : MAX_TEXTO_CURTO);
 }
+
+/** O valor atende a condição? (lista: igual; múltipla: entre os marcados; sim ou não: igual). */
+export const atendeCondicao = (valor: Valor | null | undefined, cond: Condicao) =>
+    Array.isArray(valor) ? valor.includes(String(cond.valor)) : valor === cond.valor;
 
 /**
  * Confere o que foi preenchido contra o formulário do tipo e devolve os campos
  * a gravar no processo (cópia do nome e do tipo: mudar o tipo depois não
  * altera processos já autuados). Lança Error com mensagem para o usuário.
  */
-export function validarCampos(form: Formulario, valores: unknown): CampoValor[] {
+/** O valor veio igual ao gravado, como a tela o mostra (espelho de valoresDe no cliente)? */
+function igualAoGravado(a: CampoValor, bruto: unknown): boolean {
+    if (Array.isArray(a.valor)) return Array.isArray(bruto) && bruto.length === a.valor.length && bruto.every((x, i) => x === (a.valor as string[])[i]);
+    if (a.tipo === 'sim_nao') return bruto === a.valor || bruto === (a.valor ? 'sim' : 'nao');
+    if (a.tipo === 'numero') return bruto === a.valor || String(bruto ?? '').trim() === String(a.valor).replace('.', ',');
+    return typeof bruto === 'string' && bruto.trim() === String(a.valor);
+}
+
+/**
+ * `antes` (ao corrigir os dados): valor que voltou igual ao gravado fica como
+ * está, mesmo que o tipo tenha mudado depois (formato, opções, tipo do campo).
+ * Assim um processo antigo não trava nem ganha diferença que ninguém fez.
+ */
+export function validarCampos(form: Formulario, valores: unknown, antes: CampoValor[] = []): CampoValor[] {
     const v = (valores && typeof valores === 'object' ? valores : {}) as Record<string, unknown>;
     const out: CampoValor[] = [];
+    const lidos = new Map<string, Valor>();
+    const gravados = new Map(antes.map((a) => [a.id, a]));
     for (const c of form.campos) {
-        const valor = valorDe(c, v[c.id]);
-        if (valor === null) {
-            if (c.obrigatorio) throw new Error(`Preencha "${c.rotulo}"`);
+        // Campo que não aparece (a condição não se cumpre) não vale nem é exigido.
+        if (c.condicao && !atendeCondicao(lidos.get(c.condicao.campo_id), c.condicao)) continue;
+        const gravado = gravados.get(c.id);
+        if (gravado && igualAoGravado(gravado, v[c.id])) {
+            lidos.set(c.id, gravado.valor);
+            out.push({ ...gravado, rotulo: c.rotulo, visivel_partes: c.visivel_partes });
             continue;
         }
-        out.push({ id: c.id, rotulo: c.rotulo, tipo: c.tipo, valor, visivel_partes: c.visivel_partes });
+        const valor = valorDe(c, v[c.id]);
+        if (valor === null) {
+            if (c.obrigatorio && !c.exigir_em?.length) throw new Error(`Preencha "${c.rotulo}"`);
+            continue;
+        }
+        lidos.set(c.id, valor);
+        out.push({ id: c.id, rotulo: c.rotulo, tipo: c.tipo, valor, visivel_partes: c.visivel_partes, ...(c.formato ? { formato: c.formato } : {}) });
+    }
+    return out;
+}
+
+export interface CampoExigido { id: string; rotulo: string; condicao?: Condicao }
+/** Na autuação: por fase do processo, os campos exigidos para sair dela. */
+export function camposExigidos(form: Formulario, faseIds: string[]): Record<string, CampoExigido[]> {
+    const out: Record<string, CampoExigido[]> = {};
+    for (const c of form.campos) {
+        for (const f of c.exigir_em || []) {
+            if (faseIds.includes(f)) (out[f] ||= []).push({ id: c.id, rotulo: c.rotulo, ...(c.condicao ? { condicao: c.condicao } : {}) });
+        }
+    }
+    return out;
+}
+
+/**
+ * Campos exigidos na fase que o processo ainda não tem (os que não aparecem
+ * pela condição não contam). Com `form` (o do tipo hoje), só conta o campo que
+ * o tipo ainda pede, com o nome e a condição de agora: o que o tipo deixou de
+ * ter não teria como ser preenchido.
+ */
+export function camposFaltando(exigidos: CampoExigido[] | undefined, campos: CampoValor[] | undefined, form?: Pick<Formulario, 'campos'> | null): CampoExigido[] {
+    const tem = new Map((campos || []).map((c) => [c.id, c.valor]));
+    const atuais = form ? new Map(form.campos.map((c) => [c.id, c])) : null;
+    const out: CampoExigido[] = [];
+    for (const e of exigidos || []) {
+        const def = atuais ? atuais.get(e.id) : e;
+        if (!def || tem.has(e.id)) continue;
+        if (def.condicao && !atendeCondicao(tem.get(def.condicao.campo_id), def.condicao)) continue;
+        out.push({ id: e.id, rotulo: def.rotulo, ...(def.condicao ? { condicao: def.condicao } : {}) });
     }
     return out;
 }
@@ -182,9 +343,13 @@ export function validarPadrao(form: Formulario, v: { assunto: string; descricao:
 }
 
 /** Valor como texto, para movimentos, busca e PDF. */
-export function valorTexto(c: Pick<CampoValor, 'tipo' | 'valor'>): string {
+export function valorTexto(c: Pick<CampoValor, 'tipo' | 'valor'> & { formato?: Formato }): string {
+    if (Array.isArray(c.valor)) return c.valor.join(', ');
     if (c.tipo === 'sim_nao') return c.valor ? 'Sim' : 'Não';
     if (c.tipo === 'data') return String(c.valor).split('-').reverse().join('/');
+    if (c.tipo === 'numero' && c.formato === 'moeda') {
+        return `R$ ${Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
     if (c.tipo === 'numero') return String(c.valor).replace('.', ',');
     return String(c.valor);
 }

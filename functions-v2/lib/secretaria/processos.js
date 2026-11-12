@@ -51,20 +51,22 @@ function sanitizePartes(input, polos = camposProcesso_1.POLOS) {
     })
         .filter((p) => p.nome);
 }
-/** O que o rito exige na fase atual e ainda falta: documentos e ações obrigatórias. */
-function exigenciasAbertas(proc) {
+/** O que o rito exige na fase atual e ainda falta: documentos, ações obrigatórias e campos a preencher. */
+function exigenciasAbertas(proc, form) {
     const fase = (proc.fases || []).find((f) => f.id === proc.fase_atual);
+    const exigidos = (proc.campos_exigidos || {})[String(proc.fase_atual)];
     return [
         ...(0, exigencias_1.pendentesDaFase)(fase, proc.exigencias_cumpridas),
         ...(0, exigencias_1.acoesObrigatoriasPendentes)(fase, (proc.acoes_feitas || {})[String(proc.fase_atual)]),
+        ...(0, camposProcesso_1.camposFaltando)(exigidos, proc.campos, form).map((x) => ({ descricao: `Preencher "${x.rotulo}"` })),
     ];
 }
 /**
  * Sair da fase com exigência em aberto: sem motivo, recusa; com motivo, a
  * dispensa fica no movimento (e nos autos). Devolve o que foi dispensado.
  */
-function dispensarExigencias(proc, motivo) {
-    const abertas = exigenciasAbertas(proc).map((e) => e.descricao);
+function dispensarExigencias(proc, motivo, form) {
+    const abertas = exigenciasAbertas(proc, form).map((e) => e.descricao);
     if (abertas.length && !motivo) {
         throw new https_1.HttpsError('failed-precondition', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta ou informe o motivo da dispensa.`);
     }
@@ -310,7 +312,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 // A primeira unidade da lista é a que autuou (arrayUnion só acrescenta).
                 unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], acoes_feitas: data.acoes_feitas || {}, 
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
-                consolidacao: data.consolidacao || null, exigencias_cumpridas: data.exigencias_cumpridas || {} }),
+                consolidacao: data.consolidacao || null, exigencias_cumpridas: data.exigencias_cumpridas || {}, campos_exigidos: data.campos_exigidos || {} }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,
@@ -406,11 +408,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 tx.set(contadorRef, { organization_id: orgId, chave: contadorRef.id, seq, atualizado_em: new Date().toISOString() }, { merge: true });
             }
             const fases = rito.fases;
-            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero }, (numeracao ? {} : { sem_numero: true })), { assunto,
+            // Campos que o tipo exige para sair de cada fase (cópia: mudar o tipo depois não muda este processo).
+            const exigidos = (0, camposProcesso_1.camposExigidos)(form, fases.map((f) => f.id));
+            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero }, (numeracao ? {} : { sem_numero: true })), { assunto,
                 descricao,
                 partes,
-                campos,
-                sigilo }), (origem ? { origem } : {})), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+                campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
             tx.set(procRef, Object.assign(Object.assign({}, base), mov));
             return numero;
@@ -433,6 +436,10 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
+        // Campos exigidos por fase: valem os que o tipo ainda pede (lido antes de qualquer escrita).
+        const tipoAtual = data.campos_exigidos && data.tipo_id && ['tramitar', 'avancarFase', 'alterarStatus'].includes(String(p.action))
+            ? (await tx.get(db.collection(context_1.COL.tipos).doc(String(data.tipo_id)))).data() : null;
+        const formAtual = tipoAtual && tipoAtual.organization_id === orgId ? (0, camposProcesso_1.formularioDe)(tipoAtual) : null;
         if (data.status === 'arquivado' && p.action !== 'alterarStatus') {
             throw new https_1.HttpsError('failed-precondition', 'Processo arquivado: reative-o antes de movimentar');
         }
@@ -474,7 +481,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                     throw new https_1.HttpsError('invalid-argument', 'Só seguem com o processo minutas que estão com a unidade que remete');
                 }
             }
-            const dispensadas = novaFase ? dispensarExigencias(data, motivo) : [];
+            const dispensadas = novaFase ? dispensarExigencias(data, motivo, formAtual) : [];
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, novaFase === null || novaFase === void 0 ? void 0 : novaFase.id);
@@ -501,7 +508,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             let campos = [];
             try {
                 (0, camposProcesso_1.validarPadrao)(Object.assign(Object.assign({}, form), { assunto: 'opcional', partes: 'opcional', origem: 'opcional' }), { assunto: '', descricao, partes: [], origem: null });
-                campos = (0, camposProcesso_1.validarCampos)(form, p.campos);
+                campos = (0, camposProcesso_1.validarCampos)(form, p.campos, antes);
             }
             catch (e) {
                 (0, context_1.erroUsuario)(e);
@@ -618,7 +625,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (foraDoFluxo && !motivo)
                 throw new https_1.HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const de = ((_g = fases.find((f) => f.id === data.fase_atual)) === null || _g === void 0 ? void 0 : _g.nome) || data.fase_atual;
-            const dispensadas = dispensarExigencias(data, motivo);
+            const dispensadas = dispensarExigencias(data, motivo, formAtual);
             const destinoMov = dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
@@ -668,12 +675,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', 'Informe o motivo');
             const rotulo = { em_tramitacao: 'Reativado', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[status];
             // Arquivar com documento exigido em aberto: o motivo vale como dispensa, e fica dito.
-            const dispensadas = status === 'arquivado' ? exigenciasAbertas(data).map((e) => e.descricao) : [];
+            const dispensadas = status === 'arquivado' ? exigenciasAbertas(data, formAtual).map((e) => e.descricao) : [];
             // Arquivar encerra a certidão conjunta pendente (sobrestar, não: o processo volta à mesma fase).
             const em = emitirSe(status === 'arquivado', tx, c, ref, data);
             if (em.proc !== data)
                 expedidas = 2;
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'situacao', `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Documentos exigidos pelo rito não produzidos: ${dispensadas.join('; ')}.` : ''}`, Object.assign({ de: data.status, para: status }, (dispensadas.length ? { dispensadas } : {})));
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'situacao', `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Exigências do rito não cumpridas: ${dispensadas.join('; ')}.` : ''}`, Object.assign({ de: data.status, para: status }, (dispensadas.length ? { dispensadas } : {})));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, em.mov), mov), { status }));
             return mov;
         }

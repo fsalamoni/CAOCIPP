@@ -666,6 +666,16 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         let formulario;
         let numeracao;
         try { formulario = sanitizeFormulario(t.formulario); numeracao = sanitizeNumeracaoTipo(t.numeracao); } catch (e) { erroUsuario(e); }
+        // "Exigido para sair das fases": só fases do rito escolhido.
+        const faseIds = new Set(((rito.fases || []) as Array<{ id: string }>).map((f) => f.id));
+        formulario!.campos = formulario!.campos.map(({ exigir_em: ex, ...x }) => {
+            const l = (ex || []).filter((f) => faseIds.has(f));
+            // Todas as fases marcadas sumiram do rito: o campo ficaria sem exigência nenhuma sem ninguém ver.
+            if (ex?.length && !l.length) {
+                throw new HttpsError('invalid-argument', `"${x.rotulo}": as fases marcadas em "Exigir para sair das fases" não existem no rito deste tipo. Marque outras ou volte a torná-lo obrigatório.`);
+            }
+            return l.length ? { ...x, exigir_em: l } : x;
+        });
         const dados = {
             nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao,
             sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null, ...('orgao_id' in t ? { orgao_id: orgaoId || null } : {}),
