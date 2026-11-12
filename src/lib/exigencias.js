@@ -8,12 +8,20 @@
 
 export const FORMAS = [['qualquer', 'Redigir ou juntar'], ['redigir', 'Redigido no órgão'], ['juntar', 'Arquivo recebido']];
 
-/** Onde um ato fica: autos (impresso, com folha), evento (extrato impresso, sem folha) ou só no sistema. */
-export const DESTINOS = [
-    ['autos', 'Nos autos: certidão com folha, sai na impressão'],
-    ['evento', 'Evento no extrato: sai ao fim da impressão, sem folha'],
-    ['informacao', 'Só no sistema: fica nas informações, não imprime'],
-];
+/**
+ * Onde um ato fica: autos (impresso, com folha), evento (extrato impresso, sem
+ * folha), só no sistema ou sem evento (registro oculto, só ações e fases).
+ * Um só mapa de rótulos para o editor, a prévia e a tela do processo.
+ */
+export const DESTINO_INFO = {
+    autos: { rotulo: 'Nos autos', curto: 'nos autos', frase: 'Gera certidão com folha própria. Sai na impressão dos autos e pode ser mostrada às partes.' },
+    evento: { rotulo: 'Evento no extrato', curto: 'evento no extrato', frase: 'Fica na aba Eventos e no extrato ao fim do PDF, sem folha. As partes não veem o evento.' },
+    informacao: { rotulo: 'Só no sistema', curto: 'só no sistema', frase: 'Fica só na aba Eventos e nas informações do processo, para controle. Não sai em impressão.' },
+    nenhum: { rotulo: 'Sem evento', curto: 'sem evento', frase: 'Não aparece em lugar nenhum: fica só um registro oculto, para auditoria. O dado pedido, se houver, vai para as informações do processo, só para a equipe.' },
+};
+const DESTINOS_ATO = ['autos', 'evento', 'informacao', 'nenhum'];
+const lido = (v, lista, padrao) => (lista.includes(v) ? v : padrao);
+export const DESTINOS = DESTINOS_ATO.map((d) => [d, DESTINO_INFO[d].rotulo]);
 export const DESTINOS_DOCUMENTO = [
     ['autos', 'Juntado aos autos: peça com folha, sai na impressão'],
     ['evento', 'Guardado fora dos autos, com evento no extrato impresso'],
@@ -23,8 +31,9 @@ export const DESTINOS_FASE = [
     ['autos', 'Nos autos (termo com folha)'],
     ['evento', 'Evento no extrato (sem folha)'],
     ['informacao', 'Só no sistema (não imprime)'],
+    ['nenhum', 'Sem evento (registro oculto)'],
 ];
-export const ROTULO_DESTINO = { autos: 'nos autos', evento: 'evento no extrato', informacao: 'só no sistema' };
+export const ROTULO_DESTINO = Object.fromEntries(DESTINOS_ATO.map((d) => [d, DESTINO_INFO[d].curto]));
 
 /** O que a ação pede a quem a cumpre. */
 export const PEDIDOS = [
@@ -39,20 +48,36 @@ export const PEDIDOS = [
 ];
 export const ROTULO_PEDIDO = Object.fromEntries(PEDIDOS);
 
-export const destinoDaAcao = (r) => (r?.documento ? r.documento.destino || 'autos' : r?.destino || (r?.autos ? 'autos' : 'evento'));
+export const destinoDaAcao = (r) => (r?.documento
+    ? lido(r.documento.destino, ['evento', 'informacao'], 'autos')
+    : r?.destino ? lido(r.destino, DESTINOS_ATO, 'evento') : (r?.autos ? 'autos' : 'evento'));
 export const pedidoDaAcao = (r) => (r?.documento ? 'documento' : r?.pede || 'confirmar');
-// Ação de só confirmar fora dos autos não tem o que mostrar às partes (nem certidão, nem dado).
-export const partesVeem = (r) => (r?.partes === true || (r?.partes === undefined && r?.autos === true))
+// Ação de só confirmar fora dos autos não tem o que mostrar às partes (nem certidão, nem dado). Sem evento: ninguém vê.
+export const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
+    && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
     && (pedidoDaAcao(r) !== 'confirmar' || destinoDaAcao(r) === 'autos');
 export const pedeDado = (r) => !['confirmar', 'documento'].includes(pedidoDaAcao(r));
 
 /** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo `registro`). */
 export function niveisDaFase(f) {
     if (!f) return { fase: 'autos', remessas: 'autos' };
-    if (f.registro_atos) return { fase: f.registro_atos.fase || 'autos', remessas: f.registro_atos.remessas || 'autos' };
+    if (f.registro_atos) return { fase: lido(f.registro_atos.fase, DESTINOS_ATO, 'autos'), remessas: lido(f.registro_atos.remessas, DESTINOS_ATO, 'autos') };
     if (f.registro === 'interno') return { fase: 'evento', remessas: 'evento' };
     if (f.registro === 'remessas_fora') return { fase: 'autos', remessas: 'evento' };
     return { fase: 'autos', remessas: 'autos' };
+}
+
+const ORDEM = { autos: 2, evento: 1, informacao: 0, nenhum: -1 };
+/** Mudança entre duas fases: o mais reservado; "sem evento" numa só delas não apaga o registro da outra. */
+export const destinoTransicao = (a, b) => (a === 'nenhum' ? b : b === 'nenhum' ? a : ORDEM[a] <= ORDEM[b] ? a : b);
+
+/** Fases para onde a fase segue: as saídas do rito ou, sem saídas, a próxima da lista. */
+export function saidasDaFase(fases, f) {
+    if (!f || f.final) return [];
+    const ids = (f.proximas || []).filter((id) => id !== f.id);
+    if (ids.length) return ids.map((id) => fases.find((x) => x.id === id)).filter(Boolean);
+    const i = fases.findIndex((x) => x.id === f.id);
+    return fases[i + 1] ? [fases[i + 1]] : [];
 }
 
 /** Regra nova a partir de outra, trocando o que a ação pede (mantém destino, quem vê e obrigatoriedade). */
@@ -60,7 +85,7 @@ export function regraComPedido(r, pede, acao) {
     const dest = destinoDaAcao(r);
     // Documento novo vai aos autos, salvo se o criador já tinha escolhido outro destino para a ação.
     const escolhido = r?.documento?.destino || r?.destino;
-    if (pede === 'documento') return { documento: { descricao: acao, forma: r?.documento?.forma || 'qualquer', ...(escolhido && escolhido !== 'autos' ? { destino: escolhido } : {}) } };
+    if (pede === 'documento') return { documento: { descricao: acao, forma: r?.documento?.forma || 'qualquer', ...(['evento', 'informacao'].includes(escolhido) ? { destino: escolhido } : {}) } };
     const base = {
         ...(pede !== 'confirmar' ? { pede } : {}),
         ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),

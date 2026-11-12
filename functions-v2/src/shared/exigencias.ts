@@ -15,20 +15,33 @@ const texto = (v: unknown, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.
  * Onde um ato fica registrado:
  * - 'autos': termo ou certidão com folha; sai na impressão dos autos;
  * - 'evento': registro interno, sem folha, listado no extrato ao fim do PDF;
- * - 'informacao': só no sistema (aba Eventos e informações do processo); não sai em impressão nenhuma.
+ * - 'informacao': só no sistema (aba Eventos e informações do processo); não sai em impressão nenhuma;
+ * - 'nenhum' (só ações e atos da fase, nunca documento): sem evento. Fica um
+ *   registro oculto, para a cadeia de eventos e a auditoria; ninguém o vê por
+ *   padrão, não conta como último andamento e as partes nunca o veem.
  */
 export const DESTINOS = ['autos', 'evento', 'informacao'] as const;
 export type Destino = typeof DESTINOS[number];
-const destino = (v: unknown, padrao: Destino): Destino => (DESTINOS.includes(v as Destino) ? (v as Destino) : padrao);
-const ORDEM: Record<Destino, number> = { autos: 2, evento: 1, informacao: 0 };
+export const DESTINOS_ATO = [...DESTINOS, 'nenhum'] as const;
+export type DestinoAto = typeof DESTINOS_ATO[number];
+/** Valor desconhecido (cópia antiga do rito, dado mexido) vira o padrão. */
+const lido = <T extends string>(v: unknown, lista: readonly T[], padrao: T): T => (lista.includes(v as T) ? (v as T) : padrao);
+const destino = (v: unknown, padrao: Destino): Destino => lido(v, DESTINOS, padrao);
+const ORDEM: Record<DestinoAto, number> = { autos: 2, evento: 1, informacao: 0, nenhum: -1 };
 /** O mais reservado dos dois (ex.: sair de fase nos autos para fase só no sistema = só no sistema). */
-export const maisReservado = (a: Destino, b: Destino): Destino => (ORDEM[a] <= ORDEM[b] ? a : b);
+export const maisReservado = <T extends DestinoAto>(a: T, b: T): T => (ORDEM[a] <= ORDEM[b] ? a : b);
+/**
+ * Destino da mudança entre duas fases. "Sem evento" numa só delas não apaga o
+ * registro que a outra pede: vale a outra. Sem evento só quando as duas dizem.
+ */
+export const destinoTransicao = (a: DestinoAto, b: DestinoAto): DestinoAto =>
+    (a === 'nenhum' ? b : b === 'nenhum' ? a : maisReservado(a, b));
 
 /** Formato antigo do registro da fase (ainda lido em processos autuados antes). */
 export const REGISTROS = ['remessas_fora', 'interno'] as const;
 export type Registro = typeof REGISTROS[number];
 /** Registro dos atos da fase: entrar e sair dela, e remessas entre unidades durante ela. Ausente = autos. */
-export interface RegistroAtos { fase?: Exclude<Destino, 'autos'>; remessas?: Exclude<Destino, 'autos'> }
+export interface RegistroAtos { fase?: Exclude<DestinoAto, 'autos'>; remessas?: Exclude<DestinoAto, 'autos'> }
 
 export const FORMAS = ['redigir', 'juntar', 'qualquer'] as const;
 export type Forma = typeof FORMAS[number];
@@ -57,7 +70,7 @@ export interface RegraAcao {
     ajuda?: string;
     opcoes?: string[];
     /** Onde fica o registro de cumprimento (ausente = evento). Para documento, vale `documento.destino`. */
-    destino?: Destino;
+    destino?: DestinoAto;
     /** As partes veem a informação (e a certidão, se nos autos) no portal. */
     partes?: boolean;
     /** A fase só segue com ela cumprida (ou com dispensa motivada). Ação com documento é sempre exigida. */
@@ -79,9 +92,9 @@ export interface FaseRegras {
 }
 
 /** Onde fica o cumprimento da ação. */
-export function destinoDaAcao(r: RegraAcao | null | undefined): Destino {
-    if (r?.documento) return r.documento.destino || 'autos';
-    if (r?.destino) return r.destino;
+export function destinoDaAcao(r: RegraAcao | null | undefined): DestinoAto {
+    if (r?.documento) return destino(r.documento.destino, 'autos');
+    if (r?.destino) return lido(r.destino, DESTINOS_ATO, 'evento');
     return r?.autos ? 'autos' : 'evento';
 }
 /** O que a ação pede. */
@@ -89,13 +102,14 @@ export const pedidoDaAcao = (r: RegraAcao | null | undefined): Pedido => (r?.doc
 /** As partes veem? Regra antiga com certidão nos autos: sim (era assim). */
 /** As partes veem? Ação de só confirmar fora dos autos não tem o que mostrar (nem certidão, nem dado). */
 export const partesVeem = (r: RegraAcao | null | undefined): boolean =>
-    (r?.partes === true || (r?.partes === undefined && r?.autos === true))
+    destinoDaAcao(r) !== 'nenhum'
+    && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
     && (pedidoDaAcao(r) !== 'confirmar' || destinoDaAcao(r) === 'autos');
 
 /** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo). */
-export function niveisDaFase(f: FaseRegras | undefined): { fase: Destino; remessas: Destino } {
+export function niveisDaFase(f: FaseRegras | undefined): { fase: DestinoAto; remessas: DestinoAto } {
     if (!f) return { fase: 'autos', remessas: 'autos' };
-    if (f.registro_atos) return { fase: f.registro_atos.fase || 'autos', remessas: f.registro_atos.remessas || 'autos' };
+    if (f.registro_atos) return { fase: lido(f.registro_atos.fase, DESTINOS_ATO, 'autos'), remessas: lido(f.registro_atos.remessas, DESTINOS_ATO, 'autos') };
     if (f.registro === 'interno') return { fase: 'evento', remessas: 'evento' };
     if (f.registro === 'remessas_fora') return { fase: 'autos', remessas: 'evento' };
     return { fase: 'autos', remessas: 'autos' };
@@ -135,9 +149,10 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
             out.opcoes = opcoes;
         }
     }
-    const dest = destino(r.destino, r.autos === true ? 'autos' : 'evento');
+    const dest = lido(r.destino, DESTINOS_ATO, r.autos === true ? 'autos' : 'evento');
     if (dest !== 'evento') out.destino = dest;
-    const partes = r.partes === true || (r.partes === undefined && r.autos === true);
+    // Sem evento não aparece para ninguém: nem para as partes.
+    const partes = dest !== 'nenhum' && (r.partes === true || (r.partes === undefined && r.autos === true));
     if (partes) out.partes = true;
     if (r.obrigatoria === true) out.obrigatoria = true;
     return Object.keys(out).length ? out : null;
@@ -146,7 +161,7 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
 function sanitizeRegistroAtos(fo: Record<string, unknown>): RegistroAtos | undefined {
     const ra = (fo.registro_atos && typeof fo.registro_atos === 'object' ? fo.registro_atos : null) as Record<string, unknown> | null;
     const n = ra
-        ? { fase: destino(ra.fase, 'autos'), remessas: destino(ra.remessas, 'autos') }
+        ? { fase: lido(ra.fase, DESTINOS_ATO, 'autos'), remessas: lido(ra.remessas, DESTINOS_ATO, 'autos') }
         : niveisDaFase({ id: '', registro: REGISTROS.includes(fo.registro as Registro) ? (fo.registro as Registro) : undefined });
     const out: RegistroAtos = {
         ...(n.fase !== 'autos' ? { fase: n.fase } : {}),
@@ -267,9 +282,9 @@ export function camposAoEntrarNaFase(proc: { exigencias_cumpridas?: unknown; aco
  * fase de onde sai e a para onde vai. Remessa sem mudar de fase: o que a fase
  * atual diz das remessas.
  */
-export function destinoDoMovimento(fases: FaseRegras[], deId: string, paraId?: string | null): Destino {
+export function destinoDoMovimento(fases: FaseRegras[], deId: string, paraId?: string | null): DestinoAto {
     const de = niveisDaFase(fases.find((f) => f.id === deId));
-    if (paraId && paraId !== deId) return maisReservado(de.fase, niveisDaFase(fases.find((f) => f.id === paraId)).fase);
+    if (paraId && paraId !== deId) return destinoTransicao(de.fase, niveisDaFase(fases.find((f) => f.id === paraId)).fase);
     return de.remessas;
 }
 
@@ -277,8 +292,9 @@ export function destinoDoMovimento(fases: FaseRegras[], deId: string, paraId?: s
 export const movimentoInterno = (fases: FaseRegras[], deId: string, paraId?: string | null): boolean =>
     destinoDoMovimento(fases, deId, paraId) !== 'autos';
 
-/** Campos de `dados` do movimento para o destino: interno (sem folha) e fora da impressão. */
-export function marcasDoDestino(d: Destino): Record<string, true> {
+/** Campos de `dados` do movimento para o destino: interno (sem folha), fora da impressão e oculto (sem evento). */
+export function marcasDoDestino(d: DestinoAto): Record<string, boolean> {
     if (d === 'autos') return {};
+    if (d === 'nenhum') return { interno: true, fora_impressao: true, oculto: true, visivel_partes: false };
     return d === 'informacao' ? { interno: true, fora_impressao: true } : { interno: true };
 }

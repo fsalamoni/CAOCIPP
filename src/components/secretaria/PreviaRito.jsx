@@ -8,16 +8,42 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
-import { ROTULO_DESTINO, niveisDaFase, resumoDaAcao } from '@/lib/exigencias';
+import { ROTULO_DESTINO, destinoDaAcao, destinoTransicao, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase } from '@/lib/exigencias';
+
+/** Rascunho do editor de rito (unidade_ref, modelos_ref) no formato do rito gravado. */
+const doRascunho = (r) => ({
+    ...r,
+    id: r.id || '_rascunho',
+    // No editor valem os campos _ref (o `modelos` de uma proposta importada traz nomes, não ids).
+    fases: (r.fases || []).filter((f) => f.nome?.trim()).map((f) => ({ ...f, unidade_id: f.unidade_ref !== undefined ? f.unidade_ref : f.unidade_id, modelos: f.modelos_ref ?? f.modelos ?? [] })),
+});
+
+/** Onde cada ato da fase fica nos autos: termo/certidão com folha, extrato, só na tela ou oculto. */
+function comoFica(d) {
+    if (d === 'autos') return { onde: 'Fl. –', cor: 'text-indigo-700 dark:text-indigo-300' };
+    if (d === 'evento') return { onde: 'Extrato:', cor: 'text-slate-700 dark:text-slate-300' };
+    if (d === 'informacao') return { onde: 'Só na tela:', cor: 'text-slate-600 dark:text-slate-400' };
+    return { onde: 'Oculto:', cor: 'text-slate-500 dark:text-slate-500' };
+}
+
+function ItemAutos({ d, children, nota }) {
+    const c = comoFica(d);
+    return (
+        <li className="text-sm">
+            <span className={`font-mono text-xs mr-1.5 ${c.cor}`}>{c.onde}</span>{children}
+            {nota && <span className="block text-xs text-slate-600 dark:text-slate-400 pl-1">{nota}</span>}
+        </li>
+    );
+}
 
 /**
  * "Ver como a equipe" e "Ver como a parte": prévia, sem gravar nada, do que
- * cada um vê num processo de exemplo autuado com o rito escolhido. Mostra o
- * cartão "Nesta fase" e o botão principal da equipe, e o "em que ponto está"
- * da parte, fase a fase.
+ * cada um vê num processo de exemplo autuado com o rito escolhido, e de como
+ * cada ato da fase fica nos autos. `rascunho`: o rito ainda não salvo do
+ * editor (a prévia mostra ele em vez dos ritos gravados).
  */
-export default function PreviaRito({ estado }) {
-    const ritos = (estado.ritos || []).filter((r) => r.ativo);
+export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver como a equipe e a parte' }) {
+    const ritos = rascunho ? [doRascunho(rascunho)] : (estado.ritos || []).filter((r) => r.ativo);
     const [aberto, setAberto] = useState(false);
     const [ritoId, setRitoId] = useState('');
     const [faseId, setFaseId] = useState('');
@@ -25,8 +51,8 @@ export default function PreviaRito({ estado }) {
     const fases = rito?.fases || [];
     const i = Math.max(0, fases.findIndex((f) => f.id === faseId));
     const fase = fases[i];
-    const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '';
-    const nomeModelo = (id) => (estado.modelos || []).find((m) => m.id === id)?.nome || 'modelo excluído';
+    const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || rascunho?.unidades?.find((u) => u.ref === id)?.nome || '';
+    const nomeModelo = (id) => (estado.modelos || []).find((m) => m.id === id)?.nome || rascunho?.modelos?.find((m) => m.ref === id)?.nome || 'modelo excluído';
     const prox = fase ? seguintes(fases, i).map((id) => fases.find((f) => f.id === id)).filter(Boolean) : [];
     let principal = null;
     if (fase) {
@@ -38,23 +64,47 @@ export default function PreviaRito({ estado }) {
     }
     const faltam = fase ? etapasAteOFim(fases, fase.id) : null;
     const tipo = (estado.tipos || []).find((t) => t.rito_id === rito?.id);
+    const niveis = niveisDaFase(fase);
+    // De onde o processo chega a esta fase: as fases que seguem para ela (a primeira também recebe a autuação).
+    const primeira = fase?.id === fases[0]?.id;
+    const anteriores = fase ? fases.filter((x) => x.id !== fase.id && saidasDaFase(fases, x).some((s) => s.id === fase.id)) : [];
+    const entrada = (x) => destinoTransicao(niveisDaFase(x).fase, niveis.fase);
+    const acoes = (fase?.acoes || []).map((a, k) => ({ a, k, r: fase.acoes_regras?.[k] || null })).filter((x) => x.a?.trim());
+
+    // O que a parte vê desta fase, tirado das regras do rito.
+    const acoesPartes = acoes.filter((x) => partesVeem(x.r));
+    const camposPartes = (tipo?.formulario?.campos || []).filter((c) => c.visivel_partes);
+    const docsAutos = [...(fase?.documentos || []).filter((d) => !d.destino).map((d) => d.descricao),
+        ...acoes.filter((x) => pedidoDaAcao(x.r) === 'documento' && destinoDaAcao(x.r) === 'autos').map((x) => x.a)];
+    const entradaAutos = primeira || anteriores.some((x) => entrada(x) === 'autos');
+    const remessasAutos = niveis.remessas === 'autos';
+    const nadaParaParte = !acoesPartes.length && !docsAutos.length && !entradaAutos && !remessasAutos;
 
     return (
         <>
-            <Button variant="outline" className="gap-2" disabled={!ritos.length} onClick={() => setAberto(true)} title={ritos.length ? undefined : 'Crie um rito ativo primeiro'}><Eye className="w-4 h-4" aria-hidden /> Ver como a equipe e a parte</Button>
+            <Button variant="outline" className="gap-2" disabled={!ritos.length || !fases.length} onClick={() => setAberto(true)}
+                title={!ritos.length ? 'Crie um rito ativo primeiro' : !fases.length ? 'Dê nome a uma fase primeiro' : undefined}>
+                <Eye className="w-4 h-4" aria-hidden /> {rotuloBotao}
+            </Button>
             <Dialog open={aberto} onOpenChange={setAberto}>
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                     <DialogHeader>
                         <DialogTitle>Prévia de um processo de exemplo</DialogTitle>
-                        <DialogDescription>Nada é gravado. Escolha o rito e a fase para ver o que a equipe e a parte veriam num processo autuado assim.</DialogDescription>
+                        <DialogDescription>
+                            {rascunho ? 'Nada é gravado. Mostra o rito como está agora no editor, antes de salvar.' : 'Nada é gravado. Escolha o rito e a fase para ver o que a equipe e a parte veriam num processo autuado assim.'}
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="grid sm:grid-cols-2 gap-3">
-                        <NativeSelect id="pv-rito" label="Rito" value={rito?.id || ''} onChange={(v) => { setRitoId(v); setFaseId(''); }} options={ritos.map((r) => [r.id, r.nome])} />
+                        {!rascunho && <NativeSelect id="pv-rito" label="Rito" value={rito?.id || ''} onChange={(v) => { setRitoId(v); setFaseId(''); }} options={ritos.map((r) => [r.id, r.nome])} />}
                         <NativeSelect id="pv-fase" label="Fase" value={fase?.id || ''} onChange={setFaseId} options={fases.map((f) => [f.id, f.nome])} />
                     </div>
                     {fase && (
                         <Tabs defaultValue="equipe">
-                            <TabsList><TabsTrigger value="equipe">Como a equipe vê</TabsTrigger><TabsTrigger value="parte">Como a parte vê</TabsTrigger></TabsList>
+                            <TabsList className="flex-wrap h-auto">
+                                <TabsTrigger value="equipe">Como a equipe vê</TabsTrigger>
+                                <TabsTrigger value="parte">Como a parte vê</TabsTrigger>
+                                <TabsTrigger value="autos">Como fica nos autos</TabsTrigger>
+                            </TabsList>
                             <TabsContent value="equipe" className="space-y-3">
                                 <h3 className="text-lg font-semibold"><span className="font-mono">000001/{new Date().getFullYear()}</span> · Processo de exemplo{tipo ? <span className="text-sm font-normal text-slate-600 dark:text-slate-400"> · {tipo.nome}</span> : ''}</h3>
                                 <div className="rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/40 p-3 space-y-2">
@@ -63,16 +113,18 @@ export default function PreviaRito({ estado }) {
                                         {fase.unidade_id ? `Corre em ${nomeUnidade(fase.unidade_id)}` : 'Corre na unidade que estiver com o processo'}{fase.agente ? ` · quem faz: ${fase.agente}` : ''}{fase.prazo_dias ? ` · prazo da fase: ${fase.prazo_dias} dias` : ''}
                                     </p>
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
-                                    {(fase.acoes || []).length > 0 && (
-                                        <ul className="space-y-1">{fase.acoes.map((a, k) => (
+                                    {acoes.length > 0 && (
+                                        <ul className="space-y-1">{acoes.map(({ a, k, r }) => (
                                             <li key={k} className="flex items-start gap-2 text-sm"><Checkbox disabled aria-label={a} className="mt-0.5" />
-                                                <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· pede {resumoDaAcao(fase.acoes_regras?.[k])}</span></span>
+                                                <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· pede {resumoDaAcao(r)}</span></span>
                                             </li>
                                         ))}</ul>
                                     )}
                                     {(fase.documentos || []).length > 0 && <p className="text-sm">Documentos exigidos: {fase.documentos.map((d) => d.descricao).join('; ')}</p>}
-                                    {(niveisDaFase(fase).fase !== 'autos' || niveisDaFase(fase).remessas !== 'autos') && (
-                                        <p className="text-xs text-slate-600 dark:text-slate-300">Entrar e sair da fase: {ROTULO_DESTINO[niveisDaFase(fase).fase]}. Remessas durante a fase: {ROTULO_DESTINO[niveisDaFase(fase).remessas]}.</p>
+                                    {(niveis.fase !== 'autos' || niveis.remessas !== 'autos') && (
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                                            {prox.length ? `Mudança para ${prox.map((x) => `${x.nome}: ${ROTULO_DESTINO[destinoTransicao(niveis.fase, niveisDaFase(x).fase)]}`).join('; para ')}. ` : ''}Remessas durante a fase: {ROTULO_DESTINO[niveis.remessas]}.
+                                        </p>
                                     )}
                                     {(fase.modelos || []).length > 0 && (
                                         <div className="flex flex-wrap gap-2">{fase.modelos.map((m) => <Button key={m} size="sm" variant="outline" className="gap-1 pointer-events-none"><FilePen className="w-3.5 h-3.5" aria-hidden /> Redigir {nomeModelo(m)}</Button>)}</div>
@@ -87,9 +139,49 @@ export default function PreviaRito({ estado }) {
                                     <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm">000001/{new Date().getFullYear()}</span> <Badge>{fase.nome}</Badge> <Badge variant="secondary">Em tramitação</Badge></div>
                                     <p className="text-sm text-slate-700 dark:text-slate-200">Você fez o pedido (requerente) · em: {fase.nome}</p>
                                     <p className="text-sm font-medium">{faltam === 0 ? 'Esta é a última etapa.' : faltam != null ? `Faltam ${faltam} etapa${faltam > 1 ? 's' : ''} até o fim.` : 'Em andamento.'}</p>
-                                    <p className="text-xs text-slate-600 dark:text-slate-400">A parte vê só os nomes das fases: não vê unidades, orientações internas, ações nem condições.</p>
+                                </div>
+                                <div className="rounded-lg border p-3 space-y-1.5 text-sm">
+                                    <p className="font-semibold">O que a parte vê desta fase</p>
+                                    {nadaParaParte ? <p className="text-slate-600 dark:text-slate-400">Nada desta fase aparece para a parte, além do nome da fase.</p> : (
+                                        <ul className="list-disc pl-5 space-y-1">
+                                            {entradaAutos && <li>{primeira ? 'O termo de autuação' : 'O termo de mudança para esta fase'}, nos autos{!primeira && anteriores.some((x) => entrada(x) !== 'autos') ? ` (vindo de ${anteriores.filter((x) => entrada(x) === 'autos').map((x) => x.nome).join(' ou ')})` : ''}.</li>}
+                                            {remessasAutos && <li>As remessas entre unidades durante a fase, com o nome das unidades, nos autos.</li>}
+                                            {acoesPartes.map(({ a, k, r }) => (
+                                                <li key={k}>{a}: {destinoDaAcao(r) === 'autos' ? 'a certidão nos autos' : 'o dado informado, nas informações do processo'}{pedidoDaAcao(r) !== 'confirmar' ? ` (${r?.rotulo || a})` : ''}.</li>
+                                            ))}
+                                            {docsAutos.map((d, k) => <li key={`doc${k}`}>{d}: o documento juntado, se quem juntar liberar para as partes.</li>)}
+                                        </ul>
+                                    )}
+                                    {camposPartes.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Dados do processo que a parte vê: {camposPartes.map((c) => c.rotulo).join(', ')}.</p>}
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">A parte nunca vê orientações internas, condições nem o que o rito deixou fora do portal. Unidades, só pelo nome, nos termos de remessa que vão aos autos.</p>
                                 </div>
                                 <FluxoRito fases={fases.map((f) => ({ id: f.id, nome: f.nome, proximas: f.proximas, final: f.final }))} atual={fase.id} />
+                            </TabsContent>
+                            <TabsContent value="autos" className="space-y-3">
+                                <div className="rounded-lg border p-3 space-y-2">
+                                    <p className="text-sm font-semibold">Como cada ato desta fase fica registrado</p>
+                                    <ul className="space-y-1.5">
+                                        {primeira && <ItemAutos d="autos">Termo de autuação</ItemAutos>}
+                                        {anteriores.map((x) => <ItemAutos key={`de${x.id}`} d={entrada(x)}>Mudança de {x.nome} para {fase.nome}</ItemAutos>)}
+                                        {acoes.map(({ a, k, r }) => {
+                                            const d = destinoDaAcao(r);
+                                            const doc = pedidoDaAcao(r) === 'documento';
+                                            return (
+                                                <ItemAutos key={k} d={d} nota={!doc && d === 'autos' ? 'Desfazer gera nova certidão, de desfazimento.' : null}>
+                                                    {doc ? (d === 'autos' ? `${a} (documento juntado)` : `${a} (documento guardado fora dos autos)`)
+                                                        : d === 'autos' ? `Certidão de cumprimento: ${a}` : `Feita a ação "${a}"`}
+                                                </ItemAutos>
+                                            );
+                                        })}
+                                        {(fase.documentos || []).map((d, k) => <ItemAutos key={`d${k}`} d={d.destino || 'autos'}>{d.descricao}{d.destino ? ' (guardado fora dos autos)' : ' (documento juntado)'}</ItemAutos>)}
+                                        <ItemAutos d={niveis.remessas}>Remessa entre unidades durante a fase</ItemAutos>
+                                        {prox.map((p) => <ItemAutos key={p.id} d={destinoTransicao(niveis.fase, niveisDaFase(p).fase)}>Mudança para {p.nome}</ItemAutos>)}
+                                    </ul>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                                        Fl.: termo ou certidão com folha, que sai no PDF dos autos. Extrato: sai ao fim do PDF, sem folha. Só na tela: aba Eventos e informações, não imprime.
+                                        Oculto: sem evento, só no registro de auditoria. Remessa entre órgãos e dispensa de exigência vão sempre aos autos.
+                                    </p>
+                                </div>
                             </TabsContent>
                         </Tabs>
                     )}

@@ -5,18 +5,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
+import { ROTULO_DESTINO, destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
 import { dataHora } from './comum';
 
 // Ações da fase na tela do processo (aba Andamento): cada uma do jeito que o
 // rito pediu (caixa de marcar, um dado ou um documento), dizendo onde o
 // cumprimento fica e quem vê. Quem decide é o servidor (marcarAcao).
 
-const ONDE = {
-    autos: 'certidão nos autos',
-    evento: 'evento no extrato',
-    informacao: 'só no sistema',
-};
+const ONDE = { ...ROTULO_DESTINO, autos: 'certidão nos autos' };
 
 /** Selos discretos do que o rito diz da ação. */
 export function SelosAcao({ r }) {
@@ -81,7 +77,9 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
         ? 'Vira certidão nos autos, com folha, e sai na impressão.'
         : dest === 'evento'
             ? 'Fica nas informações do processo e como evento no extrato ao fim da impressão, sem folha.'
-            : 'Fica só nas informações do processo e na aba Eventos, para controle. Não sai em impressão.';
+            : dest === 'nenhum'
+                ? 'Não gera evento: fica só nas informações do processo, para a equipe.'
+                : 'Fica só nas informações do processo e na aba Eventos, para controle. Não sai em impressão.';
     const quem = partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
     let campo;
     if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;

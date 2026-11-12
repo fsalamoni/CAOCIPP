@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.movimentoInterno = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.FORMAS = exports.REGISTROS = exports.maisReservado = exports.DESTINOS = void 0;
+exports.movimentoInterno = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.FORMAS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -40,14 +40,26 @@ const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().sl
  * Onde um ato fica registrado:
  * - 'autos': termo ou certidão com folha; sai na impressão dos autos;
  * - 'evento': registro interno, sem folha, listado no extrato ao fim do PDF;
- * - 'informacao': só no sistema (aba Eventos e informações do processo); não sai em impressão nenhuma.
+ * - 'informacao': só no sistema (aba Eventos e informações do processo); não sai em impressão nenhuma;
+ * - 'nenhum' (só ações e atos da fase, nunca documento): sem evento. Fica um
+ *   registro oculto, para a cadeia de eventos e a auditoria; ninguém o vê por
+ *   padrão, não conta como último andamento e as partes nunca o veem.
  */
 exports.DESTINOS = ['autos', 'evento', 'informacao'];
-const destino = (v, padrao) => (exports.DESTINOS.includes(v) ? v : padrao);
-const ORDEM = { autos: 2, evento: 1, informacao: 0 };
+exports.DESTINOS_ATO = [...exports.DESTINOS, 'nenhum'];
+/** Valor desconhecido (cópia antiga do rito, dado mexido) vira o padrão. */
+const lido = (v, lista, padrao) => (lista.includes(v) ? v : padrao);
+const destino = (v, padrao) => lido(v, exports.DESTINOS, padrao);
+const ORDEM = { autos: 2, evento: 1, informacao: 0, nenhum: -1 };
 /** O mais reservado dos dois (ex.: sair de fase nos autos para fase só no sistema = só no sistema). */
 const maisReservado = (a, b) => (ORDEM[a] <= ORDEM[b] ? a : b);
 exports.maisReservado = maisReservado;
+/**
+ * Destino da mudança entre duas fases. "Sem evento" numa só delas não apaga o
+ * registro que a outra pede: vale a outra. Sem evento só quando as duas dizem.
+ */
+const destinoTransicao = (a, b) => (a === 'nenhum' ? b : b === 'nenhum' ? a : (0, exports.maisReservado)(a, b));
+exports.destinoTransicao = destinoTransicao;
 /** Formato antigo do registro da fase (ainda lido em processos autuados antes). */
 exports.REGISTROS = ['remessas_fora', 'interno'];
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
@@ -58,9 +70,9 @@ exports.MAX_DOCUMENTOS_FASE = 5;
 /** Onde fica o cumprimento da ação. */
 function destinoDaAcao(r) {
     if (r === null || r === void 0 ? void 0 : r.documento)
-        return r.documento.destino || 'autos';
+        return destino(r.documento.destino, 'autos');
     if (r === null || r === void 0 ? void 0 : r.destino)
-        return r.destino;
+        return lido(r.destino, exports.DESTINOS_ATO, 'evento');
     return (r === null || r === void 0 ? void 0 : r.autos) ? 'autos' : 'evento';
 }
 /** O que a ação pede. */
@@ -68,7 +80,8 @@ const pedidoDaAcao = (r) => ((r === null || r === void 0 ? void 0 : r.documento)
 exports.pedidoDaAcao = pedidoDaAcao;
 /** As partes veem? Regra antiga com certidão nos autos: sim (era assim). */
 /** As partes veem? Ação de só confirmar fora dos autos não tem o que mostrar (nem certidão, nem dado). */
-const partesVeem = (r) => ((r === null || r === void 0 ? void 0 : r.partes) === true || ((r === null || r === void 0 ? void 0 : r.partes) === undefined && (r === null || r === void 0 ? void 0 : r.autos) === true))
+const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
+    && ((r === null || r === void 0 ? void 0 : r.partes) === true || ((r === null || r === void 0 ? void 0 : r.partes) === undefined && (r === null || r === void 0 ? void 0 : r.autos) === true))
     && ((0, exports.pedidoDaAcao)(r) !== 'confirmar' || destinoDaAcao(r) === 'autos');
 exports.partesVeem = partesVeem;
 /** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo). */
@@ -76,7 +89,7 @@ function niveisDaFase(f) {
     if (!f)
         return { fase: 'autos', remessas: 'autos' };
     if (f.registro_atos)
-        return { fase: f.registro_atos.fase || 'autos', remessas: f.registro_atos.remessas || 'autos' };
+        return { fase: lido(f.registro_atos.fase, exports.DESTINOS_ATO, 'autos'), remessas: lido(f.registro_atos.remessas, exports.DESTINOS_ATO, 'autos') };
     if (f.registro === 'interno')
         return { fase: 'evento', remessas: 'evento' };
     if (f.registro === 'remessas_fora')
@@ -122,10 +135,11 @@ function sanitizeRegra(raw, acao) {
             out.opcoes = opcoes;
         }
     }
-    const dest = destino(r.destino, r.autos === true ? 'autos' : 'evento');
+    const dest = lido(r.destino, exports.DESTINOS_ATO, r.autos === true ? 'autos' : 'evento');
     if (dest !== 'evento')
         out.destino = dest;
-    const partes = r.partes === true || (r.partes === undefined && r.autos === true);
+    // Sem evento não aparece para ninguém: nem para as partes.
+    const partes = dest !== 'nenhum' && (r.partes === true || (r.partes === undefined && r.autos === true));
     if (partes)
         out.partes = true;
     if (r.obrigatoria === true)
@@ -135,7 +149,7 @@ function sanitizeRegra(raw, acao) {
 function sanitizeRegistroAtos(fo) {
     const ra = (fo.registro_atos && typeof fo.registro_atos === 'object' ? fo.registro_atos : null);
     const n = ra
-        ? { fase: destino(ra.fase, 'autos'), remessas: destino(ra.remessas, 'autos') }
+        ? { fase: lido(ra.fase, exports.DESTINOS_ATO, 'autos'), remessas: lido(ra.remessas, exports.DESTINOS_ATO, 'autos') }
         : niveisDaFase({ id: '', registro: exports.REGISTROS.includes(fo.registro) ? fo.registro : undefined });
     const out = Object.assign(Object.assign({}, (n.fase !== 'autos' ? { fase: n.fase } : {})), (n.remessas !== 'autos' ? { remessas: n.remessas } : {}));
     return Object.keys(out).length ? out : undefined;
@@ -249,16 +263,18 @@ function camposAoEntrarNaFase(proc, faseId) {
 function destinoDoMovimento(fases, deId, paraId) {
     const de = niveisDaFase(fases.find((f) => f.id === deId));
     if (paraId && paraId !== deId)
-        return (0, exports.maisReservado)(de.fase, niveisDaFase(fases.find((f) => f.id === paraId)).fase);
+        return (0, exports.destinoTransicao)(de.fase, niveisDaFase(fases.find((f) => f.id === paraId)).fase);
     return de.remessas;
 }
 /** O ato vai só para o registro interno (fora dos autos)? */
 const movimentoInterno = (fases, deId, paraId) => destinoDoMovimento(fases, deId, paraId) !== 'autos';
 exports.movimentoInterno = movimentoInterno;
-/** Campos de `dados` do movimento para o destino: interno (sem folha) e fora da impressão. */
+/** Campos de `dados` do movimento para o destino: interno (sem folha), fora da impressão e oculto (sem evento). */
 function marcasDoDestino(d) {
     if (d === 'autos')
         return {};
+    if (d === 'nenhum')
+        return { interno: true, fora_impressao: true, oculto: true, visivel_partes: false };
     return d === 'informacao' ? { interno: true, fora_impressao: true } : { interno: true };
 }
 //# sourceMappingURL=exigencias.js.map

@@ -36,7 +36,9 @@ function informacoesDoAndamento(movs, fases, soPartes = false) {
             fase_id: String(d.fase_id), fase_nome: nomes.get(String(d.fase_id)) || String(d.fase_id), acao_idx: Number(d.acao_idx),
             rotulo: d.rotulo, tipo: String(d.tipo_valor || 'texto'), valor: d.valor, valor_texto: String((_a = d.valor_texto) !== null && _a !== void 0 ? _a : d.valor),
             por: m.autor_nome || '', em: m.em || '', seq: m.seq,
-            destino: d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento',
+            destino: ['autos', 'evento', 'informacao', 'nenhum'].includes(String(d.destino))
+                ? d.destino
+                : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento',
             visivel_partes: d.visivel_partes === true,
         };
         pilha.push(info);

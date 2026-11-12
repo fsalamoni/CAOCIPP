@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
-    DESTINOS, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, PEDIDOS, destinoDaAcao, niveisDaFase, partesVeem, pedidoDaAcao, regraComPedido, resumoDaAcao,
+    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, PEDIDOS, ROTULO_DESTINO, destinoDaAcao, destinoTransicao, niveisDaFase, partesVeem, pedidoDaAcao,
+    regraComPedido, resumoDaAcao, saidasDaFase,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 
@@ -32,8 +34,40 @@ function CamposExigencia({ id, e, modelos, onChange }) {
     );
 }
 
+/** Como o cumprimento aparece em cada destino (o texto que o servidor grava). */
+function amostraDoCumprimento(d, acao, fase) {
+    if (d === 'autos') return `Certifico que foi cumprida a providência "${acao}", da fase ${fase || '…'}.`;
+    if (d === 'nenhum') return null;
+    return `Feita a ação "${acao}" da fase ${fase || '…'}.`;
+}
+
+/** Onde fica o cumprimento da ação: um cartão por destino, com a consequência e a amostra. */
+function EscolhaDestino({ id, valor, opcoes, onChange, acao, fase, documento }) {
+    return (
+        <fieldset>
+            <legend className="text-sm font-medium">{documento ? 'Onde fica o documento' : 'Onde fica o cumprimento'}</legend>
+            <RadioGroup value={valor} onValueChange={onChange} className="mt-1 grid sm:grid-cols-2 gap-2">
+                {opcoes.map(([d, rotulo]) => {
+                    const amostra = !documento && amostraDoCumprimento(d, acao, fase);
+                    return (
+                        <label key={d} htmlFor={`${id}-${d}`}
+                            className={`flex cursor-pointer gap-2 rounded-md border p-2 text-sm ${valor === d ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                            <RadioGroupItem id={`${id}-${d}`} value={d} className="mt-0.5 shrink-0" />
+                            <span className="min-w-0">
+                                <span className="block font-medium">{documento ? rotulo : DESTINO_INFO[d].rotulo}</span>
+                                {!documento && <span className="block text-xs text-slate-600 dark:text-slate-400">{DESTINO_INFO[d].frase}</span>}
+                                {amostra && <span className="mt-1 block rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-1 text-xs italic text-slate-700 dark:text-slate-300">{amostra}</span>}
+                            </span>
+                        </label>
+                    );
+                })}
+            </RadioGroup>
+        </fieldset>
+    );
+}
+
 /** Configuração de uma ação: o que pede, onde fica, quem vê, se é obrigatória. */
-function ConfigAcao({ id, acao, r, modelos, onChange }) {
+function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
     const pede = pedidoDaAcao(r);
     const dest = destinoDaAcao(r);
     const set = (patch) => {
@@ -43,14 +77,18 @@ function ConfigAcao({ id, acao, r, modelos, onChange }) {
     };
     const setDestino = (v) => (pede === 'documento'
         ? onChange({ documento: { ...r.documento, destino: v === 'autos' ? undefined : v } })
-        : set({ destino: v === 'evento' ? undefined : v, autos: undefined, partes: partesVeem(r) || undefined }));
+        // Sem evento não aparece para ninguém: some também a marca das partes.
+        : set({ destino: v === 'evento' ? undefined : v, autos: undefined, partes: (v !== 'nenhum' && partesVeem(r)) || undefined }));
+    // Por que a parte não pode ver (a opção fica visível, desligada, com o motivo).
+    const semPartes = dest === 'nenhum' ? 'Sem evento nunca aparece no portal.'
+        : pede === 'confirmar' && dest !== 'autos' ? 'Só confirmar, fora dos autos, não tem o que mostrar: escolha "Nos autos" ou peça um dado.' : null;
     return (
-        <div className="space-y-2 rounded-md bg-slate-50 dark:bg-slate-800/60 p-2">
-            <div className="grid sm:grid-cols-2 gap-2">
+        <div className="space-y-3 rounded-md bg-slate-50 dark:bg-slate-800/60 p-2">
+            <div className="sm:max-w-sm">
                 <NativeSelect id={`${id}-pede`} label="O que pede" value={pede} onChange={(v) => onChange(regraComPedido(r, v, acao))} options={PEDIDOS} />
-                <NativeSelect id={`${id}-dest`} label={pede === 'documento' ? 'Onde fica o documento' : 'Onde fica o registro'} value={dest} onChange={setDestino}
-                    options={pede === 'documento' ? DESTINOS_DOCUMENTO : DESTINOS} />
             </div>
+            <EscolhaDestino id={`${id}-dest`} valor={dest} onChange={setDestino} acao={acao} fase={fase}
+                documento={pede === 'documento'} opcoes={pede === 'documento' ? DESTINOS_DOCUMENTO : Object.entries(DESTINO_INFO).map(([d, x]) => [d, x.rotulo])} />
             {pede !== 'confirmar' && pede !== 'documento' && (
                 <div className="grid sm:grid-cols-2 gap-2">
                     <div>
@@ -76,12 +114,14 @@ function ConfigAcao({ id, acao, r, modelos, onChange }) {
                 <CamposExigencia id={`${id}-doc`} e={r.documento} modelos={modelos} onChange={(d) => onChange({ documento: { ...d, descricao: acao } })} />
             )}
             <div className="flex flex-wrap gap-x-5 gap-y-1">
-                {/* Ação de só confirmar fora dos autos não tem o que mostrar às partes. */}
-                {pede !== 'documento' && (pede !== 'confirmar' || dest === 'autos') && (
-                    <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={partesVeem(r)} onCheckedChange={(c) => set({ partes: c === true ? true : undefined, ...(r?.autos ? { autos: undefined, destino: 'autos' } : {}) })} />
-                        As partes veem no portal
-                    </label>
+                {pede !== 'documento' && (
+                    <div className="text-sm">
+                        <label className={`flex items-center gap-2 ${semPartes ? 'text-slate-500 dark:text-slate-500' : ''}`}>
+                            <Checkbox checked={partesVeem(r)} disabled={!!semPartes} onCheckedChange={(c) => set({ partes: c === true ? true : undefined, ...(r?.autos ? { autos: undefined, destino: 'autos' } : {}) })} />
+                            As partes veem no portal
+                        </label>
+                        {semPartes && <p className="text-xs text-slate-600 dark:text-slate-400 pl-6">{semPartes}</p>}
+                    </div>
                 )}
                 <label className="flex items-center gap-2 text-sm">
                     <Checkbox checked={pede === 'documento' || r?.obrigatoria === true} disabled={pede === 'documento'} onCheckedChange={(c) => set({ obrigatoria: c === true ? true : undefined })} />
@@ -164,7 +204,7 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
                             {aberto ? <ChevronDown className="w-3.5 h-3.5 mt-px shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 mt-px shrink-0" />}
                             <span>Pede {resumoDaAcao(r)}</span>
                         </button>
-                        {aberto && a.trim() && <div className="sm:pl-6"><ConfigAcao id={`${id}-a${i}`} acao={a.trim()} r={r} modelos={modelos} onChange={(n) => { const rs = acoes.map((_, j) => regras[j] || null); rs[i] = n; gravar(acoes, rs); }} /></div>}
+                        {aberto && a.trim() && <div className="sm:pl-6"><ConfigAcao id={`${id}-a${i}`} acao={a.trim()} fase={f.nome} r={r} modelos={modelos} onChange={(n) => { const rs = acoes.map((_, j) => regras[j] || null); rs[i] = n; gravar(acoes, rs); }} /></div>}
                         {aberto && !a.trim() && <p className="text-xs text-slate-600 pl-6">Escreva a ação para configurá-la.</p>}
                     </div>
                 );
@@ -177,9 +217,17 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
 }
 
 /** Onde ficam a entrada/saída da fase e as remessas, e os documentos exigidos na fase. */
-export function RegistroEDocumentos({ f, modelos = [], mudar, idBase }) {
+export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase }) {
     const id = idBase || f.id;
     const n = niveisDaFase(f);
+    // Como ficam, de fato, as mudanças com as fases vizinhas (vale o mais reservado; "sem evento" só se as duas pedem).
+    const comNome = (x) => x.nome?.trim();
+    const vizinhas = [
+        ...fases.filter((x) => x.id !== f.id && comNome(x) && saidasDaFase(fases, x).some((s) => s.id === f.id))
+            .map((x) => ({ k: `de-${x.id}`, texto: `Chegando de ${x.nome}`, d: destinoTransicao(niveisDaFase(x).fase, n.fase) })),
+        ...saidasDaFase(fases, f).filter((x) => x.id !== f.id && comNome(x))
+            .map((x) => ({ k: `para-${x.id}`, texto: `Seguindo para ${x.nome}`, d: destinoTransicao(n.fase, niveisDaFase(x).fase) })),
+    ];
     const setNivel = (k, v) => {
         const novo = { ...n, [k]: v };
         const ra = { ...(novo.fase !== 'autos' ? { fase: novo.fase } : {}), ...(novo.remessas !== 'autos' ? { remessas: novo.remessas } : {}) };
@@ -197,8 +245,15 @@ export function RegistroEDocumentos({ f, modelos = [], mudar, idBase }) {
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
                     Nos autos: termo com folha, que as partes veem. Evento no extrato: aparece na aba Eventos e ao fim do PDF, sem folha, e as partes não veem.
-                    Só no sistema: aparece só na aba Eventos, para controle, e não sai em impressão. Remessa entre órgãos e dispensa de exigência vão sempre aos autos.
+                    Só no sistema: aparece só na aba Eventos, para controle, e não sai em impressão. Sem evento: fica só um registro oculto, que não aparece nem como último andamento.
+                    Remessa entre órgãos e dispensa de exigência vão sempre aos autos.
                 </p>
+                {vizinhas.length > 0 && (
+                    <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5" aria-label="Como ficam as mudanças de fase">
+                        {vizinhas.map((v) => <li key={v.k}>{v.texto}: <b>{ROTULO_DESTINO[v.d]}</b></li>)}
+                        <li className="text-slate-600 dark:text-slate-400">Entre órgãos e com dispensa de exigência: <b>nos autos</b></li>
+                    </ul>
+                )}
             </fieldset>
             <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Documentos exigidos na fase</legend>

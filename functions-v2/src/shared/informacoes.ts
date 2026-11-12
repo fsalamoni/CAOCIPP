@@ -16,8 +16,8 @@ export interface InformacaoAndamento {
     por: string;
     em: string;
     seq: number;
-    /** nos autos (certidão), evento do extrato ou só no sistema */
-    destino: 'autos' | 'evento' | 'informacao';
+    /** nos autos (certidão), evento do extrato, só no sistema ou sem evento */
+    destino: 'autos' | 'evento' | 'informacao' | 'nenhum';
     visivel_partes: boolean;
 }
 
@@ -48,7 +48,9 @@ export function informacoesDoAndamento(movs: Mov[], fases: Array<{ id: string; n
             fase_id: String(d.fase_id), fase_nome: nomes.get(String(d.fase_id)) || String(d.fase_id), acao_idx: Number(d.acao_idx),
             rotulo: d.rotulo, tipo: String(d.tipo_valor || 'texto'), valor: d.valor, valor_texto: String(d.valor_texto ?? d.valor),
             por: m.autor_nome || '', em: m.em || '', seq: m.seq,
-            destino: d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento',
+            destino: ['autos', 'evento', 'informacao', 'nenhum'].includes(String(d.destino))
+                ? d.destino as InformacaoAndamento['destino']
+                : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento',
             visivel_partes: d.visivel_partes === true,
         };
         pilha.push(info);
