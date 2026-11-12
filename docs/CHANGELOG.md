@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: certidão conjunta da fase
+- **Na certidão conjunta**: novo destino para as ações da fase. Em vez de uma
+  certidão para cada ato, os atos viram itens de uma só certidão, com folha,
+  com quem fez e quando.
+- **Grupo de fases**: no editor do rito, "Dividir a certidão com" junta fases
+  numa só certidão, com título próprio. Opcionalmente, as mudanças entre essas
+  fases entram nela, em vez de termo próprio.
+- A certidão sai sozinha quando o processo deixa o grupo ou é arquivado. Na
+  tela do processo, "Emitir certidão agora" mostra quantos atos aguardam.
+- As partes veem a certidão só quando podem ver todos os itens. A prévia do
+  rito mostra a certidão na aba "Como fica nos autos".
+
 ### 12/11/2026 — Processo Eletrônico: "sem evento" e prévia do rito antes de salvar
 - **Sem evento**: cada ação da fase, a entrada e saída da fase e as remessas
   podem não gerar evento. Fica só um registro oculto, para auditoria, que não

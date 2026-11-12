@@ -17,6 +17,7 @@ import {
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
 import { modelosDeRito, novoIdFase, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
+import { tirarDoGrupo } from '@/lib/exigencias';
 import FluxoRito from './FluxoRito';
 import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
 import { TIPOS_UNIDADE, copiarTexto } from './comum';
@@ -345,7 +346,7 @@ function Revisao({
     const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || 'Modelo excluído (sai ao salvar)';
     const mudarFase = (id, d) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => (f.id === id ? { ...f, ...d } : f)) }); };
     const mover = (i, delta) => { const fs = [...p.fases]; const [x] = fs.splice(i, 1); fs.splice(i + delta, 0, x); setP({ ...p, fases: fs }); };
-    const remover = (id) => setP({ ...p, fases: p.fases.filter((f) => f.id !== id).map((f) => ({ ...f, proximas: (f.proximas || []).filter((x) => x !== id) })) });
+    const remover = (id) => setP({ ...p, fases: tirarDoGrupo(p.fases, id).filter((f) => f.id !== id).map((f) => ({ ...f, proximas: (f.proximas || []).filter((x) => x !== id) })) });
     // Unidade nova criada a partir de uma fase, já ligada a ela (um só setP).
     const novaUnidade = (faseId) => {
         const ref = `+${Date.now().toString(36)}`;

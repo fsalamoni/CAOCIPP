@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.movimentoInterno = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.FORMAS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.FORMAS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -32,6 +32,9 @@ exports.reconhecer = reconhecer;
 exports.camposDoCumprimento = camposDoCumprimento;
 exports.camposAoEntrarNaFase = camposAoEntrarNaFase;
 exports.destinoDoMovimento = destinoDoMovimento;
+exports.tituloCertidao = tituloCertidao;
+exports.deveEmitir = deveEmitir;
+exports.textoCertidao = textoCertidao;
 exports.marcasDoDestino = marcasDoDestino;
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
@@ -47,6 +50,12 @@ const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().sl
  */
 exports.DESTINOS = ['autos', 'evento', 'informacao'];
 exports.DESTINOS_ATO = [...exports.DESTINOS, 'nenhum'];
+/**
+ * Ação da fase aceita também 'consolidar': entra na certidão conjunta da fase
+ * (ou do grupo de fases), emitida uma vez, com folha, quando o processo sai
+ * do grupo, é arquivado ou alguém pede "Emitir certidão agora".
+ */
+exports.DESTINOS_ACAO = [...exports.DESTINOS_ATO, 'consolidar'];
 /** Valor desconhecido (cópia antiga do rito, dado mexido) vira o padrão. */
 const lido = (v, lista, padrao) => (lista.includes(v) ? v : padrao);
 const destino = (v, padrao) => lido(v, exports.DESTINOS, padrao);
@@ -72,7 +81,7 @@ function destinoDaAcao(r) {
     if (r === null || r === void 0 ? void 0 : r.documento)
         return destino(r.documento.destino, 'autos');
     if (r === null || r === void 0 ? void 0 : r.destino)
-        return lido(r.destino, exports.DESTINOS_ATO, 'evento');
+        return lido(r.destino, exports.DESTINOS_ACAO, 'evento');
     return (r === null || r === void 0 ? void 0 : r.autos) ? 'autos' : 'evento';
 }
 /** O que a ação pede. */
@@ -82,7 +91,8 @@ exports.pedidoDaAcao = pedidoDaAcao;
 /** As partes veem? Ação de só confirmar fora dos autos não tem o que mostrar (nem certidão, nem dado). */
 const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
     && ((r === null || r === void 0 ? void 0 : r.partes) === true || ((r === null || r === void 0 ? void 0 : r.partes) === undefined && (r === null || r === void 0 ? void 0 : r.autos) === true))
-    && ((0, exports.pedidoDaAcao)(r) !== 'confirmar' || destinoDaAcao(r) === 'autos');
+    // Certidão (própria ou conjunta) mostra até a confirmação simples.
+    && ((0, exports.pedidoDaAcao)(r) !== 'confirmar' || ['autos', 'consolidar'].includes(destinoDaAcao(r)));
 exports.partesVeem = partesVeem;
 /** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo). */
 function niveisDaFase(f) {
@@ -135,7 +145,7 @@ function sanitizeRegra(raw, acao) {
             out.opcoes = opcoes;
         }
     }
-    const dest = lido(r.destino, exports.DESTINOS_ATO, r.autos === true ? 'autos' : 'evento');
+    const dest = lido(r.destino, exports.DESTINOS_ACAO, r.autos === true ? 'autos' : 'evento');
     if (dest !== 'evento')
         out.destino = dest;
     // Sem evento não aparece para ninguém: nem para as partes.
@@ -269,6 +279,69 @@ function destinoDoMovimento(fases, deId, paraId) {
 /** O ato vai só para o registro interno (fora dos autos)? */
 const movimentoInterno = (fases, deId, paraId) => destinoDoMovimento(fases, deId, paraId) !== 'autos';
 exports.movimentoInterno = movimentoInterno;
+// ============================================================================
+// Certidão conjunta. Os atos marcados 'consolidar' (e, se a fase pedir, as
+// mudanças de fase dentro do grupo) ficam como registro oculto e entram como
+// itens em `proc.consolidacao`; ao sair do grupo, arquivar ou "Emitir
+// certidão agora", vira UMA certidão nos autos, com folha.
+// ============================================================================
+/**
+ * A certidão ocupa uma folha: o texto inteiro tem de caber numa página do
+ * termo (exportar.ts: A4, corpo 11pt, cerca de 29 linhas livres). 1800
+ * caracteres dão uns 24 linhas, com folga para título longo e palavras largas.
+ * Passou disso, a pendente é emitida e outra começa.
+ */
+exports.MAX_TEXTO_CERTIDAO = 1800;
+/** Item longo (dado de texto longo) entra resumido; a íntegra fica no registro do ato e nas informações. */
+exports.MAX_ITEM_CERTIDAO = 300;
+/** Grupo da certidão da fase: o configurado, ou a própria fase. */
+const grupoDe = (f) => { var _a; return (f ? ((_a = f.certidao) === null || _a === void 0 ? void 0 : _a.grupo) || f.id : ''); };
+exports.grupoDe = grupoDe;
+/** Título da certidão do grupo: o que a primeira fase do grupo deu, ou o nome das fases. */
+function tituloCertidao(fases, grupo) {
+    var _a, _b, _c, _d;
+    const membros = fases.filter((f) => (0, exports.grupoDe)(f) === grupo);
+    // Vale o título da fase raiz; o de outra fase do grupo só se a raiz não deu.
+    const dado = ((_b = (_a = membros.find((f) => f.id === grupo)) === null || _a === void 0 ? void 0 : _a.certidao) === null || _b === void 0 ? void 0 : _b.titulo) || ((_d = (_c = membros.find((f) => { var _a; return (_a = f.certidao) === null || _a === void 0 ? void 0 : _a.titulo; })) === null || _c === void 0 ? void 0 : _c.certidao) === null || _d === void 0 ? void 0 : _d.titulo);
+    if (dado)
+        return dado;
+    const nomes = membros.map((f) => f.nome || f.id);
+    return nomes.length > 1 ? `Certidão das fases ${nomes.join(', ')}` : `Certidão da fase ${nomes[0] || grupo}`;
+}
+/** Mudança de fase dentro do mesmo grupo vira item da certidão (em vez de termo próprio)? */
+const mudancaNaCertidao = (fases, deId, paraId) => {
+    var _a, _b;
+    const de = fases.find((f) => f.id === deId);
+    const para = fases.find((f) => f.id === paraId);
+    return !!de && !!para && (0, exports.grupoDe)(de) === (0, exports.grupoDe)(para) && (((_a = de.certidao) === null || _a === void 0 ? void 0 : _a.incluir_mudancas) === true || ((_b = para.certidao) === null || _b === void 0 ? void 0 : _b.incluir_mudancas) === true);
+};
+exports.mudancaNaCertidao = mudancaNaCertidao;
+/** Há certidão por emitir antes deste ato? `paraId` null = sai do fluxo (arquivar). */
+function deveEmitir(fases, c, deId, paraId) {
+    var _a;
+    if (!((_a = c === null || c === void 0 ? void 0 : c.itens) === null || _a === void 0 ? void 0 : _a.length))
+        return false;
+    if (!paraId)
+        return true;
+    return (0, exports.grupoDe)(fases.find((f) => f.id === paraId)) !== c.grupo || (0, exports.grupoDe)(fases.find((f) => f.id === deId)) !== c.grupo;
+}
+const quando = (iso) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+/** Texto da certidão conjunta (o título vai no evento): um item por ato, com quem fez e quando. */
+function textoCertidao(itens) {
+    const linhas = itens.map((i, k) => `${k + 1}) ${i.texto}${i.autor ? ` (${i.autor}${i.em ? `, ${quando(i.em)}` : ''})` : ''}`);
+    return `Certifico que foram cumpridos os seguintes atos: ${linhas.join('; ')}.`;
+}
+const textoDoItem = (t) => (t.length > exports.MAX_ITEM_CERTIDAO ? `${t.slice(0, exports.MAX_ITEM_CERTIDAO - 40).trimEnd()}… (íntegra no registro do ato)` : t);
+exports.textoDoItem = textoDoItem;
+/** O item ainda cabe na folha da certidão pendente? */
+const cabeNaCertidao = (itens, item) => textoCertidao([...itens, item]).length <= exports.MAX_TEXTO_CERTIDAO;
+exports.cabeNaCertidao = cabeNaCertidao;
+/** As partes veem a certidão só se puderem ver todos os itens. */
+const visivelCertidao = (itens) => itens.length > 0 && itens.every((i) => i.partes);
+exports.visivelCertidao = visivelCertidao;
 /** Campos de `dados` do movimento para o destino: interno (sem folha), fora da impressão e oculto (sem evento). */
 function marcasDoDestino(d) {
     if (d === 'autos')

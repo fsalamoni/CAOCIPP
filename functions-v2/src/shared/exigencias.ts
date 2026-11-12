@@ -24,6 +24,13 @@ export const DESTINOS = ['autos', 'evento', 'informacao'] as const;
 export type Destino = typeof DESTINOS[number];
 export const DESTINOS_ATO = [...DESTINOS, 'nenhum'] as const;
 export type DestinoAto = typeof DESTINOS_ATO[number];
+/**
+ * Ação da fase aceita também 'consolidar': entra na certidão conjunta da fase
+ * (ou do grupo de fases), emitida uma vez, com folha, quando o processo sai
+ * do grupo, é arquivado ou alguém pede "Emitir certidão agora".
+ */
+export const DESTINOS_ACAO = [...DESTINOS_ATO, 'consolidar'] as const;
+export type DestinoAcao = typeof DESTINOS_ACAO[number];
 /** Valor desconhecido (cópia antiga do rito, dado mexido) vira o padrão. */
 const lido = <T extends string>(v: unknown, lista: readonly T[], padrao: T): T => (lista.includes(v as T) ? (v as T) : padrao);
 const destino = (v: unknown, padrao: Destino): Destino => lido(v, DESTINOS, padrao);
@@ -70,7 +77,7 @@ export interface RegraAcao {
     ajuda?: string;
     opcoes?: string[];
     /** Onde fica o registro de cumprimento (ausente = evento). Para documento, vale `documento.destino`. */
-    destino?: DestinoAto;
+    destino?: DestinoAcao;
     /** As partes veem a informação (e a certidão, se nos autos) no portal. */
     partes?: boolean;
     /** A fase só segue com ela cumprida (ou com dispensa motivada). Ação com documento é sempre exigida. */
@@ -82,8 +89,13 @@ export interface RegraAcao {
 
 export const MAX_DOCUMENTOS_FASE = 5;
 
+/** Certidão conjunta: fases com o mesmo `grupo` dividem uma só certidão. */
+export interface CertidaoFase { grupo?: string; titulo?: string; incluir_mudancas?: true }
+
 export interface FaseRegras {
     id: string;
+    nome?: string;
+    certidao?: CertidaoFase;
     acoes?: string[];
     registro?: Registro;
     registro_atos?: RegistroAtos;
@@ -92,9 +104,9 @@ export interface FaseRegras {
 }
 
 /** Onde fica o cumprimento da ação. */
-export function destinoDaAcao(r: RegraAcao | null | undefined): DestinoAto {
+export function destinoDaAcao(r: RegraAcao | null | undefined): DestinoAcao {
     if (r?.documento) return destino(r.documento.destino, 'autos');
-    if (r?.destino) return lido(r.destino, DESTINOS_ATO, 'evento');
+    if (r?.destino) return lido(r.destino, DESTINOS_ACAO, 'evento');
     return r?.autos ? 'autos' : 'evento';
 }
 /** O que a ação pede. */
@@ -104,7 +116,8 @@ export const pedidoDaAcao = (r: RegraAcao | null | undefined): Pedido => (r?.doc
 export const partesVeem = (r: RegraAcao | null | undefined): boolean =>
     destinoDaAcao(r) !== 'nenhum'
     && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
-    && (pedidoDaAcao(r) !== 'confirmar' || destinoDaAcao(r) === 'autos');
+    // Certidão (própria ou conjunta) mostra até a confirmação simples.
+    && (pedidoDaAcao(r) !== 'confirmar' || ['autos', 'consolidar'].includes(destinoDaAcao(r)));
 
 /** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo). */
 export function niveisDaFase(f: FaseRegras | undefined): { fase: DestinoAto; remessas: DestinoAto } {
@@ -149,7 +162,7 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
             out.opcoes = opcoes;
         }
     }
-    const dest = lido(r.destino, DESTINOS_ATO, r.autos === true ? 'autos' : 'evento');
+    const dest = lido(r.destino, DESTINOS_ACAO, r.autos === true ? 'autos' : 'evento');
     if (dest !== 'evento') out.destino = dest;
     // Sem evento não aparece para ninguém: nem para as partes.
     const partes = dest !== 'nenhum' && (r.partes === true || (r.partes === undefined && r.autos === true));
@@ -291,6 +304,73 @@ export function destinoDoMovimento(fases: FaseRegras[], deId: string, paraId?: s
 /** O ato vai só para o registro interno (fora dos autos)? */
 export const movimentoInterno = (fases: FaseRegras[], deId: string, paraId?: string | null): boolean =>
     destinoDoMovimento(fases, deId, paraId) !== 'autos';
+
+// ============================================================================
+// Certidão conjunta. Os atos marcados 'consolidar' (e, se a fase pedir, as
+// mudanças de fase dentro do grupo) ficam como registro oculto e entram como
+// itens em `proc.consolidacao`; ao sair do grupo, arquivar ou "Emitir
+// certidão agora", vira UMA certidão nos autos, com folha.
+// ============================================================================
+
+/**
+ * A certidão ocupa uma folha: o texto inteiro tem de caber numa página do
+ * termo (exportar.ts: A4, corpo 11pt, cerca de 29 linhas livres). 1800
+ * caracteres dão uns 24 linhas, com folga para título longo e palavras largas.
+ * Passou disso, a pendente é emitida e outra começa.
+ */
+export const MAX_TEXTO_CERTIDAO = 1800;
+/** Item longo (dado de texto longo) entra resumido; a íntegra fica no registro do ato e nas informações. */
+export const MAX_ITEM_CERTIDAO = 300;
+export interface ItemCertidao { seq: number; fase_id: string; acao_idx?: number; texto: string; autor: string; em: string; partes: boolean }
+export interface Consolidacao { grupo: string; itens: ItemCertidao[] }
+
+/** Grupo da certidão da fase: o configurado, ou a própria fase. */
+export const grupoDe = (f: FaseRegras | undefined): string => (f ? f.certidao?.grupo || f.id : '');
+
+/** Título da certidão do grupo: o que a primeira fase do grupo deu, ou o nome das fases. */
+export function tituloCertidao(fases: FaseRegras[], grupo: string): string {
+    const membros = fases.filter((f) => grupoDe(f) === grupo);
+    // Vale o título da fase raiz; o de outra fase do grupo só se a raiz não deu.
+    const dado = membros.find((f) => f.id === grupo)?.certidao?.titulo || membros.find((f) => f.certidao?.titulo)?.certidao?.titulo;
+    if (dado) return dado;
+    const nomes = membros.map((f) => f.nome || f.id);
+    return nomes.length > 1 ? `Certidão das fases ${nomes.join(', ')}` : `Certidão da fase ${nomes[0] || grupo}`;
+}
+
+/** Mudança de fase dentro do mesmo grupo vira item da certidão (em vez de termo próprio)? */
+export const mudancaNaCertidao = (fases: FaseRegras[], deId: string, paraId: string): boolean => {
+    const de = fases.find((f) => f.id === deId);
+    const para = fases.find((f) => f.id === paraId);
+    return !!de && !!para && grupoDe(de) === grupoDe(para) && (de.certidao?.incluir_mudancas === true || para.certidao?.incluir_mudancas === true);
+};
+
+/** Há certidão por emitir antes deste ato? `paraId` null = sai do fluxo (arquivar). */
+export function deveEmitir(fases: FaseRegras[], c: Consolidacao | undefined | null, deId: string, paraId: string | null): boolean {
+    if (!c?.itens?.length) return false;
+    if (!paraId) return true;
+    return grupoDe(fases.find((f) => f.id === paraId)) !== c.grupo || grupoDe(fases.find((f) => f.id === deId)) !== c.grupo;
+}
+
+const quando = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+/** Texto da certidão conjunta (o título vai no evento): um item por ato, com quem fez e quando. */
+export function textoCertidao(itens: ItemCertidao[]): string {
+    const linhas = itens.map((i, k) => `${k + 1}) ${i.texto}${i.autor ? ` (${i.autor}${i.em ? `, ${quando(i.em)}` : ''})` : ''}`);
+    return `Certifico que foram cumpridos os seguintes atos: ${linhas.join('; ')}.`;
+}
+
+export const textoDoItem = (t: string): string =>
+    (t.length > MAX_ITEM_CERTIDAO ? `${t.slice(0, MAX_ITEM_CERTIDAO - 40).trimEnd()}… (íntegra no registro do ato)` : t);
+
+/** O item ainda cabe na folha da certidão pendente? */
+export const cabeNaCertidao = (itens: ItemCertidao[], item: ItemCertidao): boolean =>
+    textoCertidao([...itens, item]).length <= MAX_TEXTO_CERTIDAO;
+
+/** As partes veem a certidão só se puderem ver todos os itens. */
+export const visivelCertidao = (itens: ItemCertidao[]): boolean => itens.length > 0 && itens.every((i) => i.partes);
 
 /** Campos de `dados` do movimento para o destino: interno (sem folha), fora da impressão e oculto (sem evento). */
 export function marcasDoDestino(d: DestinoAto): Record<string, boolean> {

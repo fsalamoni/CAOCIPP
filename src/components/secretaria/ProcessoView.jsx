@@ -25,7 +25,7 @@ import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
-import { FORMAS, ROTULO_DESTINO, destinoTransicao, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
@@ -362,7 +362,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 const r = faseAtual.acoes_regras?.[i] || null;
                                 const desfazer = () => setConfirmar({
                                     titulo: 'Desfazer a ação?',
-                                    texto: `"${a}" volta a ficar pendente${pedidoDaAcao(r) !== 'confirmar' ? ' e a informação registrada sai das informações do processo' : ''}. O desfazimento fica registrado${r?.destino === 'autos' || r?.autos ? ' nos autos, em certidão' : ' nos eventos'}.`,
+                                    texto: `"${a}" volta a ficar pendente${pedidoDaAcao(r) !== 'confirmar' ? ' e a informação registrada sai das informações do processo' : ''}. ${
+                                        destinoDaAcao(r) === 'consolidar' && p.consolidacao?.itens?.some((x) => x.fase_id === p.fase_atual && x.acao_idx === i)
+                                            ? 'O item sai da certidão conjunta, que ainda não foi emitida.'
+                                            : `O desfazimento fica registrado${['autos', 'consolidar'].includes(destinoDaAcao(r)) ? ' nos autos, em certidão' : ' nos eventos'}.`}`,
                                     rotulo: 'Desfazer',
                                     fn: () => mov('marcarAcao', { acao_idx: i, feita: false }, 'Ação desfeita'),
                                 });
@@ -377,6 +380,18 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             })}
                         </ul>
                     )}
+                    {p.consolidacao?.itens?.length > 0 && (
+                        // Certidão conjunta: os atos esperam numa só certidão; quem tem o processo pode emiti-la antes.
+                        <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm">
+                            <span className="flex-1 min-w-[12rem]">
+                                {p.consolidacao.itens.length} {p.consolidacao.itens.length > 1 ? 'atos aguardam' : 'ato aguarda'} a certidão conjunta.
+                                <span className="block text-xs text-slate-600 dark:text-slate-400">Ela vai aos autos sozinha quando o processo sair da fase (ou do grupo de fases) ou for arquivado.</span>
+                            </span>
+                            {podeMexer && (
+                                <Button size="sm" variant="outline" disabled={ocupado} onClick={() => mov('emitirCertidao', {}, 'Certidão emitida nos autos')}>Emitir certidão agora</Button>
+                            )}
+                        </div>
+                    )}
                     {docsDaFase.length > 0 && (
                         <div>
                             <p className="text-sm font-medium">Documentos exigidos nesta fase</p>
@@ -386,7 +401,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     {(niveis.fase !== 'autos' || niveis.remessas !== 'autos') && (
                         <p className="text-xs text-slate-600 dark:text-slate-400">
                             {/* Mudança de fase: vale o mais reservado das duas; "sem evento" só se as duas pedem. */}
-                            Pelo rito, {proximas.length ? `a mudança para ${proximas.map((x) => `${x.nome} fica ${ROTULO_DESTINO[destinoTransicao(niveis.fase, niveisDaFase(x).fase)]}`).join('; para ')}, e ` : ''}
+                            Pelo rito, {proximas.length ? `a mudança para ${proximas.map((x) => `${x.nome} fica ${ROTULO_DESTINO[destinoDaMudanca(p.fases, faseAtual, x)]}`).join('; para ')}, e ` : ''}
                             as remessas entre unidades durante esta fase, {ROTULO_DESTINO[niveis.remessas]}. Documento juntado continua nos autos.
                         </p>
                     )}

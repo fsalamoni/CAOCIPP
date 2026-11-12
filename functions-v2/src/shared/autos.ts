@@ -71,9 +71,11 @@ const TITULOS: Record<string, string> = {
     guarda: 'Documento guardado fora dos autos',
     exclusao: 'Termo de exclusão',
     restauracao: 'Termo de restauração',
+    certidao_fase: 'Certidão conjunta',
 };
 export function tituloEvento(m: Evento): string {
     if (m.tipo === 'acao_fase' && m.dados?.nos_autos === true) return 'Certidão de cumprimento';
+    if (m.tipo === 'certidao_fase' && typeof m.dados?.titulo === 'string' && m.dados.titulo) return m.dados.titulo;
     const t = TITULOS[m.tipo] || 'Certidão';
     // Fora dos autos não há termo nem certidão: "Termo de remessa" vira "Remessa (registro interno)".
     if (m.dados?.interno !== true) return t;
