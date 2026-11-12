@@ -21,6 +21,7 @@ import FluxoRito from './FluxoRito';
 import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
 import { TIPOS_UNIDADE, copiarTexto } from './comum';
 import { BloqueioRito } from './Lixeira';
+import PreviaRito from './PreviaRito';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -539,6 +540,7 @@ function Revisao({
                     ? <Button variant="ghost" className="gap-1 text-red-700 dark:text-red-300" onClick={() => setExcluir(true)}><Trash2 className="w-4 h-4" aria-hidden /> Excluir rito</Button>
                     : <Button variant="ghost" onClick={onVoltar}>Voltar ao início</Button>}
                 {editando && <Button variant="ghost" className="gap-1" onClick={onTrocarFases}><FileUp className="w-4 h-4" aria-hidden /> Substituir fases</Button>}
+                <PreviaRito estado={estado} rascunho={p} rotuloBotao="Prévia" />
                 <span className="text-xs text-slate-600 dark:text-slate-300">Rascunho salvo neste navegador.</span>
                 <p className="text-xs text-slate-600 dark:text-slate-300 ml-auto text-right">
                     {editando ? `Será salvo como versão ${(p.versao || 1) + 1} (${p.fases.length} fases)` : `Será criado: 1 rito (${p.fases.length} fases)`}{unNovas.length ? `, ${unNovas.length} unidade${unNovas.length > 1 ? 's' : ''} nova${unNovas.length > 1 ? 's' : ''}` : ''}{modNovos.length ? `, ${modNovos.length} modelo${modNovos.length > 1 ? 's' : ''} novo${modNovos.length > 1 ? 's' : ''}` : ''}{tipo.criar && (tipo.nome || p.nome).trim() ? ', 1 tipo de processo' : ''}.
@@ -633,7 +635,7 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 </div>
             </div>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
-            <RegistroEDocumentos f={f} modelos={modelos} mudar={mudar} />
+            <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} />
             <div>
                 <p className="text-xs font-medium mb-1">Modelos de documento</p>
                 <div className="flex flex-wrap gap-1.5 items-center">

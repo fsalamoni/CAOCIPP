@@ -25,7 +25,7 @@ import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
-import { FORMAS, ROTULO_DESTINO, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, destinoTransicao, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
@@ -275,7 +275,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     <TabsTrigger value="capa">Capa</TabsTrigger>
                     <TabsTrigger value="andamento">Andamento{p.pendencias_abertas > 0 ? ` (${p.pendencias_abertas})` : ''}</TabsTrigger>
                     <TabsTrigger value="autos">Autos ({autos.length})</TabsTrigger>
-                    <TabsTrigger value="eventos">Eventos ({movimentos.length})</TabsTrigger>
+                    <TabsTrigger value="eventos">Eventos ({movimentos.filter((m) => m.dados?.oculto !== true).length})</TabsTrigger>
                 </TabsList>
                 {noAndamento && (
                 <div className="flex flex-wrap gap-2 items-start">
@@ -385,8 +385,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     )}
                     {(niveis.fase !== 'autos' || niveis.remessas !== 'autos') && (
                         <p className="text-xs text-slate-600 dark:text-slate-400">
-                            Pelo rito, entrar e sair desta fase fica {niveis.fase === 'autos' ? 'nos autos' : ROTULO_DESTINO[niveis.fase]}, e as remessas entre unidades durante ela,
-                            {' '}{niveis.remessas === 'autos' ? 'nos autos' : ROTULO_DESTINO[niveis.remessas]}. Documento juntado continua nos autos.
+                            {/* Mudança de fase: vale o mais reservado das duas; "sem evento" só se as duas pedem. */}
+                            Pelo rito, {proximas.length ? `a mudança para ${proximas.map((x) => `${x.nome} fica ${ROTULO_DESTINO[destinoTransicao(niveis.fase, niveisDaFase(x).fase)]}`).join('; para ')}, e ` : ''}
+                            as remessas entre unidades durante esta fase, {ROTULO_DESTINO[niveis.remessas]}. Documento juntado continua nos autos.
                         </p>
                     )}
                     {modelosDaFase.length > 0 && podeMexer && (

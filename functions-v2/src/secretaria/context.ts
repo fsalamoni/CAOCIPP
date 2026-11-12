@@ -179,10 +179,13 @@ export function registrarMovimento(
         ultimo_hash: hash,
         version: (Number(proc.version) || 0) + 1,
         updated_at: FieldValue.serverTimestamp(),
-        // `publico` deixa o portal saber se pode usar este movimento quando falta o último público.
-        ultimo_movimento: { tipo, descricao, em: base.em, publico: visivelParaPartes(base) },
-        // O que o portal mostra às partes como último andamento: nunca um ato interno.
-        ...(visivelParaPartes(base) ? { ultimo_movimento_publico: { tipo, descricao, em: base.em } } : {}),
+        // Ato "sem evento" (oculto) não vira último andamento de ninguém.
+        ...(dados.oculto === true ? {} : {
+            // `publico` deixa o portal saber se pode usar este movimento quando falta o último público.
+            ultimo_movimento: { tipo, descricao, em: base.em, publico: visivelParaPartes(base) },
+            // O que o portal mostra às partes como último andamento: nunca um ato interno.
+            ...(visivelParaPartes(base) ? { ultimo_movimento_publico: { tipo, descricao, em: base.em } } : {}),
+        }),
     };
 }
 

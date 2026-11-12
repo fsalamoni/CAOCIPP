@@ -629,7 +629,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const dado = feita ? valorDaAcao(regra, acao, p.valor) : null;
             if (feita) lista.add(idx); else lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
-            // O rito diz onde fica: certidão nos autos (com folha), evento no extrato ou só no sistema.
+            // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
             const comDado = dado ? ` ${dado.rotulo}: ${dado.valor_texto}.` : '';
             const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
@@ -639,9 +639,11 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 {
                     fase_id: fase.id, acao_idx: idx, feita,
                     ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {}),
+                    destino: dest,
                     ...(dest === 'autos' ? { nos_autos: true } : {}),
                     ...(dest === 'informacao' ? { fora_impressao: true } : {}),
                     visivel_partes: partesVeem(regra),
+                    ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
             tx.update(ref, { ...mov, acoes_feitas: feitas });
             return mov;

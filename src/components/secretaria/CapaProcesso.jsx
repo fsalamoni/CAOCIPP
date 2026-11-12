@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DadosCampos } from './CamposProcesso';
 import { POLOS, STATUS_ROTULO, SeloUrgente, dataHora, rotuloOrigem } from './comum';
+import { ROTULO_DESTINO } from '@/lib/exigencias';
 
 // Capa do processo: só informação, igual para todos os perfis, sem nenhum
 // botão de ato (intimar, juntar, tramitar ficam no Andamento). O que entra e
@@ -49,7 +50,6 @@ function Parte({ x }) {
     );
 }
 
-const ONDE = { autos: 'nos autos', evento: 'evento no extrato', informacao: 'só no sistema' };
 
 export default function CapaProcesso({ p, movimentos, informacoes = [], estado, nomeUnidade, cadeiaQuebradaEm, onLer, onVerEventos }) {
     const responsavel = p.responsavel_uid ? estado.membros.find((m) => m.uid === p.responsavel_uid)?.nome : null;
@@ -59,7 +59,7 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
     const unidadeAutuacao = p.unidade_autuacao ? nomeUnidade(p.unidade_autuacao) : null;
     const dias = diasDesde(p.recebido_em);
     const atos = movimentos.filter((m) => m.origem === 'usuario');
-    const outros = movimentos.length - atos.length;
+    const outros = movimentos.filter((m) => m.origem !== 'usuario' && m.dados?.oculto !== true).length;
 
     return (
         <div className="space-y-4">
@@ -112,7 +112,7 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
                                 <div key={i.seq}>
                                     <dt className="text-xs text-slate-600 dark:text-slate-400">{i.rotulo} <span className="whitespace-nowrap">· {i.fase_nome}</span></dt>
                                     <dd className="text-sm text-slate-900 dark:text-slate-100 break-words whitespace-pre-wrap">{i.valor_texto}</dd>
-                                    <dd className="text-xs text-slate-600 dark:text-slate-400">{i.por}, {dataHora(i.em)} · {ONDE[i.destino]}{i.visivel_partes ? ' · partes veem' : ''}</dd>
+                                    <dd className="text-xs text-slate-600 dark:text-slate-400">{i.por}, {dataHora(i.em)} · {ROTULO_DESTINO[i.destino]}{i.visivel_partes ? ' · partes veem' : ''}</dd>
                                 </div>
                             ))}
                         </dl>

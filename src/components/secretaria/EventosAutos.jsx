@@ -12,7 +12,10 @@ import LeitorAutos from './LeitorAutos';
 
 const textoFolhas = (f) => (f ? (f[1] > f[0] ? `fls. ${f[0]}–${f[1]}` : `fl. ${f[0]}`) : '');
 // Internos: atos que o rito deixa fora dos autos (sem termo nem folha).
-const FILTROS = [['todos', 'Todos'], ['usuario', 'Atos de usuários'], ['interno', 'Internos'], ['sistema', 'Sistema'], ['docs', 'Com documentos']];
+// Ocultos: atos que o rito marcou "sem evento". Ficam fora de "Todos"; é filtro
+// de tela (quem vê o processo recebe os registros), para conferência.
+const FILTROS = [['todos', 'Todos'], ['usuario', 'Atos de usuários'], ['interno', 'Internos'], ['sistema', 'Sistema'], ['docs', 'Com documentos'], ['ocultos', 'Registros ocultos']];
+const oculto = (m) => m.dados?.oculto === true;
 
 function IconeEvento({ m }) {
     const I = m.origem !== 'usuario' ? Cpu : m.documento_id ? FileText : Stamp;
@@ -33,20 +36,23 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
     const [leitura, setLeitura] = useState(null);
     const [pdfAberto, setPdfAberto] = useState(false);
 
-    const temOrigem = (o) => movimentos.some((m) => m.origem === o);
+    const nOcultos = movimentos.filter(oculto).length;
+    const temOrigem = (o) => (o === 'ocultos' ? nOcultos > 0 : movimentos.some((m) => m.origem === o && !oculto(m)));
     const ultimaFolha = movimentos.reduce((n, m) => Math.max(n, m.folhas?.[1] || 0), 0);
     const visiveis = useMemo(() => {
         const t = busca.trim().toLowerCase();
-        const l = movimentos.filter((m) => (filtro === 'todos' || (filtro === 'docs' ? !!m.documento_id : m.origem === filtro))
+        const l = movimentos.filter((m) => (filtro === 'ocultos' ? oculto(m) : !oculto(m) && (filtro === 'todos' || (filtro === 'docs' ? !!m.documento_id : m.origem === filtro)))
             && (!t || `${m.seq} ${m.titulo} ${m.descricao} ${m.autor_nome}`.toLowerCase().includes(t)));
         return crescente ? l : [...l].reverse();
     }, [movimentos, filtro, busca, crescente]);
 
     const marcar = (seq) => setMarcados((s) => { const n = new Set(s); if (n.has(seq)) n.delete(seq); else n.add(seq); return n; });
-    const todosMarcados = visiveis.length > 0 && visiveis.every((m) => marcados.has(m.seq));
+    // Registro oculto não sai em impressão: não entra na seleção do PDF.
+    const marcaveis = visiveis.filter((m) => !oculto(m));
+    const todosMarcados = marcaveis.length > 0 && marcaveis.every((m) => marcados.has(m.seq));
     const marcarTodos = () => setMarcados((s) => {
         const n = new Set(s);
-        visiveis.forEach((m) => (todosMarcados ? n.delete(m.seq) : n.add(m.seq)));
+        marcaveis.forEach((m) => (todosMarcados ? n.delete(m.seq) : n.add(m.seq)));
         return n;
     });
     const unidade = (m) => (nomeUnidade && m.unidade_id ? nomeUnidade(m.unidade_id) : '');
@@ -61,13 +67,13 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
         <Card className={className}>
             <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-base mr-auto">{titulo} <span className="font-normal text-slate-600 dark:text-slate-400">({movimentos.length})</span></CardTitle>
+                    <CardTitle className="text-base mr-auto">{titulo} <span className="font-normal text-slate-600 dark:text-slate-400">({movimentos.length - nOcultos})</span></CardTitle>
                     <Button size="sm" variant="outline" className="gap-1.5" disabled={!movimentos.length} onClick={() => setLeitura(movimentos[0]?.seq)}><BookOpen className="w-4 h-4" aria-hidden /> Ler os autos</Button>
                     <Button size="sm" className="gap-1.5" disabled={!movimentos.length} onClick={() => setPdfAberto(true)}><Download className="w-4 h-4" aria-hidden /> Gerar PDF{marcados.size ? ` (${marcados.size})` : ''}</Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-2">
                     <div role="group" aria-label="Filtrar eventos" className="flex flex-wrap gap-1">
-                        {FILTROS.filter(([v]) => !['sistema', 'interno'].includes(v) || temOrigem(v)).map(([v, l]) => (
+                        {FILTROS.filter(([v]) => !['sistema', 'interno', 'ocultos'].includes(v) || temOrigem(v)).map(([v, l]) => (
                             <button key={v} type="button" aria-pressed={filtro === v} onClick={() => setFiltro(v)}
                                 className={`rounded-full border px-2.5 py-1 text-xs ${filtro === v ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{l}</button>
                         ))}
@@ -96,14 +102,14 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                             <tbody>
                                 {visiveis.map((m) => (
                                     <tr key={m.seq} className={`border-b border-slate-100 dark:border-slate-800 align-top ${marcados.has(m.seq) ? 'bg-indigo-50/60 dark:bg-indigo-950/40' : ''}`}>
-                                        <td className="py-2 pr-2"><input type="checkbox" checked={marcados.has(m.seq)} onChange={() => marcar(m.seq)} aria-label={`Marcar o evento ${m.seq}`} /></td>
+                                        <td className="py-2 pr-2">{!oculto(m) && <input type="checkbox" checked={marcados.has(m.seq)} onChange={() => marcar(m.seq)} aria-label={`Marcar o evento ${m.seq}`} />}</td>
                                         <td className="py-2 pr-3 font-mono text-xs tabular-nums" title={m.hash ? `SHA-256 ${m.hash}` : undefined}>{m.seq}</td>
                                         <td className="py-2 pr-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400 hidden sm:table-cell">{dataHora(m.em)}</td>
                                         <td className="py-2 pr-3 sm:min-w-[14rem] break-words">
                                             <button type="button" onClick={() => !m.dados?.fora_impressao && setLeitura(m.seq)} className="text-left group" title={m.dados?.fora_impressao ? 'Registro só no sistema: não sai em impressão' : undefined}>
                                                 <span className="flex flex-wrap items-center gap-1.5 font-medium group-hover:underline"><IconeEvento m={m} /> {m.titulo}
                                                     {m.novo && <Badge className="bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}
-                                                    {m.origem !== 'usuario' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{m.dados?.fora_impressao ? 'só no sistema' : m.origem === 'interno' ? 'interno' : 'sistema'}</Badge>}
+                                                    {m.origem !== 'usuario' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{oculto(m) ? 'sem evento' : m.dados?.fora_impressao ? 'só no sistema' : m.origem === 'interno' ? 'interno' : 'sistema'}</Badge>}
                                                 </span>
                                                 <span className="block text-slate-700 dark:text-slate-300">{m.descricao}</span>
                                             </button>
@@ -121,7 +127,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
 
             <LeitorAutos documentos={pecas} abertoId={leitura} onFechar={() => setLeitura(null)} prefixo="Evento" titulo="Autos"
                 carregar={(x) => gerarPdf({ modo: 'apenas', eventos: [x.id], capa: false, indice: false })} />
-            {pdfAberto && <GerarPdf marcados={marcados} total={movimentos.length} ultimaFolha={ultimaFolha} gerarPdf={gerarPdf} onFechar={() => setPdfAberto(false)} />}
+            {pdfAberto && <GerarPdf marcados={marcados} total={movimentos.length - nOcultos} ultimaFolha={ultimaFolha} gerarPdf={gerarPdf} onFechar={() => setPdfAberto(false)} />}
         </Card>
     );
 }

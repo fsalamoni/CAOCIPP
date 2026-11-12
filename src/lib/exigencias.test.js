@@ -46,6 +46,19 @@ test('ação: o que pede, onde fica e troca de pedido sem perder destino', async
     assert.equal(m.regraComPedido(null, 'confirmar', 'A'), null);
     assert.match(m.resumoDaAcao({ pede: 'numero', rotulo: 'Nº SIM', destino: 'autos', partes: true }), /número \(Nº SIM\); certidão nos autos; partes veem/);
     assert.deepEqual(m.niveisDaFase({ registro: 'remessas_fora' }), { fase: 'autos', remessas: 'evento' });
+    // Sem evento: as partes nunca veem; documento não fica sem evento; valor desconhecido vira o padrão.
+    assert.equal(m.partesVeem({ pede: 'texto', destino: 'nenhum', partes: true }), false);
+    assert.deepEqual(m.regraComPedido({ destino: 'nenhum' }, 'documento', 'Anexar'), { documento: { descricao: 'Anexar', forma: 'qualquer' } });
+    assert.equal(m.destinoDaAcao({ destino: 'xx' }), 'evento');
+    assert.match(m.resumoDaAcao({ destino: 'nenhum' }), /sem evento/);
+    // Espelho do servidor: mesma regra de transição.
+    for (const [a, b, r] of [['nenhum', 'autos', 'autos'], ['evento', 'nenhum', 'evento'], ['nenhum', 'nenhum', 'nenhum'], ['informacao', 'evento', 'informacao'], ['autos', 'evento', 'evento']]) {
+        assert.equal(m.destinoTransicao(a, b), r, `${a}+${b}`);
+    }
+    const fs = [{ id: 'a' }, { id: 'b', proximas: ['a'] }, { id: 'c', final: true }];
+    assert.deepEqual(m.saidasDaFase(fs, fs[0]).map((x) => x.id), ['b']);
+    assert.deepEqual(m.saidasDaFase(fs, fs[1]).map((x) => x.id), ['a']);
+    assert.deepEqual(m.saidasDaFase(fs, fs[2]), []);
     const f = { id: 'f', acoes: ['A', 'B'], acoes_regras: [{ obrigatoria: true }, { documento: { descricao: 'B', forma: 'qualquer', destino: 'evento' } }] };
     assert.deepEqual(m.faltaNaFase(f, {}, []).map((e) => e.descricao), ['B', 'A']);
     assert.equal(m.atende({ forma: 'qualquer', destino: 'evento' }, { origem: 'upload' }), false);

@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: "sem evento" e prévia do rito antes de salvar
+- **Sem evento**: cada ação da fase, a entrada e saída da fase e as remessas
+  podem não gerar evento. Fica só um registro oculto, para auditoria, que não
+  vira último andamento e nunca aparece às partes. Na aba Eventos, filtro
+  "Registros ocultos".
+- Mudança entre uma fase "sem evento" e outra que pede registro segue a
+  outra: o termo não some.
+- **Editor**: o destino da ação em cartões, com a consequência e a amostra do
+  texto; a lista de como ficam as mudanças com as fases vizinhas.
+- **Prévia** no editor do rito, antes de salvar, com a nova aba "Como fica nos
+  autos" e a aba "Como a parte vê" montada pelas regras do rito.
+
 ### 12/11/2026 — Processo Eletrônico: excluir, restaurar e duplicar ritos, tipos e modelos
 - **Menu ⋯ em cada rito, tipo de processo e modelo**: Editar, Duplicar e
   Excluir. Processos já autuados não mudam.

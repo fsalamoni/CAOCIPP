@@ -275,7 +275,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao \| nenhum; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao \| nenhum; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}, numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
 | `secContadores/{chave}` | `seq` de cada contagem: `{org}_{ano}` (a de sempre, `000001/2026`) ou `{org}_{escopo}_{alvo}_{período}` |
@@ -444,7 +444,8 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
 `functions-v2/test/exigencias.test.js`); o espelho da tela, em
 `src/lib/exigencias.js`.
 
-- **Três destinos para cada ato** (`Destino` em `shared/exigencias.ts`):
+- **Destinos de cada ato** (`Destino` em `shared/exigencias.ts`; ações e
+  atos da fase aceitam também `nenhum`, em `DestinoAto`):
   - `autos`: termo ou certidão com folha; sai na impressão dos autos e as
     partes veem (salvo se o rito disser que não);
   - `evento`: registro interno, sem folha (`dados.interno`); aparece na aba
@@ -452,12 +453,25 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
   - `informacao`: só no sistema (`dados.interno` e `dados.fora_impressao`);
     aparece na aba Eventos (selo "só no sistema") e, se for um dado, nas
     informações do processo; **não sai em impressão nenhuma** (o extrato do
-    PDF o pula e o leitor da aba Eventos não o abre).
+    PDF o pula e o leitor da aba Eventos não o abre);
+  - `nenhum` ("Sem evento", só ações e atos da fase; documento não): o
+    movimento é gravado com `dados.oculto`, `interno`, `fora_impressao` e
+    `visivel_partes: false`. Continua na cadeia de hash (auditoria), mas não
+    vira `ultimo_movimento` nem `ultimo_movimento_publico`
+    (`registrarMovimento`), some de "Todos" na aba Eventos (filtro "Registros
+    ocultos", que é só de tela: quem vê o processo recebe os registros) e as
+    partes nunca o veem (`partesVeem` é falso e o saneamento tira `partes`).
+    O dado que a ação pediu vai para as informações do processo, só para a
+    equipe.
+  - Valor desconhecido numa cópia antiga lê como o padrão: `evento` para
+    ações, `autos` para fases.
 - **Registro dos atos de tramitação da fase** (`fase.registro_atos =
   {fase?, remessas?}`, ausente = `autos`): `fase` vale para entrar e sair da
   fase, `remessas` para as remessas entre unidades durante ela.
   `destinoDoMovimento`: mudança de fase fica no destino mais reservado entre
-  a fase de onde sai e a para onde vai; remessa sem mudar de fase segue
+  a fase de onde sai e a para onde vai (`destinoTransicao`: "sem evento" numa
+  só delas não apaga o registro que a outra pede; fica oculto só quando as
+  duas dizem "sem evento"); remessa sem mudar de fase segue
   `remessas`. Remessa entre órgãos e dispensa de exigência vão sempre aos
   autos. O formato antigo `fase.registro` (`remessas_fora`, `interno`) ainda
   é lido nos processos autuados antes (`niveisDaFase`) e é convertido ao
@@ -554,6 +568,15 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
   da fase aparece numa nota. O diálogo de mudar a
   fase (e o de remeter mudando de fase) mostra o que falta e pede o "Motivo
   da dispensa". A prévia do rito mostra as regras.
+- **Editor (nov/2026).** O destino da ação é escolhido em cartões, cada um
+  com a consequência e a amostra do texto gravado; "As partes veem" fica
+  visível e desligado, com o motivo, quando não cabe. Sob "Onde ficam os atos
+  de tramitação", a lista mostra como ficam, de fato, as mudanças com as
+  fases vizinhas. O rodapé do editor tem "Prévia", que abre a prévia do rito
+  ainda não salvo, com três abas: como a equipe vê, como a parte vê (o que da
+  fase chega ao portal, tirado das regras) e como fica nos autos (folha,
+  extrato, só na tela ou oculto, ato por ato). Rótulos num só mapa,
+  `DESTINO_INFO` em `src/lib/exigencias.js`.
 - **Compatibilidade.** Ritos e processos antigos não têm esses campos e
   funcionam como antes. Processo guarda a cópia das fases da autuação: mudar
   o rito vale para os próximos processos.
