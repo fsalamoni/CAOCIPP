@@ -514,7 +514,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 mudou.unshift('Descrição alterada');
             if (!mudou.length)
                 throw new https_1.HttpsError('invalid-argument', 'Nada foi alterado');
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'dados', `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, secretaria_1.MAX_TEXTO_LONGO), { campos: mudou.length, visivel_partes: false });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'dados', `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, secretaria_1.MAX_TEXTO_LONGO), Object.assign({ campos: mudou.length, visivel_partes: false }, (0, exigencias_1.marcasNaFase)(data, 'dados')));
             tx.update(ref, Object.assign(Object.assign({}, mov), { descricao, campos }));
             return mov;
         }
@@ -597,7 +597,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', 'A pessoa precisa estar lotada na unidade que tem o processo');
             }
             const nomeAlvo = alvo ? ((_f = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _f === void 0 ? void 0 : _f.user_name) || 'membro' : '';
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'atribuicao', alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', { responsavel_uid: alvo });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'atribuicao', alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', Object.assign({ responsavel_uid: alvo }, (0, exigencias_1.marcasNaFase)(data, 'atribuicao')));
             tx.update(ref, Object.assign(Object.assign({}, mov), { responsavel_uid: alvo }));
             return mov;
         }
@@ -643,7 +643,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('invalid-argument', urgente ? 'O processo já está marcado como urgente' : 'O processo não está marcado como urgente');
             if (!motivo)
                 throw new https_1.HttpsError('invalid-argument', 'Informe o motivo');
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'urgencia', `${urgente ? 'Processo marcado como urgente' : 'Urgência retirada'}. Motivo: ${motivo}`, { urgente });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'urgencia', `${urgente ? 'Processo marcado como urgente' : 'Urgência retirada'}. Motivo: ${motivo}`, Object.assign({ urgente }, (0, exigencias_1.marcasNaFase)(data, 'urgencia')));
             tx.update(ref, Object.assign(Object.assign({}, mov), { urgente, urgencia: urgente ? { motivo, por: c.userName, em: new Date().toISOString() } : firestore_1.FieldValue.delete() }));
             return mov;
         }
@@ -700,7 +700,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 status: 'aberta', aberta_em: agora, aberta_por: c.userName,
             };
             const lista = [...pendencias, nova];
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia', `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, { pendencia_id: nova.id, interrompe: nova.interrompe });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia', `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, Object.assign({ pendencia_id: nova.id, interrompe: nova.interrompe }, (0, exigencias_1.marcasNaFase)(data, 'pendencia')));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { pendencias: lista }), (0, secretaria_1.derivados)(lista, prazos)));
             pendenciaAberta = { proc: data, descricao };
             return mov;
@@ -719,7 +719,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const lista = pendencias.map((x) => (x.id === alvo.id
                 ? Object.assign(Object.assign({}, x), { status: 'resolvida', resolvida_em: agora, resolvida_por: c.userName, resolucao }) : x));
             const der = (0, secretaria_1.derivados)(lista, prazos);
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia_resolvida', `Pendência apreciada (${alvo.descricao}): ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`, { pendencia_id: alvo.id });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia_resolvida', `Pendência apreciada (${alvo.descricao}): ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`, Object.assign({ pendencia_id: alvo.id }, (0, exigencias_1.marcasNaFase)(data, 'pendencia')));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { pendencias: lista }), der));
             return mov;
         }
@@ -741,7 +741,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 aberto_em: agora, aberto_por: c.userName,
             };
             const lista = [...prazos, novo];
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo', `Prazo de ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'} aberto: ${descricao}${novo.destinatario ? ` (${novo.destinatario})` : ''}. Vence em ${novo.vence_em.split('-').reverse().join('/')}.`, { prazo_id: novo.id, vence_em: novo.vence_em });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo', `Prazo de ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'} aberto: ${descricao}${novo.destinatario ? ` (${novo.destinatario})` : ''}. Vence em ${novo.vence_em.split('-').reverse().join('/')}.`, Object.assign({ prazo_id: novo.id, vence_em: novo.vence_em }, (0, exigencias_1.marcasNaFase)(data, 'prazo')));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
             return mov;
         }
@@ -753,7 +753,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const hoje = (0, secretaria_1.hojeBrasil)();
             const lista = prazos.map((x) => (x.id === alvo.id ? Object.assign(Object.assign({}, x), { status: res, encerrado_em: hoje, encerrado_por: c.userName }) : x));
             const quando = res === 'cumprido' ? (hoje <= alvo.vence_em ? ' no prazo' : ' fora do prazo') : '';
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo_encerrado', `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, { prazo_id: alvo.id, resultado: res });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo_encerrado', `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ prazo_id: alvo.id, resultado: res }, (0, exigencias_1.marcasNaFase)(data, 'prazo')));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
             return mov;
         }

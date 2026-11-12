@@ -38,6 +38,36 @@ export const DESTINOS_FASE = [
 const DESTINOS_ACAO = [...DESTINOS_ATO, 'consolidar'];
 export const ROTULO_DESTINO = Object.fromEntries(DESTINOS_ACAO.map((d) => [d, DESTINO_INFO[d].curto]));
 
+/** Outros atos durante a fase: [chave, rótulo, padrão]. Iguais ao servidor (OUTROS_ATOS, PADRAO_OUTRO). */
+export const OUTROS_ATOS = [
+    ['prazo', 'Abrir e encerrar prazo', 'autos'],
+    ['pendencia', 'Abrir e apreciar pendência', 'autos'],
+    ['urgencia', 'Marcar ou retirar urgência', 'autos'],
+    ['dados', 'Alterar os dados do processo', 'autos'],
+    ['atribuicao', 'Atribuir a uma pessoa', 'evento'],
+];
+const padraoDoAto = (a) => OUTROS_ATOS.find((x) => x[0] === a)?.[2] || 'autos';
+/** Atribuição é registro de controle: nunca termo nos autos. */
+export const opcoesDoAto = (a) => (a === 'atribuicao' ? DESTINOS_FASE.filter(([d]) => d !== 'autos') : DESTINOS_FASE);
+export const destinoDoAto = (f, a) => lido(f?.registro_atos?.outros?.[a], opcoesDoAto(a).map(([d]) => d), padraoDoAto(a));
+/**
+ * registro_atos da fase com outro mapa de outros atos. Parte dos níveis
+ * efetivos (niveisDaFase), para não perder o formato antigo `registro`.
+ */
+export function registroComOutros(f, outros) {
+    const n = niveisDaFase(f);
+    const base = { ...(n.fase !== 'autos' ? { fase: n.fase } : {}), ...(n.remessas !== 'autos' ? { remessas: n.remessas } : {}) };
+    return comOutros(Object.keys(base).length ? base : undefined, outros);
+}
+
+/** registro_atos com outro mapa de outros atos (guarda só o que difere do padrão). */
+export function comOutros(ra, outros) {
+    const { outros: _o, ...resto } = ra || {};
+    const o = Object.fromEntries(Object.entries(outros || {}).filter(([a, d]) => d && d !== padraoDoAto(a)));
+    const n = { ...resto, ...(Object.keys(o).length ? { outros: o } : {}) };
+    return Object.keys(n).length ? n : undefined;
+}
+
 /** O que a ação pede a quem a cumpre. */
 export const PEDIDOS = [
     ['confirmar', 'Só confirmar (caixa de marcar)'],

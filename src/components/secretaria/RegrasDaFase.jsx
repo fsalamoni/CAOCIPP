@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
-    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, PEDIDOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, grupoDe, niveisDaFase, partesVeem,
+    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
+    grupoDe, niveisDaFase, opcoesDoAto, partesVeem, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
@@ -278,7 +279,29 @@ function CertidaoConjunta({ f, fases, mudar, id }) {
 }
 
 /** Onde ficam a entrada/saída da fase e as remessas, e os documentos exigidos na fase. */
-export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase }) {
+/** Prazo, pendência, urgência, dados e atribuição durante a fase: onde cada um fica. */
+function OutrosAtos({ f, id, mudar, aplicarATodas }) {
+    const atual = Object.fromEntries(OUTROS_ATOS.map(([a]) => [a, destinoDoAto(f, a)]));
+    const set = (a, v) => mudar({ registro_atos: registroComOutros(f, { ...atual, [a]: v }), registro: undefined });
+    return (
+        <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Outros atos durante a fase</legend>
+            <div className="grid sm:grid-cols-2 gap-2">
+                {OUTROS_ATOS.map(([a, rotulo]) => (
+                    <NativeSelect key={a} id={`${id}-out-${a}`} label={rotulo} value={atual[a]} onChange={(v) => set(a, v)} options={opcoesDoAto(a)} />
+                ))}
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+                Sempre nos autos: autuação, juntada de documento, petição, comunicação e ciência, mudança de situação (sobrestar, arquivar, reativar), exclusão e restauração.
+            </p>
+            {aplicarATodas && (
+                <Button variant="outline" size="sm" onClick={() => { aplicarATodas(atual); toast.success('Aplicado a todas as fases do rito'); }}>Aplicar a todas as fases</Button>
+            )}
+        </fieldset>
+    );
+}
+
+export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase, aplicarATodas }) {
     const id = idBase || f.id;
     const n = niveisDaFase(f);
     // Como ficam, de fato, as mudanças com as fases vizinhas (vale o mais reservado; "sem evento" só se as duas pedem).
@@ -292,7 +315,8 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
     const setNivel = (k, v) => {
         const novo = { ...n, [k]: v };
         const ra = { ...(novo.fase !== 'autos' ? { fase: novo.fase } : {}), ...(novo.remessas !== 'autos' ? { remessas: novo.remessas } : {}) };
-        mudar({ registro_atos: Object.keys(ra).length ? ra : undefined, registro: undefined });
+        // Os outros atos da fase continuam como estavam.
+        mudar({ registro_atos: comOutros(Object.keys(ra).length ? ra : undefined, f.registro_atos?.outros), registro: undefined });
     };
     const docs = f.documentos || [];
     const setDocs = (ds) => mudar({ documentos: ds.length ? ds : undefined });
@@ -316,6 +340,7 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
                     </ul>
                 )}
             </fieldset>
+            <OutrosAtos f={f} id={id} mudar={mudar} aplicarATodas={fases.length > 1 ? aplicarATodas : null} />
             <CertidaoConjunta f={f} fases={fases} mudar={mudar} id={id} />
             <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Documentos exigidos na fase</legend>

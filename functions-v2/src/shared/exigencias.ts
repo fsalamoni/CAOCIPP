@@ -48,7 +48,25 @@ export const destinoTransicao = (a: DestinoAto, b: DestinoAto): DestinoAto =>
 export const REGISTROS = ['remessas_fora', 'interno'] as const;
 export type Registro = typeof REGISTROS[number];
 /** Registro dos atos da fase: entrar e sair dela, e remessas entre unidades durante ela. Ausente = autos. */
-export interface RegistroAtos { fase?: Exclude<DestinoAto, 'autos'>; remessas?: Exclude<DestinoAto, 'autos'> }
+export interface RegistroAtos {
+    fase?: Exclude<DestinoAto, 'autos'>;
+    remessas?: Exclude<DestinoAto, 'autos'>;
+    /** Outros atos durante a fase (só o que difere do padrão de cada um). */
+    outros?: Partial<Record<OutroAto, DestinoAto>>;
+}
+
+/**
+ * Outros atos durante a fase cujo registro o rito escolhe. `prazo` vale para
+ * abrir e encerrar; `pendencia`, para abrir e apreciar. O padrão é como era
+ * antes: termo nos autos, e atribuição como registro de controle no extrato.
+ * Ficam sempre nos autos: autuação, juntada, petição, comunicação e ciência,
+ * situação (arquivar pode levar dispensa), exclusão e restauração.
+ */
+export const OUTROS_ATOS = ['prazo', 'pendencia', 'urgencia', 'dados', 'atribuicao'] as const;
+export type OutroAto = typeof OUTROS_ATOS[number];
+export const PADRAO_OUTRO: Record<OutroAto, DestinoAto> = { prazo: 'autos', pendencia: 'autos', urgencia: 'autos', dados: 'autos', atribuicao: 'evento' };
+/** Atribuição é sempre registro de controle: não vira termo nos autos. */
+const opcoesDoAto = (a: OutroAto): readonly DestinoAto[] => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhum'] : DESTINOS_ATO);
 
 export const FORMAS = ['redigir', 'juntar', 'qualquer'] as const;
 export type Forma = typeof FORMAS[number];
@@ -171,14 +189,36 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     return Object.keys(out).length ? out : null;
 }
 
+/** Onde fica o ato durante a fase (valor estranho lê como o padrão). */
+export function destinoDoAto(f: FaseRegras | undefined, ato: OutroAto): DestinoAto {
+    return lido(f?.registro_atos?.outros?.[ato], opcoesDoAto(ato), PADRAO_OUTRO[ato]);
+}
+
+/** Marcas do movimento para o ato; no padrão, nenhuma (fica como sempre foi). */
+export function marcasDoAto(f: FaseRegras | undefined, ato: OutroAto): Record<string, boolean> {
+    const d = destinoDoAto(f, ato);
+    return d === PADRAO_OUTRO[ato] ? {} : marcasDoDestino(d);
+}
+
+/** Marcas do ato pelo que o rito diz na fase em que o processo está. */
+export const marcasNaFase = (proc: { fases?: unknown; fase_atual?: unknown }, ato: OutroAto): Record<string, boolean> =>
+    marcasDoAto(((proc.fases || []) as FaseRegras[]).find((f) => f.id === proc.fase_atual), ato);
+
 function sanitizeRegistroAtos(fo: Record<string, unknown>): RegistroAtos | undefined {
     const ra = (fo.registro_atos && typeof fo.registro_atos === 'object' ? fo.registro_atos : null) as Record<string, unknown> | null;
+    const ob = (ra?.outros && typeof ra.outros === 'object' ? ra.outros : {}) as Record<string, unknown>;
+    const outros: Partial<Record<OutroAto, DestinoAto>> = {};
+    for (const a of OUTROS_ATOS) {
+        const d = lido(ob[a], opcoesDoAto(a), PADRAO_OUTRO[a]);
+        if (d !== PADRAO_OUTRO[a]) outros[a] = d;
+    }
     const n = ra
         ? { fase: lido(ra.fase, DESTINOS_ATO, 'autos'), remessas: lido(ra.remessas, DESTINOS_ATO, 'autos') }
         : niveisDaFase({ id: '', registro: REGISTROS.includes(fo.registro as Registro) ? (fo.registro as Registro) : undefined });
     const out: RegistroAtos = {
         ...(n.fase !== 'autos' ? { fase: n.fase } : {}),
         ...(n.remessas !== 'autos' ? { remessas: n.remessas } : {}),
+        ...(Object.keys(outros).length ? { outros } : {}),
     };
     return Object.keys(out).length ? out : undefined;
 }

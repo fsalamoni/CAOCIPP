@@ -10,6 +10,7 @@ import { APP_URL } from './autos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
 import { sanitizeCompetencias } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
+import { marcasNaFase } from '../shared/exigencias';
 
 /**
  * Unidades de lotação do Processo Eletrônico: dados, equipe (lotações com
@@ -112,7 +113,7 @@ async function liberarResponsaveis(c: Contexto, unidadeId: string, uids: string[
             n += await c.db.runTransaction(async (tx) => {
                 const data = (await tx.get(d.ref)).data();
                 if (!data || data.unidade_atual !== unidadeId || !uids.includes(data.responsavel_uid)) return 0;
-                const mov = registrarMovimento(tx, c, d.ref, data, 'atribuicao', 'Atribuição removida: a pessoa responsável deixou a equipe da unidade.', { responsavel_uid: null, automatico: true });
+                const mov = registrarMovimento(tx, c, d.ref, data, 'atribuicao', 'Atribuição removida: a pessoa responsável deixou a equipe da unidade.', { responsavel_uid: null, automatico: true, ...marcasNaFase(data, 'atribuicao') });
                 tx.update(d.ref, { ...mov, responsavel_uid: null });
                 return 1;
             });

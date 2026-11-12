@@ -92,3 +92,17 @@ test('certidão conjunta: mudança dentro do grupo e exclusão da fase raiz', as
     assert.deepEqual(meio[2].certidao, { grupo: 'r' }, 'fase do meio sai e as outras sobem para o grupo dela');
     assert.equal(m.tirarDoGrupo(fs, 'd'), fs);
 });
+
+test('outros atos da fase: padrão, escolha e registro_atos sem perder fase e remessas', async () => {
+    const m = await import('./exigencias.js');
+    assert.equal(m.destinoDoAto({}, 'prazo'), 'autos');
+    assert.equal(m.destinoDoAto({}, 'atribuicao'), 'evento');
+    assert.equal(m.destinoDoAto({ registro_atos: { outros: { atribuicao: 'autos' } } }, 'atribuicao'), 'evento');
+    assert.ok(!m.opcoesDoAto('atribuicao').some(([d]) => d === 'autos'));
+    assert.deepEqual(m.comOutros({ fase: 'evento' }, { prazo: 'nenhum', pendencia: 'autos', atribuicao: 'evento' }), { fase: 'evento', outros: { prazo: 'nenhum' } });
+    assert.deepEqual(m.comOutros({ fase: 'evento', outros: { prazo: 'nenhum' } }, { prazo: 'autos' }), { fase: 'evento' });
+    assert.equal(m.comOutros(undefined, {}), undefined);
+    // Fase no formato antigo: mudar os outros atos não perde entrar/sair e remessas.
+    assert.deepEqual(m.registroComOutros({ registro: 'interno' }, { prazo: 'nenhum' }), { fase: 'evento', remessas: 'evento', outros: { prazo: 'nenhum' } });
+    assert.deepEqual(m.registroComOutros({ registro: 'remessas_fora' }, {}), { remessas: 'evento' });
+});
