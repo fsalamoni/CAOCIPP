@@ -275,7 +275,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao \| nenhum; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), certidao?{grupo?, titulo?, incluir_mudancas?}, acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao \| nenhum \| consolidar; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?, outros?{prazo?, pendencia?, urgencia?, dados?, atribuicao?}} (evento \| informacao \| nenhum; ausente = autos, atribuição = evento; o antigo registro? remessas_fora \| interno ainda é lido), certidao?{grupo?, titulo?, incluir_mudancas?}, acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao \| nenhum \| consolidar; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}, numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
 | `secContadores/{chave}` | `seq` de cada contagem: `{org}_{ano}` (a de sempre, `000001/2026`) ou `{org}_{escopo}_{alvo}_{período}` |
@@ -478,6 +478,17 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
   autos. O formato antigo `fase.registro` (`remessas_fora`, `interno`) ainda
   é lido nos processos autuados antes (`niveisDaFase`) e é convertido ao
   salvar o rito.
+- **Outros atos durante a fase** (`fase.registro_atos.outros`, só o que
+  difere do padrão; `destinoDoAto` e `marcasDoAto` em
+  `shared/exigencias.ts`): `prazo` (abrir e encerrar), `pendencia` (abrir e
+  apreciar), `urgencia`, `dados` (alterar os dados do processo) e
+  `atribuicao`. Padrão: como era antes, termo nos autos; atribuição é
+  registro de controle (`evento`) e nunca vai aos autos. Cada um aceita
+  `evento`, `informacao` ou `nenhum`; a pendência e o prazo continuam
+  valendo (a pendência segue aberta para o decisor) mesmo sem evento. Vale o
+  que a fase atual diz. Ficam sempre nos autos: autuação, juntada, petição,
+  comunicação e ciência, situação, exclusão e restauração. No editor, "Outros
+  atos durante a fase", com "Aplicar a todas as fases".
 - **Certidão conjunta** (`fase.certidao = {grupo?, titulo?,
   incluir_mudancas?}`; processo: `consolidacao = {grupo, itens[]}`):
   - A ação com `destino: 'consolidar'` não gera certidão própria. O ato é

@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: onde ficam prazo, pendência, urgência, dados e atribuição
+- **Outros atos durante a fase**, no editor do rito: para cada fase, escolha se
+  abrir e encerrar prazo, abrir e apreciar pendência, marcar urgência, alterar
+  os dados do processo e atribuir a uma pessoa ficam nos autos, no extrato, só
+  no sistema ou sem evento. "Aplicar a todas as fases" copia a escolha para o
+  rito inteiro.
+- Sem mudar nada, tudo continua como antes. Autuação, juntada, petição,
+  comunicação, situação, exclusão e restauração seguem sempre nos autos.
+- A prévia do rito mostra esses atos em "Como fica nos autos".
+
 ### 12/11/2026 — Processo Eletrônico: certidão conjunta da fase
 - **Na certidão conjunta**: novo destino para as ações da fase. Em vez de uma
   certidão para cada ato, os atos viram itens de uma só certidão, com folha,

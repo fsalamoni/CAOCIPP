@@ -19,10 +19,12 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.FORMAS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.marcasNaFase = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
+exports.destinoDoAto = destinoDoAto;
+exports.marcasDoAto = marcasDoAto;
 exports.sanitizeRegras = sanitizeRegras;
 exports.exigenciasDaFase = exigenciasDaFase;
 exports.pendentesDaFase = pendentesDaFase;
@@ -71,6 +73,17 @@ const destinoTransicao = (a, b) => (a === 'nenhum' ? b : b === 'nenhum' ? a : (0
 exports.destinoTransicao = destinoTransicao;
 /** Formato antigo do registro da fase (ainda lido em processos autuados antes). */
 exports.REGISTROS = ['remessas_fora', 'interno'];
+/**
+ * Outros atos durante a fase cujo registro o rito escolhe. `prazo` vale para
+ * abrir e encerrar; `pendencia`, para abrir e apreciar. O padrão é como era
+ * antes: termo nos autos, e atribuição como registro de controle no extrato.
+ * Ficam sempre nos autos: autuação, juntada, petição, comunicação e ciência,
+ * situação (arquivar pode levar dispensa), exclusão e restauração.
+ */
+exports.OUTROS_ATOS = ['prazo', 'pendencia', 'urgencia', 'dados', 'atribuicao'];
+exports.PADRAO_OUTRO = { prazo: 'autos', pendencia: 'autos', urgencia: 'autos', dados: 'autos', atribuicao: 'evento' };
+/** Atribuição é sempre registro de controle: não vira termo nos autos. */
+const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhum'] : exports.DESTINOS_ATO);
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 /** O que a ação pede a quem a cumpre. */
 exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'documento'];
@@ -156,12 +169,32 @@ function sanitizeRegra(raw, acao) {
         out.obrigatoria = true;
     return Object.keys(out).length ? out : null;
 }
+/** Onde fica o ato durante a fase (valor estranho lê como o padrão). */
+function destinoDoAto(f, ato) {
+    var _a, _b;
+    return lido((_b = (_a = f === null || f === void 0 ? void 0 : f.registro_atos) === null || _a === void 0 ? void 0 : _a.outros) === null || _b === void 0 ? void 0 : _b[ato], opcoesDoAto(ato), exports.PADRAO_OUTRO[ato]);
+}
+/** Marcas do movimento para o ato; no padrão, nenhuma (fica como sempre foi). */
+function marcasDoAto(f, ato) {
+    const d = destinoDoAto(f, ato);
+    return d === exports.PADRAO_OUTRO[ato] ? {} : marcasDoDestino(d);
+}
+/** Marcas do ato pelo que o rito diz na fase em que o processo está. */
+const marcasNaFase = (proc, ato) => marcasDoAto((proc.fases || []).find((f) => f.id === proc.fase_atual), ato);
+exports.marcasNaFase = marcasNaFase;
 function sanitizeRegistroAtos(fo) {
     const ra = (fo.registro_atos && typeof fo.registro_atos === 'object' ? fo.registro_atos : null);
+    const ob = ((ra === null || ra === void 0 ? void 0 : ra.outros) && typeof ra.outros === 'object' ? ra.outros : {});
+    const outros = {};
+    for (const a of exports.OUTROS_ATOS) {
+        const d = lido(ob[a], opcoesDoAto(a), exports.PADRAO_OUTRO[a]);
+        if (d !== exports.PADRAO_OUTRO[a])
+            outros[a] = d;
+    }
     const n = ra
         ? { fase: lido(ra.fase, exports.DESTINOS_ATO, 'autos'), remessas: lido(ra.remessas, exports.DESTINOS_ATO, 'autos') }
         : niveisDaFase({ id: '', registro: exports.REGISTROS.includes(fo.registro) ? fo.registro : undefined });
-    const out = Object.assign(Object.assign({}, (n.fase !== 'autos' ? { fase: n.fase } : {})), (n.remessas !== 'autos' ? { remessas: n.remessas } : {}));
+    const out = Object.assign(Object.assign(Object.assign({}, (n.fase !== 'autos' ? { fase: n.fase } : {})), (n.remessas !== 'autos' ? { remessas: n.remessas } : {})), (Object.keys(outros).length ? { outros } : {}));
     return Object.keys(out).length ? out : undefined;
 }
 /** Saneia registro, regras das ações (alinhadas às ações) e documentos da fase. Lança Error com mensagem para o usuário. */

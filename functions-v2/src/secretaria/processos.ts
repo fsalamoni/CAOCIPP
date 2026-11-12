@@ -10,7 +10,7 @@ import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
-    destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, mudancaNaCertidao, partesVeem, pedidoDaAcao, pendentesDaFase, textoCertidao,
+    destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, pendentesDaFase, textoCertidao,
     tituloCertidao, visivelCertidao,
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
@@ -629,7 +629,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (!mudou.length) throw new HttpsError('invalid-argument', 'Nada foi alterado');
             const mov = registrarMovimento(tx, c, ref, data, 'dados',
                 `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, MAX_TEXTO_LONGO),
-                { campos: mudou.length, visivel_partes: false });
+                { campos: mudou.length, visivel_partes: false, ...marcasNaFase(data, 'dados') });
             tx.update(ref, { ...mov, descricao, campos });
             return mov;
         }
@@ -727,7 +727,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             }
             const nomeAlvo = alvo ? (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()?.user_name || 'membro' : '';
             const mov = registrarMovimento(tx, c, ref, data, 'atribuicao',
-                alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', { responsavel_uid: alvo });
+                alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', { responsavel_uid: alvo, ...marcasNaFase(data, 'atribuicao') });
             tx.update(ref, { ...mov, responsavel_uid: alvo });
             return mov;
         }
@@ -772,7 +772,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (urgente === (data.urgente === true)) throw new HttpsError('invalid-argument', urgente ? 'O processo já está marcado como urgente' : 'O processo não está marcado como urgente');
             if (!motivo) throw new HttpsError('invalid-argument', 'Informe o motivo');
             const mov = registrarMovimento(tx, c, ref, data, 'urgencia',
-                `${urgente ? 'Processo marcado como urgente' : 'Urgência retirada'}. Motivo: ${motivo}`, { urgente });
+                `${urgente ? 'Processo marcado como urgente' : 'Urgência retirada'}. Motivo: ${motivo}`, { urgente, ...marcasNaFase(data, 'urgencia') });
             tx.update(ref, { ...mov, urgente, urgencia: urgente ? { motivo, por: c.userName, em: new Date().toISOString() } : FieldValue.delete() });
             return mov;
         }
@@ -829,7 +829,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             };
             const lista = [...pendencias, nova];
             const mov = registrarMovimento(tx, c, ref, data, 'pendencia',
-                `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, { pendencia_id: nova.id, interrompe: nova.interrompe });
+                `Pendência aberta para o decisor: ${descricao}${nova.interrompe ? ' (fase interrompida)' : ''}.`, { pendencia_id: nova.id, interrompe: nova.interrompe, ...marcasNaFase(data, 'pendencia') });
             tx.update(ref, { ...mov, pendencias: lista, ...derivados(lista, prazos) });
             pendenciaAberta = { proc: data, descricao };
             return mov;
@@ -850,7 +850,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const der = derivados(lista, prazos);
             const mov = registrarMovimento(tx, c, ref, data, 'pendencia_resolvida',
                 `Pendência apreciada (${alvo.descricao}): ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`,
-                { pendencia_id: alvo.id });
+                { pendencia_id: alvo.id, ...marcasNaFase(data, 'pendencia') });
             tx.update(ref, { ...mov, pendencias: lista, ...der });
             return mov;
         }
@@ -872,7 +872,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const lista = [...prazos, novo];
             const mov = registrarMovimento(tx, c, ref, data, 'prazo',
                 `Prazo de ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'} aberto: ${descricao}${novo.destinatario ? ` (${novo.destinatario})` : ''}. Vence em ${novo.vence_em.split('-').reverse().join('/')}.`,
-                { prazo_id: novo.id, vence_em: novo.vence_em });
+                { prazo_id: novo.id, vence_em: novo.vence_em, ...marcasNaFase(data, 'prazo') });
             tx.update(ref, { ...mov, prazos: lista, ...derivados(pendencias, lista) });
             return mov;
         }
@@ -885,7 +885,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const lista = prazos.map((x) => (x.id === alvo.id ? { ...x, status: res as Prazo['status'], encerrado_em: hoje, encerrado_por: c.userName } : x));
             const quando = res === 'cumprido' ? (hoje <= alvo.vence_em ? ' no prazo' : ' fora do prazo') : '';
             const mov = registrarMovimento(tx, c, ref, data, 'prazo_encerrado',
-                `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, { prazo_id: alvo.id, resultado: res });
+                `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, { prazo_id: alvo.id, resultado: res, ...marcasNaFase(data, 'prazo') });
             tx.update(ref, { ...mov, prazos: lista, ...derivados(pendencias, lista) });
             return mov;
         }

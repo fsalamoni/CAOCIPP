@@ -17,7 +17,7 @@ import {
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
 import { modelosDeRito, novoIdFase, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
-import { tirarDoGrupo } from '@/lib/exigencias';
+import { registroComOutros, tirarDoGrupo } from '@/lib/exigencias';
 import FluxoRito from './FluxoRito';
 import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
 import { TIPOS_UNIDADE, copiarTexto } from './comum';
@@ -346,6 +346,8 @@ function Revisao({
     const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || 'Modelo excluído (sai ao salvar)';
     const mudarFase = (id, d) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => (f.id === id ? { ...f, ...d } : f)) }); };
     const mover = (i, delta) => { const fs = [...p.fases]; const [x] = fs.splice(i, 1); fs.splice(i + delta, 0, x); setP({ ...p, fases: fs }); };
+    // "Aplicar a todas as fases": o mesmo registro dos outros atos em todo o rito.
+    const outrosEmTodas = (outros) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => ({ ...f, registro_atos: registroComOutros(f, outros), registro: undefined })) }); };
     const remover = (id) => setP({ ...p, fases: tirarDoGrupo(p.fases, id).filter((f) => f.id !== id).map((f) => ({ ...f, proximas: (f.proximas || []).filter((x) => x !== id) })) });
     // Unidade nova criada a partir de uma fase, já ligada a ela (um só setP).
     const novaUnidade = (faseId) => {
@@ -456,7 +458,7 @@ function Revisao({
                             <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
                                 aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
                                 nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d) => mudarFase(f.id, d)} mover={(d) => mover(i, d)} remover={() => remover(f.id)}
-                                novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} />
+                                novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} outrosEmTodas={outrosEmTodas} />
                         ))}
                         <Button variant="outline" size="sm" className="gap-1" onClick={() => { const id = novoIdFase(); setP({ ...p, fases: [...p.fases, { id, nome: '', proximas: [] }] }); setAbertas((s) => new Set(s).add(id)); }}><Plus className="w-4 h-4" /> Adicionar fase</Button>
                     </div>
@@ -579,7 +581,7 @@ function Revisao({
     );
 }
 
-function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo, modelos, mudar, mover, remover, novaUnidade, addModelo, aberta, onAlternar, selecionada, pendente, unidadeNome }) {
+function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo, modelos, mudar, mover, remover, novaUnidade, addModelo, aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas }) {
     const [novoModelo, setNovoModelo] = useState('');
     const outras = fases.filter((x) => x.id !== f.id);
     const saidas = f.proximas || [];
@@ -636,7 +638,7 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 </div>
             </div>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
-            <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} />
+            <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} aplicarATodas={outrosEmTodas} />
             <div>
                 <p className="text-xs font-medium mb-1">Modelos de documento</p>
                 <div className="flex flex-wrap gap-1.5 items-center">

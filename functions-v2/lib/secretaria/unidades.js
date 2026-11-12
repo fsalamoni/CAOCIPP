@@ -23,6 +23,7 @@ const autos_1 = require("./autos");
 const documentoConfig_1 = require("./documentoConfig");
 const orgaos_1 = require("../shared/orgaos");
 const orgaos_2 = require("./orgaos");
+const exigencias_1 = require("../shared/exigencias");
 /**
  * Unidades de lotação do Processo Eletrônico: dados, equipe (lotações com
  * atribuição e gestão), convites, pedidos de lotação e papel timbrado/tipos
@@ -118,7 +119,7 @@ async function liberarResponsaveis(c, unidadeId, uids) {
                 const data = (await tx.get(d.ref)).data();
                 if (!data || data.unidade_atual !== unidadeId || !uids.includes(data.responsavel_uid))
                     return 0;
-                const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'atribuicao', 'Atribuição removida: a pessoa responsável deixou a equipe da unidade.', { responsavel_uid: null, automatico: true });
+                const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'atribuicao', 'Atribuição removida: a pessoa responsável deixou a equipe da unidade.', Object.assign({ responsavel_uid: null, automatico: true }, (0, exigencias_1.marcasNaFase)(data, 'atribuicao')));
                 tx.update(d.ref, Object.assign(Object.assign({}, mov), { responsavel_uid: null }));
                 return 1;
             });

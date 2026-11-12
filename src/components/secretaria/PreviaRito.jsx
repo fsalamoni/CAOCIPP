@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
-import { ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao } from '@/lib/exigencias';
+import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao } from '@/lib/exigencias';
 
 /** Rascunho do editor de rito (unidade_ref, modelos_ref) no formato do rito gravado. */
 const doRascunho = (r) => ({
@@ -181,6 +181,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                         )}
                                         {(fase.documentos || []).map((d, k) => <ItemAutos key={`d${k}`} d={d.destino || 'autos'}>{d.descricao}{d.destino ? ' (guardado fora dos autos)' : ' (documento juntado)'}</ItemAutos>)}
                                         <ItemAutos d={niveis.remessas}>Remessa entre unidades durante a fase</ItemAutos>
+                                        {OUTROS_ATOS.map(([a, rotulo]) => <ItemAutos key={a} d={destinoDoAto(fase, a)}>{rotulo}</ItemAutos>)}
                                         {prox.map((p) => <ItemAutos key={p.id} d={destinoDaMudanca(fases, fase, p)}>Mudança para {p.nome}</ItemAutos>)}
                                     </ul>
                                     <p className="text-xs text-slate-600 dark:text-slate-400">
