@@ -18,6 +18,7 @@ export const DESTINO_INFO = {
     evento: { rotulo: 'Evento no extrato', curto: 'evento no extrato', frase: 'Fica na aba Eventos e no extrato ao fim do PDF, sem folha. As partes não veem o evento.' },
     informacao: { rotulo: 'Só no sistema', curto: 'só no sistema', frase: 'Fica só na aba Eventos e nas informações do processo, para controle. Não sai em impressão.' },
     nenhum: { rotulo: 'Sem evento', curto: 'sem evento', frase: 'Não aparece em lugar nenhum: fica só um registro oculto, para auditoria. O dado pedido, se houver, vai para as informações do processo, só para a equipe.' },
+    consolidar: { rotulo: 'Na certidão conjunta', curto: 'na certidão conjunta', frase: 'Vira um item de uma só certidão da fase (ou do grupo de fases), com folha, emitida quando o processo sai do grupo, é arquivado ou alguém pede "Emitir certidão agora".' },
 };
 const DESTINOS_ATO = ['autos', 'evento', 'informacao', 'nenhum'];
 const lido = (v, lista, padrao) => (lista.includes(v) ? v : padrao);
@@ -33,7 +34,9 @@ export const DESTINOS_FASE = [
     ['informacao', 'Só no sistema (não imprime)'],
     ['nenhum', 'Sem evento (registro oculto)'],
 ];
-export const ROTULO_DESTINO = Object.fromEntries(DESTINOS_ATO.map((d) => [d, DESTINO_INFO[d].curto]));
+// Ação da fase aceita também a certidão conjunta; entrada, saída e remessas, não.
+const DESTINOS_ACAO = [...DESTINOS_ATO, 'consolidar'];
+export const ROTULO_DESTINO = Object.fromEntries(DESTINOS_ACAO.map((d) => [d, DESTINO_INFO[d].curto]));
 
 /** O que a ação pede a quem a cumpre. */
 export const PEDIDOS = [
@@ -50,12 +53,12 @@ export const ROTULO_PEDIDO = Object.fromEntries(PEDIDOS);
 
 export const destinoDaAcao = (r) => (r?.documento
     ? lido(r.documento.destino, ['evento', 'informacao'], 'autos')
-    : r?.destino ? lido(r.destino, DESTINOS_ATO, 'evento') : (r?.autos ? 'autos' : 'evento'));
+    : r?.destino ? lido(r.destino, DESTINOS_ACAO, 'evento') : (r?.autos ? 'autos' : 'evento'));
 export const pedidoDaAcao = (r) => (r?.documento ? 'documento' : r?.pede || 'confirmar');
 // Ação de só confirmar fora dos autos não tem o que mostrar às partes (nem certidão, nem dado). Sem evento: ninguém vê.
 export const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
     && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
-    && (pedidoDaAcao(r) !== 'confirmar' || destinoDaAcao(r) === 'autos');
+    && (pedidoDaAcao(r) !== 'confirmar' || ['autos', 'consolidar'].includes(destinoDaAcao(r)));
 export const pedeDado = (r) => !['confirmar', 'documento'].includes(pedidoDaAcao(r));
 
 /** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo `registro`). */
@@ -70,6 +73,62 @@ export function niveisDaFase(f) {
 const ORDEM = { autos: 2, evento: 1, informacao: 0, nenhum: -1 };
 /** Mudança entre duas fases: o mais reservado; "sem evento" numa só delas não apaga o registro da outra. */
 export const destinoTransicao = (a, b) => (a === 'nenhum' ? b : b === 'nenhum' ? a : ORDEM[a] <= ORDEM[b] ? a : b);
+
+/**
+ * Grupo da certidão conjunta: a fase raiz (a que não aponta para outra).
+ * No editor a cadeia pode estar no meio (A → B → C); o servidor grava a raiz.
+ */
+export function grupoDe(fases, f) {
+    const vistas = new Set();
+    let g = f;
+    while (g?.certidao?.grupo && !vistas.has(g.id)) {
+        vistas.add(g.id);
+        const prox = fases.find((x) => x.id === g.certidao.grupo);
+        if (!prox) break;
+        g = prox;
+    }
+    return g?.id || '';
+}
+
+/** Título da certidão do grupo (igual ao do servidor): o que uma fase deu ou o nome das fases. */
+export function tituloCertidao(fases, grupo) {
+    const membros = fases.filter((f) => grupoDe(fases, f) === grupo);
+    const dado = membros.find((f) => f.id === grupo)?.certidao?.titulo || membros.find((f) => f.certidao?.titulo)?.certidao?.titulo;
+    if (dado) return dado;
+    const nomes = membros.map((f) => f.nome || f.id);
+    return nomes.length > 1 ? `Certidão das fases ${nomes.join(', ')}` : `Certidão da fase ${nomes[0] || ''}`;
+}
+
+/** A mudança entre as duas fases entra na certidão conjunta (mesmo grupo e uma delas pede)? */
+export const mudancaNaCertidao = (fases, de, para) => !!de && !!para && grupoDe(fases, de) === grupoDe(fases, para)
+    && (de.certidao?.incluir_mudancas === true || para.certidao?.incluir_mudancas === true);
+
+/** Onde fica a mudança de `de` para `para`, contando a certidão conjunta. */
+export const destinoDaMudanca = (fases, de, para) => {
+    const d = destinoTransicao(niveisDaFase(de).fase, niveisDaFase(para).fase);
+    return d !== 'nenhum' && mudancaNaCertidao(fases, de, para) ? 'consolidar' : d;
+};
+
+/**
+ * Tira a fase do grupo da certidão (ao excluí-la do rito): as fases que
+ * apontavam para ela passam para o grupo dela ou, se era a raiz, para a
+ * primeira delas, que herda o título.
+ */
+export function tirarDoGrupo(fases, id) {
+    const saindo = fases.find((f) => f.id === id);
+    const filhas = fases.filter((f) => f.id !== id && f.certidao?.grupo === id);
+    if (!filhas.length) return fases;
+    const acima = saindo?.certidao?.grupo;
+    const raiz = filhas[0].id;
+    return fases.map((f) => {
+        if (f.id === id || f.certidao?.grupo !== id) return f;
+        const { grupo: _g, ...resto } = f.certidao;
+        const grupo = acima || (f.id === raiz ? undefined : raiz);
+        const titulo = resto.titulo || (!acima && f.id === raiz ? saindo?.certidao?.titulo : undefined);
+        const c = { ...resto, ...(grupo ? { grupo } : {}), ...(titulo ? { titulo } : {}) };
+        return { ...f, certidao: Object.keys(c).length ? c : undefined };
+    });
+}
 
 /** Fases para onde a fase segue: as saídas do rito ou, sem saídas, a próxima da lista. */
 export function saidasDaFase(fases, f) {

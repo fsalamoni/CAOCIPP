@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
-import { ROTULO_DESTINO, destinoDaAcao, destinoTransicao, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase } from '@/lib/exigencias';
+import { ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao } from '@/lib/exigencias';
 
 /** Rascunho do editor de rito (unidade_ref, modelos_ref) no formato do rito gravado. */
 const doRascunho = (r) => ({
@@ -23,6 +23,7 @@ function comoFica(d) {
     if (d === 'autos') return { onde: 'Fl. –', cor: 'text-indigo-700 dark:text-indigo-300' };
     if (d === 'evento') return { onde: 'Extrato:', cor: 'text-slate-700 dark:text-slate-300' };
     if (d === 'informacao') return { onde: 'Só na tela:', cor: 'text-slate-600 dark:text-slate-400' };
+    if (d === 'consolidar') return { onde: 'Na certidão:', cor: 'text-indigo-700 dark:text-indigo-300' };
     return { onde: 'Oculto:', cor: 'text-slate-500 dark:text-slate-500' };
 }
 
@@ -147,7 +148,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                             {entradaAutos && <li>{primeira ? 'O termo de autuação' : 'O termo de mudança para esta fase'}, nos autos{!primeira && anteriores.some((x) => entrada(x) !== 'autos') ? ` (vindo de ${anteriores.filter((x) => entrada(x) === 'autos').map((x) => x.nome).join(' ou ')})` : ''}.</li>}
                                             {remessasAutos && <li>As remessas entre unidades durante a fase, com o nome das unidades, nos autos.</li>}
                                             {acoesPartes.map(({ a, k, r }) => (
-                                                <li key={k}>{a}: {destinoDaAcao(r) === 'autos' ? 'a certidão nos autos' : 'o dado informado, nas informações do processo'}{pedidoDaAcao(r) !== 'confirmar' ? ` (${r?.rotulo || a})` : ''}.</li>
+                                                <li key={k}>{a}: {destinoDaAcao(r) === 'autos' ? 'a certidão nos autos' : destinoDaAcao(r) === 'consolidar' ? 'um item da certidão conjunta, nos autos' : 'o dado informado, nas informações do processo'}{pedidoDaAcao(r) !== 'confirmar' ? ` (${r?.rotulo || a})` : ''}.</li>
                                             ))}
                                             {docsAutos.map((d, k) => <li key={`doc${k}`}>{d}: o documento juntado, se quem juntar liberar para as partes.</li>)}
                                         </ul>
@@ -162,7 +163,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     <p className="text-sm font-semibold">Como cada ato desta fase fica registrado</p>
                                     <ul className="space-y-1.5">
                                         {primeira && <ItemAutos d="autos">Termo de autuação</ItemAutos>}
-                                        {anteriores.map((x) => <ItemAutos key={`de${x.id}`} d={entrada(x)}>Mudança de {x.nome} para {fase.nome}</ItemAutos>)}
+                                        {anteriores.map((x) => <ItemAutos key={`de${x.id}`} d={destinoDaMudanca(fases, x, fase)}>Mudança de {x.nome} para {fase.nome}</ItemAutos>)}
                                         {acoes.map(({ a, k, r }) => {
                                             const d = destinoDaAcao(r);
                                             const doc = pedidoDaAcao(r) === 'documento';
@@ -173,9 +174,14 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                                 </ItemAutos>
                                             );
                                         })}
+                                        {acoes.some(({ r }) => destinoDaAcao(r) === 'consolidar') && (
+                                            <ItemAutos d="autos" nota="Sai quando o processo deixa a fase (ou o grupo de fases), é arquivado ou alguém pede para emitir.">
+                                                {tituloCertidao(fases, grupoDe(fases, fase))}, reunindo os itens "Na certidão"
+                                            </ItemAutos>
+                                        )}
                                         {(fase.documentos || []).map((d, k) => <ItemAutos key={`d${k}`} d={d.destino || 'autos'}>{d.descricao}{d.destino ? ' (guardado fora dos autos)' : ' (documento juntado)'}</ItemAutos>)}
                                         <ItemAutos d={niveis.remessas}>Remessa entre unidades durante a fase</ItemAutos>
-                                        {prox.map((p) => <ItemAutos key={p.id} d={destinoTransicao(niveis.fase, niveisDaFase(p).fase)}>Mudança para {p.nome}</ItemAutos>)}
+                                        {prox.map((p) => <ItemAutos key={p.id} d={destinoDaMudanca(fases, fase, p)}>Mudança para {p.nome}</ItemAutos>)}
                                     </ul>
                                     <p className="text-xs text-slate-600 dark:text-slate-400">
                                         Fl.: termo ou certidão com folha, que sai no PDF dos autos. Extrato: sai ao fim do PDF, sem folha. Só na tela: aba Eventos e informações, não imprime.

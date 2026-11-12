@@ -1,4 +1,15 @@
 "use strict";
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
@@ -111,6 +122,7 @@ function slug(v) {
 }
 /** Saneia um rito vindo do cliente. Lança Error com mensagem para o usuário. */
 function sanitizeRito(input) {
+    var _a;
     const src = (input && typeof input === 'object' ? input : {});
     const nome = texto(src.nome);
     if (!nome)
@@ -138,7 +150,7 @@ function sanitizeRito(input) {
         return { fo, id, nomeFase };
     });
     const fases = brutas.map(({ fo, id, nomeFase }) => {
-        var _a;
+        var _a, _b;
         const prazo = Number(fo.prazo_dias);
         const orientacao = texto(fo.orientacao, exports.MAX_TEXTO_LONGO);
         const final = fo.final === true;
@@ -171,8 +183,34 @@ function sanitizeRito(input) {
                     condicoes[alvo] = rot;
             }
         }
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (0, exigencias_1.sanitizeRegras)(Object.assign(Object.assign({}, fo), { acoes_regras: regrasAlinhadas }), acoes));
+        // Grupo da certidão: o id (do cliente ou final) de outra fase, ou a própria fase.
+        const cf = (fo.certidao && typeof fo.certidao === 'object' ? fo.certidao : {});
+        const grupoBruto = texto(cf.grupo, 40);
+        const grupo = grupoBruto ? ((_b = ids.get(grupoBruto)) !== null && _b !== void 0 ? _b : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
+        const titulo = texto(cf.titulo, 120);
+        const certidao = Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (0, exigencias_1.sanitizeRegras)(Object.assign(Object.assign({}, fo), { acoes_regras: regrasAlinhadas }), acoes));
     });
+    // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).
+    const raizes = new Map(fases.map((f) => {
+        var _a, _b, _c;
+        const vistas = new Set([f.id]);
+        let g = ((_a = f.certidao) === null || _a === void 0 ? void 0 : _a.grupo) || f.id;
+        while (!vistas.has(g)) {
+            vistas.add(g);
+            g = ((_c = (_b = fases.find((x) => x.id === g)) === null || _b === void 0 ? void 0 : _b.certidao) === null || _c === void 0 ? void 0 : _c.grupo) || g;
+        }
+        return [f.id, g];
+    }));
+    for (const f of fases) {
+        if (!((_a = f.certidao) === null || _a === void 0 ? void 0 : _a.grupo))
+            continue;
+        const r = raizes.get(f.id);
+        const _b = f.certidao, { grupo: _g } = _b, resto = __rest(_b, ["grupo"]);
+        f.certidao = r !== f.id ? Object.assign(Object.assign({}, resto), { grupo: r }) : resto;
+        if (!Object.keys(f.certidao).length)
+            delete f.certidao;
+    }
     return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases };
 }
 /**

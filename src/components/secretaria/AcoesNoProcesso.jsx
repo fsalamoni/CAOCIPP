@@ -79,6 +79,8 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
             ? 'Fica nas informações do processo e como evento no extrato ao fim da impressão, sem folha.'
             : dest === 'nenhum'
                 ? 'Não gera evento: fica só nas informações do processo, para a equipe.'
+                : dest === 'consolidar'
+                    ? 'Entra como item da certidão conjunta da fase, emitida nos autos quando o processo sair da fase (ou do grupo de fases).'
                 : 'Fica só nas informações do processo e na aba Eventos, para controle. Não sai em impressão.';
     const quem = partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
     let campo;

@@ -70,6 +70,29 @@ function dispensarExigencias(proc, motivo) {
     }
     return abertas;
 }
+/**
+ * Certidão conjunta pendente vira UMA certidão nos autos, com folha, antes do
+ * ato que a encerra (sair do grupo, arquivar, encher, "Emitir agora"). Sem
+ * pendência (ou `cond` falso), não faz nada. `proc` já traz o movimento, para
+ * encadear o ato seguinte na mesma transação.
+ */
+function emitirSe(cond, tx, c, ref, data) {
+    var _a;
+    const cons = data.consolidacao;
+    if (!cond || !((_a = cons === null || cons === void 0 ? void 0 : cons.itens) === null || _a === void 0 ? void 0 : _a.length))
+        return { mov: {}, proc: data };
+    const titulo = (0, exigencias_1.tituloCertidao)((data.fases || []), cons.grupo);
+    const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'certidao_fase', (0, exigencias_1.textoCertidao)(cons.itens), { grupo: cons.grupo, itens: cons.itens.map((i) => i.seq), titulo, visivel_partes: (0, exigencias_1.visivelCertidao)(cons.itens) });
+    return { mov: Object.assign(Object.assign({}, mov), { consolidacao: firestore_1.FieldValue.delete() }), proc: Object.assign(Object.assign(Object.assign({}, data), mov), { consolidacao: null }) };
+}
+/** A pendente é de outro grupo ou não comporta o item na sua folha: emite antes de juntar. */
+const antesDeJuntar = (data, grupo, item) => {
+    var _a;
+    const cons = data.consolidacao;
+    return !!((_a = cons === null || cons === void 0 ? void 0 : cons.itens) === null || _a === void 0 ? void 0 : _a.length) && (cons.grupo !== grupo || !(0, exigencias_1.cabeNaCertidao)(cons.itens, item));
+};
+/** Itens da certidão do grupo depois do ato (a emissão, se houve, zerou a pendente). */
+const itensDepois = (proc, grupo, item) => { var _a; return ({ grupo, itens: [...(((_a = proc.consolidacao) === null || _a === void 0 ? void 0 : _a.itens) || []), item] }); };
 const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
 function valorDaAcao(regra, acao, bruto) {
@@ -285,7 +308,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                         })) }));
                 }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], 
                 // A primeira unidade da lista é a que autuou (arrayUnion só acrescenta).
-                unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], acoes_feitas: data.acoes_feitas || {}, exigencias_cumpridas: data.exigencias_cumpridas || {} }),
+                unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], acoes_feitas: data.acoes_feitas || {}, 
+                // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
+                consolidacao: data.consolidacao || null, exigencias_cumpridas: data.exigencias_cumpridas || {} }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,
@@ -453,11 +478,15 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, novaFase === null || novaFase === void 0 ? void 0 : novaFase.id);
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + com((0, context_1.nomeUnidade)(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
+            // Sair do grupo da certidão conjunta: a pendente é emitida antes da remessa.
+            const em = emitirSe(!!novaFase && (0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, novaFase.id), tx, c, ref, data);
+            if (em.proc !== data)
+                expedidas = 2;
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + com((0, context_1.nomeUnidade)(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
                 + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})) : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)), (idsMinutas.length ? { minutas: idsMinutas } : {})));
             minutas.forEach((s) => tx.update(s.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(destino.id) }));
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? Object.assign({ fase_atual: novaFase.id }, (0, exigencias_1.camposAoEntrarNaFase)(data, novaFase.id)) : {})), { orientacao: orientacao
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? Object.assign({ fase_atual: novaFase.id }, (0, exigencias_1.camposAoEntrarNaFase)(data, novaFase.id)) : {})), { orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
                     : firestore_1.FieldValue.delete() }));
             recebeu = { unidadeId: destino.id, proc: data };
@@ -526,6 +555,35 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = (0, exigencias_1.destinoDaAcao)(regra);
             const comDado = dado ? ` ${dado.rotulo}: ${dado.valor_texto}.` : '';
+            if (dest === 'consolidar') {
+                // Certidão conjunta: o ato fica oculto e entra como item da certidão do grupo.
+                const grupo = (0, exigencias_1.grupoDe)(fase);
+                const cons = data.consolidacao;
+                const pendente = (cons === null || cons === void 0 ? void 0 : cons.grupo) === grupo ? (cons.itens || []) : [];
+                const k = pendente.map((i) => i.fase_id === fase.id && i.acao_idx === idx).lastIndexOf(true);
+                if (!feita && k < 0) {
+                    // Já saiu em certidão emitida: desfazer precisa constar dos autos.
+                    const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', `Certifico que foi desfeita a providência "${acao}", da fase ${fase.nome}.`, { fase_id: fase.id, acao_idx: idx, feita, destino: 'autos', nos_autos: true, visivel_partes: (0, exigencias_1.partesVeem)(regra) });
+                    tx.update(ref, Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }));
+                    return mov;
+                }
+                const item = {
+                    seq: 0, fase_id: fase.id, acao_idx: idx,
+                    texto: (0, exigencias_1.textoDoItem)(`"${acao}", da fase ${fase.nome}.${comDado}`.replace(/\.$/, '')),
+                    autor: c.userName, em: new Date().toISOString(), partes: (0, exigencias_1.partesVeem)(regra),
+                };
+                const em = emitirSe(feita && antesDeJuntar(data, grupo, item), tx, c, ref, data);
+                if (em.proc !== data)
+                    expedidas = 2;
+                const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'acao_fase', `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado} ${feita ? 'Entra na' : 'Sai da'} certidão conjunta, ainda não emitida.`, Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {})), { 
+                    // O ato fica oculto; o dado segue a regra (as partes o veem nas informações, se ela disser).
+                    destino: dest, consolidada: true }), (0, exigencias_1.marcasDoDestino)('nenhum')), { visivel_partes: (0, exigencias_1.partesVeem)(regra) }));
+                const consolidacao = feita
+                    ? itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) }))
+                    : { grupo, itens: pendente.filter((_, j) => j !== k) };
+                tx.update(ref, Object.assign(Object.assign(Object.assign({}, em.mov), mov), { acoes_feitas: feitas, consolidacao: consolidacao.itens.length ? consolidacao : firestore_1.FieldValue.delete() }));
+                return mov;
+            }
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', dest === 'autos'
                 ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
                 : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: (0, exigencias_1.partesVeem)(regra) }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
@@ -562,8 +620,21 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const de = ((_g = fases.find((f) => f.id === data.fase_atual)) === null || _g === void 0 ? void 0 : _g.nome) || data.fase_atual;
             const dispensadas = dispensarExigencias(data, motivo);
             const destinoMov = dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, alvo.id);
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'fase', `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`, Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)));
-            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { fase_atual: alvo.id }), (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id)));
+            // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
+            // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
+            // Motivo longo não se resume numa certidão conjunta: a mudança tem termo próprio.
+            const grupo = (0, exigencias_1.grupoDe)(alvo);
+            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`;
+            const junta = !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= exigencias_1.MAX_ITEM_CERTIDAO && (0, exigencias_1.mudancaNaCertidao)(fases, data.fase_atual, alvo.id);
+            const item = { seq: 0, fase_id: data.fase_atual, texto: descricao.replace(/\.$/, ''), autor: c.userName, em: new Date().toISOString(), partes: destinoMov === 'autos' };
+            const em = emitirSe((0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
+            if (em.proc !== data)
+                expedidas = 2;
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}`, Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (dispensadas.length ? { dispensadas } : {})), (junta ? Object.assign({ consolidada: true }, (0, exigencias_1.marcasDoDestino)('nenhum')) : (0, exigencias_1.marcasDoDestino)(destinoMov))));
+            const consolidacao = junta
+                ? { consolidacao: itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) })) }
+                : {};
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), consolidacao), { fase_atual: alvo.id }), (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id)));
             return mov;
         }
         if (p.action === 'urgencia') {
@@ -598,9 +669,21 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const rotulo = { em_tramitacao: 'Reativado', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[status];
             // Arquivar com documento exigido em aberto: o motivo vale como dispensa, e fica dito.
             const dispensadas = status === 'arquivado' ? exigenciasAbertas(data).map((e) => e.descricao) : [];
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'situacao', `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Documentos exigidos pelo rito não produzidos: ${dispensadas.join('; ')}.` : ''}`, Object.assign({ de: data.status, para: status }, (dispensadas.length ? { dispensadas } : {})));
-            tx.update(ref, Object.assign(Object.assign({}, mov), { status }));
+            // Arquivar encerra a certidão conjunta pendente (sobrestar, não: o processo volta à mesma fase).
+            const em = emitirSe(status === 'arquivado', tx, c, ref, data);
+            if (em.proc !== data)
+                expedidas = 2;
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'situacao', `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Documentos exigidos pelo rito não produzidos: ${dispensadas.join('; ')}.` : ''}`, Object.assign({ de: data.status, para: status }, (dispensadas.length ? { dispensadas } : {})));
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, em.mov), mov), { status }));
             return mov;
+        }
+        if (p.action === 'emitirCertidao') {
+            // "Emitir certidão agora": a pendente vai aos autos sem esperar o fim do grupo.
+            const em = emitirSe(true, tx, c, ref, data);
+            if (em.proc === data)
+                throw new https_1.HttpsError('failed-precondition', 'Não há atos aguardando a certidão conjunta');
+            tx.update(ref, em.mov);
+            return em.mov;
         }
         // ---- Pendências: o que o decisor precisa apreciar --------------------
         const pendencias = (data.pendencias || []);

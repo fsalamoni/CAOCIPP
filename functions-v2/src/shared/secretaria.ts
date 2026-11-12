@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Exigencia, RegraAcao, Registro, RegistroAtos, sanitizeRegras } from './exigencias';
+import { CertidaoFase, Exigencia, RegraAcao, Registro, RegistroAtos, sanitizeRegras } from './exigencias';
 
 // ============================================================================
 // Processo Eletrônico (antiga Secretaria Processual; os nomes internos
@@ -55,6 +55,8 @@ export interface Fase {
     acoes_regras?: Array<RegraAcao | null>;
     /** Documentos exigidos para concluir a fase. */
     documentos?: Exigencia[];
+    /** Certidão conjunta: grupo de fases que divide uma certidão, título e se as mudanças entre elas entram nela. */
+    certidao?: CertidaoFase;
 }
 export interface Rito { nome: string; descricao: string; fases: Fase[] }
 
@@ -206,9 +208,20 @@ export function sanitizeRito(input: unknown): Rito {
                 if (alvo && rot && proximas.includes(alvo)) condicoes[alvo] = rot;
             }
         }
+        // Grupo da certidão: o id (do cliente ou final) de outra fase, ou a própria fase.
+        const cf = (fo.certidao && typeof fo.certidao === 'object' ? fo.certidao : {}) as Record<string, unknown>;
+        const grupoBruto = texto(cf.grupo, 40);
+        const grupo = grupoBruto ? (ids.get(grupoBruto) ?? (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
+        const titulo = texto(cf.titulo, 120);
+        const certidao: CertidaoFase = {
+            ...(grupo && grupo !== id ? { grupo } : {}),
+            ...(titulo ? { titulo } : {}),
+            ...(cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}),
+        };
         return {
             id,
             nome: nomeFase,
+            ...(Object.keys(certidao).length ? { certidao } : {}),
             ...(Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {}),
             ...(orientacao ? { orientacao } : {}),
             ...(proximas.length ? { proximas } : {}),
@@ -221,6 +234,20 @@ export function sanitizeRito(input: unknown): Rito {
             ...sanitizeRegras({ ...fo, acoes_regras: regrasAlinhadas }, acoes),
         };
     });
+    // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).
+    const raizes = new Map(fases.map((f) => {
+        const vistas = new Set<string>([f.id]);
+        let g = f.certidao?.grupo || f.id;
+        while (!vistas.has(g)) { vistas.add(g); g = fases.find((x) => x.id === g)?.certidao?.grupo || g; }
+        return [f.id, g] as const;
+    }));
+    for (const f of fases) {
+        if (!f.certidao?.grupo) continue;
+        const r = raizes.get(f.id)!;
+        const { grupo: _g, ...resto } = f.certidao;
+        f.certidao = r !== f.id ? { ...resto, grupo: r } : resto;
+        if (!Object.keys(f.certidao).length) delete f.certidao;
+    }
     return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases };
 }
 

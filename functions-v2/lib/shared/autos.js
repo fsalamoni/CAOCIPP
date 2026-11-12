@@ -72,14 +72,17 @@ const TITULOS = {
     guarda: 'Documento guardado fora dos autos',
     exclusao: 'Termo de exclusão',
     restauracao: 'Termo de restauração',
+    certidao_fase: 'Certidão conjunta',
 };
 function tituloEvento(m) {
-    var _a, _b;
+    var _a, _b, _c;
     if (m.tipo === 'acao_fase' && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.nos_autos) === true)
         return 'Certidão de cumprimento';
+    if (m.tipo === 'certidao_fase' && typeof ((_b = m.dados) === null || _b === void 0 ? void 0 : _b.titulo) === 'string' && m.dados.titulo)
+        return m.dados.titulo;
     const t = TITULOS[m.tipo] || 'Certidão';
     // Fora dos autos não há termo nem certidão: "Termo de remessa" vira "Remessa (registro interno)".
-    if (((_b = m.dados) === null || _b === void 0 ? void 0 : _b.interno) !== true)
+    if (((_c = m.dados) === null || _c === void 0 ? void 0 : _c.interno) !== true)
         return t;
     const ato = t.replace(/^(Certidão|Termo) de /, '');
     return `${ato.charAt(0).toUpperCase()}${ato.slice(1)} (registro interno)`;

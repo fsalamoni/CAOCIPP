@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
-    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, PEDIDOS, ROTULO_DESTINO, destinoDaAcao, destinoTransicao, niveisDaFase, partesVeem, pedidoDaAcao,
-    regraComPedido, resumoDaAcao, saidasDaFase,
+    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, PEDIDOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, grupoDe, niveisDaFase, partesVeem,
+    pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 
@@ -38,6 +38,7 @@ function CamposExigencia({ id, e, modelos, onChange }) {
 function amostraDoCumprimento(d, acao, fase) {
     if (d === 'autos') return `Certifico que foi cumprida a providência "${acao}", da fase ${fase || '…'}.`;
     if (d === 'nenhum') return null;
+    if (d === 'consolidar') return `Item da certidão conjunta: "${acao}", da fase ${fase || '…'}.`;
     return `Feita a ação "${acao}" da fase ${fase || '…'}.`;
 }
 
@@ -81,7 +82,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
         : set({ destino: v === 'evento' ? undefined : v, autos: undefined, partes: (v !== 'nenhum' && partesVeem(r)) || undefined }));
     // Por que a parte não pode ver (a opção fica visível, desligada, com o motivo).
     const semPartes = dest === 'nenhum' ? 'Sem evento nunca aparece no portal.'
-        : pede === 'confirmar' && dest !== 'autos' ? 'Só confirmar, fora dos autos, não tem o que mostrar: escolha "Nos autos" ou peça um dado.' : null;
+        : pede === 'confirmar' && !['autos', 'consolidar'].includes(dest) ? 'Só confirmar, fora dos autos, não tem o que mostrar: escolha "Nos autos" ou peça um dado.' : null;
     return (
         <div className="space-y-3 rounded-md bg-slate-50 dark:bg-slate-800/60 p-2">
             <div className="sm:max-w-sm">
@@ -216,6 +217,66 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
     );
 }
 
+/**
+ * Certidão conjunta: as ações "Na certidão conjunta" desta fase (e das fases
+ * que dividem a certidão com ela) saem numa só certidão, com folha.
+ */
+function CertidaoConjunta({ f, fases, mudar, id }) {
+    const comNome = fases.filter((x) => x.nome?.trim());
+    const grupo = grupoDe(fases, f);
+    const membros = comNome.filter((x) => x.id !== f.id && grupoDe(fases, x) === grupo);
+    const usa = [f, ...membros].some((x) => (x.acoes_regras || []).some((r) => destinoDaAcao(r) === 'consolidar'));
+    const set = (patch) => {
+        const c = { ...(f.certidao || {}), ...patch };
+        Object.keys(c).forEach((k) => (c[k] === undefined || c[k] === '' || c[k] === false) && delete c[k]);
+        mudar({ certidao: Object.keys(c).length ? c : undefined });
+    };
+    // Escolher outra fase põe esta no grupo dela; se a outra já aponta para esta, esta segue sendo a raiz.
+    const reunir = (v) => {
+        const alvo = v ? grupoDe(fases, fases.find((x) => x.id === v)) : '';
+        // Ao entrar noutro grupo, vale o título dele: o desta fase sai.
+        set({ grupo: alvo && alvo !== f.id ? alvo : undefined, ...(alvo && alvo !== f.id ? { titulo: undefined } : {}) });
+    };
+    const raiz = fases.find((x) => x.id === grupo);
+    const reunidaCom = f.certidao?.grupo && grupo !== f.id ? grupo : '';
+    return (
+        <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Certidão conjunta</legend>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+                {usa
+                    ? 'As ações marcadas "Na certidão conjunta" não geram certidão cada uma: viram itens de uma só, com folha, quando o processo sai destas fases, é arquivado ou alguém pede "Emitir certidão agora".'
+                    : 'Para usar, marque em alguma ação "Na certidão conjunta". Os atos ficam reunidos numa só certidão, com folha.'}
+            </p>
+            <div className="grid sm:grid-cols-2 gap-2">
+                {grupo === f.id ? (
+                    <div>
+                        <Label htmlFor={`${id}-ctit`}>Título da certidão</Label>
+                        <Input id={`${id}-ctit`} className="mt-1" value={f.certidao?.titulo || ''} maxLength={120} placeholder={tituloCertidao(fases, grupo)}
+                            onChange={(e) => set({ titulo: e.target.value || undefined })} />
+                    </div>
+                ) : (
+                    // O título é do grupo: muda-se na fase que reúne as outras.
+                    <p className="text-sm self-end">Título: <b>{tituloCertidao(fases, grupo)}</b>
+                        <span className="block text-xs text-slate-600 dark:text-slate-400">Para mudar, abra a fase {raiz?.nome || 'que reúne o grupo'}.</span></p>
+                )}
+                <NativeSelect id={`${id}-cgr`} label="Dividir a certidão com" value={reunidaCom} onChange={reunir}
+                    options={[['', reunidaCom ? 'Só esta fase (sai do grupo)' : membros.length ? 'Esta fase reúne as outras' : 'Só esta fase'], ...comNome.filter((x) => x.id !== f.id).map((x) => [x.id, x.nome])]} />
+            </div>
+            {membros.length > 0 && <p className="text-xs text-slate-700 dark:text-slate-300">Dividem esta certidão: <b>{[f, ...membros].map((x) => x.nome || 'esta fase').join(', ')}</b>.</p>}
+            {membros.length > 0 && (
+                <label className="flex items-start gap-2 text-sm">
+                    <Checkbox className="mt-0.5" checked={f.certidao?.incluir_mudancas === true} onCheckedChange={(c) => set({ incluir_mudancas: c === true ? true : undefined })} />
+                    <span>Mudar desta fase para outra do grupo (ou de outra para esta) entra na certidão, em vez de termo próprio
+                        <span className="block text-xs text-slate-600 dark:text-slate-400">
+                            {membros.some((x) => x.certidao?.incluir_mudancas) && `Já vale para as mudanças com ${membros.filter((x) => x.certidao?.incluir_mudancas).map((x) => x.nome).join(', ')}, ${membros.filter((x) => x.certidao?.incluir_mudancas).length > 1 ? 'que marcaram' : 'que marcou'} esta opção. `}
+                            Com dispensa de exigência, a mudança continua indo aos autos sozinha.
+                        </span></span>
+                </label>
+            )}
+        </fieldset>
+    );
+}
+
 /** Onde ficam a entrada/saída da fase e as remessas, e os documentos exigidos na fase. */
 export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase }) {
     const id = idBase || f.id;
@@ -224,9 +285,9 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
     const comNome = (x) => x.nome?.trim();
     const vizinhas = [
         ...fases.filter((x) => x.id !== f.id && comNome(x) && saidasDaFase(fases, x).some((s) => s.id === f.id))
-            .map((x) => ({ k: `de-${x.id}`, texto: `Chegando de ${x.nome}`, d: destinoTransicao(niveisDaFase(x).fase, n.fase) })),
+            .map((x) => ({ k: `de-${x.id}`, texto: `Chegando de ${x.nome}`, d: destinoDaMudanca(fases, x, f) })),
         ...saidasDaFase(fases, f).filter((x) => x.id !== f.id && comNome(x))
-            .map((x) => ({ k: `para-${x.id}`, texto: `Seguindo para ${x.nome}`, d: destinoTransicao(n.fase, niveisDaFase(x).fase) })),
+            .map((x) => ({ k: `para-${x.id}`, texto: `Seguindo para ${x.nome}`, d: destinoDaMudanca(fases, f, x) })),
     ];
     const setNivel = (k, v) => {
         const novo = { ...n, [k]: v };
@@ -255,6 +316,7 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
                     </ul>
                 )}
             </fieldset>
+            <CertidaoConjunta f={f} fases={fases} mudar={mudar} id={id} />
             <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Documentos exigidos na fase</legend>
                 <p className="text-xs text-slate-600 dark:text-slate-400">Para sair da fase sem eles, é preciso informar o motivo da dispensa, que fica registrado.</p>

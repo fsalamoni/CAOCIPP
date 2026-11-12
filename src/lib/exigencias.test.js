@@ -64,3 +64,31 @@ test('ação: o que pede, onde fica e troca de pedido sem perder destino', async
     assert.equal(m.atende({ forma: 'qualquer', destino: 'evento' }, { origem: 'upload' }), false);
     assert.equal(m.atende({ forma: 'qualquer', destino: 'evento' }, { origem: 'upload', controle: true }), true);
 });
+
+test('certidão conjunta: destino da ação, grupo pela raiz e título', async () => {
+    const m = await import('./exigencias.js');
+    assert.equal(m.destinoDaAcao({ destino: 'consolidar' }), 'consolidar');
+    assert.equal(m.partesVeem({ destino: 'consolidar', partes: true }), true, 'confirmação simples aparece na certidão');
+    assert.equal(m.ROTULO_DESTINO.consolidar, 'na certidão conjunta');
+    const fs = [{ id: 'a', nome: 'A' }, { id: 'b', nome: 'B', certidao: { grupo: 'a' } }, { id: 'c', nome: 'C', certidao: { grupo: 'b' } }, { id: 'd', nome: 'D' }];
+    assert.equal(m.grupoDe(fs, fs[2]), 'a', 'no editor a cadeia segue até a raiz');
+    assert.equal(m.grupoDe(fs, fs[3]), 'd');
+    assert.equal(m.tituloCertidao(fs, 'a'), 'Certidão das fases A, B, C');
+    const ciclo = [{ id: 'p', certidao: { grupo: 'q' } }, { id: 'q', certidao: { grupo: 'p' } }];
+    assert.ok(['p', 'q'].includes(m.grupoDe(ciclo, ciclo[0])), 'ciclo não trava');
+});
+
+test('certidão conjunta: mudança dentro do grupo e exclusão da fase raiz', async () => {
+    const m = await import('./exigencias.js');
+    const fs = [{ id: 'a', nome: 'A', certidao: { titulo: 'T' } }, { id: 'b', nome: 'B', certidao: { grupo: 'a', incluir_mudancas: true } },
+        { id: 'c', nome: 'C', certidao: { grupo: 'a' } }, { id: 'd', nome: 'D' }];
+    assert.equal(m.destinoDaMudanca(fs, fs[0], fs[1]), 'consolidar');
+    assert.equal(m.destinoDaMudanca(fs, fs[0], fs[2]), 'autos', 'nenhuma das duas pediu');
+    assert.equal(m.destinoDaMudanca(fs, fs[1], fs[3]), 'autos', 'fora do grupo');
+    const sem = m.tirarDoGrupo(fs, 'a').filter((f) => f.id !== 'a');
+    assert.deepEqual(sem.find((f) => f.id === 'b').certidao, { incluir_mudancas: true, titulo: 'T' }, 'a primeira vira raiz e herda o título');
+    assert.deepEqual(sem.find((f) => f.id === 'c').certidao, { grupo: 'b' });
+    const meio = m.tirarDoGrupo([{ id: 'r' }, { id: 's', certidao: { grupo: 'r' } }, { id: 't', certidao: { grupo: 's' } }], 's');
+    assert.deepEqual(meio[2].certidao, { grupo: 'r' }, 'fase do meio sai e as outras sobem para o grupo dela');
+    assert.equal(m.tirarDoGrupo(fs, 'd'), fs);
+});

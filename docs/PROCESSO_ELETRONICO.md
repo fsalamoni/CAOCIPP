@@ -275,7 +275,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao \| nenhum; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao \| nenhum; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao \| nenhum; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), certidao?{grupo?, titulo?, incluir_mudancas?}, acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao \| nenhum \| consolidar; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}, numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
 | `secContadores/{chave}` | `seq` de cada contagem: `{org}_{ano}` (a de sempre, `000001/2026`) ou `{org}_{escopo}_{alvo}_{período}` |
@@ -463,6 +463,8 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
     partes nunca o veem (`partesVeem` é falso e o saneamento tira `partes`).
     O dado que a ação pediu vai para as informações do processo, só para a
     equipe.
+  - `consolidar` ("Na certidão conjunta", só ações da fase, em
+    `DestinoAcao`): ver **Certidão conjunta** abaixo.
   - Valor desconhecido numa cópia antiga lê como o padrão: `evento` para
     ações, `autos` para fases.
 - **Registro dos atos de tramitação da fase** (`fase.registro_atos =
@@ -476,6 +478,36 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
   autos. O formato antigo `fase.registro` (`remessas_fora`, `interno`) ainda
   é lido nos processos autuados antes (`niveisDaFase`) e é convertido ao
   salvar o rito.
+- **Certidão conjunta** (`fase.certidao = {grupo?, titulo?,
+  incluir_mudancas?}`; processo: `consolidacao = {grupo, itens[]}`):
+  - A ação com `destino: 'consolidar'` não gera certidão própria. O ato é
+    gravado como registro oculto (`dados.consolidada`, mais as marcas de
+    "sem evento") e vira um item (`{seq, fase_id, acao_idx, texto, autor, em,
+    partes}`) da certidão pendente em `proc.consolidacao`.
+  - `grupo`: fases com o mesmo grupo dividem uma certidão. O editor guarda o
+    id de outra fase; `sanitizeRito` troca pelo id final e sempre pela fase
+    raiz (cadeia A → B → C vira tudo C; em ciclo, cada fase fica só). Sem
+    grupo, a fase é o próprio grupo (`grupoDe`).
+  - A certidão é emitida (movimento `certidao_fase`, com folha, título em
+    `dados.titulo` e os `seq` dos itens em `dados.itens`) antes do ato que
+    a encerra: sair do grupo (`avancarFase`, ou `tramitar` mudando de
+    fase), arquivar, juntar o 101º item (`MAX_ITENS_CERTIDAO`) ou a ação
+    `emitirCertidao` ("Emitir certidão agora", na tela do processo, para
+    quem tem a posse). Sobrestar não emite. Os dois movimentos ficam
+    encadeados na mesma transação.
+  - Texto: "Certifico que foram cumpridos os seguintes atos: 1) "X", da
+    fase Y. Dado: valor (autor, data e hora); 2) ...". Título: o
+    `certidao.titulo` de uma fase do grupo ou "Certidão da(s) fase(s) ...".
+  - As partes veem a certidão só se puderem ver todos os itens
+    (`visivelCertidao`); confirmação simples conta como visível se a ação
+    marcar `partes`.
+  - Desfazer um ato ainda pendente tira o item (registro oculto). Desfazer
+    depois da emissão gera certidão de desfazimento nos autos.
+  - `incluir_mudancas` (numa fase do grupo): a mudança entre ela e outra
+    fase do mesmo grupo, em `avancarFase`, vira item em vez de termo
+    próprio. Com dispensa de exigência, ou quando as duas fases pedem "sem
+    evento", não entra. A remessa entre unidades (`tramitar`) continua com
+    termo próprio.
 - **Ações da fase** (`fase.acoes_regras`, alinhadas a `acoes`; o editor
   guarda cada regra junto da sua ação, então apagar ou reordenar não troca
   as regras):
