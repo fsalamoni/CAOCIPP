@@ -15,6 +15,9 @@ cada mudança está nas mensagens de commit (`git log`).
 - **Exigir para sair das fases**: o campo pode ficar em branco na autuação e
   ser cobrado numa fase do rito. O cartão da fase mostra "Falta preencher" com
   o botão Preencher; sair sem ele pede o motivo da dispensa, registrado.
+- **Editor do tipo em tela cheia**, com abas Dados, Formulário e Numeração e a
+  prévia ao lado (no celular, no botão Prévia), que também mostra o que as
+  partes veem no portal.
 - CPF e CNPJ conferem os dígitos verificadores, inclusive o CNPJ alfanumérico.
   Processos antigos não travam na correção de dados quando o tipo passa a
   pedir um formato.

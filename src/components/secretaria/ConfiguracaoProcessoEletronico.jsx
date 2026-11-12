@@ -1,21 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plus, Shapes, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plus, Shapes, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig, secProcesso } from '@/services/secretariaService';
-import { NativeSelect, SeloUrgente, TIPOS_UNIDADE } from './comum';
+import { SeloUrgente, TIPOS_UNIDADE } from './comum';
 import PropostaRito from './PropostaRito';
-import FluxoRito from './FluxoRito';
-import { EditorFormulario } from './CamposProcesso';
-import { formularioDe, formularioPadrao, problemasFormulario } from '@/lib/camposProcesso';
+import EditorTipo from './EditorTipo';
+import { formularioDe, formularioPadrao } from '@/lib/camposProcesso';
 import { NUMERACAO_PADRAO, formatarNumero, problemasNumeracao, resumoContagem } from '@/lib/numeracao';
 import EditorNumeracao from './EditorNumeracao';
 import { nomeOrgao } from '@/lib/orgaos';
@@ -191,11 +187,6 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo }) {
     );
 }
 
-const MODOS_NUMERO = [
-    ['orgao', 'A numeração do órgão', 'Igual à dos demais processos.'],
-    ['propria', 'Numeração própria', 'Montada só para este tipo.'],
-    ['nenhuma', 'Sem número', 'O processo recebe só um identificador (SN-…), sem ocupar número.'],
-];
 
 function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
     const { salvar, salvando } = useSalvar(orgId);
@@ -208,9 +199,6 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
     const numeracaoOrgao = estado.numeracao || NUMERACAO_PADRAO;
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     const exemplo = (n, t) => formatarNumero(n, { hoje, tipo: t || { sigla: 'REQ', nome: 'Requerimento' }, unidade: estado.unidades[0] || { sigla: 'SEC' }, orgao: (estado.orgaos || [])[0] }, 1);
-    const numTipo = tipo?.numeracao || { modo: 'orgao' };
-    const problemasNum = numTipo.modo === 'propria' ? problemasNumeracao(numTipo) : [];
-    const idsFasesTipo = (estado.ritos.find((r) => r.id === tipo?.rito_id)?.fases || []).map((f) => f.id);
     const paraEditar = (t) => ({ ...t, unidade_inicial: t.unidade_inicial || '', orgao_id: t.orgao_id || '', formulario: formularioDe(t), numeracao: t.numeracao || { modo: 'orgao' } });
     // Cópia: mesmo rito, campos e numeração; sem sigla, para não dividir a contagem com o original.
     const duplicar = (t) => { const { id: _id, ...resto } = paraEditar(t); setTipo({ ...resto, nome: `${t.nome} (cópia)`, sigla: '', ativo: true }); };
@@ -259,79 +247,10 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
             </CardContent>
             <ConfirmarExclusao orgId={orgId} alvo={excluir} onFechar={() => setExcluir(null)} onExcluido={() => setTipo(null)} />
 
-            <Dialog open={!!tipo} onOpenChange={(o) => !o && setTipo(null)}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
-                    <DialogHeader>
-                        <DialogTitle>{tipo?.id ? 'Editar tipo de processo' : 'Novo tipo de processo'}</DialogTitle>
-                        <DialogDescription>Ao autuar, quem escolhe este tipo já recebe o rito, o sigilo, a unidade e os campos abaixo.</DialogDescription>
-                    </DialogHeader>
-                    {tipo && (
-                        <div className="space-y-3">
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="col-span-2"><Label htmlFor="tp-nome">Nome</Label><Input id="tp-nome" value={tipo.nome} onChange={(e) => setTipo({ ...tipo, nome: e.target.value })} placeholder="Ex.: Requerimento administrativo" /></div>
-                                <div><Label htmlFor="tp-sigla">Sigla</Label><Input id="tp-sigla" value={tipo.sigla} maxLength={12} onChange={(e) => setTipo({ ...tipo, sigla: e.target.value })} placeholder="REQ" /></div>
-                            </div>
-                            <div><Label htmlFor="tp-desc">Para que serve</Label><Input id="tp-desc" value={tipo.descricao} onChange={(e) => setTipo({ ...tipo, descricao: e.target.value })} placeholder="Opcional; aparece para quem autua" /></div>
-                            <div className="grid sm:grid-cols-3 gap-3">
-                                <NativeSelect id="tp-rito" label="Rito" value={tipo.rito_id} onChange={(v) => setTipo({ ...tipo, rito_id: v })}
-                                    options={estado.ritos.map((r) => [r.id, `${r.nome}${r.ativo ? '' : ' (inativo)'}`])} />
-                                <NativeSelect id="tp-sigilo" label="Sigilo padrão" value={tipo.sigilo_padrao} onChange={(v) => setTipo({ ...tipo, sigilo_padrao: v })}
-                                    options={[['normal', 'Normal'], ['restrito', 'Restrito']]} />
-                                <NativeSelect id="tp-unidade" label="Unidade sugerida para autuar" value={tipo.unidade_inicial} onChange={(v) => setTipo({ ...tipo, unidade_inicial: v })}
-                                    options={[['', 'A de quem autua'], ...estado.unidades.filter((u) => u.ativa).map((u) => [u.id, u.nome])]} />
-                            </div>
-                            {(estado.orgaos || []).length > 0 && (
-                                <div>
-                                    <NativeSelect id="tp-orgao" label="Órgão interno deste tipo" value={tipo.orgao_id || ''} onChange={(v) => setTipo({ ...tipo, orgao_id: v })}
-                                        options={[['', 'Qualquer órgão pode autuar'], ...estado.orgaos.map((o) => [o.id, `${'— '.repeat((o.nivel || 1) - 1)}${o.nome}`])]} />
-                                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Escolhendo um órgão, só as unidades dele autuam processos deste tipo.</p>
-                                </div>
-                            )}
-                            <label className="flex items-start gap-2 text-sm">
-                                <input type="checkbox" className="mt-1" checked={tipo.urgente === true} onChange={(e) => setTipo({ ...tipo, urgente: e.target.checked })} />
-                                <span><span className="font-medium">Todo processo deste tipo é urgente</span><span className="block text-xs text-slate-600 dark:text-slate-400">Já nasce com o selo de urgência e aparece primeiro nas listas.</span></span>
-                            </label>
-                            <EditorFormulario form={tipo.formulario} tipo={tipo} fases={estado.ritos.find((r) => r.id === tipo.rito_id)?.fases || []} onChange={(formulario) => setTipo({ ...tipo, formulario })} />
-                            <fieldset className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
-                                <legend className="px-1 text-sm font-medium">Numeração única</legend>
-                                <div className="grid sm:grid-cols-3 gap-2">
-                                    {MODOS_NUMERO.map(([v, l, d]) => (
-                                        <label key={v} className={`flex items-start gap-2 rounded-md border p-2 text-sm cursor-pointer ${numTipo.modo === v ? 'border-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
-                                            <input type="radio" name="tp-numeracao" className="mt-1" checked={numTipo.modo === v}
-                                                onChange={() => setTipo({ ...tipo, numeracao: v === 'propria' ? { modo: 'propria', partes: numTipo.partes || numeracaoOrgao.partes } : { modo: v } })} />
-                                            <span><span className="font-medium">{l}</span><span className="block text-xs text-slate-600 dark:text-slate-400">{v === 'orgao' ? `${d} Ex.: ${exemplo(numeracaoOrgao, tipo)}` : d}</span></span>
-                                        </label>
-                                    ))}
-                                </div>
-                                {numTipo.modo === 'propria' && <EditorNumeracao valor={numTipo} onChange={(n) => setTipo({ ...tipo, numeracao: { ...n, modo: 'propria' } })} exemplo={{ tipo, unidade: estado.unidades[0], orgao: (estado.orgaos || [])[0] }} />}
-                            </fieldset>
-                            {problemasFormulario(tipo.formulario, idsFasesTipo).length > 0 && (
-                                <ul className="text-sm text-amber-800 dark:text-amber-300 list-disc pl-5" role="alert">
-                                    {problemasFormulario(tipo.formulario, idsFasesTipo).map((m) => <li key={m}>{m}</li>)}
-                                </ul>
-                            )}
-                            {estado.ritos.find((r) => r.id === tipo.rito_id) && (
-                                <details className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
-                                    <summary className="text-sm font-medium cursor-pointer">Fluxo deste tipo</summary>
-                                    <FluxoRito fases={estado.ritos.find((r) => r.id === tipo.rito_id).fases} unidades={estado.unidades} className="mt-2" />
-                                </details>
-                            )}
-                            {tipo.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={tipo.ativo} onCheckedChange={(c) => setTipo({ ...tipo, ativo: c === true })} /> Disponível para novas autuações</label>}
-                        </div>
-                    )}
-                    <DialogFooter className="gap-2">
-                        {tipo?.id && (
-                            <Button variant="ghost" className="gap-1 text-red-700 dark:text-red-300 sm:mr-auto" onClick={() => setExcluir({ colecao: 'tipo', id: tipo.id, nome: tipo.nome })}>
-                                <Trash2 className="w-4 h-4" aria-hidden /> Excluir tipo
-                            </Button>
-                        )}
-                        <Button variant="outline" onClick={() => setTipo(null)}>Cancelar</Button>
-                        <Button disabled={salvando || !tipo?.nome?.trim() || !tipo?.rito_id || problemasFormulario(tipo.formulario, idsFasesTipo).length > 0 || problemasNum.length > 0} onClick={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)}>
-                            {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {tipo && (
+                <EditorTipo key={tipo.id || 'novo'} tipo={tipo} setTipo={setTipo} estado={estado} salvando={salvando} exemplo={exemplo} numeracaoOrgao={numeracaoOrgao}
+                    onSalvar={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)} onExcluir={() => setExcluir({ colecao: 'tipo', id: tipo.id, nome: tipo.nome })} />
+            )}
 
             <Dialog open={!!numOrg} onOpenChange={(o) => !o && setNumOrg(null)}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
