@@ -398,7 +398,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         let tipo: admin.firestore.DocumentData | null = null;
         if (p.tipo_id) {
             tipo = (await db.collection(COL.tipos).doc(String(p.tipo_id)).get()).data() || null;
-            if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false) throw new HttpsError('invalid-argument', 'Escolha um tipo de processo ativo');
+            if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false || tipo.excluido === true) throw new HttpsError('invalid-argument', 'Escolha um tipo de processo ativo');
             if (tipo.orgao_id && tipo.orgao_id !== (unidade.orgao_id || null)) {
                 const dono = nomeOrgao(await lerOrgaos(db, orgId), tipo.orgao_id);
                 // Órgão removido deixa o tipo livre; órgão existente restringe.

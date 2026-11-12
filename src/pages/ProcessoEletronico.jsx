@@ -352,6 +352,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                         <select value={f.tipo} onChange={(e) => set('tipo', e.target.value)} className={`${sel} w-full`}>
                             <option value="">Todos</option>
                             {(estado.tipos || []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                            {(estado.tipos_excluidos || []).map((t) => <option key={t.id} value={t.id}>{t.nome} (excluído)</option>)}
                         </select>
                     </Campo>
                     <Campo rotulo="Status">

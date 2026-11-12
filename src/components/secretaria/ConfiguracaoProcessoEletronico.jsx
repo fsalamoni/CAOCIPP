@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plus, Shapes, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plus, Shapes, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import HistoricoConfiguracao from './HistoricoConfiguracao';
 import VersoesDialog from './VersoesDialog';
 import EstruturaOrgaos from './Orgaos';
 import { TextosComunicacao } from './Comunicacoes';
+import { BloqueioRito, CartaoComMenu, ConfirmarExclusao, Excluidos } from './Lixeira';
 
 const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400';
 
@@ -40,6 +41,9 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
     const [interna, setInterna] = useState('unidades');
     const atual = aba ?? interna;
     const mudar = onAba || setInterna;
+    // Rito que não pode ser excluído leva direto ao tipo que o usa.
+    const [pedidoTipo, setPedidoTipo] = useState(null);
+    const abrirTipo = (id) => { setPedidoTipo(id); mudar('tipos'); };
     return (
         <Tabs value={atual} onValueChange={mudar} className="space-y-4">
             <TabsList className="flex-wrap h-auto justify-start">
@@ -53,8 +57,8 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
             </TabsList>
             <TabsContent value="estrutura"><EstruturaOrgaos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="unidades"><Unidades orgId={orgId} estado={estado} /></TabsContent>
-            <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} /></TabsContent>
-            <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} /></TabsContent>
+            <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} pedido={pedidoTipo} onPedidoAtendido={() => setPedidoTipo(null)} /></TabsContent>
+            <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} onAbrirTipo={abrirTipo} /></TabsContent>
             <TabsContent value="documentos" className="space-y-4"><ConfiguracaoDocumentos orgId={orgId} estado={estado} /><TextosProntos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="calendario"><ConfiguracaoCalendario orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="historico">{atual === 'historico' && <HistoricoConfiguracao orgId={orgId} />}</TabsContent>
@@ -148,9 +152,12 @@ function Unidades({ orgId, estado }) {
     );
 }
 
-function Ritos({ orgId, estado, onIr }) {
-    // null: fechado; {}: novo rito; { rito }: editar na mesma tela da criação.
+function Ritos({ orgId, estado, onIr, onAbrirTipo }) {
+    // null: fechado; {}: novo rito; { rito }: editar na mesma tela da criação; { copia }: novo a partir de outro.
     const [aberto, setAberto] = useState(null);
+    const [excluir, setExcluir] = useState(null);
+    const tiposDe = (id) => (estado.tipos || []).filter((t) => t.rito_id === id);
+    const bloqueio = excluir && tiposDe(excluir.id).length ? <BloqueioRito tipos={tiposDe(excluir.id)} onAbrirTipo={(id) => { setExcluir(null); onAbrirTipo(id); }} /> : null;
     return (
         <Card>
             <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
@@ -165,16 +172,21 @@ function Ritos({ orgId, estado, onIr }) {
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {estado.ritos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400 md:col-span-2">Nenhum rito ainda. Sem rito não dá para autuar: comece por <b>Novo rito</b> (há modelos prontos) ou importe o fluxo de um arquivo.</p>}
                 {estado.ritos.map((r) => (
-                    <button key={r.id} onClick={() => setAberto({ rito: r })} className={item}>
-                        <div className="flex items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o rito </span>{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
+                    <CartaoComMenu key={r.id} nome={r.nome} className={item} onEditar={() => setAberto({ rito: r })} onDuplicar={() => setAberto({ copia: r })}
+                        onExcluir={() => setExcluir({ colecao: 'rito', id: r.id, nome: r.nome })}>
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o rito </span>{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{r.fases.length} fases: {r.fases.map((f) => f.nome).join(' → ')}</p>
-                    </button>
+                        {tiposDe(r.id).length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Usado por: {tiposDe(r.id).map((t) => t.nome).join(', ')}</p>}
+                    </CartaoComMenu>
                 ))}
+                <Excluidos orgId={orgId} estado={estado} colecao="rito" />
             </CardContent>
             {aberto && (
-                <PropostaRito key={aberto.rito?.id || 'novo'} aberto orgId={orgId} estado={estado} rito={aberto.rito || null} onFechar={() => setAberto(null)} onIr={onIr}
+                <PropostaRito key={aberto.rito?.id || (aberto.copia ? `copia-${aberto.copia.id}` : 'novo')} aberto orgId={orgId} estado={estado} rito={aberto.rito || null} copia={aberto.copia || null}
+                    onFechar={() => setAberto(null)} onIr={onIr} onAbrirTipo={onAbrirTipo}
                     extra={aberto.rito && <VersoesDialog orgId={orgId} colecao="rito" id={aberto.rito.id} nome={aberto.rito.nome} estado={estado} onRestaurado={() => setAberto(null)} />} />
             )}
+            <ConfirmarExclusao orgId={orgId} alvo={excluir} onFechar={() => setExcluir(null)} bloqueio={bloqueio} />
         </Card>
     );
 }
@@ -185,9 +197,10 @@ const MODOS_NUMERO = [
     ['nenhuma', 'Sem número', 'O processo recebe só um identificador (SN-…), sem ocupar número.'],
 ];
 
-function Tipos({ orgId, estado }) {
+function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
     const { salvar, salvando } = useSalvar(orgId);
     const [tipo, setTipo] = useState(null);
+    const [excluir, setExcluir] = useState(null);
     const [numOrg, setNumOrg] = useState(null);
     const tipos = estado.tipos || [];
     const nomeRito = (id) => estado.ritos.find((r) => r.id === id)?.nome || 'Rito removido';
@@ -197,6 +210,16 @@ function Tipos({ orgId, estado }) {
     const exemplo = (n, t) => formatarNumero(n, { hoje, tipo: t || { sigla: 'REQ', nome: 'Requerimento' }, unidade: estado.unidades[0] || { sigla: 'SEC' }, orgao: (estado.orgaos || [])[0] }, 1);
     const numTipo = tipo?.numeracao || { modo: 'orgao' };
     const problemasNum = numTipo.modo === 'propria' ? problemasNumeracao(numTipo) : [];
+    const paraEditar = (t) => ({ ...t, unidade_inicial: t.unidade_inicial || '', orgao_id: t.orgao_id || '', formulario: formularioDe(t), numeracao: t.numeracao || { modo: 'orgao' } });
+    // Cópia: mesmo rito, campos e numeração; sem sigla, para não dividir a contagem com o original.
+    const duplicar = (t) => { const { id: _id, ...resto } = paraEditar(t); setTipo({ ...resto, nome: `${t.nome} (cópia)`, sigla: '', ativo: true }); };
+    // Vindo de um rito que não pôde ser excluído: abre o tipo pedido.
+    useEffect(() => {
+        if (!pedido) return;
+        const t = tipos.find((x) => x.id === pedido);
+        if (t) setTipo(paraEditar(t));
+        onPedidoAtendido?.();
+    }, [pedido]);
     return (
         <Card>
             <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
@@ -216,7 +239,8 @@ function Tipos({ orgId, estado }) {
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {tipos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400 md:col-span-2">{estado.ritos.length ? 'Sem tipos, quem autua escolhe o rito diretamente.' : 'Crie primeiro um rito na aba Ritos: todo tipo de processo aponta para um.'}</p>}
                 {tipos.map((t) => (
-                    <button key={t.id} onClick={() => setTipo({ ...t, unidade_inicial: t.unidade_inicial || '', orgao_id: t.orgao_id || '', formulario: formularioDe(t), numeracao: t.numeracao || { modo: 'orgao' } })} className={item}>
+                    <CartaoComMenu key={t.id} nome={t.nome} className={item} onEditar={() => setTipo(paraEditar(t))} onDuplicar={() => duplicar(t)}
+                        onExcluir={() => setExcluir({ colecao: 'tipo', id: t.id, nome: t.nome })}>
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{t.nome}</span>
                             {t.sigla && <span className="text-xs text-slate-600">{t.sigla}</span>}
@@ -228,9 +252,11 @@ function Tipos({ orgId, estado }) {
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{nomeOrgao(estado, t.orgao_id) ? ` · só de ${nomeOrgao(estado, t.orgao_id)}` : ''}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
                         {formularioDe(t).campos.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Campos próprios: {formularioDe(t).campos.map((c) => c.rotulo).join(', ')}</p>}
-                    </button>
+                    </CartaoComMenu>
                 ))}
+                <Excluidos orgId={orgId} estado={estado} colecao="tipo" />
             </CardContent>
+            <ConfirmarExclusao orgId={orgId} alvo={excluir} onFechar={() => setExcluir(null)} onExcluido={() => setTipo(null)} />
 
             <Dialog open={!!tipo} onOpenChange={(o) => !o && setTipo(null)}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
@@ -292,7 +318,12 @@ function Tipos({ orgId, estado }) {
                             {tipo.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={tipo.ativo} onCheckedChange={(c) => setTipo({ ...tipo, ativo: c === true })} /> Disponível para novas autuações</label>}
                         </div>
                     )}
-                    <DialogFooter>
+                    <DialogFooter className="gap-2">
+                        {tipo?.id && (
+                            <Button variant="ghost" className="gap-1 text-red-700 dark:text-red-300 sm:mr-auto" onClick={() => setExcluir({ colecao: 'tipo', id: tipo.id, nome: tipo.nome })}>
+                                <Trash2 className="w-4 h-4" aria-hidden /> Excluir tipo
+                            </Button>
+                        )}
                         <Button variant="outline" onClick={() => setTipo(null)}>Cancelar</Button>
                         <Button disabled={salvando || !tipo?.nome?.trim() || !tipo?.rito_id || problemasFormulario(tipo.formulario).length > 0 || problemasNum.length > 0} onClick={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)}>
                             {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar

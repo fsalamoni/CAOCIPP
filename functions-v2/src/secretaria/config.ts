@@ -82,6 +82,11 @@ function arquivoRecebido(v: unknown, tipos: string[]) {
     return { buf, mime, nome: texto(a.nome, 160) || 'modelo' };
 }
 const MAX_RITOS = 50;
+const MAX_TIPOS = 100;
+/** Ritos, tipos e modelos excluídos (suave) não contam no limite nem aparecem nas listas. */
+const naoExcluidos = (snap: admin.firestore.QuerySnapshot) => snap.docs.filter((d) => d.data().excluido !== true);
+const quando = (v: unknown): string | null => (v && typeof (v as { toDate?: unknown }).toDate === 'function'
+    ? (v as admin.firestore.Timestamp).toDate().toISOString() : typeof v === 'string' ? v : null);
 /** Versões guardadas por rito ou modelo (as mais antigas saem). */
 const MAX_VERSOES = 20;
 
@@ -117,7 +122,8 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
-    | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade';
+    | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade'
+    | 'excluirTipo' | 'excluirModelo' | 'restaurar';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -170,7 +176,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             db.collection(COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(COL.tipos).where('organization_id', '==', orgId).get(),
             db.collection(COL.config).doc(orgId).get(),
-            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome').get(),
+            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome', 'excluido', 'excluido_em').get(),
             db.collection('userOrganizations').where('organization_id', '==', orgId).get(),
             minhas.length ? db.getAll(...minhas.map((id) => db.collection(COL.unidadeConfig).doc(id))) : Promise.resolve([]),
             convitesPendentes(c),
@@ -221,7 +227,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 const r = d.data();
                 return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false };
             }),
-            tipos: tiposSnap.docs.map((d) => {
+            tipos: naoExcluidos(tiposSnap).map((d) => {
                 const t = d.data();
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
@@ -229,6 +235,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                     orgao_id: t.orgao_id || null, formulario: formularioDe(t), numeracao: numeracaoTipoDe(t.numeracao),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            // Processos já autuados com um tipo excluído seguem com o formulário dele (Editar dados, filtro da lista).
+            tipos_excluidos: tiposSnap.docs.filter((d) => d.data().excluido === true)
+                .map((d) => ({ id: d.id, nome: d.data().nome, formulario: formularioDe(d.data()) })),
             documento,
             documentoUnidades,
             calendario: sanitizeCalendario(cfgSnap.data()?.calendario),
@@ -236,13 +245,20 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             alerta_prazos: cfgSnap.data()?.alerta_prazos === true,
             ciencia_dias: cienciaDias(cfgSnap.data()?.ciencia_dias),
             textos_comunicacao: textosProntosDe(cfgSnap.data()?.textos_comunicacao),
-            modelos: modelosSnap.docs.map((d) => {
+            modelos: naoExcluidos(modelosSnap).map((d) => {
                 const m = d.data();
                 return {
                     id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false,
                     unidade_id: m.unidade_id || null, orgao_id: m.orgao_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            // Lixeira: o admin restaura ritos, tipos e modelos; a gestão, os modelos da sua unidade.
+            excluidos: [
+                ...(c.ctx.isAdmin ? ritosSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ colecao: 'rito', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em) })) : []),
+                ...(c.ctx.isAdmin ? tiposSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ colecao: 'tipo', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em), rito_id: d.data().rito_id || null })) : []),
+                ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id && c.gestorDe.includes(d.data().unidade_id))))
+                    .map((d) => ({ colecao: 'modelo', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em), unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null })),
+            ].sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))),
             suspensa_plataforma: c.org.secretariaConfig?.suspensa_plataforma === true,
             motivo_suspensao: c.org.secretariaConfig?.motivo_suspensao || '',
             orgao: String(c.org.name || ''),
@@ -308,7 +324,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
         const col = db.collection(COL.modelos);
         const atual = p.id ? (await col.doc(p.id).get()).data() : null;
-        if (p.id && atual?.organization_id !== orgId) throw new HttpsError('not-found', 'Modelo não encontrado');
+        if (p.id && (atual?.organization_id !== orgId || atual?.excluido === true)) throw new HttpsError('not-found', 'Modelo não encontrado');
         // Modelo do órgão: admin. Modelo de unidade: gestão dela (antes e depois de mudar).
         const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
         for (const u of new Set([unidadeId, atual ? (atual.unidade_id || null) : unidadeId])) {
@@ -334,7 +350,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
         const ref = p.id ? col.doc(p.id) : col.doc();
-        if (!p.id && (await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+        if (!p.id && naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_MODELOS) {
             throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
         }
         if (arquivo) {
@@ -350,6 +366,24 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         p.id = ref.id;
         await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId, formato });
         return { success: true, id: p.id };
+    }
+
+    // Exclusão suave de modelo: some das listas e das indicações novas. Documentos
+    // já redigidos a partir dele não mudam; restaurar o traz de volta, inativo.
+    if (p.action === 'excluirModelo' || (p.action === 'restaurar' && p.colecao === 'modelo')) {
+        const ref = db.collection(COL.modelos).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        const excluir = p.action === 'excluirModelo';
+        if (!atual || atual.organization_id !== orgId || (atual.excluido === true) !== !excluir) throw new HttpsError('not-found', 'Modelo não encontrado');
+        if (atual.unidade_id && c.unidades.some((u) => u.id === atual.unidade_id && !u.excluida)) exigirGestor(c, String(atual.unidade_id)); else exigirAdmin(c);
+        if (!excluir && naoExcluidos(await db.collection(COL.modelos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_MODELOS) {
+            throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
+        }
+        await ref.update(excluir
+            ? { excluido: true, ativo: false, excluido_em: agora, excluido_por: auth.uid, updated_at: agora, updated_by: auth.uid }
+            : { excluido: false, ativo: false, excluido_em: FieldValue.delete(), excluido_por: FieldValue.delete(), updated_at: agora, updated_by: auth.uid });
+        await audit(excluir ? 'SECRETARIA_MODELO_EXCLUIDO' : 'SECRETARIA_MODELO_RESTAURADO', { modelo_id: ref.id, nome: atual.nome, unidade_id: atual.unidade_id || null });
+        return { success: true };
     }
 
     // Versões anteriores de um rito (admin) ou de um modelo do editor (gestão).
@@ -487,13 +521,13 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const editarId = typeof pr.rito_id === 'string' && pr.rito_id ? pr.rito_id : null;
         const [ritosSnap, modelosSnap, ritoAtualSnap] = await Promise.all([
             editarId ? null : db.collection(COL.ritos).where('organization_id', '==', orgId).select('excluido').get(),
-            db.collection(COL.modelos).where('organization_id', '==', orgId).select('unidade_id').get(),
+            db.collection(COL.modelos).where('organization_id', '==', orgId).select('excluido').get(),
             editarId ? db.collection(COL.ritos).doc(editarId).get() : null,
         ]);
         const ritoAtual = ritoAtualSnap?.data();
         if (editarId && (!ritoAtual || ritoAtual.organization_id !== orgId || ritoAtual.excluido === true)) throw new HttpsError('not-found', 'Rito não encontrado');
         if (ritosSnap && ritosSnap.docs.filter((d) => d.data().excluido !== true).length >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de ritos atingido');
-        if (modelosSnap.size + modelosIn.length > MAX_MODELOS) throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
+        if (naoExcluidos(modelosSnap).length + modelosIn.length > MAX_MODELOS) throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
         const refUn = new Map<string, string>();
         const novasUnidades = unidadesIn.map((u) => {
             const nome = texto(u.nome, 120);
@@ -516,7 +550,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             refMod.set(String(m.ref), ref.id);
             return { ref, nome, unidade_id: unidadeDe(m.unidade_ref), tipo_documento: texto(m.tipo_documento, 60) };
         });
-        const modelosValidos = new Set([...modelosSnap.docs.map((d) => d.id), ...refMod.values()]);
+        const modelosValidos = new Set([...naoExcluidos(modelosSnap).map((d) => d.id), ...refMod.values()]);
         const ritoIn = (pr.rito && typeof pr.rito === 'object' ? pr.rito : {}) as Record<string, unknown>;
         const fasesIn = (Array.isArray(ritoIn.fases) ? ritoIn.fases : []) as Array<Record<string, unknown>>;
         let rito: Rito;
@@ -559,6 +593,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const tp = pr.tipo_processo && typeof pr.tipo_processo === 'object' ? pr.tipo_processo as Record<string, unknown> : null;
         let tipoId: string | null = null;
         if (tp && texto(tp.nome)) {
+            if (naoExcluidos(await db.collection(COL.tipos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS) {
+                throw new HttpsError('resource-exhausted', 'Limite de tipos atingido. Implante sem criar o tipo, ou exclua um tipo antes.');
+            }
             const ref = db.collection(COL.tipos).doc();
             tipoId = ref.id;
             batch.set(ref, {
@@ -577,8 +614,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
     if (p.action === 'salvarRito') {
         let rito;
         try { rito = sanitizeRito(p.rito); } catch (e) { erroUsuario(e); }
-        const modelosOrg = await db.collection(COL.modelos).where('organization_id', '==', orgId).select().get();
-        rito = filtrarRefsRito(rito!, new Set(c.unidades.map((u) => u.id)), new Set(modelosOrg.docs.map((d) => d.id)));
+        const modelosOrg = await db.collection(COL.modelos).where('organization_id', '==', orgId).select('excluido').get();
+        rito = filtrarRefsRito(rito!, new Set(c.unidades.map((u) => u.id)), new Set(naoExcluidos(modelosOrg).map((d) => d.id)));
         const col = db.collection(COL.ritos);
         if (p.id) {
             const ref = col.doc(p.id);
@@ -604,9 +641,10 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const ref = db.collection(COL.ritos).doc(String(p.id || '_'));
         const atual = (await ref.get()).data();
         if (!atual || atual.organization_id !== orgId || atual.excluido === true) throw new HttpsError('not-found', 'Rito não encontrado');
-        const tipos = await db.collection(COL.tipos).where('organization_id', '==', orgId).where('rito_id', '==', ref.id).select('nome').get();
-        if (!tipos.empty) {
-            throw new HttpsError('failed-precondition', `O rito é usado por ${tipos.size === 1 ? 'um tipo de processo' : `${tipos.size} tipos de processo`} (${tipos.docs.map((d) => d.data().nome).join(', ')}). Troque o rito desses tipos (inclusive os inativos) antes.`);
+        // Tipo excluído não prende o rito (os processos dele já têm a cópia das fases).
+        const tipos = naoExcluidos(await db.collection(COL.tipos).where('organization_id', '==', orgId).where('rito_id', '==', ref.id).select('nome', 'excluido').get());
+        if (tipos.length) {
+            throw new HttpsError('failed-precondition', `O rito é usado por ${tipos.length === 1 ? 'um tipo de processo' : `${tipos.length} tipos de processo`} (${tipos.map((d) => d.data().nome).join(', ')}). Troque o rito desses tipos (inclusive os inativos) ou exclua-os antes.`);
         }
         await ref.update({ excluido: true, ativo: false, excluido_em: agora, excluido_por: auth.uid, updated_at: agora, updated_by: auth.uid });
         await audit('SECRETARIA_RITO_EXCLUIDO', { rito_id: ref.id, nome: atual.nome });
@@ -636,14 +674,51 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const col = db.collection(COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if ((await ref.get()).data()?.organization_id !== orgId) throw new HttpsError('not-found', 'Tipo não encontrado');
+            const atual = (await ref.get()).data();
+            if (atual?.organization_id !== orgId || atual?.excluido === true) throw new HttpsError('not-found', 'Tipo não encontrado');
             await ref.update(dados);
         } else {
-            if ((await col.where('organization_id', '==', orgId).get()).size >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de tipos atingido');
+            if (naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS) throw new HttpsError('resource-exhausted', 'Limite de tipos atingido');
             p.id = (await col.add({ ...dados, organization_id: orgId, created_at: agora, created_by: auth.uid })).id;
         }
         await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome, campos: formulario!.campos.length });
         return { success: true, id: p.id };
+    }
+
+    if (p.action === 'excluirTipo') {
+        // Exclusão suave: o tipo some das listas e não autua mais. Processos já
+        // autuados com ele seguem iguais (guardam as fases e os campos).
+        const ref = db.collection(COL.tipos).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId || atual.excluido === true) throw new HttpsError('not-found', 'Tipo não encontrado');
+        await ref.update({ excluido: true, ativo: false, excluido_em: agora, excluido_por: auth.uid, updated_at: agora, updated_by: auth.uid });
+        await audit('SECRETARIA_TIPO_EXCLUIDO', { tipo_id: ref.id, nome: atual.nome });
+        return { success: true };
+    }
+
+    if (p.action === 'restaurar') {
+        // Volta inativo: o admin confere e reativa de propósito.
+        const col = p.colecao === 'rito' ? COL.ritos : p.colecao === 'tipo' ? COL.tipos : null;
+        if (!col) throw new HttpsError('invalid-argument', 'Coleção inválida');
+        const ref = db.collection(col).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId || atual.excluido !== true) throw new HttpsError('not-found', 'Não encontrado');
+        if (naoExcluidos(await db.collection(col).where('organization_id', '==', orgId).select('excluido').get()).length >= (col === COL.ritos ? MAX_RITOS : MAX_TIPOS)) {
+            throw new HttpsError('resource-exhausted', col === COL.ritos ? 'Limite de ritos atingido' : 'Limite de tipos atingido');
+        }
+        const volta: Record<string, unknown> = { excluido: false, ativo: false, excluido_em: FieldValue.delete(), excluido_por: FieldValue.delete(), updated_at: agora, updated_by: auth.uid };
+        if (col === COL.tipos) {
+            // Tipo cujo rito foi excluído volta com outro rito, escolhido por quem restaura.
+            const ritoId = String(p.rito_id || atual.rito_id || '_');
+            const rito = (await db.collection(COL.ritos).doc(ritoId).get()).data();
+            if (!rito || rito.organization_id !== orgId || rito.excluido === true) {
+                throw new HttpsError('failed-precondition', 'O rito deste tipo foi excluído. Escolha outro rito para restaurá-lo.');
+            }
+            volta.rito_id = ritoId;
+        }
+        await ref.update(volta);
+        await audit(col === COL.ritos ? 'SECRETARIA_RITO_RESTAURADO' : 'SECRETARIA_TIPO_RESTAURADO', { id: ref.id, nome: atual.nome });
+        return { success: true };
     }
 
     throw new HttpsError('invalid-argument', 'Ação desconhecida');

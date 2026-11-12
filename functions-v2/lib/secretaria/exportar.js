@@ -157,8 +157,9 @@ async function montarPdfAutos(o) {
         const partes = (proc.partes || []);
         if (partes.length) {
             w.texto('\nPartes', { bold: true });
+            // CPF/CNPJ só na cópia da equipe: no portal, uma parte não vê o documento da outra.
             for (const pa of partes)
-                w.texto(`${pa.polo}: ${pa.nome}${pa.documento ? ` (${pa.documento})` : ''}`);
+                w.texto(`${pa.polo}: ${pa.nome}${o.equipe && pa.documento ? ` (${pa.documento})` : ''}`);
         }
         w.texto(quebra === null
             ? `\nIntegridade: cadeia de ${movimentos.length} eventos conferida (SHA-256).`

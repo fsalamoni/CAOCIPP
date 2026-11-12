@@ -315,7 +315,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         let tipo = null;
         if (p.tipo_id) {
             tipo = (await db.collection(context_1.COL.tipos).doc(String(p.tipo_id)).get()).data() || null;
-            if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false)
+            if (!tipo || tipo.organization_id !== orgId || tipo.ativo === false || tipo.excluido === true)
                 throw new https_1.HttpsError('invalid-argument', 'Escolha um tipo de processo ativo');
             if (tipo.orgao_id && tipo.orgao_id !== (unidade.orgao_id || null)) {
                 const dono = (0, orgaos_1.nomeOrgao)(await (0, orgaos_2.lerOrgaos)(db, orgId), tipo.orgao_id);
