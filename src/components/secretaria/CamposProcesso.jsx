@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { MAX_CAMPOS, TIPOS_CAMPO, USOS_CAMPO, novoCampo, valorTexto } from '@/lib/camposProcesso';
+import { MAX_CAMPOS, PADROES, POLOS, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, valorTexto } from '@/lib/camposProcesso';
 import { NativeSelect } from './comum';
+import FormularioAutuacao from './FormularioAutuacao';
 
 // ============================================================================
 // Campos próprios do tipo de processo:
@@ -72,10 +73,57 @@ export function DadosCampos({ campos, className = '' }) {
     );
 }
 
-/** Configuração do formulário de autuação de um tipo de processo. */
-export function EditorFormulario({ form, onChange }) {
+/** Um campo padrão do "Novo processo": uso, nome na tela e orientação. */
+function LinhaPadrao({ p, form, onChange }) {
+    const [aberto, setAberto] = useState(false);
+    const usoAtual = form[p.id];
+    const nome = form.rotulos?.[p.id] || '';
+    const ajuda = form.ajudas?.[p.id] || '';
+    const set = (k, v) => onChange({ ...form, [k]: { ...(form[k] || {}), [p.id]: v } });
+    const oculto = usoAtual === 'oculto';
+    return (
+        <li className="py-2 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="min-w-[8rem] flex-1 text-sm">
+                    <span className="font-medium">{nome.trim() || p.rotulo}</span>
+                    {nome.trim() && <span className="text-xs text-slate-600 dark:text-slate-400"> (padrão: {p.rotulo})</span>}
+                </span>
+                <select aria-label={`Uso de ${p.rotulo}`} value={usoAtual} onChange={(e) => onChange({ ...form, [p.id]: e.target.value })}
+                    className="h-8 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                    {(p.escolha ? USOS_ESCOLHA : USOS_CAMPO).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <Button type="button" size="sm" variant="ghost" className="h-8 gap-1 text-xs" aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
+                    Nome e orientação <ChevronDown className={`w-3.5 h-3.5 transition-transform ${aberto ? 'rotate-180' : ''}`} aria-hidden />
+                </Button>
+            </div>
+            {oculto && p.oculto && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{p.oculto}</p>}
+            {aberto && (
+                <div className="grid sm:grid-cols-2 gap-2 mt-2">
+                    <div><Label htmlFor={`fp-nome-${p.id}`} className="text-xs">Nome na tela</Label><Input id={`fp-nome-${p.id}`} className="mt-1 h-8" maxLength={60} placeholder={p.rotulo} value={nome} onChange={(e) => set('rotulos', e.target.value)} /></div>
+                    <div><Label htmlFor={`fp-ajuda-${p.id}`} className="text-xs">Orientação para quem preenche</Label><Input id={`fp-ajuda-${p.id}`} className="mt-1 h-8" maxLength={200} placeholder="Opcional; aparece abaixo do campo" value={ajuda} onChange={(e) => set('ajudas', e.target.value)} /></div>
+                </div>
+            )}
+            {p.id === 'partes' && !oculto && (
+                <fieldset className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <legend className="sr-only">Polos que as partes podem ter</legend>
+                    <span className="text-xs text-slate-600 dark:text-slate-400">Polos:</span>
+                    {POLOS.map(([v, l]) => (
+                        <label key={v} className="flex items-center gap-1.5 text-sm">
+                            <Checkbox checked={form.polos.includes(v)} onCheckedChange={(c) => onChange({ ...form, polos: c === true ? POLOS.map(([x]) => x).filter((x) => x === v || form.polos.includes(x)) : form.polos.filter((x) => x !== v) })} /> {l}
+                        </label>
+                    ))}
+                </fieldset>
+            )}
+        </li>
+    );
+}
+
+const PREVIA_VAZIA = { assunto: '', descricao: '', origem: { tipo: '', descricao: '' }, unidade_id: 'u', sigilo: 'normal', urgente: false, motivo_urgencia: '', partes: [], campos: {} };
+
+/** Configuração do formulário de autuação de um tipo de processo. `tipo` serve à prévia (urgência e sigilo). */
+export function EditorFormulario({ form, onChange, tipo = null }) {
     const [aberto, setAberto] = useState(null);
-    const [previa, setPrevia] = useState({});
+    const [previa, setPrevia] = useState(PREVIA_VAZIA);
     const campos = form.campos;
     const setCampo = (i, patch) => onChange({ ...form, campos: campos.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
     const mover = (i, d) => {
@@ -94,12 +142,14 @@ export function EditorFormulario({ form, onChange }) {
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
             <div>
                 <p className="text-sm font-medium">Formulário do “Novo processo”</p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">O que quem autua este tipo preenche. Assunto, unidade e sigilo aparecem sempre. O que for preenchido fica nos dados do processo.</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Tudo o que quem autua este tipo vê e preenche. Cada campo padrão pode ser obrigatório, opcional ou não usado (as escolhas podem ficar fixas pelo tipo), com nome e orientação próprios. O que for preenchido fica nos dados do processo.</p>
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-                <NativeSelect id="fm-descricao" label="Descrição" value={form.descricao} onChange={(v) => onChange({ ...form, descricao: v })} options={USOS_CAMPO} />
-                <NativeSelect id="fm-partes" label="Partes e interessados" value={form.partes} onChange={(v) => onChange({ ...form, partes: v })} options={USOS_CAMPO} />
-            </div>
+            <section aria-label="Campos padrão" className="space-y-1">
+                <p className="text-sm font-medium">Campos padrão</p>
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {PADROES.map((p) => <LinhaPadrao key={p.id} p={p} form={form} onChange={onChange} />)}
+                </ul>
+            </section>
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -147,14 +197,14 @@ export function EditorFormulario({ form, onChange }) {
                 })}
             </div>
 
-            {campos.length > 0 && (
-                <details className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2">
-                    <summary className="flex items-center gap-2 text-sm cursor-pointer"><Eye className="w-4 h-4" aria-hidden /> Ver como fica para quem autua</summary>
-                    <div className="pt-3">
-                        <CamposProcesso prefixo="previa" campos={campos.map((c) => ({ ...c, opcoes: (c.opcoes || []).map((o) => o.trim()).filter(Boolean) }))} valores={previa} onChange={(id, v) => setPrevia((p) => ({ ...p, [id]: v }))} />
-                    </div>
-                </details>
-            )}
+            <details className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2">
+                <summary className="flex items-center gap-2 text-sm cursor-pointer"><Eye className="w-4 h-4" aria-hidden /> Ver como fica para quem autua</summary>
+                <div className="pt-3">
+                    <FormularioAutuacao prefixo="previa" tipo={tipo} f={{ ...previa, sigilo: form.sigilo === 'oculto' ? tipo?.sigilo_padrao || 'normal' : previa.sigilo, urgente: tipo?.urgente === true || previa.urgente }} setF={setPrevia}
+                        form={{ ...form, polos: form.polos.length ? form.polos : POLOS.map(([x]) => x), campos: campos.map((c) => ({ ...c, opcoes: (c.opcoes || []).map((o) => o.trim()).filter(Boolean) })) }}
+                        unidades={[['u', 'A unidade de quem autua']]} />
+                </div>
+            </details>
         </div>
     );
 }

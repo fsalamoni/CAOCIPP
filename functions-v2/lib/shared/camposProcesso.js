@@ -1,13 +1,14 @@
 "use strict";
 // ============================================================================
-// Formulário de autuação por tipo de processo: quais campos o "Novo processo"
-// mostra (os padrões Descrição e Partes, e campos próprios do órgão) e a
-// validação do que foi preenchido. Lógica pura, testada em
+// Formulário de autuação por tipo de processo: como o "Novo processo" mostra
+// cada campo padrão (assunto, descrição, partes, origem, sigilo, urgência e
+// unidade: uso, nome e orientação), que polos as partes podem ter, os campos
+// próprios do órgão e a validação do que foi preenchido. Lógica pura, testada em
 // test/camposProcesso.test.js. O cliente tem o espelho em
 // src/lib/camposProcesso.js (só para a tela; quem decide é o servidor).
 // ============================================================================
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_OPCOES = exports.MAX_CAMPOS = exports.TIPOS_CAMPO = void 0;
+exports.rotuloDe = exports.POLOS = exports.ROTULO_PADRAO = exports.PADROES = exports.MAX_OPCOES = exports.MAX_CAMPOS = exports.TIPOS_CAMPO = void 0;
 exports.formularioDe = formularioDe;
 exports.sanitizeFormulario = sanitizeFormulario;
 exports.valorDe = valorDe;
@@ -20,12 +21,42 @@ exports.TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_n
 exports.MAX_CAMPOS = 20;
 exports.MAX_OPCOES = 30;
 const USOS = ['opcional', 'obrigatorio', 'oculto'];
-const uso = (v) => (USOS.includes(v) ? v : 'opcional');
+/** Campos padrão do "Novo processo". Os de escolha (sigilo, urgência, unidade) só se mostram ou não. */
+exports.PADROES = ['assunto', 'descricao', 'partes', 'origem', 'sigilo', 'urgencia', 'unidade'];
+const DE_ESCOLHA = ['sigilo', 'urgencia', 'unidade'];
+exports.ROTULO_PADRAO = {
+    assunto: 'Assunto', descricao: 'Descrição', partes: 'Partes e interessados', origem: 'Origem',
+    sigilo: 'Sigilo', urgencia: 'Tramitação urgente', unidade: 'Unidade',
+};
+exports.POLOS = ['requerente', 'requerido', 'interessado', 'terceiro'];
+const uso = (v, padrao = 'opcional') => (USOS.includes(v) ? v : padrao);
+// Sigilo, urgência e unidade são escolhas: aparecem (opcional) ou não (oculto).
+const usoDe = (k, v) => {
+    if (DE_ESCOLHA.includes(k))
+        return v === 'oculto' ? 'oculto' : 'opcional';
+    return uso(v, k === 'assunto' ? 'obrigatorio' : 'opcional');
+};
+const textos = (v, max) => {
+    const o = (v && typeof v === 'object' ? v : {});
+    return Object.fromEntries(exports.PADROES.map((k) => [k, (0, secretaria_1.texto)(o[k], max)]).filter(([, s]) => s));
+};
+const polosDe = (v) => {
+    const l = exports.POLOS.filter((p) => Array.isArray(v) && v.includes(p));
+    return l.length ? l : [...exports.POLOS];
+};
+const padroesDe = (f) => ({
+    assunto: usoDe('assunto', f.assunto), descricao: usoDe('descricao', f.descricao), partes: usoDe('partes', f.partes),
+    origem: usoDe('origem', f.origem), sigilo: usoDe('sigilo', f.sigilo), urgencia: usoDe('urgencia', f.urgencia), unidade: usoDe('unidade', f.unidade),
+    rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos),
+});
+/** Nome do campo padrão neste formulário. */
+const rotuloDe = (form, k) => { var _a; return ((_a = form.rotulos) === null || _a === void 0 ? void 0 : _a[k]) || exports.ROTULO_PADRAO[k]; };
+exports.rotuloDe = rotuloDe;
 const igual = (a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }) === 0;
 /** Formulário gravado no tipo, com os padrões para o que faltar (tipos antigos não têm). */
 function formularioDe(tipo) {
     const f = ((tipo === null || tipo === void 0 ? void 0 : tipo.formulario) && typeof tipo.formulario === 'object' ? tipo.formulario : {});
-    return { descricao: uso(f.descricao), partes: uso(f.partes), campos: Array.isArray(f.campos) ? f.campos : [] };
+    return Object.assign(Object.assign({}, padroesDe(f)), { campos: Array.isArray(f.campos) ? f.campos : [] });
 }
 /** Saneia o formulário vindo do cliente. Lança Error com mensagem para o usuário. */
 function sanitizeFormulario(input) {
@@ -52,13 +83,18 @@ function sanitizeFormulario(input) {
         ids.add(id);
         return { id, rotulo, tipo, obrigatorio: o.obrigatorio === true, ajuda: (0, secretaria_1.texto)(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true };
     });
+    const padroes = padroesDe(src);
+    const reservados = [...Object.values(padroes.rotulos), 'assunto', 'descrição', 'descricao', 'partes'];
     campos.forEach((c, i) => {
         if (campos.some((d, j) => j < i && igual(d.rotulo, c.rotulo)))
             throw new Error(`Há dois campos chamados "${c.rotulo}"`);
-        if (['assunto', 'descrição', 'descricao', 'partes'].some((r) => igual(r, c.rotulo)))
+        if (reservados.some((r) => igual(r, c.rotulo)))
             throw new Error(`"${c.rotulo}" já é um campo padrão do processo`);
     });
-    return { descricao: uso(src.descricao), partes: uso(src.partes), campos };
+    if (padroes.assunto === 'oculto' && padroes.descricao === 'oculto' && padroes.partes === 'oculto' && !campos.length) {
+        throw new Error('O formulário ficaria sem nada para identificar o processo: use ao menos o assunto, a descrição, as partes ou um campo próprio');
+    }
+    return Object.assign(Object.assign({}, padroes), { campos });
 }
 const vazio = (v) => v === undefined || v === null || (typeof v === 'string' && !v.trim());
 /** Um valor, já no formato de gravar; null se veio vazio. Lança Error se inválido. */
@@ -112,12 +148,16 @@ function validarCampos(form, valores) {
     }
     return out;
 }
-/** Confere os campos padrão (Descrição e Partes) conforme o tipo. */
-function validarPadrao(form, descricao, partes) {
-    if (form.descricao === 'obrigatorio' && !descricao)
-        throw new Error('Preencha a descrição');
-    if (form.partes === 'obrigatorio' && !partes.length)
-        throw new Error('Informe ao menos uma parte ou interessado');
+/** Confere os campos padrão conforme o tipo. */
+function validarPadrao(form, v) {
+    if (form.assunto === 'obrigatorio' && !v.assunto)
+        throw new Error(`Preencha "${(0, exports.rotuloDe)(form, 'assunto')}"`);
+    if (form.descricao === 'obrigatorio' && !v.descricao)
+        throw new Error(`Preencha "${(0, exports.rotuloDe)(form, 'descricao')}"`);
+    if (form.partes === 'obrigatorio' && !v.partes.length)
+        throw new Error(`Informe ao menos um item em "${(0, exports.rotuloDe)(form, 'partes')}"`);
+    if (form.origem === 'obrigatorio' && !v.origem)
+        throw new Error(`Informe "${(0, exports.rotuloDe)(form, 'origem')}"`);
 }
 /** Valor como texto, para movimentos, busca e PDF. */
 function valorTexto(c) {

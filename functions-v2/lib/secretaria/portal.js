@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaPortal = exports.COL_ACESSOS = exports.AVISOS_PARTE = exports.TIPOS_PETICAO_PORTAL = exports.MOVIMENTOS_INTERNOS = void 0;
 const admin = require("firebase-admin");
+const numeracao_1 = require("../shared/numeracao");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
@@ -311,7 +312,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
             geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
         });
-        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
+        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
     }
     if (p.action === 'certidao') {
         // Uma folha: situação atual e últimos movimentos públicos, com data e hora.
@@ -335,7 +336,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             `Confira cada documento pelo código impresso nas folhas em ${process.env.APP_URL || 'https://sigo-caocipp.web.app'}/Conferir.`,
         ];
         const r = await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(linhas.join('\n')), {}, { semCabecalho: true });
-        return { base64: r.buffer.toString('base64'), nome: `certidao-${String(proc.numero).replace('/', '-')}.pdf` };
+        return { base64: r.buffer.toString('base64'), nome: `certidao-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
     }
     if (p.action === 'comprovante') {
         // Comprovante de protocolo de uma petição desta conta.
@@ -356,7 +357,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             '', `Emitido em ${brDataHora(new Date().toISOString())} pelo portal das partes.`,
         ];
         const r = await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(linhas.join('\n')), {}, { semCabecalho: true });
-        return { base64: r.buffer.toString('base64'), nome: `protocolo-${String(proc.numero).replace('/', '-')}-${d.ordem}.pdf` };
+        return { base64: r.buffer.toString('base64'), nome: `protocolo-${(0, numeracao_1.numeroArquivo)(proc.numero)}-${d.ordem}.pdf` };
     }
     if (p.action === 'baixar' || p.action === 'pdf') {
         const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);

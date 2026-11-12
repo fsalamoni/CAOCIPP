@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, numeroProcesso, podeAgir, podeExcluirProcesso, podeVer, proximaFase, sanitizeOrigem, sha256, texto, verificarCadeia,
+    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, proximaFase, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
@@ -13,7 +13,8 @@ import {
     pedidoDaAcao, pendentesDaFase,
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
-import { CampoValor, TipoCampo, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto } from '../shared/camposProcesso';
+import { CampoValor, POLOS, TipoCampo, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto } from '../shared/camposProcesso';
+import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
@@ -97,16 +98,22 @@ const MAX_LISTA = 5000;
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
-const POLOS =['requerente', 'requerido', 'interessado', 'terceiro'];
 const MAX_PARTES = 50;
 const MAX_REPRESENTANTES = 5;
 
-function sanitizePartes(input: unknown) {
+/** Quantos números já usados a autuação pula antes de desistir. */
+const MAX_PULOS = 200;
+
+function sanitizePartes(input: unknown, polos: readonly string[] = POLOS) {
     const lista = Array.isArray(input) ? input.slice(0, MAX_PARTES) : [];
+    const reserva = polos.includes('interessado') ? 'interessado' : polos[0];
     return lista
         .map((x) => {
             const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
-            const polo = typeof o.polo === 'string' && POLOS.includes(o.polo) ? o.polo : 'interessado';
+            if (o.polo !== undefined && o.polo !== '' && !polos.includes(String(o.polo))) {
+                throw new HttpsError('invalid-argument', `O polo "${String(o.polo).slice(0, 20)}" não é aceito neste tipo de processo`);
+            }
+            const polo = typeof o.polo === 'string' && polos.includes(o.polo) ? o.polo : reserva;
             return { nome: texto(o.nome), documento: texto(o.documento, 30), email: texto(o.email, 120), polo };
         })
         .filter((p) => p.nome);
@@ -374,9 +381,14 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     }
 
     if (p.action === 'autuar') {
-        const assunto = texto(p.assunto);
-        if (!assunto) throw new HttpsError('invalid-argument', 'Informe o assunto');
-        const unidadeId = String(p.unidade_id || '');
+        let unidadeId = String(p.unidade_id || '');
+        // Unidade fixa pelo tipo: a sugerida, se quem autua está lotado nela; senão a escolhida (a de quem autua).
+        if (p.tipo_id) {
+            const t = (await db.collection(COL.tipos).doc(String(p.tipo_id)).get()).data();
+            const sugerida = String(t?.unidade_inicial || '');
+            if (t?.organization_id === orgId && formularioDe(t).unidade === 'oculto' && sugerida && c.ctx.unidadeIds.includes(sugerida)
+                && c.unidades.some((u) => u.id === sugerida && u.ativa !== false)) unidadeId = sugerida;
+        }
         const unidade = c.unidades.find((u) => u.id === unidadeId && u.ativa !== false);
         if (!unidade) throw new HttpsError('invalid-argument', 'Escolha a unidade que autua o processo');
         if (!c.ctx.unidadeIds.includes(unidadeId)) {
@@ -398,30 +410,55 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false || rito.excluido === true) {
             throw new HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
-        const sigilo = (p.sigilo || tipo?.sigilo_padrao) === 'restrito' ? 'restrito' : 'normal';
-        // Urgência: marcada por quem autua (com motivo) ou herdada do tipo de processo.
-        const urgente = p.urgente === true || tipo?.urgente === true;
+        // Formulário do tipo: o que se pede, o que é obrigatório, o que não se usa e os campos próprios.
+        const form = formularioDe(tipo);
+        // Sigilo e urgência fora do formulário valem o que o tipo define.
+        const sigilo = (form.sigilo === 'oculto' ? tipo?.sigilo_padrao : p.sigilo || tipo?.sigilo_padrao) === 'restrito' ? 'restrito' : 'normal';
+        const urgente = (form.urgencia !== 'oculto' && p.urgente === true) || tipo?.urgente === true;
         const motivoUrgencia = texto(p.motivo_urgencia, MAX_TEXTO_LONGO) || (tipo?.urgente === true ? `Tipo de processo urgente (${tipo.nome})` : '');
         if (urgente && !motivoUrgencia) throw new HttpsError('invalid-argument', 'Informe o motivo da urgência');
-        // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
-        const form = formularioDe(tipo);
+        const assuntoInformado = form.assunto === 'oculto' ? '' : texto(p.assunto);
         const descricao = form.descricao === 'oculto' ? '' : texto(p.descricao, MAX_TEXTO_LONGO);
-        const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes);
+        const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes, form.polos);
+        const origem = form.origem === 'oculto' ? null : sanitizeOrigem(p.origem);
         let campos: CampoValor[] = [];
-        try { validarPadrao(form, descricao, partes); campos = validarCampos(form, p.campos); } catch (e) { erroUsuario(e); }
-        const origem = sanitizeOrigem(p.origem);
-        const ano = new Date().getFullYear();
-        const contadorRef = db.collection(COL.contadores).doc(`${orgId}_${ano}`);
+        try {
+            validarPadrao(form, { assunto: assuntoInformado, descricao, partes, origem });
+            campos = validarCampos(form, p.campos);
+        } catch (e) { erroUsuario(e); }
+        // Sem assunto pedido, o processo se chama pelo tipo.
+        const assunto = assuntoInformado || tipo?.nome || rito.nome;
+        // Numeração: a do tipo, a do órgão ou nenhuma (identificador SN-...).
+        const numTipo = numeracaoTipoDe(tipo?.numeracao);
+        const numeracao = numTipo.modo === 'nenhuma' ? null
+            : numTipo.modo === 'propria' ? { partes: numTipo.partes! }
+                : numeracaoDe((await db.collection(COL.config).doc(orgId).get()).data()?.numeracao);
+        const usaOrgao = numeracao?.partes.some((x) => x.t === 'sigla_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
+        const orgao = usaOrgao && unidade.orgao_id ? (await lerOrgaos(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
+        const ctxNumero = { hoje: hojeBrasil(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
         const procRef = db.collection(COL.processos).doc();
+        const contadorRef = numeracao ? db.collection(COL.contadores).doc(chaveContador(orgId, numeracao, ctxNumero)) : null;
         const numero = await db.runTransaction(async (tx) => {
-            const cont = await tx.get(contadorRef);
-            const seq = (Number(cont.data()?.seq) || 0) + 1;
-            tx.set(contadorRef, { organization_id: orgId, ano, seq }, { merge: true });
-            const numero = numeroProcesso(ano, seq);
+            let numero = identificadorSemNumero(procRef.id);
+            if (numeracao && contadorRef) {
+                const cont = await tx.get(contadorRef);
+                let seq = (Number(cont.data()?.seq) || 0) + 1;
+                // O número nunca se repete: se uma mudança de numeração fizer a
+                // contagem cair num número já usado, pula para o próximo livre.
+                // ponytail: até MAX_PULOS consultas; acima disso, pede ajuste da numeração.
+                for (let i = 0; ; i++, seq++) {
+                    numero = formatarNumero(numeracao, ctxNumero, seq);
+                    const repetido = await tx.get(db.collection(COL.processos).where('organization_id', '==', orgId).where('numero', '==', numero).limit(1));
+                    if (repetido.empty) break;
+                    if (i >= MAX_PULOS) throw new HttpsError('failed-precondition', `Os números a partir de ${numero} já existem. Peça ao administrador para ajustar a numeração em Configuração, Tipos de processo.`);
+                }
+                tx.set(contadorRef, { organization_id: orgId, chave: contadorRef.id, seq, atualizado_em: new Date().toISOString() }, { merge: true });
+            }
             const fases = rito.fases as Fase[];
             const base = {
                 organization_id: orgId,
                 numero,
+                ...(numeracao ? {} : { sem_numero: true }),
                 assunto,
                 descricao,
                 partes,
@@ -546,7 +583,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const descricao = form.descricao === 'oculto' ? String(data.descricao || '') : texto(p.descricao, MAX_TEXTO_LONGO);
             let campos: CampoValor[] = [];
             try {
-                validarPadrao({ ...form, partes: 'opcional' }, descricao, []);
+                validarPadrao({ ...form, assunto: 'opcional', partes: 'opcional', origem: 'opcional' }, { assunto: '', descricao, partes: [], origem: null });
                 campos = validarCampos(form, p.campos);
             } catch (e) { erroUsuario(e); }
             // Campo que o tipo deixou de ter continua no processo como foi gravado.

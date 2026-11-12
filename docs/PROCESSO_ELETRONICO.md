@@ -275,8 +275,8 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
-| `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{descricao, partes ("opcional" \| "obrigatorio" \| "oculto"), campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}` |
-| `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
+| `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}, numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
+| `secContadores/{chave}` | `seq` de cada contagem: `{org}_{ano}` (a de sempre, `000001/2026`) ou `{org}_{escopo}_{alvo}_{período}` |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor, visivel_partes}], origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, modelo_id?, unidades_acesso?[], paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
@@ -1079,17 +1079,50 @@ Pontos de partida:
 Conversões em `src/lib/secretariaRito.js`, testadas em
 `src/lib/secretariaRito.test.js` (`npm run test:lib`).
 
-**Tipo de processo** (`secTipos`): nome, sigla, descrição, rito, sigilo padrão
-e unidade sugerida para autuar. Na autuação, escolher o tipo preenche rito,
+**Numeração única** (`functions-v2/src/shared/numeracao.ts`, nov/2026). O
+número é montado por partes: número sequencial (contado no órgão todo, por
+tipo, por unidade que autua ou por órgão interno; recomeça por ano, por mês ou
+nunca; de 1 a 10 dígitos), ano (4 ou 2 dígitos), mês, dia, sigla do tipo, da
+unidade ou do órgão interno (sem sigla, as iniciais do nome) e texto fixo
+(separadores). O órgão tem a sua (Tipos de processo › Numeração,
+`salvarNumeracao`, em `secConfig/{org}.numeracao`); cada tipo usa a do órgão,
+uma própria (`secTipos.numeracao {modo: "propria", partes}`) ou nenhuma
+(`modo: "nenhuma"`: o processo recebe o identificador `SN-XXXXXXXX` e
+`sem_numero: true`). Sem configuração vale a de sempre, `000001/2026`, com o
+mesmo contador (`secContadores/{org}_{ano}`), então nada muda para quem não
+mexe. Outras contagens usam `secContadores/{org}_{escopo}_{alvo}_{período}`,
+em que o alvo é a sigla impressa (tipos, unidades ou órgãos com a mesma sigla
+contam juntos) ou, sem sigla, o id. A configuração recusa o que repetiria
+números (contagem anual sem o ano, contagem por tipo sem a sigla do tipo etc.)
+e o que passaria de 60 caracteres. Na autuação, dentro da transação, o
+servidor confere que o número ainda não existe no órgão; se uma mudança de
+numeração fizer a contagem cair num número já usado, ele pula para o próximo
+livre (até 200 pulos) e grava o contador já adiantado. Unidade fixa pelo tipo
+(`formulario.unidade = "oculto"`) também vale no servidor: usa a sugerida
+quando quem autua está lotado nela. Polo que o tipo não aceita é recusado. O "Novo processo" mostra o
+formato do número do tipo escolhido. Nomes de arquivo usam `numeroArquivo`.
+
+**Tipo de processo** (`secTipos`): nome, sigla, descrição, rito, sigilo padrão,
+unidade sugerida para autuar, formulário e numeração. Na autuação, escolher o tipo preenche rito,
 sigilo e unidade; o processo guarda `tipo_id` e `tipo_nome`. A lista filtra
 por tipo.
 
 **Formulário do "Novo processo" por tipo** (`formulario` em `secTipos`). O
 admin define, em cada tipo, o que quem autua preenche:
 
-- **Campos padrão:** Descrição e Partes podem ser opcionais, obrigatórios ou
-  não usados (não aparecem e não são gravados). Assunto, unidade e sigilo
-  aparecem sempre.
+- **Campos padrão** (nov/2026, todos configuráveis): Assunto, Descrição,
+  Origem e Partes podem ser obrigatórios, opcionais ou não usados (não
+  aparecem e não são gravados). Unidade, Sigilo e Tramitação urgente são
+  escolhas: quem autua escolhe, ou ficam fixas pelo tipo (unidade sugerida no
+  tipo ou a de quem autua; sigilo padrão do tipo; urgente só se o tipo for
+  urgente). Cada um pode ter nome e orientação próprios (`rotulos`, `ajudas`),
+  e o tipo escolhe os polos que as partes podem ter (`polos`). Sem assunto, o
+  processo se chama pelo nome do tipo. Tipos antigos seguem como antes
+  (assunto obrigatório, o resto opcional). O formulário não pode ficar sem
+  assunto, descrição, partes e campos próprios ao mesmo tempo.
+- **Uma só tela de autuação** (`FormularioAutuacao.jsx`): o "Novo processo"
+  e a prévia no editor do tipo usam o mesmo componente, então a prévia é
+  exatamente o que quem autua vê.
 - **Campos próprios** (até 20): nome, tipo (texto curto, texto longo, número,
   data, lista de opções, sim ou não), obrigatório, orientação para quem
   preenche e "mostrar às partes no portal" (desligado por padrão). A ordem da

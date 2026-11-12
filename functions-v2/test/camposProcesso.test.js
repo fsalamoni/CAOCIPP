@@ -21,7 +21,10 @@ test('formulário: saneia tipos, opções repetidas e usos; tipo antigo recebe o
     assert.deepEqual(f.campos[1].opcoes, ['Ouvidoria', 'Ofício']);
     assert.equal(f.campos[1].visivel_partes, true);
     assert.equal(f.campos[0].visivel_partes, false);
-    assert.deepEqual(c.formularioDe({}), { descricao: 'opcional', partes: 'opcional', campos: [] });
+    assert.deepEqual(c.formularioDe({}), {
+        assunto: 'obrigatorio', descricao: 'opcional', partes: 'opcional', origem: 'opcional', sigilo: 'opcional', urgencia: 'opcional', unidade: 'opcional',
+        rotulos: {}, ajudas: {}, polos: ['requerente', 'requerido', 'interessado', 'terceiro'], campos: [],
+    });
     assert.deepEqual(c.formularioDe(null).campos, []);
     assert.equal(c.sanitizeFormulario({ descricao: 'xx' }).descricao, 'opcional');
 });
@@ -60,9 +63,10 @@ test('valores: obrigatório vazio e valores inválidos são recusados com o nome
 });
 
 test('padrões: descrição e partes obrigatórias', () => {
-    assert.throws(() => c.validarPadrao(form(), '', []), /descrição/);
-    c.validarPadrao(form(), 'ok', []);
-    assert.throws(() => c.validarPadrao({ descricao: 'opcional', partes: 'obrigatorio', campos: [] }, '', []), /ao menos uma parte/);
+    const v = (o) => ({ assunto: 'x', descricao: '', partes: [], origem: null, ...o });
+    assert.throws(() => c.validarPadrao(form(), v()), /Descrição/);
+    c.validarPadrao(form(), v({ descricao: 'ok' }));
+    assert.throws(() => c.validarPadrao(c.formularioDe({ formulario: { partes: 'obrigatorio' } }), v()), /Partes e interessados/);
 });
 
 test('texto do valor e diferenças para o histórico', () => {
@@ -74,4 +78,28 @@ test('texto do valor e diferenças para o histórico', () => {
         'Valor da causa: de "10" para "12,5"', 'Data do fato: "01/03/2026"', 'Urgente: apagado (era "Sim")',
     ]);
     assert.deepEqual(c.diferencasCampos(antes, antes), []);
+});
+
+test('formulário: todos os campos padrão são configuráveis (uso, nome, orientação e polos)', () => {
+    const f = c.sanitizeFormulario({
+        assunto: 'oculto', origem: 'obrigatorio', sigilo: 'oculto', urgencia: 'obrigatorio', unidade: 'xx',
+        rotulos: { descricao: 'Relato do fato', partes: 'Envolvidos', invalido: 'x' }, ajudas: { origem: 'Como chegou' },
+        polos: ['interessado', 'nada'], campos: [{ rotulo: 'Número do ofício' }],
+    });
+    assert.equal(f.assunto, 'oculto');
+    assert.equal(f.origem, 'obrigatorio');
+    assert.equal(f.sigilo, 'oculto');
+    assert.equal(f.urgencia, 'opcional', 'escolha só aparece ou não');
+    assert.equal(f.unidade, 'opcional');
+    assert.deepEqual(f.rotulos, { descricao: 'Relato do fato', partes: 'Envolvidos' });
+    assert.deepEqual(f.ajudas, { origem: 'Como chegou' });
+    assert.deepEqual(f.polos, ['interessado']);
+    assert.equal(c.rotuloDe(f, 'descricao'), 'Relato do fato');
+    assert.equal(c.rotuloDe(f, 'assunto'), 'Assunto');
+    const v = { assunto: '', descricao: '', partes: [], origem: null };
+    assert.throws(() => c.validarPadrao(f, v), /Origem/);
+    c.validarPadrao(f, { ...v, origem: { tipo: 'oficio' } });
+    assert.throws(() => c.sanitizeFormulario({ rotulos: { partes: 'Envolvidos' }, campos: [{ rotulo: 'envolvidos' }] }), /campo padrão/);
+    assert.throws(() => c.sanitizeFormulario({ assunto: 'oculto', descricao: 'oculto', partes: 'oculto' }), /identificar o processo/);
+    assert.equal(c.sanitizeFormulario({ assunto: 'oculto', descricao: 'oculto', partes: 'oculto', campos: [{ rotulo: 'Protocolo' }] }).assunto, 'oculto');
 });

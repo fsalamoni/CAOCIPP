@@ -4,6 +4,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { MAX_TEXTO_LONGO, Rito, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
+import { numeracaoDe, numeracaoTipoDe, sanitizeNumeracao, sanitizeNumeracaoTipo } from '../shared/numeracao';
 import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
 import { cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
 import { emArvore, orgaosDe, sanitizeCompetencias } from '../shared/orgaos';
@@ -111,7 +112,7 @@ const RITO_PADRAO = {
     ],
 };
 
-type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo'
+type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo' | 'salvarNumeracao'
     | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
@@ -225,12 +226,13 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
-                    orgao_id: t.orgao_id || null, formulario: formularioDe(t),
+                    orgao_id: t.orgao_id || null, formulario: formularioDe(t), numeracao: numeracaoTipoDe(t.numeracao),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             documento,
             documentoUnidades,
             calendario: sanitizeCalendario(cfgSnap.data()?.calendario),
+            numeracao: numeracaoDe(cfgSnap.data()?.numeracao),
             alerta_prazos: cfgSnap.data()?.alerta_prazos === true,
             ciencia_dias: cienciaDias(cfgSnap.data()?.ciencia_dias),
             textos_comunicacao: textosProntosDe(cfgSnap.data()?.textos_comunicacao),
@@ -441,6 +443,15 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         return { success: true };
     }
 
+    if (p.action === 'salvarNumeracao') {
+        // Numeração do órgão: vale para quem autua sem tipo e para os tipos que não têm a sua.
+        let numeracao;
+        try { numeracao = sanitizeNumeracao(p.numeracao); } catch (e) { erroUsuario(e); }
+        await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, numeracao, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await audit('SECRETARIA_NUMERACAO', { partes: numeracao!.partes.map((x) => x.t).join(',') });
+        return { success: true };
+    }
+
     if (p.action === 'salvarTextosComunicacao') {
         let textos;
         try { textos = sanitizeTextosProntos(p.textos); } catch (e) { erroUsuario(e); }
@@ -615,9 +626,10 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         if (orgaoId && !(await lerOrgaos(db, orgId)).some((o) => o.id === orgaoId)) throw new HttpsError('invalid-argument', 'Órgão do tipo de processo inválido');
         // Campos do "Novo processo" deste tipo: os padrões e os próprios do órgão.
         let formulario;
-        try { formulario = sanitizeFormulario(t.formulario); } catch (e) { erroUsuario(e); }
+        let numeracao;
+        try { formulario = sanitizeFormulario(t.formulario); numeracao = sanitizeNumeracaoTipo(t.numeracao); } catch (e) { erroUsuario(e); }
         const dados = {
-            nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario,
+            nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao,
             sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null, ...('orgao_id' in t ? { orgao_id: orgaoId || null } : {}),
             ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };

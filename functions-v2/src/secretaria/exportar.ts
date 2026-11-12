@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { numeroArquivo } from '../shared/numeracao';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { Fase, textoOrigem, verificarCadeia } from '../shared/secretaria';
@@ -259,6 +260,6 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
         const bytes = await montarPdfAutos({ db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => nomeUnidade(c, id), selecao, equipe: true });
         // Abrir uma peça no leitor não é exportação: só registra o PDF com capa ou de várias peças.
         if (selecao.capa || selecao.eventos.length !== 1) await auditar(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero, modo: selecao.modo });
-        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
+        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${numeroArquivo(proc.numero)}.pdf` };
     }
 );
