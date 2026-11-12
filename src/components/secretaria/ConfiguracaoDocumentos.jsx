@@ -15,6 +15,7 @@ import { NativeSelect, documentoDaUnidade } from './comum';
 import EditorDocumento, { CAMPOS_MODELO, FONTES, prepararImagem } from './EditorDocumento';
 import ImportarModelo, { EditorOriginal, rotuloFormatoOriginal } from './ImportarModelo';
 import VersoesDialog from './VersoesDialog';
+import { CartaoComMenu, ConfirmarExclusao, Excluidos } from './Lixeira';
 
 /** "Rito › Fase" de cada fase que indica o modelo, por id de modelo. */
 function fasesQueIndicam(estado) {
@@ -214,7 +215,9 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
     const qc = useQueryClient();
     const [modelo, setModelo] = useState(null);
     const [importando, setImportando] = useState(false);
-    const lista = (estado.modelos || []).filter((m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id && (m.orgao_id || null) === orgaoId));
+    const [excluir, setExcluir] = useState(null);
+    const desta = (m) => (unidadeId ? m.unidade_id === unidadeId : !m.unidade_id && (m.orgao_id || null) === orgaoId);
+    const lista = (estado.modelos || []).filter(desta);
     const indicadoEm = fasesQueIndicam(estado);
     const recarregar = () => qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
     const abrirModelo = async (m) => {
@@ -223,11 +226,20 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
             setModelo({ ...(await secConfig(orgId, 'obterModelo', { id: m.id })), _k: Date.now() });
         } catch (e) { toast.error(e?.message || 'Não foi possível abrir o modelo'); }
     };
+    // Cópia de modelo do editor: abre o texto como modelo novo, para ajustar e salvar.
+    const duplicar = async (m) => {
+        try {
+            const o = await secConfig(orgId, 'obterModelo', { id: m.id });
+            setModelo({ ...o, id: undefined, nome: `${o.nome} (cópia)`, _k: Date.now() });
+        } catch (e) { toast.error(e?.message || 'Não foi possível abrir o modelo'); }
+    };
     const corpo = (
         <div className="grid md:grid-cols-2 gap-2">
             {lista.length === 0 && <p className="text-sm text-slate-600">Nenhum modelo ainda.</p>}
             {lista.map((m) => (
-                <button key={m.id} onClick={() => abrirModelo(m)} className="w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                <CartaoComMenu key={m.id} nome={m.nome} onEditar={() => abrirModelo(m)} onDuplicar={m.formato === 'original' ? null : () => duplicar(m)}
+                    onExcluir={() => setExcluir({ colecao: 'modelo', id: m.id, nome: m.nome })}
+                    className="w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     <div className="flex flex-wrap items-center gap-2">
                         <FileText className="w-4 h-4 text-indigo-600" aria-hidden />
                         <span className="font-medium">{m.nome}</span>
@@ -237,8 +249,10 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
                     </div>
                     {m.descricao && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{m.descricao}</p>}
                     {indicadoEm.has(m.id) && <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">Indicado em: {indicadoEm.get(m.id).slice(0, 3).join(' · ')}{indicadoEm.get(m.id).length > 3 ? ` e mais ${indicadoEm.get(m.id).length - 3}` : ''}</p>}
-                </button>
+                </CartaoComMenu>
             ))}
+            <Excluidos orgId={orgId} estado={estado} colecao="modelo" filtro={desta} />
+            <ConfirmarExclusao orgId={orgId} alvo={excluir} onFechar={() => setExcluir(null)} />
         </div>
     );
     const novo = (

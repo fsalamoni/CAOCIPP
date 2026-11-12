@@ -628,7 +628,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onEnviar={async (valor) => { const ok = await mov('marcarAcao', { acao_idx: registrar.idx, feita: true, valor, version: registrar.version }, 'Ação registrada'); if (ok) setRegistrar(null); return ok; }} />
 
             {acao?.tipo === 'dados' && (
-                <EditarDados p={p} tipo={(estado.tipos || []).find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
+                <EditarDados p={p} tipo={[...(estado.tipos || []), ...(estado.tipos_excluidos || [])].find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
                     onSalvar={(dados) => mov('alterarDados', dados, 'Dados do processo alterados')} />
             )}
 

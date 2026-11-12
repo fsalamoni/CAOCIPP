@@ -26,7 +26,7 @@ export default function PreviaRito({ estado }) {
     const i = Math.max(0, fases.findIndex((f) => f.id === faseId));
     const fase = fases[i];
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || '';
-    const nomeModelo = (id) => (estado.modelos || []).find((m) => m.id === id)?.nome || id;
+    const nomeModelo = (id) => (estado.modelos || []).find((m) => m.id === id)?.nome || 'modelo excluído';
     const prox = fase ? seguintes(fases, i).map((id) => fases.find((f) => f.id === id)).filter(Boolean) : [];
     let principal = null;
     if (fase) {

@@ -233,9 +233,11 @@ versões. O rito precisa de ao menos uma fase: a última não pode ser removida.
 
 **Excluir rito** (`excluirRito`, só admin): exclusão suave (`excluido: true`,
 `ativo: false`, `excluido_em`, `excluido_por`). Recusada enquanto algum tipo
-de processo usa o rito, ativo ou inativo (a mensagem cita os tipos). O rito some de `estado`,
+de processo não excluído usa o rito, ativo ou inativo (a mensagem cita os
+tipos; na tela, cada tipo tem o botão "Abrir o tipo"). O rito some de `estado`,
 não autua, não aceita `salvarRito`, `versoes` nem `salvarTipo`, e não conta
 no limite de ritos. Processos já autuados seguem com a cópia das fases.
+Restaurar e duplicar: ver "Excluir, restaurar e duplicar" abaixo.
 
 **Revisão** (`PropostaRito.jsx`): no alto, o fluxo inteiro desenhado na
 notação do Bizagi (ver "Diagrama do fluxo" abaixo), atualizado ao vivo; clicar
@@ -694,6 +696,48 @@ criou o item, nos casos sem efeito sobre o trabalho de outros.
   processos seguem nas mesmas unidades. Quem criou o órgão (`criado_por`,
   gravado pelo servidor) exclui o órgão vazio.
 - **Testes:** `functions-v2/test/exclusao.test.js`.
+
+### Excluir, restaurar e duplicar ritos, tipos e modelos (nov/2026)
+
+Cada cartão de rito, tipo de processo e modelo tem o menu ⋯ com Editar,
+Duplicar e Excluir (`Lixeira.jsx`: `CartaoComMenu`, `ConfirmarExclusao`,
+`Excluidos`). A exclusão é suave (`excluido: true`, `ativo: false`,
+`excluido_em`, `excluido_por`) e processos já autuados não mudam: guardam as
+fases, os campos e o `modelo_id` de onde nasceram (`obterModelo` continua
+servindo o modelo excluído).
+
+- `excluirTipo {id}` (admin): o tipo some de `estado`, não autua (`autuar`
+  recusa `excluido`), não se edita (`salvarTipo` responde "não encontrado") e
+  deixa de prender o rito em `excluirRito`.
+- `excluirModelo {id}` (admin; gestor para modelo da unidade): some de
+  `estado.modelos` e não se edita.
+- `restaurar {colecao: 'rito' | 'tipo' | 'modelo', id, rito_id?}`: volta
+  inativo, para ser reativado de propósito; confere o limite. Tipo cujo rito
+  foi excluído só volta com `rito_id` de um rito existente.
+- `estado.excluidos`: `{colecao, id, nome, em, rito_id?, unidade_id?,
+  orgao_id?}`, os mais recentes primeiro; ritos e tipos para o admin, modelos
+  para o admin e para a gestão da unidade dona. A tela mostra "Excluídos (N)"
+  no fim de cada lista, com Restaurar (e a escolha do rito, quando falta).
+- `estado.tipos_excluidos`: `{id, nome, formulario}` dos tipos excluídos, para
+  todos. Processo já autuado com um deles segue editando os dados com o
+  formulário certo e aparece no filtro "Tipo de processo" da lista.
+- Modelo excluído sai das fases ao salvar o rito (`salvarRito` e
+  `aplicarPropostaRito` só aceitam modelos não excluídos); até lá, o editor
+  mostra "Modelo excluído". Modelo de unidade excluída: só o admin exclui ou
+  restaura.
+- Duplicar um rito com um rascunho de rito novo guardado mostra o aviso antes
+  de substituí-lo.
+- Limites contam só o que não foi excluído: 50 ritos, 100 tipos (também ao
+  implantar um rito com tipo novo), 200 modelos.
+- Duplicar é só na tela: rito abre o "Novo rito" com as fases do original
+  (sem criar tipo junto); tipo abre "Novo tipo" com rito, campos e numeração,
+  sem a sigla (para não dividir a contagem por sigla); modelo do editor abre
+  como modelo novo. Modelo com arquivo original não se duplica.
+- Unidade e órgão interno não têm restaurar: a exclusão deles já leva
+  processos, equipe e itens para outro lugar.
+
+O PDF dos autos mostra CPF/CNPJ das partes só na cópia da equipe; a do portal
+das partes não traz o documento de ninguém.
 
 ## Meus Processos Eletrônicos (nov/2026)
 

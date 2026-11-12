@@ -137,8 +137,8 @@ export async function excluirUnidade(c: Contexto, p: Payload, uid: string, audit
     const procs = await c.db.collection(COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', u.id).limit(MAX_SUCESSAO + 1).get();
     const arquivados = procs.docs.filter((d) => d.data().status === 'arquivado').length;
     if (p.simular === true) {
-        const modelos = await c.db.collection(COL.modelos).where('organization_id', '==', c.orgId).where('unidade_id', '==', u.id).count().get();
-        return { processos: procs.size, arquivados, em_andamento: procs.size - arquivados, modelos: modelos.data().count, equipe: lotacoesDe(u).length, pode_mover: c.ctx.isAdmin };
+        const modelos = await c.db.collection(COL.modelos).where('organization_id', '==', c.orgId).where('unidade_id', '==', u.id).select('excluido').get();
+        return { processos: procs.size, arquivados, em_andamento: procs.size - arquivados, modelos: modelos.docs.filter((d) => d.data().excluido !== true).length, equipe: lotacoesDe(u).length, pode_mover: c.ctx.isAdmin };
     }
     let sucessora: (typeof c.unidades)[number] | null = null;
     if (procs.size) {

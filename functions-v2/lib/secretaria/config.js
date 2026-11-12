@@ -91,6 +91,11 @@ function arquivoRecebido(v, tipos) {
     return { buf, mime, nome: (0, secretaria_1.texto)(a.nome, 160) || 'modelo' };
 }
 const MAX_RITOS = 50;
+const MAX_TIPOS = 100;
+/** Ritos, tipos e modelos excluídos (suave) não contam no limite nem aparecem nas listas. */
+const naoExcluidos = (snap) => snap.docs.filter((d) => d.data().excluido !== true);
+const quando = (v) => (v && typeof v.toDate === 'function'
+    ? v.toDate().toISOString() : typeof v === 'string' ? v : null);
 /** Versões guardadas por rito ou modelo (as mais antigas saem). */
 const MAX_VERSOES = 20;
 /**
@@ -125,7 +130,7 @@ const RITO_PADRAO = {
     ],
 };
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
@@ -150,7 +155,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             db.collection(context_1.COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).get(),
             db.collection(context_1.COL.config).doc(orgId).get(),
-            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome').get(),
+            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome', 'excluido', 'excluido_em').get(),
             db.collection('userOrganizations').where('organization_id', '==', orgId).get(),
             minhas.length ? db.getAll(...minhas.map((id) => db.collection(context_1.COL.unidadeConfig).doc(id))) : Promise.resolve([]),
             (0, unidades_1.convitesPendentes)(c),
@@ -195,7 +200,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 const r = d.data();
                 return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false };
             }),
-            tipos: tiposSnap.docs.map((d) => {
+            tipos: naoExcluidos(tiposSnap).map((d) => {
                 const t = d.data();
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
@@ -203,6 +208,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                     orgao_id: t.orgao_id || null, formulario: (0, camposProcesso_1.formularioDe)(t), numeracao: (0, numeracao_1.numeracaoTipoDe)(t.numeracao),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            // Processos já autuados com um tipo excluído seguem com o formulário dele (Editar dados, filtro da lista).
+            tipos_excluidos: tiposSnap.docs.filter((d) => d.data().excluido === true)
+                .map((d) => ({ id: d.id, nome: d.data().nome, formulario: (0, camposProcesso_1.formularioDe)(d.data()) })),
             documento,
             documentoUnidades,
             calendario: (0, secretaria_1.sanitizeCalendario)((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.calendario),
@@ -210,13 +218,20 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             alerta_prazos: ((_g = cfgSnap.data()) === null || _g === void 0 ? void 0 : _g.alerta_prazos) === true,
             ciencia_dias: (0, comunicacoes_1.cienciaDias)((_h = cfgSnap.data()) === null || _h === void 0 ? void 0 : _h.ciencia_dias),
             textos_comunicacao: (0, comunicacoes_1.textosProntosDe)((_j = cfgSnap.data()) === null || _j === void 0 ? void 0 : _j.textos_comunicacao),
-            modelos: modelosSnap.docs.map((d) => {
+            modelos: naoExcluidos(modelosSnap).map((d) => {
                 const m = d.data();
                 return {
                     id: d.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', ativo: m.ativo !== false,
                     unidade_id: m.unidade_id || null, orgao_id: m.orgao_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
+            // Lixeira: o admin restaura ritos, tipos e modelos; a gestão, os modelos da sua unidade.
+            excluidos: [
+                ...(c.ctx.isAdmin ? ritosSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ colecao: 'rito', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em) })) : []),
+                ...(c.ctx.isAdmin ? tiposSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ colecao: 'tipo', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em), rito_id: d.data().rito_id || null })) : []),
+                ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id && c.gestorDe.includes(d.data().unidade_id))))
+                    .map((d) => ({ colecao: 'modelo', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em), unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null })),
+            ].sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))),
             suspensa_plataforma: ((_k = c.org.secretariaConfig) === null || _k === void 0 ? void 0 : _k.suspensa_plataforma) === true,
             motivo_suspensao: ((_l = c.org.secretariaConfig) === null || _l === void 0 ? void 0 : _l.motivo_suspensao) || '',
             orgao: String(c.org.name || ''),
@@ -296,7 +311,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
         const col = db.collection(context_1.COL.modelos);
         const atual = p.id ? (await col.doc(p.id).get()).data() : null;
-        if (p.id && (atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId)
+        if (p.id && ((atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId || (atual === null || atual === void 0 ? void 0 : atual.excluido) === true))
             throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
         // Modelo do órgão: admin. Modelo de unidade: gestão dela (antes e depois de mudar).
         const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
@@ -330,7 +345,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         }
         const dados = Object.assign(Object.assign({ nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500), conteudo, unidade_id: unidadeId }, ('orgao_id' in m || unidadeId ? { orgao_id: orgaoModelo || null } : {})), { ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid });
         const ref = p.id ? col.doc(p.id) : col.doc();
-        if (!p.id && (await col.where('organization_id', '==', orgId).count().get()).data().count >= MAX_MODELOS) {
+        if (!p.id && naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_MODELOS) {
             throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
         }
         if (arquivo) {
@@ -349,6 +364,27 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         p.id = ref.id;
         await audit('SECRETARIA_MODELO_SALVO', { modelo_id: p.id, nome, unidade_id: unidadeId, formato });
         return { success: true, id: p.id };
+    }
+    // Exclusão suave de modelo: some das listas e das indicações novas. Documentos
+    // já redigidos a partir dele não mudam; restaurar o traz de volta, inativo.
+    if (p.action === 'excluirModelo' || (p.action === 'restaurar' && p.colecao === 'modelo')) {
+        const ref = db.collection(context_1.COL.modelos).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        const excluir = p.action === 'excluirModelo';
+        if (!atual || atual.organization_id !== orgId || (atual.excluido === true) !== !excluir)
+            throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
+        if (atual.unidade_id && c.unidades.some((u) => u.id === atual.unidade_id && !u.excluida))
+            (0, context_1.exigirGestor)(c, String(atual.unidade_id));
+        else
+            (0, context_1.exigirAdmin)(c);
+        if (!excluir && naoExcluidos(await db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_MODELOS) {
+            throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
+        }
+        await ref.update(excluir
+            ? { excluido: true, ativo: false, excluido_em: agora, excluido_por: auth.uid, updated_at: agora, updated_by: auth.uid }
+            : { excluido: false, ativo: false, excluido_em: firestore_1.FieldValue.delete(), excluido_por: firestore_1.FieldValue.delete(), updated_at: agora, updated_by: auth.uid });
+        await audit(excluir ? 'SECRETARIA_MODELO_EXCLUIDO' : 'SECRETARIA_MODELO_RESTAURADO', { modelo_id: ref.id, nome: atual.nome, unidade_id: atual.unidade_id || null });
+        return { success: true };
     }
     // Versões anteriores de um rito (admin) ou de um modelo do editor (gestão).
     if (p.action === 'versoes' || p.action === 'restaurarVersao') {
@@ -500,7 +536,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const editarId = typeof pr.rito_id === 'string' && pr.rito_id ? pr.rito_id : null;
         const [ritosSnap, modelosSnap, ritoAtualSnap] = await Promise.all([
             editarId ? null : db.collection(context_1.COL.ritos).where('organization_id', '==', orgId).select('excluido').get(),
-            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('unidade_id').get(),
+            db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('excluido').get(),
             editarId ? db.collection(context_1.COL.ritos).doc(editarId).get() : null,
         ]);
         const ritoAtual = ritoAtualSnap === null || ritoAtualSnap === void 0 ? void 0 : ritoAtualSnap.data();
@@ -508,7 +544,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             throw new https_1.HttpsError('not-found', 'Rito não encontrado');
         if (ritosSnap && ritosSnap.docs.filter((d) => d.data().excluido !== true).length >= MAX_RITOS)
             throw new https_1.HttpsError('resource-exhausted', 'Limite de ritos atingido');
-        if (modelosSnap.size + modelosIn.length > MAX_MODELOS)
+        if (naoExcluidos(modelosSnap).length + modelosIn.length > MAX_MODELOS)
             throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
         const refUn = new Map();
         const novasUnidades = unidadesIn.map((u) => {
@@ -534,7 +570,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             refMod.set(String(m.ref), ref.id);
             return { ref, nome, unidade_id: unidadeDe(m.unidade_ref), tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60) };
         });
-        const modelosValidos = new Set([...modelosSnap.docs.map((d) => d.id), ...refMod.values()]);
+        const modelosValidos = new Set([...naoExcluidos(modelosSnap).map((d) => d.id), ...refMod.values()]);
         const ritoIn = (pr.rito && typeof pr.rito === 'object' ? pr.rito : {});
         const fasesIn = (Array.isArray(ritoIn.fases) ? ritoIn.fases : []);
         let rito;
@@ -577,6 +613,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const tp = pr.tipo_processo && typeof pr.tipo_processo === 'object' ? pr.tipo_processo : null;
         let tipoId = null;
         if (tp && (0, secretaria_1.texto)(tp.nome)) {
+            if (naoExcluidos(await db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS) {
+                throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido. Implante sem criar o tipo, ou exclua um tipo antes.');
+            }
             const ref = db.collection(context_1.COL.tipos).doc();
             tipoId = ref.id;
             batch.set(ref, {
@@ -599,8 +638,8 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         catch (e) {
             (0, context_1.erroUsuario)(e);
         }
-        const modelosOrg = await db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select().get();
-        rito = filtrarRefsRito(rito, new Set(c.unidades.map((u) => u.id)), new Set(modelosOrg.docs.map((d) => d.id)));
+        const modelosOrg = await db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('excluido').get();
+        rito = filtrarRefsRito(rito, new Set(c.unidades.map((u) => u.id)), new Set(naoExcluidos(modelosOrg).map((d) => d.id)));
         const col = db.collection(context_1.COL.ritos);
         if (p.id) {
             const ref = col.doc(p.id);
@@ -629,9 +668,10 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const atual = (await ref.get()).data();
         if (!atual || atual.organization_id !== orgId || atual.excluido === true)
             throw new https_1.HttpsError('not-found', 'Rito não encontrado');
-        const tipos = await db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).where('rito_id', '==', ref.id).select('nome').get();
-        if (!tipos.empty) {
-            throw new https_1.HttpsError('failed-precondition', `O rito é usado por ${tipos.size === 1 ? 'um tipo de processo' : `${tipos.size} tipos de processo`} (${tipos.docs.map((d) => d.data().nome).join(', ')}). Troque o rito desses tipos (inclusive os inativos) antes.`);
+        // Tipo excluído não prende o rito (os processos dele já têm a cópia das fases).
+        const tipos = naoExcluidos(await db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).where('rito_id', '==', ref.id).select('nome', 'excluido').get());
+        if (tipos.length) {
+            throw new https_1.HttpsError('failed-precondition', `O rito é usado por ${tipos.length === 1 ? 'um tipo de processo' : `${tipos.length} tipos de processo`} (${tipos.map((d) => d.data().nome).join(', ')}). Troque o rito desses tipos (inclusive os inativos) ou exclua-os antes.`);
         }
         await ref.update({ excluido: true, ativo: false, excluido_em: agora, excluido_por: auth.uid, updated_at: agora, updated_by: auth.uid });
         await audit('SECRETARIA_RITO_EXCLUIDO', { rito_id: ref.id, nome: atual.nome });
@@ -666,17 +706,55 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
-            if (((_r = (await ref.get()).data()) === null || _r === void 0 ? void 0 : _r.organization_id) !== orgId)
+            const atual = (await ref.get()).data();
+            if ((atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId || (atual === null || atual === void 0 ? void 0 : atual.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
             await ref.update(dados);
         }
         else {
-            if ((await col.where('organization_id', '==', orgId).get()).size >= MAX_RITOS)
+            if (naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS)
                 throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido');
             p.id = (await col.add(Object.assign(Object.assign({}, dados), { organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
         }
         await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome, campos: formulario.campos.length });
         return { success: true, id: p.id };
+    }
+    if (p.action === 'excluirTipo') {
+        // Exclusão suave: o tipo some das listas e não autua mais. Processos já
+        // autuados com ele seguem iguais (guardam as fases e os campos).
+        const ref = db.collection(context_1.COL.tipos).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId || atual.excluido === true)
+            throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
+        await ref.update({ excluido: true, ativo: false, excluido_em: agora, excluido_por: auth.uid, updated_at: agora, updated_by: auth.uid });
+        await audit('SECRETARIA_TIPO_EXCLUIDO', { tipo_id: ref.id, nome: atual.nome });
+        return { success: true };
+    }
+    if (p.action === 'restaurar') {
+        // Volta inativo: o admin confere e reativa de propósito.
+        const col = p.colecao === 'rito' ? context_1.COL.ritos : p.colecao === 'tipo' ? context_1.COL.tipos : null;
+        if (!col)
+            throw new https_1.HttpsError('invalid-argument', 'Coleção inválida');
+        const ref = db.collection(col).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId || atual.excluido !== true)
+            throw new https_1.HttpsError('not-found', 'Não encontrado');
+        if (naoExcluidos(await db.collection(col).where('organization_id', '==', orgId).select('excluido').get()).length >= (col === context_1.COL.ritos ? MAX_RITOS : MAX_TIPOS)) {
+            throw new https_1.HttpsError('resource-exhausted', col === context_1.COL.ritos ? 'Limite de ritos atingido' : 'Limite de tipos atingido');
+        }
+        const volta = { excluido: false, ativo: false, excluido_em: firestore_1.FieldValue.delete(), excluido_por: firestore_1.FieldValue.delete(), updated_at: agora, updated_by: auth.uid };
+        if (col === context_1.COL.tipos) {
+            // Tipo cujo rito foi excluído volta com outro rito, escolhido por quem restaura.
+            const ritoId = String(p.rito_id || atual.rito_id || '_');
+            const rito = (await db.collection(context_1.COL.ritos).doc(ritoId).get()).data();
+            if (!rito || rito.organization_id !== orgId || rito.excluido === true) {
+                throw new https_1.HttpsError('failed-precondition', 'O rito deste tipo foi excluído. Escolha outro rito para restaurá-lo.');
+            }
+            volta.rito_id = ritoId;
+        }
+        await ref.update(volta);
+        await audit(col === context_1.COL.ritos ? 'SECRETARIA_RITO_RESTAURADO' : 'SECRETARIA_TIPO_RESTAURADO', { id: ref.id, nome: atual.nome });
+        return { success: true };
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
 });

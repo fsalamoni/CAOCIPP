@@ -20,6 +20,7 @@ import { modelosDeRito, novoIdFase, ritoParaMermaid, ritoParaTabela } from '@/li
 import FluxoRito from './FluxoRito';
 import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
 import { TIPOS_UNIDADE, copiarTexto } from './comum';
+import { BloqueioRito } from './Lixeira';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -104,20 +105,22 @@ async function lerArquivo(file, orgId) {
  * Implantar cria, de uma vez, as unidades e os modelos que faltam, o rito e,
  * se pedido, o tipo de processo. Monte com `key` por rito: o estado nasce das props.
  */
-export default function PropostaRito({ aberto, orgId, estado, rito = null, onFechar, onIr, extra = null }) {
+export default function PropostaRito({ aberto, orgId, estado, rito = null, copia = null, onFechar, onIr, onAbrirTipo, extra = null }) {
     const qc = useQueryClient();
     const editando = !!rito?.id;
+    // Duplicar: nasce como rito novo, já com as fases do original (sem criar tipo junto).
     const [lendo, setLendo] = useState(false);
     const [colado, setColado] = useState('');
-    const [p, setP] = useState(() => (editando ? deRito(rito) : null)); // proposta vinculada
-    const [inicial] = useState(() => (editando ? JSON.stringify(deRito(rito)) : null));
-    const [tipo, setTipo] = useState({ criar: !editando, nome: '', sigla: '' });
+    const [p0] = useState(() => (editando ? deRito(rito) : copia ? deRito({ ...copia, id: undefined, nome: `${copia.nome} (cópia)` }) : null));
+    const [p, setP] = useState(p0); // proposta vinculada
+    const [inicial] = useState(() => (p0 ? JSON.stringify(p0) : null));
+    const [tipo, setTipo] = useState({ criar: !editando && !copia, nome: '', sigla: '' });
     const [confirmar, setConfirmar] = useState(false);
     const [implantando, setImplantando] = useState(false);
     const [criado, setCriado] = useState(null); // resumo após implantar
     const [rascunho, setRascunho] = useState(() => lerRascunho(orgId, rito?.id));
     // Editando com rascunho guardado: a pessoa decide antes de o rascunho ser sobrescrito.
-    const [decidirRascunho, setDecidirRascunho] = useState(() => editando && !!rascunho?.p);
+    const [decidirRascunho, setDecidirRascunho] = useState(() => !!p0 && !!rascunho?.p);
 
     // Rascunho da revisão fica no navegador: fechar ou cair não perde o trabalho.
     useEffect(() => {
@@ -128,7 +131,8 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, onFec
             if (igual) return;
             setDecidirRascunho(false);
         }
-        if (igual) { apagarRascunho(orgId, rito?.id); return; }
+        // A cópia intacta não apaga o rascunho de rito novo que já estava guardado.
+        if (igual) { if (editando) apagarRascunho(orgId, rito?.id); return; }
         try { localStorage.setItem(chaveRascunho(orgId, rito?.id), JSON.stringify({ p, tipo, em: Date.now(), versao: rito?.versao })); } catch { /* sem espaço: segue sem rascunho */ }
     }, [p, tipo, orgId, rito, inicial, criado, decidirRascunho]);
     const descartarRascunho = () => { apagarRascunho(orgId, rito?.id); setRascunho(null); setDecidirRascunho(false); };
@@ -244,10 +248,11 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, onFec
                     </div>
                 ) : (
                     <Revisao p={p} setP={setP} estado={estado} tipo={tipo} setTipo={setTipo} confirmar={confirmar} setConfirmar={setConfirmar}
-                        implantando={implantando} editando={editando} extra={extra}
+                        implantando={implantando} editando={editando} deCopia={!!copia} extra={extra}
                         rascunho={decidirRascunho ? rascunho : null} onContinuarRascunho={continuarRascunho} onDescartarRascunho={descartarRascunho}
                         onVoltar={() => { setRascunho(lerRascunho(orgId)); setP(null); }}
                         onTrocarFases={() => setTrocar(true)}
+                        onAbrirTipo={onAbrirTipo ? (id) => { fechar(); onAbrirTipo(id); } : null}
                         onExcluir={async () => {
                             try {
                                 await secConfig(orgId, 'excluirRito', { id: rito.id });
@@ -330,13 +335,13 @@ function ResumoImplantacao({ r, onIr, onFechar }) {
 
 function Revisao({
     p, setP, estado, tipo, setTipo, confirmar, setConfirmar, implantando, onVoltar, onImplantar,
-    editando = false, extra = null, rascunho = null, onContinuarRascunho, onDescartarRascunho, onExcluir, onTrocarFases,
+    editando = false, deCopia = false, extra = null, rascunho = null, onContinuarRascunho, onDescartarRascunho, onExcluir, onTrocarFases, onAbrirTipo = null,
 }) {
     const [excluir, setExcluir] = useState(false);
     const tiposDoRito = editando ? (estado.tipos || []).filter((t) => t.rito_id === p.id) : [];
     const existentes = estado.unidades.filter((u) => u.ativa !== false);
     const nomeUnidade = (ref) => existentes.find((u) => u.id === ref)?.nome || p.unidades.find((u) => u.ref === ref)?.nome || '';
-    const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || ref;
+    const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || 'Modelo excluído (sai ao salvar)';
     const mudarFase = (id, d) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => (f.id === id ? { ...f, ...d } : f)) }); };
     const mover = (i, delta) => { const fs = [...p.fases]; const [x] = fs.splice(i, 1); fs.splice(i + delta, 0, x); setP({ ...p, fases: fs }); };
     const remover = (id) => setP({ ...p, fases: p.fases.filter((f) => f.id !== id).map((f) => ({ ...f, proximas: (f.proximas || []).filter((x) => x !== id) })) });
@@ -394,8 +399,12 @@ function Revisao({
                 <div className="p-4 pb-0 space-y-3">
                     {rascunho?.p && (
                         <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/40 p-3 text-sm">
-                            <span className="flex-1 min-w-[12rem]">Há alterações não salvas deste rito, de {new Date(rascunho.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{rascunho.versao && rascunho.versao !== p.versao ? `, feitas sobre a versão ${rascunho.versao} (a atual é a ${p.versao})` : ''}.</span>
-                            <Button size="sm" onClick={onContinuarRascunho}>Recuperar as alterações</Button>
+                            {deCopia ? (
+                                <span className="flex-1 min-w-[12rem]">Há um rito novo não implantado, <b>{rascunho.p.nome}</b>, de {new Date(rascunho.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}. Mexer nesta cópia substitui aquele rascunho.</span>
+                            ) : (
+                                <span className="flex-1 min-w-[12rem]">Há alterações não salvas deste rito, de {new Date(rascunho.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{rascunho.versao && rascunho.versao !== p.versao ? `, feitas sobre a versão ${rascunho.versao} (a atual é a ${p.versao})` : ''}.</span>
+                            )}
+                            <Button size="sm" onClick={onContinuarRascunho}>{deCopia ? 'Abrir aquele rascunho' : 'Recuperar as alterações'}</Button>
                             <Button size="sm" variant="ghost" onClick={onDescartarRascunho}>Descartar</Button>
                         </div>
                     )}
@@ -549,10 +558,12 @@ function Revisao({
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Excluir o rito “{p.nome}”?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {tiposDoRito.length
-                                ? `Ele é usado por ${tiposDoRito.map((t) => t.nome).join(', ')}. Troque o rito desses tipos de processo antes de excluir.`
-                                : 'O rito sai das listas e não pode mais ser usado em novas autuações. Os processos já autuados seguem com as fases que copiaram dele, e o histórico fica guardado. Se só quer parar de usá-lo por um tempo, desmarque "Disponível para novas autuações".'}
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-2">
+                                {tiposDoRito.length
+                                    ? <BloqueioRito tipos={tiposDoRito} onAbrirTipo={onAbrirTipo} />
+                                    : <p>O rito sai das listas e não pode mais ser usado em novas autuações. Os processos já autuados seguem com as fases que copiaram dele, e o histórico fica guardado. Dá para restaurar depois, em “Excluídos”. Se só quer parar de usá-lo por um tempo, desmarque “Disponível para novas autuações”.</p>}
+                            </div>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

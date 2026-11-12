@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: excluir, restaurar e duplicar ritos, tipos e modelos
+- **Menu ⋯ em cada rito, tipo de processo e modelo**: Editar, Duplicar e
+  Excluir. Processos já autuados não mudam.
+- **Excluídos**: no fim de cada lista, com Restaurar. O item volta inativo; tipo
+  cujo rito foi excluído volta com outro rito, escolhido na hora.
+- **Tipo de processo agora se exclui**, e tipo excluído deixa de prender o
+  rito. Quando o rito não pode sair, o aviso lista os tipos com o botão
+  "Abrir o tipo".
+- Limites contam só o que não foi excluído (até 100 tipos de processo).
+- O PDF dos autos baixado no portal das partes deixa de mostrar o CPF/CNPJ das
+  partes.
+
 ### 12/11/2026 — Processo Eletrônico: o tipo de processo configura todo o "Novo processo" e a numeração
 - **Todos os campos do "Novo processo" configuráveis no tipo**: assunto,
   descrição, origem e partes (obrigatório, opcional ou não usar), unidade,
