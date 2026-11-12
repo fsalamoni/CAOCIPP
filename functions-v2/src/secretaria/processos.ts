@@ -14,7 +14,9 @@ import {
     tituloCertidao, visivelCertidao,
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
-import { CampoValor, POLOS, TipoCampo, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto } from '../shared/camposProcesso';
+import {
+    CampoExigido, CampoValor, Formulario, POLOS, TipoCampo, camposExigidos, camposFaltando, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto,
+} from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
 import { avisarPartesDoMovimento } from './portalAvisos';
@@ -120,12 +122,14 @@ function sanitizePartes(input: unknown, polos: readonly string[] = POLOS) {
         .filter((p) => p.nome);
 }
 
-/** O que o rito exige na fase atual e ainda falta: documentos e ações obrigatórias. */
-function exigenciasAbertas(proc: admin.firestore.DocumentData) {
+/** O que o rito exige na fase atual e ainda falta: documentos, ações obrigatórias e campos a preencher. */
+function exigenciasAbertas(proc: admin.firestore.DocumentData, form?: Formulario | null) {
     const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
+    const exigidos = ((proc.campos_exigidos || {}) as Record<string, CampoExigido[]>)[String(proc.fase_atual)];
     return [
         ...pendentesDaFase(fase, proc.exigencias_cumpridas as Cumpridas | undefined),
         ...acoesObrigatoriasPendentes(fase, (proc.acoes_feitas || {})[String(proc.fase_atual)]),
+        ...camposFaltando(exigidos, proc.campos as CampoValor[] | undefined, form).map((x) => ({ descricao: `Preencher "${x.rotulo}"` })),
     ];
 }
 
@@ -133,8 +137,8 @@ function exigenciasAbertas(proc: admin.firestore.DocumentData) {
  * Sair da fase com exigência em aberto: sem motivo, recusa; com motivo, a
  * dispensa fica no movimento (e nos autos). Devolve o que foi dispensado.
  */
-function dispensarExigencias(proc: admin.firestore.DocumentData, motivo: string): string[] {
-    const abertas = exigenciasAbertas(proc).map((e) => e.descricao);
+function dispensarExigencias(proc: admin.firestore.DocumentData, motivo: string, form?: Formulario | null): string[] {
+    const abertas = exigenciasAbertas(proc, form).map((e) => e.descricao);
     if (abertas.length && !motivo) {
         throw new HttpsError('failed-precondition', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta ou informe o motivo da dispensa.`);
     }
@@ -176,7 +180,7 @@ function valorDaAcao(regra: RegraAcao | null | undefined, acao: string, bruto: u
     if (pede === 'confirmar' || pede === 'documento') return null;
     const rotulo = regra?.rotulo || acao;
     const tipo = pede as TipoCampo;
-    let valor: string | number | boolean | null = null;
+    let valor: ReturnType<typeof valorDe> = null;
     try { valor = valorDe({ rotulo, tipo, opcoes: regra?.opcoes || [] }, bruto); } catch (e) { erroUsuario(e); }
     if (valor === null) throw new HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
     return { rotulo, tipo, valor, valor_texto: valorTexto({ tipo, valor }) };
@@ -400,6 +404,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
                 consolidacao: data.consolidacao || null,
                 exigencias_cumpridas: data.exigencias_cumpridas || {},
+                campos_exigidos: data.campos_exigidos || {},
             },
             hoje: hojeBrasil(),
             movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
@@ -486,6 +491,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 tx.set(contadorRef, { organization_id: orgId, chave: contadorRef.id, seq, atualizado_em: new Date().toISOString() }, { merge: true });
             }
             const fases = rito.fases as Fase[];
+            // Campos que o tipo exige para sair de cada fase (cópia: mudar o tipo depois não muda este processo).
+            const exigidos = camposExigidos(form, fases.map((f) => f.id));
             const base = {
                 organization_id: orgId,
                 numero,
@@ -494,6 +501,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 descricao,
                 partes,
                 campos,
+                ...(Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {}),
                 sigilo,
                 ...(origem ? { origem } : {}),
                 ...(urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {}),
@@ -544,6 +552,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
         exigirPosse(c, data);
+        // Campos exigidos por fase: valem os que o tipo ainda pede (lido antes de qualquer escrita).
+        const tipoAtual = data.campos_exigidos && data.tipo_id && ['tramitar', 'avancarFase', 'alterarStatus'].includes(String(p.action))
+            ? (await tx.get(db.collection(COL.tipos).doc(String(data.tipo_id)))).data() : null;
+        const formAtual = tipoAtual && tipoAtual.organization_id === orgId ? formularioDe(tipoAtual) : null;
         if (data.status === 'arquivado' && p.action !== 'alterarStatus') {
             throw new HttpsError('failed-precondition', 'Processo arquivado: reative-o antes de movimentar');
         }
@@ -580,7 +592,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     throw new HttpsError('invalid-argument', 'Só seguem com o processo minutas que estão com a unidade que remete');
                 }
             }
-            const dispensadas = novaFase ? dispensarExigencias(data, motivo) : [];
+            const dispensadas = novaFase ? dispensarExigencias(data, motivo, formAtual) : [];
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, novaFase?.id);
@@ -619,7 +631,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             let campos: CampoValor[] = [];
             try {
                 validarPadrao({ ...form, assunto: 'opcional', partes: 'opcional', origem: 'opcional' }, { assunto: '', descricao, partes: [], origem: null });
-                campos = validarCampos(form, p.campos);
+                campos = validarCampos(form, p.campos, antes);
             } catch (e) { erroUsuario(e); }
             // Campo que o tipo deixou de ter continua no processo como foi gravado.
             const idsForm = new Set(form.campos.map((x) => x.id));
@@ -746,7 +758,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const foraDoFluxo = !fasesSeguintes(fases, data.fase_atual).some((f) => f.id === alvo.id);
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
-            const dispensadas = dispensarExigencias(data, motivo);
+            const dispensadas = dispensarExigencias(data, motivo, formAtual);
             const destinoMov = dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
@@ -795,12 +807,12 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (!motivo) throw new HttpsError('invalid-argument', 'Informe o motivo');
             const rotulo = { em_tramitacao: 'Reativado', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[status];
             // Arquivar com documento exigido em aberto: o motivo vale como dispensa, e fica dito.
-            const dispensadas = status === 'arquivado' ? exigenciasAbertas(data).map((e) => e.descricao) : [];
+            const dispensadas = status === 'arquivado' ? exigenciasAbertas(data, formAtual).map((e) => e.descricao) : [];
             // Arquivar encerra a certidão conjunta pendente (sobrestar, não: o processo volta à mesma fase).
             const em = emitirSe(status === 'arquivado', tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
             const mov = registrarMovimento(tx, c, ref, em.proc, 'situacao',
-                `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Documentos exigidos pelo rito não produzidos: ${dispensadas.join('; ')}.` : ''}`,
+                `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Exigências do rito não cumpridas: ${dispensadas.join('; ')}.` : ''}`,
                 { de: data.status, para: status, ...(dispensadas.length ? { dispensadas } : {}) });
             tx.update(ref, { ...em.mov, ...mov, status });
             return mov;

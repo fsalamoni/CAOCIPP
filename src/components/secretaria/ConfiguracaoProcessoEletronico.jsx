@@ -210,6 +210,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
     const exemplo = (n, t) => formatarNumero(n, { hoje, tipo: t || { sigla: 'REQ', nome: 'Requerimento' }, unidade: estado.unidades[0] || { sigla: 'SEC' }, orgao: (estado.orgaos || [])[0] }, 1);
     const numTipo = tipo?.numeracao || { modo: 'orgao' };
     const problemasNum = numTipo.modo === 'propria' ? problemasNumeracao(numTipo) : [];
+    const idsFasesTipo = (estado.ritos.find((r) => r.id === tipo?.rito_id)?.fases || []).map((f) => f.id);
     const paraEditar = (t) => ({ ...t, unidade_inicial: t.unidade_inicial || '', orgao_id: t.orgao_id || '', formulario: formularioDe(t), numeracao: t.numeracao || { modo: 'orgao' } });
     // Cópia: mesmo rito, campos e numeração; sem sigla, para não dividir a contagem com o original.
     const duplicar = (t) => { const { id: _id, ...resto } = paraEditar(t); setTipo({ ...resto, nome: `${t.nome} (cópia)`, sigla: '', ativo: true }); };
@@ -290,7 +291,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
                                 <input type="checkbox" className="mt-1" checked={tipo.urgente === true} onChange={(e) => setTipo({ ...tipo, urgente: e.target.checked })} />
                                 <span><span className="font-medium">Todo processo deste tipo é urgente</span><span className="block text-xs text-slate-600 dark:text-slate-400">Já nasce com o selo de urgência e aparece primeiro nas listas.</span></span>
                             </label>
-                            <EditorFormulario form={tipo.formulario} tipo={tipo} onChange={(formulario) => setTipo({ ...tipo, formulario })} />
+                            <EditorFormulario form={tipo.formulario} tipo={tipo} fases={estado.ritos.find((r) => r.id === tipo.rito_id)?.fases || []} onChange={(formulario) => setTipo({ ...tipo, formulario })} />
                             <fieldset className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
                                 <legend className="px-1 text-sm font-medium">Numeração única</legend>
                                 <div className="grid sm:grid-cols-3 gap-2">
@@ -304,9 +305,9 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
                                 </div>
                                 {numTipo.modo === 'propria' && <EditorNumeracao valor={numTipo} onChange={(n) => setTipo({ ...tipo, numeracao: { ...n, modo: 'propria' } })} exemplo={{ tipo, unidade: estado.unidades[0], orgao: (estado.orgaos || [])[0] }} />}
                             </fieldset>
-                            {problemasFormulario(tipo.formulario).length > 0 && (
+                            {problemasFormulario(tipo.formulario, idsFasesTipo).length > 0 && (
                                 <ul className="text-sm text-amber-800 dark:text-amber-300 list-disc pl-5" role="alert">
-                                    {problemasFormulario(tipo.formulario).map((m) => <li key={m}>{m}</li>)}
+                                    {problemasFormulario(tipo.formulario, idsFasesTipo).map((m) => <li key={m}>{m}</li>)}
                                 </ul>
                             )}
                             {estado.ritos.find((r) => r.id === tipo.rito_id) && (
@@ -325,7 +326,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
                             </Button>
                         )}
                         <Button variant="outline" onClick={() => setTipo(null)}>Cancelar</Button>
-                        <Button disabled={salvando || !tipo?.nome?.trim() || !tipo?.rito_id || problemasFormulario(tipo.formulario).length > 0 || problemasNum.length > 0} onClick={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)}>
+                        <Button disabled={salvando || !tipo?.nome?.trim() || !tipo?.rito_id || problemasFormulario(tipo.formulario, idsFasesTipo).length > 0 || problemasNum.length > 0} onClick={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)}>
                             {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar
                         </Button>
                     </DialogFooter>

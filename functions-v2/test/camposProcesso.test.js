@@ -34,7 +34,7 @@ test('formulário: recusa campo sem nome, nomes repetidos, nome de campo padrão
     assert.throws(() => c.sanitizeFormulario({ campos: [{ rotulo: 'Origem' }, { rotulo: 'origem' }] }), /dois campos/);
     assert.throws(() => c.sanitizeFormulario({ campos: [{ rotulo: 'Descrição' }] }), /campo padrão/);
     assert.throws(() => c.sanitizeFormulario({ campos: [{ rotulo: 'Via', tipo: 'lista', opcoes: ['uma'] }] }), /duas opções/);
-    assert.throws(() => c.sanitizeFormulario({ campos: Array.from({ length: 21 }, (_x, i) => ({ rotulo: `C${i}` })) }), /até 20/);
+    assert.throws(() => c.sanitizeFormulario({ campos: Array.from({ length: 41 }, (_x, i) => ({ rotulo: `C${i}` })) }), /até 40/);
 });
 
 test('formulário: id inválido ou repetido é trocado; id válido é mantido', () => {

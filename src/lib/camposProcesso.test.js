@@ -48,3 +48,43 @@ test('campos padrão configuráveis: nome próprio, assunto e origem obrigatóri
     assert.match(problemasFormulario({ ...f, assunto: 'oculto', descricao: 'oculto', partes: 'oculto' })[0], /identificar/);
     assert.match(problemasFormulario({ ...f, polos: [] })[0], /polo/);
 });
+
+test('formulário mais livre: condição, múltipla, formatos e o que falta na fase', async () => {
+    const m = await import('./camposProcesso.js');
+    const campos = [
+        { id: 'a', rotulo: 'Houve dano?', tipo: 'sim_nao' },
+        { id: 'b', rotulo: 'Valor', tipo: 'numero', formato: 'moeda', obrigatorio: true, condicao: { campo_id: 'a', valor: true } },
+        { id: 'c', rotulo: 'Áreas', tipo: 'multipla', opcoes: ['X', 'Y'] },
+        { id: 'd', rotulo: 'Doc', tipo: 'texto', formato: 'cpf_cnpj', exigir_em: ['f2'], obrigatorio: false },
+    ];
+    const f = { ...formularioPadrao(), assunto: 'opcional', campos };
+    assert.deepEqual([...m.visiveis(campos, { a: 'nao' })], ['a', 'c', 'd']);
+    assert.deepEqual(faltando(f, { campos: { a: 'nao' } }), [], 'valor escondido não é exigido');
+    assert.deepEqual(faltando(f, { campos: { a: 'sim' } }), ['Preencha "Valor"']);
+    assert.deepEqual(faltando(f, { campos: { d: '529.982.247-26' } }), ['"Doc" precisa ser um CPF ou CNPJ válido']);
+    assert.equal(m.cpfCnpjValido('11222333000181'), true);
+    assert.equal(valorTexto({ tipo: 'multipla', valor: ['X', 'Y'] }), 'X, Y');
+    assert.match(valorTexto({ tipo: 'numero', formato: 'moeda', valor: 1234.5 }), /^R\$ 1\.234,50$/);
+    assert.deepEqual(valoresDe([{ id: 'c', tipo: 'multipla', valor: ['X'] }]), { c: ['X'] });
+    assert.match(problemasFormulario({ ...f, campos: [campos[1], campos[0]] }).join(), /venha antes/);
+    assert.match(problemasFormulario({ ...f, campos: [{ rotulo: 'M', tipo: 'multipla', opcoes: ['só'] }] }).join(), /duas opções/);
+    assert.equal(m.textoCondicao(campos, campos[1]), 'quando "Houve dano?" for Sim');
+    const p = { fase_atual: 'f2', campos_exigidos: { f2: [{ id: 'd', rotulo: 'Doc' }, { id: 'b', rotulo: 'Valor', condicao: { campo_id: 'a', valor: true } }] }, campos: [{ id: 'a', tipo: 'sim_nao', valor: false }] };
+    assert.deepEqual(m.camposFaltandoNaFase(p).map((x) => x.id), ['d']);
+    assert.deepEqual(m.camposFaltandoNaFase({ ...p, fase_atual: 'f1' }), []);
+    // Pelo tipo de hoje: o campo que o tipo não tem mais não conta.
+    assert.deepEqual(m.camposFaltandoNaFase(p, { campos: [campos[0]] }), []);
+    assert.deepEqual(m.camposFaltandoNaFase(p, { campos }).map((x) => x.id), ['d']);
+});
+
+test('revisão: CNPJ alfanumérico, link, fases que sumiram e valor que mudou de lista', async () => {
+    const m = await import('./camposProcesso.js');
+    assert.equal(m.cpfCnpjValido('12.ABC.345/01DE-35'), true);
+    assert.equal(m.linkValido('exemplo.org:8080'), true);
+    assert.equal(m.linkValido('javascript:alert(1)'), false);
+    const f = { ...formularioPadrao(), campos: [{ id: 'a', rotulo: 'A', tipo: 'texto', exigir_em: ['velha'] }] };
+    assert.match(problemasFormulario(f, ['nova']).join(), /não existem no rito/);
+    assert.deepEqual(problemasFormulario(f), [], 'sem as fases, não confere');
+    const form = { campos: [{ id: 'l', tipo: 'multipla', opcoes: ['X', 'Y'] }, { id: 'u', tipo: 'lista', opcoes: ['X', 'Y'] }] };
+    assert.deepEqual(valoresDe([{ id: 'l', tipo: 'lista', valor: 'X' }, { id: 'u', tipo: 'multipla', valor: ['Z', 'Y'] }], form), { l: ['X'], u: 'Y' });
+});

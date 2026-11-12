@@ -5,6 +5,22 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: formulário do tipo mais livre
+- **Novos recursos nos campos próprios** do "Novo processo" (agora até 40):
+  lista em que se marcam várias opções; formatos de e-mail, telefone, CPF ou
+  CNPJ (com dígitos verificadores), endereço da internet e valor em reais;
+  seções para agrupar os campos.
+- **Campos condicionais**: "Mostrar este campo só quando" outro campo (lista ou
+  sim ou não) tiver um valor. Escondido, não é pedido nem gravado.
+- **Exigir para sair das fases**: o campo pode ficar em branco na autuação e
+  ser cobrado numa fase do rito. O cartão da fase mostra "Falta preencher" com
+  o botão Preencher; sair sem ele pede o motivo da dispensa, registrado.
+- CPF e CNPJ conferem os dígitos verificadores, inclusive o CNPJ alfanumérico.
+  Processos antigos não travam na correção de dados quando o tipo passa a
+  pedir um formato.
+- O texto do arquivamento com pendências passou a ser "Exigências do rito não
+  cumpridas", porque inclui também ações e campos.
+
 ### 12/11/2026 — Processo Eletrônico: onde ficam prazo, pendência, urgência, dados e atribuição
 - **Outros atos durante a fase**, no editor do rito: para cada fase, escolha se
   abrir e encerrar prazo, abrir e apreciar pendência, marcar urgência, alterar

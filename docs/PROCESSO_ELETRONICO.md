@@ -277,9 +277,9 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?, outros?{prazo?, pendencia?, urgencia?, dados?, atribuicao?}} (evento \| informacao \| nenhum; ausente = autos, atribuição = evento; o antigo registro? remessas_fora \| interno ainda é lido), certidao?{grupo?, titulo?, incluir_mudancas?}, acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao \| nenhum \| consolidar; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
-| `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}, numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
+| `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes, formato?, secao?, condicao?{campo_id, valor}, exigir_em?[]}]} (até 40 campos), numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
 | `secContadores/{chave}` | `seq` de cada contagem: `{org}_{ano}` (a de sempre, `000001/2026`) ou `{org}_{escopo}_{alvo}_{período}` |
-| `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor, visivel_partes}], origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
+| `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor (lista de textos na múltipla), visivel_partes, formato?}], campos_exigidos?{fase_id: [{id, rotulo, condicao?}]}, origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, modelo_id?, unidades_acesso?[], paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
 | `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
@@ -1233,20 +1233,48 @@ admin define, em cada tipo, o que quem autua preenche:
 - **Uma só tela de autuação** (`FormularioAutuacao.jsx`): o "Novo processo"
   e a prévia no editor do tipo usam o mesmo componente, então a prévia é
   exatamente o que quem autua vê.
-- **Campos próprios** (até 20): nome, tipo (texto curto, texto longo, número,
-  data, lista de opções, sim ou não), obrigatório, orientação para quem
-  preenche e "mostrar às partes no portal" (desligado por padrão). A ordem da
-  lista é a ordem no formulário; a configuração tem prévia.
+- **Campos próprios** (até 40): nome, tipo (texto curto, texto longo, número,
+  data, lista que escolhe uma, lista que marca várias (`multipla`, valor em
+  lista de textos, na ordem das opções), sim ou não), obrigatório, orientação
+  para quem preenche e "mostrar às partes no portal" (desligado por padrão).
+  A ordem da lista é a ordem no formulário; a configuração tem prévia.
+  - **Formato** (`formato`): texto curto como e-mail, telefone com DDD, CPF ou
+    CNPJ (dígitos verificadores conferidos, inclusive o CNPJ alfanumérico da
+    IN RFB 2.229/2024; gravado com pontuação) ou endereço da internet (só http
+    e https; sem esquema vale https); número como valor em reais (`moeda`,
+    duas casas, mostrado "R$ 1.234,50"). No celular, cada formato abre o
+    teclado certo.
+  - **Seção** (`secao`): título que aparece antes do primeiro campo dela.
+  - **Mostrar só quando** (`condicao {campo_id, valor}`): o campo depende de
+    uma lista, múltipla escolha ou sim ou não que venha antes dele. Escondido,
+    não é pedido, não é obrigatório e o que tiver sido digitado é descartado
+    pelo servidor; vale em cadeia (se o campo de que depende some, este some).
+  - **Exigir para sair das fases** (`exigir_em`, fases do rito do tipo; o
+    servidor descarta as que não são): o campo pode ficar em branco na
+    autuação, mas, na fase marcada, "Preencher ..." entra nas exigências do
+    rito. Sair da fase sem ele pede o motivo da dispensa, que fica no
+    movimento, como os documentos exigidos. Exigido numa fase não é
+    obrigatório na autuação. A autuação copia a lista para o processo
+    (`campos_exigidos`), mas na hora de sair da fase só conta o campo que o
+    tipo ainda pede, com o nome e a condição de agora (um campo retirado do
+    tipo não teria como ser preenchido). Salvar o tipo com o campo exigido só
+    em fases que não existem mais no rito é recusado.
+    Na fase, o cartão mostra "Falta preencher X" com o botão **Preencher**,
+    que abre a correção dos dados já no campo.
 - **Na autuação:** o modal mostra os campos do tipo escolhido e diz o que
   falta. O servidor valida de novo (`validarCampos` e `validarPadrao` em
   `functions-v2/src/shared/camposProcesso.ts`): obrigatório vazio, número,
-  data e opção de lista inválidos são recusados com o nome do campo.
+  data, opção de lista e formato inválidos são recusados com o nome do campo.
 - **No processo:** os valores ficam em `campos[]`, com a cópia do nome e do
   tipo do campo. Mudar o tipo de processo depois não altera processos já
   autuados; um campo retirado do tipo continua no processo como foi gravado.
   Os valores entram no movimento de autuação (cadeia de hashes), aparecem em
   "Identificação", na Capa, e contam na busca da lista (`campos_resumo`).
-- **Correção:** Mais › "Corrigir os dados do processo", no Andamento
+- **Correção:** valor que volta igual ao gravado fica como está, mesmo que o
+  tipo tenha passado a pedir formato ou mudado as opções; só o valor alterado
+  segue as regras de agora. Campo que virou lista de várias opções (ou o
+  contrário) chega à tela já convertido.
+  Mais › "Corrigir os dados do processo", no Andamento
   (`alterarDados`, exige a posse do processo)
   corrige a descrição e os campos próprios. O movimento `dados` registra o que
   mudou (de/para) e o motivo, e não aparece para as partes.
