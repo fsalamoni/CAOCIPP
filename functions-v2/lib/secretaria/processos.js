@@ -21,6 +21,7 @@ const autos_1 = require("../shared/autos");
 const exigencias_1 = require("../shared/exigencias");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
+const numeracao_1 = require("../shared/numeracao");
 const informacoes_1 = require("../shared/informacoes");
 const portalAvisos_1 = require("./portalAvisos");
 const orgaos_1 = require("../shared/orgaos");
@@ -32,15 +33,20 @@ const CONVITE_DIAS = 7;
 const MAX_LISTA = 5000;
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
-const POLOS = ['requerente', 'requerido', 'interessado', 'terceiro'];
 const MAX_PARTES = 50;
 const MAX_REPRESENTANTES = 5;
-function sanitizePartes(input) {
+/** Quantos números já usados a autuação pula antes de desistir. */
+const MAX_PULOS = 200;
+function sanitizePartes(input, polos = camposProcesso_1.POLOS) {
     const lista = Array.isArray(input) ? input.slice(0, MAX_PARTES) : [];
+    const reserva = polos.includes('interessado') ? 'interessado' : polos[0];
     return lista
         .map((x) => {
         const o = (x && typeof x === 'object' ? x : {});
-        const polo = typeof o.polo === 'string' && POLOS.includes(o.polo) ? o.polo : 'interessado';
+        if (o.polo !== undefined && o.polo !== '' && !polos.includes(String(o.polo))) {
+            throw new https_1.HttpsError('invalid-argument', `O polo "${String(o.polo).slice(0, 20)}" não é aceito neste tipo de processo`);
+        }
+        const polo = typeof o.polo === 'string' && polos.includes(o.polo) ? o.polo : reserva;
         return { nome: (0, secretaria_1.texto)(o.nome), documento: (0, secretaria_1.texto)(o.documento, 30), email: (0, secretaria_1.texto)(o.email, 120), polo };
     })
         .filter((p) => p.nome);
@@ -120,7 +126,7 @@ function resumo(id, d) {
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _d;
+    var _a, _b, _d, _e;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -290,10 +296,15 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         };
     }
     if (p.action === 'autuar') {
-        const assunto = (0, secretaria_1.texto)(p.assunto);
-        if (!assunto)
-            throw new https_1.HttpsError('invalid-argument', 'Informe o assunto');
-        const unidadeId = String(p.unidade_id || '');
+        let unidadeId = String(p.unidade_id || '');
+        // Unidade fixa pelo tipo: a sugerida, se quem autua está lotado nela; senão a escolhida (a de quem autua).
+        if (p.tipo_id) {
+            const t = (await db.collection(context_1.COL.tipos).doc(String(p.tipo_id)).get()).data();
+            const sugerida = String((t === null || t === void 0 ? void 0 : t.unidade_inicial) || '');
+            if ((t === null || t === void 0 ? void 0 : t.organization_id) === orgId && (0, camposProcesso_1.formularioDe)(t).unidade === 'oculto' && sugerida && c.ctx.unidadeIds.includes(sugerida)
+                && c.unidades.some((u) => u.id === sugerida && u.ativa !== false))
+                unidadeId = sugerida;
+        }
         const unidade = c.unidades.find((u) => u.id === unidadeId && u.ativa !== false);
         if (!unidade)
             throw new https_1.HttpsError('invalid-argument', 'Escolha a unidade que autua o processo');
@@ -318,41 +329,63 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false || rito.excluido === true) {
             throw new https_1.HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
-        const sigilo = (p.sigilo || (tipo === null || tipo === void 0 ? void 0 : tipo.sigilo_padrao)) === 'restrito' ? 'restrito' : 'normal';
-        // Urgência: marcada por quem autua (com motivo) ou herdada do tipo de processo.
-        const urgente = p.urgente === true || (tipo === null || tipo === void 0 ? void 0 : tipo.urgente) === true;
+        // Formulário do tipo: o que se pede, o que é obrigatório, o que não se usa e os campos próprios.
+        const form = (0, camposProcesso_1.formularioDe)(tipo);
+        // Sigilo e urgência fora do formulário valem o que o tipo define.
+        const sigilo = (form.sigilo === 'oculto' ? tipo === null || tipo === void 0 ? void 0 : tipo.sigilo_padrao : p.sigilo || (tipo === null || tipo === void 0 ? void 0 : tipo.sigilo_padrao)) === 'restrito' ? 'restrito' : 'normal';
+        const urgente = (form.urgencia !== 'oculto' && p.urgente === true) || (tipo === null || tipo === void 0 ? void 0 : tipo.urgente) === true;
         const motivoUrgencia = (0, secretaria_1.texto)(p.motivo_urgencia, secretaria_1.MAX_TEXTO_LONGO) || ((tipo === null || tipo === void 0 ? void 0 : tipo.urgente) === true ? `Tipo de processo urgente (${tipo.nome})` : '');
         if (urgente && !motivoUrgencia)
             throw new https_1.HttpsError('invalid-argument', 'Informe o motivo da urgência');
-        // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
-        const form = (0, camposProcesso_1.formularioDe)(tipo);
+        const assuntoInformado = form.assunto === 'oculto' ? '' : (0, secretaria_1.texto)(p.assunto);
         const descricao = form.descricao === 'oculto' ? '' : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
-        const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes);
+        const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes, form.polos);
+        const origem = form.origem === 'oculto' ? null : (0, secretaria_1.sanitizeOrigem)(p.origem);
         let campos = [];
         try {
-            (0, camposProcesso_1.validarPadrao)(form, descricao, partes);
+            (0, camposProcesso_1.validarPadrao)(form, { assunto: assuntoInformado, descricao, partes, origem });
             campos = (0, camposProcesso_1.validarCampos)(form, p.campos);
         }
         catch (e) {
             (0, context_1.erroUsuario)(e);
         }
-        const origem = (0, secretaria_1.sanitizeOrigem)(p.origem);
-        const ano = new Date().getFullYear();
-        const contadorRef = db.collection(context_1.COL.contadores).doc(`${orgId}_${ano}`);
+        // Sem assunto pedido, o processo se chama pelo tipo.
+        const assunto = assuntoInformado || (tipo === null || tipo === void 0 ? void 0 : tipo.nome) || rito.nome;
+        // Numeração: a do tipo, a do órgão ou nenhuma (identificador SN-...).
+        const numTipo = (0, numeracao_1.numeracaoTipoDe)(tipo === null || tipo === void 0 ? void 0 : tipo.numeracao);
+        const numeracao = numTipo.modo === 'nenhuma' ? null
+            : numTipo.modo === 'propria' ? { partes: numTipo.partes }
+                : (0, numeracao_1.numeracaoDe)((_d = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _d === void 0 ? void 0 : _d.numeracao);
+        const usaOrgao = numeracao === null || numeracao === void 0 ? void 0 : numeracao.partes.some((x) => x.t === 'sigla_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
+        const orgao = usaOrgao && unidade.orgao_id ? (await (0, orgaos_2.lerOrgaos)(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
+        const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
         const procRef = db.collection(context_1.COL.processos).doc();
+        const contadorRef = numeracao ? db.collection(context_1.COL.contadores).doc((0, numeracao_1.chaveContador)(orgId, numeracao, ctxNumero)) : null;
         const numero = await db.runTransaction(async (tx) => {
             var _a;
-            const cont = await tx.get(contadorRef);
-            const seq = (Number((_a = cont.data()) === null || _a === void 0 ? void 0 : _a.seq) || 0) + 1;
-            tx.set(contadorRef, { organization_id: orgId, ano, seq }, { merge: true });
-            const numero = (0, secretaria_1.numeroProcesso)(ano, seq);
+            let numero = (0, numeracao_1.identificadorSemNumero)(procRef.id);
+            if (numeracao && contadorRef) {
+                const cont = await tx.get(contadorRef);
+                let seq = (Number((_a = cont.data()) === null || _a === void 0 ? void 0 : _a.seq) || 0) + 1;
+                // O número nunca se repete: se uma mudança de numeração fizer a
+                // contagem cair num número já usado, pula para o próximo livre.
+                // ponytail: até MAX_PULOS consultas; acima disso, pede ajuste da numeração.
+                for (let i = 0;; i++, seq++) {
+                    numero = (0, numeracao_1.formatarNumero)(numeracao, ctxNumero, seq);
+                    const repetido = await tx.get(db.collection(context_1.COL.processos).where('organization_id', '==', orgId).where('numero', '==', numero).limit(1));
+                    if (repetido.empty)
+                        break;
+                    if (i >= MAX_PULOS)
+                        throw new https_1.HttpsError('failed-precondition', `Os números a partir de ${numero} já existem. Peça ao administrador para ajustar a numeração em Configuração, Tipos de processo.`);
+                }
+                tx.set(contadorRef, { organization_id: orgId, chave: contadorRef.id, seq, atualizado_em: new Date().toISOString() }, { merge: true });
+            }
             const fases = rito.fases;
-            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero,
-                assunto,
+            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero }, (numeracao ? {} : { sem_numero: true })), { assunto,
                 descricao,
                 partes,
                 campos,
-                sigilo }, (origem ? { origem } : {})), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+                sigilo }), (origem ? { origem } : {})), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
             tx.set(procRef, Object.assign(Object.assign({}, base), mov));
             return numero;
@@ -363,7 +396,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
     const calendario = p.action === 'abrirPrazo'
-        ? (0, secretaria_1.sanitizeCalendario)((_d = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _d === void 0 ? void 0 : _d.calendario)
+        ? (0, secretaria_1.sanitizeCalendario)((_e = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _e === void 0 ? void 0 : _e.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
     let expedidas = 1;
@@ -438,7 +471,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const descricao = form.descricao === 'oculto' ? String(data.descricao || '') : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
             let campos = [];
             try {
-                (0, camposProcesso_1.validarPadrao)(Object.assign(Object.assign({}, form), { partes: 'opcional' }), descricao, []);
+                (0, camposProcesso_1.validarPadrao)(Object.assign(Object.assign({}, form), { assunto: 'opcional', partes: 'opcional', origem: 'opcional' }), { assunto: '', descricao, partes: [], origem: null });
                 campos = (0, camposProcesso_1.validarCampos)(form, p.campos);
             }
             catch (e) {

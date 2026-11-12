@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: o tipo de processo configura todo o "Novo processo" e a numeração
+- **Todos os campos do "Novo processo" configuráveis no tipo**: assunto,
+  descrição, origem e partes (obrigatório, opcional ou não usar), unidade,
+  sigilo e urgência (quem autua escolhe ou fica fixo pelo tipo), com nome e
+  orientação próprios e os polos permitidos. Sem assunto, o processo se chama
+  pelo tipo. A prévia no editor é a própria tela de autuação.
+- **Numeração única montada pelo admin**: número sequencial (no órgão todo,
+  por tipo, por unidade ou por órgão interno; recomeça por ano, mês ou nunca),
+  ano, mês, dia, siglas e texto fixo, com prévia ao vivo. O órgão tem a sua e
+  cada tipo usa a do órgão, uma própria ou fica sem número (identificador
+  SN-…). Quem não mexe continua com 000001/2026 do mesmo contador. Número
+  repetido nunca é gravado: a contagem pula o que já existe.
+
 ### 12/11/2026 — Processo Eletrônico: uma só tela para criar e editar rito; excluir rito
 - **Editar usa a tela de criar**: clicar num rito abre a mesma tela do "Novo
   rito", com o fluxo desenhado, as fases em cartões, as ações e suas regras,

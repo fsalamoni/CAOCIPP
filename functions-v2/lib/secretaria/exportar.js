@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaExportarPdf = void 0;
 exports.selecaoOuErro = selecaoOuErro;
 exports.montarPdfAutos = montarPdfAutos;
+const numeracao_1 = require("../shared/numeracao");
 const https_1 = require("firebase-functions/v2/https");
 const pdf_lib_1 = require("pdf-lib");
 const secretaria_1 = require("../shared/secretaria");
@@ -253,6 +254,6 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
     // Abrir uma peça no leitor não é exportação: só registra o PDF com capa ou de várias peças.
     if (selecao.capa || selecao.eventos.length !== 1)
         await (0, config_1.auditar)(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero, modo: selecao.modo });
-    return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
+    return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
 });
 //# sourceMappingURL=exportar.js.map

@@ -1116,7 +1116,7 @@ function EditarDados({ p, tipo, ocupado, onFechar, onSalvar }) {
     const [descricao, setDescricao] = useState(p.descricao || '');
     const [campos, setCampos] = useState(() => valoresDe(p.campos));
     const [motivo, setMotivo] = useState('');
-    const falta = faltando({ ...form, partes: 'opcional' }, { descricao, campos });
+    const falta = faltando({ ...form, assunto: 'opcional', partes: 'opcional', origem: 'opcional' }, { descricao, campos });
     // Campos que o tipo deixou de ter continuam gravados, só para leitura.
     const antigos = (p.campos || []).filter((c) => !form.campos.some((d) => d.id === c.id));
     return (

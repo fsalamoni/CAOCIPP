@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { numeroArquivo } from '../shared/numeracao';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
@@ -344,7 +345,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
             geradoPor: `${parteDoUsuario(proc, uid)?.assina || nomeConta} (parte)`, nomeUnidade: () => '', selecao: selecaoOuErro(p.selecao),
         });
-        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${String(proc.numero).replace('/', '-')}.pdf` };
+        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${numeroArquivo(proc.numero)}.pdf` };
     }
 
     if (p.action === 'certidao') {
@@ -369,7 +370,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             `Confira cada documento pelo código impresso nas folhas em ${process.env.APP_URL || 'https://sigo-caocipp.web.app'}/Conferir.`,
         ];
         const r = await renderizarDocumento(textoParaDoc(linhas.join('\n')), {}, { semCabecalho: true });
-        return { base64: r.buffer.toString('base64'), nome: `certidao-${String(proc.numero).replace('/', '-')}.pdf` };
+        return { base64: r.buffer.toString('base64'), nome: `certidao-${numeroArquivo(proc.numero)}.pdf` };
     }
 
     if (p.action === 'comprovante') {
@@ -390,7 +391,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             '', `Emitido em ${brDataHora(new Date().toISOString())} pelo portal das partes.`,
         ];
         const r = await renderizarDocumento(textoParaDoc(linhas.join('\n')), {}, { semCabecalho: true });
-        return { base64: r.buffer.toString('base64'), nome: `protocolo-${String(proc.numero).replace('/', '-')}-${d.ordem}.pdf` };
+        return { base64: r.buffer.toString('base64'), nome: `protocolo-${numeroArquivo(proc.numero)}-${d.ordem}.pdf` };
     }
 
     if (p.action === 'baixar' || p.action === 'pdf') {

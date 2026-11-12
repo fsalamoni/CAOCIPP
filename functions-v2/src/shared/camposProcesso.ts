@@ -1,7 +1,8 @@
 // ============================================================================
-// Formulário de autuação por tipo de processo: quais campos o "Novo processo"
-// mostra (os padrões Descrição e Partes, e campos próprios do órgão) e a
-// validação do que foi preenchido. Lógica pura, testada em
+// Formulário de autuação por tipo de processo: como o "Novo processo" mostra
+// cada campo padrão (assunto, descrição, partes, origem, sigilo, urgência e
+// unidade: uso, nome e orientação), que polos as partes podem ter, os campos
+// próprios do órgão e a validação do que foi preenchido. Lógica pura, testada em
 // test/camposProcesso.test.js. O cliente tem o espelho em
 // src/lib/camposProcesso.js (só para a tela; quem decide é o servidor).
 // ============================================================================
@@ -25,9 +26,32 @@ export interface CampoDef {
     /** Aparece para as partes no portal. Por padrão, não. */
     visivel_partes: boolean;
 }
+/** Campos padrão do "Novo processo". Os de escolha (sigilo, urgência, unidade) só se mostram ou não. */
+export const PADROES = ['assunto', 'descricao', 'partes', 'origem', 'sigilo', 'urgencia', 'unidade'] as const;
+export type Padrao = typeof PADROES[number];
+const DE_ESCOLHA: Padrao[] = ['sigilo', 'urgencia', 'unidade'];
+export const ROTULO_PADRAO: Record<Padrao, string> = {
+    assunto: 'Assunto', descricao: 'Descrição', partes: 'Partes e interessados', origem: 'Origem',
+    sigilo: 'Sigilo', urgencia: 'Tramitação urgente', unidade: 'Unidade',
+};
+export const POLOS = ['requerente', 'requerido', 'interessado', 'terceiro'] as const;
+
 export interface Formulario {
+    assunto: UsoCampo;
     descricao: UsoCampo;
     partes: UsoCampo;
+    origem: UsoCampo;
+    /** oculto = vale o sigilo padrão do tipo. */
+    sigilo: UsoCampo;
+    /** oculto = urgente só se o tipo for urgente. */
+    urgencia: UsoCampo;
+    /** oculto = a unidade sugerida no tipo (ou a de quem autua), sem escolher. */
+    unidade: UsoCampo;
+    /** Nome e orientação próprios para os campos padrão (vazio = o de sempre). */
+    rotulos: Partial<Record<Padrao, string>>;
+    ajudas: Partial<Record<Padrao, string>>;
+    /** Polos que as partes podem ter neste tipo. */
+    polos: string[];
     campos: CampoDef[];
 }
 export interface CampoValor {
@@ -38,13 +62,34 @@ export interface CampoValor {
     visivel_partes: boolean;
 }
 
-const uso = (v: unknown): UsoCampo => (USOS.includes(v as UsoCampo) ? (v as UsoCampo) : 'opcional');
+const uso = (v: unknown, padrao: UsoCampo = 'opcional'): UsoCampo => (USOS.includes(v as UsoCampo) ? (v as UsoCampo) : padrao);
+// Sigilo, urgência e unidade são escolhas: aparecem (opcional) ou não (oculto).
+const usoDe = (k: Padrao, v: unknown): UsoCampo => {
+    if (DE_ESCOLHA.includes(k)) return v === 'oculto' ? 'oculto' : 'opcional';
+    return uso(v, k === 'assunto' ? 'obrigatorio' : 'opcional');
+};
+const textos = (v: unknown, max: number): Partial<Record<Padrao, string>> => {
+    const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    return Object.fromEntries(PADROES.map((k) => [k, texto(o[k], max)]).filter(([, s]) => s));
+};
+const polosDe = (v: unknown): string[] => {
+    const l = POLOS.filter((p) => Array.isArray(v) && v.includes(p));
+    return l.length ? l : [...POLOS];
+};
+const padroesDe = (f: Record<string, unknown>) => ({
+    assunto: usoDe('assunto', f.assunto), descricao: usoDe('descricao', f.descricao), partes: usoDe('partes', f.partes),
+    origem: usoDe('origem', f.origem), sigilo: usoDe('sigilo', f.sigilo), urgencia: usoDe('urgencia', f.urgencia), unidade: usoDe('unidade', f.unidade),
+    rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos),
+});
+
+/** Nome do campo padrão neste formulário. */
+export const rotuloDe = (form: Pick<Formulario, 'rotulos'>, k: Padrao) => form.rotulos?.[k] || ROTULO_PADRAO[k];
 const igual = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }) === 0;
 
 /** Formulário gravado no tipo, com os padrões para o que faltar (tipos antigos não têm). */
 export function formularioDe(tipo: { formulario?: unknown } | null | undefined): Formulario {
     const f = (tipo?.formulario && typeof tipo.formulario === 'object' ? tipo.formulario : {}) as Record<string, unknown>;
-    return { descricao: uso(f.descricao), partes: uso(f.partes), campos: Array.isArray(f.campos) ? (f.campos as CampoDef[]) : [] };
+    return { ...padroesDe(f), campos: Array.isArray(f.campos) ? (f.campos as CampoDef[]) : [] };
 }
 
 /** Saneia o formulário vindo do cliente. Lança Error com mensagem para o usuário. */
@@ -68,11 +113,16 @@ export function sanitizeFormulario(input: unknown): Formulario {
         ids.add(id);
         return { id, rotulo, tipo, obrigatorio: o.obrigatorio === true, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true };
     });
+    const padroes = padroesDe(src);
+    const reservados = [...Object.values(padroes.rotulos) as string[], 'assunto', 'descrição', 'descricao', 'partes'];
     campos.forEach((c, i) => {
         if (campos.some((d, j) => j < i && igual(d.rotulo, c.rotulo))) throw new Error(`Há dois campos chamados "${c.rotulo}"`);
-        if (['assunto', 'descrição', 'descricao', 'partes'].some((r) => igual(r, c.rotulo))) throw new Error(`"${c.rotulo}" já é um campo padrão do processo`);
+        if (reservados.some((r) => igual(r, c.rotulo))) throw new Error(`"${c.rotulo}" já é um campo padrão do processo`);
     });
-    return { descricao: uso(src.descricao), partes: uso(src.partes), campos };
+    if (padroes.assunto === 'oculto' && padroes.descricao === 'oculto' && padroes.partes === 'oculto' && !campos.length) {
+        throw new Error('O formulário ficaria sem nada para identificar o processo: use ao menos o assunto, a descrição, as partes ou um campo próprio');
+    }
+    return { ...padroes, campos };
 }
 
 const vazio = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && !v.trim());
@@ -123,10 +173,12 @@ export function validarCampos(form: Formulario, valores: unknown): CampoValor[] 
     return out;
 }
 
-/** Confere os campos padrão (Descrição e Partes) conforme o tipo. */
-export function validarPadrao(form: Formulario, descricao: string, partes: unknown[]): void {
-    if (form.descricao === 'obrigatorio' && !descricao) throw new Error('Preencha a descrição');
-    if (form.partes === 'obrigatorio' && !partes.length) throw new Error('Informe ao menos uma parte ou interessado');
+/** Confere os campos padrão conforme o tipo. */
+export function validarPadrao(form: Formulario, v: { assunto: string; descricao: string; partes: unknown[]; origem: unknown }): void {
+    if (form.assunto === 'obrigatorio' && !v.assunto) throw new Error(`Preencha "${rotuloDe(form, 'assunto')}"`);
+    if (form.descricao === 'obrigatorio' && !v.descricao) throw new Error(`Preencha "${rotuloDe(form, 'descricao')}"`);
+    if (form.partes === 'obrigatorio' && !v.partes.length) throw new Error(`Informe ao menos um item em "${rotuloDe(form, 'partes')}"`);
+    if (form.origem === 'obrigatorio' && !v.origem) throw new Error(`Informe "${rotuloDe(form, 'origem')}"`);
 }
 
 /** Valor como texto, para movimentos, busca e PDF. */

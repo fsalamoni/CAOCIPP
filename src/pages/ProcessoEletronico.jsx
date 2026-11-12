@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { createPageUrl } from '@/utils';
 import { useOrganizations, useOrganizationRealtime } from '@/hooks/useFirestore';
@@ -23,12 +22,13 @@ import ErroQuery from '@/components/secretaria/ErroQuery';
 import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
 import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/UnidadesDoUsuario';
 import FluxoRito from '@/components/secretaria/FluxoRito';
-import { CamposProcesso } from '@/components/secretaria/CamposProcesso';
+import FormularioAutuacao from '@/components/secretaria/FormularioAutuacao';
+import { NUMERACAO_PADRAO, formatarNumero } from '@/lib/numeracao';
 import { faltando, formularioDe } from '@/lib/camposProcesso';
 import { unidadeComOrgao } from '@/lib/orgaos';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
-import { ORIGENS, STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
+import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
 
 export default function ProcessoEletronico() {
     const [params, setParams] = useSearchParams();
@@ -429,8 +429,11 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     // Escolher o tipo preenche rito, sigilo e unidade sugerida (se a pessoa está lotada nela).
     const escolherTipo = (id) => {
         const t = tiposAtivos.find((x) => x.id === id);
+        // Polo que o novo tipo não aceita vira o que ele aceita (o mesmo que o servidor faria recusar).
+        const polos = formularioDe(t).polos;
+        const reserva = polos.includes('interessado') ? 'interessado' : polos[0];
         setF((x) => ({
-            ...x, tipo_id: id, campos: {},
+            ...x, tipo_id: id, campos: {}, partes: x.partes.map((pa) => (polos.includes(pa.polo) ? pa : { ...pa, polo: reserva })),
             ...(t ? {
                 rito_id: t.rito_id, sigilo: t.sigilo_padrao, urgente: t.urgente === true,
                 ...(t.unidade_inicial && unidadesPara(t).includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial }
@@ -443,7 +446,16 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
     const form = formularioDe(tipoSel);
     const falta = faltando(form, f);
-    const req = (uso) => (uso === 'obrigatorio' ? <span className="text-red-600 dark:text-red-400" aria-hidden> *</span> : null);
+    // Avisos do que falta só depois que a pessoa começou a preencher.
+    const tocado = JSON.stringify({ ...f, tipo_id: '', rito_id: '', unidade_id: '', sigilo: '', urgente: false }) !== JSON.stringify({ ...vazio, tipo_id: '', rito_id: '', unidade_id: '', sigilo: '', urgente: false });
+    // Numeração: a do tipo, a do órgão ou nenhuma; mostra o formato.
+    const numTipo = tipoSel?.numeracao || { modo: 'orgao' };
+    const numeracao = numTipo.modo === 'nenhuma' ? null : numTipo.modo === 'propria' ? numTipo : estado.numeracao || NUMERACAO_PADRAO;
+    const unidadeSel = estado.unidades.find((u) => u.id === f.unidade_id);
+    const exemploNumero = numeracao && formatarNumero(numeracao, {
+        hoje: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }), tipo: tipoSel, unidade: unidadeSel,
+        orgao: (estado.orgaos || []).find((o) => o.id === unidadeSel?.orgao_id),
+    }, 1);
 
     if (estado.minhasUnidades.length === 0) return null; // só quem está lotado autua
 
@@ -476,71 +488,25 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                             {tipoSel?.descricao && <p className="text-xs text-slate-600 mt-1">{tipoSel.descricao}</p>}
                         </div>
                     )}
-                    <div><Label htmlFor="sec-assunto">Assunto<span className="text-red-600 dark:text-red-400" aria-hidden> *</span></Label><Input id="sec-assunto" value={f.assunto} onChange={(e) => set('assunto', e.target.value)} maxLength={200} /></div>
-                    {form.descricao !== 'oculto' && <div><Label htmlFor="sec-desc">Descrição{req(form.descricao)}</Label><Textarea id="sec-desc" value={f.descricao} onChange={(e) => set('descricao', e.target.value)} rows={3} aria-required={form.descricao === 'obrigatorio' || undefined} /></div>}
-                    <CamposProcesso campos={form.campos} valores={f.campos} onChange={(id, v) => setF((x) => ({ ...x, campos: { ...x.campos, [id]: v } }))} />
-                    <div className="grid sm:grid-cols-3 gap-3">
-                        <NativeSelect id="sec-origem" label="Origem" value={f.origem.tipo} onChange={(v) => set('origem', { ...f.origem, tipo: v })}
-                            options={[['', 'Não informar'], ...ORIGENS]} />
-                        <div className="sm:col-span-2">
-                            <Label htmlFor="sec-origem-ref">Referência da origem</Label>
-                            <Input id="sec-origem-ref" className="mt-1" value={f.origem.descricao} maxLength={200} onChange={(e) => set('origem', { ...f.origem, descricao: e.target.value })}
-                                placeholder="Ex.: Ofício nº 12/2026 da Prefeitura, recebido por e-mail" aria-describedby="sec-origem-ajuda" />
-                        </div>
-                        <p id="sec-origem-ajuda" className="sm:col-span-3 -mt-2 text-xs text-slate-600 dark:text-slate-400">Como o processo chegou ao órgão. Aparece na capa e no PDF da equipe; as partes não veem a referência.</p>
-                    </div>
-                    <div className="grid sm:grid-cols-3 gap-3">
-                        {tipoSel
+                    <FormularioAutuacao form={form} f={f} setF={setF} tipo={tipoSel || null}
+                        unidades={unidadesPara(tipoSel).map((id) => [id, unidadeComOrgao(estado, id)])}
+                        rito={tipoSel
                             ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>
-                            : <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)} options={ritosAtivos.map((r) => [r.id, r.nome])} />}
-                        <NativeSelect label="Unidade" value={f.unidade_id} onChange={(v) => set('unidade_id', v)}
-                            options={unidadesPara(tipoSel).map((id) => [id, unidadeComOrgao(estado, id)])} />
-                        <NativeSelect label="Sigilo" value={f.sigilo} onChange={(v) => set('sigilo', v)}
-                            options={[['normal', 'Normal'], ['restrito', 'Restrito às unidades por onde passar']]} />
-                    </div>
-                    <div className={`rounded-lg border px-3 py-2 space-y-2 ${f.urgente ? 'border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
-                        <label className="flex items-center gap-2 text-sm font-medium">
-                            <input type="checkbox" checked={f.urgente} disabled={tipoSel?.urgente === true} onChange={(e) => set('urgente', e.target.checked)} />
-                            Tramitação urgente
-                            {tipoSel?.urgente === true && <span className="font-normal text-xs text-slate-600 dark:text-slate-400">(este tipo de processo é sempre urgente)</span>}
-                        </label>
-                        {f.urgente && tipoSel?.urgente !== true && (
-                            <div><Label htmlFor="sec-urg">Motivo da urgência<span className="text-red-600 dark:text-red-400" aria-hidden> *</span></Label>
-                                <Input id="sec-urg" value={f.motivo_urgencia} onChange={(e) => set('motivo_urgencia', e.target.value)} maxLength={300} placeholder="Ex.: risco de perecimento do direito, prazo legal curto" aria-required /></div>
-                        )}
-                        {!f.urgente && <p className="text-xs text-slate-600 dark:text-slate-400">O processo urgente aparece primeiro nas listas, com selo vermelho, e os avisos saem marcados como urgentes.</p>}
-                    </div>
+                            : <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)} options={ritosAtivos.map((r) => [r.id, r.nome])} />} />
                     {ritoSel && (
                         <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
                             <summary className="text-sm cursor-pointer">Ver o fluxo do rito ({ritoSel.fases.length} fases)</summary>
                             <FluxoRito fases={ritoSel.fases} unidades={estado.unidades} className="mt-2" />
                         </details>
                     )}
-                    {form.partes !== 'oculto' && <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label>Partes e interessados{req(form.partes)}</Label>
-                            <Button type="button" size="sm" variant="outline" onClick={() => set('partes', [...f.partes, { nome: '', documento: '', polo: 'requerente' }])}>Adicionar</Button>
-                        </div>
-                        {f.partes.map((pa, i) => (
-                            <div key={i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end rounded-md sm:rounded-none border sm:border-0 border-slate-200 dark:border-slate-700 p-2 sm:p-0">
-                                <Input className="col-span-2 sm:col-span-4" placeholder="Nome" aria-label="Nome da parte" value={pa.nome} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))} />
-                                <Input className="sm:col-span-2" placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ" value={pa.documento} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, documento: e.target.value } : x))} />
-                                <Input className="sm:col-span-3" type="email" placeholder="E-mail (convite)" aria-label="E-mail da parte" value={pa.email || ''} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, email: e.target.value } : x))} />
-                                <select className="sm:col-span-2 h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900" value={pa.polo} onChange={(e) => set('partes', f.partes.map((x, j) => j === i ? { ...x, polo: e.target.value } : x))} aria-label="Polo">
-                                    <option value="requerente">Requerente</option><option value="requerido">Requerido</option>
-                                    <option value="interessado">Interessado</option><option value="terceiro">Terceiro</option>
-                                </select>
-                                <Button type="button" variant="ghost" size="sm" className="sm:col-span-1" onClick={() => set('partes', f.partes.filter((_, j) => j !== i))} aria-label="Remover parte">×</Button>
-                            </div>
-                        ))}
-                    </div>}
-                    {f.assunto.trim() && falta.length > 0 && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400">{exemploNumero ? <>Número no formato <b className="font-mono">{exemploNumero}</b>, dado ao autuar.</> : 'Este tipo de processo não tem número: recebe um identificador (SN-…).'}</p>
+                    {tocado && falta.length > 0 && (
                         <p className="text-sm text-amber-800 dark:text-amber-300" role="status">Para autuar: {falta.join('; ')}.</p>
                     )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setAberto(false)}>Cancelar</Button>
-                    <Button onClick={salvar} disabled={salvando || !f.assunto.trim() || !f.rito_id || falta.length > 0}>
+                    <Button onClick={salvar} disabled={salvando || !f.rito_id || falta.length > 0}>
                         {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Autuar
                     </Button>
                 </DialogFooter>
