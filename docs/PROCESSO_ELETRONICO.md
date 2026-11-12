@@ -247,7 +247,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro? (remessas_fora \| interno), acoes_regras?[{autos?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?}] (até 5)}], versao, ativo, origem? ('importacao')` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao')` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{descricao, partes ("opcional" \| "obrigatorio" \| "oculto"), campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
@@ -416,30 +416,75 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
 `functions-v2/test/exigencias.test.js`); o espelho da tela, em
 `src/lib/exigencias.js`.
 
-- **Registro nos autos da fase** (`fase.registro`, editor do rito › Detalhes):
-  - vazio (padrão, como sempre foi): tudo vai aos autos;
-  - `remessas_fora`: entrar e sair da fase vão aos autos, mas as remessas
-    entre unidades **durante** a fase ficam no registro interno;
-  - `interno`: entrar, remeter dentro e sair da fase ficam no registro
-    interno (ex.: distribuição entre assessorias).
-  O movimento continua gravado na cadeia de hash, com autor e hora, com
-  `dados.interno: true` (`movimentoInterno`): sem termo, sem folha, no
-  extrato do PDF, fora do portal. Mudança de fase é interna se a fase de
-  onde sai **ou** a para onde vai é `interno`. Remessa entre órgãos vai
-  sempre aos autos. Documento juntado vai sempre aos autos.
-- **Ações da fase** (`fase.acoes_regras`, alinhadas a `acoes`; linhas vazias
-  do editor saem com a regra da linha):
-  - padrão: a caixa de marcar gera `acao_fase` interna (como antes);
-  - `autos: true`: marcar gera **Certidão de cumprimento** nos autos, com
-    folha, visível às partes (`dados.nos_autos`);
+- **Três destinos para cada ato** (`Destino` em `shared/exigencias.ts`):
+  - `autos`: termo ou certidão com folha; sai na impressão dos autos e as
+    partes veem (salvo se o rito disser que não);
+  - `evento`: registro interno, sem folha (`dados.interno`); aparece na aba
+    Eventos e no extrato ao fim do PDF; as partes não veem;
+  - `informacao`: só no sistema (`dados.interno` e `dados.fora_impressao`);
+    aparece na aba Eventos (selo "só no sistema") e, se for um dado, nas
+    informações do processo; **não sai em impressão nenhuma** (o extrato do
+    PDF o pula e o leitor da aba Eventos não o abre).
+- **Registro dos atos de tramitação da fase** (`fase.registro_atos =
+  {fase?, remessas?}`, ausente = `autos`): `fase` vale para entrar e sair da
+  fase, `remessas` para as remessas entre unidades durante ela.
+  `destinoDoMovimento`: mudança de fase fica no destino mais reservado entre
+  a fase de onde sai e a para onde vai; remessa sem mudar de fase segue
+  `remessas`. Remessa entre órgãos e dispensa de exigência vão sempre aos
+  autos. O formato antigo `fase.registro` (`remessas_fora`, `interno`) ainda
+  é lido nos processos autuados antes (`niveisDaFase`) e é convertido ao
+  salvar o rito.
+- **Ações da fase** (`fase.acoes_regras`, alinhadas a `acoes`; o editor
+  guarda cada regra junto da sua ação, então apagar ou reordenar não troca
+  as regras):
+  - `pede`: o que a ação pede. Ausente = só confirmar (caixa de marcar);
+    `texto`, `texto_longo`, `numero`, `data`, `lista` (com `opcoes`, 2 a
+    30) ou `sim_nao`: um dado, com `rotulo` (nome do dado; ausente = o texto
+    da ação) e `ajuda` opcionais; ou `documento` (ver abaixo).
+  - `destino`: onde fica o cumprimento (ausente = `evento`). Em `autos`, o
+    cumprimento é **Certidão de cumprimento** com folha
+    (`dados.nos_autos`), que leva o dado: "Certifico que foi cumprida a
+    providência "X", da fase Y. Número no SIM: 123.".
+  - `partes: true`: as partes veem a certidão (se nos autos) e o dado nas
+    informações do processo no portal. Ação de só confirmar fora dos autos
+    não tem o que mostrar, então ali a opção não aparece (`partesVeem`). Regra antiga `autos: true` conta
+    como `destino: 'autos', partes: true`.
+  - `obrigatoria: true`: a fase só segue com a ação feita ou com motivo de
+    dispensa (`acoesObrigatoriasPendentes`, junto com os documentos).
   - `documento`: a ação não se marca à mão (`marcarAcao` recusa); ela se
-    cumpre quando um documento é juntado para ela, e fica marcada em
-    `acoes_feitas`.
+    cumpre com o documento e fica marcada em `acoes_feitas`. Com
+    `documento.destino` ausente, pela juntada aos autos; com `evento` ou
+    `informacao`, guardando o documento fora dos autos (abaixo). Ação com
+    documento é sempre exigida.
+  - `marcarAcao {acao_idx, feita, valor?}` confere o dado com a mesma regra
+    dos campos do processo (`valorDe` em `shared/camposProcesso.ts`) e grava
+    no movimento `rotulo`, `tipo_valor`, `valor`, `valor_texto`,
+    `visivel_partes`. Desfazer (`feita: false`) também fica registrado.
+- **Informações do andamento** (`shared/informacoes.ts`,
+  `informacoesDoAndamento`): derivadas dos movimentos `acao_fase` com dado
+  (desfazer tira a última da ação; voltar à fase e cumprir de novo acrescenta
+  outra). `obter` devolve `informacoes` (a Capa as mostra em "Informações
+  registradas no andamento", com fase, autor, data, destino e se as partes
+  veem); o portal devolve só as com `visivel_partes` em
+  `processo.informacoes`.
+- **Documento guardado fora dos autos** (documento de controle):
+  `secretariaDocumento` `guardar {docId, version, atende?}` muda a minuta da
+  unidade para `status: 'controle'`, sem número de ordem nem folha, e grava o
+  movimento `guarda` ("Documento guardado fora dos autos", interno, sem
+  `ordem`, `visivel_partes: false`; só no sistema quando tudo o que ele
+  cumpre é `informacao`). Toda a equipe que vê o processo o lê
+  (`obter`, `baixar`, `pdf` com marca d'água "FORA DOS AUTOS"); as partes,
+  o PDF dos autos, a conferência e as comunicações não o veem, porque só
+  usam `status == 'juntado'`. Não se edita nem se apaga. Cumpre só
+  exigência com `destino` (`atende` com `controle: true`); a juntada cumpre
+  só as sem `destino`. Tela: botão "Guardar fora dos autos" na minuta e
+  seção "Documentos guardados fora dos autos" na aba Autos.
 - **Documentos exigidos na fase** (`fase.documentos`, até 5): descrição,
   forma (`redigir`: produzido no órgão, pelo editor ou por modelo; `juntar`:
-  arquivo recebido; `qualquer`), tipo de documento e modelo indicado
-  (opcionais). Modelo de fora do órgão é retirado ao salvar
-  (`filtrarRefsRito`).
+  arquivo recebido; `qualquer`), tipo de documento, modelo indicado
+  (opcionais) e `destino` (ausente = juntado aos autos; `evento` ou
+  `informacao` = guardado fora dos autos). Modelo de fora do órgão é
+  retirado ao salvar (`filtrarRefsRito`).
 - **Cumprimento.** Na juntada (`juntar`), o servidor calcula as exigências
   pendentes da fase atual (chaves `d0..d4` da fase e `a{idx}` das ações) e
   reconhece as que o documento cumpre (`reconhecer`): com `atende` (as
@@ -458,20 +503,27 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
   `exigencias_cumpridas` e `acoes_feitas` dessa fase são apagadas
   (`camposAoEntrarNaFase`): a nova rodada exige de novo. A rodada anterior
   continua nos autos e nos movimentos.
-- **Editor do rito.** Ao apagar, inserir ou reordenar linhas de ações, cada
-  regra acompanha o texto da sua ação (`realinharRegras` em
-  `src/lib/exigencias.js`); corrigir o texto de uma linha mantém a regra.
+- **Editor do rito** (`RegrasDaFase.jsx`: `AcoesDaFase` e
+  `RegistroEDocumentos`). Cada ação é uma linha com a sua configuração
+  (o que pede, onde fica, quem vê, se é obrigatória), resumida em uma frase
+  ("Pede número (Número no SIM); certidão nos autos; partes veem"). Colar
+  várias linhas numa ação cria uma ação por linha.
 - **Dispensa.** Sair da fase (`avancarFase`, ou `tramitar` com `fase_id`) com
-  exigência pendente exige `motivo`: sem ele, `failed-precondition` com a
-  lista do que falta. Com ele, o movimento registra "Dispensado o documento
-  exigido pelo rito: …", o motivo e `dados.dispensadas`, e vai sempre aos
+  exigência pendente (documento ou ação obrigatória) exige `motivo`: sem
+  ele, `failed-precondition` com a lista do que falta. Com ele, o movimento
+  registra "Dispensado o que o rito exigia na fase: …", o motivo e
+  `dados.dispensadas`, e vai sempre aos
   autos, mesmo que a fase seja de registro interno. Arquivar com exigência pendente
   registra os documentos não produzidos no próprio movimento (o motivo já é
   obrigatório); o diálogo de situação avisa antes, ao escolher "Arquivado".
-- **Tela.** Em "Nesta fase", a ação que exige documento mostra a situação
-  (pendente, com "Redigir {modelo}" ou "Novo documento"; ou "cumprido com o
-  documento nº N"); os documentos da fase aparecem em "Documentos exigidos
-  nesta fase"; a regra de registro aparece numa nota. O diálogo de mudar a
+- **Tela.** Em "Nesta fase", a ação de confirmar é uma caixa de marcar; a
+  que pede um dado tem "Registrar" (diálogo com o campo certo, dizendo onde o
+  registro fica e quem vê) e, feita, mostra o valor e "Desfazer" (com
+  confirmação); a que exige documento mostra a situação (pendente, com
+  "Redigir {modelo}" ou "Novo documento"; ou cumprida). Selos dizem
+  "certidão nos autos", "só no sistema", "partes veem", "obrigatória". Os
+  documentos da fase aparecem em "Documentos exigidos nesta fase"; o registro
+  da fase aparece numa nota. O diálogo de mudar a
   fase (e o de remeter mudando de fase) mostra o que falta e pede o "Motivo
   da dispensa". A prévia do rito mostra as regras.
 - **Compatibilidade.** Ritos e processos antigos não têm esses campos e
@@ -693,7 +745,9 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   aparece), os atos de fase interna e os marcados `visivel_partes: false`. A
   lista de processos da parte usa `ultimo_movimento_publico`, gravado por
   `registrarMovimento` só quando o ato é visível; processo anterior ao campo
-  mostra o último movimento apenas se o tipo for público.
+  mostra o último movimento apenas se o tipo for público e se ele não
+  estiver marcado `ultimo_movimento.publico: false` (gravado desde nov/2026).
+  O movimento `guarda` (documento guardado fora dos autos) é sempre interno.
 - **Petição a qualquer tempo:** texto e/ou um anexo PDF, PNG ou JPG até 5 MB.
   É juntada na hora com número de ordem e assinatura simples da parte, gera o
   movimento `peticao` (com a tempestividade diante dos prazos abertos para ela

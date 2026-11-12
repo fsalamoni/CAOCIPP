@@ -125,7 +125,8 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
     const { incluidos, recorte } = selecionar(movimentos as never, docsPorId, sel);
     const escolhidos = movimentos.filter((m) => incluidos.has(m.seq));
     const atos = escolhidos.filter((m) => origemEvento(m as never) === 'usuario');
-    const sistema = escolhidos.filter((m) => origemEvento(m as never) !== 'usuario');
+    // O que o rito deixou só no sistema (`fora_impressao`) não sai em impressão nenhuma.
+    const sistema = escolhidos.filter((m) => origemEvento(m as never) !== 'usuario' && m.dados?.fora_impressao !== true);
     const parcial = sel.modo !== 'integral';
     if (!escolhidos.length) throw new HttpsError('failed-precondition', 'Nenhum evento dos autos corresponde à seleção');
     const folhasTxt = (m: admin.firestore.DocumentData) => {

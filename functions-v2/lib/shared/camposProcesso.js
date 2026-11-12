@@ -10,6 +10,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_OPCOES = exports.MAX_CAMPOS = exports.TIPOS_CAMPO = void 0;
 exports.formularioDe = formularioDe;
 exports.sanitizeFormulario = sanitizeFormulario;
+exports.valorDe = valorDe;
 exports.validarCampos = validarCampos;
 exports.validarPadrao = validarPadrao;
 exports.valorTexto = valorTexto;

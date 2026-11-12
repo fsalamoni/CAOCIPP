@@ -118,7 +118,8 @@ async function montarPdfAutos(o) {
     const { incluidos, recorte } = (0, autos_1.selecionar)(movimentos, docsPorId, sel);
     const escolhidos = movimentos.filter((m) => incluidos.has(m.seq));
     const atos = escolhidos.filter((m) => (0, autos_1.origemEvento)(m) === 'usuario');
-    const sistema = escolhidos.filter((m) => (0, autos_1.origemEvento)(m) !== 'usuario');
+    // O que o rito deixou só no sistema (`fora_impressao`) não sai em impressão nenhuma.
+    const sistema = escolhidos.filter((m) => { var _a; return (0, autos_1.origemEvento)(m) !== 'usuario' && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.fora_impressao) !== true; });
     const parcial = sel.modo !== 'integral';
     if (!escolhidos.length)
         throw new https_1.HttpsError('failed-precondition', 'Nenhum evento dos autos corresponde à seleção');

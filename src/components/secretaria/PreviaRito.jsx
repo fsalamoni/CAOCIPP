@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
+import { ROTULO_DESTINO, niveisDaFase, resumoDaAcao } from '@/lib/exigencias';
 
 /**
  * "Ver como a equipe" e "Ver como a parte": prévia, sem gravar nada, do que
@@ -64,14 +65,15 @@ export default function PreviaRito({ estado }) {
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
                                     {(fase.acoes || []).length > 0 && (
                                         <ul className="space-y-1">{fase.acoes.map((a, k) => (
-                                            <li key={k} className="flex items-center gap-2 text-sm"><Checkbox disabled aria-label={a} /> {a}
-                                                {fase.acoes_regras?.[k]?.documento && <span className="text-xs text-slate-600 dark:text-slate-400">· exige documento</span>}
-                                                {fase.acoes_regras?.[k]?.autos && <span className="text-xs text-slate-600 dark:text-slate-400">· certidão nos autos</span>}
+                                            <li key={k} className="flex items-start gap-2 text-sm"><Checkbox disabled aria-label={a} className="mt-0.5" />
+                                                <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· pede {resumoDaAcao(fase.acoes_regras?.[k])}</span></span>
                                             </li>
                                         ))}</ul>
                                     )}
                                     {(fase.documentos || []).length > 0 && <p className="text-sm">Documentos exigidos: {fase.documentos.map((d) => d.descricao).join('; ')}</p>}
-                                    {fase.registro && <p className="text-xs text-slate-600 dark:text-slate-300">{fase.registro === 'interno' ? 'Fase só no registro interno: sem termos nos autos.' : 'Remessas internas da fase ficam fora dos autos.'}</p>}
+                                    {(niveisDaFase(fase).fase !== 'autos' || niveisDaFase(fase).remessas !== 'autos') && (
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">Entrar e sair da fase: {ROTULO_DESTINO[niveisDaFase(fase).fase]}. Remessas durante a fase: {ROTULO_DESTINO[niveisDaFase(fase).remessas]}.</p>
+                                    )}
                                     {(fase.modelos || []).length > 0 && (
                                         <div className="flex flex-wrap gap-2">{fase.modelos.map((m) => <Button key={m} size="sm" variant="outline" className="gap-1 pointer-events-none"><FilePen className="w-3.5 h-3.5" aria-hidden /> Redigir {nomeModelo(m)}</Button>)}</div>
                                     )}

@@ -17,6 +17,7 @@ const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("../shared/comunicacoes");
 const comunicacoes_2 = require("./comunicacoes");
 const meusProcessos_1 = require("../shared/meusProcessos");
+const informacoes_1 = require("../shared/informacoes");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -52,7 +53,7 @@ function ultimoPublico(proc) {
     if (proc.ultimo_movimento_publico)
         return proc.ultimo_movimento_publico;
     const u = proc.ultimo_movimento;
-    return u && (0, autos_2.visivelParaPartes)({ seq: 0, tipo: String(u.tipo) }) ? u : null;
+    return u && u.publico !== false && (0, autos_2.visivelParaPartes)({ seq: 0, tipo: String(u.tipo) }) ? { tipo: u.tipo, descricao: u.descricao, em: u.em } : null;
 }
 const orgaoAtivo = (o) => { var _a, _b; return ((_a = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) === true && ((_b = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _b === void 0 ? void 0 : _b.suspensa_plataforma) !== true; };
 /** Petições por conta e processo em 24 horas: freio contra abuso, longe do uso normal. */
@@ -284,6 +285,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
+                // Dados do andamento que o rito mandou mostrar às partes.
+                informacoes: (0, informacoes_1.informacoesDoAndamento)(todos, data.fases || [], true)
+                    .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
             },
             movimentos: todos.filter((m) => (0, autos_2.visivelParaPartes)(m))
                 .map((m) => (Object.assign({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm }, (0, autos_2.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),

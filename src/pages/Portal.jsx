@@ -462,9 +462,19 @@ function ProcessoParte({ id, onVoltar }) {
                 <Button variant="link" className="h-auto p-0 gap-1" disabled={!!ocupado} onClick={() => integra(true)}><Printer className="w-4 h-4" aria-hidden /> Imprimir</Button>
             </div>
 
-            {p.campos?.length > 0 && (
-                <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3" aria-label="Dados do processo">
-                    <DadosCampos campos={p.campos} />
+            {(p.campos?.length > 0 || p.informacoes?.length > 0) && (
+                <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 space-y-3" aria-label="Dados do processo">
+                    {p.campos?.length > 0 && <DadosCampos campos={p.campos} />}
+                    {p.informacoes?.length > 0 && (
+                        <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                            {p.informacoes.map((i, k) => (
+                                <div key={k}>
+                                    <dt className="text-xs text-slate-600 dark:text-slate-400">{i.rotulo}</dt>
+                                    <dd className="text-sm break-words whitespace-pre-wrap">{i.valor_texto}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    )}
                 </section>
             )}
 

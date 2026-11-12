@@ -34,3 +34,20 @@ test('regras seguem o texto da ação ao editar a lista', () => {
     assert.equal(realinharRegras(['A'], undefined, ['B']), undefined);
     assert.equal(realinharRegras(['A', 'B'], [{ autos: true }, null], ['B']), undefined);
 });
+
+test('ação: o que pede, onde fica e troca de pedido sem perder destino', async () => {
+    const m = await import('./exigencias.js');
+    assert.equal(m.destinoDaAcao(null), 'evento');
+    assert.equal(m.destinoDaAcao({ autos: true }), 'autos');
+    assert.equal(m.partesVeem({ autos: true }), true);
+    assert.deepEqual(m.regraComPedido({ destino: 'informacao', obrigatoria: true }, 'numero', 'Registrar'), { pede: 'numero', destino: 'informacao', obrigatoria: true });
+    assert.deepEqual(m.regraComPedido(null, 'documento', 'Anexar'), { documento: { descricao: 'Anexar', forma: 'qualquer' } });
+    assert.deepEqual(m.regraComPedido({ destino: 'informacao' }, 'documento', 'Anexar'), { documento: { descricao: 'Anexar', forma: 'qualquer', destino: 'informacao' } });
+    assert.equal(m.regraComPedido(null, 'confirmar', 'A'), null);
+    assert.match(m.resumoDaAcao({ pede: 'numero', rotulo: 'Nº SIM', destino: 'autos', partes: true }), /número \(Nº SIM\); certidão nos autos; partes veem/);
+    assert.deepEqual(m.niveisDaFase({ registro: 'remessas_fora' }), { fase: 'autos', remessas: 'evento' });
+    const f = { id: 'f', acoes: ['A', 'B'], acoes_regras: [{ obrigatoria: true }, { documento: { descricao: 'B', forma: 'qualquer', destino: 'evento' } }] };
+    assert.deepEqual(m.faltaNaFase(f, {}, []).map((e) => e.descricao), ['B', 'A']);
+    assert.equal(m.atende({ forma: 'qualquer', destino: 'evento' }, { origem: 'upload' }), false);
+    assert.equal(m.atende({ forma: 'qualquer', destino: 'evento' }, { origem: 'upload', controle: true }), true);
+});

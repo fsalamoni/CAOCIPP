@@ -6,7 +6,7 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
-import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer } from '../shared/exigencias';
+import { Cumpridas, Destino, camposDoCumprimento, marcasDoDestino, pendentesDaFase, reconhecer } from '../shared/exigencias';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { lotacoesDe } from '../shared/secretaria';
@@ -24,6 +24,9 @@ import { renderizarDocumento } from './pdfDocumento';
  * o processo (redigido no editor ou enviado por upload), pode ser assinado
  * pelos lotados nessa unidade e, ao ser JUNTADO, entra nos autos com número
  * de ordem e movimento encadeado. Documento juntado não se edita nem se apaga.
+ * Também pode ser GUARDADO fora dos autos (documento de controle, quando o
+ * rito pede um documento que não vai à impressão): fica no processo, visível
+ * à equipe, sem número de ordem nem folha, e também não se edita nem se apaga.
  *
  * Arquivos ficam no Cloud Storage em secretaria/{órgão}/{processo}/{doc}; o
  * navegador nunca acessa o bucket direto (storage.rules nega tudo): envio e
@@ -33,7 +36,7 @@ import { renderizarDocumento } from './pdfDocumento';
 interface DocRequest {
     organizationId: string;
     processoId: string;
-    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura';
+    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura';
     docId?: string;
     /** pedirAssinatura: quem deve assinar (lotado na unidade da minuta). */
     uid?: string;
@@ -92,7 +95,7 @@ export const secretariaDocumento = onCall<DocRequest>(
 
         if (p.action === 'baixar') {
             const { doc } = await lerDoc();
-            if (doc.status !== 'juntado' && !minutaAcessivel(doc, c.ctx.unidadeIds)) {
+            if (doc.status !== 'juntado' && doc.status !== 'controle' && !minutaAcessivel(doc, c.ctx.unidadeIds)) {
                 throw new HttpsError('not-found', 'Documento não encontrado');
             }
             if (doc.origem === 'editor') return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: conteudoDoDocumento(doc) };
@@ -106,10 +109,11 @@ export const secretariaDocumento = onCall<DocRequest>(
             const { doc } = await lerDoc();
             const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.pdf`;
             if (doc.status === 'juntado') return { base64: await pdfCarimbado(c.db, c.orgId, procRef.id, String(proc.numero), p.docId!, doc), nome };
-            if (!minutaAcessivel(doc, c.ctx.unidadeIds)) throw new HttpsError('not-found', 'Documento não encontrado');
-            if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Baixe o arquivo original da minuta');
+            const controle = doc.status === 'controle';
+            if (!controle && !minutaAcessivel(doc, c.ctx.unidadeIds)) throw new HttpsError('not-found', 'Documento não encontrado');
+            if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', controle ? 'Baixe o arquivo original do documento' : 'Baixe o arquivo original da minuta');
             const r = await renderizarDocumento(conteudoDoDocumento(doc), await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), {
-                assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: 'MINUTA',
+                assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: controle ? 'FORA DOS AUTOS' : 'MINUTA',
             });
             return { base64: r.buffer.toString('base64'), nome, paginas: r.paginas };
         }
@@ -337,6 +341,39 @@ export const secretariaDocumento = onCall<DocRequest>(
             });
             void avisarPartesDoMovimento(c.db, procRef.id);
             if (p.pendencia === 'sim' || p.pendencia === 'interrompe') void avisarPendencia(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
+            return { success: true, ...r };
+        }
+
+        if (p.action === 'guardar') {
+            // Documento de controle: fica no processo, fora dos autos e da impressão.
+            const r = await c.db.runTransaction(async (tx) => {
+                const { ref: pr, data: atual } = await lerProcesso(c, p.processoId, tx);
+                conferirVersao(atual, p.version);
+                exigirPosse(c, atual);
+                if (atual.status === 'arquivado') throw new HttpsError('failed-precondition', 'Processo arquivado');
+                const { ref, doc } = await lerDoc(tx);
+                exigirMinutaDaMinhaUnidade(doc);
+                const fase = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual);
+                const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined);
+                let cumpre: string[] = [];
+                try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id, controle: true }, p.atende); } catch (e) { erroUsuario(e); }
+                const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
+                // Só no sistema quando tudo o que ele cumpre o rito quer só no sistema; senão, evento no extrato.
+                const destino: Destino = cumpridas.length && cumpridas.every((e) => e.destino === 'informacao') ? 'informacao' : 'evento';
+                const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
+                const mov = registrarMovimento(tx, c, pr, atual, 'guarda',
+                    `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`
+                    + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
+                    { documento_id: ref.id, titulo: doc.titulo, sha256: doc.sha256, visivel_partes: false, ...marcasDoDestino(destino),
+                        ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
+                const exig = fase ? camposDoCumprimento(atual, fase.id, cumpridas, ref.id, null) : {};
+                tx.update(ref, { status: 'controle', visivel_partes: false, guardado_em: agoraIso, guardado_por: auth.uid, guardado_por_nome: c.userName });
+                tx.update(pr, {
+                    ...mov, ...exig,
+                    ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
+                });
+                return { version: mov.version };
+            });
             return { success: true, ...r };
         }
 

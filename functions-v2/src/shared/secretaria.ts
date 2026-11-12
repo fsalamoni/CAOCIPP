@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Exigencia, RegraAcao, Registro, sanitizeRegras } from './exigencias';
+import { Exigencia, RegraAcao, Registro, RegistroAtos, sanitizeRegras } from './exigencias';
 
 // ============================================================================
 // Processo Eletrônico (antiga Secretaria Processual; os nomes internos
@@ -47,9 +47,11 @@ export interface Fase {
     modelos?: string[];
     /** Condição de cada saída: { id da próxima fase: "se deferido" }. */
     condicoes?: Record<string, string>;
-    /** O que vai aos autos (ver shared/exigencias.ts). Ausente = tudo. */
+    /** Formato antigo do registro da fase (processos autuados antes de nov/2026). */
     registro?: Registro;
-    /** Regras de cada ação, alinhadas a `acoes`: certidão nos autos e documento exigido. */
+    /** Onde ficam a entrada/saída da fase e as remessas durante ela (ver shared/exigencias.ts). Ausente = autos. */
+    registro_atos?: RegistroAtos;
+    /** Regras de cada ação, alinhadas a `acoes`: o que pede, onde fica, quem vê, se é obrigatória. */
     acoes_regras?: Array<RegraAcao | null>;
     /** Documentos exigidos para concluir a fase. */
     documentos?: Exigencia[];

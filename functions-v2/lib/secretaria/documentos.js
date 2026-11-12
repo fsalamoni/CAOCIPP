@@ -44,7 +44,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
     };
     if (p.action === 'baixar') {
         const { doc } = await lerDoc();
-        if (doc.status !== 'juntado' && !(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds)) {
+        if (doc.status !== 'juntado' && doc.status !== 'controle' && !(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds)) {
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         }
         if (doc.origem === 'editor')
@@ -59,12 +59,13 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.pdf`;
         if (doc.status === 'juntado')
             return { base64: await (0, autos_1.pdfCarimbado)(c.db, c.orgId, procRef.id, String(proc.numero), p.docId, doc), nome };
-        if (!(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds))
+        const controle = doc.status === 'controle';
+        if (!controle && !(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds))
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         if (doc.origem !== 'editor')
-            throw new https_1.HttpsError('failed-precondition', 'Baixe o arquivo original da minuta');
+            throw new https_1.HttpsError('failed-precondition', controle ? 'Baixe o arquivo original do documento' : 'Baixe o arquivo original da minuta');
         const r = await (0, pdfDocumento_1.renderizarDocumento)((0, autos_1.conteudoDoDocumento)(doc), await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, doc.unidade_origem), {
-            assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: 'MINUTA',
+            assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: controle ? 'FORA DOS AUTOS' : 'MINUTA',
         });
         return { base64: r.buffer.toString('base64'), nome, paginas: r.paginas };
     }
@@ -292,6 +293,38 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id);
         if (p.pendencia === 'sim' || p.pendencia === 'interrompe')
             void (0, avisosEquipe_1.avisarPendencia)(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
+        return Object.assign({ success: true }, r);
+    }
+    if (p.action === 'guardar') {
+        // Documento de controle: fica no processo, fora dos autos e da impressão.
+        const r = await c.db.runTransaction(async (tx) => {
+            const { ref: pr, data: atual } = await (0, context_1.lerProcesso)(c, p.processoId, tx);
+            (0, context_1.conferirVersao)(atual, p.version);
+            (0, context_1.exigirPosse)(c, atual);
+            if (atual.status === 'arquivado')
+                throw new https_1.HttpsError('failed-precondition', 'Processo arquivado');
+            const { ref, doc } = await lerDoc(tx);
+            exigirMinutaDaMinhaUnidade(doc);
+            const fase = (atual.fases || []).find((f) => f.id === atual.fase_atual);
+            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas);
+            let cumpre = [];
+            try {
+                cumpre = (0, exigencias_1.reconhecer)(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id, controle: true }, p.atende);
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+            const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
+            // Só no sistema quando tudo o que ele cumpre o rito quer só no sistema; senão, evento no extrato.
+            const destino = cumpridas.length && cumpridas.every((e) => e.destino === 'informacao') ? 'informacao' : 'evento';
+            const assin = (doc.assinaturas || []).map((a) => a.nome).join(', ');
+            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'guarda', `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`
+                + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign({ documento_id: ref.id, titulo: doc.titulo, sha256: doc.sha256, visivel_partes: false }, (0, exigencias_1.marcasDoDestino)(destino)), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
+            const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, null) : {};
+            tx.update(ref, { status: 'controle', visivel_partes: false, guardado_em: agoraIso, guardado_por: auth.uid, guardado_por_nome: c.userName });
+            tx.update(pr, Object.assign(Object.assign(Object.assign({}, mov), exig), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
+            return { version: mov.version };
+        });
         return Object.assign({ success: true }, r);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

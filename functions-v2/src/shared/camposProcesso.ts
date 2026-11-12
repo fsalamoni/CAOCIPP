@@ -78,7 +78,7 @@ export function sanitizeFormulario(input: unknown): Formulario {
 const vazio = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && !v.trim());
 
 /** Um valor, já no formato de gravar; null se veio vazio. Lança Error se inválido. */
-function valorDe(c: CampoDef, v: unknown): string | number | boolean | null {
+export function valorDe(c: Pick<CampoDef, 'rotulo' | 'tipo' | 'opcoes'>, v: unknown): string | number | boolean | null {
     if (vazio(v)) return null;
     if (c.tipo === 'sim_nao') {
         if (v === true || v === 'sim') return true;

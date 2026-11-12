@@ -16,6 +16,7 @@ import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comunicacoes';
 import { configComunicacoes, registrarCiencia } from './comunicacoes';
 import { situacaoDaParte } from '../shared/meusProcessos';
+import { informacoesDoAndamento } from '../shared/informacoes';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -72,7 +73,7 @@ function prazosDaParte(proc: admin.firestore.DocumentData, parte: { nome: string
 function ultimoPublico(proc: admin.firestore.DocumentData): { tipo: string; descricao: string; em: string } | null {
     if (proc.ultimo_movimento_publico) return proc.ultimo_movimento_publico;
     const u = proc.ultimo_movimento;
-    return u && visivelParaPartes({ seq: 0, tipo: String(u.tipo) }) ? u : null;
+    return u && u.publico !== false && visivelParaPartes({ seq: 0, tipo: String(u.tipo) }) ? { tipo: u.tipo, descricao: u.descricao, em: u.em } : null;
 }
 
 const orgaoAtivo = (o: admin.firestore.DocumentData | undefined) => o?.secretariaConfig?.enabled === true && o?.secretariaConfig?.suspensa_plataforma !== true;
@@ -316,6 +317,9 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
+                // Dados do andamento que o rito mandou mostrar às partes.
+                informacoes: informacoesDoAndamento(todos as never, data.fases || [], true)
+                    .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
             },
             movimentos: todos.filter((m) => visivelParaPartes(m as never))
                 .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),

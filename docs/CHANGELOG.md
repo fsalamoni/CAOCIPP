@@ -5,6 +5,26 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 12/11/2026 — Processo Eletrônico: cada ação do rito pede o que precisa e fica onde deve
+- **Ações da fase com dado**: no rito, cada ação diz o que pede (só confirmar,
+  texto, texto longo, número, data, escolha numa lista, sim ou não, ou um
+  documento), com o nome do dado (ex.: "Número no SIM") e uma orientação.
+  Na tela do processo, a ação que pede um dado tem "Registrar"; o valor fica
+  nas informações do processo, na Capa.
+- **Onde fica cada ato**: nos autos (certidão com folha, sai na impressão),
+  evento no extrato (sai ao fim do PDF, sem folha) ou só no sistema (fica nas
+  informações e na aba Eventos, não sai em impressão). Vale para cada ação,
+  para entrar e sair da fase e para as remessas durante a fase.
+- **Quem vê**: o rito diz se as partes veem a informação e a certidão no
+  portal.
+- **Ação obrigatória**: a fase só segue com ela feita ou com motivo de
+  dispensa, como os documentos exigidos.
+- **Documento guardado fora dos autos**: quando o rito pede um documento só
+  para controle, a minuta é guardada no processo (a equipe vê, as partes não,
+  sem folha e fora do PDF). Botão "Guardar fora dos autos" na minuta e seção
+  própria na aba Autos.
+- O editor do rito passa a ter uma linha por ação, com a configuração dela.
+
 ### 12/11/2026 — Processo Eletrônico: excluir órgão, unidade e processo
 - **Excluir processo** (Mais › Excluir processo): o admin do órgão exclui
   qualquer um; quem autuou exclui o próprio enquanto ninguém mais agiu nele.

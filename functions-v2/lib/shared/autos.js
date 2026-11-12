@@ -30,7 +30,7 @@ function origemEvento(m) {
     return exports.TIPOS_SISTEMA.includes(m.tipo) || ((_c = m.dados) === null || _c === void 0 ? void 0 : _c.automatico) === true ? 'sistema' : 'usuario';
 }
 /** Movimentos que o portal nunca mostra às partes (além dos marcados `visivel_partes: false`). */
-exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida'];
+exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida', 'guarda'];
 /** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
 const visivelParaPartes = (m) => {
     var _a, _b;
@@ -69,6 +69,7 @@ const TITULOS = {
     acao_fase: 'Ação da fase',
     orientacao_concluida: 'Orientação concluída',
     convite: 'Convite',
+    guarda: 'Documento guardado fora dos autos',
     exclusao: 'Termo de exclusão',
     restauracao: 'Termo de restauração',
 };
