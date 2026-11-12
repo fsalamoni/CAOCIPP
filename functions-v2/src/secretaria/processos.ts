@@ -395,7 +395,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         }
         const ritoSnap = await db.collection(COL.ritos).doc(String(tipo?.rito_id || p.rito_id || '_')).get();
         const rito = ritoSnap.data();
-        if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false) {
+        if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false || rito.excluido === true) {
             throw new HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
         const sigilo = (p.sigilo || tipo?.sigilo_padrao) === 'restrito' ? 'restrito' : 'normal';

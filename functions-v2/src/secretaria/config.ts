@@ -116,7 +116,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
-    | 'versoes' | 'restaurarVersao' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade';
+    | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -216,7 +216,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 };
             }).sort((a, b) => String(a.nome).localeCompare(String(b.nome))),
             convitesEquipe: convites,
-            ritos: ritosSnap.docs.map((d) => {
+            ritos: ritosSnap.docs.filter((d) => d.data().excluido !== true).map((d) => {
                 const r = d.data();
                 return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false };
             }),
@@ -356,7 +356,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         if (!col) throw new HttpsError('invalid-argument', 'Coleção inválida');
         const ref = db.collection(col).doc(String(p.id || '_'));
         const atual = (await ref.get()).data();
-        if (!atual || atual.organization_id !== orgId) throw new HttpsError('not-found', 'Não encontrado');
+        if (!atual || atual.organization_id !== orgId || atual.excluido === true) throw new HttpsError('not-found', 'Não encontrado');
         if (col === COL.ritos || !atual.unidade_id) exigirAdmin(c); else exigirGestor(c, String(atual.unidade_id));
         if (p.action === 'versoes') {
             const snap = await ref.collection('versoes').orderBy('versao', 'desc').limit(MAX_VERSOES).get();
@@ -472,11 +472,16 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const modelosIn = (Array.isArray(pr.modelos) ? pr.modelos : []) as Array<Record<string, unknown>>;
         if (unidadesIn.length > MAX_UNIDADES_PROPOSTA) throw new HttpsError('invalid-argument', `No máximo ${MAX_UNIDADES_PROPOSTA} unidades novas por rito`);
         if (modelosIn.length > MAX_MODELOS_PROPOSTA) throw new HttpsError('invalid-argument', `No máximo ${MAX_MODELOS_PROPOSTA} modelos novos por rito`);
-        const [ritosQtd, modelosSnap] = await Promise.all([
-            db.collection(COL.ritos).where('organization_id', '==', orgId).count().get(),
+        // Com rito_id, a mesma tela edita um rito existente (nova versão); sem, cria.
+        const editarId = typeof pr.rito_id === 'string' && pr.rito_id ? pr.rito_id : null;
+        const [ritosSnap, modelosSnap, ritoAtualSnap] = await Promise.all([
+            editarId ? null : db.collection(COL.ritos).where('organization_id', '==', orgId).select('excluido').get(),
             db.collection(COL.modelos).where('organization_id', '==', orgId).select('unidade_id').get(),
+            editarId ? db.collection(COL.ritos).doc(editarId).get() : null,
         ]);
-        if (ritosQtd.data().count >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de ritos atingido');
+        const ritoAtual = ritoAtualSnap?.data();
+        if (editarId && (!ritoAtual || ritoAtual.organization_id !== orgId || ritoAtual.excluido === true)) throw new HttpsError('not-found', 'Rito não encontrado');
+        if (ritosSnap && ritosSnap.docs.filter((d) => d.data().excluido !== true).length >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de ritos atingido');
         if (modelosSnap.size + modelosIn.length > MAX_MODELOS) throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
         const refUn = new Map<string, string>();
         const novasUnidades = unidadesIn.map((u) => {
@@ -530,8 +535,16 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
             });
         }
-        const ritoRef = db.collection(COL.ritos).doc();
-        batch.set(ritoRef, { ...rito, organization_id: orgId, versao: 1, ativo: true, created_at: agora, created_by: auth.uid, origem: 'importacao' });
+        const ritoRef = editarId ? db.collection(COL.ritos).doc(editarId) : db.collection(COL.ritos).doc();
+        let versao = 1;
+        if (editarId) {
+            // Processos guardam a cópia das fases com que foram autuados; a versão anterior fica guardada.
+            await guardarVersao(ritoRef, ritoAtual!, CAMPOS_RITO);
+            versao = (Number(ritoAtual!.versao) || 1) + 1;
+            batch.update(ritoRef, { ...rito, ativo: pr.ativo !== false, versao, updated_at: agora, updated_by: auth.uid });
+        } else {
+            batch.set(ritoRef, { ...rito, organization_id: orgId, versao, ativo: true, created_at: agora, created_by: auth.uid, origem: 'importacao' });
+        }
         const tp = pr.tipo_processo && typeof pr.tipo_processo === 'object' ? pr.tipo_processo as Record<string, unknown> : null;
         let tipoId: string | null = null;
         if (tp && texto(tp.nome)) {
@@ -544,10 +557,10 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             });
         }
         await batch.commit();
-        await audit('SECRETARIA_RITO_IMPLANTADO', {
-            rito_id: ritoRef.id, nome: rito.nome, fases: rito.fases.length, unidades_novas: novasUnidades.length, modelos_novos: novosModelos.length, tipo_id: tipoId,
+        await audit(editarId ? 'SECRETARIA_RITO_SALVO' : 'SECRETARIA_RITO_IMPLANTADO', {
+            rito_id: ritoRef.id, nome: rito.nome, fases: rito.fases.length, unidades_novas: novasUnidades.length, modelos_novos: novosModelos.length, tipo_id: tipoId, versao,
         });
-        return { success: true, rito_id: ritoRef.id, tipo_id: tipoId, unidades: novasUnidades.map((u) => u.ref.id), modelos: novosModelos.map((m) => m.ref.id) };
+        return { success: true, rito_id: ritoRef.id, versao, tipo_id: tipoId, unidades: novasUnidades.map((u) => u.ref.id), modelos: novosModelos.map((m) => m.ref.id) };
     }
 
     if (p.action === 'salvarRito') {
@@ -559,13 +572,13 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || snap.data()?.organization_id !== orgId) throw new HttpsError('not-found', 'Rito não encontrado');
+            if (!snap.exists || snap.data()?.organization_id !== orgId || snap.data()?.excluido === true) throw new HttpsError('not-found', 'Rito não encontrado');
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos. A versão anterior fica guardada.
             await guardarVersao(ref, snap.data()!, CAMPOS_RITO);
             await ref.update({ ...rito, ativo: p.ativo !== false, versao: (Number(snap.data()?.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid });
         } else {
-            const qtd = (await col.where('organization_id', '==', orgId).get()).size;
+            const qtd = (await col.where('organization_id', '==', orgId).select('excluido').get()).docs.filter((d) => d.data().excluido !== true).length;
             if (qtd >= MAX_RITOS) throw new HttpsError('resource-exhausted', 'Limite de ritos atingido');
             const ref = await col.add({ ...rito, organization_id: orgId, versao: 1, ativo: true, created_at: agora, created_by: auth.uid });
             p.id = ref.id;
@@ -574,12 +587,27 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         return { success: true, id: p.id };
     }
 
+    if (p.action === 'excluirRito') {
+        // Exclusão suave: o rito some das listas e não autua mais. Processos já
+        // autuados seguem com a cópia das fases; o histórico fica guardado.
+        const ref = db.collection(COL.ritos).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId || atual.excluido === true) throw new HttpsError('not-found', 'Rito não encontrado');
+        const tipos = await db.collection(COL.tipos).where('organization_id', '==', orgId).where('rito_id', '==', ref.id).select('nome').get();
+        if (!tipos.empty) {
+            throw new HttpsError('failed-precondition', `O rito é usado por ${tipos.size === 1 ? 'um tipo de processo' : `${tipos.size} tipos de processo`} (${tipos.docs.map((d) => d.data().nome).join(', ')}). Troque o rito desses tipos (inclusive os inativos) antes.`);
+        }
+        await ref.update({ excluido: true, ativo: false, excluido_em: agora, excluido_por: auth.uid, updated_at: agora, updated_by: auth.uid });
+        await audit('SECRETARIA_RITO_EXCLUIDO', { rito_id: ref.id, nome: atual.nome });
+        return { success: true };
+    }
+
     if (p.action === 'salvarTipo') {
         const t = (p.tipo && typeof p.tipo === 'object' ? p.tipo : {}) as Record<string, unknown>;
         const nome = texto(t.nome);
         if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao tipo de processo');
         const rito = (await db.collection(COL.ritos).doc(String(t.rito_id || '_')).get()).data();
-        if (!rito || rito.organization_id !== orgId) throw new HttpsError('invalid-argument', 'Escolha o rito do tipo de processo');
+        if (!rito || rito.organization_id !== orgId || rito.excluido === true) throw new HttpsError('invalid-argument', 'Escolha o rito do tipo de processo');
         const unidadeInicial = String(t.unidade_inicial || '');
         if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial)) throw new HttpsError('invalid-argument', 'Unidade inicial inválida');
         // Tipo próprio de um órgão interno: só as unidades dele autuam.

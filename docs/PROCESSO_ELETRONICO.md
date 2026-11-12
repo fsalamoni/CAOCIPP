@@ -213,12 +213,38 @@ revisar e confirmar. A leitura é estruturada, sem IA
   próximo e o último segue para depois da junção. A fase ganha "corre em
   paralelo com: …" na orientação e a revisão mostra um aviso.
 
+**Uma só tela para criar e editar** (`PropostaRito.jsx`, nov/2026). "Novo
+rito" abre o início: em branco, um modelo pronto, um arquivo ou texto colado.
+Clicar num rito da lista abre o mesmo rito nesta tela (`deRito` converte
+`unidade_id` e `modelos` em referências). O antigo `RitoEditor.jsx` saiu.
+Na edição, o lado mostra a situação (disponível para novas autuações, tipos
+de processo que usam o rito, versões anteriores), exportar (planilha e
+Mermaid) e, como na criação, unidades e modelos novos e a opção de criar um
+tipo. Salvar chama `aplicarPropostaRito` com `rito_id` e `ativo`: o servidor
+guarda a versão atual em `versoes/`, grava `versao + 1` e cria, no mesmo
+lote, as unidades e os modelos novos citados. O rascunho fica no navegador,
+um por rito (`rito-rascunho-{org}-{id}`; o de rito novo segue
+`rito-rascunho-{org}`); ao reabrir, a tela oferece recuperar ou descartar, e
+avisa se o rascunho foi feito sobre outra versão. Mexer no rito sem recuperar
+conta como descartar. Recuperar mantém a versão atual, então salvar sempre
+gera a versão seguinte. "Substituir fases" (só na edição) reabre o início para
+trocar as fases por um modelo, arquivo ou texto, mantendo nome, situação e
+versões. O rito precisa de ao menos uma fase: a última não pode ser removida.
+
+**Excluir rito** (`excluirRito`, só admin): exclusão suave (`excluido: true`,
+`ativo: false`, `excluido_em`, `excluido_por`). Recusada enquanto algum tipo
+de processo usa o rito, ativo ou inativo (a mensagem cita os tipos). O rito some de `estado`,
+não autua, não aceita `salvarRito`, `versoes` nem `salvarTipo`, e não conta
+no limite de ritos. Processos já autuados seguem com a cópia das fases.
+
 **Revisão** (`PropostaRito.jsx`): no alto, o fluxo inteiro desenhado na
 notação do Bizagi (ver "Diagrama do fluxo" abaixo), atualizado ao vivo; clicar
 numa fase do desenho abre o cartão dela. Abaixo, cada fase em cartão
 recolhível (o cabeçalho resume unidade, prazo e saída), com nome, prazo,
-unidade (existente, nova ou nenhuma), quem faz, ações, modelos, encaminhamentos
-com condição, fase final e orientação. As observações da leitura do arquivo
+unidade (existente, nova ou nenhuma), quem faz, ações (cada uma com o que
+pede, onde fica e quem vê, ver "Registro nos autos e documentos exigidos"),
+registro da fase, documentos exigidos, modelos, encaminhamentos com condição,
+fase final e orientação. Ação de lista com menos de duas opções impede salvar. As observações da leitura do arquivo
 ficam num bloco que abre e fecha. Ao lado: unidades novas (renomear, tipo ou trocar por uma existente), modelos novos
 (renomear, tipo de documento ou trocar por um existente) e a opção de criar o
 tipo de processo. Unidades e modelos com o mesmo nome dos já existentes são
@@ -227,7 +253,7 @@ ligados a eles, sem duplicar.
 **Implantar** (`aplicarPropostaRito`, só admin) grava tudo num lote atômico:
 as unidades novas (equipe vazia, para o gestor ou admin lotar), os modelos
 novos como esqueleto no editor (título, número, assunto, partes, local e data,
-signatário) na unidade da fase, o rito (`origem: 'importacao'`) e, se pedido, o
+signatário) na unidade da fase, o rito (`origem: 'importacao'` quando novo) e, se pedido, o
 tipo de processo com a unidade inicial da primeira fase. Referências a unidade
 ou modelo que não sejam do órgão são descartadas, também em `salvarRito`.
 
@@ -247,7 +273,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
-| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao')` |
+| `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?} (evento \| informacao; ausente = autos; o antigo registro? remessas_fora \| interno ainda é lido), acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], destino? (autos \| informacao; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
 | `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{descricao, partes ("opcional" \| "obrigatorio" \| "oculto"), campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes}]}` |
 | `secContadores/{org}_{ano}` | `seq` da numeração anual (`000001/2026`) |
@@ -282,7 +308,7 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; ver Importação de ritos), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; com `rito_id` edita; ver Importação de ritos), `excluirRito` (admin), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
 | `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta` e `upload` (opcional `modelo_id`), `editarMinuta`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar`, `resolve_pendencia_id` e `atende`, as exigências do rito que o documento cumpre), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
@@ -1022,9 +1048,9 @@ O servidor (`sanitizeRito`) normaliza ids (`slug`), recusa próxima fase
 inexistente ou apontando para a própria fase e descarta `proximas` de fase
 final. `fasesSeguintes` aplica a regra acima.
 
-**Editor visual** (`RitoEditor.jsx`): fases em cartões (reordenar, remover,
-escolher o que vem depois, orientação) e o diagrama do fluxo
-(`FluxoRito.jsx`, SVG) atualizado ao vivo.
+**Tela do rito** (`PropostaRito.jsx`, a mesma para criar e editar): fases em
+cartões (reordenar, remover, escolher o que vem depois, ações e suas regras,
+orientação) e o diagrama do fluxo (`FluxoRito.jsx`, SVG) atualizado ao vivo.
 
 **Diagrama do fluxo** (`FluxoRito.jsx`, geometria em `src/lib/fluxoBpmn.js`):
 todo rito, importado ou não, é desenhado na notação BPMN usada pelo Bizagi, da
@@ -1046,7 +1072,9 @@ Pontos de partida:
   encerra. Há planilha de exemplo para baixar.
 - **Diagrama:** cola um fluxograma Mermaid (`flowchart TD`, `A[Nome] --> B`).
   "Nome - 10 dias" no rótulo define o prazo.
-- **Exportar:** baixa o rito em .xlsx ou copia como Mermaid.
+- **Exportar:** baixa o rito em .xlsx ou copia como Mermaid (lado da tela).
+- **Arquivo:** planilha, Word, PDF, Bizagi, BPMN, XPDL, draw.io ou Mermaid,
+  como em "Importação de ritos".
 
 Conversões em `src/lib/secretariaRito.js`, testadas em
 `src/lib/secretariaRito.test.js` (`npm run test:lib`).

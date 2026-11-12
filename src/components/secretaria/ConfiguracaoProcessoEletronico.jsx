@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, FileUp, GitBranch, History, Loader2, Network, Plus, Shapes, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, GitBranch, History, Loader2, Network, Plus, Shapes, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig, secProcesso } from '@/services/secretariaService';
 import { NativeSelect, SeloUrgente, TIPOS_UNIDADE } from './comum';
-import RitoEditor from './RitoEditor';
 import PropostaRito from './PropostaRito';
 import FluxoRito from './FluxoRito';
 import { EditorFormulario } from './CamposProcesso';
@@ -148,36 +147,32 @@ function Unidades({ orgId, estado }) {
 }
 
 function Ritos({ orgId, estado, onIr }) {
-    const { salvar, salvando } = useSalvar(orgId);
-    const [rito, setRito] = useState(null);
-    const [importar, setImportar] = useState(false);
+    // null: fechado; {}: novo rito; { rito }: editar na mesma tela da criação.
+    const [aberto, setAberto] = useState(null);
     return (
         <Card>
             <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
                 <div className="min-w-[14rem] flex-1">
                     <CardTitle className="text-base">Ritos</CardTitle>
-                    <CardDescription>O caminho do processo, fase a fase. Monte do zero, parta de um modelo ou importe de planilha, Word, PDF ou diagrama (BPMN, draw.io, Mermaid): o sistema propõe o rito completo, com unidades, ações, modelos e alternativas, para você revisar e implantar.</CardDescription>
+                    <CardDescription>O caminho do processo, fase a fase, e o que cada ação pede e registra. Monte do zero, parta de um modelo ou importe de planilha, Word, PDF ou diagrama (BPMN, draw.io, Mermaid). Criar e editar usam a mesma tela; cada alteração gera uma versão.</CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setImportar(true)}><FileUp className="w-4 h-4" /> Importar de arquivo</Button>
-                    <Button size="sm" className="gap-1" onClick={() => setRito({ nome: '', descricao: '', fases: [{ id: `f${Date.now().toString(36)}`, nome: '' }], ativo: true })}><Plus className="w-4 h-4" /> Novo rito</Button>
+                    <Button size="sm" className="gap-1" onClick={() => setAberto({})}><Plus className="w-4 h-4" /> Novo rito</Button>
                 </div>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {estado.ritos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400 md:col-span-2">Nenhum rito ainda. Sem rito não dá para autuar: comece por <b>Novo rito</b> (há modelos prontos) ou importe o fluxo de um arquivo.</p>}
                 {estado.ritos.map((r) => (
-                    <button key={r.id} onClick={() => setRito({ ...r, fases: r.fases.map((f) => ({ ...f })) })} className={item}>
-                        <div className="flex items-center gap-2"><span className="font-medium">{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
+                    <button key={r.id} onClick={() => setAberto({ rito: r })} className={item}>
+                        <div className="flex items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o rito </span>{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{r.fases.length} fases: {r.fases.map((f) => f.nome).join(' → ')}</p>
                     </button>
                 ))}
             </CardContent>
-            {rito && (
-                <RitoEditor rito={rito} onChange={setRito} onClose={() => setRito(null)} salvando={salvando} unidades={estado.unidades} modelos={estado.modelos || []}
-                    onSalvar={() => salvar('salvarRito', { id: rito.id, rito, ativo: rito.ativo }, setRito)}
-                    extra={rito.id && <VersoesDialog orgId={orgId} colecao="rito" id={rito.id} nome={rito.nome} estado={estado} onRestaurado={() => setRito(null)} />} />
+            {aberto && (
+                <PropostaRito key={aberto.rito?.id || 'novo'} aberto orgId={orgId} estado={estado} rito={aberto.rito || null} onFechar={() => setAberto(null)} onIr={onIr}
+                    extra={aberto.rito && <VersoesDialog orgId={orgId} colecao="rito" id={aberto.rito.id} nome={aberto.rito.nome} estado={estado} onRestaurado={() => setAberto(null)} />} />
             )}
-            <PropostaRito aberto={importar} orgId={orgId} estado={estado} onFechar={() => setImportar(false)} onIr={onIr} />
         </Card>
     );
 }
