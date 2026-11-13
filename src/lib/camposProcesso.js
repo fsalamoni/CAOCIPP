@@ -43,7 +43,7 @@ export function registrosLigados(p, informacoes = []) {
     };
     juntar(p.origem?.ref, 'origem');
     for (const c of p.campos || []) juntar(c.ref, c.rotulo);
-    for (const i of informacoes) juntar(i.ref, `${i.rotulo} (${i.fase_nome})`);
+    for (const i of informacoes) [i.ref, ...(i.refs || [])].forEach((r) => juntar(r, `${i.rotulo} (${i.fase_nome})`));
     return [...out.values()];
 }
 
@@ -177,7 +177,8 @@ export function faltando(form, f) {
 export function problemasFormulario(form, faseIds = null) {
     const out = [];
     const nomes = new Set();
-    const reservados = [...Object.values(form.rotulos || {}).map((s) => String(s).trim().toLowerCase()).filter(Boolean), 'assunto', 'descrição', 'descricao', 'partes'];
+    // Nomes dos campos padrão: só no formulário do tipo (o da ação do rito não tem campos padrão).
+    const reservados = 'assunto' in form ? [...Object.values(form.rotulos || {}).map((s) => String(s).trim().toLowerCase()).filter(Boolean), 'assunto', 'descrição', 'descricao', 'partes'] : [];
     if (form.assunto === 'oculto' && form.descricao === 'oculto' && form.partes === 'oculto' && !form.campos.length) {
         out.push('O formulário ficaria sem nada para identificar o processo: use ao menos o assunto, a descrição, as partes ou um campo próprio');
     }

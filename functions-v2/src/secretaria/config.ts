@@ -158,8 +158,8 @@ interface ConfigRequest extends Record<string, unknown> {
 /** Módulos de onde o tipo (campos) ou o rito (ações) puxam registros. */
 const modulosDoForm = (f: { campos?: Array<{ tipo?: string; modulo?: string }> } | null | undefined) =>
     new Set((f?.campos || []).filter((x) => x.tipo === 'registro' && x.modulo).map((x) => String(x.modulo)));
-const modulosDoRito = (r: { fases?: unknown } | null | undefined) => new Set((Array.isArray(r?.fases) ? r!.fases as Array<{ acoes_regras?: Array<{ pede?: string; modulo?: string } | null> }> : [])
-    .flatMap((f) => (f.acoes_regras || []).filter((x) => x?.pede === 'registro' && x.modulo).map((x) => String(x!.modulo))));
+const modulosDoRito = (r: { fases?: unknown } | null | undefined) => new Set((Array.isArray(r?.fases) ? r!.fases as Array<{ acoes_regras?: Array<{ pede?: string; modulo?: string; campos?: Array<{ tipo?: string; modulo?: string }> } | null> }> : [])
+    .flatMap((f) => (f.acoes_regras || []).flatMap((x) => (x?.pede === 'registro' && x.modulo ? [String(x.modulo)] : x?.pede === 'formulario' ? [...modulosDoForm(x)] : []))));
 
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v: unknown): string[] => [...new Set(Array.isArray(v) ? v.filter(ehModuloOrigem) : [])];

@@ -174,6 +174,20 @@ async function valorDaAcao(c, regra, acao, bruto) {
     if (pede === 'confirmar' || pede === 'documento')
         return null;
     const rotulo = (regra === null || regra === void 0 ? void 0 : regra.rotulo) || acao;
+    if (pede === 'formulario') {
+        // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).
+        const form = { campos: (regra === null || regra === void 0 ? void 0 : regra.campos) || [] };
+        let campos = [];
+        try {
+            campos = (0, camposProcesso_1.validarCampos)(form, bruto, [], await (0, modulos_1.refsDoFormulario)(c.db, c.orgId, c.org, form, bruto));
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        if (!campos.length)
+            throw new https_1.HttpsError('invalid-argument', `Preencha "${rotulo}"`);
+        return (0, camposProcesso_1.dadoDoFormulario)(rotulo, campos);
+    }
     if (pede === 'registro') {
         // Registro de outro módulo: o servidor lê e guarda só número e título; a parte vê só o número.
         const modulo = regra === null || regra === void 0 ? void 0 : regra.modulo;
@@ -186,7 +200,7 @@ async function valorDaAcao(c, regra, acao, bruto) {
         const ref = await (0, modulos_1.resolverRegistro)(c.db, c.orgId, modulo, id);
         if (!ref)
             throw new https_1.HttpsError('invalid-argument', `"${rotulo}": registro não encontrado em ${modulos_1.ROTULO_MODULO[modulo]}`);
-        return { rotulo, tipo: 'registro', valor: ref.numero, valor_texto: ref.numero, ref, restrito: ref.restrito === true };
+        return { rotulo, tipo: 'registro', valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true };
     }
     const tipo = pede;
     let valor = null;
@@ -198,16 +212,16 @@ async function valorDaAcao(c, regra, acao, bruto) {
     }
     if (valor === null)
         throw new https_1.HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
-    return { rotulo, tipo, valor, valor_texto: (0, camposProcesso_1.valorTexto)({ tipo, valor }), ref: undefined, restrito: false };
+    return { rotulo, tipo, valor, valor_texto: (0, camposProcesso_1.valorTexto)({ tipo, valor }), ref: undefined, refs: [], restrito: false };
 }
 /** Registro pedido por uma ação entra nos vínculos (desfazer não tira: segue citado no histórico). */
 // ponytail: os 50 primeiros; paginar se um registro passar disso.
 const MAX_VINCULADOS = 50;
 const vinculoDaAcao = (dado) => {
-    if (!(dado === null || dado === void 0 ? void 0 : dado.ref))
+    if (!(dado === null || dado === void 0 ? void 0 : dado.refs.length))
         return {};
-    const k = `${dado.ref.modulo}:${dado.ref.id}`;
-    return { vinculos: firestore_1.FieldValue.arrayUnion(k), vinculos_acoes: firestore_1.FieldValue.arrayUnion(k) };
+    const k = dado.refs.map((r) => `${r.modulo}:${r.id}`);
+    return { vinculos: firestore_1.FieldValue.arrayUnion(...k), vinculos_acoes: firestore_1.FieldValue.arrayUnion(...k) };
 };
 /**
  * O registro ou processo de onde o processo nasce, relido no servidor: só

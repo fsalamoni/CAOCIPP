@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.QUEM = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -43,6 +43,7 @@ exports.deveEmitir = deveEmitir;
 exports.textoCertidao = textoCertidao;
 exports.marcasDoDestino = marcasDoDestino;
 const modulos_1 = require("./modulos");
+const camposProcesso_1 = require("./camposProcesso");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -92,8 +93,10 @@ const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhu
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'documento'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento'];
 exports.MAX_OPCOES_ACAO = 30;
+/** Campos de uma ação que pede um formulário. */
+exports.MAX_CAMPOS_ACAO = 10;
 /** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
 exports.QUEM = ['responsavel', 'gestor'];
 exports.MAX_DOCUMENTOS_FASE = 5;
@@ -171,6 +174,24 @@ function sanitizeRegra(raw, acao) {
             if (!modulos_1.MODULOS.includes(r.modulo))
                 throw new Error(`A ação "${acao}" pede um registro: escolha de que módulo`);
             out.modulo = r.modulo;
+        }
+        if (pedeBruto === 'formulario') {
+            const lista = Array.isArray(r.campos) ? r.campos : [];
+            if (lista.length > exports.MAX_CAMPOS_ACAO)
+                throw new Error(`A ação "${acao}" aceita até ${exports.MAX_CAMPOS_ACAO} campos`);
+            // Sem "exigir em" (o obrigatório vale ao cumprir a ação) e sem "partes veem" por campo:
+            // quem decide o que as partes veem é a ação inteira.
+            let campos;
+            try {
+                campos = (0, camposProcesso_1.sanitizeCampos)(lista.map((x) => (x && typeof x === 'object' ? Object.assign(Object.assign({}, x), { exigir_em: undefined }) : x)))
+                    .map((c) => (Object.assign(Object.assign({}, c), { visivel_partes: false })));
+            }
+            catch (e) {
+                throw new Error(`Na ação "${acao}": ${e.message}`);
+            }
+            if (!campos.length)
+                throw new Error(`A ação "${acao}" pede um formulário: crie ao menos um campo`);
+            out.campos = campos;
         }
     }
     const dest = lido(r.destino, exports.DESTINOS_ACAO, r.autos === true ? 'autos' : 'evento');

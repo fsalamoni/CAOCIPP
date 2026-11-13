@@ -112,6 +112,8 @@ export const MAX_TEXTO_LONGO = 4000;
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const MAX_FASES = 60;
 export const MAX_ACOES = 20;
+/** Campos de formulário somados em todas as ações do rito (o documento do rito tem limite de tamanho). */
+export const MAX_CAMPOS_RITO = 200;
 export const MAX_MODELOS_FASE = 10;
 
 export const TIPOS_ARQUIVO_PERMITIDOS: Record<string, string> = {
@@ -284,6 +286,8 @@ export function sanitizeRito(input: unknown): Rito {
         f.certidao = r !== f.id ? { ...resto, grupo: r } : resto;
         if (!Object.keys(f.certidao).length) delete f.certidao;
     }
+    const totalCampos = fases.reduce((s, f) => s + (f.acoes_regras || []).reduce((t, r) => t + (r?.campos?.length || 0), 0), 0);
+    if (totalCampos > MAX_CAMPOS_RITO) throw new Error(`O rito aceita até ${MAX_CAMPOS_RITO} campos de formulário somando todas as ações (há ${totalCampos})`);
     return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases };
 }
 
