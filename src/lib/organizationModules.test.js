@@ -22,3 +22,12 @@ test('orgTabUrl leva o Processo Eletrônico à página própria e as demais a /O
     assert.equal(orgTabUrl(pe, 'o1'), '/ProcessoEletronico?org=o1');
     assert.equal(orgTabUrl({ key: 'kanban' }, 'o1'), '/Organization?id=o1&tab=kanban');
 });
+
+test('calendário aparece só com o Processo Eletrônico ativo (sem Consultas/Expedientes/Parcerias)', () => {
+    const org = { moduleConfig: {}, secretariaConfig: { enabled: true } };
+    const tem = (o, on = true) => getOrganizationTabs(o, { customEntitiesOn: true, deadlineCalendarOn: on }).some((t) => t.key === 'calendar');
+    assert.equal(tem(org), true);
+    assert.equal(tem({ moduleConfig: {} }), false);
+    assert.equal(tem(org, false), false);
+    assert.equal(tem({ moduleConfig: {}, secretariaConfig: { enabled: true, suspensa_plataforma: true } }), false);
+});

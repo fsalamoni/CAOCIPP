@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Prazos do Processo Eletrônico no calendário
+- **Painel do PE** com o calendário do mês: os prazos abertos dos processos
+  que a pessoa vê; clicar abre o processo. Aviso quando a lista foi cortada.
+- **Calendário de Vencimentos do órgão** mostra também os prazos do PE e
+  aparece no órgão que só usa o PE (não com o PE suspenso). Legenda só com o
+  que há no mês, aviso enquanto os prazos carregam ou se falharem, dias com
+  rótulo para leitor de tela.
+- **Atalho para ativar** o PE e ligar a integração direto da ficha de
+  Consultas, Expedientes, Parcerias e Júris (só para quem configura o PE), e
+  "Ativar agora" na página do PE desativado.
+
 ### 13/11/2026 — Processo Eletrônico nas listas e na busca
 - **Selo "PE"** nas listas de Consultas, Expedientes, Parcerias e Júris,
   ao lado do número do registro que tem processo eletrônico.

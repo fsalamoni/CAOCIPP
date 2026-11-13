@@ -227,9 +227,9 @@ export function getOrganizationTabs(organization, opts = {}) {
         ] });
     }
     // Calendário de vencimentos (flag `deadline_calendar`): só faz sentido se
-    // houver ao menos um módulo de Consultas/Expedientes/Parcerias ativo no órgão,
-    // e o admin do órgão pode ocultá-lo em Páginas e módulos.
-    if (deadlineCalendarOn && showCalendar && (showProcesses || showExpedientes || showParcerias)) {
+    // houver ao menos um módulo de Consultas/Expedientes/Parcerias ativo no órgão
+    // ou o Processo Eletrônico (prazos), e o admin pode ocultá-lo em Páginas e módulos.
+    if (deadlineCalendarOn && showCalendar && (showProcesses || showExpedientes || showParcerias || (organization?.secretariaConfig?.enabled === true && organization.secretariaConfig.suspensa_plataforma !== true))) {
         blocks.push({ module: BUILTIN_MODULES.CALENDAR, tabs: [
             { key: 'calendar', label: 'Calendário de Vencimentos', icon: CalendarDays, module: 'core' },
         ] });

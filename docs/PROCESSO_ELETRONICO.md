@@ -1502,6 +1502,13 @@ admin define, em cada tipo, o que quem autua preenche:
   `vinculos`, até 50, só os que a pessoa vê, sem os excluídos e sem aqueles
   em que ela é parte). Nada é escrito nos outros módulos. Processos autuados
   antes não têm `vinculos` e só aparecem depois de uma correção de dados.
+- **Atalho para ativar** (nov/2026): com o PE ou a integração desligados, quem
+  configura o PE (criador ou `configure_secretaria`) vê, na ficha de uma
+  Consulta, Expediente, Parceria ou Júri, um aviso com "Ativar e ligar" (ou
+  "Ligar integração") e "Agora não" (vale para o navegador). A confirmação
+  explica o que a primeira ativação cria; o botão chama `ativar` (se preciso) e
+  `salvarIntegracoes` com as demais integrações como estão. A página do PE
+  desativado ganha "Ativar agora" para o admin. O servidor confere o admin.
 - **Selo e filtro "Processo eletrônico" nas listas** (nov/2026): as tabelas
   de Consultas, Expedientes, Parcerias e Júris mostram o selo "PE" ao lado do
   número do registro que tem processo eletrônico, e ganham o filtro
@@ -1654,6 +1661,17 @@ O portal das partes mostra o diagrama sem as orientações internas.
   unidade, fase e tipo, pendências mais antigas e prazos da semana. Filtra por
   unidade (visão da secretaria ou do gabinete). Calculado sobre os processos
   que a pessoa pode ver.
+- **Prazos no calendário** (nov/2026): o Painel termina com o calendário do
+  mês com os prazos abertos dos processos em tramitação que a pessoa vê
+  (`listar` devolve `prazos_abertos`: até 5 por processo, data e descrição de
+  até 60 caracteres, sem destinatário; servidor antigo cai no
+  `proximo_vencimento`). Clicar no prazo abre o processo. A aba "Calendário de
+  Vencimentos" do órgão (flag `deadline_calendar`) mostra os mesmos prazos ao
+  lado das datas de Consultas, Expedientes e Parcerias, e aparece também no
+  órgão que só usa o Processo Eletrônico (não com o PE suspenso). A legenda
+  mostra só os tipos de data do mês na tela; o calendário do órgão avisa
+  enquanto os prazos do PE carregam ou se a leitura falhar; a lista do Painel
+  avisa quando foi cortada em 5.000.
 - **Calendário do órgão:** Painel Administrativo → Processo Eletrônico → "Calendário".
   Feriados locais (até 200) prorrogam o vencimento e não contam em dias
   úteis; recessos (até 50, de até 120 dias cada) e o recesso forense
