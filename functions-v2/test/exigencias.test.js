@@ -259,3 +259,14 @@ test('condições em cadeia: resposta de ação que deixou de valer não pesa', 
     assert.equal(x.condicaoAtendida({ acao: 1, valores: ['A'] }, { 1: 'A' }, f), false);
     assert.deepEqual(x.acoesObrigatoriasPendentes(f, [0, 1], { 0: 'nao', 1: 'A' }), []);
 });
+
+test('fase: prazo automático, nome para as partes e efeitos ao entrar', () => {
+    const r = s.sanitizeRito({ nome: 'R', fases: [
+        { id: 'a', nome: 'Análise', prazo_dias: 10, prazo_auto: true, prazo_contagem: 'corridos', nome_publico: 'Em análise', ao_entrar: { urgente: true, sem_responsavel: true, outro: true } },
+        { id: 'b', nome: 'Fim', prazo_auto: true, nome_publico: 'Fim', ao_entrar: { urgente: 'sim' } },
+    ] });
+    const [a, b] = r.fases;
+    assert.deepEqual([a.prazo_auto, a.prazo_contagem, a.nome_publico, a.ao_entrar], [true, 'corridos', 'Em análise', { urgente: true, sem_responsavel: true }]);
+    // Sem dias, nada de prazo automático; nome igual ao oficial e efeito inválido saem.
+    assert.deepEqual([b.prazo_auto, b.nome_publico, b.ao_entrar], [undefined, undefined, undefined]);
+});

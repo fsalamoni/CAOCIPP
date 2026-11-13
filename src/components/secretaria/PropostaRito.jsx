@@ -834,6 +834,63 @@ function CopiarFasesDeRito({ aberto, ritos, onFechar, onCopiar }) {
 }
 
 /** Parte recolhível do cartão da fase, com o resumo à vista quando fechada. */
+/** Resumo do que a fase faz sozinha (para o título recolhido da seção). */
+const resumoEntrada = (f) => [
+    f.prazo_auto && f.prazo_dias ? `abre prazo de ${f.prazo_dias} dias` : null,
+    f.nome_publico?.trim() ? `partes veem "${f.nome_publico.trim()}"` : null,
+    f.ao_entrar?.urgente ? 'marca urgente' : null,
+    f.ao_entrar?.sem_responsavel ? 'tira o responsável' : null,
+].filter(Boolean).join('; ') || 'nada automático';
+
+/** Prazo automático, nome para as partes e efeitos ao entrar na fase. */
+function AoEntrarNaFase({ f, i, mudar }) {
+    const ae = f.ao_entrar || {};
+    const setAe = (k, v) => {
+        const n = { ...ae, [k]: v || undefined };
+        Object.keys(n).forEach((x) => n[x] === undefined && delete n[x]);
+        mudar({ ao_entrar: Object.keys(n).length ? n : undefined });
+    };
+    const caixa = 'flex min-h-[2.75rem] sm:min-h-0 items-start gap-2 text-sm';
+    return (
+        <div className="space-y-3">
+            <div className="space-y-1.5">
+                <label className={caixa}>
+                    <Checkbox className="mt-0.5" checked={!!f.prazo_auto && !!f.prazo_dias} disabled={!f.prazo_dias}
+                        onCheckedChange={(c) => mudar({ prazo_auto: c === true || undefined })} />
+                    <span>Abrir o prazo da fase sozinho ao entrar{f.prazo_dias ? ` (${f.prazo_dias} dias)` : ''}
+                        <span className="block text-xs text-slate-600 dark:text-slate-400">
+                            {f.prazo_dias ? 'Encerra sozinho quando o processo sai da fase ou é arquivado. Vale para processos autuados depois de salvar.' : 'Informe primeiro os dias da fase, ao lado do nome.'}
+                        </span>
+                    </span>
+                </label>
+                {f.prazo_auto && f.prazo_dias > 0 && (
+                    <div className="sm:max-w-xs pl-6">
+                        <Label htmlFor={`pc-${f.id}`} className="text-xs">Contagem</Label>
+                        <select id={`pc-${f.id}`} value={f.prazo_contagem || ''} onChange={(e) => mudar({ prazo_contagem: e.target.value || undefined })} className={`${campo} w-full`}>
+                            <option value="">Dias úteis (com o calendário do órgão)</option>
+                            <option value="corridos">Dias corridos</option>
+                        </select>
+                    </div>
+                )}
+            </div>
+            <div className="sm:max-w-md">
+                <Label htmlFor={`np-${f.id}`} className="text-xs">Nome que as partes veem no portal</Label>
+                <Input id={`np-${f.id}`} value={f.nome_publico || ''} maxLength={80} onChange={(e) => mudar({ nome_publico: e.target.value || undefined })}
+                    placeholder={f.nome || `Fase ${i + 1}`} className="h-9" />
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Vazio: o nome da fase. Os termos nos autos usam sempre o nome oficial.</p>
+            </div>
+            <fieldset className="space-y-1">
+                <legend className="text-xs font-medium mb-1">Ao entrar na fase</legend>
+                <label className={caixa}><Checkbox className="mt-0.5" checked={!!ae.urgente} onCheckedChange={(c) => setAe('urgente', c === true)} />
+                    <span>Marcar o processo como urgente</span></label>
+                <label className={caixa}><Checkbox className="mt-0.5" checked={!!ae.sem_responsavel} onCheckedChange={(c) => setAe('sem_responsavel', c === true)} />
+                    <span>Tirar o responsável designado <span className="block text-xs text-slate-600 dark:text-slate-400">A remessa a outra unidade já faz isso.</span></span></label>
+                <p className="text-xs text-slate-600 dark:text-slate-400">O que a fase faz sozinha fica registrado nos eventos da equipe. As partes só veem a urgência, no termo da mudança.</p>
+            </fieldset>
+        </div>
+    );
+}
+
 function Secao({ titulo, resumo, abertaDe = false, children }) {
     return (
         <details open={abertaDe} className="group rounded-md border border-slate-200 dark:border-slate-700">
@@ -939,6 +996,9 @@ function CartaoFase({
                     <Input id={`ag-${f.id}`} value={f.agente || ''} onChange={(e) => mudar({ agente: e.target.value })} placeholder="Ex.: Analista, Promotor" className="h-9" />
                 </div>
             </div>
+            <Secao titulo="Prazo, nome para as partes e ao entrar" resumo={resumoEntrada(f)}>
+                <AoEntrarNaFase f={f} i={i} mudar={mudar} />
+            </Secao>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
             <Secao titulo="Registros, certidão conjunta e documentos" resumo={nDocs ? plural(nDocs, 'documento pedido', 'documentos pedidos') : 'onde fica cada ato da fase'}>
                 <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} aplicarATodas={outrosEmTodas} />

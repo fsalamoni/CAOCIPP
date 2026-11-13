@@ -119,8 +119,11 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                 <div className="rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/40 p-3 space-y-2">
                                     <p className="text-sm font-semibold">Nesta fase: {fase.nome}</p>
                                     <p className="text-xs text-slate-600 dark:text-slate-300">
-                                        {fase.unidade_id ? `Corre em ${nomeUnidade(fase.unidade_id)}` : 'Corre na unidade que estiver com o processo'}{fase.agente ? ` · quem faz: ${fase.agente}` : ''}{fase.prazo_dias ? ` · prazo da fase: ${fase.prazo_dias} dias` : ''}
+                                        {fase.unidade_id ? `Corre em ${nomeUnidade(fase.unidade_id)}` : 'Corre na unidade que estiver com o processo'}{fase.agente ? ` · quem faz: ${fase.agente}` : ''}{fase.prazo_dias ? ` · prazo da fase: ${fase.prazo_dias} dias${fase.prazo_auto ? ` ${fase.prazo_contagem === 'corridos' ? 'corridos' : 'úteis'}, aberto sozinho ao entrar` : ''}` : ''}
                                     </p>
+                                    {(fase.ao_entrar?.urgente || fase.ao_entrar?.sem_responsavel) && (
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">Ao entrar: {[fase.ao_entrar.urgente && 'o processo fica urgente', fase.ao_entrar.sem_responsavel && 'sai o responsável designado'].filter(Boolean).join(' e ')}.</p>
+                                    )}
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
                                     {acoes.length > 0 && (
                                         <ul className="space-y-1.5">{acoes.map(({ a, k, r }) => {
@@ -175,8 +178,8 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                             </TabsContent>
                             <TabsContent value="parte" className="space-y-3">
                                 <div className="rounded-lg border p-3 space-y-2">
-                                    <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm">000001/{new Date().getFullYear()}</span> <Badge>{fase.nome}</Badge> <Badge variant="secondary">Em tramitação</Badge></div>
-                                    <p className="text-sm text-slate-700 dark:text-slate-200">Você fez o pedido (requerente) · em: {fase.nome}</p>
+                                    <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm">000001/{new Date().getFullYear()}</span> <Badge>{fase.nome_publico || fase.nome}</Badge> <Badge variant="secondary">Em tramitação</Badge></div>
+                                    <p className="text-sm text-slate-700 dark:text-slate-200">Você fez o pedido (requerente) · em: {fase.nome_publico || fase.nome}</p>
                                     <p className="text-sm font-medium">{faltam === 0 ? 'Esta é a última etapa.' : faltam != null ? `Faltam ${faltam} etapa${faltam > 1 ? 's' : ''} até o fim.` : 'Em andamento.'}</p>
                                 </div>
                                 <div className="rounded-lg border p-3 space-y-1.5 text-sm">
@@ -194,7 +197,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     {camposPartes.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Dados do processo que a parte vê: {camposPartes.map((c) => c.rotulo).join(', ')}.</p>}
                                     <p className="text-xs text-slate-600 dark:text-slate-400">A parte nunca vê orientações internas, condições nem o que o rito deixou fora do portal. Unidades, só pelo nome, nos termos de remessa que vão aos autos.</p>
                                 </div>
-                                <FluxoRito fases={fases.map((f) => ({ id: f.id, nome: f.nome, proximas: f.proximas, final: f.final }))} atual={fase.id} />
+                                <FluxoRito fases={fases.map((f) => ({ id: f.id, nome: f.nome_publico || f.nome, proximas: f.proximas, final: f.final }))} atual={fase.id} />
                             </TabsContent>
                             <TabsContent value="autos" className="space-y-3">
                                 <div className="rounded-lg border p-3 space-y-2">

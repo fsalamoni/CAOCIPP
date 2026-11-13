@@ -93,7 +93,7 @@ export async function lembrarPrazosDasPartes(db: admin.firestore.Firestore, proc
     for (const snap of procs) {
         const proc = snap.data();
         if (!(proc.partes_uids || []).length) continue;
-        const prazos = ((proc.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto' && (x.vence_em === hoje || x.vence_em === em3));
+        const prazos = ((proc.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto' && x.automatico !== true && (x.vence_em === hoje || x.vence_em === em3));
         if (!prazos.length) continue;
         const dest = await destinatarios(db, proc, (pref) => pref !== 'nenhum');
         for (const { parte, email } of dest) {

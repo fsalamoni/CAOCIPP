@@ -12,6 +12,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaProcesso = void 0;
+exports.efeitosDaMudanca = efeitosDaMudanca;
 const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -73,6 +74,57 @@ function textoCondicao(f, c) {
     const rot = (v) => ((r === null || r === void 0 ? void 0 : r.pede) === 'sim_nao' ? (v === 'sim' ? 'Sim' : 'Não') : v);
     return `"${(r === null || r === void 0 ? void 0 : r.rotulo) || ((_b = f === null || f === void 0 ? void 0 : f.acoes) === null || _b === void 0 ? void 0 : _b[c.acao]) || 'a resposta'}" for ${c.valores.map(rot).join(' ou ')}`;
 }
+/**
+ * O que o rito faz ao trocar de fase (ou na autuação, sem fase de origem):
+ * encerra o prazo automático da fase que sai, abre o da fase que entra,
+ * marca a urgência e tira o responsável designado. Vai no mesmo movimento da
+ * mudança: `texto` completa a descrição (só o que as partes podem ler: a
+ * urgência), `interno` vai num registro só da equipe logo depois (prazo
+ * interno e responsável), `campos` vai para o processo.
+ * `para` null: só encerra (arquivamento).
+ */
+function efeitosDaMudanca(proc, deId, para, calendario, quem) {
+    var _a, _b;
+    const hoje = (0, secretaria_1.hojeBrasil)();
+    const agora = new Date().toISOString();
+    const frases = [];
+    const interno = [];
+    const antes = (proc.prazos || []);
+    let prazos = antes;
+    const daFase = antes.filter((x) => x.status === 'aberto' && x.fase_id && x.fase_id === deId);
+    if (daFase.length) {
+        prazos = prazos.map((x) => (daFase.includes(x) ? Object.assign(Object.assign({}, x), { status: 'cumprido', encerrado_em: hoje, encerrado_por: quem }) : x));
+        daFase.forEach((x) => interno.push(`Prazo interno da fase encerrado ${hoje <= x.vence_em ? 'no prazo' : 'fora do prazo'}: ${x.descricao}.`));
+    }
+    const dias = Number(para === null || para === void 0 ? void 0 : para.prazo_dias);
+    if ((para === null || para === void 0 ? void 0 : para.prazo_auto) && Number.isInteger(dias) && dias > 0 && dias <= secretaria_1.MAX_PRAZO_DIAS && prazos.length < secretaria_1.MAX_ITENS) {
+        const contagem = para.prazo_contagem === 'corridos' ? 'corridos' : 'uteis';
+        const vence = (0, secretaria_1.calcularVencimento)(hoje, dias, contagem, calendario);
+        prazos = [...prazos, {
+                id: (0, crypto_1.randomBytes)(10).toString('hex'), descricao: `Fase ${para.nome}`, fase_id: para.id, dias, contagem, inicio: hoje, vence_em: vence,
+                status: 'aberto', aberto_em: agora, aberto_por: quem, automatico: true,
+            }];
+        interno.push(`Prazo interno da fase aberto: ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'}, vence em ${vence.split('-').reverse().join('/')}.`);
+    }
+    const campos = prazos === antes ? {} : Object.assign({ prazos }, (0, secretaria_1.derivados)((proc.pendencias || []), prazos));
+    if (((_a = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _a === void 0 ? void 0 : _a.urgente) && proc.urgente !== true) {
+        campos.urgente = true;
+        campos.urgencia = { motivo: `Regra da fase ${para.nome}`, por: quem, em: agora };
+        frases.push('Tramitação urgente pela regra da fase.');
+    }
+    if (((_b = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _b === void 0 ? void 0 : _b.sem_responsavel) && proc.responsavel_uid) {
+        campos.responsavel_uid = null;
+        interno.push('Responsável designado retirado pela regra da fase.');
+    }
+    return { texto: frases.length ? ` ${frases.join(' ')}` : '', interno, campos };
+}
+/** O que a fase fez sozinha e só interessa à equipe: registro interno, sem termo, fora do portal. */
+function registrarInternos(tx, c, ref, proc, interno) {
+    if (!interno.length)
+        return {};
+    return (0, context_1.registrarMovimento)(tx, c, ref, proc, 'efeitos_fase', interno.join(' '), (0, exigencias_1.marcasDoDestino)('informacao'));
+}
+const SEM_EFEITOS = { texto: '', interno: [], campos: {} };
 /**
  * Saída que o rito condiciona à resposta de uma ação: seguir por ela sem a
  * resposta que a indica pede motivo (fica no movimento como contra a condição).
@@ -219,7 +271,7 @@ function resumo(id, d) {
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _d, _e, _f, _g, _h;
+    var _a, _b, _d, _e, _f, _g, _h, _j, _k;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -495,6 +547,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const orgao = usaOrgao && unidade.orgao_id ? (await (0, orgaos_2.lerOrgaos)(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
         const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
         const procRef = db.collection(context_1.COL.processos).doc();
+        // Primeira fase com prazo automático: a contagem usa o calendário do órgão.
+        const calendarioAutuacao = ((_h = rito.fases[0]) === null || _h === void 0 ? void 0 : _h.prazo_auto)
+            ? (0, secretaria_1.sanitizeCalendario)((_j = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _j === void 0 ? void 0 : _j.calendario) : undefined;
         const contadorRef = numeracao ? db.collection(context_1.COL.contadores).doc((0, numeracao_1.chaveContador)(orgId, numeracao, ctxNumero)) : null;
         const numero = await db.runTransaction(async (tx) => {
             var _a;
@@ -524,8 +579,10 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), { 
                 // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
                 vinculos: (0, modulos_1.vinculosDe)(origem, campos) }), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
-            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
-            tx.set(procRef, Object.assign(Object.assign({}, base), mov));
+            const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName);
+            const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
+            const mi = registrarInternos(tx, c, procRef, Object.assign(Object.assign({}, base), mov), ef.interno);
+            tx.set(procRef, Object.assign(Object.assign(Object.assign(Object.assign({}, base), ef.campos), mov), mi));
             return numero;
         });
         return { success: true, id: procRef.id, numero };
@@ -533,8 +590,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
-    const calendario = p.action === 'abrirPrazo'
-        ? (0, secretaria_1.sanitizeCalendario)((_h = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _h === void 0 ? void 0 : _h.calendario)
+    const calendario = ['abrirPrazo', 'tramitar', 'avancarFase'].includes(String(p.action))
+        ? (0, secretaria_1.sanitizeCalendario)((_k = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _k === void 0 ? void 0 : _k.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
     let expedidas = 1;
@@ -602,11 +659,16 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const em = emitirSe(!!novaFase && (0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, novaFase.id), tx, c, ref, data);
             if (em.proc !== data)
                 expedidas = 2;
+            // A remessa já tira o responsável: os efeitos não repetem isso.
+            const ef = novaFase ? efeitosDaMudanca(Object.assign(Object.assign({}, data), { responsavel_uid: null }), String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + com((0, context_1.nomeUnidade)(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
-                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.` : ''}`
+                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${ef.texto}` : ''}`
                 + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign(Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})) : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)), (idsMinutas.length ? { minutas: idsMinutas } : {})));
+            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), ef.interno);
+            if (ef.interno.length)
+                expedidas += 1;
             minutas.forEach((s) => tx.update(s.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(destino.id) }));
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? Object.assign({ fase_atual: novaFase.id }, (0, exigencias_1.camposAoEntrarNaFase)(data, novaFase.id)) : {})), { orientacao: orientacao
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? Object.assign(Object.assign({ fase_atual: novaFase.id }, (0, exigencias_1.camposAoEntrarNaFase)(data, novaFase.id)), ef.campos) : {})), { orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
                     : firestore_1.FieldValue.delete() }));
             recebeu = { unidadeId: destino.id, proc: data };
@@ -781,11 +843,15 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const em = emitirSe((0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data)
                 expedidas = 2;
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}`, Object.assign(Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})), (dispensadas.length ? { dispensadas } : {})), (junta ? Object.assign({ consolidada: true }, (0, exigencias_1.marcasDoDestino)('nenhum')) : (0, exigencias_1.marcasDoDestino)(destinoMov))));
+            const ef = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})), (dispensadas.length ? { dispensadas } : {})), (junta ? Object.assign({ consolidada: true }, (0, exigencias_1.marcasDoDestino)('nenhum')) : (0, exigencias_1.marcasDoDestino)(destinoMov))));
             const consolidacao = junta
                 ? { consolidacao: itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) })) }
                 : {};
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), consolidacao), { fase_atual: alvo.id }), (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id)));
+            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), consolidacao), ef.interno);
+            if (ef.interno.length)
+                expedidas += 1;
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), consolidacao), { fase_atual: alvo.id }), (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id)), ef.campos));
             return mov;
         }
         if (p.action === 'urgencia') {
@@ -824,8 +890,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const em = emitirSe(status === 'arquivado', tx, c, ref, data);
             if (em.proc !== data)
                 expedidas = 2;
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'situacao', `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Exigências do rito não cumpridas: ${dispensadas.join('; ')}.` : ''}`, Object.assign({ de: data.status, para: status }, (dispensadas.length ? { dispensadas } : {})));
-            tx.update(ref, Object.assign(Object.assign(Object.assign({}, em.mov), mov), { status }));
+            const ef = status === 'arquivado' ? efeitosDaMudanca(data, String(data.fase_atual), null, undefined, c.userName) : SEM_EFEITOS;
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'situacao', `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Exigências do rito não cumpridas: ${dispensadas.join('; ')}.` : ''}${ef.texto}`, Object.assign({ de: data.status, para: status }, (dispensadas.length ? { dispensadas } : {})));
+            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), ef.interno);
+            if (ef.interno.length)
+                expedidas += 1;
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), { status }), ef.campos));
             return mov;
         }
         if (p.action === 'emitirCertidao') {
@@ -904,7 +974,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const hoje = (0, secretaria_1.hojeBrasil)();
             const lista = prazos.map((x) => (x.id === alvo.id ? Object.assign(Object.assign({}, x), { status: res, encerrado_em: hoje, encerrado_por: c.userName }) : x));
             const quando = res === 'cumprido' ? (hoje <= alvo.vence_em ? ' no prazo' : ' fora do prazo') : '';
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo_encerrado', `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ prazo_id: alvo.id, resultado: res }, (0, exigencias_1.marcasNaFase)(data, 'prazo')));
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo_encerrado', `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ prazo_id: alvo.id, resultado: res }, (alvo.automatico === true ? (0, exigencias_1.marcasDoDestino)('informacao') : (0, exigencias_1.marcasNaFase)(data, 'prazo'))));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
             return mov;
         }

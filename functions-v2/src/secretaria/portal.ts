@@ -61,11 +61,13 @@ interface PortalRequest {
 const brData = (iso: string) => iso.split('-').reverse().join('/');
 const brDataHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
+/** Prazos abertos que as partes podem ver: o prazo automático da fase é da equipe, não delas. */
+const prazosPublicos = (proc: admin.firestore.DocumentData) => ((proc.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto' && x.automatico !== true);
+
 /** Prazos abertos dirigidos a esta parte (ou sem destinatário). */
 function prazosDaParte(proc: admin.firestore.DocumentData, parte: { nome: string } | undefined) {
     const nome = (parte?.nome || '').toLowerCase();
-    return ((proc.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto'
-        && (!x.destinatario || String(x.destinatario).toLowerCase().includes(nome)));
+    return prazosPublicos(proc).filter((x) => !x.destinatario || String(x.destinatario).toLowerCase().includes(nome));
 }
 
 /**
@@ -93,9 +95,15 @@ function comunicacoesDaConta(proc: admin.firestore.DocumentData, uid: string) {
 }
 
 /** Fases vistas pela parte: só o que não é interno da equipe. */
+/** Nome da fase para as partes: o público, se o rito der um; senão o oficial. */
+export function nomeParaPartes(proc: admin.firestore.DocumentData, faseId: unknown): string {
+    const f = ((proc.fases || []) as Array<{ id: string; nome: string; nome_publico?: string }>).find((x) => x.id === faseId);
+    return f?.nome_publico || f?.nome || String(faseId || '');
+}
+
 function fasesPublicas(proc: admin.firestore.DocumentData) {
-    return ((proc.fases || []) as Array<Record<string, unknown>>).map(({ id, nome, prazo_dias, proximas, final }) => (
-        { id, nome, ...(prazo_dias ? { prazo_dias } : {}), ...(proximas ? { proximas } : {}), ...(final ? { final } : {}) }));
+    return ((proc.fases || []) as Array<Record<string, unknown>>).map(({ id, nome, nome_publico, prazo_dias, proximas, final }) => (
+        { id, nome: nome_publico || nome, ...(prazo_dias ? { prazo_dias } : {}), ...(proximas ? { proximas } : {}), ...(final ? { final } : {}) }));
 }
 
 /** Petições desta conta com a situação da apreciação. */
@@ -272,7 +280,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             if (novidades) paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: ultimo!.descricao, em: ultimo!.em });
             return {
                 id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: ativo.get(x.organization_id)?.nome,
-                fase_nome: (x.fases || []).find((f: { id: string }) => f.id === x.fase_atual)?.nome || x.fase_atual,
+                fase_nome: nomeParaPartes(x, x.fase_atual),
                 polo: parte?.polo, parte_nome: parte?.nome || null, como: parte?.como || 'parte', representante: parte?.representante || null,
                 ultimo_movimento: ultimo, novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length,
                 // Planilha "Meus Processos Eletrônicos": o que fazer, prazos abertos e por abrir.
@@ -315,11 +323,11 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true,
                 // Só os campos que o órgão marcou para as partes verem.
                 campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor, ...(x.formato ? { formato: x.formato } : {}) })),
-                fase_nome: (data.fases || []).find((f: { id: string }) => f.id === data.fase_atual)?.nome || data.fase_atual,
+                fase_nome: nomeParaPartes(data, data.fase_atual),
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
                 partes: (data.partes || []).map((x: { nome: string; polo: string }) => ({ nome: x.nome, polo: x.polo })),
-                prazos: ((data.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto')
+                prazos: prazosPublicos(data)
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
@@ -359,7 +367,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const { ref, data: proc, org } = await lerComoParte(db, uid, p.processoId);
         const movs = (await ref.collection('movimentos').orderBy('seq', 'desc').limit(40).get()).docs.map((d) => d.data())
             .filter((m) => visivelParaPartes(m as never)).slice(0, 10);
-        const fase = (proc.fases || []).find((f: { id: string }) => f.id === proc.fase_atual)?.nome || proc.fase_atual;
+        const fase = nomeParaPartes(proc, proc.fase_atual);
         const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status as string] || proc.status;
         const parte = parteDoUsuario(proc, uid);
         const linhas = [
@@ -369,7 +377,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             `Situação: ${situacao}. Fase atual: ${fase}.`,
             `Autuado em ${proc.autuado_em ? brDataHora(proc.autuado_em) : '—'}.`,
             `Partes: ${((proc.partes || []) as Array<{ nome: string; polo: string }>).map((x) => `${x.nome} (${x.polo})`).join('; ')}.`, '',
-            `Prazos em aberto: ${((proc.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto').map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
+            `Prazos em aberto: ${prazosPublicos(proc).map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
             'Últimos movimentos:',
             ...movs.map((m) => `${brDataHora(m.em)} — ${m.descricao}`), '',
             `Certidão emitida pelo portal das partes em ${brDataHora(new Date().toISOString())} a pedido de ${parte?.assina || nomeConta}.`,

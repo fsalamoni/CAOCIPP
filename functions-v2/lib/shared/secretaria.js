@@ -153,6 +153,10 @@ function sanitizeRito(input) {
     const fases = brutas.map(({ fo, id, nomeFase }, i) => {
         var _a, _b, _c, _d;
         const prazo = Number(fo.prazo_dias);
+        const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
+        const nomePublico = texto(fo.nome_publico, 80);
+        const ae = (fo.ao_entrar && typeof fo.ao_entrar === 'object' ? fo.ao_entrar : {});
+        const aoEntrar = Object.assign(Object.assign({}, (ae.urgente === true ? { urgente: true } : {})), (ae.sem_responsavel === true ? { sem_responsavel: true } : {}));
         const orientacao = texto(fo.orientacao, exports.MAX_TEXTO_LONGO);
         const final = fo.final === true;
         const proximas = !final && Array.isArray(fo.proximas)
@@ -207,7 +211,7 @@ function sanitizeRito(input) {
         const grupo = grupoBruto ? ((_d = ids.get(grupoBruto)) !== null && _d !== void 0 ? _d : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
         const titulo = texto(cf.titulo, 120);
         const certidao = Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), regras);
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), regras);
     });
     // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).
     const raizes = new Map(fases.map((f) => {

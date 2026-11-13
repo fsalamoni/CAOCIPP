@@ -31,6 +31,14 @@ export interface Fase {
     id: string;
     nome: string;
     prazo_dias?: number;
+    /** Ao entrar na fase, abre sozinho um prazo de `prazo_dias`; ao sair (ou arquivar), ele se encerra. */
+    prazo_auto?: boolean;
+    /** Contagem do prazo automático. Ausente = dias úteis. */
+    prazo_contagem?: 'corridos';
+    /** Nome que as partes veem no portal. Ausente = o nome da fase. Os termos nos autos usam o nome oficial. */
+    nome_publico?: string;
+    /** O que acontece ao entrar na fase: marcar urgente e tirar o responsável designado. */
+    ao_entrar?: { urgente?: true; sem_responsavel?: true };
     /** Orientação para quem trabalha na fase. */
     orientacao?: string;
     /** Fases para onde o processo pode seguir. Ausente = a próxima da lista. */
@@ -186,6 +194,10 @@ export function sanitizeRito(input: unknown): Rito {
     });
     const fases: Fase[] = brutas.map(({ fo, id, nomeFase }, i) => {
         const prazo = Number(fo.prazo_dias);
+        const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
+        const nomePublico = texto(fo.nome_publico, 80);
+        const ae = (fo.ao_entrar && typeof fo.ao_entrar === 'object' ? fo.ao_entrar : {}) as Record<string, unknown>;
+        const aoEntrar = { ...(ae.urgente === true ? { urgente: true as const } : {}), ...(ae.sem_responsavel === true ? { sem_responsavel: true as const } : {}) };
         const orientacao = texto(fo.orientacao, MAX_TEXTO_LONGO);
         const final = fo.final === true;
         const proximas = !final && Array.isArray(fo.proximas)
@@ -242,7 +254,10 @@ export function sanitizeRito(input: unknown): Rito {
             id,
             nome: nomeFase,
             ...(Object.keys(certidao).length ? { certidao } : {}),
-            ...(Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {}),
+            ...(prazoOk ? { prazo_dias: prazo } : {}),
+            ...(prazoOk && fo.prazo_auto === true ? { prazo_auto: true, ...(fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' as const } : {}) } : {}),
+            ...(nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {}),
+            ...(Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {}),
             ...(orientacao ? { orientacao } : {}),
             ...(proximas.length ? { proximas } : {}),
             ...(final ? { final: true } : {}),

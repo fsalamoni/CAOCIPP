@@ -374,6 +374,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         {proximas.length > 0 && <span className="text-sm font-normal text-slate-600">segue para {proximas.map((f) => f.nome).join(' ou ')}</span>}
                         {proximas.length === 0 && <span className="text-sm font-normal text-slate-600">fase final</span>}
                         {faseAtual?.prazo_dias > 0 && <span className="text-sm font-normal text-slate-600">· prazo da fase: {faseAtual.prazo_dias} dias</span>}
+                        {faseAtual?.nome_publico && <span className="text-sm font-normal text-slate-600">· as partes veem "{faseAtual.nome_publico}"</span>}
                     </CardTitle>
                     {(faseAtual?.unidade_id || faseAtual?.agente) && (
                         <p className="text-sm text-slate-600 dark:text-slate-300">

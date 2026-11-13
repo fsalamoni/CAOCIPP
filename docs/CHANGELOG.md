@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: a fase age sozinha
+- **Prazo da fase que abre e fecha sozinho**: ao entrar na fase, o processo
+  ganha o prazo da fase (dias úteis ou corridos, com o calendário do órgão);
+  ao sair ou arquivar, ele se encerra. É prazo da equipe: as partes não o veem.
+- **Nome da fase para as partes**: o portal pode mostrar um nome mais claro
+  (ex.: "Pedido recebido" em vez de "Triagem interna").
+- **Ao entrar na fase**: marcar o processo como urgente e tirar o
+  responsável designado, conforme o rito. O que é só da equipe (prazo
+  interno, responsável) fica nos eventos da equipe, fora do portal.
+
 ### 13/11/2026 — Processo Eletrônico: o rito decide pela resposta
 - **Ação que só vale com certa resposta**: numa fase com uma ação de escolha
   (por exemplo, "Decisão: Deferido ou Indeferido"), outras ações podem valer
