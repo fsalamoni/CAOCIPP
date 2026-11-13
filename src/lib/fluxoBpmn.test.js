@@ -163,3 +163,21 @@ test('desenharFluxo com ações: grupo condicional no fim da fase fecha dentro d
     // A seta para a fase de baixo passa abaixo da moldura inteira, não por dentro dela.
     assert.ok(g.tarefas[1].y > t.y + t.h);
 });
+
+test('itensDaFase: condição por campo do formulário, alternativa ("ou") e ação que só orienta', () => {
+    const f = { id: 'r', nome: 'Devolução', acoes: ['Dados', 'Avisar por telefone', 'Enviar pelo SIGO', 'Inserir no SIM', 'Conferir anexos'], acoes_regras: [
+        { pede: 'formulario', campos: [{ id: 'meio', rotulo: 'Meio', tipo: 'lista', opcoes: ['SIGO', 'SIM'] }, { id: 'urg', rotulo: 'Urgente', tipo: 'sim_nao' }] },
+        { se: { acao: 0, campo: 'urg', valores: ['sim'] } },
+        { se: { acao: 0, campo: 'meio', valores: ['sim'] } },
+        { ou: 2 },
+        { pede: 'orientacao' },
+    ] };
+    const itens = itensDaFase(f);
+    // Campos diferentes da mesma ação (com a mesma resposta) são desvios diferentes.
+    assert.deepEqual(itens.map((i) => i.tipo), ['acao', 'desvio', 'acao', 'desvio', 'acao', 'acao', 'acao']);
+    assert.equal(itens[1].texto, 'Se "Urgente" for Sim');
+    assert.deepEqual(itens.filter((i) => i.ou).map((i) => i.nome), ['Inserir no SIM']);
+    assert.deepEqual(itens.filter((i) => i.orienta).map((i) => i.nome), ['Conferir anexos']);
+    const t = desenharFluxo([f], () => '', Infinity, { acoes: true }).tarefas[0];
+    assert.deepEqual(t.dentro.rotulos.filter((r) => r.texto === 'ou').length, 1);
+});

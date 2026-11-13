@@ -10,7 +10,7 @@
 // ============================================================================
 
 import { niveisDoFluxo, seguintes } from './secretariaRito.js';
-import { nivelDaAcao, resumoDaAcao, textoCondicao } from './exigencias.js';
+import { chaveDaCondicao, nivelDaAcao, resumoDaAcao, soOrienta, textoCondicao } from './exigencias.js';
 
 /** Rótulo da seta: a condição escrita e, se houver, a regra pela resposta. */
 const rotuloSaida = (f, alvo) => [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo])}` : '']
@@ -88,10 +88,12 @@ export function itensDaFase(f) {
     (f?.acoes || []).forEach((nome, i) => {
         if (!String(nome || '').trim()) return;
         const r = f.acoes_regras?.[i];
-        const chave = r?.se ? `${r.se.acao}:${(r.se.valores || []).join('|')}` : null;
+        const chave = r?.se ? `${chaveDaCondicao(r.se)}:${(r.se.valores || []).join('|')}` : null;
         if (chave && chave !== aberto) itens.push({ tipo: 'desvio', chave, texto: `Se ${textoCondicao(f, r.se)}` });
         aberto = chave;
-        itens.push({ tipo: 'acao', indice: i, nome: String(nome).trim(), chave, nivel: nivelDaAcao(r), resumo: resumoDaAcao(r) });
+        // `ou`: alternativa a uma ação anterior. `orienta`: lembrete, não se marca.
+        itens.push({ tipo: 'acao', indice: i, nome: String(nome).trim(), chave, nivel: nivelDaAcao(r), resumo: resumoDaAcao(r),
+            ...(Number.isInteger(r?.ou) ? { ou: true } : {}), ...(soOrienta(r) ? { orienta: true } : {}) });
     });
     return itens;
 }
@@ -121,6 +123,7 @@ function dentroDaFase(itens, x, y0, w) {
             pe = cy + GR;
             y = pe + ENTRE;
         } else {
+            if (it.ou && pe !== null) rotulos.push({ x: cx + 4, y: y - ENTRE / 2 + 3, texto: 'ou', ancora: 'start' });
             const larg = w - 2 * MI - (it.chave ? PULO : 0);
             const linhas = quebrar(it.nome, Math.floor((larg - 10) / 5.1), 2);
             const alt = linhas.length * 12 + 12;

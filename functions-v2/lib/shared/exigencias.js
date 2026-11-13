@@ -19,12 +19,16 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.respondeNaRodada = exports.respostaDaAcao = exports.chaveDaCondicao = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
 exports.opcoesDaResposta = opcoesDaResposta;
+exports.respostasDaAcao = respostasDaAcao;
 exports.sanitizeCondicao = sanitizeCondicao;
+exports.rotuloDaCondicao = rotuloDaCondicao;
+exports.grupoDeAlternativas = grupoDeAlternativas;
+exports.alternativaCumprida = alternativaCumprida;
 exports.condicaoAtendida = condicaoAtendida;
 exports.acaoAtiva = acaoAtiva;
 exports.destinoDoAto = destinoDoAto;
@@ -93,7 +97,7 @@ const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhu
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -153,7 +157,7 @@ function sanitizeExigencia(raw, descricaoPadrao = '') {
     return Object.assign(Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {})), (nivel ? { nivel } : {}));
 }
 function sanitizeRegra(raw, acao) {
-    var _a;
+    var _b;
     const r = (raw && typeof raw === 'object' ? raw : {});
     const pedeBruto = exports.PEDIDOS.includes(r.pede) ? r.pede : (r.documento ? 'documento' : 'confirmar');
     // Orientação a quem cumpre: vale para qualquer ação.
@@ -168,6 +172,9 @@ function sanitizeRegra(raw, acao) {
     const out = {};
     if (ajuda)
         out.ajuda = ajuda;
+    // Só orientação: não se marca, não gera registro, não é cobrada.
+    if (pedeBruto === 'orientacao')
+        return Object.assign(Object.assign({}, out), { pede: 'orientacao' });
     if (pedeBruto !== 'confirmar') {
         out.pede = pedeBruto;
         const rotulo = texto(r.rotulo, 80);
@@ -222,7 +229,7 @@ function sanitizeRegra(raw, acao) {
         if (!out.pede || !exports.PEDIDOS_RESERVAVEIS.includes(out.pede)) {
             throw new Error(`A ação "${acao}": só texto, número, data ou formulário pode ficar reservado a quem gere a unidade`);
         }
-        if ((_a = out.campos) === null || _a === void 0 ? void 0 : _a.some((c) => c.tipo === 'registro')) {
+        if ((_b = out.campos) === null || _b === void 0 ? void 0 : _b.some((c) => c.tipo === 'registro')) {
             throw new Error(`A ação "${acao}": formulário com registro de outro módulo não pode ficar reservado`);
         }
         if (dest === 'autos' || dest === 'consolidar') {
@@ -233,10 +240,19 @@ function sanitizeRegra(raw, acao) {
     }
     return Object.keys(out).length ? out : null;
 }
-/** Opções que a resposta da ação pode ter (só ações de escolha condicionam). */
-function opcoesDaResposta(r) {
+/** Campos do formulário da ação que condicionam: os de escolha, e nunca os de ação com dado reservado. */
+const camposDeEscolha = (r) => ((r === null || r === void 0 ? void 0 : r.pede) === 'formulario' && !r.ve ? (r.campos || []).filter((c) => c.tipo === 'lista' || c.tipo === 'sim_nao') : []);
+/**
+ * Opções que a resposta da ação pode ter (só ações de escolha condicionam).
+ * Com `campo`, as do campo de escolha do formulário que a ação pede.
+ */
+function opcoesDaResposta(r, campo) {
     if (!r || r.documento)
         return null;
+    if (campo) {
+        const c = camposDeEscolha(r).find((x) => x.id === campo);
+        return !c ? null : c.tipo === 'lista' ? c.opcoes || [] : ['sim', 'nao'];
+    }
     if (r.pede === 'lista')
         return r.opcoes || [];
     if (r.pede === 'sim_nao')
@@ -246,6 +262,29 @@ function opcoesDaResposta(r) {
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */
 const chaveDaResposta = (v) => (typeof v === 'boolean' ? (v ? 'sim' : 'nao') : String(v !== null && v !== void 0 ? v : ''));
 exports.chaveDaResposta = chaveDaResposta;
+/** Onde a resposta fica na rodada da fase: '2' (a ação 2) ou '2.sistema' (o campo "sistema" do formulário da ação 2). */
+const chaveDaCondicao = (c) => (c.campo ? `${c.acao}.${c.campo}` : String(c.acao));
+exports.chaveDaCondicao = chaveDaCondicao;
+/** A chave da rodada é da ação `idx` (a própria resposta ou a de um campo dela)? */
+const respostaDaAcao = (chave, idx) => chave === String(idx) || chave.startsWith(`${idx}.`);
+exports.respostaDaAcao = respostaDaAcao;
+/** A ação deixa resposta na rodada (é de escolha, ou pede formulário com campo de escolha)? */
+const respondeNaRodada = (r) => opcoesDaResposta(r) !== null || camposDeEscolha(r).length > 0;
+exports.respondeNaRodada = respondeNaRodada;
+/** O que a ação cumprida responde na rodada: { '2': 'SPU' } ou, no formulário, { '2.sistema': 'SPU' } por campo de escolha preenchido. */
+function respostasDaAcao(r, idx, valor) {
+    var _b;
+    if (opcoesDaResposta(r) !== null)
+        return { [String(idx)]: (0, exports.chaveDaResposta)(valor) };
+    const dados = Array.isArray(valor) ? valor : [];
+    const out = {};
+    for (const c of camposDeEscolha(r)) {
+        const v = (_b = dados.find((x) => (x === null || x === void 0 ? void 0 : x.id) === c.id)) === null || _b === void 0 ? void 0 : _b.valor;
+        if (v !== null && v !== undefined && v !== '')
+            out[`${idx}.${c.id}`] = (0, exports.chaveDaResposta)(v);
+    }
+    return out;
+}
 /**
  * Saneia a condição contra as regras já saneadas da fase. `mapa` traduz o índice
  * mandado pelo cliente para o índice gravado (linhas vazias saem); `antesDe`
@@ -260,13 +299,52 @@ function sanitizeCondicao(raw, regras, acoes, quem, mapa, antesDe = Infinity) {
     // A ação de que dependia saiu (linha vazia): a condição sai com ela.
     if (acao === undefined)
         return undefined;
-    const opcoes = Number.isInteger(acao) && acao >= 0 && acao < Math.min(acoes.length, antesDe) ? opcoesDaResposta(regras[acao]) : null;
-    if (!opcoes)
-        throw new Error(`${quem} depende da resposta de uma ação de escolha ${antesDe === Infinity ? 'desta fase' : 'anterior'}`);
+    const campo = typeof o.campo === 'string' && o.campo ? o.campo.slice(0, 24) : undefined;
+    const opcoes = Number.isInteger(acao) && acao >= 0 && acao < Math.min(acoes.length, antesDe) ? opcoesDaResposta(regras[acao], campo) : null;
+    if (!opcoes) {
+        throw new Error(campo
+            ? `${quem} depende de um campo de escolha do formulário de uma ação ${antesDe === Infinity ? 'desta fase' : 'anterior'} (sem dado reservado)`
+            : `${quem} depende da resposta de uma ação de escolha ${antesDe === Infinity ? 'desta fase' : 'anterior'}`);
+    }
     const valores = [...new Set((Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80)))].filter((v) => opcoes.includes(v));
     if (!valores.length)
         throw new Error(`${quem}: escolha ao menos uma resposta de "${acoes[acao]}"`);
-    return { acao, valores };
+    return Object.assign(Object.assign({ acao }, (campo ? { campo } : {})), { valores });
+}
+/** Rótulo do dado que a condição lê: o da ação ou o do campo do formulário. */
+function rotuloDaCondicao(f, c) {
+    var _b, _c, _d;
+    const r = (_b = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _b === void 0 ? void 0 : _b[c.acao];
+    const campo = c.campo ? (_c = r === null || r === void 0 ? void 0 : r.campos) === null || _c === void 0 ? void 0 : _c.find((x) => x.id === c.campo) : undefined;
+    return (campo === null || campo === void 0 ? void 0 : campo.rotulo) || (r === null || r === void 0 ? void 0 : r.rotulo) || ((_d = f === null || f === void 0 ? void 0 : f.acoes) === null || _d === void 0 ? void 0 : _d[c.acao]) || 'a resposta';
+}
+/**
+ * "Alternativa a": aponta para uma ação anterior da fase que se marca (não
+ * documento nem orientação). Inválida: lança com mensagem.
+ */
+function sanitizeOu(raw, regras, acoes, i, mapa) {
+    if (raw === undefined || raw === null || raw === '')
+        return undefined;
+    const alvo = mapa ? mapa.get(Number(raw)) : Number(raw);
+    if (alvo === undefined)
+        return undefined; // a ação de que era alternativa saiu
+    const marca = (r) => !(r === null || r === void 0 ? void 0 : r.documento) && (r === null || r === void 0 ? void 0 : r.pede) !== 'orientacao';
+    if (!Number.isInteger(alvo) || alvo < 0 || alvo >= i || !marca(regras[alvo]) || !marca(regras[i])) {
+        throw new Error(`A ação "${acoes[i]}" só pode ser alternativa a uma ação anterior da fase que se marca (sem documento)`);
+    }
+    return alvo;
+}
+/** Ações do mesmo grupo de alternativas que `i` (inclui `i`). Sem alternativa, só ela. */
+function grupoDeAlternativas(f, i) {
+    const regras = (f === null || f === void 0 ? void 0 : f.acoes_regras) || [];
+    // O rito só aponta para trás: a subida termina.
+    const raiz = (k) => { var _b; const o = (_b = regras[k]) === null || _b === void 0 ? void 0 : _b.ou; return typeof o === 'number' && o >= 0 && o < k ? raiz(o) : k; };
+    const r = raiz(i);
+    return ((f === null || f === void 0 ? void 0 : f.acoes) || []).map((_a, k) => k).filter((k) => raiz(k) === r);
+}
+/** Outra ação do grupo de alternativas já foi cumprida (e vale agora)? */
+function alternativaCumprida(f, i, feitas, resp) {
+    return grupoDeAlternativas(f, i).some((k) => k !== i && feitas.has(k) && acaoAtiva(f, k, resp));
 }
 /**
  * A condição vale com as respostas da rodada? Sem condição, sempre. Com `f`,
@@ -276,15 +354,16 @@ function sanitizeCondicao(raw, regras, acoes, quem, mapa, antesDe = Infinity) {
 function condicaoAtendida(c, resp, f) {
     if (!c)
         return true;
-    if ((resp === null || resp === void 0 ? void 0 : resp[String(c.acao)]) === undefined || !c.valores.includes(resp[String(c.acao)]))
+    const k = (0, exports.chaveDaCondicao)(c);
+    if ((resp === null || resp === void 0 ? void 0 : resp[k]) === undefined || !c.valores.includes(resp[k]))
         return false;
     // A condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
     return !f || acaoAtiva(f, c.acao, resp);
 }
 /** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
 function acaoAtiva(f, i, resp) {
-    var _a, _b;
-    const se = (_b = (_a = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _a === void 0 ? void 0 : _a[i]) === null || _b === void 0 ? void 0 : _b.se;
+    var _b, _c;
+    const se = (_c = (_b = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _b === void 0 ? void 0 : _b[i]) === null || _c === void 0 ? void 0 : _c.se;
     if (!se)
         return true;
     return se.acao < i && condicaoAtendida(se, resp, f);
@@ -294,8 +373,8 @@ const respostasDaFase = (proc) => (proc.acoes_respostas || {})[String(proc.fase_
 exports.respostasDaFase = respostasDaFase;
 /** Onde fica o ato durante a fase (valor estranho lê como o padrão). */
 function destinoDoAto(f, ato) {
-    var _a, _b;
-    return lido((_b = (_a = f === null || f === void 0 ? void 0 : f.registro_atos) === null || _a === void 0 ? void 0 : _a.outros) === null || _b === void 0 ? void 0 : _b[ato], opcoesDoAto(ato), exports.PADRAO_OUTRO[ato]);
+    var _b, _c;
+    return lido((_c = (_b = f === null || f === void 0 ? void 0 : f.registro_atos) === null || _b === void 0 ? void 0 : _b.outros) === null || _c === void 0 ? void 0 : _c[ato], opcoesDoAto(ato), exports.PADRAO_OUTRO[ato]);
 }
 /** Marcas do movimento para o ato; no padrão, nenhuma (fica como sempre foi). */
 function marcasDoAto(f, ato) {
@@ -331,6 +410,9 @@ function sanitizeRegras(fo, acoes, mapa) {
         const se = sanitizeCondicao(b === null || b === void 0 ? void 0 : b.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
         if (se)
             regras[i] = Object.assign(Object.assign({}, (r || {})), { se });
+        const ou = sanitizeOu(b === null || b === void 0 ? void 0 : b.ou, regras, acoes, i, mapa);
+        if (ou !== undefined)
+            regras[i] = Object.assign(Object.assign({}, (regras[i] || {})), { ou });
     });
     const documentos = (Array.isArray(fo.documentos) ? fo.documentos : [])
         .map((d) => sanitizeExigencia(d)).filter((d) => !!d).slice(0, exports.MAX_DOCUMENTOS_FASE);
@@ -343,7 +425,7 @@ function exigenciasDaFase(f, resp) {
     return [
         ...(f.documentos || []).map((d, i) => (Object.assign(Object.assign({}, d), { chave: `d${i}` }))),
         // Ação condicional que não vale agora não exige o documento.
-        ...(f.acoes_regras || []).flatMap((r, i) => { var _a; return ((r === null || r === void 0 ? void 0 : r.documento) && ((_a = f.acoes) === null || _a === void 0 ? void 0 : _a[i]) && acaoAtiva(f, i, resp) ? [Object.assign(Object.assign({}, r.documento), { chave: `a${i}`, acao_idx: i })] : []); }),
+        ...(f.acoes_regras || []).flatMap((r, i) => { var _b; return ((r === null || r === void 0 ? void 0 : r.documento) && ((_b = f.acoes) === null || _b === void 0 ? void 0 : _b[i]) && acaoAtiva(f, i, resp) ? [Object.assign(Object.assign({}, r.documento), { chave: `a${i}`, acao_idx: i })] : []); }),
     ];
 }
 /** Documentos exigidos ainda não cumpridos na fase. */
@@ -359,10 +441,17 @@ function acoesObrigatoriasPendentes(f, feitas, resp) {
     if (!f)
         return [];
     const ok = new Set(feitas || []);
-    return (f.acoes || []).flatMap((a, i) => {
-        var _a, _b, _c;
-        return (((_b = (_a = f.acoes_regras) === null || _a === void 0 ? void 0 : _a[i]) === null || _b === void 0 ? void 0 : _b.obrigatoria) && !((_c = f.acoes_regras[i]) === null || _c === void 0 ? void 0 : _c.documento) && !ok.has(i) && acaoAtiva(f, i, resp)
-            ? [{ descricao: a, acao_idx: i }] : []);
+    const cobrada = (i) => {
+        var _b, _c, _d;
+        return !!((_c = (_b = f.acoes_regras) === null || _b === void 0 ? void 0 : _b[i]) === null || _c === void 0 ? void 0 : _c.obrigatoria) && !((_d = f.acoes_regras[i]) === null || _d === void 0 ? void 0 : _d.documento) && !ok.has(i) && acaoAtiva(f, i, resp)
+            && !alternativaCumprida(f, i, ok, resp);
+    };
+    return (f.acoes || []).flatMap((_a, i) => {
+        if (!cobrada(i))
+            return [];
+        // Alternativas: o grupo aparece uma vez, como "A ou B" (só as que valem agora).
+        const grupo = grupoDeAlternativas(f, i).filter((k) => acaoAtiva(f, k, resp));
+        return grupo.find(cobrada) === i ? [{ descricao: grupo.map((k) => (f.acoes || [])[k]).join(' ou '), acao_idx: i }] : [];
     });
 }
 /** Redigir = produzido pelo órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
@@ -428,15 +517,15 @@ function camposAoEntrarNaFase(proc, faseId) {
     const ac = (proc.acoes_feitas || {});
     const rs = (proc.acoes_respostas || {});
     if (faseId in ex) {
-        const _a = ex, _b = faseId, _x = _a[_b], resto = __rest(_a, [typeof _b === "symbol" ? _b : _b + ""]);
+        const _b = ex, _c = faseId, _x = _b[_c], resto = __rest(_b, [typeof _c === "symbol" ? _c : _c + ""]);
         out.exigencias_cumpridas = resto;
     }
     if (faseId in ac) {
-        const _c = ac, _d = faseId, _y = _c[_d], resto = __rest(_c, [typeof _d === "symbol" ? _d : _d + ""]);
+        const _d = ac, _e = faseId, _y = _d[_e], resto = __rest(_d, [typeof _e === "symbol" ? _e : _e + ""]);
         out.acoes_feitas = resto;
     }
     if (faseId in rs) {
-        const _e = rs, _f = faseId, _z = _e[_f], resto = __rest(_e, [typeof _f === "symbol" ? _f : _f + ""]);
+        const _f = rs, _g = faseId, _z = _f[_g], resto = __rest(_f, [typeof _g === "symbol" ? _g : _g + ""]);
         out.acoes_respostas = resto;
     }
     return out;
@@ -471,14 +560,14 @@ exports.MAX_TEXTO_CERTIDAO = 1800;
 /** Item longo (dado de texto longo) entra resumido; a íntegra fica no registro do ato e nas informações. */
 exports.MAX_ITEM_CERTIDAO = 300;
 /** Grupo da certidão da fase: o configurado, ou a própria fase. */
-const grupoDe = (f) => { var _a; return (f ? ((_a = f.certidao) === null || _a === void 0 ? void 0 : _a.grupo) || f.id : ''); };
+const grupoDe = (f) => { var _b; return (f ? ((_b = f.certidao) === null || _b === void 0 ? void 0 : _b.grupo) || f.id : ''); };
 exports.grupoDe = grupoDe;
 /** Título da certidão do grupo: o que a primeira fase do grupo deu, ou o nome das fases. */
 function tituloCertidao(fases, grupo) {
-    var _a, _b, _c, _d;
+    var _b, _c, _d, _e;
     const membros = fases.filter((f) => (0, exports.grupoDe)(f) === grupo);
     // Vale o título da fase raiz; o de outra fase do grupo só se a raiz não deu.
-    const dado = ((_b = (_a = membros.find((f) => f.id === grupo)) === null || _a === void 0 ? void 0 : _a.certidao) === null || _b === void 0 ? void 0 : _b.titulo) || ((_d = (_c = membros.find((f) => { var _a; return (_a = f.certidao) === null || _a === void 0 ? void 0 : _a.titulo; })) === null || _c === void 0 ? void 0 : _c.certidao) === null || _d === void 0 ? void 0 : _d.titulo);
+    const dado = ((_c = (_b = membros.find((f) => f.id === grupo)) === null || _b === void 0 ? void 0 : _b.certidao) === null || _c === void 0 ? void 0 : _c.titulo) || ((_e = (_d = membros.find((f) => { var _b; return (_b = f.certidao) === null || _b === void 0 ? void 0 : _b.titulo; })) === null || _d === void 0 ? void 0 : _d.certidao) === null || _e === void 0 ? void 0 : _e.titulo);
     if (dado)
         return dado;
     const nomes = membros.map((f) => f.nome || f.id);
@@ -486,16 +575,16 @@ function tituloCertidao(fases, grupo) {
 }
 /** Mudança de fase dentro do mesmo grupo vira item da certidão (em vez de termo próprio)? */
 const mudancaNaCertidao = (fases, deId, paraId) => {
-    var _a, _b;
+    var _b, _c;
     const de = fases.find((f) => f.id === deId);
     const para = fases.find((f) => f.id === paraId);
-    return !!de && !!para && (0, exports.grupoDe)(de) === (0, exports.grupoDe)(para) && (((_a = de.certidao) === null || _a === void 0 ? void 0 : _a.incluir_mudancas) === true || ((_b = para.certidao) === null || _b === void 0 ? void 0 : _b.incluir_mudancas) === true);
+    return !!de && !!para && (0, exports.grupoDe)(de) === (0, exports.grupoDe)(para) && (((_b = de.certidao) === null || _b === void 0 ? void 0 : _b.incluir_mudancas) === true || ((_c = para.certidao) === null || _c === void 0 ? void 0 : _c.incluir_mudancas) === true);
 };
 exports.mudancaNaCertidao = mudancaNaCertidao;
 /** Há certidão por emitir antes deste ato? `paraId` null = sai do fluxo (arquivar). */
 function deveEmitir(fases, c, deId, paraId) {
-    var _a;
-    if (!((_a = c === null || c === void 0 ? void 0 : c.itens) === null || _a === void 0 ? void 0 : _a.length))
+    var _b;
+    if (!((_b = c === null || c === void 0 ? void 0 : c.itens) === null || _b === void 0 ? void 0 : _b.length))
         return false;
     if (!paraId)
         return true;

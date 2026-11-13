@@ -4,7 +4,7 @@ import ProcessosVinculados from './ProcessosVinculados';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Loader2, MoreHorizontal,
+    AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
     PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
-import { FORMAS, ROTULO_DESTINO, acaoAtiva, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
@@ -415,6 +415,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 const exig = exigencias.find((e) => e.acao_idx === i);
                                 if (exig) return <li key={i}>{itemExigencia({ ...exig, ajuda: faseAtual.acoes_regras?.[i]?.ajuda })}</li>;
                                 const r = faseAtual.acoes_regras?.[i] || null;
+                                // Só orientação: lembrete da fase, sem caixa de marcar.
+                                if (soOrienta(r)) {
+                                    return (
+                                        <li key={i} className="flex items-start gap-2 text-sm">
+                                            <Info className="w-4 h-4 mt-0.5 shrink-0 text-indigo-700 dark:text-indigo-300" aria-hidden />
+                                            <span>{a}{r.ajuda && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}</span>
+                                        </li>
+                                    );
+                                }
                                 const desfazer = () => setConfirmar({
                                     titulo: 'Desfazer a ação?',
                                     texto: `"${a}" volta a ficar pendente${pedidoDaAcao(r) !== 'confirmar' ? ' e a informação registrada sai das informações do processo' : ''}. ${
@@ -427,6 +436,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 return (
                                     <li key={i}>
                                         <AcaoDaFase acao={a} r={r} feita={feitas.has(i)} info={infoDaAcao(i)} podeMexer={podeMexer && podeCumprir(r)} reservada={podeMexer && !podeCumprir(r)} ocupado={ocupado}
+                                            nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : undefined}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
                                             onRegistrar={() => setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version })}
                                             onDesfazer={desfazer} />

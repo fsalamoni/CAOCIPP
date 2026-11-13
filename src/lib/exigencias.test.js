@@ -143,3 +143,50 @@ test('dado reservado: só dado digitado fora dos autos, e segue na troca de pedi
     assert.equal(regraComPedido({ pede: 'texto', ve: 'gestor' }, 'numero', 'X').ve, 'gestor');
     assert.equal(regraComPedido({ pede: 'texto', ve: 'gestor' }, 'sim_nao', 'X')?.ve, undefined);
 });
+
+test('condição por campo do formulário, ações alternativas e ação que só orienta', async () => {
+    const x = await import('./exigencias.js');
+    const sistema = { id: 'sistema', rotulo: 'Sistema utilizado', tipo: 'lista', opcoes: ['SIM', 'SPU'] };
+    const f = { acoes: ['Dados básicos', 'Há urgência?', 'Registrar no SIM', 'Enviar pelo SIGO', 'Inserir no SIM', 'Conferir anexos'], acoes_regras: [
+        { pede: 'formulario', campos: [{ id: 'orgao', rotulo: 'Órgão', tipo: 'texto' }, sistema] },
+        { pede: 'sim_nao' },
+        { obrigatoria: true, se: { acao: 0, campo: 'sistema', valores: ['SPU'] } },
+        { obrigatoria: true },
+        { recomendada: true, ou: 3 },
+        { pede: 'orientacao' },
+    ] };
+    // O que pode condicionar: a resposta da ação de escolha e o campo de escolha do formulário.
+    assert.deepEqual(x.fontesDeEscolha(f).map((s) => x.chaveDaCondicao(s)), ['0.sistema', '1']);
+    assert.deepEqual(x.fontesDeEscolha(f, 1).map((s) => s.campo), ['sistema'], 'só as ações antes do limite');
+    assert.deepEqual(x.opcoesDaResposta(f.acoes_regras[0], 'sistema'), [['SIM', 'SIM'], ['SPU', 'SPU']]);
+    assert.equal(x.opcoesDaResposta(f.acoes_regras[0], 'orgao'), null);
+    assert.equal(x.opcoesDaResposta({ ...f.acoes_regras[0], ve: 'gestor' }, 'sistema'), null, 'dado reservado não condiciona');
+    assert.equal(x.textoCondicao(f, f.acoes_regras[2].se), '"Sistema utilizado" for SPU');
+    assert.equal(x.problemaDaCondicao(f, f.acoes_regras[2].se, 2), null);
+    assert.match(x.problemaDaCondicao(f, { acao: 0, campo: 'sumiu', valores: ['SPU'] }, 2), /campo que não existe mais/);
+    assert.equal(x.acaoAtiva(f, 2, { '0.sistema': 'SPU' }), true);
+    assert.equal(x.acaoAtiva(f, 2, { '0.sistema': 'SIM' }), false);
+
+    // Alternativas: cumprida uma, a outra não é cobrada nem recomendada.
+    assert.deepEqual(x.alternativasPossiveis(f, 4).map(([k]) => k), [0, 1, 2, 3], 'as anteriores que se marcam');
+    assert.deepEqual(x.alternativasPossiveis(f, 0), []);
+    assert.deepEqual(x.acoesObrigatoriasPendentes(f, [], {}), [{ descricao: 'Enviar pelo SIGO ou Inserir no SIM', acao_idx: 3 }]);
+    assert.deepEqual(x.acoesObrigatoriasPendentes(f, [4], {}), []);
+    assert.deepEqual(x.recomendadosNaFase(f, {}, [3], {}), []);
+    assert.equal(x.alternativaCumprida(f, 3, new Set([4]), {}), true);
+
+    // Só orientação: não se marca; ao virar orientação, perde nível, destino e alternativa, e mantém a condição.
+    assert.equal(x.soOrienta(f.acoes_regras[5]), true);
+    assert.equal(x.pedeDado(f.acoes_regras[5]), false);
+    assert.match(x.resumoDaAcao(f.acoes_regras[5]), /só orientação/);
+    const virou = x.regraComPedido({ obrigatoria: true, destino: 'autos', ou: 3, quem: 'gestor', ajuda: 'Ramal', se: { acao: 1, valores: ['sim'] } }, 'orientacao', 'X');
+    assert.deepEqual(virou, { pede: 'orientacao', ajuda: 'Ramal', se: { acao: 1, valores: ['sim'] } });
+    assert.equal(x.regraComPedido({ ou: 3, obrigatoria: true }, 'texto', 'X').ou, 3, 'a alternativa segue na troca de pedido');
+
+    // Ao reordenar: a condição por campo e a alternativa acompanham a ação; alternativa que passou para a frente sai.
+    const troca = x.remapearCondicoes(f, [1, 0, 2, 3, 4, 5], [f.acoes_regras[1], f.acoes_regras[0], ...f.acoes_regras.slice(2)]);
+    assert.deepEqual(troca.acoes_regras[2].se, { acao: 1, campo: 'sistema', valores: ['SPU'] });
+    assert.equal(troca.acoes_regras[4].ou, 3);
+    const inverte = x.remapearCondicoes(f, [0, 1, 2, 4, 3, 5], [f.acoes_regras[0], f.acoes_regras[1], f.acoes_regras[2], f.acoes_regras[4], f.acoes_regras[3], f.acoes_regras[5]]);
+    assert.equal(inverte.acoes_regras[3].ou, undefined);
+});

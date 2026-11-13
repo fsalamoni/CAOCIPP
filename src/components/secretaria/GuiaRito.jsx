@@ -13,12 +13,13 @@ import FluxoRito from './FluxoRito';
 export const EXEMPLO_GUIA = [
     {
         id: 'g1', nome: 'Recebimento', raia: 'Secretaria', prazo_dias: 2, proximas: ['g2'],
-        acoes: ['Registrar os dados básicos', 'Sistema utilizado', 'Registrar no SIM e converter em PGEA', 'Informar o solicitante', 'Análise superficial'],
+        acoes: ['Registrar os dados básicos', 'Registrar no SIM e converter em PGEA', 'Informar o solicitante', 'Conferir se há consulta anterior do mesmo órgão', 'Análise superficial'],
         acoes_regras: [
-            { pede: 'formulario', campos: [{ rotulo: 'Órgão solicitante', tipo: 'texto' }, { rotulo: 'Assunto', tipo: 'texto' }], obrigatoria: true },
-            { pede: 'lista', opcoes: ['SIM', 'SPU', 'E-mail', 'Whatsapp', 'Outros'], obrigatoria: true },
-            { pede: 'texto', rotulo: 'Número do PGEA', obrigatoria: true, se: { acao: 1, valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
-            { pede: 'formulario', campos: [{ rotulo: 'Data', tipo: 'data' }, { rotulo: 'Meio', tipo: 'texto' }], obrigatoria: true, se: { acao: 1, valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
+            { pede: 'formulario', obrigatoria: true, campos: [{ id: 'orgao', rotulo: 'Órgão solicitante', tipo: 'texto' }, { id: 'assunto', rotulo: 'Assunto', tipo: 'texto' },
+                { id: 'sistema', rotulo: 'Sistema utilizado', tipo: 'lista', opcoes: ['SIM', 'SPU', 'E-mail', 'Whatsapp', 'Outros'] }] },
+            { pede: 'texto', rotulo: 'Número do PGEA', obrigatoria: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
+            { pede: 'formulario', campos: [{ id: 'data', rotulo: 'Data', tipo: 'data' }, { id: 'meio', rotulo: 'Meio', tipo: 'texto' }], obrigatoria: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
+            { pede: 'orientacao' },
             { pede: 'texto_longo', rotulo: 'Observações', destino: 'nenhum' },
         ],
     },
@@ -36,8 +37,9 @@ const QUANDO_USAR = {
     lista: 'Uma opção entre as que você define. Serve para criar desvios.',
     sim_nao: 'Uma decisão de sim ou não. Também serve para criar desvios.',
     registro: 'Ligar o processo a um registro de outro módulo, como uma consulta.',
-    formulario: 'Vários dados de uma vez, cada um com o seu campo.',
+    formulario: 'Vários dados de uma vez, cada um com o seu campo. Um campo de lista ou de sim ou não também serve para criar desvios.',
     documento: 'Uma peça redigida no órgão ou um arquivo recebido.',
+    orientacao: 'Um lembrete a quem está na fase, ou uma ação que o nome da fase já diz. Ninguém marca e nada fica registrado.',
 };
 
 function Parte({ titulo, children, aberta = false }) {
@@ -69,7 +71,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                         <Parte titulo="1. As peças do rito" aberta>
                             <ul className="space-y-1.5">
                                 <Termo nome="Fase">Etapa do processo. Tem unidade, prazo, ações e encaminhamentos. No desenho é a moldura com o nome no alto.</Termo>
-                                <Termo nome="Ação">Uma coisa que alguém faz ou registra na fase. No desenho é a caixa azul dentro da moldura. A borda tracejada indica ação opcional.</Termo>
+                                <Termo nome="Ação">Uma coisa que alguém faz ou registra na fase. No desenho é a caixa azul dentro da moldura. A borda tracejada indica ação opcional. A caixa branca pontilhada é só orientação: ninguém marca.</Termo>
                                 <Termo nome="Desvio (gateway)">Ponto de escolha, desenhado como losango. Dentro da fase, decide se uma ação vale. Na saída da fase, decide para qual fase o processo vai.</Termo>
                                 <Termo nome="Início e fim">Círculo verde onde o processo é autuado e círculo vermelho onde termina.</Termo>
                                 <Termo nome="Raia">Faixa horizontal de cada unidade. A fase fica na raia da unidade que cuida dela.</Termo>
@@ -107,15 +109,17 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                         </Parte>
                         <Parte titulo="5. Ação que só vale em alguns casos (desvio)">
                             <ol className="list-decimal space-y-1.5 pl-5">
-                                <li>Crie antes uma ação de escolha: <strong>Uma escolha numa lista</strong> ou <strong>Sim ou não</strong>.</li>
-                                <li>Na ação que depende dela, em <strong>Quando vale</strong>, escolha "Conforme a resposta de" e marque as respostas que fazem a ação valer.</li>
+                                <li>Crie antes uma ação de escolha: <strong>Uma escolha numa lista</strong> ou <strong>Sim ou não</strong>. Também serve um <strong>formulário</strong> com um campo de lista ou de sim ou não.</li>
+                                <li>Na ação que depende dela, em <strong>Quando vale</strong>, escolha de onde vem a resposta e marque as respostas que fazem a ação valer.</li>
                                 <li>O desenho mostra um losango antes da ação, com a condição escrita.</li>
                             </ol>
                             <p>A ação condicional só aparece para a equipe, e só é cobrada, quando a resposta for uma das marcadas. A mesma regra serve para as saídas da fase, em <strong>Regra desta saída</strong>.</p>
+                            <p>O campo de um formulário com dado reservado a quem gere a unidade não serve de condição, para a resposta não aparecer a quem não pode vê-la.</p>
                         </Parte>
                         <Parte titulo="6. Obrigatória, recomendada ou opcional">
                             <p>Em <strong>Para a fase seguir</strong>, escolha o peso da ação:</p>
                             <ul className="list-disc space-y-1 pl-5">{NIVEIS.map(([k, rotulo]) => <li key={k}>{rotulo}.</li>)}</ul>
+                            <p><strong>Ações alternativas.</strong> Para "faça isto ou aquilo", abra a segunda ação e, em <strong>Alternativa a</strong>, escolha a primeira. Cumprida uma, a outra deixa de ser cobrada. No desenho aparece "ou" entre as duas.</p>
                         </Parte>
                         <Parte titulo="7. Quem cumpre e quem vê">
                             <ul className="space-y-1.5">
@@ -128,10 +132,10 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             <table className={tabela}>
                                 <thead><tr><th>Ação</th><th>O que pede</th><th>Quando vale</th></tr></thead>
                                 <tbody>
-                                    <tr><td>Registrar os dados básicos</td><td>Um formulário: órgão solicitante, data de chegada, assunto, local dos fatos</td><td>Sempre</td></tr>
-                                    <tr><td>Sistema utilizado</td><td>Uma escolha numa lista: SIM, SPU, E-mail, Whatsapp, Outros</td><td>Sempre</td></tr>
-                                    <tr><td>Registrar no SIM e converter em PGEA</td><td>Um texto curto: número do PGEA</td><td>Se o sistema não for o SIM</td></tr>
-                                    <tr><td>Informar o solicitante</td><td>Um formulário: data e meio</td><td>Se o sistema não for o SIM</td></tr>
+                                    <tr><td>Registrar os dados básicos</td><td>Um formulário: órgão solicitante, data de chegada, assunto, local dos fatos e sistema utilizado (lista: SIM, SPU, E-mail, Whatsapp, Outros)</td><td>Sempre</td></tr>
+                                    <tr><td>Registrar no SIM e converter em PGEA</td><td>Um texto curto: número do PGEA</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
+                                    <tr><td>Informar o solicitante</td><td>Um formulário: data e meio</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
+                                    <tr><td>Conferir se há consulta anterior do mesmo órgão</td><td>Nada: só orienta</td><td>Sempre</td></tr>
                                     <tr><td>Análise superficial</td><td>Um texto longo, sem evento, opcional</td><td>Sempre</td></tr>
                                 </tbody>
                             </table>
