@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    modelosDeRito, niveisDoFluxo, ritoDeMermaid, ritoDeTabela, ritoParaMermaid, ritoParaTabela, seguintes, simplificar,
+    copiarFases, modelosDeRito, niveisDoFluxo, problemasDoFluxo, ritoDeMermaid, ritoDeTabela, ritoParaMermaid, ritoParaTabela, seguintes, simplificar,
 } from './secretariaRito.js';
 
 const nomesSeg = (fases, i) => seguintes(fases, i).map((id) => fases.find((f) => f.id === id).nome);
@@ -91,4 +91,48 @@ test('modelos têm ids únicos e fluxo válido', () => {
         assert.equal(ids.size, m.fases.length);
         m.fases.forEach((f) => (f.proximas || []).forEach((p) => assert.ok(ids.has(p), `${m.nome}: ${f.nome}`)));
     }
+});
+
+test('problemasDoFluxo: fase solta e ciclo sem saída', () => {
+    const fases = [
+        { id: 'a', nome: 'A', proximas: ['b'] },
+        { id: 'x', nome: 'Solta', final: true },
+        { id: 'b', nome: 'B', proximas: ['c'] },
+        { id: 'c', nome: 'C', proximas: ['b'] },
+        { id: 'd', nome: 'D', final: true },
+    ];
+    assert.deepEqual(problemasDoFluxo(fases), { soltas: ['x', 'd'], presas: ['a', 'b', 'c'] });
+    // Linear, com saída para si mesma (o servidor descarta) e fim: nada a apontar.
+    assert.deepEqual(problemasDoFluxo([{ id: 'a', proximas: ['a'] }, { id: 'b' }]), { soltas: [], presas: [] });
+    assert.deepEqual(problemasDoFluxo([]), { soltas: [], presas: [] });
+});
+
+test('copiarFases: ids novos, refs internas refeitas, externas só se válidas', () => {
+    const fases = [
+        { id: 'a', nome: 'A', proximas: ['b', 'z'], condicoes: { b: 'se sim', z: 'se não' }, acoes: ['x'] },
+        { id: 'b', nome: 'B', certidao: { grupo: 'a', titulo: 'T' } },
+        { id: 'c', nome: 'C', certidao: { grupo: 'q' } },
+    ];
+    const [a, b, c] = copiarFases(fases);
+    assert.notEqual(a.id, 'a');
+    assert.deepEqual(a.proximas, [b.id]);
+    assert.deepEqual(a.condicoes, { [b.id]: 'se sim' });
+    assert.deepEqual(b.certidao, { grupo: a.id, titulo: 'T' });
+    assert.equal(c.certidao, undefined);
+    a.acoes.push('y');
+    assert.deepEqual(fases[0].acoes, ['x']);
+    const [a2] = copiarFases([fases[0]], new Set(['z']));
+    assert.deepEqual(a2.proximas, ['z']);
+    assert.deepEqual(a2.condicoes, { z: 'se não' });
+    // Com a origem: a saída implícita vira explícita; quem perde todas as saídas fica final.
+    const origem = [{ id: 'p', nome: 'P' }, { id: 'q', nome: 'Q' }, { id: 'r', nome: 'R', proximas: ['q'] }, { id: 's', nome: 'S', final: true }];
+    const [p2, r2, s2] = copiarFases([origem[0], origem[2], origem[3]], new Set(), origem);
+    assert.equal(p2.final, true);
+    assert.equal(p2.sem_saida, true);
+    assert.deepEqual(p2.proximas, []);
+    assert.equal(r2.final, true);
+    assert.equal(s2.sem_saida, undefined);
+    const [q2, r3] = copiarFases([origem[1], origem[2]], new Set(), origem);
+    assert.deepEqual(q2.proximas, [r3.id]);
+    assert.deepEqual(r3.proximas, [q2.id]);
 });

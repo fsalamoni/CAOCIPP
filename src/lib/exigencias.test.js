@@ -106,3 +106,29 @@ test('outros atos da fase: padrão, escolha e registro_atos sem perder fase e re
     assert.deepEqual(m.registroComOutros({ registro: 'interno' }, { prazo: 'nenhum' }), { fase: 'evento', remessas: 'evento', outros: { prazo: 'nenhum' } });
     assert.deepEqual(m.registroComOutros({ registro: 'remessas_fora' }, {}), { remessas: 'evento' });
 });
+
+test('níveis: obrigatório, recomendado e opcional', async () => {
+    const m = await import('./exigencias.js');
+    const f = {
+        id: 'f', acoes: ['Doc', 'Avisar', 'Conferir'],
+        documentos: [{ descricao: 'Parecer' }, { descricao: 'Foto', nivel: 'recomendado' }, { descricao: 'Mapa', nivel: 'opcional' }],
+        acoes_regras: [{ documento: { descricao: 'Doc', forma: 'qualquer', nivel: 'opcional' } }, { recomendada: true }, { obrigatoria: true }],
+    };
+    assert.deepEqual(m.faltaNaFase(f, {}, []).map((e) => e.descricao), ['Parecer', 'Conferir']);
+    assert.deepEqual(m.recomendadosNaFase(f, {}, []).map((e) => e.descricao), ['Foto', 'Avisar']);
+    assert.deepEqual(m.recomendadosNaFase(f, { f: { d1: { documento_id: 'x' } } }, [1]), []);
+    assert.equal(m.nivelDaAcao(null), 'opcional');
+    assert.equal(m.nivelDaAcao({ documento: { descricao: 'a' } }), '');
+    assert.deepEqual(m.regraComNivel({ ajuda: 'x', obrigatoria: true }, 'recomendado'), { ajuda: 'x', recomendada: true });
+    assert.equal(m.regraComNivel({ obrigatoria: true }, 'opcional'), null);
+    assert.deepEqual(m.regraComNivel({ documento: { descricao: 'a', nivel: 'opcional' }, ajuda: 'y' }, ''), { documento: { descricao: 'a' }, ajuda: 'y' });
+    // Trocar o que a ação pede mantém a orientação e o nível.
+    assert.deepEqual(m.regraComPedido({ ajuda: 'z', recomendada: true }, 'texto', 'A'), { pede: 'texto', recomendada: true, ajuda: 'z' });
+    assert.equal(m.regraComPedido({ ajuda: 'z' }, 'documento', 'A').ajuda, 'z');
+    // O nível sobrevive à troca entre documento e as demais.
+    const doc = { documento: { descricao: 'A', forma: 'qualquer' } };
+    assert.equal(m.nivelDaAcao(m.regraComPedido(doc, 'texto', 'A')), '');
+    assert.equal(m.nivelDaAcao(m.regraComPedido({ recomendada: true }, 'documento', 'A')), 'recomendado');
+    assert.equal(m.nivelDaAcao(m.regraComPedido({ documento: { descricao: 'A', nivel: 'recomendado' } }, 'confirmar', 'A')), 'recomendado');
+    assert.equal(m.nivelDaAcao(m.regraComPedido(null, 'documento', 'A')), '');
+});

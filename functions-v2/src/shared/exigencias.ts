@@ -82,7 +82,12 @@ export interface Exigencia {
     modelo_id?: string;
     /** Ausente = juntado aos autos. Senão, guardado no processo fora dos autos (documento de controle). */
     destino?: Exclude<Destino, 'autos'>;
+    /** Ausente = obrigatório (a fase só segue com ele ou com dispensa). Recomendado avisa; opcional só lembra. */
+    nivel?: NivelExigencia;
 }
+
+export const NIVEIS = ['recomendado', 'opcional'] as const;
+export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
 export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'documento'] as const;
@@ -102,8 +107,10 @@ export interface RegraAcao {
     destino?: DestinoAcao;
     /** As partes veem a informação (e a certidão, se nos autos) no portal. */
     partes?: boolean;
-    /** A fase só segue com ela cumprida (ou com dispensa motivada). Ação com documento é sempre exigida. */
+    /** A fase só segue com ela cumprida (ou com dispensa motivada). Na ação com documento, vale `documento.nivel`. */
     obrigatoria?: true;
+    /** Não impede a fase de seguir, mas quem a conclui é avisado de que ficou por fazer. */
+    recomendada?: true;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -159,25 +166,30 @@ export function sanitizeExigencia(raw: unknown, descricaoPadrao = ''): Exigencia
     const tipo = texto(o.tipo, 60);
     const modelo = texto(o.modelo_id, 40);
     const dest = destino(o.destino, 'autos');
-    return { descricao, forma, ...(tipo ? { tipo } : {}), ...(modelo ? { modelo_id: modelo } : {}), ...(dest !== 'autos' ? { destino: dest } : {}) };
+    const nivel = NIVEIS.includes(o.nivel as NivelExigencia) ? (o.nivel as NivelExigencia) : null;
+    return {
+        descricao, forma, ...(tipo ? { tipo } : {}), ...(modelo ? { modelo_id: modelo } : {}), ...(dest !== 'autos' ? { destino: dest } : {}),
+        ...(nivel ? { nivel } : {}),
+    };
 }
 
 function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const pedeBruto = PEDIDOS.includes(r.pede as Pedido) ? (r.pede as Pedido) : (r.documento ? 'documento' : 'confirmar');
+    // Orientação a quem cumpre: vale para qualquer ação.
+    const ajuda = texto(r.ajuda, 200);
     if (pedeBruto === 'documento') {
         const documento = sanitizeExigencia(r.documento || {}, acao);
         if (!documento) return null;
         documento.descricao = acao;
-        return { documento };
+        return { documento, ...(ajuda ? { ajuda } : {}) };
     }
     const out: RegraAcao = {};
+    if (ajuda) out.ajuda = ajuda;
     if (pedeBruto !== 'confirmar') {
         out.pede = pedeBruto;
         const rotulo = texto(r.rotulo, 80);
         if (rotulo && rotulo !== acao) out.rotulo = rotulo;
-        const ajuda = texto(r.ajuda, 200);
-        if (ajuda) out.ajuda = ajuda;
         if (pedeBruto === 'lista') {
             const opcoes = [...new Set((Array.isArray(r.opcoes) ? r.opcoes : []).map((s) => texto(s, 80)).filter(Boolean))].slice(0, MAX_OPCOES_ACAO);
             if (opcoes.length < 2) throw new Error(`A ação "${acao}" pede uma escolha: informe ao menos duas opções`);
@@ -194,6 +206,7 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     const partes = dest !== 'nenhum' && (r.partes === true || (r.partes === undefined && r.autos === true));
     if (partes) out.partes = true;
     if (r.obrigatoria === true) out.obrigatoria = true;
+    else if (r.recomendada === true) out.recomendada = true;
     return Object.keys(out).length ? out : null;
 }
 
@@ -261,6 +274,10 @@ export function pendentesDaFase(f: FaseRegras | undefined, cumpridas: Cumpridas 
     const feitas = (f && cumpridas?.[f.id]) || {};
     return exigenciasDaFase(f).filter((e) => !feitas[e.chave]);
 }
+
+/** Documentos obrigatórios ainda não cumpridos: os recomendados e opcionais não impedem a fase de seguir. */
+export const documentosQueFaltam = (f: FaseRegras | undefined, cumpridas: Cumpridas | undefined) =>
+    pendentesDaFase(f, cumpridas).filter((e) => !e.nivel);
 
 /** Ações obrigatórias (sem documento) ainda não feitas na fase. */
 export function acoesObrigatoriasPendentes(f: FaseRegras | undefined, feitas: number[] | undefined) {

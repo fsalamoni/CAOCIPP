@@ -82,6 +82,25 @@ export const PEDIDOS = [
 ];
 export const ROTULO_PEDIDO = Object.fromEntries(PEDIDOS);
 
+/** Para a fase seguir: obrigatória (padrão), recomendada (avisa) ou opcional. Igual ao servidor (NIVEIS). */
+export const NIVEIS = [
+    ['', 'Obrigatória: sem ela, só com motivo de dispensa'],
+    ['recomendado', 'Recomendada: avisa, mas não impede'],
+    ['opcional', 'Opcional: só lembra'],
+];
+/** Nível da ação: documento guarda em `documento.nivel`; as demais, em obrigatoria/recomendada (ausente = opcional). */
+export const nivelDaAcao = (r) => (r?.documento ? r.documento.nivel || '' : r?.obrigatoria ? '' : r?.recomendada ? 'recomendado' : 'opcional');
+/** A regra com outro nível (o que não muda fica como estava). */
+export function regraComNivel(r, nivel) {
+    if (r?.documento) {
+        const { nivel: _n, ...d } = r.documento;
+        return { ...r, documento: { ...d, ...(nivel ? { nivel } : {}) } };
+    }
+    const { obrigatoria: _o, recomendada: _r, ...resto } = r || {};
+    const n = { ...resto, ...(nivel === '' ? { obrigatoria: true } : nivel === 'recomendado' ? { recomendada: true } : {}) };
+    return Object.keys(n).length ? n : null;
+}
+
 export const destinoDaAcao = (r) => (r?.documento
     ? lido(r.documento.destino, ['evento', 'informacao'], 'autos')
     : r?.destino ? lido(r.destino, DESTINOS_ACAO, 'evento') : (r?.autos ? 'autos' : 'evento'));
@@ -172,10 +191,23 @@ export function saidasDaFase(fases, f) {
 
 /** Regra nova a partir de outra, trocando o que a ação pede (mantém destino, quem vê e obrigatoriedade). */
 export function regraComPedido(r, pede, acao) {
+    const nova = regraComPedidoSemNivel(r, pede, acao);
+    // O nível (obrigatória, recomendada, opcional) acompanha a ação: no documento fica em documento.nivel, nas outras em obrigatoria/recomendada.
+    // Nível nunca escolhido (ação sem marca, que lê como opcional) segue o padrão do pedido novo: documento obrigatório; o resto opcional.
+    const escolhido = r?.documento || r?.obrigatoria || r?.recomendada;
+    return escolhido ? regraComNivel(nova, nivelDaAcao(r)) : nova;
+}
+
+function regraComPedidoSemNivel(r, pede, acao) {
     const dest = destinoDaAcao(r);
     // Documento novo vai aos autos, salvo se o criador já tinha escolhido outro destino para a ação.
     const escolhido = r?.documento?.destino || r?.destino;
-    if (pede === 'documento') return { documento: { descricao: acao, forma: r?.documento?.forma || 'qualquer', ...(['evento', 'informacao'].includes(escolhido) ? { destino: escolhido } : {}) } };
+    if (pede === 'documento') {
+        return {
+            documento: { descricao: acao, forma: r?.documento?.forma || 'qualquer', ...(['evento', 'informacao'].includes(escolhido) ? { destino: escolhido } : {}) },
+            ...(r?.ajuda ? { ajuda: r.ajuda } : {}),
+        };
+    }
     const base = {
         ...(pede !== 'confirmar' ? { pede } : {}),
         ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),
@@ -183,7 +215,8 @@ export function regraComPedido(r, pede, acao) {
         ...(pede === 'registro' ? { modulo: r?.modulo || 'consultas' } : {}),
         ...(dest !== 'evento' ? { destino: dest } : {}),
         ...(partesVeem(r) ? { partes: true } : {}),
-        ...(r?.obrigatoria ? { obrigatoria: true } : {}),
+        ...(r?.obrigatoria ? { obrigatoria: true } : r?.recomendada ? { recomendada: true } : {}),
+        ...(r?.ajuda ? { ajuda: r.ajuda } : {}),
     };
     return Object.keys(base).length ? base : null;
 }
@@ -197,7 +230,8 @@ export function resumoDaAcao(r) {
     }
     const oque = pede === 'confirmar' ? 'confirmação' : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];
-    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${r?.obrigatoria ? '; obrigatória' : ''}`;
+    const nivel = { '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)];
+    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${nivel}`;
 }
 
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
@@ -224,8 +258,18 @@ export function acoesObrigatoriasPendentes(f, feitas = []) {
     return (f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) ? [{ descricao: a, acao_idx: i }] : []));
 }
 
-/** Tudo o que falta para a fase seguir sem dispensa: documentos e ações obrigatórias. */
-export const faltaNaFase = (f, cumpridas, feitas) => [...pendentesDaFase(f, cumpridas), ...acoesObrigatoriasPendentes(f, feitas)];
+/** Tudo o que falta para a fase seguir sem dispensa: documentos e ações obrigatórias (recomendados e opcionais não impedem). */
+export const faltaNaFase = (f, cumpridas, feitas) => [...pendentesDaFase(f, cumpridas).filter((e) => !e.nivel), ...acoesObrigatoriasPendentes(f, feitas)];
+
+/** O que o rito recomenda na fase e ainda não foi feito: avisa quem conclui, sem impedir. */
+export function recomendadosNaFase(f, cumpridas, feitas = []) {
+    if (!f) return [];
+    const ok = new Set(feitas);
+    return [
+        ...pendentesDaFase(f, cumpridas).filter((e) => e.nivel === 'recomendado'),
+        ...(f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.recomendada && !f.acoes_regras[i]?.documento && !ok.has(i) ? [{ descricao: a, acao_idx: i }] : [])),
+    ];
+}
 
 /** Redigir = produzido no órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). `d.controle`: guardado fora dos autos. */
 export function atende(e, d) {

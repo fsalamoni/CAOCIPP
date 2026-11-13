@@ -1,9 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, ChevronDown, Copy, Download, FilePlus2, FileSpreadsheet, FileText, FileUp, GitBranch, LayoutTemplate, Loader2, Plus, Rocket, Save, Shapes, Trash2, Users, X,
+    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Copy, CopyPlus, Download, FilePlus2, FileSpreadsheet, FileText, FileUp, GitBranch,
+    LayoutTemplate, ListPlus, Loader2, MoreVertical, Plus, Redo2, Rocket, Save, Shapes, Trash2, Undo2, Users, X,
 } from 'lucide-react';
+import {
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -16,8 +20,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
-import { modelosDeRito, novoIdFase, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
+import { copiarFases, modelosDeRito, novoIdFase, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
 import { registroComOutros, tirarDoGrupo } from '@/lib/exigencias';
+import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
+import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import FluxoRito from './FluxoRito';
 import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
 import { TIPOS_UNIDADE, copiarTexto } from './comum';
@@ -26,6 +32,13 @@ import PreviaRito from './PreviaRito';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
+const MAX_MODELOS_FASE = 10; // igual ao servidor
+const MAX_DESFAZER = 30;
+// Botões de ícone: 44px no toque, compactos a partir do tablet.
+const ICONE = 'h-11 w-11 sm:h-8 sm:w-8';
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+const mudarDeLugar = (lista, de, para) => { const l = [...lista]; const [x] = l.splice(de, 1); l.splice(para, 0, x); return l; };
+const ehCampoDeTexto = (el) => el?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName);
 const ACEITOS = '.xlsx,.xlsm,.xls,.csv,.ods,.docx,.pdf,.txt,.md,.bpm,.bpmn,.xpdl,.xml,.drawio,.mmd';
 const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MIME_BIZAGI = 'application/x-bizagi-bpm';
@@ -44,10 +57,16 @@ export async function baixarPlanilha(fases, nome) {
     XLSX.writeFile(wb, `${(nome || 'rito').replace(/[^\w\- ]+/g, '').trim() || 'rito'}.xlsx`);
 }
 
-/** Pendências que travam ou enfraquecem a implantação, com a fase para ir até ela. */
-export function pendenciasDaProposta(p) {
+/**
+ * Pendências que travam ou enfraquecem a implantação, com a fase para ir até ela.
+ * `ligadas`: integrações com outros módulos (sem ela, não se confere a ação "registro").
+ */
+export function pendenciasDaProposta(p, ligadas = null) {
     const out = [];
     const ids = new Set(p.fases.map((f) => f.id));
+    const fluxo = problemasDoFluxo(p.fases);
+    const soltas = new Set(fluxo.soltas);
+    const presas = new Set(fluxo.presas);
     if (!p.fases.length) out.push({ fase: null, grave: true, texto: 'O rito precisa de ao menos uma fase.' });
     if (p.fases.length > MAX_FASES) out.push({ fase: p.fases[MAX_FASES].id, grave: true, texto: `O rito tem ${p.fases.length} fases; o máximo é ${MAX_FASES}. Junte ou remova fases (os detalhes podem virar ações de uma fase).` });
     p.fases.forEach((f, i) => {
@@ -58,7 +77,18 @@ export function pendenciasDaProposta(p) {
             if (a.trim() && r?.pede === 'lista' && (r.opcoes || []).filter((o) => o.trim()).length < 2) {
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede uma escolha: informe ao menos duas opções.` });
             }
+            if (a.trim() && r?.pede === 'registro' && ligadas && !ligadas[r.modulo]) {
+                const mod = MODULOS.find(([m]) => m === r.modulo)?.[1] || r.modulo;
+                out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um registro de ${mod}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou mude o que a ação pede.` });
+            }
         });
+        const semTexto = (f.acoes || []).filter((a) => !a.trim()).length;
+        if (semTexto) out.push({ fase: f.id, texto: `${rot} tem ${plural(semTexto, 'ação sem texto, que é descartada', 'ações sem texto, que são descartadas')} ao salvar.` });
+        const semDescricao = (f.documentos || []).filter((d) => !(d.descricao || '').trim()).length;
+        if (semDescricao) out.push({ fase: f.id, texto: `${rot} tem ${plural(semDescricao, 'documento sem descrição, que é descartado', 'documentos sem descrição, que são descartados')} ao salvar.` });
+        if ((f.modelos_ref || []).length > MAX_MODELOS_FASE) out.push({ fase: f.id, texto: `${rot} tem ${f.modelos_ref.length} modelos; cabem ${MAX_MODELOS_FASE} por fase e só os primeiros ficam.` });
+        if (soltas.has(f.id)) out.push({ fase: f.id, texto: `${rot} não é alcançada: nenhuma fase segue para ela. Ligue-a no fluxo em "Encaminhamentos" de outra fase.` });
+        if (presas.has(f.id)) out.push({ fase: f.id, texto: `${rot} entra num ciclo sem saída: dali o processo nunca chega a uma fase final.` });
         if (!f.unidade_ref) out.push({ fase: f.id, texto: `${rot} não tem unidade: a fase vai correr na unidade que estiver com o processo.` });
         if (!f.final) {
             const saidas = (f.proximas || []).filter((id) => id !== f.id);
@@ -116,7 +146,46 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
     const [p0] = useState(() => (editando ? deRito(rito) : copia ? deRito({ ...copia, id: undefined, nome: `${copia.nome} (cópia)` }) : null));
     const [p, setP] = useState(p0); // proposta vinculada
     const [inicial] = useState(() => (p0 ? JSON.stringify(p0) : null));
-    const [tipo, setTipo] = useState({ criar: !editando && !copia, nome: '', sigla: '' });
+    // Já há tipos ativos no órgão: o rito novo não cria outro tipo, salvo se a pessoa pedir.
+    const semTipos = !(estado.tipos || []).some((t) => t.ativo !== false);
+    const [tipo, setTipo] = useState({ criar: !editando && !copia && semTipos, nome: '', sigla: '' });
+
+    // Desfazer e refazer a revisão (só nesta tela; o rascunho guarda o estado atual).
+    // Edições seguidas em menos de 0,7 s (digitar) viram um passo só; mudanças de estrutura, um passo cada.
+    const hist = useRef({ antes: [], depois: [], em: 0 });
+    const pAtual = useRef(p);
+    pAtual.current = p;
+    const [, setPassos] = useState(0);
+    useEffect(() => { if (!p) hist.current = { antes: [], depois: [], em: 0 }; }, [p]);
+    const editarP = (novo, passo = false) => {
+        const h = hist.current;
+        const agora = Date.now();
+        if (passo || agora - h.em > 700 || !h.antes.length) h.antes = [...h.antes, pAtual.current].slice(-MAX_DESFAZER);
+        h.em = passo ? 0 : agora;
+        h.depois = [];
+        setP(novo);
+        setPassos((n) => n + 1);
+    };
+    const voltarPasso = (de, para) => {
+        const h = hist.current;
+        if (!h[de].length) return false;
+        h[para] = [...h[para], pAtual.current].slice(-MAX_DESFAZER);
+        const alvo = h[de][h[de].length - 1];
+        h[de] = h[de].slice(0, -1);
+        h.em = 0;
+        setP(alvo);
+        setConfirmar(false);
+        setPassos((n) => n + 1);
+        return true;
+    };
+    const desfazer = () => voltarPasso('antes', 'depois');
+    const refazer = () => voltarPasso('depois', 'antes');
+    /** Desfaz só se o último passo ainda é o que deixou `marca` (o botão do aviso não desfaz outra coisa). */
+    const desfazerSe = (marca) => {
+        const a = hist.current.antes;
+        if (a[a.length - 1] === marca) desfazer();
+        else toast.info('Já houve outras alterações depois desta. Use Desfazer, no rodapé, até voltar.');
+    };
     const [confirmar, setConfirmar] = useState(false);
     const [implantando, setImplantando] = useState(false);
     const [criado, setCriado] = useState(null); // resumo após implantar
@@ -146,18 +215,18 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
     const [trocar, setTrocar] = useState(false);
     const manter = () => ({ id: p.id, versao: p.versao, ativo: p.ativo, nome: p.nome, descricao: p.descricao });
     const comecar = (r, criarTipo = true) => {
-        if (trocar) { setP({ ...deRito(r), ...manter() }); setTrocar(false); setConfirmar(false); return; }
+        if (trocar) { editarP({ ...deRito(r), ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
         setP(deRito(r));
-        setTipo({ criar: criarTipo, nome: r.nome || '', sigla: '' });
+        setTipo({ criar: criarTipo && semTipos, nome: r.nome || '', sigla: '' });
         setConfirmar(false);
     };
     const carregar = (r, nomePadrao) => {
         if (!r.fases.length) { toast.error(r.avisos?.[0] || 'Não achei fases'); return; }
         const v = vincularProposta(r, estado);
-        if (trocar) { setP({ ...v, ...manter() }); setTrocar(false); setConfirmar(false); return; }
+        if (trocar) { editarP({ ...v, ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
         const nome = r.nome || nomePadrao || 'Rito importado';
         setP({ ...v, nome, descricao: `Importado de ${r.origem || 'arquivo'}.` });
-        setTipo({ criar: true, nome, sigla: '' });
+        setTipo({ criar: semTipos, nome, sigla: '' });
         setConfirmar(false);
     };
     const escolher = async (e) => {
@@ -175,7 +244,9 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
 
     return (
         <Dialog open={aberto} onOpenChange={(o) => !o && fechar()}>
-            <DialogContent className="max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[94vh] sm:max-w-[1400px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden">
+            <DialogContent className="max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[94vh] sm:max-w-[1400px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden"
+                // Esc durante um arrasto cancela o arrasto, não fecha o editor.
+                onEscapeKeyDown={(e) => { if (document.body.dataset.arrastando) e.preventDefault(); }}>
                 <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
                     <GitBranch className="w-5 h-5 text-indigo-600" aria-hidden />
                     <DialogTitle className="text-base truncate">{editando ? `Editar rito: ${rito.nome}` : 'Novo rito'}</DialogTitle>
@@ -249,7 +320,8 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
                         </div>
                     </div>
                 ) : (
-                    <Revisao p={p} setP={setP} estado={estado} tipo={tipo} setTipo={setTipo} confirmar={confirmar} setConfirmar={setConfirmar}
+                    <Revisao p={p} setP={editarP} estado={estado} semTipos={semTipos}
+                        desfazer={desfazer} refazer={refazer} desfazerSe={desfazerSe} podeDesfazer={hist.current.antes.length > 0} podeRefazer={hist.current.depois.length > 0} tipo={tipo} setTipo={setTipo} confirmar={confirmar} setConfirmar={setConfirmar}
                         implantando={implantando} editando={editando} deCopia={!!copia} extra={extra}
                         rascunho={decidirRascunho ? rascunho : null} onContinuarRascunho={continuarRascunho} onDescartarRascunho={descartarRascunho}
                         onVoltar={() => { setRascunho(lerRascunho(orgId)); setP(null); }}
@@ -338,17 +410,70 @@ function ResumoImplantacao({ r, onIr, onFechar }) {
 function Revisao({
     p, setP, estado, tipo, setTipo, confirmar, setConfirmar, implantando, onVoltar, onImplantar,
     editando = false, deCopia = false, extra = null, rascunho = null, onContinuarRascunho, onDescartarRascunho, onExcluir, onTrocarFases, onAbrirTipo = null,
+    semTipos = true, desfazer, refazer, desfazerSe, podeDesfazer = false, podeRefazer = false,
 }) {
     const [excluir, setExcluir] = useState(false);
+    const [copiarDe, setCopiarDe] = useState(false);
     const tiposDoRito = editando ? (estado.tipos || []).filter((t) => t.rito_id === p.id) : [];
     const existentes = estado.unidades.filter((u) => u.ativa !== false);
     const nomeUnidade = (ref) => existentes.find((u) => u.id === ref)?.nome || p.unidades.find((u) => u.ref === ref)?.nome || '';
     const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || 'Modelo excluído (sai ao salvar)';
     const mudarFase = (id, d) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => (f.id === id ? { ...f, ...d } : f)) }); };
-    const mover = (i, delta) => { const fs = [...p.fases]; const [x] = fs.splice(i, 1); fs.splice(i + delta, 0, x); setP({ ...p, fases: fs }); };
+    const moverPara = (de, para) => { setConfirmar(false); setP({ ...p, fases: mudarDeLugar(p.fases, de, para) }, true); };
+    const mover = (i, delta) => moverPara(i, i + delta);
+    const nomeFase = (f, i) => (f?.nome.trim() ? `a fase ${f.nome.trim()}` : `a fase ${i + 1}`);
+    // Inserir e duplicar: a fase nova entra logo abaixo e abre para editar.
+    const inserirEm = (i, fase, aviso) => {
+        setConfirmar(false);
+        const fs = [...p.fases];
+        fs.splice(i, 0, fase);
+        setP({ ...p, fases: fs }, true);
+        irParaFase(fase.id);
+        if (aviso) toast.success(aviso);
+    };
+    const inserirAbaixo = (i) => inserirEm(i + 1, { id: novoIdFase(), nome: '', proximas: [] });
+    // A fase que segue para a de baixo sem dizer passa a dizer; a última sem saída passa a ser final.
+    // Assim a fase que entra logo abaixo (ou no fim) não muda o caminho de quem já estava lá.
+    const fixarSaida = (fases, i) => {
+        const f = fases[i];
+        if (!f || f.final || (f.proximas || []).some((x) => x !== f.id && fases.some((y) => y.id === x))) return fases;
+        const fixa = i < fases.length - 1 ? { proximas: [fases[i + 1].id] } : { final: true };
+        return fases.map((x, k) => (k === i ? { ...x, ...fixa } : x));
+    };
+    const duplicar = (i) => {
+        const f = p.fases[i];
+        const [c] = copiarFases([f], new Set(p.fases.map((x) => x.id)), p.fases);
+        delete c.sem_saida;
+        c.nome = `${f.nome.trim() || `Fase ${i + 1}`} (cópia)`;
+        const fs = fixarSaida(p.fases, i);
+        setConfirmar(false);
+        setP({ ...p, fases: [...fs.slice(0, i + 1), c, ...fs.slice(i + 1)] }, true);
+        irParaFase(c.id);
+        toast.success('Fase duplicada. Nenhuma fase segue para a cópia ainda: ligue-a em "Encaminhamentos" de outra fase.');
+    };
+    const copiarDeOutro = (escolhidas, origem) => {
+        const copias = copiarFases(escolhidas, new Set(), origem);
+        const finais = copias.filter((c) => c.sem_saida).map((c) => c.nome);
+        copias.forEach((c) => delete c.sem_saida);
+        setConfirmar(false);
+        setP({ ...p, fases: [...fixarSaida(p.fases, p.fases.length - 1), ...copias] }, true);
+        setCopiarDe(false);
+        if (copias[0]) irParaFase(copias[0].id);
+        toast.success(`${plural(copias.length, 'fase copiada', 'fases copiadas')} para o fim do rito. Ligue-as no fluxo em "Encaminhamentos" de outra fase.${
+            finais.length ? ` ${finais.join(', ')} ${finais.length > 1 ? 'seguiam para fases não copiadas e ficaram como finais' : 'seguia para fases não copiadas e ficou como final'}.` : ''}`, { duration: 8000 });
+    };
     // "Aplicar a todas as fases": o mesmo registro dos outros atos em todo o rito.
     const outrosEmTodas = (outros) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => ({ ...f, registro_atos: registroComOutros(f, outros), registro: undefined })) }); };
-    const remover = (id) => setP({ ...p, fases: tirarDoGrupo(p.fases, id).filter((f) => f.id !== id).map((f) => ({ ...f, proximas: (f.proximas || []).filter((x) => x !== id) })) });
+    const remover = (id) => {
+        const i = p.fases.findIndex((f) => f.id === id);
+        setConfirmar(false);
+        setP({ ...p, fases: tirarDoGrupo(p.fases, id).filter((f) => f.id !== id).map((f) => ({ ...f, proximas: (f.proximas || []).filter((x) => x !== id) })) }, true);
+        const marca = p;
+        toast(`${nomeFase(p.fases[i], i).replace(/^a /, 'A ')} foi removida.`, { action: { label: 'Desfazer', onClick: () => desfazerSe(marca) } });
+        // O foco vai para a fase vizinha (ou para "Adicionar fase"), não se perde no corpo da página.
+        const vizinha = p.fases[i + 1] || p.fases[i - 1];
+        setTimeout(() => (document.querySelector(vizinha ? `#fase-${vizinha.id} button[aria-expanded]` : '#pr-add-fase'))?.focus(), 60);
+    };
     // Unidade nova criada a partir de uma fase, já ligada a ela (um só setP).
     const novaUnidade = (faseId) => {
         const ref = `+${Date.now().toString(36)}`;
@@ -380,8 +505,40 @@ function Revisao({
     const usadosMod = useMemo(() => new Set(p.fases.flatMap((f) => f.modelos_ref || [])), [p]);
     const unNovas = p.unidades.filter((u) => usadosUn.has(u.ref));
     const modNovos = p.modelos.filter((m) => usadosMod.has(m.ref));
-    const pendencias = useMemo(() => pendenciasDaProposta(p), [p]);
-    const semNome = pendencias.some((x) => x.grave);
+    const ligadas = useMemo(() => integracoesLigadas(estado), [estado]);
+    const pendencias = useMemo(() => pendenciasDaProposta(p, ligadas), [p, ligadas]);
+    const graves = pendencias.filter((x) => x.grave);
+    const fluxoComProblema = useMemo(() => { const r = problemasDoFluxo(p.fases); return new Set([...r.soltas, ...r.presas]); }, [p.fases]);
+    const outrosRitos = (estado.ritos || []).filter((r) => r.id !== p.id && (r.fases || []).length);
+    // Implantar sempre responde: com pendência que impede, leva até ela e diz o que falta.
+    const tentarImplantar = () => {
+        if (!p.nome.trim()) {
+            toast.error('Dê um nome ao rito.');
+            const el = document.getElementById('pr-nome');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el?.focus();
+            return;
+        }
+        if (graves.length) {
+            toast.error(graves.length > 1 ? `Faltam ${graves.length} correções. A primeira: ${graves[0].texto}` : graves[0].texto);
+            if (graves[0].fase) irParaFase(graves[0].fase);
+            return;
+        }
+        setConfirmar(true);
+    };
+    // Atalhos Ctrl+Z e Ctrl+Shift+Z (ou Ctrl+Y) fora dos campos de texto, que têm o desfazer deles; os botões fazem o mesmo.
+    const teclas = (e) => {
+        // Com outro diálogo por cima (prévia, versões, copiar, excluir), o atalho é dele, não do rito escondido.
+        if (!(e.ctrlKey || e.metaKey) || ehCampoDeTexto(e.target) || document.querySelectorAll('[role="dialog"],[role="alertdialog"]').length > 1) return;
+        const k = e.key.toLowerCase();
+        if (k === 'z' && !e.shiftKey && podeDesfazer) { e.preventDefault(); voltar(); }
+        else if (((k === 'z' && e.shiftKey) || k === 'y') && podeRefazer) { e.preventDefault(); avancar(); }
+    };
+    // Leitor de tela: avisa o que desfazer, refazer e mover pelo menu fizeram.
+    const [aviso, setAviso] = useState('');
+    const anunciar = (t) => setAviso((a) => (a === t ? `${t}\u00a0` : t));
+    const voltar = () => { desfazer(); anunciar('Alteração desfeita.'); };
+    const avancar = () => { refazer(); anunciar('Alteração refeita.'); };
     // Fases recolhidas por padrão quando são muitas: a lista cabe na tela e o fluxo guia a revisão.
     const [abertas, setAbertas] = useState(() => new Set(p.fases.length <= 6 ? p.fases.map((f) => f.id) : []));
     const [sel, setSel] = useState(null);
@@ -389,13 +546,23 @@ function Revisao({
     const irParaFase = (id) => {
         setSel(id);
         setAbertas((s) => new Set(s).add(id));
-        // Espera o cartão abrir para rolar até ele.
-        requestAnimationFrame(() => document.getElementById(`fase-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+        // Espera o cartão abrir para rolar até ele e pôr o foco no nome da fase.
+        setTimeout(() => {
+            document.getElementById(`fase-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById(`nome-${id}`)?.focus({ preventScroll: true });
+        }, 60);
     };
     const comPendencia = useMemo(() => new Set(pendencias.map((x) => x.fase)), [pendencias]);
     const fluxo = useMemo(() => p.fases.filter((f) => f.nome.trim()).map((f) => ({ ...f, proximas: f.final ? [] : f.proximas, raia: nomeUnidade(f.unidade_ref) })),
         [p.fases, p.unidades, estado.unidades]);
     const todasAbertas = abertas.size >= p.fases.length;
+    const teclasAtual = useRef(teclas);
+    teclasAtual.current = teclas;
+    useEffect(() => {
+        const h = (e) => teclasAtual.current(e);
+        document.addEventListener('keydown', h);
+        return () => document.removeEventListener('keydown', h);
+    }, []);
 
     return (
         <>
@@ -422,7 +589,7 @@ function Revisao({
                             <p className="text-xs text-slate-600 dark:text-slate-300">Uma raia por unidade. Clique numa fase para abrir e ajustar.</p>
                         </div>
                         {fluxo.length > 0
-                            ? <FluxoRito fases={fluxo} atual={sel} onSelecionar={irParaFase} legenda alturaMaxima="62vh" />
+                            ? <FluxoRito fases={fluxo} atual={sel} onSelecionar={irParaFase} legenda alturaMaxima="62vh" alertas={fluxoComProblema} />
                             : <p className="text-sm text-slate-600">Dê nome às fases para ver o fluxo.</p>}
                     </section>
                 </div>
@@ -438,29 +605,44 @@ function Revisao({
                         )}
                         {pendencias.length > 0 && (
                             <section aria-label="Pendências" className="rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3">
-                                <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" aria-hidden /> {pendencias.length} pendência{pendencias.length > 1 ? 's' : ''} {editando ? 'antes de salvar' : 'antes de implantar'}</h3>
+                                <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" aria-hidden /> {plural(pendencias.length, 'pendência', 'pendências')} {editando ? 'antes de salvar' : 'antes de implantar'}{graves.length ? ` (${graves.length} ${graves.length > 1 ? 'impedem' : 'impede'})` : ''}</h3>
                                 <ul className="mt-1.5 space-y-1 text-xs text-amber-900 dark:text-amber-100">
                                     {pendencias.slice(0, 10).map((x, k) => (
                                         <li key={k} className="flex flex-wrap items-center gap-2">
                                             <span className="flex-1 min-w-[10rem]">{x.grave ? <b>Impede: </b> : ''}{x.texto}</span>
-                                            <button type="button" className="underline underline-offset-2 font-medium" onClick={() => irParaFase(x.fase)} hidden={!x.fase}>Ir</button>
+                                            <button type="button" className="min-h-[2.75rem] sm:min-h-0 px-1 underline underline-offset-2 font-medium" onClick={() => irParaFase(x.fase)} hidden={!x.fase}>{x.grave ? 'Corrigir' : 'Ver'}</button>
                                         </li>
                                     ))}
                                     {pendencias.length > 10 && <li>e mais {pendencias.length - 10}…</li>}
                                 </ul>
                             </section>
                         )}
-                        <div className="flex items-center gap-2 pt-1">
-                            <h3 className="text-sm font-semibold">{p.fases.length} fases</h3>
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <h3 className="text-sm font-semibold">{plural(p.fases.length, 'fase', 'fases')}</h3>
+                            {p.fases.length > 10 && (
+                                <select aria-label="Ir para a fase" value="" onChange={(e) => e.target.value && irParaFase(e.target.value)} className={`${campo} h-8 max-w-[14rem] text-xs`}>
+                                    <option value="">Ir para a fase…</option>
+                                    {p.fases.map((f, i) => <option key={f.id} value={f.id}>{i + 1}. {f.nome.trim() || 'Fase sem nome'}</option>)}
+                                </select>
+                            )}
                             <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs" onClick={() => setAbertas(new Set(todasAbertas ? [] : p.fases.map((f) => f.id)))}>{todasAbertas ? 'Recolher todas' : 'Abrir todas'}</Button>
                         </div>
-                        {p.fases.map((f, i) => (
-                            <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
-                                aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
-                                nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d) => mudarFase(f.id, d)} mover={(d) => mover(i, d)} remover={() => remover(f.id)}
-                                novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} outrosEmTodas={outrosEmTodas} />
-                        ))}
-                        <Button variant="outline" size="sm" className="gap-1" onClick={() => { const id = novoIdFase(); setP({ ...p, fases: [...p.fases, { id, nome: '', proximas: [] }] }); setAbertas((s) => new Set(s).add(id)); }}><Plus className="w-4 h-4" /> Adicionar fase</Button>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 -mt-1">Arraste pela alça <span aria-hidden>⋮⋮</span> (ou use o teclado) para mudar a ordem. No menu de cada fase: inserir, duplicar, mover e remover.</p>
+                        <ListaOrdenavel ids={p.fases.map((f) => f.id)} nome={(id) => { const i = p.fases.findIndex((f) => f.id === id); return nomeFase(p.fases[i], i); }} onMover={moverPara}>
+                            {p.fases.map((f, i) => (
+                                <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
+                                    aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
+                                    nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d) => mudarFase(f.id, d)}
+                                    mover={(d) => { mover(i, d); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${i + d + 1} de ${p.fases.length}.`); }}
+                                    moverPara={(para) => { moverPara(i, para); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${para + 1} de ${p.fases.length}.`); }} remover={() => remover(f.id)}
+                                    inserirAbaixo={() => inserirAbaixo(i)} duplicar={() => duplicar(i)}
+                                    novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} outrosEmTodas={outrosEmTodas} />
+                            ))}
+                        </ListaOrdenavel>
+                        <div className="flex flex-wrap gap-2">
+                            <Button id="pr-add-fase" variant="outline" size="sm" className="gap-1" onClick={() => inserirEm(p.fases.length, { id: novoIdFase(), nome: '', proximas: [] })}><Plus className="w-4 h-4" /> Adicionar fase</Button>
+                            {outrosRitos.length > 0 && <Button variant="outline" size="sm" className="gap-1" onClick={() => setCopiarDe(true)}><CopyPlus className="w-4 h-4" aria-hidden /> Copiar fases de outro rito</Button>}
+                        </div>
                     </div>
 
                     <aside className="space-y-4 lg:sticky lg:top-0 self-start">
@@ -527,6 +709,7 @@ function Revisao({
                         </section>
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
                             <label className="flex items-center gap-2 text-sm font-semibold"><Checkbox checked={tipo.criar} onCheckedChange={(c) => setTipo({ ...tipo, criar: c === true })} /> Criar tipo de processo com este rito</label>
+                            {!tipo.criar && !editando && !semTipos && <p className="text-xs text-slate-600 dark:text-slate-300">O órgão já tem tipos de processo. Para um deles usar este rito, escolha o rito no tipo, depois de implantar; ou marque para criar um tipo novo.</p>}
                             {tipo.criar && (
                                 <div className="flex gap-2">
                                     <Input aria-label="Nome do tipo de processo" placeholder={p.nome} value={tipo.nome} onChange={(e) => setTipo({ ...tipo, nome: e.target.value })} className="h-8" />
@@ -543,6 +726,11 @@ function Revisao({
                     ? <Button variant="ghost" className="gap-1 text-red-700 dark:text-red-300" onClick={() => setExcluir(true)}><Trash2 className="w-4 h-4" aria-hidden /> Excluir rito</Button>
                     : <Button variant="ghost" onClick={onVoltar}>Voltar ao início</Button>}
                 {editando && <Button variant="ghost" className="gap-1" onClick={onTrocarFases}><FileUp className="w-4 h-4" aria-hidden /> Substituir fases</Button>}
+                <div className="flex" role="group" aria-label="Desfazer e refazer">
+                    <Button variant="ghost" size="icon" className={ICONE} disabled={!podeDesfazer} onClick={voltar} aria-label="Desfazer" title="Desfazer (Ctrl+Z)"><Undo2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className={ICONE} disabled={!podeRefazer} onClick={avancar} aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)"><Redo2 className="w-4 h-4" /></Button>
+                </div>
+                <p className="sr-only" aria-live="polite">{aviso}</p>
                 <PreviaRito estado={estado} rascunho={p} rotuloBotao="Prévia" />
                 <span className="text-xs text-slate-600 dark:text-slate-300">Rascunho salvo neste navegador.</span>
                 <p className="text-xs text-slate-600 dark:text-slate-300 ml-auto text-right">
@@ -554,11 +742,17 @@ function Revisao({
                         <Button className="gap-1" onClick={onImplantar} disabled={implantando}>{implantando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {editando ? 'Confirmar e salvar' : 'Confirmar implantação'}</Button>
                     </>
                 ) : (
-                    <Button className="gap-1" disabled={semNome || !p.nome.trim()} onClick={() => setConfirmar(true)} title={semNome ? 'Resolva as pendências marcadas como "Impede"' : !p.nome.trim() ? 'Dê um nome ao rito' : undefined}>
+                    <Button className="gap-1" onClick={tentarImplantar} aria-describedby={graves.length || !p.nome.trim() ? 'pr-impede' : undefined}>
                         {editando ? <><Save className="w-4 h-4" /> Salvar alterações</> : <><Rocket className="w-4 h-4" /> Implantar rito</>}
                     </Button>
                 )}
+                {(graves.length > 0 || !p.nome.trim()) && !confirmar && (
+                    <p id="pr-impede" className="basis-full text-right text-xs text-amber-800 dark:text-amber-200">
+                        {!p.nome.trim() ? 'Falta o nome do rito.' : `${plural(graves.length, 'pendência impede', 'pendências impedem')} ${editando ? 'salvar' : 'implantar'}: clique para ir até ${graves.length > 1 ? 'a primeira' : 'ela'}.`}
+                    </p>
+                )}
             </div>
+            <CopiarFasesDeRito aberto={copiarDe} ritos={outrosRitos} onFechar={() => setCopiarDe(false)} onCopiar={copiarDeOutro} />
             <AlertDialog open={excluir} onOpenChange={setExcluir}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -581,7 +775,74 @@ function Revisao({
     );
 }
 
-function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo, modelos, mudar, mover, remover, novaUnidade, addModelo, aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas }) {
+/** Escolhe um rito do órgão e as fases dele para copiar para este (entram no fim, com ids novos). */
+function CopiarFasesDeRito({ aberto, ritos, onFechar, onCopiar }) {
+    const [ritoId, setRitoId] = useState('');
+    const [marcadas, setMarcadas] = useState(null); // null = todas
+    const rito = ritos.find((r) => r.id === ritoId) || ritos[0];
+    const fases = useMemo(() => (rito ? deRito(rito).fases : []), [rito]);
+    const escolhidas = marcadas ?? fases.map((f) => f.id);
+    const fechar = () => { setRitoId(''); setMarcadas(null); onFechar(); };
+    return (
+        <Dialog open={aberto} onOpenChange={(o) => !o && fechar()}>
+            <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
+                <DialogTitle>Copiar fases de outro rito</DialogTitle>
+                <DialogDescription>As fases escolhidas entram no fim deste rito, com tudo o que têm: ações, regras, documentos, modelos e unidade. Os caminhos entre elas são mantidos; os que levavam a fases não copiadas saem, e a fase que fica sem saída vira final. Nenhuma fase deste rito passa a seguir para elas até você ligar.</DialogDescription>
+                <div className="space-y-3">
+                    <div>
+                        <Label htmlFor="cf-rito">Rito</Label>
+                        <select id="cf-rito" value={rito?.id || ''} onChange={(e) => { setRitoId(e.target.value); setMarcadas(null); }} className={`${campo} mt-1 w-full`}>
+                            {ritos.map((r) => <option key={r.id} value={r.id}>{r.nome} ({plural((r.fases || []).length, 'fase', 'fases')})</option>)}
+                        </select>
+                    </div>
+                    <fieldset>
+                        <legend className="text-sm font-medium flex items-center gap-2">
+                            Fases
+                            <button type="button" className="text-xs font-normal underline underline-offset-2" onClick={() => setMarcadas(escolhidas.length === fases.length ? [] : null)}>
+                                {escolhidas.length === fases.length ? 'Desmarcar todas' : 'Marcar todas'}
+                            </button>
+                        </legend>
+                        <ul className="mt-1 space-y-0.5">
+                            {fases.map((f, i) => (
+                                <li key={f.id}>
+                                    <label className="flex min-h-[2.75rem] sm:min-h-0 items-center gap-2 text-sm py-0.5">
+                                        <Checkbox checked={escolhidas.includes(f.id)} onCheckedChange={(c) => setMarcadas(c === true ? [...escolhidas, f.id] : escolhidas.filter((x) => x !== f.id))} />
+                                        <span>{i + 1}. {f.nome}{(f.acoes || []).length ? <span className="text-xs text-slate-600 dark:text-slate-400"> · {plural(f.acoes.length, 'ação', 'ações')}</span> : null}</span>
+                                    </label>
+                                </li>
+                            ))}
+                        </ul>
+                    </fieldset>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={fechar}>Cancelar</Button>
+                    <Button disabled={!escolhidas.length} onClick={() => { onCopiar(fases.filter((f) => escolhidas.includes(f.id)), fases); setRitoId(''); setMarcadas(null); }}>
+                        Copiar {plural(escolhidas.length, 'fase', 'fases')}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/** Parte recolhível do cartão da fase, com o resumo à vista quando fechada. */
+function Secao({ titulo, resumo, abertaDe = false, children }) {
+    return (
+        <details open={abertaDe} className="group rounded-md border border-slate-200 dark:border-slate-700">
+            <summary className="flex min-h-[2.75rem] sm:min-h-[2.25rem] cursor-pointer list-none items-center gap-2 px-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded-md">
+                <span>{titulo}</span>
+                {resumo && <span className="min-w-0 truncate text-xs font-normal text-slate-600 dark:text-slate-300">{resumo}</span>}
+                <ChevronDown className="ml-auto w-4 h-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 p-2.5">{children}</div>
+        </details>
+    );
+}
+
+function CartaoFase({
+    f, i, total, fases, existentes, unidadesNovas, nomeModelo, modelos, mudar, mover, moverPara, remover, inserirAbaixo, duplicar, novaUnidade, addModelo,
+    aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas,
+}) {
     const [novoModelo, setNovoModelo] = useState('');
     const outras = fases.filter((x) => x.id !== f.id);
     const saidas = f.proximas || [];
@@ -597,10 +858,18 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
     const nomeDe = (id) => fases.find((x) => x.id === id)?.nome || '?';
     const nAcoes = (f.acoes || []).filter((a) => a.trim()).length;
     const resumo = f.final ? 'Fim do processo' : saidas.length > 1 ? `${saidas.length} saídas` : saidas.length === 1 ? `→ ${nomeDe(saidas[0])}` : proxLista ? `→ ${proxLista}` : 'Sem saída';
+    const nDocs = (f.documentos || []).length;
+    const nModelos = (f.modelos_ref || []).length;
+    const rotulo = f.nome.trim() || `fase ${i + 1}`;
     return (
-        <div id={`fase-${f.id}`} className={`rounded-lg border bg-white dark:bg-slate-900 scroll-mt-4 ${selecionada ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'}`}>
+        <ItemOrdenavel id={f.id} rotulo={`Arrastar a fase ${rotulo}`}
+            className={`rounded-lg border bg-white dark:bg-slate-900 scroll-mt-4 ${selecionada ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'}`}>
+        {({ alca }) => (
+        <div id={`fase-${f.id}`} className="scroll-mt-4">
+            <div className="flex items-center gap-0.5 pl-1 pr-1">
+            {alca}
             <button type="button" onClick={onAlternar} aria-expanded={aberta} aria-controls={`fase-corpo-${f.id}`}
-                className="flex w-full items-center gap-2 rounded-lg p-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2.5 pl-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">
                 <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-100 text-xs font-semibold flex items-center justify-center shrink-0">{i + 1}</span>
                 <span className="min-w-0 flex-1">
                     <span className={`block truncate text-sm font-medium ${f.nome.trim() ? '' : 'text-red-700 dark:text-red-300'}`}>{f.nome.trim() || 'Fase sem nome'}</span>
@@ -611,16 +880,28 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 {pendente && <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" aria-label="Tem pendência" />}
                 <ChevronDown className={`w-4 h-4 shrink-0 text-slate-500 transition-transform ${aberta ? 'rotate-180' : ''}`} aria-hidden />
             </button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className={`${ICONE} shrink-0`} aria-label={`Mais ações da fase ${rotulo}`}><MoreVertical className="w-4 h-4" /></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={inserirAbaixo}><ListPlus className="w-4 h-4 mr-2" aria-hidden /> Inserir fase abaixo</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={duplicar}><CopyPlus className="w-4 h-4 mr-2" aria-hidden /> Duplicar fase</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem disabled={i === 0} onSelect={() => moverPara(0)}><ChevronsUp className="w-4 h-4 mr-2" aria-hidden /> Mover para o início</DropdownMenuItem>
+                    <DropdownMenuItem disabled={i === 0} onSelect={() => mover(-1)}><ArrowUp className="w-4 h-4 mr-2" aria-hidden /> Subir uma posição</DropdownMenuItem>
+                    <DropdownMenuItem disabled={i === total - 1} onSelect={() => mover(1)}><ArrowDown className="w-4 h-4 mr-2" aria-hidden /> Descer uma posição</DropdownMenuItem>
+                    <DropdownMenuItem disabled={i === total - 1} onSelect={() => moverPara(total - 1)}><ChevronsDown className="w-4 h-4 mr-2" aria-hidden /> Mover para o fim</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem disabled={total === 1} onSelect={remover} className="text-red-700 dark:text-red-300"><Trash2 className="w-4 h-4 mr-2" aria-hidden /> Remover fase</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            </div>
             {aberta && (
             <div id={`fase-corpo-${f.id}`} className="space-y-3 border-t border-slate-100 dark:border-slate-800 p-3">
             <div className="flex flex-wrap items-center gap-2">
-                <Input aria-label={`Nome da fase ${i + 1}`} value={f.nome} onChange={(e) => mudar({ nome: e.target.value })} placeholder="Nome da fase" className="h-9 flex-1 min-w-[10rem] font-medium" />
+                <Input id={`nome-${f.id}`} aria-label={`Nome da fase ${i + 1}`} value={f.nome} onChange={(e) => mudar({ nome: e.target.value })} placeholder="Nome da fase" className="h-9 flex-1 min-w-[10rem] font-medium" />
                 <Input aria-label={`Prazo da fase ${i + 1}, em dias`} type="number" min={1} max={3650} placeholder="Dias" value={f.prazo_dias || ''} onChange={(e) => mudar({ prazo_dias: Number(e.target.value) || undefined })} className="h-9 w-20" />
-                <div className="flex">
-                    <Button size="icon" variant="ghost" className="h-8 w-8" disabled={i === 0} onClick={() => mover(-1)} aria-label="Subir fase"><ArrowUp className="w-4 h-4" /></Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" disabled={i === total - 1} onClick={() => mover(1)} aria-label="Descer fase"><ArrowDown className="w-4 h-4" /></Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" disabled={total === 1} onClick={remover} aria-label={`Remover a fase ${f.nome || i + 1}`}><Trash2 className="w-4 h-4" /></Button>
-                </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
                 <div>
@@ -638,14 +919,16 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                 </div>
             </div>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
-            <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} aplicarATodas={outrosEmTodas} />
+            <Secao titulo="Registros, certidão conjunta e documentos" resumo={nDocs ? plural(nDocs, 'documento pedido', 'documentos pedidos') : 'onde fica cada ato da fase'}>
+                <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} aplicarATodas={outrosEmTodas} />
+            </Secao>
             <div>
-                <p className="text-xs font-medium mb-1">Modelos de documento</p>
+                <p className="text-xs font-medium mb-1">Modelos de documento{nModelos > MAX_MODELOS_FASE ? ` (${nModelos}; cabem ${MAX_MODELOS_FASE})` : ''}</p>
                 <div className="flex flex-wrap gap-1.5 items-center">
                     {(f.modelos_ref || []).map((r) => (
                         <Badge key={r} variant={String(r).startsWith('+') ? 'outline' : 'secondary'} className="gap-1">
                             {nomeModelo(r)}{String(r).startsWith('+') && <span className="text-[10px] text-indigo-600">novo</span>}
-                            <button type="button" onClick={() => mudar({ modelos_ref: f.modelos_ref.filter((x) => x !== r) })} aria-label={`Tirar ${nomeModelo(r)}`}><X className="w-3 h-3" /></button>
+                            <button type="button" className="-m-1.5 p-1.5" onClick={() => mudar({ modelos_ref: f.modelos_ref.filter((x) => x !== r) })} aria-label={`Tirar ${nomeModelo(r)}`}><X className="w-3 h-3" /></button>
                         </Badge>
                     ))}
                     <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); addModelo(novoModelo); setNovoModelo(''); }}>
@@ -666,7 +949,7 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
                                     {outras.map((x) => <option key={x.id} value={x.id}>{x.nome || '(sem nome)'}</option>)}
                                 </select>
                                 <Input aria-label="Condição desta saída" value={f.condicoes?.[id] || ''} onChange={(e) => mudar({ condicoes: { ...(f.condicoes || {}), [id]: e.target.value } })} placeholder="Condição (ex.: se deferido)" className="h-8 flex-1 min-w-[9rem]" />
-                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => mudar({ proximas: saidas.filter((x) => x !== id) })} aria-label="Tirar esta saída"><X className="w-4 h-4" /></Button>
+                                <Button size="icon" variant="ghost" className={ICONE} onClick={() => mudar({ proximas: saidas.filter((x) => x !== id) })} aria-label="Tirar esta saída"><X className="w-4 h-4" /></Button>
                             </div>
                         ))}
                         {outras.length > 0 && (
@@ -685,5 +968,7 @@ function CartaoFase({ f, i, total, fases, existentes, unidadesNovas, nomeModelo,
             </div>
             )}
         </div>
+        )}
+        </ItemOrdenavel>
     );
 }

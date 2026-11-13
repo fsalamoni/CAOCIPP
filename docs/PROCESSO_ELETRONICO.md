@@ -624,6 +624,69 @@ processual](./LOGICA_PROCESSUAL.md), seções 5 e 6. A lógica pura está em
   funcionam como antes. Processo guarda a cópia das fases da autuação: mudar
   o rito vale para os próximos processos.
 
+### Obrigatório, recomendado ou opcional (13/11/2026)
+
+Cada documento da fase e cada ação diz se é preciso para a fase seguir:
+
+| Nível | Onde fica | Na tela do processo | Ao sair da fase |
+|---|---|---|---|
+| Obrigatório | documento: sem `nivel`; ação: `obrigatoria: true` | "exige documento" / selo "obrigatória" | sem ele, só com motivo de dispensa (nos autos) |
+| Recomendado | documento: `nivel: 'recomendado'`; ação: `recomendada: true` | "documento recomendado" / selo "recomendada" | aviso azul "O rito recomenda nesta fase…", sem motivo |
+| Opcional | documento: `nivel: 'opcional'`; ação: nenhum dos dois | "documento opcional" | nada |
+
+- Documento sem `nivel` continua obrigatório (compatível com ritos antigos);
+  ação sem marca continua opcional. Na ação que pede documento, o nível fica
+  em `documento.nivel`.
+- Servidor: `sanitizeExigencia` guarda `nivel` (`NIVEIS` em
+  `shared/exigencias.ts`); `documentosQueFaltam` (só os obrigatórios) é o que
+  `exigenciasAbertas` cobra para a dispensa. `pendentesDaFase` continua com
+  todos, para a juntada reconhecer também o recomendado e o opcional.
+- Cliente: `nivelDaAcao`, `regraComNivel`, `faltaNaFase` (só obrigatórios) e
+  `recomendadosNaFase` em `src/lib/exigencias.js`.
+- **Orientação a quem cumpre** (`ajuda`, até 200 caracteres) vale para toda
+  ação, inclusive a de só confirmar e a que pede documento; aparece abaixo da
+  ação em "Nesta fase" e no diálogo de registrar.
+- **Opções da escolha** se escrevem uma por linha (ponto e vírgula colado
+  também separa), com o contador "N de 30 opções".
+
+### Editor de rito: ordem, cópias, desfazer e pendências (13/11/2026)
+
+- **Arrastar** (`Ordenavel.jsx`, dnd-kit): fases e ações têm uma alça; mouse,
+  toque (segurar) ou teclado (espaço pega, setas movem, espaço solta, Esc
+  cancela), com anúncios em português para leitor de tela.
+- **Menu de cada fase** (⋮): inserir fase abaixo, duplicar, mover para o
+  início, subir, descer, mover para o fim e remover.
+- **Duplicar** (`copiarFases` em `secretariaRito.js`): a cópia entra logo
+  abaixo, com ids novos e as mesmas saídas; se a original seguia para a de
+  baixo sem dizer, passa a dizer (e, se era a última sem saída, vira final),
+  para a cópia não entrar no caminho. Nenhuma fase segue para a cópia até a
+  pessoa ligar.
+- **Copiar fases de outro rito**: escolhe o rito e as fases; entram no fim,
+  com ações, regras, documentos, modelos e unidade. As saídas implícitas da
+  origem viram explícitas antes da cópia; caminhos entre as copiadas são
+  mantidos, os que levavam a fases não copiadas saem, e a cópia que fica sem
+  saída vira final (o aviso diz quais). A última fase deste rito, se terminava
+  sem dizer, passa a ser final, para não seguir para as cópias.
+- Ao arrastar, Esc cancela o arrasto sem fechar o editor. O atalho de
+  desfazer não age com outro diálogo aberto por cima (prévia, versões).
+- **Desfazer e refazer** (até 30 passos; Ctrl+Z e Ctrl+Shift+Z ou Ctrl+Y
+  fora dos campos de texto, que têm o desfazer deles). Digitação seguida
+  vira um passo; mudança de estrutura, um passo cada. Remover uma fase mostra
+  o aviso com "Desfazer", que só desfaz se nada mudou depois. O histórico não
+  vai ao rascunho do navegador.
+- **Pendências novas** (`pendenciasDaProposta(p, ligadas)`): fase que nenhum
+  caminho alcança e fase num ciclo sem saída (`problemasDoFluxo`, também
+  marcadas em âmbar tracejado no fluxo); ação que pede registro de módulo com
+  a integração desligada (impede); ação ou documento sem texto (descartados
+  ao salvar); mais de 10 modelos na fase.
+- **Implantar/Salvar** responde sempre: com pendência que impede, leva até a
+  primeira fase com problema e diz o que falta; sem nome, foca o nome.
+- Fases com mais de 10: "Ir para a fase…". O bloco "Registros, certidão
+  conjunta e documentos" do cartão abre e fecha. Botões de ícone com 44 px
+  no celular.
+- "Criar tipo de processo com este rito" vem desmarcado quando o órgão já
+  tem tipos ativos (marcado no primeiro rito).
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

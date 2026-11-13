@@ -33,7 +33,7 @@ import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
-import { FORMAS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, situacaoDaFase, sugeridas } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
@@ -376,7 +376,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             {faseAtual.acoes.map((a, i) => {
                                 // Ação que pede documento: cumpre-se com a juntada (ou guardando-o), não aqui.
                                 const exig = exigencias.find((e) => e.acao_idx === i);
-                                if (exig) return <li key={i}>{itemExigencia(exig)}</li>;
+                                if (exig) return <li key={i}>{itemExigencia({ ...exig, ajuda: faseAtual.acoes_regras?.[i]?.ajuda })}</li>;
                                 const r = faseAtual.acoes_regras?.[i] || null;
                                 const desfazer = () => setConfirmar({
                                     titulo: 'Desfazer a ação?',
@@ -412,7 +412,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     )}
                     {docsDaFase.length > 0 && (
                         <div>
-                            <p className="text-sm font-medium">Documentos exigidos nesta fase</p>
+                            <p className="text-sm font-medium">Documentos desta fase</p>
                             <ul className="space-y-1 mt-1">{docsDaFase.map((e) => <li key={e.chave}>{itemExigencia(e)}</li>)}</ul>
                         </div>
                     )}
@@ -830,7 +830,8 @@ function ItemExigencia({ e, podeMexer, ocupado, modelo, onModelo, onNovo }) {
     return (
         <div className="flex flex-wrap items-start gap-2 text-sm">
             <FilePen className="w-4 h-4 mt-0.5 text-amber-700 dark:text-amber-400 shrink-0" aria-hidden />
-            <span className="flex-1 min-w-[10rem]">{e.descricao} <span className="text-xs text-slate-600 dark:text-slate-400">· exige documento ({[forma?.toLowerCase(), e.tipo].filter(Boolean).join(', ')}); {e.destino ? `cumpre-se guardando-o fora dos autos (${ROTULO_DESTINO[e.destino]})` : 'cumpre-se ao juntar'}</span></span>
+            <span className="flex-1 min-w-[10rem]">{e.descricao} <span className="text-xs text-slate-600 dark:text-slate-400">· {e.nivel === 'opcional' ? 'documento opcional' : e.nivel === 'recomendado' ? 'documento recomendado (não impede a fase de seguir)' : 'exige documento'} ({[forma?.toLowerCase(), e.tipo].filter(Boolean).join(', ')}); {e.destino ? `cumpre-se guardando-o fora dos autos (${ROTULO_DESTINO[e.destino]})` : 'cumpre-se ao juntar'}</span>
+                {e.ajuda && <span className="block text-xs text-slate-600 dark:text-slate-400">{e.ajuda}</span>}</span>
             {podeMexer && e.forma !== 'juntar' && modelo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => onModelo(modelo)}>Redigir {modelo.nome}</Button>}
             {podeMexer && !(e.forma !== 'juntar' && modelo) && <Button size="sm" variant="outline" disabled={ocupado} onClick={onNovo}>Novo documento</Button>}
         </div>
@@ -857,10 +858,21 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     // Sair da fase com exigência em aberto (documento ou ação obrigatória): o motivo vira a dispensa, registrada.
     const exigPendentes = [...faltaNaFase(faseDoProc, p.exigencias_cumpridas, p.acoes_feitas?.[p.fase_atual]),
         ...camposFaltandoNaFase(p, formDoTipo(estado, p)).map((c) => ({ descricao: `Preencher "${c.rotulo}"` }))];
-    const avisoDispensa = exigPendentes.length > 0 && (
-        <p className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-3 py-2" role="status">
-            O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa, que fica registrado.
-        </p>
+    // Recomendado e ainda não feito: só avisa, a fase segue sem motivo.
+    const recomendados = recomendadosNaFase(faseDoProc, p.exigencias_cumpridas, p.acoes_feitas?.[p.fase_atual]);
+    const avisoDispensa = (exigPendentes.length > 0 || recomendados.length > 0) && (
+        <>
+            {exigPendentes.length > 0 && (
+                <p className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-3 py-2" role="status">
+                    O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa, que fica registrado.
+                </p>
+            )}
+            {recomendados.length > 0 && (
+                <p className="text-sm rounded-md border border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950 px-3 py-2" role="status">
+                    O rito recomenda nesta fase, e ainda não foi feito: <b>{recomendados.map((e) => e.descricao).join('; ')}</b>. Dá para seguir assim mesmo.
+                </p>
+            )}
+        </>
     );
 
     // Apreciar: o documento que gerou a pendência (petição) aparece ao lado da decisão.
