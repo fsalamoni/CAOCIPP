@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Gavel, ExternalLink, Loader2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import ConfiguracaoProcessoEletronico from './ConfiguracaoProcessoEletronico';
 import PrimeirosPassos from './PrimeirosPassos';
 import PreviaRito from './PreviaRito';
 import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
+import { ABAS_CONFIG, abaInicial } from '@/lib/passosConfiguracao';
 import { RegistroContexto } from './SeletorRegistro';
 
 /**
@@ -24,9 +25,15 @@ export default function ProcessoEletronicoAdmin({ organization }) {
     const qc = useQueryClient();
     const orgId = organization.id;
     const [saving, setSaving] = useState(false);
-    const [aba, setAba] = useState('unidades');
     const estadoQ = useQuery({ queryKey: ['sec-estado', orgId], queryFn: () => secConfig(orgId, 'estado') });
     const estado = estadoQ.data;
+    // Aba no endereço (?aba=), para voltar ao mesmo lugar e compartilhar o link. Sem ela, abre no
+    // primeiro passo pendente (ou em Ritos), calculado uma vez: concluir um passo não troca a aba.
+    const [params, setParams] = useSearchParams();
+    const inicial = useRef(null);
+    if (estado && !inicial.current) inicial.current = abaInicial(estado);
+    const aba = ABAS_CONFIG.includes(params.get('aba')) ? params.get('aba') : (inicial.current || 'unidades');
+    const setAba = (v) => { const n = new URLSearchParams(params); n.set('aba', v); setParams(n, { replace: true }); };
     const enabled = estado ? estado.enabled === true : organization?.secretariaConfig?.enabled === true;
 
     const salvar = async (action, payload, ok) => {
@@ -71,29 +78,6 @@ export default function ProcessoEletronicoAdmin({ organization }) {
                             A administração da plataforma suspendeu o módulo neste órgão{estado.motivo_suspensao ? `: ${estado.motivo_suspensao}` : ''}. Nada foi apagado.
                         </p>
                     )}
-                    {enabled && estado && (
-                        <div className="flex flex-wrap items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
-                            <div className="flex-1 min-w-[14rem]">
-                                <p className="font-medium text-slate-800 dark:text-slate-100">Petição da parte interrompe a fase</p>
-                                <p>Ligado, cada petição pelo portal das partes suspende a fase até o gabinete apreciá-la. Desligado, a petição abre pendência e a fase segue.</p>
-                            </div>
-                            <Switch checked={estado.peticao_interrompe === true} disabled={saving} onCheckedChange={(v) => salvar('salvarPreferencias', { peticao_interrompe: v, ciencia_dias: estado.ciencia_dias }, 'Preferência salva')} aria-label="Petição da parte interrompe a fase" />
-                        </div>
-                    )}
-                    {enabled && estado && (
-                        <div className="flex flex-wrap items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
-                            <div className="flex-1 min-w-[14rem]">
-                                <label htmlFor="ciencia-dias" className="font-medium text-slate-800 dark:text-slate-100">Ciência por decurso</label>
-                                <p>Intimação ou outra comunicação feita pela plataforma que a parte não abrir neste número de dias corridos é dada por ciente, e o prazo começa a contar. Zero desliga: só a parte dá ciência.</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input id="ciencia-dias" key={estado.ciencia_dias} type="number" min={0} max={90} defaultValue={estado.ciencia_dias ?? 10} disabled={saving}
-                                    className="h-9 w-20 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900"
-                                    onBlur={(e) => { const n = Math.max(0, Math.min(90, Math.round(Number(e.target.value) || 0))); if (n !== estado.ciencia_dias) salvar('salvarPreferencias', { peticao_interrompe: estado.peticao_interrompe === true, ciencia_dias: n }, 'Preferência salva'); }} />
-                                <span>dias</span>
-                            </div>
-                        </div>
-                    )}
                     {enabled && (
                         <div className="flex flex-wrap gap-2">
                             <Button asChild variant="outline" className="gap-2">
@@ -109,10 +93,46 @@ export default function ProcessoEletronicoAdmin({ organization }) {
 
             {estadoQ.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a configuração…</p>}
             {estadoQ.error && <p role="alert" className="text-sm text-red-600">{estadoQ.error.message}</p>}
-            {enabled && estado?.isAdmin && <Integracoes estado={estado} saving={saving} onSalvar={(integracoes, ok) => salvar('salvarIntegracoes', { integracoes }, ok)} />}
-            {estado?.isAdmin && <ConfiguracaoProcessoEletronico orgId={orgId} estado={estado} aba={aba} onAba={setAba} />}
+            {estado?.isAdmin && (
+                <ConfiguracaoProcessoEletronico orgId={orgId} estado={estado} aba={aba} onAba={setAba}
+                    integracoes={<Integracoes estado={estado} saving={saving} onSalvar={(integracoes, ok) => salvar('salvarIntegracoes', { integracoes }, ok)} />}
+                    preferencias={<Preferencias estado={estado} saving={saving} onSalvar={(p, ok) => salvar('salvarPreferencias', p, ok)} />} />
+            )}
         </div>
         </RegistroContexto.Provider>
+    );
+}
+
+/** Regras que valem para todos os processos do órgão. */
+function Preferencias({ estado, saving, onSalvar }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">Preferências</CardTitle>
+                <CardDescription>Regras que valem para todos os processos do órgão.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                <div className="flex flex-wrap items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
+                    <div className="flex-1 min-w-[14rem]">
+                        <p className="font-medium text-slate-800 dark:text-slate-100">Petição da parte interrompe a fase</p>
+                        <p>Ligado, cada petição pelo portal das partes suspende a fase até o gabinete apreciá-la. Desligado, a petição abre pendência e a fase segue.</p>
+                    </div>
+                    <Switch checked={estado.peticao_interrompe === true} disabled={saving} onCheckedChange={(v) => onSalvar({ peticao_interrompe: v, ciencia_dias: estado.ciencia_dias }, 'Preferência salva')} aria-label="Petição da parte interrompe a fase" />
+                </div>
+                <div className="flex flex-wrap items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
+                    <div className="flex-1 min-w-[14rem]">
+                        <label htmlFor="ciencia-dias" className="font-medium text-slate-800 dark:text-slate-100">Ciência por decurso</label>
+                        <p>Intimação ou outra comunicação feita pela plataforma que a parte não abrir neste número de dias corridos é dada por ciente, e o prazo começa a contar. Zero desliga: só a parte dá ciência.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input id="ciencia-dias" key={estado.ciencia_dias} type="number" min={0} max={90} defaultValue={estado.ciencia_dias ?? 10} disabled={saving}
+                            className="h-10 w-20 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900"
+                            onBlur={(e) => { const n = Math.max(0, Math.min(90, Math.round(Number(e.target.value) || 0))); if (n !== estado.ciencia_dias) onSalvar({ peticao_interrompe: estado.peticao_interrompe === true, ciencia_dias: n }, 'Preferência salva'); }} />
+                        <span>dias</span>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 

@@ -647,3 +647,38 @@ export function mesclarLotacoes<T extends { uid: string }>(atual: T[], base: T[]
     for (const [uid, l] of mudados) if (!out.some((x) => x.uid === uid)) out.push(l);
     return out;
 }
+
+/**
+ * Histórico da configuração do Processo Eletrônico: ação de auditoria -> assunto
+ * (= aba da configuração; 'modulo' = ativar, preferências, integrações).
+ * Eventos de processo (excluir, restaurar, PDF) ficam fora.
+ */
+export const HISTORICO_CONFIG: Record<string, string> = {
+    SECRETARIA_ATIVADA: 'modulo', SECRETARIA_DESATIVADA: 'modulo', SECRETARIA_PREFERENCIAS: 'modulo', SECRETARIA_INTEGRACOES: 'modulo',
+    SECRETARIA_SUSPENSA_PLATAFORMA: 'modulo', SECRETARIA_REATIVADA_PLATAFORMA: 'modulo',
+    SECRETARIA_ORGAO_SALVO: 'estrutura', SECRETARIA_ORGAO_REMOVIDO: 'estrutura', SECRETARIA_ESTRUTURA_CRIADA: 'estrutura',
+    SECRETARIA_UNIDADE_SALVA: 'unidades', SECRETARIA_UNIDADE_DOCUMENTO: 'unidades', SECRETARIA_UNIDADE_EXCLUIDA: 'unidades',
+    SECRETARIA_EQUIPE_CONVITE: 'unidades', SECRETARIA_EQUIPE_CONVITE_REVOGADO: 'unidades', SECRETARIA_EQUIPE_CONVITE_ACEITO: 'unidades',
+    SECRETARIA_LOTACAO_ADMITIDA: 'unidades', SECRETARIA_LOTACAO_RECUSADA: 'unidades',
+    SECRETARIA_TIPO_SALVO: 'tipos', SECRETARIA_TIPO_EXCLUIDO: 'tipos', SECRETARIA_TIPO_RESTAURADO: 'tipos', SECRETARIA_NUMERACAO: 'tipos',
+    SECRETARIA_RITO_SALVO: 'ritos', SECRETARIA_RITO_IMPLANTADO: 'ritos', SECRETARIA_RITO_EXCLUIDO: 'ritos', SECRETARIA_RITO_RESTAURADO: 'ritos',
+    SECRETARIA_DOCUMENTO_CONFIG: 'documentos', SECRETARIA_MODELO_SALVO: 'documentos', SECRETARIA_MODELO_EXCLUIDO: 'documentos',
+    SECRETARIA_MODELO_RESTAURADO: 'documentos', SECRETARIA_TEXTOS_COMUNICACAO: 'documentos',
+    SECRETARIA_CALENDARIO: 'calendario',
+    SECRETARIA_VERSAO_RESTAURADA: 'versao', // rito ou modelo, por details.colecao
+};
+
+export function assuntoHistorico(action: string, d: Record<string, unknown> = {}): string | null {
+    const a = HISTORICO_CONFIG[action];
+    return a === 'versao' ? (d.colecao === 'modelo' ? 'documentos' : 'ritos') : a || null;
+}
+
+/** Ações a ler, em lotes de até 30 (limite do `in`); assunto ausente ou desconhecido = todas. */
+export function acoesHistorico(assunto?: unknown): string[][] {
+    const valido = typeof assunto === 'string' && Object.values(HISTORICO_CONFIG).includes(assunto) && assunto !== 'versao';
+    const todas = Object.keys(HISTORICO_CONFIG).filter((k) => !valido || HISTORICO_CONFIG[k] === assunto
+        || (HISTORICO_CONFIG[k] === 'versao' && (assunto === 'ritos' || assunto === 'documentos')));
+    const lotes: string[][] = [];
+    for (let i = 0; i < todas.length; i += 30) lotes.push(todas.slice(i, i + 30));
+    return lotes;
+}

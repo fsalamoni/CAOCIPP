@@ -2,16 +2,9 @@ import React, { useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronUp, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-/** Os quatro passos para a equipe conseguir trabalhar, a partir do estado do órgão. */
-export function passosConfiguracao(estado) {
-    const unidades = (estado.unidades || []).filter((u) => u.ativa !== false);
-    return [
-        { aba: 'unidades', feito: unidades.length > 0, titulo: 'Criar as unidades', dica: 'A Secretaria já vem criada; adicione o Gabinete e, se houver, a Assessoria.' },
-        { aba: 'unidades', feito: unidades.some((u) => (u.membros_uids || []).length > 0), titulo: 'Montar a equipe de cada unidade', dica: 'Insira membros do órgão ou convide por e-mail. Sem lotação, ninguém vê processos.' },
-        { aba: 'ritos', feito: (estado.ritos || []).some((r) => r.ativo), titulo: 'Ter um rito ativo', dica: 'Parta de um modelo pronto ou importe de planilha, Word, PDF ou diagrama.' },
-        { aba: 'tipos', feito: (estado.tipos || []).some((t) => t.ativo), titulo: 'Criar o primeiro tipo de processo', dica: 'O tipo escolhe o rito, o sigilo e a unidade de entrada para quem autua.' },
-    ];
-}
+import { passosConfiguracao } from '@/lib/passosConfiguracao';
+
+export { passosConfiguracao };
 
 /** Indicador permanente "Configuração: N de 4" com o que falta, linkado à aba certa. */
 export default function PrimeirosPassos({ estado, onIr }) {

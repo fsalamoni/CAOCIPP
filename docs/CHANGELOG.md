@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Configuração do Processo Eletrônico organizada
+- **Abas próprias** para Integrações e Preferências; a barra de abas fica no
+  topo e rola no celular; a aba vai para o endereço e a página abre no passo
+  que falta (ou em Ritos).
+- **Lixeira**: ritos, tipos, modelos e processos excluídos numa só lista, com
+  quem excluiu, quando, busca e Restaurar.
+- **Histórico** completo: todas as alterações com nome claro, as mais
+  recentes de verdade, sem eventos de processo, filtro por assunto, busca e
+  "Abrir" no item. Quem tem só a permissão de configurar também vê.
+- **Versões**: "Ver" compara a versão com a atual (fases, ações e campos que
+  entram, saem ou mudam) e mostra a prévia antes de restaurar.
+
 ### 13/11/2026 — Prazos do Processo Eletrônico no calendário
 - **Painel do PE** com o calendário do mês: os prazos abertos dos processos
   que a pessoa vê; clicar abre o processo. Aviso quando a lista foi cortada.
