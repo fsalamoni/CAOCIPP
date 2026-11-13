@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { POLOS, ROTULO_REF, rotuloDe } from '@/lib/camposProcesso';
+import { POLOS, ROTULO_REF, importarDados, rotuloDe } from '@/lib/camposProcesso';
 import { CamposProcesso } from './CamposProcesso';
 import { ORIGENS, NativeSelect } from './comum';
 
@@ -78,7 +78,12 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
                     {ajuda('descricao')}
                 </div>
             )}
-            <CamposProcesso prefixo={`${prefixo}-cp`} campos={form.campos} valores={f.campos} onChange={(cid, v) => setF((x) => ({ ...x, campos: { ...x.campos, [cid]: v } }))} />
+            <CamposProcesso prefixo={`${prefixo}-cp`} campos={form.campos} valores={f.campos}
+                onChange={(cid, v) => setF((x) => ({
+                    ...x,
+                    // Registro escolhido na autuação pré-preenche os campos que importam dados dele (a correção nunca importa).
+                    campos: !retificar && form.campos.some((c) => c.id === cid && c.tipo === 'registro') ? importarDados(form, x.campos, cid, v) : { ...x.campos, [cid]: v },
+                }))} />
             {form.origem !== 'oculto' && (
                 <div className="grid sm:grid-cols-3 gap-3">
                     <div>

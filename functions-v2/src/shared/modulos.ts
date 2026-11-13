@@ -6,11 +6,20 @@ import type { CampoValor, Formulario } from './camposProcesso';
  * Integração do Processo Eletrônico com os outros módulos do órgão. O admin
  * liga cada uma em `secretariaConfig.integracoes`; só vale com o módulo ativo
  * no órgão. O processo guarda só número e título do registro escolhido, nunca
- * consulente, partes, promotor, responsável ou situação.
+ * consulente, partes, promotor, responsável ou situação. Os dados do catálogo
+ * abaixo só entram como pré-preenchimento de campo próprio do tipo (editável,
+ * validado como digitado e nunca mostrado às partes).
  */
 export const MODULOS = ['consultas', 'expedientes', 'parcerias', 'juri'] as const;
 export type Modulo = typeof MODULOS[number];
 export const ROTULO_MODULO: Record<Modulo, string> = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri' };
+/** Dados do registro que um campo próprio do tipo pode receber, e de que tipo (espelho em src/lib/camposProcesso.js). */
+export const DADOS_REGISTRO: Record<Modulo, Record<string, 'texto' | 'data'>> = {
+    consultas: { consulente: 'texto', local: 'texto', materia: 'texto', entrada: 'data' },
+    expedientes: { origem: 'texto', sistema: 'texto', objeto: 'texto', entrada: 'data' },
+    parcerias: { tipo: 'texto', objeto: 'texto', partes: 'texto', assinatura: 'data', termo_final: 'data' },
+    juri: { comarca: 'texto', data_juri: 'data' },
+};
 const COLECAO: Record<Modulo, string> = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris' };
 
 /** Registro de outro módulo, como fica no processo. `restrito`: a origem tem acesso restrito (as partes nunca veem). */

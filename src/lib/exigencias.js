@@ -1,4 +1,4 @@
-import { novoCampo } from './camposProcesso.js';
+import { chaveCampo, novoCampo } from './camposProcesso.js';
 // ============================================================================
 // Espelho, para a tela, das regras do rito (functions-v2/src/shared/
 // exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
@@ -114,6 +114,26 @@ export const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
     && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
     && (pedidoDaAcao(r) !== 'confirmar' || ['autos', 'consolidar'].includes(destinoDaAcao(r)));
 export const pedeDado = (r) => !['confirmar', 'documento'].includes(pedidoDaAcao(r));
+
+/**
+ * Variáveis que os campos dos tipos e as informações das ações dão aos modelos:
+ * [chave, rótulo, grupo], sem repetir e sem as chaves de `fora` (as fixas).
+ */
+export function variaveisDisponiveis(estado, fora = []) {
+    const vistas = new Set(fora);
+    const out = [];
+    const add = (rot, grupo) => {
+        const k = chaveCampo(rot);
+        if (!k || k.length > 60 || vistas.has(k)) return;
+        vistas.add(k);
+        out.push([k, String(rot).trim(), grupo]);
+    };
+    for (const t of estado?.tipos || []) for (const c of t.formulario?.campos || []) add(c.rotulo, 'Campos dos tipos');
+    for (const r of estado?.ritos || []) {
+        for (const f of r.fases || []) (f.acoes || []).forEach((a, i) => { const rg = f.acoes_regras?.[i]; if (rg && pedeDado(rg)) add(rg.rotulo || a, 'Informações das ações'); });
+    }
+    return out;
+}
 
 /** Entrada/saída e remessas da fase: onde ficam (lê também o formato antigo `registro`). */
 export function niveisDaFase(f) {

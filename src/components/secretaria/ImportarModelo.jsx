@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { arquivoParaBase64, baixarBase64, secConfig } from '@/services/secretariaService';
 import { CAMPOS_MODELO } from './EditorDocumento';
+import { chaveCampo } from '@/lib/camposProcesso';
+import { variaveisDisponiveis } from '@/lib/exigencias';
 import { PreviaFolha } from './ConfiguracaoDocumentos';
 
 const MAX_MB = 5;
@@ -105,6 +107,14 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, orgao
     const t = proposta?.timbrado;
     const temTimbre = t && (t.cabecalho_linhas?.length || t.brasao || t.rodape);
     const destinoTimbre = unidadeId ? 'desta unidade (timbrado próprio)' : 'do órgão';
+    // Nome que não é fixo, mas é o de um campo de tipo ou informação de ação: também é preenchido.
+    const doEstado = new Set(variaveisDisponiveis(estado).map(([k]) => k));
+    const doTipo = (proposta?.desconhecidos || []).filter((n) => doEstado.has(chaveCampo(n)));
+    const soltos = (proposta?.desconhecidos || []).filter((n) => !doEstado.has(chaveCampo(n)));
+    const avisos = [
+        ...(proposta?.avisos || []).filter((a) => !a.startsWith('Campos sem correspondência')),
+        ...(soltos.length ? [`Campos sem correspondência (ficam como texto para preencher à mão): ${soltos.slice(0, 10).join(', ')}.`] : []),
+    ];
 
     return (
         <Dialog open={aberto} onOpenChange={(o) => !o && fechar()}>
@@ -154,8 +164,11 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, orgao
                         {!proposta.semTexto && (
                             <div className="space-y-1">
                                 <p className="text-sm font-medium">Campos automáticos encontrados</p>
-                                {proposta.campos.length
-                                    ? <div className="flex flex-wrap gap-1">{proposta.campos.map((c) => <Badge key={c} variant="secondary" className="gap-1"><CheckCircle2 className="w-3 h-3" aria-hidden />{ROTULO_CAMPO[c] || c}</Badge>)}</div>
+                                {proposta.campos.length || doTipo.length
+                                    ? <div className="flex flex-wrap gap-1">
+                                        {proposta.campos.map((c) => <Badge key={c} variant="secondary" className="gap-1"><CheckCircle2 className="w-3 h-3" aria-hidden />{ROTULO_CAMPO[c] || c}</Badge>)}
+                                        {doTipo.map((n) => <Badge key={n} variant="secondary" className="gap-1" title="Campo de um tipo de processo ou informação de uma ação"><CheckCircle2 className="w-3 h-3" aria-hidden />{n}</Badge>)}
+                                    </div>
                                     : <p className="text-xs text-slate-600">Nenhum. Você pode inserir campos depois no editor (botão Campos).</p>}
                             </div>
                         )}
@@ -178,9 +191,9 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, orgao
                             </div>
                         )}
 
-                        {proposta.avisos?.length > 0 && (
+                        {avisos.length > 0 && (
                             <ul className="text-xs space-y-1 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 p-3">
-                                {proposta.avisos.map((a, i) => <li key={i} className="flex gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden />{a}</li>)}
+                                {avisos.map((a, i) => <li key={i} className="flex gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden />{a}</li>)}
                             </ul>
                         )}
                     </div>

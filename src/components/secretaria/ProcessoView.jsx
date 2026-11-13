@@ -19,7 +19,7 @@ import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, bas
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { DadosCampos } from './CamposProcesso';
-import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, partesParaCorrecao, pedidoDeCorrecao, valoresDe } from '@/lib/camposProcesso';
+import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, partesParaCorrecao, pedidoDeCorrecao, valoresDe, variaveisDoProcesso } from '@/lib/camposProcesso';
 import FormularioAutuacao from './FormularioAutuacao';
 
 /** Formulário do tipo do processo hoje (também de tipo excluído); null se a tela não o conhece. */
@@ -158,12 +158,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     });
 
     const agora = new Date();
-    const valoresCampos = {
+    const fixos = {
         numero: p.numero, assunto: p.assunto, tipo_processo: p.tipo_nome || '', unidade: nomeUnidade(p.unidade_atual), fase: p.fase_nome,
         partes: p.partes.filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join('; '), orgao: estado.orgao || '',
         usuario: estado.membros.find((m) => m.uid === estado.uid)?.nome || '',
         data: agora.toLocaleDateString('pt-BR'), data_extenso: agora.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
     };
+    // Fixos primeiro: o servidor corta por ordem e o fixo ganha de campo com a mesma chave.
+    const valoresCampos = { ...fixos, ...Object.fromEntries(Object.entries(variaveisDoProcesso(p, informacoes)).filter(([k]) => !(k in fixos))) };
 
     const enviarArquivo = async (file) => {
         if (!file) return;

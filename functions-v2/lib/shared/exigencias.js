@@ -183,7 +183,7 @@ function sanitizeRegra(raw, acao) {
             // quem decide o que as partes veem é a ação inteira.
             let campos;
             try {
-                campos = (0, camposProcesso_1.sanitizeCampos)(lista.map((x) => (x && typeof x === 'object' ? Object.assign(Object.assign({}, x), { exigir_em: undefined }) : x)))
+                campos = (0, camposProcesso_1.sanitizeCampos)(lista.map((x) => (x && typeof x === 'object' ? Object.assign(Object.assign({}, x), { exigir_em: undefined, importar: undefined }) : x)))
                     .map((c) => (Object.assign(Object.assign({}, c), { visivel_partes: false })));
             }
             catch (e) {

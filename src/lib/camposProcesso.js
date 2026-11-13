@@ -48,9 +48,44 @@ export function registrosLigados(p, informacoes = []) {
 }
 
 /** Campos 'registro' do tipo que vêm do mesmo módulo da origem, já preenchidos com ela. */
-export const camposDaOrigem = (form, ref) => (ref && ref.modulo !== 'pe'
-    ? Object.fromEntries((form?.campos || []).filter((c) => c.tipo === 'registro' && c.modulo === ref.modulo).map((c) => [c.id, { id: ref.id, numero: ref.numero, titulo: ref.titulo || '' }]))
-    : {});
+export function camposDaOrigem(form, ref) {
+    if (!ref || ref.modulo === 'pe') return {};
+    // A origem preenche os campos de registro do mesmo módulo e, com eles, os dados importados.
+    return (form?.campos || []).filter((c) => c.tipo === 'registro' && c.modulo === ref.modulo)
+        .reduce((out, c) => importarDados(form, out, c.id, { id: ref.id, numero: ref.numero, titulo: ref.titulo || '', ...(ref.restrito ? { restrito: true } : ref.dados ? { dados: ref.dados } : {}) }), {});
+}
+
+/** Dados do registro que um campo próprio pode receber (espelho de DADOS_REGISTRO em shared/modulos.ts): [id, rótulo, tipo]. */
+export const DADOS_REGISTRO = {
+    consultas: [['consulente', 'Consulente', 'texto'], ['local', 'Local dos fatos', 'texto'], ['materia', 'Matéria', 'texto'], ['entrada', 'Data de entrada', 'data']],
+    expedientes: [['origem', 'Origem', 'texto'], ['sistema', 'Sistema', 'texto'], ['objeto', 'Objeto', 'texto'], ['entrada', 'Data de entrada', 'data']],
+    parcerias: [['tipo', 'Tipo de parceria', 'texto'], ['objeto', 'Objeto', 'texto'], ['partes', 'Partes', 'texto'], ['assinatura', 'Data da assinatura', 'data'], ['termo_final', 'Termo final', 'data']],
+    juri: [['comarca', 'Comarca', 'texto'], ['data_juri', 'Data do júri', 'data']],
+};
+/** Campo que recebe dado deste tipo: data só em data; texto em texto livre ou longo. */
+export const aceitaDado = (c, tipoDado) => (tipoDado === 'data' ? c.tipo === 'data' : c.tipo === 'texto_longo' || (c.tipo === 'texto' && !c.formato));
+/** Opções de "Preencher com dado de" para o campo `c`: [`de|dado`, rótulo]. */
+export const opcoesImportar = (campos, c) => (campos || [])
+    .filter((d) => d.tipo === 'registro' && DADOS_REGISTRO[d.modulo])
+    .flatMap((d) => DADOS_REGISTRO[d.modulo].filter(([, , t]) => aceitaDado(c, t)).map(([k, rot]) => [`${d.id}|${k}`, `${d.rotulo?.trim() || 'Registro'}: ${rot}`]));
+
+/**
+ * Registro escolhido no campo `cid`: grava a escolha e pré-preenche os campos
+ * que importam dados dele. Substitui só o que está vazio ou ainda é o que veio
+ * do registro anterior (o que a pessoa digitou fica). Registro restrito não traz dados.
+ */
+export function importarDados(form, campos, cid, registro) {
+    const antes = (campos?.[cid] && typeof campos[cid] === 'object' && campos[cid].dados) || {};
+    const out = { ...(campos || {}), [cid]: registro };
+    for (const c of form?.campos || []) {
+        if (c.importar?.de !== cid) continue;
+        // Cabe no campo: texto curto vai até 200 (o servidor cortaria sem avisar).
+        const cabe = (v) => (c.tipo === 'texto' ? String(v ?? '').slice(0, 200) : v ?? '');
+        const atual = out[c.id];
+        if (vazio(atual) || atual === cabe(antes[c.importar.dado])) out[c.id] = cabe(registro?.dados?.[c.importar.dado]);
+    }
+    return out;
+}
 export const integracoesLigadas =(estado) => Object.fromEntries(MODULOS.map(([m]) => [m, estado?.integracoes?.[m] === true && estado?.modulos_ativos?.[m] === true]));
 /** Formatos por tipo (o primeiro é o livre). */
 export const FORMATOS = {
@@ -106,12 +141,14 @@ export function copiarCampos(campos, faseIds = [], cabem = MAX_CAMPOS) {
     const lista = (campos || []).slice(0, Math.max(0, cabem));
     const mapa = new Map(lista.map((c) => [c.id, novoCampo().id + Math.random().toString(36).slice(2, 4)]));
     return lista.map((c) => {
-        const { condicao, exigir_em: ex, ...resto } = c;
+        const { condicao, exigir_em: ex, importar, ...resto } = c;
         const alvo = condicao && mapa.get(condicao.campo_id);
+        const de = importar && mapa.get(importar.de);
         const exigir = (ex || []).filter((f) => faseIds.includes(f));
         return {
             ...resto, id: mapa.get(c.id), opcoes: [...(c.opcoes || [])],
             ...(alvo ? { condicao: { ...condicao, campo_id: alvo } } : {}),
+            ...(de ? { importar: { ...importar, de } } : {}),
             ...(exigir.length ? { exigir_em: exigir } : {}),
         };
     });
@@ -229,6 +266,12 @@ export function problemasFormulario(form, faseIds = null) {
         const opcoes = (c.opcoes || []).map((o) => o.trim()).filter(Boolean);
         if (COM_OPCOES.includes(c.tipo) && new Set(opcoes).size < 2) out.push(`"${nomeC}": informe ao menos duas opções`);
         if (c.tipo === 'registro' && !ROTULO_MODULO[c.modulo]) out.push(`"${nomeC}": escolha de que módulo vem o registro`);
+        if (c.importar) {
+            const fonte = form.campos.find((d) => d.id === c.importar.de && d.tipo === 'registro');
+            const t = fonte && (DADOS_REGISTRO[fonte.modulo] || []).find(([k]) => k === c.importar.dado)?.[2];
+            if (!t) out.push(`"${nomeC}": o registro de onde vem o dado mudou ou saiu; escolha o dado de novo`);
+            else if (!aceitaDado(c, t)) out.push(`"${nomeC}" não combina com o dado escolhido`);
+        }
         if (faseIds && c.exigir_em?.length && !c.exigir_em.some((f) => faseIds.includes(f))) {
             out.push(`"${nomeC}": as fases marcadas para exigir o campo não existem no rito deste tipo`);
         }
@@ -273,6 +316,30 @@ export function valorComoGravado(c, v) {
         return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
     }
     return s;
+}
+
+/** Chave de variável de modelo para um rótulo (espelho de sem() em importarModelo.ts). */
+export const chaveCampo = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+/**
+ * Valores do processo para os modelos, além dos fixos. Só entra o que as
+ * partes podem ver (a minuta juntada vai aos autos que elas leem): campo ou
+ * informação marcada para as partes, registro só pelo número e só se não
+ * estiver restrito hoje, e partes por polo. A origem é dado interno e não
+ * entra. Precedência: polos > campos do tipo > informações (a mais recente ganha).
+ */
+export function variaveisDoProcesso(p, informacoes = []) {
+    const out = {};
+    const por = (k, v) => { if (k && !vazio(v)) out[k] = String(v); };
+    [...informacoes].filter((i) => i.visivel_partes === true && !i.restrito).sort((a, b) => (a.seq || 0) - (b.seq || 0))
+        .forEach((i) => por(chaveCampo(i.rotulo), i.valor_texto));
+    for (const c of p?.campos || []) {
+        if (c.visivel_partes !== true || vazio(c.valor) || (c.tipo === 'registro' && c.ref?.restrito)) continue;
+        por(chaveCampo(c.rotulo), c.tipo === 'registro' ? String(c.valor) : valorTexto(c));
+    }
+    for (const [polo] of POLOS) por(`partes_${polo}`, (p?.partes || []).filter((x) => !x.retirada && x.polo === polo).map((x) => x.nome).join('; '));
+    return out;
 }
 
 /** Valor gravado, como texto para mostrar. */

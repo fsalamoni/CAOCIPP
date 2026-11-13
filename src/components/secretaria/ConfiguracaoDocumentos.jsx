@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Copy, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
 import { NativeSelect, documentoDaUnidade } from './comum';
 import EditorDocumento, { CAMPOS_MODELO, FONTES, prepararImagem } from './EditorDocumento';
+import { variaveisDisponiveis } from '@/lib/exigencias';
 import ImportarModelo, { EditorOriginal, rotuloFormatoOriginal } from './ImportarModelo';
 import VersoesDialog from './VersoesDialog';
 import { CartaoComMenu, ConfirmarExclusao, Excluidos } from './Lixeira';
@@ -289,6 +290,7 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
 
 function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
     const [salvando, setSalvando] = useState(false);
+    const camposModelo = useMemo(() => [...CAMPOS_MODELO, ...variaveisDisponiveis(estado, CAMPOS_MODELO.map(([k]) => k))], [estado]);
     const conteudo = useRef(null);
     const sujo = useRef(false);
     useEffect(() => { if (!modelo) { conteudo.current = null; sujo.current = false; } }, [modelo]);
@@ -335,7 +337,7 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
                     </div>
                 </div>
                 <div className="flex-1 min-h-0 p-0 sm:p-2">
-                    <EditorDocumento key={modelo._k} conteudo={modelo.conteudo} config={docCfg} campos={CAMPOS_MODELO}
+                    <EditorDocumento key={modelo._k} conteudo={modelo.conteudo} config={docCfg} campos={camposModelo}
                         onChange={(j) => { conteudo.current = j; sujo.current = true; }} onSalvar={salvar} autoFocus rotulo="Texto do modelo" />
                 </div>
             </DialogContent>

@@ -277,7 +277,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?, outros?{prazo?, pendencia?, urgencia?, dados?, atribuicao?}} (evento \| informacao \| nenhum; ausente = autos, atribuição = evento; o antigo registro? remessas_fora \| interno ainda é lido), certidao?{grupo?, titulo?, incluir_mudancas?}, acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], modulo? (pede registro: consultas \| expedientes \| parcerias \| juri), destino? (autos \| informacao \| nenhum \| consolidar; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
 | `secRitos/{id}/versoes/{000n}`, `secModelos/{id}/versoes/{000n}` e `secTipos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases, exigir_tipo`, `nome, tipo_documento, descricao, conteudo` ou os `CAMPOS_TIPO`) |
-| `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes, formato?, secao?, condicao?{campo_id, valor}, exigir_em?[], modulo? (tipo registro)}]} (até 40 campos), numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
+| `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes, formato?, secao?, condicao?{campo_id, valor}, exigir_em?[], modulo? (tipo registro), importar?{de (id do campo registro), dado} (visivel_partes sempre falso)}]} (até 40 campos), numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
 | `secContadores/{chave}` | `seq` de cada contagem: `{org}_{ano}` (a de sempre, `000001/2026`) ou `{org}_{escopo}_{alvo}_{período}` |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor (lista de textos na múltipla; número no registro), visivel_partes, formato?, ref?{modulo, id, numero, titulo?, restrito?} (registro)}], campos_exigidos?{fase_id: [{id, rotulo, condicao?}]}, origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
@@ -351,7 +351,19 @@ Regras comuns:
   (até 1,5 MB cada), documento até 4 MB. Nada é interpretado como HTML.
   Minutas antigas em Delta continuam abrindo (`deltaParaDoc`).
 - **Modelos:** o admin cria textos prontos com campos (`{{numero}}`,
-  `{{partes}}`, `{{data_extenso}}` etc.) que se preenchem ao começar a redigir.
+  `{{partes}}`, `{{data_extenso}}` etc.) que se preenchem ao começar a redigir
+  (no editor e no Word original). Além dos fixos, cada campo do tipo e cada
+  informação de ação vira `{{slug_do_rótulo}}` (`chaveCampo`, igual à regra
+  da importação de Word), e há `{{partes_requerente}}`, `{{partes_requerido}}`,
+  `{{partes_interessado}}` e `{{partes_terceiro}}`. O botão "Campo" do editor
+  do modelo lista todos, por grupo, e a importação de Word reconhece o nome
+  de campo de tipo ou de informação. Só entra o que as partes podem ver, porque a minuta
+  juntada vai aos autos que elas leem: campo ou informação marcada para as
+  partes, registro só pelo número e só se não estiver restrito hoje (o
+  `obter` relê com `refsFechadas` e marca `restrito` na resposta, sem
+  gravar). A origem é dado interno e não vira variável. Precedência: fixos,
+  depois polos, depois campos do tipo, depois informações (a mais recente). Variável sem valor fica `{{x}}` para preencher à mão. No Word,
+  um nome que é apelido de fixo ("Tipo", "Objeto") vale o fixo.
 - **Visualizar PDF:** a minuta pode ser vista como ficará nos autos, com a
   marca d'água "MINUTA".
 - **Assinatura eletrônica simples** (Lei 14.063/2020, art. 4º, I): registra
@@ -1441,8 +1453,19 @@ admin define, em cada tipo, o que quem autua preenche:
   500 registros mais recentes do módulo, pela regra de membro do órgão; sem
   resultado, procura o número exato em todo o módulo). O
   servidor relê o registro escolhido (`resolverRegistro`, confere o órgão) e
-  guarda só o número e o título (`ref`); consulente, partes, promotor,
-  responsável e situação nunca entram no processo. As partes veem só o
+  guarda só o número e o título (`ref`); partes, promotor, responsável e
+  situação nunca entram no processo. Um campo próprio do tipo pode ser
+  "Preenchido com dado de" um campo de registro do mesmo formulário
+  (`importar {de, dado}`; catálogo `DADOS_REGISTRO` em `shared/modulos.ts`:
+  consulente, local, matéria e entrada da consulta; origem, sistema, objeto e
+  entrada do expediente; tipo, objeto, partes, assinatura e termo final da
+  parceria; comarca e data do júri). O dado só pré-preenche o campo na tela:
+  quem autua pode mudar, o servidor valida como digitado, data só vai para
+  campo de data e texto só para texto livre ou longo, e o campo nunca é
+  mostrado às partes. Trocar o registro troca só o que ainda era o dado do
+  anterior; o que foi digitado fica. Registro de acesso restrito não traz
+  dados. Texto que vai para campo de texto curto entra cortado em 200
+  caracteres, à vista de quem autua. Formulário de ação não importa dados. As partes veem só o
   número, e nunca o registro de acesso restrito (`access_restriction` ou
   anonimizado: `visivel_partes` vira falso). O portal relê a origem a cada
   abertura (`refsFechadas`): registro que ficou restrito, foi anonimizado ou

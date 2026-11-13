@@ -316,7 +316,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const valores = p.valores && typeof p.valores === 'object' ? p.valores as Record<string, unknown> : null;
         if (valores && m.arquivo_mime === MIME_DOCX) {
             const limpos: Record<string, string> = {};
-            for (const [k, v] of Object.entries(valores).slice(0, 40)) if (/^[a-z0-9_]{1,40}$/.test(k)) limpos[k] = texto(v, 2000);
+            // Fixos, campos do tipo e informações das ações; a chave vai até 60 como o nome no Word.
+            for (const [k, v] of Object.entries(valores).slice(0, 200)) if (/^[a-z0-9_]{1,60}$/.test(k)) limpos[k] = texto(v, 2000);
             buf = await preencherDocx(buf, limpos);
         }
         return { base64: buf.toString('base64'), mime: m.arquivo_mime, nome: m.arquivo_nome || 'modelo' };
