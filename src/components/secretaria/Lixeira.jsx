@@ -23,7 +23,7 @@ import ErroQuery from './ErroQuery';
 const NOMES = { rito: 'o rito', tipo: 'o tipo de processo', modelo: 'o modelo' };
 
 /** Cartão clicável (abre para editar) com o menu ⋯ de Editar, Duplicar e Excluir. */
-export function CartaoComMenu({ nome, className, onEditar, onDuplicar, onExcluir, children }) {
+export function CartaoComMenu({ nome, className, onEditar, onDuplicar, onExcluir, extras = [], children }) {
     return (
         <div className="relative">
             <button type="button" onClick={onEditar} className={`${className} pr-11`}>{children}</button>
@@ -36,6 +36,7 @@ export function CartaoComMenu({ nome, className, onEditar, onDuplicar, onExcluir
                 <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={onEditar} className="gap-2"><Pencil className="w-4 h-4" aria-hidden /> Editar</DropdownMenuItem>
                     {onDuplicar && <DropdownMenuItem onSelect={onDuplicar} className="gap-2"><Copy className="w-4 h-4" aria-hidden /> Duplicar</DropdownMenuItem>}
+                    {extras.map(({ rotulo, icone: Icone, onSelect }) => <DropdownMenuItem key={rotulo} onSelect={onSelect} className="gap-2">{Icone && <Icone className="w-4 h-4" aria-hidden />} {rotulo}</DropdownMenuItem>)}
                     {onExcluir && (
                         <>
                             <DropdownMenuSeparator />

@@ -18,6 +18,7 @@ import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
     excluirUnidade, revogarConviteEquipe, salvarUnidade, salvarUnidadeDocumento, verConviteEquipe,
 } from './unidades';
+import { migrarRito } from './migrarRito';
 
 export { TIPOS_DOCUMENTO_PADRAO } from './documentoConfig';
 
@@ -126,7 +127,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
-    | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade'
+    | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade' | 'migrarRito'
     | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes' | 'historico';
 
 interface ConfigRequest extends Record<string, unknown> {
@@ -356,6 +357,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
     // Gestão de unidade: admin do órgão ou gestor da unidade.
     if (p.action === 'salvarUnidade') return salvarUnidade(c, p, auth.uid, audit);
     if (p.action === 'excluirUnidade') return excluirUnidade(c, p, auth.uid, audit);
+    // Levar processos em andamento para a versão atual do rito (só o admin; o próprio migrarRito confere).
+    if (p.action === 'migrarRito') { exigirAtivo(); return migrarRito(c, p, audit); }
     if (p.action === 'salvarOrgao') return salvarOrgao(c, p, auth.uid, audit);
     if (p.action === 'removerOrgao') return removerOrgao(c, p, auth.uid, audit);
     if (p.action === 'criarEstrutura') return criarEstrutura(c, p, auth.uid, audit);

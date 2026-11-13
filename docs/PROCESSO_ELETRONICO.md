@@ -1384,6 +1384,23 @@ misturam dentro de um processo.
   estrutura, tipos, ritos, documentos, calendário, módulo), busca sem acento e
   "Abrir" no rito, tipo, modelo ou unidade que ainda existe
   (`src/lib/historicoConfiguracao.js`).
+- **Atualizar processos para a versão atual do rito** (nov/2026): ação
+  `migrarRito {rito_id, simular?, destinos?}` de `secretariaConfig` (admin,
+  `functions-v2/src/secretaria/migrarRito.ts`). Lê os processos do rito em
+  `em_tramitacao` ou `sobrestado` com `rito_versao` menor que a do rito
+  (índice `organization_id + rito_id + status + rito_versao`). `simular`
+  devolve os grupos por versão e fase (`gruposDaMigracao`) e as fases atuais;
+  fase que não existe mais exige `destinos[faseAntiga] = faseNova`. Gravando,
+  uma transação por processo (até 300 por chamada; `restantes` diz quantos
+  faltam) troca `fases`, `rito_versao`, `rito_nome` e `fase_atual` e remapeia
+  `acoes_feitas`, `acoes_respostas` e `exigencias_cumpridas` pelo texto da
+  ação e pela descrição do documento (`migrarEstado`,
+  `shared/migrarRito.ts`); a fase de destino, se mudou, recomeça. Movimento
+  `rito_atualizado` com `interno`, `fora_impressao` e `visivel_partes: false`
+  (sem folha, fora do portal) e auditoria
+  `SECRETARIA_RITO_PROCESSOS_ATUALIZADOS`. Prazo automático e certidão
+  conjunta pendentes ficam como estavam. Tela: "Atualizar processos" no menu
+  do rito (`MigrarRitoDialog.jsx`).
 - **Comparar versões** (nov/2026): em "Versões" de rito e tipo, "Ver" mostra a
   versão ao lado do resumo do que muda em relação à atual salva (fases e
   ações, campos, dados; `src/lib/versoes.js`, `diffRito`, `diffTipo`) e a

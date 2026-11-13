@@ -491,6 +491,28 @@
                     "order": "ASCENDING"
                 },
                 {
+                    "fieldPath": "rito_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "rito_versao",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "secProcessos",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "organization_id",
+                    "order": "ASCENDING"
+                },
+                {
                     "fieldPath": "updated_at",
                     "order": "DESCENDING"
                 }
