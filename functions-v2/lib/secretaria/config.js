@@ -136,7 +136,14 @@ const RITO_PADRAO = {
 /** Módulos de onde o tipo (campos) ou o rito (ações) puxam registros. */
 const modulosDoForm = (f) => new Set(((f === null || f === void 0 ? void 0 : f.campos) || []).filter((x) => x.tipo === 'registro' && x.modulo).map((x) => String(x.modulo)));
 const modulosDoRito = (r) => new Set((Array.isArray(r === null || r === void 0 ? void 0 : r.fases) ? r.fases : [])
-    .flatMap((f) => (f.acoes_regras || []).flatMap((x) => ((x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo ? [String(x.modulo)] : (x === null || x === void 0 ? void 0 : x.pede) === 'formulario' ? [...modulosDoForm(x)] : []))));
+    .flatMap((f) => {
+    var _a;
+    return [
+        // A fase que conduz a situação de um registro (consulta, expediente) também usa o módulo.
+        ...(((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) ? [String(f.situacao_registro.modulo)] : []),
+        ...(f.acoes_regras || []).flatMap((x) => ((x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo ? [String(x.modulo)] : (x === null || x === void 0 ? void 0 : x.pede) === 'formulario' ? [...modulosDoForm(x)] : [])),
+    ];
+}));
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v) => [...new Set(Array.isArray(v) ? v.filter(modulos_1.ehModuloOrigem) : [])];
 /** Módulos que o tipo usa: os dos campos e os de onde pode nascer. */

@@ -65,6 +65,16 @@ também é aceito e desfaz os marcadores da fase abandonada. Urgentes ficam no t
 ordenada pela data de arquivamento, a mais recente primeiro
 (`src/lib/archivedSort.js`).
 
+**Pelo Processo Eletrônico (13/11/2026).** Com a integração ligada, o rito de
+um processo pode mandar a consulta de coluna: ao entrar numa fase ou quando
+alguém assume o processo, a consulta ligada vai para a situação que o rito
+indica, com as mesmas datas que o quadro gravaria e uma entrada no histórico
+("Situação "X" pelo processo eletrônico N"). O rito não preenche o que o
+diálogo pede a mais (pasta na rede, destinatário); isso continua na ficha.
+O mesmo vale para Expedientes. Detalhes em
+[PROCESSO_ELETRONICO.md](PROCESSO_ELETRONICO.md), "Andamento automático da
+fase".
+
 ---
 
 ## 4. Campos principais

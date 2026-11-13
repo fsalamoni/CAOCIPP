@@ -20,6 +20,7 @@ exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
 exports.trocarUnidadeDasFases = trocarUnidadeDasFases;
 exports.fasesSeguintes = fasesSeguintes;
+exports.saidaAutomatica = saidaAutomatica;
 exports.proximaFase = proximaFase;
 exports.podeAgir = podeAgir;
 exports.podeVer = podeVer;
@@ -49,6 +50,7 @@ exports.assuntoHistorico = assuntoHistorico;
 exports.acoesHistorico = acoesHistorico;
 const crypto_1 = require("crypto");
 const exigencias_1 = require("./exigencias");
+const situacaoRegistro_1 = require("./situacaoRegistro");
 exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
 exports.MAX_LOTACOES = 200;
 /**
@@ -161,7 +163,8 @@ function sanitizeRito(input) {
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
         const ae = (fo.ao_entrar && typeof fo.ao_entrar === 'object' ? fo.ao_entrar : {});
-        const aoEntrar = Object.assign(Object.assign({}, (ae.urgente === true ? { urgente: true } : {})), (ae.sem_responsavel === true ? { sem_responsavel: true } : {}));
+        const aoEntrar = Object.assign(Object.assign(Object.assign({}, (ae.urgente === true ? { urgente: true } : {})), (ae.sem_responsavel === true ? { sem_responsavel: true } : {})), (ae.arquivar === true ? { arquivar: true } : {}));
+        const situacaoRegistro = (0, situacaoRegistro_1.sanitizeSituacaoRegistro)(fo.situacao_registro);
         const orientacao = texto(fo.orientacao, exports.MAX_TEXTO_LONGO);
         const final = fo.final === true;
         const proximas = !final && Array.isArray(fo.proximas)
@@ -216,7 +219,7 @@ function sanitizeRito(input) {
         const grupo = grupoBruto ? ((_d = ids.get(grupoBruto)) !== null && _d !== void 0 ? _d : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
         const titulo = texto(cf.titulo, 120);
         const certidao = Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), regras);
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), regras);
     });
     // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).
     const raizes = new Map(fases.map((f) => {
@@ -271,6 +274,27 @@ function fasesSeguintes(fases, atualId) {
     if ((_a = atual.proximas) === null || _a === void 0 ? void 0 : _a.length)
         return atual.proximas.map((id) => fases.find((f) => f.id === id)).filter((f) => !!f);
     return i < fases.length - 1 ? [fases[i + 1]] : [];
+}
+/**
+ * Para onde a fase segue sozinha (`avanco: 'auto'`): a única saída do rito ou,
+ * havendo várias, a única que a resposta registrada indica. Remete à unidade
+ * da fase de destino quando ela é outra e está ativa. `null`: não segue (fica
+ * o botão). Quem chama confere antes que nada obrigatório está em aberto.
+ */
+function saidaAutomatica(proc, unidadesAtivas) {
+    const fases = (Array.isArray(proc.fases) ? proc.fases : []);
+    const atual = fases.find((f) => f.id === proc.fase_atual);
+    if (!atual || atual.avanco !== 'auto' || proc.status !== 'em_tramitacao' || proc.fase_suspensa === true)
+        return null;
+    const resp = (0, exigencias_1.respostasDaFase)(proc);
+    const cabe = (f) => { var _a; return !((_a = atual.condicoes_regra) === null || _a === void 0 ? void 0 : _a[f.id]) || (0, exigencias_1.condicaoAtendida)(atual.condicoes_regra[f.id], resp, atual); };
+    const seguintes = fasesSeguintes(fases, atual.id);
+    const indicadas = seguintes.filter((f) => { var _a; return ((_a = atual.condicoes_regra) === null || _a === void 0 ? void 0 : _a[f.id]) && cabe(f); });
+    const alvo = seguintes.length === 1 ? (cabe(seguintes[0]) ? seguintes[0] : null) : indicadas.length === 1 ? indicadas[0] : null;
+    if (!alvo)
+        return null;
+    const outra = alvo.unidade_id && alvo.unidade_id !== proc.unidade_atual && unidadesAtivas.includes(alvo.unidade_id);
+    return Object.assign({ fase_id: alvo.id }, (outra ? { unidade_destino: alvo.unidade_id } : {}));
 }
 /** Fase seguinte no fluxo (a primeira, se houver ramificação), ou null. */
 function proximaFase(rito, faseAtualId) {

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
+import { resumoAndamento } from '@/lib/andamentoFase';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
 import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao, acaoAtiva, camposDeEscolha, opcoesDaResposta, saidasComCondicao, soOrienta, textoCondicao } from '@/lib/exigencias';
@@ -123,6 +124,9 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     </p>
                                     {(fase.ao_entrar?.urgente || fase.ao_entrar?.sem_responsavel) && (
                                         <p className="text-xs text-slate-600 dark:text-slate-300">Ao entrar: {[fase.ao_entrar.urgente && 'o processo fica urgente', fase.ao_entrar.sem_responsavel && 'sai o responsável designado'].filter(Boolean).join(' e ')}.</p>
+                                    )}
+                                    {resumoAndamento(fase).length > 0 && (
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">Andamento automático: {resumoAndamento(fase).join('; ')}.</p>
                                     )}
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
                                     {acoes.length > 0 && (

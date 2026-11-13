@@ -887,6 +887,68 @@ servidor (`shared/exigencias.ts`) e espelhadas em `src/lib/exigencias.js`:
 - Testes: `functions-v2/test/acoesOpcoes.test.js`, `src/lib/exigencias.test.js`
   e `src/lib/fluxoBpmn.test.js`.
 
+### Andamento automático da fase (13/11/2026)
+
+No cartão da fase, a seção **Andamento automático** guarda o que a fase faz
+sem que alguém precise lembrar do passo seguinte. São três regras, todas
+opcionais; rito sem elas funciona como antes.
+
+- **Seguir sozinha** (`fase.avanco: 'auto'`). Marcada a última ação
+  **obrigatória**, o servidor confere, depois de gravar a ação, se nada
+  exigido ficou em aberto (`exigenciasAbertas`) e se o rito indica uma única
+  saída (`saidaAutomatica`, em `shared/secretaria.ts`): uma só fase seguinte,
+  ou várias com exatamente uma indicada pela resposta de uma ação
+  (`condicoes_regra`). Se sim, faz o mesmo ato do botão, com as mesmas
+  permissões de quem marcou: `tramitar` com `fase_id` quando a fase seguinte
+  corre em outra unidade ativa, `avancarFase` quando corre na mesma. O
+  movimento leva `dados.automatico: true` e o texto termina com "Avanço
+  automático: as ações obrigatórias da fase foram cumpridas." Se faltar
+  documento ou dado, se houver mais de uma saída possível ou se o ato for
+  recusado, nada acontece e o botão continua na tela. A resposta de
+  `marcarAcao` traz `avancou: { fase, unidade, arquivado }` e a tela avisa
+  para onde o processo foi. Só o cumprimento de ação obrigatória dispara a
+  conferência; juntar o documento que faltava não dispara (use o botão).
+  Fase final e fase sem ação obrigatória não seguem sozinhas.
+- **Arquivar ao entrar** (`fase.ao_entrar.arquivar`). Ao entrar na fase, o
+  processo é arquivado na mesma transação, em ato próprio logo depois da
+  mudança de fase: movimento `situacao`, "Arquivado pela regra da fase X.",
+  com quem fez, a data e `automatico: true`. A certidão conjunta pendente sai
+  antes e o prazo automático da fase não é aberto.
+- **Situação da consulta ou do expediente ligado**
+  (`fase.situacao_registro: { modulo, ao_entrar?, ao_assumir? }`, módulo
+  `consultas` ou `expedientes`). Ao entrar na fase, ou quando alguém assume o
+  processo nela, o registro ligado vai para a coluna escolhida (Pendente, Em
+  elaboração, Aguarda retorno de terceiros, Em revisão, Revisadas, Na
+  pasta). O registro é o de origem do processo, se for daquele módulo, ou o
+  único ligado a ele (`registroDoProcesso`). A mudança vai na **mesma
+  transação** do ato: grava a data do marcador (se ainda vazia), limpa os
+  marcadores das colunas seguintes, ajusta `status`, e escreve uma entrada
+  em `activity_log` e em `history` do registro ("Situação "X" pelo processo
+  eletrônico N (fase F)"). "Em elaboração" por quem assume grava também o
+  responsável e a data de distribuição; "Na pasta" grava a devolução e
+  dispara o webhook `archived` do módulo. As contas são as de
+  `mudancasDaSituacao` (`shared/situacaoRegistro.ts`), conferidas no teste
+  contra `calculateStatus`. O que a fase fez fica num registro interno do
+  processo (`efeitos_fase`, só da equipe); quando não dá para mudar
+  (integração desligada, nenhum registro ligado, mais de um, registro
+  excluído ou anonimizado), o registro interno diz o motivo e o andamento
+  do processo segue normalmente. Salvar um rito com essa regra exige a
+  integração com o módulo ligada.
+- **Assumir.** Na tela do processo, quem está lotado na unidade que tem o
+  processo vê o botão **Assumir** enquanto ele não tem responsável (é a ação
+  `atribuir` para si mesmo; o destino do registro continua sendo o da linha
+  "atribuição" em Registros).
+- **Limites.** A situação não é aplicada na autuação (a primeira fase não
+  muda o registro). A consulta precisa existir e estar ligada ao processo; o
+  processo não cria a consulta. O rito grava só as datas e o responsável: o
+  que o diálogo do quadro pede a mais (pasta na rede, destinatário da
+  remessa) continua sendo preenchido na ficha do registro. Mover o cartão
+  no quadro não muda a fase do processo.
+- Telas: `AndamentoDaFase.jsx` (editor), linha "Andamento automático" na
+  Prévia, "Pelo rito, esta fase…" e o botão Assumir em `ProcessoView.jsx`,
+  parte 8 do Guia do rito. Testes: `functions-v2/test/andamentoAuto.test.js`
+  e `src/lib/andamentoFase.test.js`.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
@@ -1686,7 +1748,8 @@ admin define, em cada tipo, o que quem autua preenche:
   sumiu depois sai dos campos e das informações que a parte vê. O texto dos
   movimentos já registrados não muda (a cadeia de eventos é imutável); por
   isso a ação guarda no texto só o número. Nada é escrito nos outros
-  módulos. Desligar a integração não apaga o que os processos já guardaram e
+  módulos, salvo a situação da consulta ou do expediente que o rito manda
+  mudar (ver "Andamento automático da fase"). Desligar a integração não apaga o que os processos já guardaram e
   não trava a correção de dados com o mesmo registro; só impede escolher de
   novo. Tipo ou rito novo com registro de módulo desligado não salva.
 - **Processo que nasce de outro registro** (nov/2026): com a integração
@@ -1711,7 +1774,7 @@ admin define, em cada tipo, o que quem autua preenche:
   pedidos por ações (`vinculos_acoes`, que a correção de dados não apaga);
   a ação `vinculados` procura por elas (índice `organization_id` +
   `vinculos`, até 50, só os que a pessoa vê, sem os excluídos e sem aqueles
-  em que ela é parte). Nada é escrito nos outros módulos. Processos autuados
+  em que ela é parte). A busca não escreve nos outros módulos. Processos autuados
   antes não têm `vinculos` e só aparecem depois de uma correção de dados.
 - **Atalho para ativar** (nov/2026): com o PE ou a integração desligados, quem
   configura o PE (criador ou `configure_secretaria`) vê, na ficha de uma

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ehModuloOrigem = exports.idEscolhido = exports.ID_PAGINA = exports.DADOS_REGISTRO = exports.ehInterno = exports.ROTULO_MODULO = exports.MODULOS = void 0;
+exports.ehModuloOrigem = exports.idEscolhido = exports.ID_PAGINA = exports.COLECAO = exports.DADOS_REGISTRO = exports.ehInterno = exports.ROTULO_MODULO = exports.MODULOS = void 0;
 exports.modulosAtivos = modulosAtivos;
 exports.integracoesGravadas = integracoesGravadas;
 exports.integracoesDe = integracoesDe;
@@ -37,7 +37,7 @@ exports.DADOS_REGISTRO = {
     juri: { comarca: 'texto', data_juri: 'data' },
     paginas: {},
 };
-const COLECAO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris', paginas: 'customRecords' };
+exports.COLECAO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris', paginas: 'customRecords' };
 exports.ID_PAGINA = /^[A-Za-z0-9_-]{1,128}$/;
 /**
  * Módulos ativos no órgão, com a mesma regra das abas (resolveBuiltinModules e
@@ -106,7 +106,7 @@ async function resolverRegistro(db, orgId, modulo, id) {
     if (!exports.MODULOS.includes(modulo) || typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id))
         return null;
     try {
-        const s = await db.collection(COLECAO[modulo]).doc(id).get();
+        const s = await db.collection(exports.COLECAO[modulo]).doc(id).get();
         const d = s.data();
         if (!s.exists || !d || d.organization_id !== orgId)
             return null;
@@ -160,7 +160,7 @@ async function refsFechadas(db, orgId, refs) {
     const unicos = todos.filter((r) => !(0, exports.ehInterno)(r));
     if (!unicos.length)
         return fechadas;
-    const snaps = await db.getAll(...unicos.map((r) => db.collection(COLECAO[r.modulo]).doc(r.id)));
+    const snaps = await db.getAll(...unicos.map((r) => db.collection(exports.COLECAO[r.modulo]).doc(r.id)));
     snaps.forEach((s, i) => {
         const d = s.data();
         if (!s.exists || !d || d.organization_id !== orgId || sim(d.access_restriction) || d.anonymized === true)

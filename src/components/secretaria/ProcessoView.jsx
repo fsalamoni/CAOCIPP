@@ -35,6 +35,7 @@ import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { seguintes } from '@/lib/secretariaRito';
+import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
@@ -115,8 +116,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const executar = async (fn, okMsg) => {
         setOcupado(true);
         try {
-            await fn();
-            if (okMsg) toast.success(okMsg);
+            const r = await fn();
+            // A fase pode seguir sozinha ao cumprir a última ação obrigatória: o servidor diz para onde foi.
+            if (r?.avancou) toast.success(textoAvanco(r.avancou));
+            else if (okMsg) toast.success(okMsg);
             setAcao(null);
             atualizar();
             return true;
@@ -224,6 +227,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     );
     const pendenciasAbertas = p.pendencias.filter((x) => x.status === 'aberta');
     const niveis = niveisDaFase(faseAtual);
+    // Assumir: quem está lotado na unidade que tem o processo, enquanto ele não tem responsável.
+    const podeAssumir = podeMexer && !p.responsavel_uid && p.status === 'em_tramitacao' && (estado.minhasUnidades || []).includes(p.unidade_atual);
     // Informação registrada nesta rodada da fase, por ação (a última de cada uma).
     const infoDaAcao = (i) => [...informacoes].reverse().find((x) => x.fase_id === p.fase_atual && x.acao_idx === i);
     const temControlePendente = exigencias.some((e) => e.destino && !e.cumprida);
@@ -390,6 +395,17 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             {faseAtual.unidade_id && faseAtual.agente && ' · '}
                             {faseAtual.agente && <>quem faz: <b>{faseAtual.agente}</b></>}
                         </p>
+                    )}
+                    {resumoAndamento(faseAtual).length > 0 && (
+                        <p className="text-xs text-slate-600 dark:text-slate-300">Pelo rito, esta fase {resumoAndamento(faseAtual).join('; ')}.</p>
+                    )}
+                    {podeAssumir && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={() => mov('atribuir', { responsavel_uid: estado.uid }, 'Você assumiu o processo')}>
+                                <UserPlus className="w-4 h-4" aria-hidden /> Assumir
+                            </Button>
+                            <span className="text-xs text-slate-600 dark:text-slate-300">O processo está sem responsável. Quem assume passa a responder por ele nesta unidade.</span>
+                        </div>
                     )}
                 </CardHeader>
                 <CardContent className="space-y-3">

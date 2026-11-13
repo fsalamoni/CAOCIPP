@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
-import { CertidaoFase, Condicao, Exigencia, RegraAcao, Registro, RegistroAtos, sanitizeCondicao, sanitizeRegras } from './exigencias';
+import { CertidaoFase, Condicao, Exigencia, RegraAcao, Registro, RegistroAtos, condicaoAtendida, respostasDaFase, sanitizeCondicao, sanitizeRegras } from './exigencias';
+import { SituacaoRegistro, sanitizeSituacaoRegistro } from './situacaoRegistro';
 
 // ============================================================================
 // Processo Eletrônico (antiga Secretaria Processual; os nomes internos
@@ -37,8 +38,12 @@ export interface Fase {
     prazo_contagem?: 'corridos';
     /** Nome que as partes veem no portal. Ausente = o nome da fase. Os termos nos autos usam o nome oficial. */
     nome_publico?: string;
-    /** O que acontece ao entrar na fase: marcar urgente e tirar o responsável designado. */
-    ao_entrar?: { urgente?: true; sem_responsavel?: true };
+    /** O que acontece ao entrar na fase: marcar urgente, tirar o responsável designado e arquivar o processo. */
+    ao_entrar?: { urgente?: true; sem_responsavel?: true; arquivar?: true };
+    /** Cumprida a última ação obrigatória, a fase segue sozinha para a saída do rito (ver `saidaAutomatica`). */
+    avanco?: 'auto';
+    /** Situação do registro ligado (consulta ou expediente) ao entrar na fase e quando alguém assume o processo. */
+    situacao_registro?: SituacaoRegistro;
     /** Orientação para quem trabalha na fase. */
     orientacao?: string;
     /** Fases para onde o processo pode seguir. Ausente = a próxima da lista. */
@@ -203,7 +208,11 @@ export function sanitizeRito(input: unknown): Rito {
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
         const ae = (fo.ao_entrar && typeof fo.ao_entrar === 'object' ? fo.ao_entrar : {}) as Record<string, unknown>;
-        const aoEntrar = { ...(ae.urgente === true ? { urgente: true as const } : {}), ...(ae.sem_responsavel === true ? { sem_responsavel: true as const } : {}) };
+        const aoEntrar = {
+            ...(ae.urgente === true ? { urgente: true as const } : {}), ...(ae.sem_responsavel === true ? { sem_responsavel: true as const } : {}),
+            ...(ae.arquivar === true ? { arquivar: true as const } : {}),
+        };
+        const situacaoRegistro = sanitizeSituacaoRegistro(fo.situacao_registro);
         const orientacao = texto(fo.orientacao, MAX_TEXTO_LONGO);
         const final = fo.final === true;
         const proximas = !final && Array.isArray(fo.proximas)
@@ -264,6 +273,8 @@ export function sanitizeRito(input: unknown): Rito {
             ...(prazoOk && fo.prazo_auto === true ? { prazo_auto: true, ...(fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' as const } : {}) } : {}),
             ...(nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {}),
             ...(Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {}),
+            ...(fo.avanco === 'auto' && !final ? { avanco: 'auto' as const } : {}),
+            ...(situacaoRegistro ? { situacao_registro: situacaoRegistro } : {}),
             ...(orientacao ? { orientacao } : {}),
             ...(proximas.length ? { proximas } : {}),
             ...(final ? { final: true } : {}),
@@ -319,6 +330,29 @@ export function fasesSeguintes(fases: Fase[], atualId: string): Fase[] {
     if (atual.final) return [];
     if (atual.proximas?.length) return atual.proximas.map((id) => fases.find((f) => f.id === id)).filter((f): f is Fase => !!f);
     return i < fases.length - 1 ? [fases[i + 1]] : [];
+}
+
+/**
+ * Para onde a fase segue sozinha (`avanco: 'auto'`): a única saída do rito ou,
+ * havendo várias, a única que a resposta registrada indica. Remete à unidade
+ * da fase de destino quando ela é outra e está ativa. `null`: não segue (fica
+ * o botão). Quem chama confere antes que nada obrigatório está em aberto.
+ */
+export function saidaAutomatica(
+    proc: { fases?: unknown; fase_atual?: unknown; status?: unknown; fase_suspensa?: unknown; unidade_atual?: unknown; acoes_respostas?: unknown },
+    unidadesAtivas: string[],
+): { fase_id: string; unidade_destino?: string } | null {
+    const fases = (Array.isArray(proc.fases) ? proc.fases : []) as Fase[];
+    const atual = fases.find((f) => f.id === proc.fase_atual);
+    if (!atual || atual.avanco !== 'auto' || proc.status !== 'em_tramitacao' || proc.fase_suspensa === true) return null;
+    const resp = respostasDaFase(proc);
+    const cabe = (f: Fase) => !atual.condicoes_regra?.[f.id] || condicaoAtendida(atual.condicoes_regra[f.id], resp, atual);
+    const seguintes = fasesSeguintes(fases, atual.id);
+    const indicadas = seguintes.filter((f) => atual.condicoes_regra?.[f.id] && cabe(f));
+    const alvo = seguintes.length === 1 ? (cabe(seguintes[0]) ? seguintes[0] : null) : indicadas.length === 1 ? indicadas[0] : null;
+    if (!alvo) return null;
+    const outra = alvo.unidade_id && alvo.unidade_id !== proc.unidade_atual && unidadesAtivas.includes(alvo.unidade_id);
+    return { fase_id: alvo.id, ...(outra ? { unidade_destino: alvo.unidade_id } : {}) };
 }
 
 /** Fase seguinte no fluxo (a primeira, se houver ramificação), ou null. */

@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, proximaFase, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
+    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, proximaFase, saidaAutomatica, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
@@ -19,7 +19,11 @@ import {
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
-import { MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
+import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refDe, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
+import { ModuloSituacao, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
+import { historyEntryId } from '../shared/history';
+import { formatPersonName } from '../shared/normalization';
+import { fireOrgWebhook } from '../shared/webhooks';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
@@ -172,7 +176,7 @@ export function efeitosDaMudanca(
         daFase.forEach((x) => interno.push(`Prazo interno da fase encerrado ${hoje <= x.vence_em ? 'no prazo' : 'fora do prazo'}: ${x.descricao}.`));
     }
     const dias = Number(para?.prazo_dias);
-    if (para?.prazo_auto && Number.isInteger(dias) && dias > 0 && dias <= MAX_PRAZO_DIAS && prazos.length < MAX_ITENS) {
+    if (para?.prazo_auto && !para.ao_entrar?.arquivar && Number.isInteger(dias) && dias > 0 && dias <= MAX_PRAZO_DIAS && prazos.length < MAX_ITENS) {
         const contagem: Contagem = para.prazo_contagem === 'corridos' ? 'corridos' : 'uteis';
         const vence = calcularVencimento(hoje, dias, contagem, calendario);
         prazos = [...prazos, {
@@ -201,6 +205,77 @@ function registrarInternos(tx: admin.firestore.Transaction, c: Awaited<ReturnTyp
 }
 
 const SEM_EFEITOS = { texto: '', interno: [] as string[], campos: {} as Record<string, unknown> };
+
+type Ctx = Awaited<ReturnType<typeof carregarContexto>>;
+/** Registro de outro módulo cuja situação o rito conduz, ou por que ele não pode ser conduzido. */
+type RegistroLido = { ref: admin.firestore.DocumentReference; doc: admin.firestore.DocumentData; modulo: ModuloSituacao; numero: string } | { falta: string };
+const SEM_REGISTROS = new Map<string, RegistroLido>();
+
+/**
+ * Lê, dentro da transação e antes de qualquer escrita, o registro ligado de
+ * cada módulo que alguma fase do rito conduz (`situacao_registro`). Rito sem
+ * essa regra não lê nada.
+ */
+async function lerRegistrosDoRito(tx: admin.firestore.Transaction, c: Ctx, proc: admin.firestore.DocumentData): Promise<Map<string, RegistroLido>> {
+    const modulos = [...new Set(((proc.fases || []) as Fase[]).map((f) => f.situacao_registro?.modulo).filter((m): m is ModuloSituacao => !!m))];
+    if (!modulos.length) return SEM_REGISTROS;
+    const ligadas = integracoesDe(c.org, await lerFlags(c.db));
+    const lidos = new Map<string, RegistroLido>();
+    for (const m of modulos) {
+        const nome = ROTULO_MODULO[m];
+        const alvo = registroDoProcesso(proc, m);
+        if (!ligadas[m]) lidos.set(m, { falta: `a integração com ${nome} está desligada` });
+        else if ('falta' in alvo) lidos.set(m, { falta: alvo.falta === 'varios' ? `o processo tem mais de um registro de ${nome} ligado e não nasceu de nenhum deles` : `o processo não tem registro de ${nome} ligado` });
+        else {
+            const ref = c.db.collection(COLECAO[m]).doc(alvo.id);
+            const d = (await tx.get(ref)).data();
+            if (!d || d.organization_id !== c.orgId) lidos.set(m, { falta: `o registro de ${nome} ligado não existe mais` });
+            else if (d.anonymized === true) lidos.set(m, { falta: `o registro de ${nome} ligado foi anonimizado` });
+            else lidos.set(m, { ref, doc: d, modulo: m, numero: refDe(m, alvo.id, d).numero });
+        }
+    }
+    return lidos;
+}
+
+type Arquivado = { modulo: ModuloSituacao; id: string; numero: string };
+
+/**
+ * Põe o registro ligado na situação que a fase pede (ao entrar nela ou quando
+ * alguém assume o processo). Vai na mesma transação do ato: a fase do processo
+ * e a coluna do registro nunca ficam diferentes. Devolve o que dizer à equipe
+ * no registro interno e, se o registro foi arquivado, os dados para o webhook.
+ */
+function aplicarSituacao(
+    tx: admin.firestore.Transaction, c: Ctx, registros: Map<string, RegistroLido>, fase: Fase | null | undefined, gatilho: 'ao_entrar' | 'ao_assumir',
+    proc: admin.firestore.DocumentData, quem?: { uid: string; nome: string },
+): { notas: string[]; arquivou: Arquivado | null } {
+    const cfg = fase?.situacao_registro;
+    const alvo = cfg?.[gatilho];
+    if (!fase || !cfg || !alvo) return { notas: [], arquivou: null };
+    const nome = ROTULO_MODULO[cfg.modulo];
+    const r = registros.get(cfg.modulo);
+    if (!r || 'falta' in r) return { notas: [`Situação em ${nome} não alterada: ${r ? r.falta : 'o registro ligado não foi lido'}.`], arquivou: null };
+    const m = mudancasDaSituacao(r.doc, alvo, hojeBrasil(), quem);
+    if (!m) return { notas: [], arquivou: null };
+    const agora = new Date();
+    const entrada = {
+        date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName,
+        action: `Situação "${alvo}" pelo processo eletrônico ${proc.numero} (fase ${fase.nome})`, timestamp: agora.toISOString(),
+    };
+    // `set` com `merge`: registros importados têm campos com ponto no nome, que `update` leria como caminho.
+    tx.set(r.ref, { ...m, updated_at: FieldValue.serverTimestamp(), updated_by: c.ctx.uid, activity_log: FieldValue.arrayUnion(entrada) }, { merge: true });
+    tx.set(r.ref.collection('history').doc(historyEntryId(entrada)), { ...entrada, created_at: FieldValue.serverTimestamp() });
+    return {
+        notas: [`${nome} ${r.numero}: situação "${alvo}" pela regra da fase.`],
+        arquivou: m.archived_date ? { modulo: r.modulo, id: r.ref.id, numero: r.numero } : null,
+    };
+}
+
+/** Fase que arquiva ao entrar: o arquivamento é um ato próprio, logo depois da mudança de fase. */
+function arquivarPelaFase(tx: admin.firestore.Transaction, c: Ctx, ref: admin.firestore.DocumentReference, proc: admin.firestore.DocumentData, fase: Fase): Record<string, unknown> {
+    const mov = registrarMovimento(tx, c, ref, proc, 'situacao', `Arquivado pela regra da fase ${fase.nome}.`, { de: proc.status, para: 'arquivado', automatico: true });
+    return { ...mov, status: 'arquivado' };
+}
 
 /**
  * Saída que o rito condiciona à resposta de uma ação: seguir por ela sem a
@@ -763,6 +838,46 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         return { success: true, id: procRef.id, numero };
     }
 
+    return movimentar(c, p);
+});
+
+/**
+ * Avanço automático da fase (`avanco: 'auto'`): cumprida a última ação
+ * obrigatória, o processo segue para a saída do rito, com a remessa à unidade
+ * da fase de destino quando ela é outra. É o mesmo ato do botão "Concluir e
+ * seguir", com as mesmas conferências; se ele não couber (algo em aberto, mais
+ * de uma saída, o processo mudou), nada acontece e o botão continua na tela.
+ */
+async function avancarSozinho(c: Ctx, id: string): Promise<Record<string, unknown> | null> {
+    try {
+        const d = (await c.db.collection(COL.processos).doc(id).get()).data();
+        if (!d) return null;
+        const tipo = d.campos_exigidos && d.tipo_id ? (await c.db.collection(COL.tipos).doc(String(d.tipo_id)).get()).data() : null;
+        const form = tipo && tipo.organization_id === c.orgId ? formularioDe(tipo) : null;
+        if (exigenciasAbertas(d, form).length) return null;
+        const saida = saidaAutomatica(d, c.unidades.filter((u) => u.ativa !== false).map((u) => String(u.id)));
+        if (!saida) return null;
+        const r = await movimentar(c, {
+            organizationId: c.orgId, id, version: d.version, fase_id: saida.fase_id,
+            ...(saida.unidade_destino ? { action: 'tramitar', unidade_destino: saida.unidade_destino } : { action: 'avancarFase' }),
+        } as ProcRequest, { automatico: true });
+        const fase = ((d.fases || []) as Fase[]).find((f) => f.id === saida.fase_id);
+        return { ...r, avancou: { fase: fase?.nome || '', unidade: saida.unidade_destino ? nomeUnidade(c, saida.unidade_destino) : '', arquivado: fase?.ao_entrar?.arquivar === true } };
+    } catch (e) {
+        console.warn('[secretaria] avanço automático não aplicado', id, (e as Error)?.message);
+        return null;
+    }
+}
+
+/**
+ * Movimentação de um processo existente. `opcoes.automatico`: chamada do
+ * próprio servidor (avanço automático da fase); nunca vem do cliente.
+ */
+async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean } = {}): Promise<Record<string, unknown>> {
+    const { db, orgId } = c;
+    const textoAuto = opcoes.automatico ? ' Avanço automático: as ações obrigatórias da fase foram cumpridas.' : '';
+    let tentarAuto = false;
+    let registroArquivado: Arquivado | null = null;
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = texto(p.motivo, MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
@@ -785,6 +900,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         if (data.status === 'arquivado' && p.action !== 'alterarStatus') {
             throw new HttpsError('failed-precondition', 'Processo arquivado: reative-o antes de movimentar');
         }
+        // Registro ligado (consulta, expediente) cuja situação o rito conduz: lido antes de qualquer escrita.
+        const registros = ['tramitar', 'avancarFase', 'atribuir'].includes(String(p.action)) ? await lerRegistrosDoRito(tx, c, data) : SEM_REGISTROS;
 
         if (p.action === 'tramitar') {
             const destino = c.unidades.find((u) => u.id === p.unidade_destino && u.ativa !== false);
@@ -825,23 +942,31 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, novaFase?.id);
             // Sair do grupo da certidão conjunta: a pendente é emitida antes da remessa.
-            const em = emitirSe(!!novaFase && deveEmitir(fases, data.consolidacao, data.fase_atual, novaFase.id), tx, c, ref, data);
+            // A fase de destino pode arquivar ao entrar: a certidão pendente sai antes.
+            const arquiva = novaFase?.ao_entrar?.arquivar === true;
+            const em = emitirSe(!!novaFase && (arquiva || deveEmitir(fases, data.consolidacao, data.fase_atual, novaFase.id)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
             // A remessa já tira o responsável: os efeitos não repetem isso.
-            const ef = novaFase ? efeitosDaMudanca({ ...data, responsavel_uid: null }, String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
+            const efFase = novaFase ? efeitosDaMudanca({ ...data, responsavel_uid: null }, String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
+            const sit = aplicarSituacao(tx, c, registros, novaFase, 'ao_entrar', data);
+            registroArquivado = sit.arquivou;
+            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
             const mov = registrarMovimento(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao',
                 `${conclusao ? 'Conclusos a' : 'Remetido de ' + com(nomeUnidade(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${ef.texto}` : ''}`
-                + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`,
-                { de: data.unidade_atual, para: destino.id, ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}) } : {}),
+                + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}${textoAuto}`,
+                { de: data.unidade_atual, para: destino.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}) } : {}),
                     ...(dispensadas.length ? { dispensadas } : {}), ...marcasDoDestino(destinoMov), ...(idsMinutas.length ? { minutas: idsMinutas } : {}) });
             const mi = registrarInternos(tx, c, ref, { ...em.proc, ...mov }, ef.interno);
             if (ef.interno.length) expedidas += 1;
+            const ma = arquiva ? arquivarPelaFase(tx, c, ref, { ...em.proc, ...mov, ...mi }, novaFase!) : {};
+            if (arquiva) expedidas += 1;
             minutas.forEach((s) => tx.update(s.ref, { unidades_acesso: FieldValue.arrayUnion(destino.id) }));
             tx.update(ref, {
                 ...em.mov,
                 ...mov,
                 ...mi,
+                ...ma,
                 unidade_atual: destino.id,
                 unidades_historico: FieldValue.arrayUnion(destino.id),
                 responsavel_uid: null,
@@ -964,6 +1089,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (!fase || !acao) throw new HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = fase.acoes_regras?.[idx];
             if (regra?.pede === 'orientacao') throw new HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
+            // Fase que segue sozinha: cumprida uma ação obrigatória, o servidor confere, depois deste ato, se era a última.
+            tentarAuto = fase.avanco === 'auto' && p.feita !== false && regra?.obrigatoria === true && !opcoes.automatico;
             const respostas = respostasDaFase(data);
             // Ação condicional: só vale com a resposta que o rito pede.
             if (p.feita !== false && !acaoAtiva(fase, idx, respostas)) {
@@ -1074,10 +1201,15 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 throw new HttpsError('invalid-argument', 'A pessoa precisa estar lotada na unidade que tem o processo');
             }
             const nomeAlvo = alvo ? (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()?.user_name || 'membro' : '';
+            // A fase pode mudar a situação do registro ligado quando alguém assume (ex.: a consulta entra em elaboração).
+            const faseAtual = ((data.fases || []) as Fase[]).find((f) => f.id === data.fase_atual);
+            const sit = alvo ? aplicarSituacao(tx, c, registros, faseAtual, 'ao_assumir', data, { uid: String(alvo), nome: formatPersonName(String(nomeAlvo)) }) : { notas: [], arquivou: null };
+            registroArquivado = sit.arquivou;
             const mov = registrarMovimento(tx, c, ref, data, 'atribuicao',
                 alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', { responsavel_uid: alvo, ...marcasNaFase(data, 'atribuicao') });
-            tx.update(ref, { ...mov, responsavel_uid: alvo });
-            return mov;
+            const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, sit.notas);
+            tx.update(ref, { ...mov, ...mi, responsavel_uid: alvo });
+            return { ...mov, ...mi };
         }
 
         if (p.action === 'avancarFase') {
@@ -1102,22 +1234,29 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
             // Motivo longo não se resume numa certidão conjunta: a mudança tem termo próprio.
             const grupo = grupoDe(alvo);
-            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`;
-            const junta = !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= MAX_ITEM_CERTIDAO && mudancaNaCertidao(fases, data.fase_atual, alvo.id);
+            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}${textoAuto}`;
+            // A fase de destino pode arquivar ao entrar: a certidão pendente sai antes e a mudança tem termo próprio.
+            const arquiva = alvo.ao_entrar?.arquivar === true;
+            const junta = !arquiva && !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= MAX_ITEM_CERTIDAO && mudancaNaCertidao(fases, data.fase_atual, alvo.id);
             const item: ItemCertidao = { seq: 0, fase_id: data.fase_atual, texto: descricao.replace(/\.$/, ''), autor: c.userName, em: new Date().toISOString(), partes: destinoMov === 'autos' };
-            const em = emitirSe(deveEmitir(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
+            const em = emitirSe(arquiva || deveEmitir(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
-            const ef = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName);
+            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName);
+            const sit = aplicarSituacao(tx, c, registros, alvo, 'ao_entrar', data);
+            registroArquivado = sit.arquivou;
+            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
             const mov = registrarMovimento(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`,
-                { de: data.fase_atual, para: alvo.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}), ...(dispensadas.length ? { dispensadas } : {}),
+                { de: data.fase_atual, para: alvo.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}), ...(dispensadas.length ? { dispensadas } : {}),
                     ...(junta ? { consolidada: true, ...marcasDoDestino('nenhum') } : marcasDoDestino(destinoMov)) });
             const consolidacao = junta
                 ? { consolidacao: itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) }) }
                 : {};
             const mi = registrarInternos(tx, c, ref, { ...em.proc, ...mov, ...consolidacao }, ef.interno);
             if (ef.interno.length) expedidas += 1;
-            tx.update(ref, { ...em.mov, ...mov, ...mi, ...consolidacao, fase_atual: alvo.id, ...camposAoEntrarNaFase(data, alvo.id), ...ef.campos });
-            return mov;
+            const ma = arquiva ? arquivarPelaFase(tx, c, ref, { ...em.proc, ...mov, ...mi }, alvo) : {};
+            if (arquiva) expedidas += 1;
+            tx.update(ref, { ...em.mov, ...mov, ...mi, ...ma, ...consolidacao, fase_atual: alvo.id, ...camposAoEntrarNaFase(data, alvo.id), ...ef.campos });
+            return { ...mov, ...mi, ...ma };
         }
 
         if (p.action === 'urgencia') {
@@ -1315,6 +1454,13 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     });
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
     void avisarPartesDoMovimento(db, String(p.id), undefined, expedidas);
+    // Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro.
+    const ra = registroArquivado as Arquivado | null;
+    if (ra) {
+        void fireOrgWebhook(orgId, 'archived', ra.modulo === 'consultas'
+            ? { entity_type: 'process', entity_id: ra.id, process_number: ra.numero }
+            : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
+    }
     const r = recebeu as { unidadeId: string; proc: admin.firestore.DocumentData } | null;
     if (r) void avisarUnidadeRecebeu(c, r.unidadeId, r.proc, String(p.id), motivo || texto(p.orientacao, MAX_TEXTO_LONGO));
     const pa = pendenciaAberta as { proc: admin.firestore.DocumentData; descricao: string } | null;
@@ -1328,5 +1474,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         }).catch(() => false) : false;
         return { success: true, version: resultado.version, link, emailEnviado: enviado };
     }
+    if (tentarAuto) {
+        const auto = await avancarSozinho(c, String(p.id));
+        if (auto) return auto;
+    }
     return { success: true, version: resultado.version };
-});
+}
