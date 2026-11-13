@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.HISTORICO_CONFIG = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
 exports.minutaAcessivel = minutaAcessivel;
 exports.texto = texto;
@@ -44,6 +44,8 @@ exports.lotacoesDe = lotacoesDe;
 exports.documentoEfetivo = documentoEfetivo;
 exports.podeExcluirProcesso = podeExcluirProcesso;
 exports.mesclarLotacoes = mesclarLotacoes;
+exports.assuntoHistorico = assuntoHistorico;
+exports.acoesHistorico = acoesHistorico;
 const crypto_1 = require("crypto");
 const exigencias_1 = require("./exigencias");
 exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
@@ -536,5 +538,38 @@ function mesclarLotacoes(atual, base, minha) {
         if (!out.some((x) => x.uid === uid))
             out.push(l);
     return out;
+}
+/**
+ * Histórico da configuração do Processo Eletrônico: ação de auditoria -> assunto
+ * (= aba da configuração; 'modulo' = ativar, preferências, integrações).
+ * Eventos de processo (excluir, restaurar, PDF) ficam fora.
+ */
+exports.HISTORICO_CONFIG = {
+    SECRETARIA_ATIVADA: 'modulo', SECRETARIA_DESATIVADA: 'modulo', SECRETARIA_PREFERENCIAS: 'modulo', SECRETARIA_INTEGRACOES: 'modulo',
+    SECRETARIA_SUSPENSA_PLATAFORMA: 'modulo', SECRETARIA_REATIVADA_PLATAFORMA: 'modulo',
+    SECRETARIA_ORGAO_SALVO: 'estrutura', SECRETARIA_ORGAO_REMOVIDO: 'estrutura', SECRETARIA_ESTRUTURA_CRIADA: 'estrutura',
+    SECRETARIA_UNIDADE_SALVA: 'unidades', SECRETARIA_UNIDADE_DOCUMENTO: 'unidades', SECRETARIA_UNIDADE_EXCLUIDA: 'unidades',
+    SECRETARIA_EQUIPE_CONVITE: 'unidades', SECRETARIA_EQUIPE_CONVITE_REVOGADO: 'unidades', SECRETARIA_EQUIPE_CONVITE_ACEITO: 'unidades',
+    SECRETARIA_LOTACAO_ADMITIDA: 'unidades', SECRETARIA_LOTACAO_RECUSADA: 'unidades',
+    SECRETARIA_TIPO_SALVO: 'tipos', SECRETARIA_TIPO_EXCLUIDO: 'tipos', SECRETARIA_TIPO_RESTAURADO: 'tipos', SECRETARIA_NUMERACAO: 'tipos',
+    SECRETARIA_RITO_SALVO: 'ritos', SECRETARIA_RITO_IMPLANTADO: 'ritos', SECRETARIA_RITO_EXCLUIDO: 'ritos', SECRETARIA_RITO_RESTAURADO: 'ritos',
+    SECRETARIA_DOCUMENTO_CONFIG: 'documentos', SECRETARIA_MODELO_SALVO: 'documentos', SECRETARIA_MODELO_EXCLUIDO: 'documentos',
+    SECRETARIA_MODELO_RESTAURADO: 'documentos', SECRETARIA_TEXTOS_COMUNICACAO: 'documentos',
+    SECRETARIA_CALENDARIO: 'calendario',
+    SECRETARIA_VERSAO_RESTAURADA: 'versao', // rito ou modelo, por details.colecao
+};
+function assuntoHistorico(action, d = {}) {
+    const a = exports.HISTORICO_CONFIG[action];
+    return a === 'versao' ? (d.colecao === 'modelo' ? 'documentos' : 'ritos') : a || null;
+}
+/** Ações a ler, em lotes de até 30 (limite do `in`); assunto ausente ou desconhecido = todas. */
+function acoesHistorico(assunto) {
+    const valido = typeof assunto === 'string' && Object.values(exports.HISTORICO_CONFIG).includes(assunto) && assunto !== 'versao';
+    const todas = Object.keys(exports.HISTORICO_CONFIG).filter((k) => !valido || exports.HISTORICO_CONFIG[k] === assunto
+        || (exports.HISTORICO_CONFIG[k] === 'versao' && (assunto === 'ritos' || assunto === 'documentos')));
+    const lotes = [];
+    for (let i = 0; i < todas.length; i += 30)
+        lotes.push(todas.slice(i, i + 30));
+    return lotes;
 }
 //# sourceMappingURL=secretaria.js.map

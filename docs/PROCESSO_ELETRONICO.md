@@ -22,8 +22,12 @@ organizados assim.
 
 - Quem ativa: o **admin do órgão** (criador ou quem tem a permissão
   `configure_secretaria`), em Painel Administrativo → Processo Eletrônico.
-  Ali fica **toda a configuração**: ativação, preferências, unidades e equipes,
-  tipos de processo, ritos, documentos e modelos do órgão e calendário.
+  Ali fica **toda a configuração**: ativação e, em abas, estrutura, unidades e
+  equipes, tipos de processo, ritos, documentos e modelos, calendário,
+  integrações, preferências, lixeira e histórico. A aba fica no endereço
+  (`&aba=`); sem ela, a página abre no primeiro dos 4 passos pendentes, ou em
+  Ritos (`src/lib/passosConfiguracao.js`, `abaInicial`). A barra de abas fica
+  fixa no topo e, no celular, rola na horizontal.
 - Não depende de flag da plataforma. O estado fica em
   `organizations/{id}.secretariaConfig.enabled`, gravado só pela function
   `secretariaConfig` (ação `ativar`). Órgãos sem o campo ficam desligados.
@@ -971,10 +975,16 @@ servindo o modelo excluído).
 - `restaurar {colecao: 'rito' | 'tipo' | 'modelo', id, rito_id?}`: volta
   inativo, para ser reativado de propósito; confere o limite. Tipo cujo rito
   foi excluído só volta com `rito_id` de um rito existente.
-- `estado.excluidos`: `{colecao, id, nome, em, rito_id?, unidade_id?,
-  orgao_id?}`, os mais recentes primeiro; ritos e tipos para o admin, modelos
-  para o admin e para a gestão da unidade dona. A tela mostra "Excluídos (N)"
-  no fim de cada lista, com Restaurar (e a escolha do rito, quando falta).
+- `estado.excluidos`: `{colecao, id, nome, em, por, rito_id?, unidade_id?,
+  orgao_id?}`, os mais recentes primeiro (`por` = nome de quem excluiu, mesmo
+  que já tenha saído do órgão); ritos e tipos para o admin, modelos para o
+  admin e para a gestão da unidade dona. A tela mostra "Excluídos (N)" no fim
+  de cada lista, com Restaurar (e a escolha do rito, quando falta).
+- **Lixeira** (aba da configuração, nov/2026, `LixeiraConfiguracao`): ritos,
+  tipos, modelos e processos excluídos numa lista só, com quem excluiu,
+  quando, motivo (processo), busca sem acento, filtro por tipo e Restaurar
+  (processo: com a unidade para onde volta, pela ação `restaurar` de
+  `secretariaProcesso`).
 - `estado.tipos_excluidos`: `{id, nome, formulario}` dos tipos excluídos, para
   todos. Processo já autuado com um deles segue editando os dados com o
   formulário certo e aparece no filtro "Tipo de processo" da lista.
@@ -1337,10 +1347,22 @@ misturam dentro de um processo.
   Carnaval, Sexta-feira Santa e Corpus Christi, já são contados pelo servidor
   (`feriadosNacionais()`); não há o que importar.
 - **Histórico de configuração:** aba **Histórico** (`HistoricoConfiguracao.jsx`)
-  lista as últimas 300 ações `SECRETARIA_*` de `auditLogs` do órgão (quem,
-  quando, o quê, detalhes), lidas pelo cliente com o índice
-  `organization_id + action + timestamp` já existente e as regras que liberam
-  leitura ao admin do órgão.
+  lista as últimas 300 alterações da configuração (quem, quando, o quê,
+  detalhes). Desde nov/2026 vem da ação `historico` de `secretariaConfig`
+  (admin, inclusive quem só tem `configure_secretaria`), que lê `auditLogs` por
+  `action in` (lotes de até 30, `HISTORICO_CONFIG` em `shared/secretaria.ts`)
+  com `timestamp desc`: as mais recentes de verdade, sem os eventos de processo
+  (excluir, restaurar, PDF). Filtro por assunto (`assunto`: unidades,
+  estrutura, tipos, ritos, documentos, calendário, módulo), busca sem acento e
+  "Abrir" no rito, tipo, modelo ou unidade que ainda existe
+  (`src/lib/historicoConfiguracao.js`).
+- **Comparar versões** (nov/2026): em "Versões" de rito e tipo, "Ver" mostra a
+  versão ao lado do resumo do que muda em relação à atual salva (fases e
+  ações, campos, dados; `src/lib/versoes.js`, `diffRito`, `diffTipo`) e a
+  prévia (fluxo e "Ver como a equipe e a parte"; no tipo, os campos e o fluxo
+  do rito como está hoje). `versoes` com `versao` passou a devolver também o
+  rito da versão (só leitura). Ação casa pelo texto: renomear aparece como
+  uma que sai e outra que entra.
 - **Escala:** `secretariaProcesso` `listar` com `limite` (1 a 200) pagina no
   servidor por `updated_at` desc (índice novo `organization_id + updated_at`
   em `firestore.indexes.json`), devolvendo `{ processos, cursor, mais }`;
@@ -1444,7 +1466,7 @@ admin define, em cada tipo, o que quem autua preenche:
   (assunto obrigatório, o resto opcional). O formulário não pode ficar sem
   assunto, descrição, partes e campos próprios ao mesmo tempo.
 - **Integrações com outros módulos** (nov/2026): no Painel Administrativo,
-  o card "Integrações com outros módulos" liga Consultas, Expedientes,
+  a aba "Integrações" liga Consultas, Expedientes,
   Parcerias e Júri aos processos (`secretariaConfig.integracoes`, ação
   `salvarIntegracoes`, só admin). Só liga o módulo ativo no órgão, pela mesma
   regra das abas (`shared/modulos.ts`, `modulosAtivos`: órgão sem
@@ -1732,7 +1754,8 @@ O portal das partes mostra o diagrama sem as orientações internas.
   os filtros da tela valem só sobre o que foi carregado.
 - Versões de rito e modelo: até 20 por item; a versão de um modelo guardado
   no arquivo original não guarda o arquivo (só nome, tipo e descrição). O
-  histórico de configuração mostra as últimas 300 ações.
+  histórico de configuração mostra as últimas 300 ações. Unidade e órgão
+  interno excluídos não voltam pela Lixeira.
 - O rascunho da revisão de rito fica no navegador (localStorage), um por
   órgão: não acompanha o admin em outro aparelho.
 - O PDF volta inteiro na resposta da function; anexos acima de ~18 MB somados

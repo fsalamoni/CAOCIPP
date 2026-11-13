@@ -108,7 +108,7 @@ export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc' }) {
 }
 
 /** Papel timbrado e tipos de documento do órgão, mais os modelos do órgão. */
-export default function ConfiguracaoDocumentos({ orgId, estado }) {
+export default function ConfiguracaoDocumentos({ orgId, estado, pedido = null, onPedidoAtendido }) {
     const qc = useQueryClient();
     const [cfg, setCfg] = useState(null);
     const [tiposTexto, setTiposTexto] = useState('');
@@ -146,7 +146,7 @@ export default function ConfiguracaoDocumentos({ orgId, estado }) {
                     <Button className="gap-1" disabled={salvando} onClick={salvarCfg}>{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar</Button>
                 </CardContent>
             </Card>
-            <ListaModelos orgId={orgId} estado={estado} unidadeId={null} />
+            <ListaModelos orgId={orgId} estado={estado} unidadeId={null} pedido={pedido} onPedidoAtendido={onPedidoAtendido} />
         </div>
     );
 }
@@ -212,7 +212,7 @@ export function DocumentosDaUnidade({ orgId, estado, unidade }) {
 }
 
 /** Modelos da entidade (unidadeId null), de um órgão interno (orgaoId) ou de uma unidade. */
-export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCartao = false }) {
+export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCartao = false, pedido = null, onPedidoAtendido }) {
     const qc = useQueryClient();
     const [modelo, setModelo] = useState(null);
     const [importando, setImportando] = useState(false);
@@ -227,6 +227,13 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
             setModelo({ ...(await secConfig(orgId, 'obterModelo', { id: m.id })), _k: Date.now() });
         } catch (e) { toast.error(e?.message || 'Não foi possível abrir o modelo'); }
     };
+    // "Abrir" do Histórico: abre o modelo pedido, se ainda está nesta lista.
+    useEffect(() => {
+        if (!pedido) return;
+        const m = lista.find((x) => x.id === pedido);
+        if (m) abrirModelo(m);
+        onPedidoAtendido?.();
+    }, [pedido]);
     // Cópia de modelo do editor: abre o texto como modelo novo, para ajustar e salvar.
     const duplicar = async (m) => {
         try {

@@ -101,6 +101,7 @@ export default function AdminManagement({ organization, members, userRole, userM
     const openSection = (key) => {
         const next = new URLSearchParams(searchParams);
         if (key) next.set('secao', key); else next.delete('secao');
+        next.delete('aba'); // aba interna de uma seção (ex.: Processo Eletrônico) não vale para outra
         setSearchParams(next);
         setBusca('');
     };

@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { MAX_TEXTO_LONGO, Rito, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade } from '../shared/secretaria';
+import { HISTORICO_CONFIG, MAX_TEXTO_LONGO, Rito, acoesHistorico, assuntoHistorico, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { numeracaoDe, numeracaoTipoDe, sanitizeNumeracao, sanitizeNumeracaoTipo } from '../shared/numeracao';
@@ -127,7 +127,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
     | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade'
-    | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes';
+    | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes' | 'historico';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -204,7 +204,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             db.collection(COL.ritos).where('organization_id', '==', orgId).get(),
             db.collection(COL.tipos).where('organization_id', '==', orgId).get(),
             db.collection(COL.config).doc(orgId).get(),
-            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome', 'excluido', 'excluido_em').get(),
+            db.collection(COL.modelos).where('organization_id', '==', orgId).select('nome', 'tipo_documento', 'descricao', 'ativo', 'unidade_id', 'orgao_id', 'formato', 'arquivo_nome', 'excluido', 'excluido_em', 'excluido_por').get(),
             db.collection('userOrganizations').where('organization_id', '==', orgId).get(),
             minhas.length ? db.getAll(...minhas.map((id) => db.collection(COL.unidadeConfig).doc(id))) : Promise.resolve([]),
             convitesPendentes(c),
@@ -221,6 +221,14 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 email: veEmail ? String(m.user_email || '') : '',
                 funcao: String(m.function || ''),
             };
+        });
+        // Lixeira: quem excluiu, inclusive quem já saiu do órgão (só admin e gestão recebem itens).
+        const nomes = new Map(memSnap.docs.map((d) => {
+            const m = d.data();
+            return [String(m.user_id || d.id.split('_')[0]), String(m.user_name || (veEmail && m.user_email) || '')] as [string, string];
+        }));
+        const lixo = (colecao: string, d: admin.firestore.QueryDocumentSnapshot) => ({
+            colecao, id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em), por: nomes.get(String(d.data().excluido_por || '')) || '',
         });
         const documento = sanitizeDocumentoConfig(cfgSnap.data()?.documento);
         // Timbrado e tipos efetivos das unidades em que a pessoa está lotada
@@ -286,16 +294,33 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             // Lixeira: o admin restaura ritos, tipos e modelos; a gestão, os modelos da sua unidade.
             excluidos: [
-                ...(c.ctx.isAdmin ? ritosSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ colecao: 'rito', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em) })) : []),
-                ...(c.ctx.isAdmin ? tiposSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ colecao: 'tipo', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em), rito_id: d.data().rito_id || null })) : []),
+                ...(c.ctx.isAdmin ? ritosSnap.docs.filter((d) => d.data().excluido === true).map((d) => lixo('rito', d)) : []),
+                ...(c.ctx.isAdmin ? tiposSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ ...lixo('tipo', d), rito_id: d.data().rito_id || null })) : []),
                 ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id && c.gestorDe.includes(d.data().unidade_id))))
-                    .map((d) => ({ colecao: 'modelo', id: d.id, nome: d.data().nome, em: quando(d.data().excluido_em), unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null })),
+                    .map((d) => ({ ...lixo('modelo', d), unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null })),
             ].sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))),
             suspensa_plataforma: c.org.secretariaConfig?.suspensa_plataforma === true,
             motivo_suspensao: c.org.secretariaConfig?.motivo_suspensao || '',
             orgao: String(c.org.name || ''),
             membros,
         };
+    }
+
+    if (p.action === 'historico') {
+        // Lido pelo servidor: quem configura (configure_secretaria) não lê auditLogs direto, e
+        // o `in` por ação traz as 300 mais recentes, não as primeiras em ordem alfabética.
+        exigirAdmin(c);
+        const lotes = acoesHistorico(p.assunto);
+        const assunto = typeof p.assunto === 'string' && Object.values(HISTORICO_CONFIG).includes(p.assunto) ? p.assunto : null;
+        const snaps = await Promise.all(lotes.map((l) => db.collection('auditLogs')
+            .where('organization_id', '==', orgId).where('action', 'in', l).orderBy('timestamp', 'desc').limit(300).get()));
+        const itens = snaps.flatMap((s) => s.docs).map((d) => {
+            const e = d.data();
+            const details = (e.details && typeof e.details === 'object' ? e.details : {}) as Record<string, unknown>;
+            return { id: d.id, action: String(e.action), assunto: assuntoHistorico(String(e.action), details), user_name: String(e.user_name || ''), details, em: quando(e.timestamp) };
+        }).filter((e) => !assunto || e.assunto === assunto)
+            .sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))).slice(0, 300);
+        return { itens };
     }
 
     if (p.action === 'obterModelo') {
@@ -429,9 +454,13 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const atual = (await ref.get()).data();
         if (!atual || atual.organization_id !== orgId || atual.excluido === true) throw new HttpsError('not-found', 'Não encontrado');
         if (col === COL.ritos || !atual.unidade_id) exigirAdmin(c); else exigirGestor(c, String(atual.unidade_id));
-        if (p.action === 'versoes' && col === COL.tipos && p.versao) {
+        if (p.action === 'versoes' && (col === COL.tipos || col === COL.ritos) && p.versao) {
             const v = (await ref.collection('versoes').doc(String(Number(p.versao) || 0).padStart(6, '0')).get()).data();
             if (!v) throw new HttpsError('not-found', 'Versão não encontrada');
+            // Rito: só leitura, para a prévia e a comparação com a versão atual.
+            if (col === COL.ritos) {
+                return { versao: v.versao, rito: { nome: v.nome || '', descricao: v.descricao || '', fases: Array.isArray(v.fases) ? v.fases : [], exigir_tipo: v.exigir_tipo === true } };
+            }
             // Completa com os padrões o que a versão não gravou (tipo antigo), para não herdar a versão atual.
             return {
                 versao: v.versao,

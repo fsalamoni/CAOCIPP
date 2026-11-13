@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plus, Shapes, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plug, Plus, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -22,7 +22,7 @@ import HistoricoConfiguracao from './HistoricoConfiguracao';
 import VersoesDialog from './VersoesDialog';
 import EstruturaOrgaos from './Orgaos';
 import { TextosComunicacao } from './Comunicacoes';
-import { BloqueioRito, CartaoComMenu, ConfirmarExclusao, Excluidos } from './Lixeira';
+import { BloqueioRito, CartaoComMenu, ConfirmarExclusao, Excluidos, LixeiraConfiguracao } from './Lixeira';
 
 const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400';
 
@@ -32,32 +32,54 @@ const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:borde
  * órgão e calendário. A ordem das abas segue o caminho de quem monta o
  * processo: quem trabalha, o que se autua, como anda, com que papéis e prazos.
  */
-export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onAba }) {
-    // A aba pode ser controlada de fora (primeiros passos, resumo da implantação).
+export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onAba, integracoes = null, preferencias = null }) {
+    // A aba pode ser controlada de fora (primeiros passos, resumo da implantação, endereço).
     const [interna, setInterna] = useState('unidades');
     const atual = aba ?? interna;
     const mudar = onAba || setInterna;
-    // Rito que não pode ser excluído leva direto ao tipo que o usa.
-    const [pedidoTipo, setPedidoTipo] = useState(null);
-    const abrirTipo = (id) => { setPedidoTipo(id); mudar('tipos'); };
+    // Item a abrir ao chegar na aba: tipo que usa o rito bloqueado, ou o "Abrir" do Histórico.
+    const [pedido, setPedido] = useState(null);
+    // Sem item a abrir, o foco vai para a aba nova (o botão que a pessoa usou some com a aba antiga).
+    const focarAba = useRef(false);
+    const abrir = (destino, id) => { setPedido(id ? { aba: destino, id } : null); focarAba.current = !id; mudar(destino); };
+    const abrirTipo = (id) => abrir('tipos', id);
+    const pedidoDe = (a) => (pedido?.aba === a ? pedido.id : null);
+    const atendido = () => setPedido(null);
+    // Trocar de aba volta ao começo das abas (se a pessoa rolou para baixo) e mostra a aba ativa na barra.
+    const raiz = useRef(null);
+    const primeira = useRef(true);
+    useEffect(() => {
+        const lista = raiz.current?.querySelector('[role=tablist]');
+        const ativa = lista?.querySelector('[data-state=active]');
+        if (lista && ativa && lista.scrollWidth > lista.clientWidth) lista.scrollLeft = Math.max(0, ativa.offsetLeft - 16);
+        if (focarAba.current) { focarAba.current = false; ativa?.focus(); }
+        if (primeira.current) { primeira.current = false; return; }
+        if (raiz.current && raiz.current.getBoundingClientRect().top < 64) raiz.current.scrollIntoView({ block: 'start' });
+    }, [atual]);
     return (
-        <Tabs value={atual} onValueChange={mudar} className="space-y-4">
-            <TabsList className="flex-wrap h-auto justify-start">
+        <Tabs ref={raiz} value={atual} onValueChange={mudar} className="space-y-4 scroll-mt-16">
+            <TabsList className="sticky top-16 lg:static z-20 flex w-full h-auto justify-start flex-nowrap overflow-x-auto lg:flex-wrap bg-slate-100 dark:bg-slate-800 shadow-sm [&>button]:shrink-0">
                 <TabsTrigger value="estrutura" className="gap-2"><Network className="w-4 h-4" /> Estrutura</TabsTrigger>
                 <TabsTrigger value="unidades" className="gap-2"><Building2 className="w-4 h-4" /> Unidades e equipes</TabsTrigger>
                 <TabsTrigger value="tipos" className="gap-2"><Shapes className="w-4 h-4" /> Tipos de processo</TabsTrigger>
                 <TabsTrigger value="ritos" className="gap-2"><GitBranch className="w-4 h-4" /> Ritos</TabsTrigger>
                 <TabsTrigger value="documentos" className="gap-2"><FileText className="w-4 h-4" /> Documentos e modelos</TabsTrigger>
                 <TabsTrigger value="calendario" className="gap-2"><CalendarDays className="w-4 h-4" /> Calendário</TabsTrigger>
+                {integracoes && <TabsTrigger value="integracoes" className="gap-2"><Plug className="w-4 h-4" aria-hidden /> Integrações</TabsTrigger>}
+                {preferencias && <TabsTrigger value="preferencias" className="gap-2"><SlidersHorizontal className="w-4 h-4" aria-hidden /> Preferências</TabsTrigger>}
+                <TabsTrigger value="lixeira" className="gap-2"><Trash2 className="w-4 h-4" aria-hidden /> Lixeira</TabsTrigger>
                 <TabsTrigger value="historico" className="gap-2"><History className="w-4 h-4" /> Histórico</TabsTrigger>
             </TabsList>
             <TabsContent value="estrutura"><EstruturaOrgaos orgId={orgId} estado={estado} /></TabsContent>
-            <TabsContent value="unidades"><Unidades orgId={orgId} estado={estado} /></TabsContent>
-            <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} pedido={pedidoTipo} onPedidoAtendido={() => setPedidoTipo(null)} /></TabsContent>
-            <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} onAbrirTipo={abrirTipo} /></TabsContent>
-            <TabsContent value="documentos" className="space-y-4"><ConfiguracaoDocumentos orgId={orgId} estado={estado} /><TextosProntos orgId={orgId} estado={estado} /></TabsContent>
+            <TabsContent value="unidades"><Unidades orgId={orgId} estado={estado} pedido={pedidoDe('unidades')} onPedidoAtendido={atendido} /></TabsContent>
+            <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} pedido={pedidoDe('tipos')} onPedidoAtendido={atendido} /></TabsContent>
+            <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} onAbrirTipo={abrirTipo} pedido={pedidoDe('ritos')} onPedidoAtendido={atendido} /></TabsContent>
+            <TabsContent value="documentos" className="space-y-4"><ConfiguracaoDocumentos orgId={orgId} estado={estado} pedido={pedidoDe('documentos')} onPedidoAtendido={atendido} /><TextosProntos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="calendario"><ConfiguracaoCalendario orgId={orgId} estado={estado} /></TabsContent>
-            <TabsContent value="historico">{atual === 'historico' && <HistoricoConfiguracao orgId={orgId} />}</TabsContent>
+            {integracoes && <TabsContent value="integracoes">{integracoes}</TabsContent>}
+            {preferencias && <TabsContent value="preferencias">{preferencias}</TabsContent>}
+            <TabsContent value="lixeira">{atual === 'lixeira' && <LixeiraConfiguracao orgId={orgId} estado={estado} />}</TabsContent>
+            <TabsContent value="historico">{atual === 'historico' && <HistoricoConfiguracao orgId={orgId} estado={estado} onAbrir={abrir} />}</TabsContent>
         </Tabs>
     );
 }
@@ -110,8 +132,14 @@ export function CartaoUnidade({ u, estado, onAbrir, carga }) {
     );
 }
 
-function Unidades({ orgId, estado }) {
+function Unidades({ orgId, estado, pedido, onPedidoAtendido }) {
     const [aberta, setAberta] = useState(null);
+    // "Abrir" do Histórico: abre a unidade pedida, se ainda existe.
+    useEffect(() => {
+        if (!pedido) return;
+        if ((estado.unidades || []).some((u) => u.id === pedido)) setAberta(pedido);
+        onPedidoAtendido?.();
+    }, [pedido]);
     const [nova, setNova] = useState(false);
     // Carga por unidade contada no servidor (não traz processos).
     const cargaQ = useQuery({ queryKey: ['sec-contadores', orgId], queryFn: () => secProcesso(orgId, 'contadores'), staleTime: 60_000 });
@@ -148,9 +176,15 @@ function Unidades({ orgId, estado }) {
     );
 }
 
-function Ritos({ orgId, estado, onIr, onAbrirTipo }) {
+function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
     // null: fechado; {}: novo rito; { rito }: editar na mesma tela da criação; { copia }: novo a partir de outro.
     const [aberto, setAberto] = useState(null);
+    useEffect(() => {
+        if (!pedido) return;
+        const r = (estado.ritos || []).find((x) => x.id === pedido);
+        if (r) setAberto({ rito: r });
+        onPedidoAtendido?.();
+    }, [pedido]);
     const [excluir, setExcluir] = useState(null);
     const tiposDe = (id) => (estado.tipos || []).filter((t) => t.rito_id === id);
     const bloqueio = excluir && tiposDe(excluir.id).length ? <BloqueioRito tipos={tiposDe(excluir.id)} onAbrirTipo={(id) => { setExcluir(null); onAbrirTipo(id); }} /> : null;
