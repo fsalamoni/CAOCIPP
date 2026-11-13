@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: tipos com versões
+- **Versões do tipo de processo**: cada salvamento guarda a anterior; uma
+  versão antiga abre no editor e só vale ao salvar.
+- **Nada se perde sem querer**: fechar o editor do tipo com alterações pede
+  confirmação.
+- **Copiar campos de outro tipo**, com as condições e as fases ajustadas.
+- **Rito só por tipo**: o rito pode exigir que se autue por um tipo de
+  processo (com o formulário e a numeração dele).
+- **Correção sem trava**: um campo obrigatório criado depois no tipo não
+  impede corrigir os dados de processos antigos.
+
 ### 13/11/2026 — Processo Eletrônico: ação com formulário
 - **Uma ação pode pedir vários dados de uma vez**: o rito ganha "Um
   formulário (vários campos)", com até 10 campos montados como os do tipo de

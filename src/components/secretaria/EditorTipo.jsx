@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Eye, Loader2, PencilLine, Shapes, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -6,13 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ORIGENS_REF, POLOS, integracoesLigadas, problemasFormulario, valorComoGravado, visiveis } from '@/lib/camposProcesso';
+import { ORIGENS_REF, POLOS, formularioDe, integracoesLigadas, problemasFormulario, valorComoGravado, visiveis } from '@/lib/camposProcesso';
 import { problemasNumeracao } from '@/lib/numeracao';
 import { NativeSelect } from './comum';
 import FluxoRito from './FluxoRito';
 import { DadosCampos, EditorFormulario } from './CamposProcesso';
 import FormularioAutuacao from './FormularioAutuacao';
 import EditorNumeracao from './EditorNumeracao';
+import VersoesDialog from './VersoesDialog';
 
 // ============================================================================
 // Editor do tipo de processo em tela cheia: abas Dados, Formulário e
@@ -92,10 +93,13 @@ function NascerDe({ tipo, set, ligadas }) {
  * `tipo` em edição (null = fechado). `onSalvar()` grava; `onExcluir()` abre a exclusão.
  * `exemplo(numeracao, tipo)` e `numeracaoOrgao` vêm da tela de tipos.
  */
-export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, onExcluir, exemplo, numeracaoOrgao }) {
+export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, onExcluir, exemplo, numeracaoOrgao, orgId, onAbrirVersao }) {
     const [aba, setAba] = useState('dados');
     const [verPrevia, setVerPrevia] = useState(false);
+    // O editor monta a cada tipo aberto (key): o que havia ao abrir, para avisar antes de descartar.
+    const inicial = useRef(JSON.stringify(tipo));
     if (!tipo) return null;
+    const sujo = JSON.stringify(tipo) !== inicial.current;
     const rito = estado.ritos.find((r) => r.id === tipo.rito_id);
     const fases = rito?.fases || [];
     const numTipo = tipo.numeracao || { modo: 'orgao' };
@@ -105,7 +109,13 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
     const pendencias = { dados: probDados, formulario: probForm, numeracao: probNum };
     const total = probDados.length + probForm.length + probNum.length;
     const set = (patch) => setTipo({ ...tipo, ...patch });
-    const fechar = () => { setTipo(null); setAba('dados'); setVerPrevia(false); };
+    const fechar = () => {
+        if (sujo && !window.confirm('Há alterações não salvas neste tipo. Fechar sem salvar?')) return;
+        setTipo(null); setAba('dados'); setVerPrevia(false);
+    };
+    // Copiar campos: os outros tipos com campos próprios (também os excluídos).
+    const outros = [...(estado.tipos || []), ...(estado.tipos_excluidos || []).map((t) => ({ ...t, excluido: true }))]
+        .filter((t) => t.id !== tipo.id && formularioDe(t).campos.length).map((t) => ({ ...t, formulario: formularioDe(t) }));
     const aviso = (lista) => (lista.length > 0 && (
         <ul className="text-sm text-amber-800 dark:text-amber-300 list-disc pl-5 rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/40 py-2 pr-3">
             {lista.map((m) => <li key={m}>{m}</li>)}
@@ -174,7 +184,7 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
 
                                 <TabsContent value="formulario" className="space-y-3 mt-4">
                                     {aviso(probForm)}
-                                    <EditorFormulario form={tipo.formulario} tipo={tipo} fases={fases} previa={false} onChange={(formulario) => set({ formulario })} />
+                                    <EditorFormulario form={tipo.formulario} tipo={tipo} fases={fases} previa={false} outros={outros} onChange={(formulario) => set({ formulario })} />
                                 </TabsContent>
 
                                 <TabsContent value="numeracao" className="space-y-3 mt-4">
@@ -209,6 +219,8 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
                             <Trash2 className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Excluir tipo</span><span className="sm:hidden">Excluir</span>
                         </Button>
                     )}
+                    {tipo.id && onAbrirVersao && <VersoesDialog orgId={orgId} colecao="tipo" id={tipo.id} nome={tipo.nome} estado={estado} onAbrir={onAbrirVersao} />}
+                    {sujo && <span className="text-sm text-slate-600 dark:text-slate-400" aria-live="polite">Alterações não salvas</span>}
                     {total > 0 && (
                         <button type="button" className="text-sm text-amber-800 dark:text-amber-300 underline"
                             onClick={() => { setVerPrevia(false); setAba(probDados.length ? 'dados' : probForm.length ? 'formulario' : 'numeracao'); }}>

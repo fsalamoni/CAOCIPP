@@ -229,7 +229,7 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
     const fechar = () => { setP(null); setColado(''); setConfirmar(false); setCriado(null); onFechar(); };
     // Editando, "Substituir fases" reabre o início: troca só as fases, o rito segue o mesmo.
     const [trocar, setTrocar] = useState(false);
-    const manter = () => ({ id: p.id, versao: p.versao, ativo: p.ativo, nome: p.nome, descricao: p.descricao });
+    const manter = () => ({ id: p.id, versao: p.versao, ativo: p.ativo, nome: p.nome, descricao: p.descricao, exigir_tipo: p.exigir_tipo });
     const comecar = (r, criarTipo = true) => {
         if (trocar) { editarP({ ...deRito(r), ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
         setP(deRito(r));
@@ -598,6 +598,18 @@ function Revisao({
                     <div className="grid sm:grid-cols-2 gap-3">
                         <div><Label htmlFor="pr-nome">Nome do rito</Label><Input id="pr-nome" value={p.nome} onChange={(e) => setP({ ...p, nome: e.target.value })} /></div>
                         <div><Label htmlFor="pr-desc">Descrição</Label><Input id="pr-desc" value={p.descricao} onChange={(e) => setP({ ...p, descricao: e.target.value })} /></div>
+                        <div className="sm:col-span-2">
+                            <label className="flex items-start gap-2 text-sm min-h-[2.75rem] sm:min-h-0">
+                                <Checkbox className="mt-0.5" checked={p.exigir_tipo === true} onCheckedChange={(x) => setP({ ...p, exigir_tipo: x === true })} aria-describedby="pr-exigir-tipo-ajuda" />
+                                <span>Autuar só por um tipo de processo</span>
+                            </label>
+                            <p id="pr-exigir-tipo-ajuda" className="text-xs text-slate-600 dark:text-slate-400 pl-6">
+                                No "Novo processo", este rito some da opção "Sem tipo": quem autua escolhe um tipo que o use (com o formulário e a numeração do tipo).
+                                {p.exigir_tipo && !(estado.tipos || []).some((t) => t.ativo !== false && p.id && t.rito_id === p.id) && !(tipo?.criar && (tipo.nome || p.nome || '').trim()) && (
+                                    <span className="block mt-1 text-amber-800 dark:text-amber-200">Nenhum tipo ativo usa este rito ainda: até criar um, ninguém consegue autuar por ele.</span>
+                                )}
+                            </p>
+                        </div>
                     </div>
                     <section aria-label="Fluxo do rito" className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
                         <div className="mb-1 flex flex-wrap items-baseline gap-x-3">

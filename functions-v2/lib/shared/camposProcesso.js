@@ -32,6 +32,7 @@ exports.camposFaltando = camposFaltando;
 exports.validarPadrao = validarPadrao;
 exports.valorTexto = valorTexto;
 exports.dadoDoFormulario = dadoDoFormulario;
+exports.formParaCorrecao = formParaCorrecao;
 exports.diferencasCampos = diferencasCampos;
 const modulos_1 = require("./modulos");
 // Sem importar ./secretaria: o rito (./exigencias, que ./secretaria importa) usa os campos
@@ -411,6 +412,20 @@ function dadoDoFormulario(rotulo, campos) {
         valor_texto: campos.map((c) => `${c.rotulo}: ${c.tipo === 'registro' ? c.valor : valorTexto(c)}`).join('; '),
         ref: undefined, refs, restrito: refs.some((r) => r.restrito === true),
     };
+}
+/**
+ * Formulário para corrigir os dados de um processo já autuado: campo que o
+ * processo nunca teve, mas que apareceria com os valores gravados, deixa de
+ * ser obrigatório (o tipo ganhou o obrigatório depois); campo que só estava
+ * oculto pela condição segue cobrado quando aparece; campo já gravado segue
+ * obrigatório (não se apaga). A descrição que ficou obrigatória depois não
+ * trava processo que nunca a teve.
+ */
+function formParaCorrecao(form, antes, descricaoAntes) {
+    const tinha = new Set(antes.map((a) => a.id));
+    const valores = new Map(antes.map((a) => [a.id, a.valor]));
+    const aparecia = (c) => !c.condicao || (0, exports.atendeCondicao)(valores.get(c.condicao.campo_id), c.condicao);
+    return Object.assign(Object.assign(Object.assign({}, form), (form.descricao === 'obrigatorio' && descricaoAntes !== undefined && !descricaoAntes.trim() ? { descricao: 'opcional' } : {})), { campos: form.campos.map((c) => (c.obrigatorio && !tinha.has(c.id) && aparecia(c) ? Object.assign(Object.assign({}, c), { obrigatorio: false }) : c)) });
 }
 /** O que mudou entre os campos gravados e os novos, em frases para o movimento. */
 function diferencasCampos(antes, depois) {

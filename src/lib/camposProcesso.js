@@ -97,6 +97,42 @@ export const novoCampo = () => ({
     rotulo: '', tipo: 'texto', obrigatorio: false, ajuda: '', opcoes: [], visivel_partes: false,
 });
 
+/**
+ * Campos de outro tipo para acrescentar a este: id novo (um valor gravado de
+ * mesmo id não casa por engano), condição remapeada (sai se o campo de que
+ * dependia não veio) e "exigir em" só com as fases do rito deste tipo.
+ */
+export function copiarCampos(campos, faseIds = [], cabem = MAX_CAMPOS) {
+    const lista = (campos || []).slice(0, Math.max(0, cabem));
+    const mapa = new Map(lista.map((c) => [c.id, novoCampo().id + Math.random().toString(36).slice(2, 4)]));
+    return lista.map((c) => {
+        const { condicao, exigir_em: ex, ...resto } = c;
+        const alvo = condicao && mapa.get(condicao.campo_id);
+        const exigir = (ex || []).filter((f) => faseIds.includes(f));
+        return {
+            ...resto, id: mapa.get(c.id), opcoes: [...(c.opcoes || [])],
+            ...(alvo ? { condicao: { ...condicao, campo_id: alvo } } : {}),
+            ...(exigir.length ? { exigir_em: exigir } : {}),
+        };
+    });
+}
+
+/**
+ * Formulário para corrigir dados já gravados (espelho do servidor): obrigatório
+ * que o processo nunca teve e que apareceria não trava; o que só estava oculto
+ * pela condição segue cobrado; descrição que ficou obrigatória depois não trava.
+ */
+export function formParaCorrecao(form, antes = [], descricaoAntes) {
+    const tinha = new Set(antes.map((a) => a.id));
+    const valores = new Map(antes.map((a) => [a.id, a.valor]));
+    const aparecia = (c) => !c.condicao || atendeCondicao(valores.get(c.condicao.campo_id), c.condicao);
+    return {
+        ...form,
+        ...(form.descricao === 'obrigatorio' && descricaoAntes !== undefined && !String(descricaoAntes).trim() ? { descricao: 'opcional' } : {}),
+        campos: form.campos.map((c) => (c.obrigatorio && !tinha.has(c.id) && aparecia(c) ? { ...c, obrigatorio: false } : c)),
+    };
+}
+
 const vazio = (v) => v === undefined || v === null || (Array.isArray(v) ? !v.length : String(v).trim() === '');
 const numeroValido = (v) => /^-?\d+(\.\d+)?$/.test(String(v).trim().replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
 const digitos = (s) => String(s).replace(/\D/g, '');

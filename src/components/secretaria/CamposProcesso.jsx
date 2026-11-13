@@ -1,4 +1,5 @@
 import React, { useContext, useState } from 'react';
+import { toast } from 'sonner';
 import { ArrowDown, ArrowUp, ChevronDown, Eye, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-    COM_OPCOES, CONDICIONANTES, FORMATOS, MAX_CAMPOS, MODULOS, PADROES, POLOS, ROTULO_MODULO, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, textoCondicao, valorTexto, visiveis,
+    COM_OPCOES, CONDICIONANTES, copiarCampos, FORMATOS, MAX_CAMPOS, MODULOS, PADROES, POLOS, ROTULO_MODULO, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, textoCondicao, valorTexto, visiveis,
 } from '@/lib/camposProcesso';
 import { NativeSelect } from './comum';
 import SeletorRegistro, { RegistroContexto } from './SeletorRegistro';
@@ -341,9 +342,19 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
  * Configuração do formulário de autuação de um tipo de processo. `tipo` serve à
  * prévia (urgência e sigilo); `fases`, as do rito do tipo, a "Exigir para sair das fases".
  */
-export function EditorFormulario({ form, onChange, tipo = null, fases = [], previa: comPrevia = true }) {
+export function EditorFormulario({ form, onChange, tipo = null, fases = [], previa: comPrevia = true, outros = [] }) {
     const [previa, setPrevia] = useState(PREVIA_VAZIA);
+    const [copiarId, setCopiarId] = useState('');
     const campos = form.campos;
+    // Copiar os campos próprios de outro tipo: entram todos (até o limite); tira-se o que não quiser.
+    const copiarDe = (id) => {
+        const outro = outros.find((t) => t.id === id);
+        if (!outro) return;
+        const novos = copiarCampos(outro.formulario?.campos, fases.map((f) => f.id), MAX_CAMPOS - campos.length);
+        if (!novos.length) { toast.error(`Não cabem mais campos (máximo de ${MAX_CAMPOS})`); return; }
+        onChange({ ...form, campos: [...campos, ...novos] });
+        toast.success(`${novos.length === 1 ? '1 campo copiado' : `${novos.length} campos copiados`} de ${outro.nome}. Confira os nomes e o que as partes veem.`);
+    };
 
     return (
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
@@ -358,6 +369,15 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [], prev
                 </ul>
             </section>
 
+            {outros.length > 0 && (
+                <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 min-w-[12rem] sm:max-w-sm">
+                        <NativeSelect id="fp-copiar" label="Copiar campos de outro tipo" value={copiarId} onChange={setCopiarId}
+                            options={[['', 'Escolha o tipo…'], ...outros.map((t) => [t.id, `${t.nome}${t.excluido ? ' (excluído)' : ''} (${t.formulario.campos.length} ${t.formulario.campos.length === 1 ? 'campo' : 'campos'})`])]} />
+                    </div>
+                    <Button type="button" variant="outline" className="h-11 sm:h-9" disabled={!copiarId} onClick={() => { copiarDe(copiarId); setCopiarId(''); }}>Copiar</Button>
+                </div>
+            )}
             <EditorCampos campos={campos} fases={fases} onChange={(l) => onChange({ ...form, campos: l })} />
 
             {comPrevia && <details className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2">

@@ -999,7 +999,7 @@ export function tipoDocumentoDe(nome, estado) {
 export function deRito(r) {
     return {
         ...(r.id ? { id: r.id, versao: r.versao, ativo: r.ativo !== false } : {}),
-        nome: r.nome || '', descricao: r.descricao || '',
+        nome: r.nome || '', descricao: r.descricao || '', exigir_tipo: r.exigir_tipo === true,
         fases: (r.fases || []).map(({ unidade_id: un, modelos: ms, ...f }) => ({ ...f, unidade_ref: un || null, modelos_ref: ms || [] })),
         unidades: [], modelos: [],
     };
@@ -1013,7 +1013,7 @@ export function montarPayload(p, tipo) {
     modelos.forEach((m) => m.unidade_ref && usadosUn.add(m.unidade_ref));
     return {
         rito: {
-            nome: p.nome, descricao: p.descricao,
+            nome: p.nome, descricao: p.descricao, exigir_tipo: p.exigir_tipo === true,
             fases: p.fases.map((f) => ({
                 id: f.id, nome: f.nome, prazo_dias: f.prazo_dias, orientacao: f.orientacao, final: f.final === true,
                 prazo_auto: f.prazo_auto, prazo_contagem: f.prazo_contagem, nome_publico: f.nome_publico, ao_entrar: f.ao_entrar,

@@ -410,6 +410,25 @@ export function dadoDoFormulario(rotulo: string, campos: CampoValor[]) {
     };
 }
 
+/**
+ * Formulário para corrigir os dados de um processo já autuado: campo que o
+ * processo nunca teve, mas que apareceria com os valores gravados, deixa de
+ * ser obrigatório (o tipo ganhou o obrigatório depois); campo que só estava
+ * oculto pela condição segue cobrado quando aparece; campo já gravado segue
+ * obrigatório (não se apaga). A descrição que ficou obrigatória depois não
+ * trava processo que nunca a teve.
+ */
+export function formParaCorrecao<T extends Pick<Formulario, 'campos'> & { descricao?: UsoCampo }>(form: T, antes: CampoValor[], descricaoAntes?: string): T {
+    const tinha = new Set(antes.map((a) => a.id));
+    const valores = new Map(antes.map((a) => [a.id, a.valor]));
+    const aparecia = (c: CampoDef) => !c.condicao || atendeCondicao(valores.get(c.condicao.campo_id), c.condicao);
+    return {
+        ...form,
+        ...(form.descricao === 'obrigatorio' && descricaoAntes !== undefined && !descricaoAntes.trim() ? { descricao: 'opcional' } : {}),
+        campos: form.campos.map((c) => (c.obrigatorio && !tinha.has(c.id) && aparecia(c) ? { ...c, obrigatorio: false } : c)),
+    };
+}
+
 /** O que mudou entre os campos gravados e os novos, em frases para o movimento. */
 export function diferencasCampos(antes: CampoValor[], depois: CampoValor[]): string[] {
     const a = new Map(antes.map((c) => [c.id, c]));
