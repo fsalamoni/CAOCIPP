@@ -1037,6 +1037,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     {
                         fase_id: fase.id, acao_idx: idx, feita,
                         ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto, ...(dado.ref ? { ref: dado.ref } : {}) } : {}),
+                        ...(dado && regra?.folha_dados ? { folha_dados: true } : {}),
                         // O ato fica oculto; o dado segue a regra (as partes o veem nas informações, se ela disser).
                         destino: dest, consolidada: true, ...marcasDoDestino('nenhum'), visivel_partes: vePartes,
                     });
@@ -1054,6 +1055,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     fase_id: fase.id, acao_idx: idx, feita,
                     ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto, ...(dado.ref ? { ref: dado.ref } : {}) } : {}),
                     ...(reservado ? { reservado: 'gestor', ve_unidade: String(data.unidade_atual || '') } : {}),
+                    // O rito manda o dado para a folha de dados do processo (evento 1 do PDF).
+                    ...(dado && regra?.folha_dados && !reservado ? { folha_dados: true } : {}),
                     destino: dest,
                     ...(dest === 'autos' ? { nos_autos: true } : {}),
                     ...(dest === 'informacao' ? { fora_impressao: true } : {}),

@@ -15,10 +15,10 @@ export const EXEMPLO_GUIA = [
         id: 'g1', nome: 'Recebimento', raia: 'Secretaria', prazo_dias: 2, proximas: ['g2'],
         acoes: ['Registrar os dados básicos', 'Registrar no SIM e converter em PGEA', 'Informar o solicitante', 'Conferir se há consulta anterior do mesmo órgão', 'Análise superficial'],
         acoes_regras: [
-            { pede: 'formulario', obrigatoria: true, campos: [{ id: 'orgao', rotulo: 'Órgão solicitante', tipo: 'texto' }, { id: 'assunto', rotulo: 'Assunto', tipo: 'texto' },
+            { pede: 'formulario', obrigatoria: true, destino: 'informacao', folha_dados: true, campos: [{ id: 'orgao', rotulo: 'Órgão solicitante', tipo: 'texto' }, { id: 'assunto', rotulo: 'Assunto', tipo: 'texto' },
                 { id: 'sistema', rotulo: 'Sistema utilizado', tipo: 'lista', opcoes: ['SIM', 'SPU', 'E-mail', 'Whatsapp', 'Outros'] }] },
-            { pede: 'texto', rotulo: 'Número do PGEA', obrigatoria: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
-            { pede: 'formulario', campos: [{ id: 'data', rotulo: 'Data', tipo: 'data' }, { id: 'meio', rotulo: 'Meio', tipo: 'texto' }], obrigatoria: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
+            { pede: 'texto', rotulo: 'Número do PGEA', obrigatoria: true, destino: 'informacao', folha_dados: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
+            { pede: 'formulario', campos: [{ id: 'data', rotulo: 'Data', tipo: 'data' }, { id: 'meio', rotulo: 'Meio', tipo: 'texto' }], obrigatoria: true, destino: 'informacao', folha_dados: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
             { pede: 'orientacao' },
             { pede: 'texto_longo', rotulo: 'Observações', destino: 'nenhum' },
         ],
@@ -106,6 +106,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <tbody>{Object.entries(DESTINO_INFO).map(([k, d]) => <tr key={k}><td className="font-medium whitespace-nowrap">{d.rotulo}</td><td>{d.frase}</td></tr>)}</tbody>
                             </table>
                             <p>As partes só veem o que você marcar em <strong>As partes veem no portal</strong>. Sem essa marca, o registro fica com a equipe.</p>
+                            <p><strong>Folha de dados do processo.</strong> No PDF, a primeira página é a capa, só com o órgão, o número, a data da autuação e se o processo está ativo ou arquivado. A segunda é a folha de dados, que é a folha do evento 1: traz a autuação, o assunto, as partes e os dados do processo. Para um dado registrado depois (como o número do PGEA) aparecer ali, marque <strong>Entra na folha de dados do processo</strong> na ação. Ele completa a folha sem criar outra, e você ainda escolhe acima se a ação gera evento próprio.</p>
                         </Parte>
                         <Parte titulo="5. Ação que só vale em alguns casos (desvio)">
                             <ol className="list-decimal space-y-1.5 pl-5">
@@ -132,9 +133,9 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             <table className={tabela}>
                                 <thead><tr><th>Ação</th><th>O que pede</th><th>Quando vale</th></tr></thead>
                                 <tbody>
-                                    <tr><td>Registrar os dados básicos</td><td>Um formulário: órgão solicitante, data de chegada, assunto, local dos fatos e sistema utilizado (lista: SIM, SPU, E-mail, Whatsapp, Outros)</td><td>Sempre</td></tr>
-                                    <tr><td>Registrar no SIM e converter em PGEA</td><td>Um texto curto: número do PGEA</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
-                                    <tr><td>Informar o solicitante</td><td>Um formulário: data e meio</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
+                                    <tr><td>Registrar os dados básicos</td><td>Um formulário: órgão solicitante, data de chegada, assunto, local dos fatos e sistema utilizado (lista: SIM, SPU, E-mail, Whatsapp, Outros). Só no sistema, na folha de dados</td><td>Sempre</td></tr>
+                                    <tr><td>Registrar no SIM e converter em PGEA</td><td>Um texto curto: número do PGEA. Só no sistema, na folha de dados</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
+                                    <tr><td>Informar o solicitante</td><td>Um formulário: data e meio. Só no sistema, na folha de dados</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
                                     <tr><td>Conferir se há consulta anterior do mesmo órgão</td><td>Nada: só orienta</td><td>Sempre</td></tr>
                                     <tr><td>Análise superficial</td><td>Um texto longo, sem evento, opcional</td><td>Sempre</td></tr>
                                 </tbody>

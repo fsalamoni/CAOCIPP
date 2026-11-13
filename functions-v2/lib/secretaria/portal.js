@@ -319,11 +319,20 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             ref.collection('movimentos').orderBy('seq').get(),
             ref.collection('documentos').where('status', '==', 'juntado').get(),
         ]);
-        const movimentos = movs.docs.map((d) => d.data()).filter((m) => (0, autos_2.visivelParaPartes)(m));
+        const todos = movs.docs.map((d) => d.data());
+        const movimentos = todos.filter((m) => (0, autos_2.visivelParaPartes)(m));
         const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
+        // Folha de dados: só os campos e os dados do andamento que o órgão marcou para as partes,
+        // sem registro de outro módulo que hoje é restrito, anonimizado ou sumiu (como em "obter").
+        const camposPartes = (proc.campos || []).filter((x) => x.visivel_partes === true);
+        const infosPartes = (0, informacoes_1.informacoesDaFolha)((0, informacoes_1.informacoesDoAndamento)(todos, proc.fases || [], true));
+        const fechadas = await (0, modulos_1.refsFechadas)(db, String(proc.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
+        const aberta = (r) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         const bytes = await (0, exportar_1.montarPdfAutos)({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
             geradoPor: `${((_d = parteDoUsuario(proc, uid)) === null || _d === void 0 ? void 0 : _d.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
+            campos: camposPartes.filter((x) => aberta(x.ref)),
+            informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta)),
         });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
     }

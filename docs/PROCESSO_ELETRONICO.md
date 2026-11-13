@@ -900,7 +900,7 @@ servidor (`shared/exigencias.ts`) e espelhadas em `src/lib/exigencias.js`:
   urgentes primeiro (`urgentesPrimeiro`, mantendo a ordem dentro de cada
   grupo; na lista paginada, dentro de cada página). Selo `SeloUrgente` nas
   listas, no processo, no portal e nos tipos; grupo "Urgentes" no Meu
-  trabalho; filtro "Urgentes"; linha "Tramitação: URGENTE" na capa do PDF;
+  trabalho; filtro "Urgentes"; linha "Tramitação: URGENTE" na folha de dados do PDF;
   "URGENTE:" no título do aviso de processo recebido.
 - **Parte:** tipo de manifestação "Pedido de urgência" no portal; a decisão é
   do gabinete, e a secretaria marca a urgência.
@@ -1128,11 +1128,42 @@ um convite e desligada quando `meusProcessos` não encontra processo algum.
 
 ## Exportação em PDF
 
-Gerada no servidor com `pdf-lib` e `pdfmake`: capa (dados, partes,
-integridade; "cópia parcial" quando há seleção), índice dos autos (atos de
-usuário com folhas e hash) e as peças em ordem cronológica: cada documento
-juntado, carimbado com as folhas gravadas na juntada, ou o termo do ato. Ao
-fim, o "Extrato de registros do sistema". Redigidos entram com o PDF guardado na juntada (ou renderizado
+Gerada no servidor com `pdf-lib` e `pdfmake`: capa, folha de dados do
+processo, índice dos autos (atos de usuário com folhas e hash) e as demais
+peças em ordem cronológica: cada documento juntado, carimbado com as folhas
+gravadas na juntada, ou o termo do ato. Ao fim, o "Extrato de registros do
+sistema".
+
+**Capa e folha de dados (13/11/2026).** A **capa** traz só o nome do órgão, o
+número do processo, a data da autuação e a situação: "Ativo", "Ativo
+(sobrestado)" ou "Arquivado" (`situacaoDaCapa`). Leva também o aviso de
+"cópia parcial" e, se a cadeia de eventos não conferir, o alerta. A **folha de
+dados** é a página do evento 1 (a autuação, folha 1 dos autos) e vem logo
+depois da capa: termo de autuação, identificação (assunto, tipo, rito, sigilo,
+urgência, origem), descrição, partes, campos do processo, os **dados
+registrados no andamento** que o rito manda para lá, a situação na data da
+impressão (situação, fase e unidade atuais) e a frase de integridade. É
+montada na impressão (`folhaDadosPdf` em `exportar.ts`, conteúdo em
+`shared/folhaDados.ts`): nada é gravado, a cadeia de hash e a numeração de
+folhas não mudam, e ela está sempre atualizada. Se passar de uma página, as
+seguintes levam "fls. 1 (continuação)". Abrir o evento 1 no leitor mostra a
+mesma folha.
+
+- **Ação que entra na folha de dados** (`acoes_regras[i].folha_dados`,
+  "Entra na folha de dados do processo" no editor): vale para ação que pede um
+  dado, com qualquer destino (inclusive "Sem evento": o dado completa a folha
+  sem criar evento à vista). O movimento da ação grava `dados.folha_dados`, e
+  a folha lista o valor atual de `informacoesDoAndamento` (desfazer a ação
+  tira o dado). Dado reservado a quem gere a unidade não pode ter a marca (o
+  servidor recusa) e nunca é impresso.
+- **Cópia das partes**: a folha não traz origem, CPF/CNPJ, partes retiradas,
+  unidade, nem quem registrou cada dado; a fase aparece com o nome público.
+  Dos campos e dos dados do andamento, só os marcados para as partes e sem
+  registro de outro módulo fechado (`refsFechadas`), como em `obter`.
+- Processos e ritos antigos: a capa e a folha valem para todos; sem ação
+  marcada, a folha traz só os dados da autuação.
+- Testes: `functions-v2/test/folhaDados.test.js`.
+ Redigidos entram com o PDF guardado na juntada (ou renderizado
 de novo, se forem antigos); PDFs enviados entram página a página; PNG/JPG como
 imagem; TXT como texto; Word/planilha como folha de referência com o hash.
 Minutas nunca entram.

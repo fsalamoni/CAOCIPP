@@ -167,7 +167,9 @@ export async function garantirCodigo(
 export async function anexarCarimbado(
     destino: PDFDocument,
     origem: Uint8Array,
-    info: { processo: string; folha: number | null; ordem?: number; titulo: string; juntadoEm?: string; juntadoPor?: string; sha256?: string; codigo?: string | null; paginas?: [number, number] },
+    info: { processo: string; folha: number | null; ordem?: number; titulo: string; juntadoEm?: string; juntadoPor?: string; sha256?: string; codigo?: string | null; paginas?: [number, number];
+        /** Termo que passou de uma página: todas levam a mesma folha (a numeração dos autos não muda). */
+        mesmaFolha?: boolean },
 ): Promise<number> {
     let src: PDFDocument;
     try { src = await PDFDocument.load(origem, { ignoreEncryption: true }); } catch {
@@ -182,7 +184,8 @@ export async function anexarCarimbado(
         const i = indices[n];
         destino.addPage(pg);
         const { width, height } = pg.getSize();
-        const topo = winAnsi(`Processo nº ${info.processo}${info.folha ? ` · fls. ${info.folha + i}` : ''}`);
+        const fls = !info.folha ? '' : info.mesmaFolha ? ` · fls. ${info.folha}${i ? ' (continuação)' : ''}` : ` · fls. ${info.folha + i}`;
+        const topo = winAnsi(`Processo nº ${info.processo}${fls}`);
         pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: rgb(0.25, 0.25, 0.4) });
         if (qr && info.codigo) {
             pg.drawImage(qr, { x: 14, y: height - 52, width: 34, height: 34 });

@@ -225,6 +225,7 @@ informado.
 | Capa | Aba **Capa** de `src/components/secretaria/ProcessoView.jsx` (`CapaProcesso`): identificação, origem, quem solicitou, partes, tramitação, campos e cronologia dos autos, sem botões de ato |
 | Andamento | Aba **Andamento**: fase atual, minutas, pendências e prazos, comunicações, partes e portal; as ações ficam aqui |
 | Autos | Aba **Autos**: documentos juntados, leitura em sequência e PDF |
+| Capa e folha de dados do PDF | A capa impressa só identifica (órgão, número, autuação, ativo ou arquivado). O conteúdo da capa da seção 4 vai na **folha de dados**, a folha do evento 1, montada na impressão (`functions-v2/src/shared/folhaDados.ts`); o rito pode mandar para ela dados registrados depois (`acoes_regras[i].folha_dados`) |
 | Eventos | Aba **Eventos** (`EventosAutos.jsx`): todos os eventos, filtros por origem |
 | Origem do processo | `secProcessos.origem` (`{ tipo, descricao }`), informada na autuação; tipos em `ORIGENS` (`functions-v2/src/shared/secretaria.ts`, espelho em `src/components/secretaria/comum.jsx`) |
 | Origem do evento | `origemEvento` em `functions-v2/src/shared/autos.ts`: `usuario` (termo com folha), `interno` (o rito deixou fora dos autos) ou `sistema` (os dois últimos saem no extrato) |
