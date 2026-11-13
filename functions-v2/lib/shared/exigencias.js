@@ -174,6 +174,8 @@ function sanitizeRegra(raw, acao) {
             if (!modulos_1.MODULOS.includes(r.modulo))
                 throw new Error(`A ação "${acao}" pede um registro: escolha de que módulo`);
             out.modulo = r.modulo;
+            if (out.modulo === 'paginas')
+                out.pagina = (0, camposProcesso_1.paginaDe)(r.pagina, acao);
         }
         if (pedeBruto === 'formulario') {
             const lista = Array.isArray(r.campos) ? r.campos : [];

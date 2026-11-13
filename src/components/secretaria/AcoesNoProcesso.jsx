@@ -112,7 +112,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     else if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'numero') campo = <Input id="acao-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 12345" autoFocus />;
     else if (pede === 'data') campo = <Input id="acao-valor" type="date" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
-    else if (pede === 'registro') campo = <SeletorRegistro id="acao-valor" aria-describedby={r?.ajuda ? 'acao-ajuda' : undefined} modulo={r.modulo} value={valor} onChange={setValor} autoFocus />;
+    else if (pede === 'registro') campo = <SeletorRegistro id="acao-valor" aria-describedby={r?.ajuda ? 'acao-ajuda' : undefined} modulo={r.modulo} pagina={r.pagina} value={valor} onChange={setValor} autoFocus />;
     else if (pede === 'lista' || pede === 'sim_nao') {
         const opcoes = pede === 'lista' ? (r.opcoes || []).map((o) => [o, o]) : [['sim', 'Sim'], ['nao', 'Não']];
         campo = (

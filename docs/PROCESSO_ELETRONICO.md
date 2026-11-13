@@ -1526,9 +1526,26 @@ admin define, em cada tipo, o que quem autua preenche:
   processo se chama pelo nome do tipo. Tipos antigos seguem como antes
   (assunto obrigatório, o resto opcional). O formulário não pode ficar sem
   assunto, descrição, partes e campos próprios ao mesmo tempo.
+- **Páginas próprias** (nov/2026): módulo `paginas` em `MODULOS`, sobre
+  `customRecords` dos tipos de entidade do órgão (`entityTypes`). Ativo só
+  com a flag `custom_entities` da plataforma. Campo e ação "registro" com
+  `modulo: 'paginas'` exigem `pagina` (id do tipo; `paginaDe`), e o
+  registro escolhido tem de ser dessa página. A referência
+  (`refDePagina`) guarda como número o primeiro campo de texto preenchido, na
+  ordem do tipo (sem texto, `#` e as 6 primeiras letras do id), como título o
+  nome do tipo e `pagina`. São internas (`ehInterno`): o campo nunca fica
+  visível às partes, a informação da ação sai com `restrito`,
+  `refsFechadas` as fecha sem ler o banco, e não trazem dados para campos
+  (`DADOS_REGISTRO.paginas` vazio). A equipe as vê sem marca de restrito. Na
+  tela: "De qual página" no campo do tipo e na ação do rito
+  (`EscolhaPagina`, com as páginas lidas por `ProvedorRegistros` só com a
+  integração ligada), a ficha do registro (`GenericRecordDetailSheet`) com
+  "Processos eletrônicos" e "Criar processo eletrônico", `?abrir=<id>` na
+  lista do tipo (`CustomEntityView`) e "Abrir" da Capa em `tab=clist:<id>`
+  (`abaDoRegistro`).
 - **Integrações com outros módulos** (nov/2026): no Painel Administrativo,
   a aba "Integrações" liga Consultas, Expedientes,
-  Parcerias e Júri aos processos (`secretariaConfig.integracoes`, ação
+  Parcerias, Júri e páginas próprias aos processos (`secretariaConfig.integracoes`, ação
   `salvarIntegracoes`, só admin). Só liga o módulo ativo no órgão, pela mesma
   regra das abas (`shared/modulos.ts`, `modulosAtivos`: órgão sem
   `moduleConfig` tem todos; Parcerias e Júri dependem também da flag da

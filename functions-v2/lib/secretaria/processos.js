@@ -198,9 +198,10 @@ async function valorDaAcao(c, regra, acao, bruto) {
             throw new https_1.HttpsError('failed-precondition', `A integração com ${modulos_1.ROTULO_MODULO[modulo] || 'esse módulo'} está desligada neste órgão`);
         }
         const ref = await (0, modulos_1.resolverRegistro)(c.db, c.orgId, modulo, id);
-        if (!ref)
+        if (!ref || ((regra === null || regra === void 0 ? void 0 : regra.pagina) && ref.pagina !== regra.pagina))
             throw new https_1.HttpsError('invalid-argument', `"${rotulo}": registro não encontrado em ${modulos_1.ROTULO_MODULO[modulo]}`);
-        return { rotulo, tipo: 'registro', valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true };
+        // Página própria é interna: a informação nunca vai às partes.
+        return { rotulo, tipo: 'registro', valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true || (0, modulos_1.ehInterno)(ref) };
     }
     const tipo = pede;
     let valor = null;
@@ -246,7 +247,7 @@ async function refDaOrigem(c, bruto) {
     const ref = await (0, modulos_1.resolverRegistro)(c.db, c.orgId, m, id);
     if (!ref)
         throw new https_1.HttpsError('not-found', `Registro de origem não encontrado em ${modulos_1.ROTULO_MODULO[m]}`);
-    return Object.assign({ modulo: m, id, numero: ref.numero }, (ref.titulo ? { titulo: ref.titulo } : {}));
+    return Object.assign(Object.assign({ modulo: m, id, numero: ref.numero }, (ref.titulo ? { titulo: ref.titulo } : {})), (ref.pagina ? { pagina: ref.pagina } : {}));
 }
 function resumo(id, d) {
     var _a;
@@ -522,7 +523,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const camposLidos = (data.campos || []);
         const origemLida = ((_f = data.origem) === null || _f === void 0 ? void 0 : _f.ref) ? data.origem : null;
         const fechadas = await (0, modulos_1.refsFechadas)(db, c.orgId, [origemLida === null || origemLida === void 0 ? void 0 : origemLida.ref, ...camposLidos.map((x) => x.ref), ...informacoes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
-        const fechada = (r) => !!r && fechadas.has(`${r.modulo}:${r.id}`);
+        // Página própria é sempre fechada para as partes, mas a equipe a vê normalmente.
+        const fechada = (r) => !!r && !(0, modulos_1.ehInterno)(r) && fechadas.has(`${r.modulo}:${r.id}`);
         const marcar = (r) => (r && fechada(r) ? Object.assign(Object.assign({}, r), { restrito: true }) : r);
         return {
             processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, campos: camposLidos.map((x) => (fechada(x.ref) ? Object.assign(Object.assign({}, x), { ref: Object.assign(Object.assign({}, x.ref), { restrito: true }) }) : x)), partes: (data.partes || []).map((_a) => {

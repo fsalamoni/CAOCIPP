@@ -19,7 +19,7 @@ import {
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
-import { MODULOS, Modulo, ROTULO_MODULO, Ref, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
+import { MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
@@ -271,8 +271,9 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
             throw new HttpsError('failed-precondition', `A integração com ${ROTULO_MODULO[modulo] || 'esse módulo'} está desligada neste órgão`);
         }
         const ref = await resolverRegistro(c.db, c.orgId, modulo, id);
-        if (!ref) throw new HttpsError('invalid-argument', `"${rotulo}": registro não encontrado em ${ROTULO_MODULO[modulo]}`);
-        return { rotulo, tipo: 'registro' as TipoCampo, valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true };
+        if (!ref || (regra?.pagina && ref.pagina !== regra.pagina)) throw new HttpsError('invalid-argument', `"${rotulo}": registro não encontrado em ${ROTULO_MODULO[modulo]}`);
+        // Página própria é interna: a informação nunca vai às partes.
+        return { rotulo, tipo: 'registro' as TipoCampo, valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true || ehInterno(ref) };
     }
     const tipo = pede as TipoCampo;
     let valor: ReturnType<typeof valorDe> = null;
@@ -310,7 +311,7 @@ async function refDaOrigem(c: Awaited<ReturnType<typeof carregarContexto>>, brut
     }
     const ref = await resolverRegistro(c.db, c.orgId, m, id);
     if (!ref) throw new HttpsError('not-found', `Registro de origem não encontrado em ${ROTULO_MODULO[m]}`);
-    return { modulo: m, id, numero: ref.numero, ...(ref.titulo ? { titulo: ref.titulo } : {}) };
+    return { modulo: m, id, numero: ref.numero, ...(ref.titulo ? { titulo: ref.titulo } : {}), ...(ref.pagina ? { pagina: ref.pagina } : {}) };
 }
 
 function resumo(id: string, d: admin.firestore.DocumentData) {
@@ -582,7 +583,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const camposLidos = (data.campos || []) as Array<{ ref?: Ref }>;
         const origemLida = data.origem?.ref ? data.origem : null;
         const fechadas = await refsFechadas(db, c.orgId, [origemLida?.ref, ...camposLidos.map((x) => x.ref), ...informacoes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
-        const fechada = (r?: Ref | null) => !!r && fechadas.has(`${r.modulo}:${r.id}`);
+        // Página própria é sempre fechada para as partes, mas a equipe a vê normalmente.
+        const fechada = (r?: Ref | null) => !!r && !ehInterno(r) && fechadas.has(`${r.modulo}:${r.id}`);
         const marcar = <T extends Ref | undefined>(r: T): T => (r && fechada(r) ? { ...r, restrito: true } : r);
         return {
             processo: {

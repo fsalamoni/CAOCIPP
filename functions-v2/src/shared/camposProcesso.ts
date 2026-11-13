@@ -7,7 +7,7 @@
 // src/lib/camposProcesso.js (só para a tela; quem decide é o servidor).
 // ============================================================================
 
-import { DADOS_REGISTRO, MODULOS, Modulo, ROTULO_MODULO, Ref, idEscolhido } from './modulos';
+import { DADOS_REGISTRO, ID_PAGINA, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, idEscolhido } from './modulos';
 
 // Sem importar ./secretaria: o rito (./exigencias, que ./secretaria importa) usa os campos
 // na ação que pede um formulário. O mesmo corte de texto de lá.
@@ -47,6 +47,8 @@ export interface CampoDef {
     exigir_em?: string[];
     /** Registro de outro módulo (tipo 'registro'): de qual. */
     modulo?: Modulo;
+    /** Módulo 'paginas': de qual página própria (id do tipo). */
+    pagina?: string;
     /** Pré-preenchido com um dado do registro escolhido no campo `de` (tipo 'registro'). */
     importar?: { de: string; dado: string };
 }
@@ -126,6 +128,13 @@ export function formularioDe(tipo: { formulario?: unknown } | null | undefined):
  * formulário): nome, tipo, opções, módulo, formato, condição e nomes repetidos.
  * Lança Error com mensagem para o usuário. O teto de quantidade fica com quem chama.
  */
+/** Página própria escolhida num campo ou ação 'registro' (id do tipo); obrigatória. */
+export function paginaDe(v: unknown, rotulo: string): string {
+    const p = typeof v === 'string' ? v.trim() : '';
+    if (!ID_PAGINA.test(p)) throw new Error(`Escolha de qual página própria vem o registro de "${rotulo}"`);
+    return p;
+}
+
 export function sanitizeCampos(lista: unknown[]): CampoDef[] {
     const ids = new Set<string>();
     const campos: CampoDef[] = lista.map((x, i) => {
@@ -139,6 +148,7 @@ export function sanitizeCampos(lista: unknown[]): CampoDef[] {
         if (COM_OPCOES.includes(tipo) && opcoes.length < 2) throw new Error(`O campo "${rotulo}" é uma lista: informe ao menos duas opções`);
         const modulo = tipo === 'registro' && MODULOS.includes(o.modulo as Modulo) ? (o.modulo as Modulo) : undefined;
         if (tipo === 'registro' && !modulo) throw new Error(`Escolha de que módulo vem o registro de "${rotulo}"`);
+        const pagina = modulo === 'paginas' ? paginaDe(o.pagina, rotulo) : '';
         const formato = FORMATOS.includes(o.formato as Formato) && FORMATO_DO_TIPO[o.formato as Formato] === tipo ? (o.formato as Formato) : undefined;
         const secao = texto(o.secao, 60);
         const exigir = [...new Set((Array.isArray(o.exigir_em) ? o.exigir_em : []).map((s) => texto(s, 60)).filter(Boolean))].slice(0, 30);
@@ -147,8 +157,8 @@ export function sanitizeCampos(lista: unknown[]): CampoDef[] {
         if (!id || ids.has(id)) id = `c${Date.now().toString(36)}${i}`;
         ids.add(id);
         return {
-            id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true,
-            ...(formato ? { formato } : {}), ...(modulo ? { modulo } : {}), ...(secao ? { secao } : {}), ...(exigir.length ? { exigir_em: exigir } : {}),
+            id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true && modulo !== 'paginas',
+            ...(formato ? { formato } : {}), ...(modulo ? { modulo } : {}), ...(pagina ? { pagina } : {}), ...(secao ? { secao } : {}), ...(exigir.length ? { exigir_em: exigir } : {}),
             ...(o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao as Condicao } : {}),
             ...(o.importar && typeof o.importar === 'object' ? { importar: { de: texto((o.importar as Record<string, unknown>).de, 24), dado: texto((o.importar as Record<string, unknown>).dado, 24) } } : {}),
         };
@@ -342,9 +352,9 @@ export function validarCampos(form: Formulario, valores: unknown, antes: CampoVa
             }
             const ref = refs.get(c.id);
             if (ref === 'desligada') throw new Error(`A integração com ${ROTULO_MODULO[c.modulo!]} está desligada neste órgão: "${c.rotulo}" não pode ser escolhido agora`);
-            if (!ref || ref.id !== id || ref.modulo !== c.modulo) throw new Error(`"${c.rotulo}": registro não encontrado em ${ROTULO_MODULO[c.modulo!] || 'outro módulo'}`);
+            if (!ref || ref.id !== id || ref.modulo !== c.modulo || (c.pagina && ref.pagina !== c.pagina)) throw new Error(`"${c.rotulo}": registro não encontrado em ${ROTULO_MODULO[c.modulo!] || 'outro módulo'}`);
             lidos.set(c.id, ref.numero);
-            out.push({ id: c.id, rotulo: c.rotulo, tipo: 'registro', valor: ref.numero, ref, visivel_partes: c.visivel_partes && !ref.restrito });
+            out.push({ id: c.id, rotulo: c.rotulo, tipo: 'registro', valor: ref.numero, ref, visivel_partes: c.visivel_partes && !ref.restrito && !ehInterno(ref) });
             continue;
         }
         const valor = valorDe(c, v[c.id]);

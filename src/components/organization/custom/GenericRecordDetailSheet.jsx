@@ -18,6 +18,8 @@ import { Pencil, Trash2, History, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFieldValue } from '@/lib/fieldTypes';
 import { updateRecord, deleteRecord } from '@/services/customEntitiesService';
+import ProcessosVinculados from '@/components/secretaria/ProcessosVinculados';
+import { registroDePagina } from '@/lib/registrosModulos';
 
 /**
  * Folha de detalhes de um registro.
@@ -122,6 +124,9 @@ export default function GenericRecordDetailSheet({
                                 </div>
                             ))}
                         </div>
+
+                        {/* Processo Eletrônico: processos ligados e "Criar processo eletrônico" (com a integração ligada). */}
+                        {organizationId && <ProcessosVinculados orgId={organizationId} registro={{ modulo: 'paginas', ...registroDePagina(record.id, record, entityType) }} />}
 
                         <Separator />
 

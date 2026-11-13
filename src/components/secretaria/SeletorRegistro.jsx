@@ -4,17 +4,36 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ROTULO_MODULO } from '@/lib/camposProcesso';
 import { buscarRegistros } from '@/lib/registrosModulos';
+import { useEntityTypes } from '@/hooks/useCustomEntities';
 
-/** Órgão e integrações que valem, para os seletores de registro (Processo Eletrônico e Configuração). */
-export const RegistroContexto = createContext({ orgId: null, ligadas: {} });
+/**
+ * Órgão, integrações que valem e páginas próprias do órgão ([{ id, nome,
+ * plural }]), para os seletores de registro (Processo Eletrônico e Configuração).
+ */
+export const RegistroContexto = createContext({ orgId: null, ligadas: {}, paginas: [] });
+
+/** Provê o RegistroContexto; as páginas próprias só são lidas com a integração ligada. */
+export function ProvedorRegistros({ orgId, ligadas, children }) {
+    const { entityTypes } = useEntityTypes(ligadas?.paginas ? orgId : null);
+    const paginas = (entityTypes || []).filter((t) => t.enabled !== false)
+        .map((t) => ({ id: t.id, nome: t.label_singular || 'Página', plural: t.label_plural || t.label_singular || 'Página' }));
+    return <RegistroContexto.Provider value={{ orgId, ligadas, paginas }}>{children}</RegistroContexto.Provider>;
+}
+
+/** Nome do módulo (ou da página própria) para os textos do seletor. */
+export function nomeDoModulo(modulo, pagina, paginas) {
+    if (modulo === 'paginas') return (paginas || []).find((x) => x.id === pagina)?.plural || 'páginas próprias';
+    return ROTULO_MODULO[modulo] || 'outro módulo';
+}
 
 /**
  * Escolhe um registro de outro módulo do órgão (Consultas, Expedientes,
- * Parcerias, Júri) pelo número ou título. `value`: { id, numero, titulo } ou ''.
+ * Parcerias, Júri ou a página própria `pagina`) pelo número ou título.
+ * `value`: { id, numero, titulo } ou ''.
  * Combobox acessível: setas, Enter e Esc (Esc fecha só a lista, não o diálogo).
  */
-export default function SeletorRegistro({ id, modulo, value, onChange, disabled, autoFocus, ...aria }) {
-    const { orgId, ligadas } = useContext(RegistroContexto);
+export default function SeletorRegistro({ id, modulo, pagina, value, onChange, disabled, autoFocus, ...aria }) {
+    const { orgId, ligadas, paginas } = useContext(RegistroContexto);
     const listaId = useId();
     const [texto, setTexto] = useState('');
     const [aberto, setAberto] = useState(false);
@@ -27,7 +46,7 @@ export default function SeletorRegistro({ id, modulo, value, onChange, disabled,
     const [anuncio, setAnuncio] = useState('');
     const inputRef = useRef(null);
     const trocarRef = useRef(null);
-    const nomeModulo = ROTULO_MODULO[modulo] || 'outro módulo';
+    const nomeModulo = nomeDoModulo(modulo, pagina, paginas);
     const ligada = ligadas?.[modulo] === true;
     const pronta = !carregando && !erro && buscado === texto;
 
@@ -36,13 +55,13 @@ export default function SeletorRegistro({ id, modulo, value, onChange, disabled,
         let vivo = true;
         setCarregando(true);
         const t = setTimeout(() => {
-            buscarRegistros(orgId, modulo, texto)
+            buscarRegistros(orgId, modulo, texto, pagina)
                 .then((l) => { if (vivo) { setItens(l); setBuscado(texto); setErro(''); setAtivo(0); } })
                 .catch(() => { if (vivo) setErro(`Não foi possível buscar em ${nomeModulo}`); })
                 .finally(() => vivo && setCarregando(false));
         }, 250);
         return () => { vivo = false; clearTimeout(t); };
-    }, [aberto, texto, orgId, modulo, ligada, nomeModulo]);
+    }, [aberto, texto, orgId, modulo, pagina, ligada, nomeModulo]);
 
     // Esc com a lista aberta fecha só a lista: o diálogo em volta (Radix) escuta no document, então paramos antes, na janela.
     useEffect(() => {

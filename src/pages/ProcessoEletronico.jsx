@@ -26,7 +26,7 @@ import FormularioAutuacao from '@/components/secretaria/FormularioAutuacao';
 import { NUMERACAO_PADRAO, formatarNumero } from '@/lib/numeracao';
 import { ROTULO_REF, camposDaOrigem, faltando, formularioDe, integracoesLigadas } from '@/lib/camposProcesso';
 import { buscarRegistro } from '@/lib/registrosModulos';
-import { RegistroContexto } from '@/components/secretaria/SeletorRegistro';
+import { ProvedorRegistros } from '@/components/secretaria/SeletorRegistro';
 import { unidadeComOrgao } from '@/lib/orgaos';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
@@ -168,7 +168,7 @@ export default function ProcessoEletronico() {
     const aba = abasValidas.includes(abaUrl) ? abaUrl : abaPadrao;
 
     return (
-        <RegistroContexto.Provider value={{ orgId, ligadas: integracoesLigadas(estado) }}>
+        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)}>
         {barra}
         <div className="space-y-5">
             <div className={`${procId ? 'hidden sm:flex' : 'flex'} flex-wrap items-center justify-between gap-3`}>
@@ -245,7 +245,7 @@ export default function ProcessoEletronico() {
                 </Tabs>
             )}
         </div>
-        </RegistroContexto.Provider>
+        </ProvedorRegistros>
     );
 }
 

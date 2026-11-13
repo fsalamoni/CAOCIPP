@@ -121,7 +121,7 @@ export const peAtivo = (pe, valor) => !!pe && !!valor && valor !== 'all' && !(va
 /** Aplica o filtro "Processo eletrônico" (só os processos que a pessoa vê contam). */
 export const filtrarPE = (lista, pe, valor) => (peAtivo(pe, valor) ? lista.filter((r) => pe.ids.has(r.id) === (valor === 'com')) : lista);
 
-const NOME_MODULO = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri' };
+const NOME_MODULO = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri', paginas: 'Páginas próprias' };
 
 /**
  * Atalho para quem configura o PE (criador ou configure_secretaria; o servidor

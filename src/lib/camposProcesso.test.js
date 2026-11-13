@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { camposDaOrigem, faltando, formularioDe, formularioPadrao, novoCampo, problemasFormulario, rotuloDe, valorTexto, valoresDe } from './camposProcesso.js';
+import { abaDoRegistro, camposDaOrigem, faltando, formularioDe, formularioPadrao, novoCampo, problemasFormulario, registrosLigados, rotuloDe, valorTexto, valoresDe } from './camposProcesso.js';
+
+test('página própria: abre na lista do tipo e entra nos registros ligados', () => {
+    assert.equal(abaDoRegistro({ modulo: 'paginas', id: 'r1', pagina: 'tp1' }), 'clist:tp1');
+    assert.equal(abaDoRegistro({ modulo: 'paginas', id: 'r1' }), '');
+    assert.equal(abaDoRegistro({ modulo: 'juri', id: 'j' }), 'jurimetria');
+    const l = registrosLigados({ campos: [{ rotulo: 'Atendimento', ref: { modulo: 'paginas', id: 'r1', numero: 'Maria', pagina: 'tp1' } }] });
+    assert.deepEqual(l.map((r) => [r.modulo, r.pagina, r.de[0]]), [['paginas', 'tp1', 'Atendimento']]);
+});
 
 const form = {
     ...formularioPadrao(), assunto: 'opcional', descricao: 'obrigatorio', partes: 'obrigatorio',
@@ -105,7 +113,7 @@ test('prévia: valor como o servidor gravaria', async () => {
 test('registro de outro módulo: integração, configuração, valor e texto', async () => {
     const m = await import('./camposProcesso.js');
     assert.deepEqual(m.integracoesLigadas({ integracoes: { consultas: true, juri: true }, modulos_ativos: { consultas: true, juri: false } }),
-        { consultas: true, expedientes: false, parcerias: false, juri: false });
+        { consultas: true, expedientes: false, parcerias: false, juri: false, paginas: false });
     assert.match(problemasFormulario({ ...formularioPadrao(), campos: [{ rotulo: 'Consulta', tipo: 'registro' }] }).join(), /de que módulo/);
     const c = { id: 'r', rotulo: 'Consulta', tipo: 'registro', modulo: 'consultas' };
     assert.equal(m.valorComoGravado(c, { id: 'p1', numero: '00123/2026', titulo: 'Licitação' }), '00123/2026');

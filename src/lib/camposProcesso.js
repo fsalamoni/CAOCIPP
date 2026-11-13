@@ -16,14 +16,15 @@ export const TIPOS_CAMPO = [
     ['registro', 'Registro de outro módulo'],
 ];
 /** Módulos do órgão que entram nos processos (espelho de shared/modulos.ts). */
-export const MODULOS = [['consultas', 'Consultas'], ['expedientes', 'Expedientes'], ['parcerias', 'Parcerias'], ['juri', 'Júri']];
+export const MODULOS = [['consultas', 'Consultas'], ['expedientes', 'Expedientes'], ['parcerias', 'Parcerias'], ['juri', 'Júri'], ['paginas', 'Páginas próprias']];
 export const ROTULO_MODULO = Object.fromEntries(MODULOS);
 /** Integrações que valem: ligadas pelo admin e com o módulo ativo no órgão. */
 /** De onde um processo pode nascer: outro processo ('pe') ou registro de outro módulo (espelho de textoOrigem no servidor). */
 export const ORIGENS_REF = [['pe', 'Outro processo eletrônico'], ...MODULOS];
-export const ROTULO_REF = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri' };
-// Aba do órgão onde cada módulo mostra seus registros.
-export const ABA_DO_MODULO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'jurimetria' };
+export const ROTULO_REF = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri', paginas: 'Registro' };
+// Aba do órgão onde cada módulo mostra seus registros (página própria: a lista do tipo, `clist:<id>`).
+export const ABA_DO_MODULO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'jurimetria', paginas: 'clist' };
+export const abaDoRegistro = (r) => (r?.modulo === 'paginas' ? (r.pagina ? `clist:${r.pagina}` : '') : ABA_DO_MODULO[r?.modulo] || '');
 
 /** Registros de outros módulos citados no processo (origem, campos da autuação, ações do rito), sem repetir. */
 export function registrosLigados(p, informacoes = []) {
@@ -61,6 +62,7 @@ export const DADOS_REGISTRO = {
     expedientes: [['origem', 'Origem', 'texto'], ['sistema', 'Sistema', 'texto'], ['objeto', 'Objeto', 'texto'], ['entrada', 'Data de entrada', 'data']],
     parcerias: [['tipo', 'Tipo de parceria', 'texto'], ['objeto', 'Objeto', 'texto'], ['partes', 'Partes', 'texto'], ['assinatura', 'Data da assinatura', 'data'], ['termo_final', 'Termo final', 'data']],
     juri: [['comarca', 'Comarca', 'texto'], ['data_juri', 'Data do júri', 'data']],
+    paginas: [],
 };
 /** Campo que recebe dado deste tipo: data só em data; texto em texto livre ou longo. */
 export const aceitaDado = (c, tipoDado) => (tipoDado === 'data' ? c.tipo === 'data' : c.tipo === 'texto_longo' || (c.tipo === 'texto' && !c.formato));

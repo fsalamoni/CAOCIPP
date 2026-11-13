@@ -1,6 +1,7 @@
 // ============================================================================
 // Busca de registros de outro módulo do órgão (Consultas, Expedientes,
-// Parcerias, Júri) para o campo e a ação "registro" do Processo Eletrônico.
+// Parcerias, Júri e páginas próprias) para o campo e a ação "registro" do
+// Processo Eletrônico.
 // Mesma leitura da busca global (organization_id + updated_at, regra
 // isMemberOf), por módulo, com cache curto: as teclas só refiltram em memória.
 // Mostra e procura só número e título; o servidor relê o registro escolhido.
@@ -38,6 +39,40 @@ function dadosDe(modulo, d) {
     return Object.fromEntries(Object.entries(brutos).filter(([, v]) => v));
 }
 
+/**
+ * Página própria como o servidor guarda (espelho de refDePagina): o primeiro
+ * campo de texto preenchido, na ordem do tipo, e o nome do tipo. Sem dados
+ * para pré-preencher (página própria é interna).
+ */
+export function registroDePagina(id, d, tipo) {
+    const s = (v) => (v === undefined || v === null ? '' : String(v).trim());
+    const valores = d?.values || {};
+    const campo = (tipo?.fields || []).find((f) => f.type === 'text' && s(valores[f.key]));
+    return { id, numero: (campo ? s(valores[campo.key]).slice(0, 80) : '') || `#${id.slice(0, 6)}`, titulo: s(tipo?.label_singular).slice(0, 160), pagina: s(d?.entity_type_id), dados: {} };
+}
+
+async function tipoDaPagina(pagina) {
+    const k = `tipo:${pagina}`;
+    const c = cache.get(k);
+    if (c && Date.now() - c.em < TTL) return c.lista;
+    const t = (await getDoc(doc(db, 'entityTypes', pagina))).data() || null;
+    cache.set(k, { lista: t, em: Date.now() });
+    return t;
+}
+
+async function registrosDaPagina(orgId, pagina) {
+    const k = `${orgId}:paginas:${pagina}`;
+    const c = cache.get(k);
+    if (c && Date.now() - c.em < TTL) return c.lista;
+    const [tipo, snap] = await Promise.all([
+        tipoDaPagina(pagina),
+        getDocs(query(collection(db, 'customRecords'), where('organization_id', '==', orgId), where('entity_type_id', '==', pagina), orderBy('updated_at', 'desc'), limit(LIMITE))),
+    ]);
+    const lista = snap.docs.map((d) => registroDePagina(d.id, d.data(), tipo));
+    cache.set(k, { lista, em: Date.now() });
+    return lista;
+}
+
 /** Número e título como o servidor guarda (espelho de refDe em shared/modulos.ts); `dados` só de registro sem restrição, para pré-preencher. */
 export function registroDe(modulo, id, d) {
     const par = {
@@ -65,10 +100,14 @@ async function registros(orgId, modulo) {
  * Até 20 registros cujo número ou título contém o texto (sem texto: os mais
  * recentes). Nada entre os recentes: procura pelo número exato em todo o módulo.
  */
-export async function buscarRegistros(orgId, modulo, texto) {
-    if (!orgId || !COLECAO[modulo]) return [];
+export async function buscarRegistros(orgId, modulo, texto, pagina) {
+    if (!orgId || (!COLECAO[modulo] && !(modulo === 'paginas' && pagina))) return [];
     const bruto = String(texto || '').trim();
     const t = bruto.toLowerCase();
+    if (modulo === 'paginas') {
+        const lista = await registrosDaPagina(orgId, pagina);
+        return (t ? lista.filter((r) => r.numero.toLowerCase().includes(t) || r.titulo.toLowerCase().includes(t)) : lista).slice(0, MAX_RESULTADOS);
+    }
     const lista = await registros(orgId, modulo);
     const achados = (t ? lista.filter((r) => r.numero.toLowerCase().includes(t) || r.titulo.toLowerCase().includes(t)) : lista).slice(0, MAX_RESULTADOS);
     if (achados.length || !bruto) return achados;
@@ -78,6 +117,12 @@ export async function buscarRegistros(orgId, modulo, texto) {
 
 /** Um registro pelo id (para "Criar processo eletrônico" vindo do outro módulo); null se não for do órgão. */
 export async function buscarRegistro(orgId, modulo, id) {
+    if (orgId && modulo === 'paginas' && id) {
+        const s = await getDoc(doc(db, 'customRecords', id));
+        const d = s.data();
+        if (!s.exists() || d?.organization_id !== orgId) return null;
+        return { modulo, ...registroDePagina(s.id, d, await tipoDaPagina(String(d.entity_type_id || ''))) };
+    }
     if (!orgId || !COLECAO[modulo] || !id) return null;
     const s = await getDoc(doc(db, COLECAO[modulo], id));
     const d = s.data();
