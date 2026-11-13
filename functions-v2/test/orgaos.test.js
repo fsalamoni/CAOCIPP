@@ -44,3 +44,9 @@ test('proposta do assistente: chaves únicas, unidades sem nome saem', () => {
     assert.equal(p[1].pai_chave, 'a');
     assert.equal(sanitizeCompetencias(Array.from({ length: 40 }, (_, i) => `c${i}`)).length, 20);
 });
+
+test('órgão: ativo false é preservado e ausente vale true (desativar em vez de excluir)', () => {
+    assert.equal(sanitizeOrgao({ nome: 'A', ativo: false }, 'a').ativo, false);
+    assert.equal(sanitizeOrgao({ nome: 'A' }, 'a').ativo, true);
+    assert.equal(orgaosDe([{ id: 'a', nome: 'A', ativo: false }])[0].ativo, false);
+});

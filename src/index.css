@@ -120,3 +120,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Celular: a linha com caixa de marcar ou chave tem ao menos 44px de altura para o toque. */
+@media (max-width: 639.98px) {
+  label:has(> input[type="checkbox"], > button[role="checkbox"], > button[role="switch"]) { min-height: 2.75rem; }
+}

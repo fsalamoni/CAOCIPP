@@ -497,6 +497,14 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         // Versão de antes da opção: o rito volta sem exigir tipo.
         if (col === context_1.COL.ritos)
             volta.exigir_tipo = v.exigir_tipo === true;
+        // Fase que corria em unidade já excluída volta correndo na unidade que estiver com o processo.
+        if (col === context_1.COL.ritos && Array.isArray(volta.fases)) {
+            const vivas = new Set(c.unidades.filter((u) => !u.excluida).map((u) => u.id));
+            volta.fases = volta.fases.map((_a) => {
+                var { unidade_id } = _a, f = __rest(_a, ["unidade_id"]);
+                return (unidade_id && vivas.has(unidade_id) ? Object.assign(Object.assign({}, f), { unidade_id }) : f);
+            });
+        }
         await ref.update(volta);
         await audit('SECRETARIA_VERSAO_RESTAURADA', { colecao: p.colecao, id: ref.id, nome: v.nome || atual.nome, de_versao: v.versao, nova_versao: volta.versao });
         return { success: true, versao: volta.versao };
@@ -646,7 +654,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             refUn.set(String(u.ref), ref.id);
             return { ref, nome, sigla: (0, secretaria_1.texto)(u.sigla, 12), tipo: (0, secretaria_1.tipoUnidade)(u.tipo) };
         });
-        const unidadesValidas = new Set([...c.unidades.map((u) => u.id), ...refUn.values()]);
+        const unidadesValidas = new Set([...c.unidades.filter((u) => !u.excluida).map((u) => u.id), ...refUn.values()]);
         const unidadeDe = (r) => {
             const s = String(r || '');
             const id = refUn.get(s) || s;
@@ -731,7 +739,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             (0, context_1.erroUsuario)(e);
         }
         const modelosOrg = await db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('excluido').get();
-        rito = filtrarRefsRito(rito, new Set(c.unidades.map((u) => u.id)), new Set(naoExcluidos(modelosOrg).map((d) => d.id)));
+        rito = filtrarRefsRito(rito, new Set(c.unidades.filter((u) => !u.excluida).map((u) => u.id)), new Set(naoExcluidos(modelosOrg).map((d) => d.id)));
         const col = db.collection(context_1.COL.ritos);
         if (p.id) {
             const ref = col.doc(p.id);
@@ -779,7 +787,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const rito = (await db.collection(context_1.COL.ritos).doc(String(t.rito_id || '_')).get()).data();
         if (!rito || rito.organization_id !== orgId || rito.excluido === true)
             throw new https_1.HttpsError('invalid-argument', 'Escolha o rito do tipo de processo');
-        const unidadeInicial = String(t.unidade_inicial || '');
+        const pedida = String(t.unidade_inicial || '');
+        // Unidade excluída (tipo antigo ou versão restaurada) não volta: fica "a de quem autua", que é o que o editor mostra.
+        const unidadeInicial = c.unidades.some((u) => u.id === pedida && u.excluida) ? '' : pedida;
         if (unidadeInicial && !c.unidades.some((u) => u.id === unidadeInicial))
             throw new https_1.HttpsError('invalid-argument', 'Unidade inicial inválida');
         // Tipo próprio de um órgão interno: só as unidades dele autuam.

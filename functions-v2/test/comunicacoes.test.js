@@ -65,4 +65,7 @@ test('textos prontos: exigem nome e texto, espécie desconhecida vira qualquer, 
     assert.notEqual(l[1].id, 'a');
     assert.deepEqual(textosProntosDe([{ nome: 'quebrado' }]), []);
     assert.deepEqual(textosProntosDe(undefined), []);
+    // "Desfazer" reenvia o item como estava: o id e os campos voltam iguais.
+    const ida = sanitizeTextosProntos([{ id: 'tabc', nome: 'X', texto: 'y', dias: 5, contagem: 'corridos' }]);
+    assert.deepEqual(sanitizeTextosProntos(ida), ida);
 });

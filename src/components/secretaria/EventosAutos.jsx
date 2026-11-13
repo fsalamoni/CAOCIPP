@@ -72,10 +72,10 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                     <Button size="sm" className="gap-1.5" disabled={!movimentos.length} onClick={() => setPdfAberto(true)}><Download className="w-4 h-4" aria-hidden /> Gerar PDF{marcados.size ? ` (${marcados.size})` : ''}</Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-2">
-                    <div role="group" aria-label="Filtrar eventos" className="flex flex-wrap gap-1">
+                    <div role="group" aria-label="Filtrar eventos" className="flex flex-wrap gap-2 sm:gap-1">
                         {FILTROS.filter(([v]) => !['sistema', 'interno', 'ocultos'].includes(v) || temOrigem(v)).map(([v, l]) => (
                             <button key={v} type="button" aria-pressed={filtro === v} onClick={() => setFiltro(v)}
-                                className={`rounded-full border px-2.5 py-1 text-xs ${filtro === v ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{l}</button>
+                                className={`min-h-11 min-w-11 rounded-full border px-2.5 py-1 text-xs sm:min-h-0 sm:min-w-0 ${filtro === v ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{l}</button>
                         ))}
                     </div>
                     <div className="relative flex-1 min-w-[10rem]">
@@ -91,7 +91,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="text-left text-xs text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                                    <th className="py-1.5 pr-2 w-6"><input type="checkbox" checked={todosMarcados} onChange={marcarTodos} aria-label="Marcar todos os eventos listados" /></th>
+                                    <th className="py-1.5 pr-2 w-6"><label className="-my-1.5 flex h-11 w-11 items-center justify-center sm:my-0 sm:inline sm:h-auto sm:w-auto"><input type="checkbox" checked={todosMarcados} onChange={marcarTodos} aria-label="Marcar todos os eventos listados" /></label></th>
                                     <th className="py-1.5 pr-3 font-medium">Nº</th>
                                     <th className="py-1.5 pr-3 font-medium hidden sm:table-cell">Data e hora</th>
                                     <th className="py-1.5 pr-3 font-medium">Evento</th>
@@ -102,7 +102,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                             <tbody>
                                 {visiveis.map((m) => (
                                     <tr key={m.seq} className={`border-b border-slate-100 dark:border-slate-800 align-top ${marcados.has(m.seq) ? 'bg-indigo-50/60 dark:bg-indigo-950/40' : ''}`}>
-                                        <td className="py-2 pr-2">{!oculto(m) && <input type="checkbox" checked={marcados.has(m.seq)} onChange={() => marcar(m.seq)} aria-label={`Marcar o evento ${m.seq}`} />}</td>
+                                        <td className="py-2 pr-2">{!oculto(m) && <label className="-my-2 flex h-11 w-11 items-center justify-center sm:my-0 sm:inline sm:h-auto sm:w-auto"><input type="checkbox" checked={marcados.has(m.seq)} onChange={() => marcar(m.seq)} aria-label={`Marcar o evento ${m.seq}`} /></label>}</td>
                                         <td className="py-2 pr-3 font-mono text-xs tabular-nums" title={m.hash ? `SHA-256 ${m.hash}` : undefined}>{m.seq}</td>
                                         <td className="py-2 pr-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400 hidden sm:table-cell">{dataHora(m.em)}</td>
                                         <td className="py-2 pr-3 sm:min-w-[14rem] break-words">

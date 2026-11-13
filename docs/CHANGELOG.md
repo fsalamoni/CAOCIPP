@@ -5,6 +5,27 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico mais claro e mais fácil no celular
+- **Glossário**: botão "?" ao lado de autos, autuar, certidão conjunta,
+  ciência por decurso, dispensa, juntada, remessa e sobrestar, com uma
+  definição curta (teclado e toque); seção Glossário na Central de Ajuda.
+  O portal das partes não mostra o "?".
+- **Celular**: ao abrir um processo, cabeçalho e barra do órgão saem da
+  frente e fica uma barra fina com "Processos" e o número. Em "Meu
+  trabalho", tocar em qualquer parte da linha abre o processo.
+- **Toques de 44px** no celular para caixas de marcar, chaves, filtros de
+  eventos, o X que tira modelo da fase e os botões de voltar. No computador
+  nada muda de tamanho.
+- **Excluir unidade**: o diálogo mostra os tipos de processo que entram por
+  ela e as fases de rito que correm nela; modelos, tipos e fases passam
+  para a unidade escolhida (ou, sem escolha, modelos inativos no órgão,
+  tipos pela unidade de quem autua e fases pela unidade que estiver com o
+  processo). Tipos e ritos que apontavam para unidade excluída voltam a
+  salvar.
+- **Excluir órgão interno**: aviso de que não se desfaz e a opção
+  "Desativar em vez de excluir".
+- **Textos prontos**: Duplicar e Desfazer depois de excluir.
+
 ### 13/11/2026 — Configuração do Processo Eletrônico organizada
 - **Abas próprias** para Integrações e Preferências; a barra de abas fica no
   topo e rola no celular; a aba vai para o endereço e a página abre no passo

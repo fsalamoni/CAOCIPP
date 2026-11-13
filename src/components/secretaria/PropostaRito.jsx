@@ -1027,9 +1027,9 @@ function CartaoFase({
                 <p className="text-xs font-medium mb-1">Modelos de documento{nModelos > MAX_MODELOS_FASE ? ` (${nModelos}; cabem ${MAX_MODELOS_FASE})` : ''}</p>
                 <div className="flex flex-wrap gap-1.5 items-center">
                     {(f.modelos_ref || []).map((r) => (
-                        <Badge key={r} variant={String(r).startsWith('+') ? 'outline' : 'secondary'} className="gap-1">
+                        <Badge key={r} variant={String(r).startsWith('+') ? 'outline' : 'secondary'} className="gap-1 py-0 sm:py-0.5">
                             {nomeModelo(r)}{String(r).startsWith('+') && <span className="text-[10px] text-indigo-600">novo</span>}
-                            <button type="button" className="-m-1.5 p-1.5" onClick={() => mudar({ modelos_ref: f.modelos_ref.filter((x) => x !== r) })} aria-label={`Tirar ${nomeModelo(r)}`}><X className="w-3 h-3" /></button>
+                            <button type="button" className="-mr-2.5 inline-flex h-11 w-11 items-center justify-center sm:-m-1.5 sm:h-auto sm:w-auto sm:p-1.5" onClick={() => mudar({ modelos_ref: f.modelos_ref.filter((x) => x !== r) })} aria-label={`Tirar ${nomeModelo(r)}`}><X className="w-3 h-3" /></button>
                         </Badge>
                     ))}
                     <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); addModelo(novoModelo); setNovoModelo(''); }}>

@@ -87,18 +87,18 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
 function TextosProntos({ orgId, estado }) {
     const { salvar, salvando } = useSalvar(orgId);
     // Devolve se salvou, para o diálogo saber se fecha.
-    const onSalvar = (textos) => new Promise((ok) => { let fechou = false; salvar('salvarTextosComunicacao', { textos }, () => { fechou = true; }).then(() => ok(fechou)); });
+    const onSalvar = (textos, aviso) => new Promise((ok) => { let fechou = false; salvar('salvarTextosComunicacao', { textos }, () => { fechou = true; }, aviso).then(() => ok(fechou)); });
     return <TextosComunicacao estado={estado} salvando={salvando} onSalvar={onSalvar} />;
 }
 
 function useSalvar(orgId) {
     const qc = useQueryClient();
     const [salvando, setSalvando] = useState(false);
-    const salvar = async (action, payload, fechar) => {
+    const salvar = async (action, payload, fechar, aviso = () => toast.success('Salvo')) => {
         setSalvando(true);
         try {
             await secConfig(orgId, action, payload);
-            toast.success('Salvo');
+            aviso();
             fechar(null);
             qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
         } catch (e) {

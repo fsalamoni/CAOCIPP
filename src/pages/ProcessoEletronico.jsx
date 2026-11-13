@@ -31,6 +31,7 @@ import { unidadeComOrgao } from '@/lib/orgaos';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
 import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
+import AjudaTermo, { focoSemAjuda } from '@/components/secretaria/AjudaTermo';
 
 export default function ProcessoEletronico() {
     const [params, setParams] = useSearchParams();
@@ -50,7 +51,13 @@ export default function ProcessoEletronico() {
     const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
     const { organization: orgAoVivo, resolvedId } = useOrganizationRealtime(orgId);
     const orgTabs = useOrganizationTabs(resolvedId === orgId ? orgAoVivo : null, { role: org?.userRole, permissions: org?.userPermissions });
-    const barra = isV2 && <OrgTabBar tabs={orgTabs} activeTab={PROCESSO_ELETRONICO_TAB} orgId={orgId} />;
+    // No celular, dentro de um processo, a barra e o cabeçalho somem: a barra
+    // compacta do ProcessoView mostra o número e o caminho de volta.
+    const barra = isV2 && (
+        <div className={procId ? 'hidden sm:block' : undefined}>
+            <OrgTabBar tabs={orgTabs} activeTab={PROCESSO_ELETRONICO_TAB} orgId={orgId} />
+        </div>
+    );
     // A aba interna fica no endereço (?aba=): voltar de um processo, recarregar
     // ou compartilhar o link mantém a pessoa onde estava.
     const abaUrl = params.get('aba');
@@ -164,9 +171,9 @@ export default function ProcessoEletronico() {
         <RegistroContexto.Provider value={{ orgId, ligadas: integracoesLigadas(estado) }}>
         {barra}
         <div className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className={`${procId ? 'hidden sm:flex' : 'flex'} flex-wrap items-center justify-between gap-3`}>
                 <div className="flex items-center gap-3 min-w-0">
-                    <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="text-slate-600 hover:text-slate-800 dark:hover:text-slate-200" aria-label="Voltar ao órgão">
+                    <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="-m-3 inline-flex rounded-md p-3 text-slate-600 hover:text-slate-800 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:m-0 sm:p-0" aria-label="Voltar ao órgão">
                         <ArrowLeft className="w-5 h-5" />
                     </Link>
                     <Gavel className="w-6 h-6 text-indigo-600 dark:text-indigo-400 shrink-0" />
@@ -548,8 +555,8 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
     return (
         <Dialog open={aberto} onOpenChange={(o) => { setAberto(o); if (!o && f.origem?.ref) setF(vazio); }}>
             <Button className="gap-2" onClick={() => setAberto(true)}><Plus className="w-4 h-4" /> Novo processo</Button>
-            <DialogContent className="max-w-2xl p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden max-sm:max-w-none max-sm:w-screen max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none">
-                <DialogHeader className="px-4 pt-4 pr-12 pb-3 sm:px-6"><DialogTitle>Autuar processo</DialogTitle></DialogHeader>
+            <DialogContent onOpenAutoFocus={focoSemAjuda} className="max-w-2xl p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden max-sm:max-w-none max-sm:w-screen max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none">
+                <DialogHeader className="px-4 pt-4 pr-12 pb-3 sm:px-6"><div className="flex items-center justify-center gap-1 sm:justify-start"><DialogTitle>Autuar processo</DialogTitle><AjudaTermo id="autuar" /></div></DialogHeader>
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
                     {tiposAtivos.length > 0 && (
                         <div>

@@ -19,6 +19,7 @@ import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, bas
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { DadosCampos } from './CamposProcesso';
+import AjudaTermo, { focoSemAjuda } from './AjudaTermo';
 import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, partesParaCorrecao, pedidoDeCorrecao, valoresDe, variaveisDoProcesso } from '@/lib/camposProcesso';
 import FormularioAutuacao from './FormularioAutuacao';
 
@@ -272,10 +273,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     {podeMexer && <Button variant="outline" size="icon" disabled={ocupado} onClick={() => setNovoDoc(true)} aria-label="Novo documento"><Plus className="w-4 h-4" aria-hidden /></Button>}
                 </div>
             )}
+            <div className="sm:hidden sticky top-16 z-10 -mx-6 px-6 h-12 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+                <Button variant="ghost" size="sm" className="gap-1 -ml-2 h-11 shrink-0" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Processos</Button>
+                <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300 truncate">{p.numero}</span>
+            </div>
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1 min-w-0">
-                    <Button variant="ghost" size="sm" className="gap-1 -ml-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" /> Processos</Button>
-                    <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white break-words"><span className="font-mono">{p.numero}</span> · {p.assunto}</h2>
+                    <Button variant="ghost" size="sm" className="hidden sm:inline-flex gap-1 -ml-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Processos</Button>
+                    <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white break-words"><span className="hidden sm:inline"><span className="font-mono">{p.numero}</span> · </span>{p.assunto}</h2>
                     <div className="flex flex-wrap gap-2 text-sm">
                         <Badge>{p.fase_nome}</Badge>
                         <Badge variant="secondary">{STATUS_ROTULO[p.status]}</Badge>
@@ -434,7 +439,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         // Certidão conjunta: os atos esperam numa só certidão; quem tem o processo pode emiti-la antes.
                         <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm">
                             <span className="flex-1 min-w-[12rem]">
-                                {p.consolidacao.itens.length} {p.consolidacao.itens.length > 1 ? 'atos aguardam' : 'ato aguarda'} a certidão conjunta.
+                                {p.consolidacao.itens.length} {p.consolidacao.itens.length > 1 ? 'atos aguardam' : 'ato aguarda'} a certidão conjunta <AjudaTermo id="certidao_conjunta" />.
                                 <span className="block text-xs text-slate-600 dark:text-slate-400">Ela vai aos autos sozinha quando o processo sair da fase (ou do grupo de fases) ou for arquivado.</span>
                             </span>
                             {podeMexer && (
@@ -536,7 +541,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </Card>
                     )}
 
-                    <Card ref={pendenciasRef} className={noGabinete && pendenciasAbertas.length ? 'border-amber-300 dark:border-amber-700' : ''}>
+                    <Card ref={pendenciasRef} className={`scroll-mt-32 sm:scroll-mt-0 ${noGabinete && pendenciasAbertas.length ? 'border-amber-300 dark:border-amber-700' : ''}`}>
                         <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
                             <CardTitle className="text-base">{noGabinete ? 'Para decidir' : 'Pendências e prazos'}</CardTitle>
                             {posse && (
@@ -651,7 +656,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <TabsContent value="autos" className="mt-4">
                 <Card>
                     <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-                        <CardTitle className="text-base">Autos ({autos.length} documentos)</CardTitle>
+                        <div className="flex items-center gap-1"><CardTitle className="text-base">Autos ({autos.length} documentos)</CardTitle><AjudaTermo id="autos" /></div>
                         <div className="flex flex-wrap gap-2">
                             {autos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(autos[0].id)}><BookOpen className="w-4 h-4" /> Ler em sequência</Button>}
                             <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={exportar}><Download className="w-4 h-4" /> PDF dos autos</Button>
@@ -912,7 +917,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         <>
             {exigPendentes.length > 0 && (
                 <p className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-3 py-2" role="status">
-                    O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa, que fica registrado.
+                    O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa <AjudaTermo id="dispensa" />, que fica registrado.
                 </p>
             )}
             {recomendados.length > 0 && (
@@ -1207,11 +1212,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     if (tipo === 'situacao' || tipo === 'urgencia') { exigeTexto = true; rotuloTexto = 'Motivo'; }
     const diasInvalidos = tipo === 'prazo' && !(Number(dias) >= 1);
     const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'guardar' || tipo === 'convidar' || tipo === 'pedirAssinatura';
+    const glossa = tipo === 'juntar' ? 'juntada' : tipo === 'tramitar' || tipo === 'devolver' ? 'remessa' : null;
 
     return (
         <Dialog open={!!acao} onOpenChange={(o) => !o && reset()}>
-            <DialogContent className={`max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full ${largo ? 'max-w-4xl' : ''}`}>
-                <DialogHeader><DialogTitle>{titulo}</DialogTitle></DialogHeader>
+            <DialogContent onOpenAutoFocus={glossa ? focoSemAjuda : undefined} className={`max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full ${largo ? 'max-w-4xl' : ''}`}>
+                <DialogHeader><div className="flex items-start justify-center gap-1 pr-6 sm:justify-start"><DialogTitle>{titulo}</DialogTitle>{glossa && <AjudaTermo id={glossa} />}</div></DialogHeader>
                 <div className="space-y-3">
                     {campo}
                     {!semTexto && (
