@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.idEscolhido = exports.ROTULO_MODULO = exports.MODULOS = void 0;
+exports.ehModuloOrigem = exports.idEscolhido = exports.ROTULO_MODULO = exports.MODULOS = void 0;
 exports.modulosAtivos = modulosAtivos;
 exports.integracoesGravadas = integracoesGravadas;
 exports.integracoesDe = integracoesDe;
@@ -9,6 +9,7 @@ exports.refDe = refDe;
 exports.resolverRegistro = resolverRegistro;
 exports.refsDoFormulario = refsDoFormulario;
 exports.refsFechadas = refsFechadas;
+exports.vinculosDe = vinculosDe;
 const fields_1 = require("./fields");
 /**
  * Integração do Processo Eletrônico com os outros módulos do órgão. O admin
@@ -124,5 +125,22 @@ async function refsFechadas(db, orgId, refs) {
             fechadas.add(`${unicos[i].modulo}:${unicos[i].id}`);
     });
     return fechadas;
+}
+const ehModuloOrigem = (v) => v === 'pe' || exports.MODULOS.includes(v);
+exports.ehModuloOrigem = ehModuloOrigem;
+/**
+ * Chaves `modulo:id` de tudo a que o processo se liga: a origem, os campos
+ * 'registro' e os registros pedidos por ações (`outros`). Guardadas em
+ * `vinculos` para achar os processos de um registro.
+ */
+function vinculosDe(origem, campos = [], outros = []) {
+    var _a, _b;
+    const s = new Set(outros);
+    if ((_a = origem === null || origem === void 0 ? void 0 : origem.ref) === null || _a === void 0 ? void 0 : _a.id)
+        s.add(`${origem.ref.modulo}:${origem.ref.id}`);
+    for (const c of campos)
+        if ((_b = c.ref) === null || _b === void 0 ? void 0 : _b.id)
+            s.add(`${c.ref.modulo}:${c.ref.id}`);
+    return [...s];
 }
 //# sourceMappingURL=modulos.js.map

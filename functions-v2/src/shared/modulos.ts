@@ -130,3 +130,19 @@ export async function refsFechadas(db: admin.firestore.Firestore, orgId: string,
     });
     return fechadas;
 }
+
+/** De onde um processo pode nascer: outro módulo do órgão ou outro processo eletrônico ('pe'). */
+export type ModuloOrigem = Modulo | 'pe';
+export const ehModuloOrigem = (v: unknown): v is ModuloOrigem => v === 'pe' || MODULOS.includes(v as Modulo);
+
+/**
+ * Chaves `modulo:id` de tudo a que o processo se liga: a origem, os campos
+ * 'registro' e os registros pedidos por ações (`outros`). Guardadas em
+ * `vinculos` para achar os processos de um registro.
+ */
+export function vinculosDe(origem: { ref?: { modulo: string; id: string } } | null | undefined, campos: CampoValor[] = [], outros: string[] = []): string[] {
+    const s = new Set<string>(outros);
+    if (origem?.ref?.id) s.add(`${origem.ref.modulo}:${origem.ref.id}`);
+    for (const c of campos) if (c.ref?.id) s.add(`${c.ref.modulo}:${c.ref.id}`);
+    return [...s];
+}

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
@@ -24,7 +24,8 @@ import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/Unidad
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import FormularioAutuacao from '@/components/secretaria/FormularioAutuacao';
 import { NUMERACAO_PADRAO, formatarNumero } from '@/lib/numeracao';
-import { faltando, formularioDe, integracoesLigadas } from '@/lib/camposProcesso';
+import { ROTULO_REF, camposDaOrigem, faltando, formularioDe, integracoesLigadas } from '@/lib/camposProcesso';
+import { buscarRegistro } from '@/lib/registrosModulos';
 import { RegistroContexto } from '@/components/secretaria/SeletorRegistro';
 import { unidadeComOrgao } from '@/lib/orgaos';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
@@ -37,6 +38,11 @@ export default function ProcessoEletronico() {
     const orgId = params.get('org');
     const tokenEquipe = params.get('equipe');
     const procId = params.get('p');
+    // "Criar processo eletrônico" num registro de outro módulo (ou "Novo processo
+    // derivado"): ?de=modulo:id abre o Novo processo já com a origem.
+    const location = useLocation();
+    const de = params.get('de') || '';
+    const [deModulo, deId] = de.split(':');
     const { organizations } = useOrganizations();
     const org = organizations.find((o) => o.id === orgId);
     // Mesma barra de páginas do órgão (Novo design V2), com o Processo
@@ -66,6 +72,29 @@ export default function ProcessoEletronico() {
         queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }),
         enabled: !!estado?.enabled && !estado.suspensa_plataforma && estado.minhasUnidades.length > 0,
     });
+    const sementeNavegacao = deId && location.state?.semente?.id === deId && location.state.semente.modulo === deModulo ? location.state.semente : null;
+    const sementeQ = useQuery({
+        queryKey: ['sec-semente', orgId, de],
+        queryFn: async () => (deModulo === 'pe'
+            ? secProcesso(orgId, 'obter', { id: deId }).then((r) => ({ modulo: 'pe', id: deId, numero: r.processo.numero }))
+            : buscarRegistro(orgId, deModulo, deId)),
+        enabled: !!deId && !sementeNavegacao && !!estado?.enabled && !estado.suspensa_plataforma && estado.minhasUnidades.length > 0,
+        retry: false,
+        staleTime: Infinity,
+    });
+    const semente = deId ? sementeNavegacao || sementeQ.data || null : null;
+    const sementeFalhou = !!deId && !sementeNavegacao && (sementeQ.isError || (sementeQ.isSuccess && !sementeQ.data));
+    const usarSemente = () => {
+        const next = new URLSearchParams(params);
+        next.delete('de');
+        setParams(next, { replace: true });
+    };
+    useEffect(() => {
+        if (sementeFalhou) {
+            toast.error('Registro de origem não encontrado (ou sem acesso). Autue sem origem ou escolha outro registro.');
+            usarSemente();
+        }
+    }, [sementeFalhou]);
 
     const abrir = (id) => {
         const next = new URLSearchParams(params);
@@ -157,10 +186,15 @@ export default function ProcessoEletronico() {
                                 <Link to={`${createPageUrl('Organization')}?id=${orgId}&tab=admin&secao=secretaria`}><Settings className="w-4 h-4" aria-hidden /> Configurar</Link>
                             </Button>
                         )}
-                        <NovoProcesso orgId={orgId} estado={estado} onCriado={abrir} />
+                        <NovoProcesso orgId={orgId} estado={estado} onCriado={abrir} semente={semente} onSementeUsada={usarSemente} />
                     </div>
                 )}
             </div>
+            {deId && estado.minhasUnidades.length === 0 && (
+                <div role="alert" className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/50 p-3 text-sm text-amber-900 dark:text-amber-100">
+                    Para criar um processo a partir de {ROTULO_REF[deModulo] ? `um registro de ${ROTULO_REF[deModulo].toLowerCase()}` : 'outro registro'}, você precisa estar lotado em uma unidade. Peça lotação na aba <b>Unidades</b>.
+                </div>
+            )}
             {!procId && estado.minhasUnidades.length === 0 && !estado.isAdmin && (
                 <div role="status" className="rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/50 p-3 text-sm text-indigo-900 dark:text-indigo-100">
                     Você ainda não está lotado em nenhuma unidade, por isso não vê processos. Peça lotação na aba <b>Unidades</b>.
@@ -415,7 +449,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
 /** Processos por página na lista (o servidor aceita até 200). */
 const PAGINA = 100;
 
-function NovoProcesso({ orgId, estado, onCriado }) {
+function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada }) {
     const qc = useQueryClient();
     const [aberto, setAberto] = useState(false);
     const [salvando, setSalvando] = useState(false);
@@ -435,7 +469,8 @@ function NovoProcesso({ orgId, estado, onCriado }) {
         const polos = formularioDe(t).polos;
         const reserva = polos.includes('interessado') ? 'interessado' : polos[0];
         setF((x) => ({
-            ...x, tipo_id: id, campos: {}, partes: x.partes.map((pa) => (polos.includes(pa.polo) ? pa : { ...pa, polo: reserva })),
+            // Campos de registro do mesmo módulo da origem já vêm com ela.
+            ...x, tipo_id: id, campos: camposDaOrigem(formularioDe(t), x.origem?.ref), partes: x.partes.map((pa) => (polos.includes(pa.polo) ? pa : { ...pa, polo: reserva })),
             ...(t ? {
                 rito_id: t.rito_id, sigilo: t.sigilo_padrao, urgente: t.urgente === true,
                 ...(t.unidade_inicial && unidadesPara(t).includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial }
@@ -459,6 +494,19 @@ function NovoProcesso({ orgId, estado, onCriado }) {
         orgao: (estado.orgaos || []).find((o) => o.id === unidadeSel?.orgao_id),
     }, 1);
 
+    // Nascendo de um registro: origem, assunto e, se só um tipo é sugerido para esse módulo, o tipo.
+    const sugeridosDe = (t, ref) => !!ref && (t.pode_nascer_de || []).includes(ref.modulo);
+    const sugeridos = semente ? tiposAtivos.filter((t) => (t.pode_nascer_de || []).includes(semente.modulo)) : [];
+    useEffect(() => {
+        if (!semente || estado.minhasUnidades.length === 0) return;
+        // O título vira o assunto só se as partes podem vê-lo: não de outro processo (pode ser sigiloso), de registro restrito ou do júri (é a comarca).
+        const assunto = ['consultas', 'expedientes', 'parcerias'].includes(semente.modulo) && !semente.restrito ? semente.titulo || '' : '';
+        setF({ ...vazio, assunto, origem: { tipo: semente.modulo === 'pe' ? 'outro_processo' : '', descricao: '', ref: semente } });
+        if (sugeridos.length === 1) escolherTipo(sugeridos[0].id);
+        setAberto(true);
+        onSementeUsada?.();
+    }, [semente?.modulo, semente?.id]);
+
     if (estado.minhasUnidades.length === 0) return null; // só quem está lotado autua
 
     const salvar = async () => {
@@ -478,7 +526,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
     };
 
     return (
-        <Dialog open={aberto} onOpenChange={setAberto}>
+        <Dialog open={aberto} onOpenChange={(o) => { setAberto(o); if (!o && f.origem?.ref) setF(vazio); }}>
             <Button className="gap-2" onClick={() => setAberto(true)}><Plus className="w-4 h-4" /> Novo processo</Button>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Autuar processo</DialogTitle></DialogHeader>
@@ -486,7 +534,7 @@ function NovoProcesso({ orgId, estado, onCriado }) {
                     {tiposAtivos.length > 0 && (
                         <div>
                             <NativeSelect id="sec-tipo" label="Tipo de processo" value={f.tipo_id} onChange={escolherTipo}
-                                options={[['', 'Sem tipo (escolher o rito)'], ...tiposAtivos.map((t) => [t.id, t.sigla ? `${t.nome} (${t.sigla})` : t.nome])]} />
+                                options={[['', 'Sem tipo (escolher o rito)'], ...tiposAtivos.map((t) => [t.id, `${t.sigla ? `${t.nome} (${t.sigla})` : t.nome}${sugeridosDe(t, f.origem?.ref) ? ' (sugerido)' : ''}`])]} />
                             {tipoSel?.descricao && <p className="text-xs text-slate-600 mt-1">{tipoSel.descricao}</p>}
                         </div>
                     )}

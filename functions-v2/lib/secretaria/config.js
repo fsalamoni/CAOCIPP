@@ -134,6 +134,10 @@ const RITO_PADRAO = {
 const modulosDoForm = (f) => new Set(((f === null || f === void 0 ? void 0 : f.campos) || []).filter((x) => x.tipo === 'registro' && x.modulo).map((x) => String(x.modulo)));
 const modulosDoRito = (r) => new Set((Array.isArray(r === null || r === void 0 ? void 0 : r.fases) ? r.fases : [])
     .flatMap((f) => (f.acoes_regras || []).filter((x) => (x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo).map((x) => String(x.modulo))));
+/** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
+const nascerDe = (v) => [...new Set(Array.isArray(v) ? v.filter(modulos_1.ehModuloOrigem) : [])];
+/** Módulos que o tipo usa: os dos campos e os de onde pode nascer. */
+const modulosDoTipo = (t) => new Set([...modulosDoForm(t === null || t === void 0 ? void 0 : t.formulario), ...nascerDe(t === null || t === void 0 ? void 0 : t.pode_nascer_de).filter((m) => m !== 'pe')]);
 /** Módulo novo no tipo ou no rito precisa da integração ligada (o que já estava gravado segue valendo). */
 async function exigirIntegracoes(c, usados, antes) {
     const novos = [...usados].filter((m) => !antes.has(m));
@@ -224,7 +228,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 return {
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
-                    orgao_id: t.orgao_id || null, formulario: (0, camposProcesso_1.formularioDe)(t), numeracao: (0, numeracao_1.numeracaoTipoDe)(t.numeracao),
+                    orgao_id: t.orgao_id || null, formulario: (0, camposProcesso_1.formularioDe)(t), numeracao: (0, numeracao_1.numeracaoTipoDe)(t.numeracao), pode_nascer_de: nascerDe(t.pode_nascer_de),
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             // Processos já autuados com um tipo excluído seguem com o formulário dele (Editar dados, filtro da lista).
@@ -749,20 +753,20 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             }
             return l.length ? Object.assign(Object.assign({}, x), { exigir_em: l }) : x;
         });
-        const dados = Object.assign(Object.assign({ nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao, sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null }, ('orgao_id' in t ? { orgao_id: orgaoId || null } : {})), { ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid });
+        const dados = Object.assign(Object.assign({ nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao, pode_nascer_de: nascerDe(t.pode_nascer_de), sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null }, ('orgao_id' in t ? { orgao_id: orgaoId || null } : {})), { ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid });
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
             const atual = (await ref.get()).data();
             if ((atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId || (atual === null || atual === void 0 ? void 0 : atual.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
-            await exigirIntegracoes(c, modulosDoForm(formulario), modulosDoForm(atual.formulario));
+            await exigirIntegracoes(c, modulosDoTipo(dados), modulosDoTipo(atual));
             await ref.update(dados);
         }
         else {
             if (naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS)
                 throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido');
-            await exigirIntegracoes(c, modulosDoForm(formulario), new Set());
+            await exigirIntegracoes(c, modulosDoTipo(dados), new Set());
             p.id = (await col.add(Object.assign(Object.assign({}, dados), { organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
         }
         await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome, campos: formulario.campos.length });

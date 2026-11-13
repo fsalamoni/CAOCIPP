@@ -136,7 +136,7 @@ function Integracoes({ estado, saving, onSalvar }) {
                 <CardTitle className="text-base">Integrações com outros módulos</CardTitle>
                 <CardDescription>
                     Ligada, o tipo de processo pode ter um campo e o rito pode ter uma ação que escolhe um registro do módulo, pelo número ou assunto.
-                    O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito. Desligar não apaga nada; os módulos continuam funcionando como sempre.
+                    O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito. A ficha de cada registro passa a mostrar os processos ligados e o botão "Criar processo eletrônico". Desligar não apaga nada; os módulos continuam funcionando como sempre.
                 </CardDescription>
             </CardHeader>
             <CardContent className="grid sm:grid-cols-2 gap-3">

@@ -1,3 +1,5 @@
+import ProcessosVinculados from '@/components/secretaria/ProcessosVinculados';
+import { registroDe } from '@/lib/registrosModulos';
 import React from 'react';
 import {
     Sheet,
@@ -186,7 +188,8 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                         </Section>
                     )}
 
-
+                    {/* Processos eletrônicos ligados (integração do Processo Eletrônico) */}
+                    {expediente?.id && expediente.organization_id && <ProcessosVinculados orgId={expediente.organization_id} registro={{ modulo: 'expedientes', ...registroDe('expedientes', expediente.id, expediente) }} />}
                 </div>
             </SheetContent>
         </Sheet>

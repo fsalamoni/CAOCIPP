@@ -92,6 +92,7 @@ function texto(v, max = exports.MAX_TEXTO_CURTO) {
  * livre e não vai ao portal das partes.
  */
 exports.ORIGENS = ['requerimento', 'representacao', 'oficio', 'de_oficio', 'outro_processo', 'outro'];
+const ROTULO_REF = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri' };
 exports.ROTULO_ORIGEM = {
     requerimento: 'Requerimento do interessado',
     representacao: 'Representação ou denúncia',
@@ -100,7 +101,7 @@ exports.ROTULO_ORIGEM = {
     outro_processo: 'Derivado de outro processo',
     outro: 'Outra',
 };
-const textoOrigem = (o) => (o ? [exports.ROTULO_ORIGEM[o.tipo] || exports.ROTULO_ORIGEM.outro, o.descricao].filter(Boolean).join(': ') : '');
+const textoOrigem = (o) => (o ? [exports.ROTULO_ORIGEM[o.tipo] || exports.ROTULO_ORIGEM.outro, [o.ref ? `${ROTULO_REF[o.ref.modulo] || 'Registro'} ${o.ref.numero}` : '', o.descricao].filter(Boolean).join('; ')].filter(Boolean).join(': ') : '');
 exports.textoOrigem = textoOrigem;
 /** Origem saneada, ou null quando nada foi informado. */
 function sanitizeOrigem(input) {

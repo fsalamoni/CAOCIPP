@@ -73,3 +73,18 @@ test('ação que pede registro: exige o módulo', () => {
     assert.deepEqual(r.acoes_regras, [{ pede: 'registro', rotulo: 'Expediente', modulo: 'expedientes' }]);
     assert.equal(ex.pedidoDaAcao(r.acoes_regras[0]), 'registro');
 });
+
+test('vinculosDe: origem, campos e ações, sem repetir', () => {
+    const campos = [{ id: 'a', ref: { modulo: 'consultas', id: 'p1' } }, { id: 'b', valor: 'x' }, { id: 'c', ref: { modulo: 'consultas', id: 'p1' } }];
+    assert.deepEqual(m.vinculosDe({ tipo: 'outro', ref: { modulo: 'expedientes', id: 'e1' } }, campos, ['juri:j1']).sort(), ['consultas:p1', 'expedientes:e1', 'juri:j1']);
+    assert.deepEqual(m.vinculosDe(null, []), []);
+    assert.equal(m.ehModuloOrigem('pe'), true);
+    assert.equal(m.ehModuloOrigem('processes'), false);
+});
+
+test('textoOrigem: número do registro de origem na capa', () => {
+    const s = require('../lib/shared/secretaria');
+    assert.equal(s.textoOrigem({ tipo: 'outro_processo', descricao: '', ref: { modulo: 'pe', id: 'x', numero: '12/2026' } }), 'Derivado de outro processo: Processo 12/2026');
+    assert.equal(s.textoOrigem({ tipo: 'oficio', descricao: 'Of. 3', ref: { modulo: 'expedientes', id: 'e', numero: 'EXP-9' } }), 'Ofício ou comunicação de outro órgão: Expediente EXP-9; Of. 3');
+    assert.equal(s.textoOrigem({ tipo: 'oficio', descricao: 'Of. 3' }), 'Ofício ou comunicação de outro órgão: Of. 3');
+});

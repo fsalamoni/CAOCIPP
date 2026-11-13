@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { faltando, formularioDe, formularioPadrao, novoCampo, problemasFormulario, rotuloDe, valorTexto, valoresDe } from './camposProcesso.js';
+import { camposDaOrigem, faltando, formularioDe, formularioPadrao, novoCampo, problemasFormulario, rotuloDe, valorTexto, valoresDe } from './camposProcesso.js';
 
 const form = {
     ...formularioPadrao(), assunto: 'opcional', descricao: 'obrigatorio', partes: 'obrigatorio',
@@ -114,4 +114,15 @@ test('registro de outro módulo: integração, configuração, valor e texto', a
     assert.equal(valorTexto(gravado), '00123/2026 (Licitação)');
     assert.deepEqual(valoresDe([gravado]), { r: { id: 'p1', numero: '00123/2026', titulo: 'Licitação' } });
     assert.deepEqual(faltando({ ...formularioPadrao(), assunto: 'opcional', campos: [{ ...c, obrigatorio: true }] }, { campos: { r: '' } }), ['Preencha "Consulta"']);
+});
+
+test('origem com registro: preenche os campos do mesmo módulo e conta como origem informada', () => {
+    const ref = { modulo: 'consultas', id: 'p1', numero: '00123/2026', titulo: 'Licitação' };
+    const form = { campos: [{ id: 'a', tipo: 'registro', modulo: 'consultas' }, { id: 'b', tipo: 'registro', modulo: 'expedientes' }, { id: 'c', tipo: 'texto' }] };
+    assert.deepEqual(camposDaOrigem(form, ref), { a: { id: 'p1', numero: '00123/2026', titulo: 'Licitação' } });
+    assert.deepEqual(camposDaOrigem(form, { ...ref, modulo: 'pe' }), {});
+    assert.deepEqual(camposDaOrigem(form, null), {});
+    const obrig = { ...formularioPadrao(), assunto: 'opcional', origem: 'obrigatorio' };
+    assert.deepEqual(faltando(obrig, { origem: { tipo: '', descricao: '', ref } }), []);
+    assert.deepEqual(faltando(obrig, { origem: { tipo: '', descricao: '' } }), ['Informe "Origem"']);
 });
