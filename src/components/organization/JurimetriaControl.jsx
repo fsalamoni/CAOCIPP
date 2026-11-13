@@ -12,6 +12,7 @@ import {
     Wand2, Trash2, Scale, Settings,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAbrirDaUrl } from '@/hooks/useAbrirDaUrl';
 import { logger } from '@/utils/logger';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { useAuth } from '@/lib/FirebaseAuthContext';
@@ -137,12 +138,14 @@ export default function JurimetriaControl({
         if (!detailJuri) return;
         const fresh = juris.find((j) => j.id === detailJuri.id);
         if (fresh && fresh !== detailJuri) setDetailJuri(fresh);
-        if (!fresh) { setDetailOpen(false); setDetailJuri(null); }
-    }, [juris, detailJuri]);
+        // Lista ainda carregando (ficha aberta por link, ?abrir): não fecha antes de saber.
+        if (!fresh && !jurisLoading) { setDetailOpen(false); setDetailJuri(null); }
+    }, [juris, detailJuri, jurisLoading]);
 
     const handleNew = () => { setEditing(null); setFormOpen(true); };
     const handleEdit = (juri) => { setEditing(juri); setFormOpen(true); };
     const handleView = (juri) => { setDetailJuri(juri); setDetailOpen(true); };
+    useAbrirDaUrl({ lista: juris, colecao: 'juris', orgId: organization?.id, carregando: jurisLoading, abrir: handleView });
 
     const confirmDelete = async () => {
         if (!deleteTarget) return;

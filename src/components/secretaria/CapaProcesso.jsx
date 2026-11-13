@@ -1,13 +1,14 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Lock, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DadosCampos } from './CamposProcesso';
 import { POLOS, STATUS_ROTULO, SeloUrgente, dataHora, rotuloOrigem } from './comum';
 import { ROTULO_DESTINO } from '@/lib/exigencias';
-import { ROTULO_REF } from '@/lib/camposProcesso';
+import { ABA_DO_MODULO, ROTULO_REF, integracoesLigadas, registrosLigados } from '@/lib/camposProcesso';
+import { createPageUrl } from '@/utils';
 
 // Capa do processo: só informação, igual para todos os perfis, sem nenhum
 // botão de ato (intimar, juntar, tramitar ficam no Andamento). O que entra e
@@ -62,6 +63,44 @@ function RefOrigem({ r }) {
     next.set('p', r.id);
     next.delete('aba');
     return <Link to={`?${next}`} className="text-indigo-700 dark:text-indigo-300 hover:underline">{texto}</Link>;
+}
+
+function RegistrosLigados({ p, informacoes, estado }) {
+    const [params] = useSearchParams();
+    const lista = registrosLigados(p, informacoes);
+    if (!lista.length) return null;
+    const orgId = params.get('org');
+    const ligadas = integracoesLigadas(estado);
+    return (
+        <Bloco titulo={`Registros ligados (${lista.length})`} className="md:col-span-2">
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {lista.map((r) => {
+                    const nome = `${ROTULO_REF[r.modulo]} ${r.numero}`;
+                    const href = `${createPageUrl('Organization')}?id=${encodeURIComponent(orgId || '')}&tab=${ABA_DO_MODULO[r.modulo]}&abrir=${encodeURIComponent(r.id)}`;
+                    return (
+                        <li key={`${r.modulo}:${r.id}`} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words">
+                                    {nome}{r.titulo ? <span className="font-normal text-slate-700 dark:text-slate-300"> · {r.titulo}</span> : null}
+                                    {r.restrito && <Badge variant="outline" className="ml-2 gap-1 align-middle"><Lock className="w-3 h-3" aria-hidden /> acesso restrito</Badge>}
+                                </p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">{r.de.map((d) => (d === 'origem' ? 'Nasceu deste registro' : d)).join(' · ')}</p>
+                            </div>
+                            {orgId && ligadas[r.modulo]
+                                ? (
+                                    <Button asChild variant="outline" size="sm" className="h-11 sm:h-8 gap-1">
+                                        <Link to={href} aria-label={`Abrir ${nome}`}>
+                                            <ExternalLink className="w-4 h-4" aria-hidden /> Abrir
+                                        </Link>
+                                    </Button>
+                                )
+                                : <span className="text-xs text-slate-600 dark:text-slate-400">Integração desligada</span>}
+                        </li>
+                    );
+                })}
+            </ul>
+        </Bloco>
+    );
 }
 
 export default function CapaProcesso({ p, movimentos, informacoes = [], estado, nomeUnidade, cadeiaQuebradaEm, onLer, onVerEventos }) {
@@ -132,6 +171,8 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
                         </dl>
                     </Bloco>
                 )}
+
+                <RegistrosLigados p={p} informacoes={informacoes} estado={estado} />
 
                 <Bloco titulo={`Partes (${p.partes.length})`}>
                     {partes.length

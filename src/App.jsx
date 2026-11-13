@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as Avisos } from "@/components/ui/sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import NavigationTracker from '@/lib/NavigationTracker'
@@ -72,6 +73,8 @@ function App() {
                 </TwoFactorGate>
               </Router>
               <Toaster />
+              {/* Avisos de `toast` do sonner, usados em todo o app: sem isto, nenhum aparecia. */}
+              <Avisos position="top-right" offset={{ top: 72, right: 16 }} mobileOffset={{ top: 64 }} closeButton style={{ pointerEvents: 'auto' }} />
             </QueryClientProvider>
           </ThemeSwitcherProvider>
         </FeatureFlagsProvider>
