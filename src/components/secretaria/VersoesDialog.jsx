@@ -88,7 +88,7 @@ export default function VersoesDialog({ orgId, colecao, id, nome, estado, onRest
                                     <section aria-label="Prévia da versão" className="space-y-2 min-w-0">
                                         {colecao === 'rito' ? (
                                             <>
-                                                <FluxoRito fases={conteudo.fases} unidades={estado?.unidades} alturaMaxima="50vh" />
+                                                <FluxoRito acoes fases={conteudo.fases} unidades={estado?.unidades} alturaMaxima="50vh" />
                                                 <PreviaRito key={ver} estado={estado} rascunho={{ ...conteudo, id }} rotuloBotao="Ver esta versão como a equipe e a parte" />
                                             </>
                                         ) : (
@@ -198,7 +198,7 @@ function CamposDaVersao({ tipo, estado }) {
             {rito && (
                 <figure className="space-y-1">
                     <figcaption className="text-xs text-slate-600 dark:text-slate-400">Fases do rito {rito.nome} (como está hoje)</figcaption>
-                    <FluxoRito fases={rito.fases} unidades={estado?.unidades} alturaMaxima="40vh" />
+                    <FluxoRito acoes fases={rito.fases} unidades={estado?.unidades} alturaMaxima="40vh" />
                 </figure>
             )}
         </div>

@@ -174,7 +174,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                         </div>
                                     )}
                                 </div>
-                                <FluxoRito fases={fases} atual={fase.id} unidades={estado.unidades} />
+                                <FluxoRito acoes fases={fases} atual={fase.id} unidades={estado.unidades} />
                             </TabsContent>
                             <TabsContent value="parte" className="space-y-3">
                                 <div className="rounded-lg border p-3 space-y-2">
