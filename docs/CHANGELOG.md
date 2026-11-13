@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: criar processo a partir dos outros módulos
+- **"Processos eletrônicos" na ficha** de cada consulta, expediente, parceria
+  e júri (com a integração ligada): os processos ligados ao registro e o botão
+  **Criar processo eletrônico**, que abre o "Novo processo" já com a origem,
+  o assunto, o campo do registro e o tipo sugerido.
+- **Tipo sugerido por origem**: na aba Dados do tipo, "Sugerir este tipo ao
+  criar um processo a partir de" (outro processo ou cada módulo).
+- **Processo derivado**: na Capa, "Processos derivados" e "Novo processo
+  derivado" (também no menu Mais). A Capa mostra "Nasceu de".
+- A origem é conferida no servidor e nunca vai às partes; nada é escrito nos
+  outros módulos.
+
 ### 13/11/2026 — Processo Eletrônico: integração com Consultas, Expedientes, Parcerias e Júri
 - **Integrações com outros módulos**, no Painel Administrativo do Processo
   Eletrônico: o admin liga cada módulo ativo do órgão aos processos. Desligado,

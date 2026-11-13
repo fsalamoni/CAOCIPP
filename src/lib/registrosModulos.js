@@ -6,7 +6,7 @@
 // Mostra e procura só número e título; o servidor relê o registro escolhido.
 // ============================================================================
 
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { getProcessField } from '@/utils/processUtils';
 import { getParceriaField } from '@/utils/parceriaUtils';
@@ -29,7 +29,8 @@ export function registroDe(modulo, id, d) {
         juri: [d.numero_processo, d.comarca],
     }[modulo] || [];
     const s = (v) => (v === undefined || v === null ? '' : String(v).trim());
-    return { id, numero: s(par[0]).slice(0, 80) || 'sem número', titulo: s(par[1]).slice(0, 160) };
+    const restrito = /^sim$/i.test(s(d.access_restriction)) || d.access_restriction === true || d.anonymized === true;
+    return { id, numero: s(par[0]).slice(0, 80) || 'sem número', titulo: s(par[1]).slice(0, 160), ...(restrito ? { restrito: true } : {}) };
 }
 
 async function registros(orgId, modulo) {
@@ -55,4 +56,12 @@ export async function buscarRegistros(orgId, modulo, texto) {
     if (achados.length || !bruto) return achados;
     const snap = await getDocs(query(collection(db, COLECAO[modulo]), where('organization_id', '==', orgId), where(CAMPO_NUMERO[modulo], '==', bruto), limit(5)));
     return snap.docs.map((d) => registroDe(modulo, d.id, d.data()));
+}
+
+/** Um registro pelo id (para "Criar processo eletrônico" vindo do outro módulo); null se não for do órgão. */
+export async function buscarRegistro(orgId, modulo, id) {
+    if (!orgId || !COLECAO[modulo] || !id) return null;
+    const s = await getDoc(doc(db, COLECAO[modulo], id));
+    const d = s.data();
+    return s.exists() && d?.organization_id === orgId ? { modulo, ...registroDe(modulo, s.id, d) } : null;
 }

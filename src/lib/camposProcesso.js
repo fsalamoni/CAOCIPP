@@ -19,7 +19,14 @@ export const TIPOS_CAMPO = [
 export const MODULOS = [['consultas', 'Consultas'], ['expedientes', 'Expedientes'], ['parcerias', 'Parcerias'], ['juri', 'Júri']];
 export const ROTULO_MODULO = Object.fromEntries(MODULOS);
 /** Integrações que valem: ligadas pelo admin e com o módulo ativo no órgão. */
-export const integracoesLigadas = (estado) => Object.fromEntries(MODULOS.map(([m]) => [m, estado?.integracoes?.[m] === true && estado?.modulos_ativos?.[m] === true]));
+/** De onde um processo pode nascer: outro processo ('pe') ou registro de outro módulo (espelho de textoOrigem no servidor). */
+export const ORIGENS_REF = [['pe', 'Outro processo eletrônico'], ...MODULOS];
+export const ROTULO_REF = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri' };
+/** Campos 'registro' do tipo que vêm do mesmo módulo da origem, já preenchidos com ela. */
+export const camposDaOrigem = (form, ref) => (ref && ref.modulo !== 'pe'
+    ? Object.fromEntries((form?.campos || []).filter((c) => c.tipo === 'registro' && c.modulo === ref.modulo).map((c) => [c.id, { id: ref.id, numero: ref.numero, titulo: ref.titulo || '' }]))
+    : {});
+export const integracoesLigadas =(estado) => Object.fromEntries(MODULOS.map(([m]) => [m, estado?.integracoes?.[m] === true && estado?.modulos_ativos?.[m] === true]));
 /** Formatos por tipo (o primeiro é o livre). */
 export const FORMATOS = {
     texto: [['', 'Livre'], ['email', 'E-mail'], ['telefone', 'Telefone'], ['cpf_cnpj', 'CPF ou CNPJ'], ['link', 'Endereço da internet']],
@@ -127,7 +134,7 @@ export function faltando(form, f) {
     const out = [];
     if (form.assunto === 'obrigatorio' && vazio(f.assunto)) out.push(`Preencha "${rotuloDe(form, 'assunto')}"`);
     if (form.descricao === 'obrigatorio' && vazio(f.descricao)) out.push(`Preencha "${rotuloDe(form, 'descricao')}"`);
-    if (form.origem === 'obrigatorio' && vazio(f.origem?.tipo) && vazio(f.origem?.descricao)) out.push(`Informe "${rotuloDe(form, 'origem')}"`);
+    if (form.origem === 'obrigatorio' && !f.origem?.ref && vazio(f.origem?.tipo) && vazio(f.origem?.descricao)) out.push(`Informe "${rotuloDe(form, 'origem')}"`);
     if (form.partes === 'obrigatorio' && !(f.partes || []).some((p) => !vazio(p.nome))) out.push(`Informe ao menos um item em "${rotuloDe(form, 'partes')}"`);
     const aparecem = visiveis(form.campos, f.campos);
     for (const c of form.campos) {

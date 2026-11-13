@@ -126,7 +126,10 @@ export function texto(v: unknown, max = MAX_TEXTO_CURTO): string {
  */
 export const ORIGENS = ['requerimento', 'representacao', 'oficio', 'de_oficio', 'outro_processo', 'outro'] as const;
 export type TipoOrigem = typeof ORIGENS[number];
-export interface Origem { tipo: TipoOrigem; descricao: string }
+/** Registro de outro módulo ou outro processo ('pe') de onde o processo nasceu; o servidor relê. */
+export interface RefOrigem { modulo: string; id: string; numero: string; titulo?: string }
+export interface Origem { tipo: TipoOrigem; descricao: string; ref?: RefOrigem }
+const ROTULO_REF: Record<string, string> = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri' };
 export const ROTULO_ORIGEM: Record<TipoOrigem, string> = {
     requerimento: 'Requerimento do interessado',
     representacao: 'Representação ou denúncia',
@@ -136,7 +139,7 @@ export const ROTULO_ORIGEM: Record<TipoOrigem, string> = {
     outro: 'Outra',
 };
 export const textoOrigem = (o: Origem | null | undefined): string =>
-    (o ? [ROTULO_ORIGEM[o.tipo] || ROTULO_ORIGEM.outro, o.descricao].filter(Boolean).join(': ') : '');
+    (o ? [ROTULO_ORIGEM[o.tipo] || ROTULO_ORIGEM.outro, [o.ref ? `${ROTULO_REF[o.ref.modulo] || 'Registro'} ${o.ref.numero}` : '', o.descricao].filter(Boolean).join('; ')].filter(Boolean).join(': ') : '');
 
 /** Origem saneada, ou null quando nada foi informado. */
 export function sanitizeOrigem(input: unknown): Origem | null {

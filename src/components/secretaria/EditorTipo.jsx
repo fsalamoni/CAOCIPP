@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { POLOS, problemasFormulario, valorComoGravado, visiveis } from '@/lib/camposProcesso';
+import { ORIGENS_REF, POLOS, integracoesLigadas, problemasFormulario, valorComoGravado, visiveis } from '@/lib/camposProcesso';
 import { problemasNumeracao } from '@/lib/numeracao';
 import { NativeSelect } from './comum';
 import FluxoRito from './FluxoRito';
@@ -58,6 +58,33 @@ function Previa({ tipo }) {
                 ) : <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Nenhum campo próprio está marcado para as partes. Elas veem o número, o assunto, a fase e os documentos liberados.</p>}
             </section>
         </div>
+    );
+}
+
+/** "Sugerir este tipo ao criar a partir de": outro processo e os módulos com integração ligada. */
+function NascerDe({ tipo, set, ligadas }) {
+    const marcados = tipo.pode_nascer_de || [];
+    const trocar = (m, sim) => set({ pode_nascer_de: sim ? [...marcados, m] : marcados.filter((x) => x !== m) });
+    return (
+        <fieldset className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+            <legend className="text-sm font-medium px-1">Sugerir este tipo ao criar um processo a partir de</legend>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 mt-1">
+                {ORIGENS_REF.map(([m, rotulo]) => {
+                    const marcado = marcados.includes(m);
+                    // Módulo sem integração: não se marca de novo (o que já estava marcado pode ser desmarcado).
+                    const desligado = m !== 'pe' && !ligadas[m];
+                    return (
+                        <label key={m} className={`flex items-center gap-2 text-sm ${desligado && !marcado ? 'text-slate-400 dark:text-slate-500' : ''}`}>
+                            <Checkbox checked={marcado} disabled={desligado && !marcado} onCheckedChange={(c) => trocar(m, c === true)} />
+                            {rotulo}{desligado ? ' (integração desligada)' : ''}
+                        </label>
+                    );
+                })}
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
+                Em "Criar processo eletrônico" no registro desses módulos (ou "Novo processo derivado"), o tipo já vem escolhido quando é o único sugerido. A origem e os campos de registro do mesmo módulo vêm preenchidos.
+            </p>
+        </fieldset>
     );
 }
 
@@ -134,6 +161,7 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
                                         <input type="checkbox" className="mt-1" checked={tipo.urgente === true} onChange={(e) => set({ urgente: e.target.checked })} />
                                         <span><span className="font-medium">Todo processo deste tipo é urgente</span><span className="block text-xs text-slate-600 dark:text-slate-400">Já nasce com o selo de urgência e aparece primeiro nas listas.</span></span>
                                     </label>
+                                    <NascerDe tipo={tipo} set={set} ligadas={integracoesLigadas(estado)} />
                                     {tipo.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={tipo.ativo} onCheckedChange={(c) => set({ ativo: c === true })} /> Disponível para novas autuações</label>}
                                     {rito && (
                                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">

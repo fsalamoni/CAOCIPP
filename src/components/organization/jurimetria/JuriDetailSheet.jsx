@@ -19,6 +19,8 @@ import {
     duracaoEmMinutos, formatDuracao, situacaoExpediente,
 } from '@/lib/jurimetriaEngine';
 import JuriDateHistory from './JuriDateHistory';
+import ProcessosVinculados from '@/components/secretaria/ProcessosVinculados';
+import { registroDe } from '@/lib/registrosModulos';
 import ResultadoBadge from './ResultadoBadge';
 
 function Row({ icon: Icon, label, value, mono = false }) {
@@ -222,6 +224,10 @@ export default function JuriDetailSheet({
                             <JuriDateHistory entries={dateHistory} emptyHint={false} />
                         </div>
                     </>
+                )}
+
+                {juri?.id && juri.organization_id && (
+                    <div className="px-6 pt-4"><ProcessosVinculados orgId={juri.organization_id} registro={{ modulo: 'juri', ...registroDe('juri', juri.id, juri) }} /></div>
                 )}
 
                 <Separator />

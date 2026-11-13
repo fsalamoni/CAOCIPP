@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import ProcessosVinculados from '@/components/secretaria/ProcessosVinculados';
+import { registroDe } from '@/lib/registrosModulos';
 import {
     Sheet,
     SheetContent,
@@ -448,6 +450,9 @@ export default function ParceriaDetailSheet({
                             )}
                         </Section>
                     )}
+
+                    {/* Processos eletrônicos ligados (integração do Processo Eletrônico) */}
+                    {parceria?.id && parceria.organization_id && !isViewingAdditive && <ProcessosVinculados orgId={parceria.organization_id} registro={{ modulo: 'parcerias', ...registroDe('parcerias', parceria.id, parceria) }} />}
 
                     {/* Comentários (colaboração) */}
                     {isCommentsOn && !isViewingAdditive && organizationId && parceria.id && (

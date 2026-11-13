@@ -1,9 +1,10 @@
 import React from 'react';
+import { Link2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { POLOS, rotuloDe } from '@/lib/camposProcesso';
+import { POLOS, ROTULO_REF, rotuloDe } from '@/lib/camposProcesso';
 import { CamposProcesso } from './CamposProcesso';
 import { ORIGENS, NativeSelect } from './comum';
 
@@ -44,6 +45,19 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
 
     return (
         <div className="space-y-4">
+            {f.origem?.ref && (
+                // Nasce de um registro de outro módulo ou de outro processo: vale mesmo que o tipo não peça a origem.
+                <div className="flex items-start gap-2 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-2 text-sm">
+                    <Link2 className="w-4 h-4 mt-0.5 text-indigo-700 dark:text-indigo-300 shrink-0" aria-hidden />
+                    <p className="flex-1 min-w-0 text-indigo-950 dark:text-indigo-100">
+                        Nasce de {(ROTULO_REF[f.origem.ref.modulo] || 'registro').toLowerCase()} <b className="font-mono">{f.origem.ref.numero}</b>{f.origem.ref.titulo ? ` · ${f.origem.ref.titulo}` : ''}
+                        <span className="block text-xs text-indigo-900/80 dark:text-indigo-200/80">Fica na capa e no PDF da equipe, e o processo aparece no registro de origem. As partes não veem.</span>
+                    </p>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 shrink-0" aria-label="Tirar a origem" onClick={() => set('origem', { tipo: f.origem.tipo, descricao: f.origem.descricao })}>
+                        <X className="w-3.5 h-3.5" aria-hidden /> Tirar
+                    </Button>
+                </div>
+            )}
             {form.assunto !== 'oculto' && (
                 <div>
                     <Label htmlFor={id('assunto')}>{rot('assunto')}{req(form.assunto)}</Label>

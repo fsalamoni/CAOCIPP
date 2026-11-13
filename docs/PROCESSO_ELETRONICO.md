@@ -311,7 +311,7 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarIntegracoes {integracoes}` (admin), `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; com `rito_id` edita; ver Importação de ritos), `excluirRito` (admin), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
-| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
+| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`, com `origem.ref {modulo, id}` quando nasce de outro registro), `vinculados {modulo, id}` (processos ligados a um registro de outro módulo ou derivados de outro processo, `modulo: 'pe'`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta` e `upload` (opcional `modelo_id`), `editarMinuta`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar`, `resolve_pendencia_id` e `atende`, as exigências do rito que o documento cumpre), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
@@ -1254,6 +1254,30 @@ admin define, em cada tipo, o que quem autua preenche:
   módulos. Desligar a integração não apaga o que os processos já guardaram e
   não trava a correção de dados com o mesmo registro; só impede escolher de
   novo. Tipo ou rito novo com registro de módulo desligado não salva.
+- **Processo que nasce de outro registro** (nov/2026): com a integração
+  ligada, a ficha de cada consulta, expediente, parceria e júri ganha o
+  quadro "Processos eletrônicos" (`ProcessosVinculados.jsx`): os processos
+  ligados ao registro, os que nasceram dele marcados "nasceu daqui", e o
+  botão "Criar processo eletrônico" (só para quem está lotado). O botão abre
+  o "Novo processo" (`/ProcessoEletronico?org=…&de=modulo:id`) já com a
+  origem, o assunto (título de consulta, expediente ou parceria que não seja de acesso restrito; de outro processo e do júri fica em branco), os campos "Registro de outro
+  módulo" do mesmo módulo preenchidos e o tipo escolhido, quando um só tipo
+  sugere esse módulo ("Sugerir este tipo ao criar um processo a partir de",
+  aba Dados do tipo, `pode_nascer_de`). Na Capa de um processo, "Processos
+  derivados" e "Novo processo derivado" fazem o mesmo a partir dele (também
+  no menu Mais do Andamento). A origem (`origem.ref {modulo, id, numero,
+  titulo}`) é relida no servidor (`refDaOrigem`): de outro módulo, pede a
+  integração ligada e confere o órgão; de outro processo (`'pe'`), passa por
+  `lerProcesso` (quem não vê o processo não deriva dele) e guarda só o
+  número, porque o assunto pode ser sigiloso para quem vê o novo. Vale mesmo
+  com a origem oculta no formulário do tipo, aparece na Capa ("Nasceu de") e
+  no PDF da equipe, e nunca vai às partes. O processo guarda em `vinculos`
+  as chaves `modulo:id` da origem, dos campos de registro e dos registros
+  pedidos por ações (`vinculos_acoes`, que a correção de dados não apaga);
+  a ação `vinculados` procura por elas (índice `organization_id` +
+  `vinculos`, até 50, só os que a pessoa vê, sem os excluídos e sem aqueles
+  em que ela é parte). Nada é escrito nos outros módulos. Processos autuados
+  antes não têm `vinculos` e só aparecem depois de uma correção de dados.
 - **Editor do tipo em tela cheia** (`EditorTipo.jsx`): abas Dados (nome,
   sigla, rito, sigilo, unidade, órgão, urgência, situação e o fluxo do rito),
   Formulário e Numeração, com a prévia ao lado no computador e atrás do botão

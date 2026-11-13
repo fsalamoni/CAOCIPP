@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, proximaFase, sanitizeOrigem, sha256, texto, verificarCadeia,
+    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, proximaFase, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
@@ -19,7 +19,7 @@ import {
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
-import { MODULOS, Modulo, ROTULO_MODULO, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, resolverRegistro } from '../shared/modulos';
+import { MODULOS, Modulo, ROTULO_MODULO, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, resolverRegistro, vinculosDe } from '../shared/modulos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
@@ -41,14 +41,16 @@ interface ProcRequest {
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
         | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia' | 'expedirComunicacao' | 'tornarSemEfeito'
-        | 'excluir' | 'restaurar' | 'excluidos' | 'emitirCertidao';
+        | 'excluir' | 'restaurar' | 'excluidos' | 'emitirCertidao' | 'vinculados';
     /** Comunicação a expedir (espécie, texto, destinatários, prazo, meio). */
     comunicacao?: unknown;
     comunicacao_id?: string;
     /** Urgência: na autuação (com `motivo_urgencia`) e na ação `urgencia` (com `motivo`). */
     urgente?: boolean;
     motivo_urgencia?: string;
-    origem?: { tipo?: string; descricao?: string };
+    origem?: { tipo?: string; descricao?: string; ref?: { modulo?: unknown; id?: unknown } };
+    /** vinculados: registro (de outro módulo ou 'pe') cujos processos se procuram. */
+    modulo?: string;
     /** tramitar: minutas que seguem com o processo para a unidade de destino. */
     minutas?: string[];
     // listar paginado (sem `limite`, devolve até 1000 como antes)
@@ -199,6 +201,38 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
     return { rotulo, tipo, valor, valor_texto: valorTexto({ tipo, valor }), ref: undefined, restrito: false };
 }
 
+/** Registro pedido por uma ação entra nos vínculos (desfazer não tira: segue citado no histórico). */
+// ponytail: os 50 primeiros; paginar se um registro passar disso.
+const MAX_VINCULADOS = 50;
+const vinculoDaAcao = (dado: { ref?: { modulo: string; id: string } } | null) => {
+    if (!dado?.ref) return {};
+    const k = `${dado.ref.modulo}:${dado.ref.id}`;
+    return { vinculos: FieldValue.arrayUnion(k), vinculos_acoes: FieldValue.arrayUnion(k) };
+};
+
+/**
+ * O registro ou processo de onde o processo nasce, relido no servidor: só
+ * número e título (de outro processo, só o número, porque o assunto pode ser
+ * sigiloso para quem vê o novo processo).
+ */
+async function refDaOrigem(c: Awaited<ReturnType<typeof carregarContexto>>, bruto: unknown): Promise<RefOrigem | null> {
+    const r = (bruto && typeof bruto === 'object' ? bruto : {}) as { modulo?: unknown; id?: unknown };
+    const id = idEscolhido(r.id);
+    if (!id) return null;
+    if (!ehModuloOrigem(r.modulo)) throw new HttpsError('invalid-argument', 'Origem inválida');
+    if (r.modulo === 'pe') {
+        const { data } = await lerProcesso(c, id);
+        return { modulo: 'pe', id, numero: String(data.numero || '') };
+    }
+    const m = r.modulo as Modulo;
+    if (!integracoesDe(c.org, await lerFlags(c.db))[m]) {
+        throw new HttpsError('failed-precondition', `A integração com ${ROTULO_MODULO[m]} está desligada. Peça ao administrador para ligá-la em "Integrações com outros módulos".`);
+    }
+    const ref = await resolverRegistro(c.db, c.orgId, m, id);
+    if (!ref) throw new HttpsError('not-found', `Registro de origem não encontrado em ${ROTULO_MODULO[m]}`);
+    return { modulo: m, id, numero: ref.numero, ...(ref.titulo ? { titulo: ref.titulo } : {}) };
+}
+
 function resumo(id: string, d: admin.firestore.DocumentData) {
     return {
         id,
@@ -255,6 +289,35 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             .map((d) => resumo(d.id, d.data())));
         const ultimo = snap.docs[snap.docs.length - 1];
         return { processos, cursor: ultimo?.data().updated_at?.toMillis?.() || null, mais: snap.size === limite };
+    }
+
+    if (p.action === 'vinculados') {
+        // Processos ligados a um registro de outro módulo (ou derivados de outro
+        // processo, 'pe'): os que a pessoa pode ver, sem dizer que há outros.
+        const modulo = String(p.modulo || '');
+        const id = idEscolhido(p.id);
+        if (!ehModuloOrigem(modulo) || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) throw new HttpsError('invalid-argument', 'Registro inválido');
+        const ligada = modulo === 'pe' || integracoesDe(c.org, await lerFlags(db))[modulo as Modulo];
+        if (!ligada) return { ligada: false, pode_autuar: false, processos: [] };
+        // O limite vale para o que a pessoa vê: lê em páginas e só diz "mais" se houver outro visível.
+        const base = db.collection(COL.processos).where('organization_id', '==', orgId).where('vinculos', 'array-contains', `${modulo}:${id}`);
+        const processos: Array<Record<string, unknown>> = [];
+        let mais = false;
+        let ultimo: admin.firestore.QueryDocumentSnapshot | undefined;
+        // ponytail: até 4 páginas de 50 lidas; um registro com mais processos invisíveis que isso mostra só o que coube.
+        for (let pag = 0; pag < 4 && !mais; pag++) {
+            const snap = await (ultimo ? base.startAfter(ultimo) : base).limit(MAX_VINCULADOS).get();
+            for (const d of snap.docs) {
+                const x = d.data();
+                if (x.status === 'excluido' || ehParte(x as never, auth.uid) || !podeVer(x as never, c.ctx)) continue;
+                if (processos.length === MAX_VINCULADOS) { mais = true; break; }
+                const r = resumo(d.id, x);
+                processos.push({ id: r.id, numero: r.numero, assunto: r.assunto, fase_nome: r.fase_nome, status: r.status, sigilo: r.sigilo, origem: x.origem?.ref?.id === id });
+            }
+            if (snap.size < MAX_VINCULADOS) break;
+            ultimo = snap.docs[snap.size - 1];
+        }
+        return { ligada: true, pode_autuar: c.ctx.unidadeIds.length > 0, processos, mais };
     }
 
     if (p.action === 'contadores') {
@@ -469,7 +532,12 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const assuntoInformado = form.assunto === 'oculto' ? '' : texto(p.assunto);
         const descricao = form.descricao === 'oculto' ? '' : texto(p.descricao, MAX_TEXTO_LONGO);
         const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes, form.polos);
-        const origem = form.origem === 'oculto' ? null : sanitizeOrigem(p.origem);
+        // Nascido de outro registro: a origem vale mesmo que o formulário não a peça.
+        const refOrigem = await refDaOrigem(c, p.origem?.ref);
+        const origemInformada = form.origem === 'oculto' ? null : sanitizeOrigem(p.origem);
+        const origem: Origem | null = refOrigem
+            ? { tipo: origemInformada?.tipo || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro'), descricao: origemInformada?.descricao || '', ref: refOrigem }
+            : origemInformada;
         let campos: CampoValor[] = [];
         try {
             validarPadrao(form, { assunto: assuntoInformado, descricao, partes, origem });
@@ -517,6 +585,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 ...(Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {}),
                 sigilo,
                 ...(origem ? { origem } : {}),
+                // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
+                vinculos: vinculosDe(origem, campos),
                 ...(urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {}),
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {}),
                 status: 'em_tramitacao',
@@ -655,7 +725,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const mov = registrarMovimento(tx, c, ref, data, 'dados',
                 `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, MAX_TEXTO_LONGO),
                 { campos: mudou.length, visivel_partes: false, ...marcasNaFase(data, 'dados') });
-            tx.update(ref, { ...mov, descricao, campos });
+            tx.update(ref, { ...mov, descricao, campos, vinculos: vinculosDe(data.origem, campos, data.vinculos_acoes || []) });
             return mov;
         }
 
@@ -726,7 +796,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 const consolidacao = feita
                     ? itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) })
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
-                tx.update(ref, { ...em.mov, ...mov, acoes_feitas: feitas, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete() });
+                tx.update(ref, { ...em.mov, ...mov, acoes_feitas: feitas, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
                 return mov;
             }
             const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
@@ -742,7 +812,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     visivel_partes: vePartes,
                     ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
-            tx.update(ref, { ...mov, acoes_feitas: feitas });
+            tx.update(ref, { ...mov, acoes_feitas: feitas, ...vinculoDaAcao(dado) });
             return mov;
         }
 

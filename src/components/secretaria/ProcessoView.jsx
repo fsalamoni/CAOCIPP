@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import ProcessosVinculados from './ProcessosVinculados';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -45,6 +47,7 @@ const emCampo = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.
 
 export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const qc = useQueryClient();
+    const navigate = useNavigate();
     const q = useQuery({ queryKey: ['sec-proc', orgId, procId], queryFn: () => secProcesso(orgId, 'obter', { id: procId }) });
     const [acao, setAcao] = useState(null); // {tipo, ...}
     const [ocupado, setOcupado] = useState(false);
@@ -309,6 +312,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <DropdownMenuSeparator />
                                 </>
                             )}
+                            {estado.minhasUnidades.length > 0 && (
+                                <DropdownMenuItem onSelect={() => navigate(`/ProcessoEletronico?org=${orgId}&de=pe:${procId}`, { state: { semente: { modulo: 'pe', id: procId, numero: p.numero } } })}>
+                                    Novo processo derivado deste
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem disabled={!autos.length} onSelect={() => setLeitura(autos[0]?.id)}>Ler os autos em sequência</DropdownMenuItem>
                             <DropdownMenuItem onSelect={exportar}>Exportar PDF dos autos</DropdownMenuItem>
                             {q.data?.pode_excluir && (
@@ -326,6 +334,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <TabsContent value="capa" className="mt-4">
                 <CapaProcesso p={p} movimentos={movimentos} informacoes={informacoes} estado={estado} nomeUnidade={nomeUnidade} cadeiaQuebradaEm={cadeiaQuebradaEm}
                     onLer={(id) => setLeitura(id)} onVerEventos={() => setVista('eventos')} />
+                <ProcessosVinculados className="mt-4" orgId={orgId} titulo="Processos derivados" rotuloCriar="Novo processo derivado"
+                    registro={{ modulo: 'pe', id: procId, numero: p.numero }} />
             </TabsContent>
 
             <TabsContent value="andamento" className="mt-4 space-y-5">

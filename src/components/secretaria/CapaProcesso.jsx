@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DadosCampos } from './CamposProcesso';
 import { POLOS, STATUS_ROTULO, SeloUrgente, dataHora, rotuloOrigem } from './comum';
 import { ROTULO_DESTINO } from '@/lib/exigencias';
+import { ROTULO_REF } from '@/lib/camposProcesso';
 
 // Capa do processo: só informação, igual para todos os perfis, sem nenhum
 // botão de ato (intimar, juntar, tramitar ficam no Andamento). O que entra e
@@ -51,6 +53,17 @@ function Parte({ x }) {
 }
 
 
+/** Origem com o registro ou processo de onde nasceu; outro processo abre com um clique. */
+function RefOrigem({ r }) {
+    const [params] = useSearchParams();
+    const texto = `${ROTULO_REF[r.modulo] || 'Registro'} ${r.numero}${r.titulo ? ` · ${r.titulo}` : ''}`;
+    if (r.modulo !== 'pe') return texto;
+    const next = new URLSearchParams(params);
+    next.set('p', r.id);
+    next.delete('aba');
+    return <Link to={`?${next}`} className="text-indigo-700 dark:text-indigo-300 hover:underline">{texto}</Link>;
+}
+
 export default function CapaProcesso({ p, movimentos, informacoes = [], estado, nomeUnidade, cadeiaQuebradaEm, onLer, onVerEventos }) {
     const responsavel = p.responsavel_uid ? estado.membros.find((m) => m.uid === p.responsavel_uid)?.nome : null;
     const requerentes = p.partes.filter((x) => x.polo === 'requerente');
@@ -80,6 +93,7 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
                     <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
                         <Item rotulo="Origem">{p.origem ? rotuloOrigem(p.origem.tipo) : null}</Item>
                         <Item rotulo="Unidade de autuação">{unidadeAutuacao}</Item>
+                        {p.origem?.ref && <Item rotulo="Nasceu de" largo><RefOrigem r={p.origem.ref} /></Item>}
                         {p.origem?.descricao && <Item rotulo="Referência" largo>{p.origem.descricao}</Item>}
                         <Item rotulo="Quem solicitou" largo>
                             {requerentes.length > 0

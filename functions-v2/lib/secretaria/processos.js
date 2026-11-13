@@ -129,6 +129,40 @@ async function valorDaAcao(c, regra, acao, bruto) {
         throw new https_1.HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
     return { rotulo, tipo, valor, valor_texto: (0, camposProcesso_1.valorTexto)({ tipo, valor }), ref: undefined, restrito: false };
 }
+/** Registro pedido por uma ação entra nos vínculos (desfazer não tira: segue citado no histórico). */
+// ponytail: os 50 primeiros; paginar se um registro passar disso.
+const MAX_VINCULADOS = 50;
+const vinculoDaAcao = (dado) => {
+    if (!(dado === null || dado === void 0 ? void 0 : dado.ref))
+        return {};
+    const k = `${dado.ref.modulo}:${dado.ref.id}`;
+    return { vinculos: firestore_1.FieldValue.arrayUnion(k), vinculos_acoes: firestore_1.FieldValue.arrayUnion(k) };
+};
+/**
+ * O registro ou processo de onde o processo nasce, relido no servidor: só
+ * número e título (de outro processo, só o número, porque o assunto pode ser
+ * sigiloso para quem vê o novo processo).
+ */
+async function refDaOrigem(c, bruto) {
+    const r = (bruto && typeof bruto === 'object' ? bruto : {});
+    const id = (0, modulos_1.idEscolhido)(r.id);
+    if (!id)
+        return null;
+    if (!(0, modulos_1.ehModuloOrigem)(r.modulo))
+        throw new https_1.HttpsError('invalid-argument', 'Origem inválida');
+    if (r.modulo === 'pe') {
+        const { data } = await (0, context_1.lerProcesso)(c, id);
+        return { modulo: 'pe', id, numero: String(data.numero || '') };
+    }
+    const m = r.modulo;
+    if (!(0, modulos_1.integracoesDe)(c.org, await (0, modulos_1.lerFlags)(c.db))[m]) {
+        throw new https_1.HttpsError('failed-precondition', `A integração com ${modulos_1.ROTULO_MODULO[m]} está desligada. Peça ao administrador para ligá-la em "Integrações com outros módulos".`);
+    }
+    const ref = await (0, modulos_1.resolverRegistro)(c.db, c.orgId, m, id);
+    if (!ref)
+        throw new https_1.HttpsError('not-found', `Registro de origem não encontrado em ${modulos_1.ROTULO_MODULO[m]}`);
+    return Object.assign({ modulo: m, id, numero: ref.numero }, (ref.titulo ? { titulo: ref.titulo } : {}));
+}
 function resumo(id, d) {
     var _a;
     return {
@@ -166,7 +200,7 @@ function resumo(id, d) {
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _d, _e;
+    var _a, _b, _d, _e, _f, _g, _h;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -186,6 +220,41 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             .map((d) => resumo(d.id, d.data())));
         const ultimo = snap.docs[snap.docs.length - 1];
         return { processos, cursor: ((_b = (_a = ultimo === null || ultimo === void 0 ? void 0 : ultimo.data().updated_at) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) || null, mais: snap.size === limite };
+    }
+    if (p.action === 'vinculados') {
+        // Processos ligados a um registro de outro módulo (ou derivados de outro
+        // processo, 'pe'): os que a pessoa pode ver, sem dizer que há outros.
+        const modulo = String(p.modulo || '');
+        const id = (0, modulos_1.idEscolhido)(p.id);
+        if (!(0, modulos_1.ehModuloOrigem)(modulo) || !/^[A-Za-z0-9_-]{1,128}$/.test(id))
+            throw new https_1.HttpsError('invalid-argument', 'Registro inválido');
+        const ligada = modulo === 'pe' || (0, modulos_1.integracoesDe)(c.org, await (0, modulos_1.lerFlags)(db))[modulo];
+        if (!ligada)
+            return { ligada: false, pode_autuar: false, processos: [] };
+        // O limite vale para o que a pessoa vê: lê em páginas e só diz "mais" se houver outro visível.
+        const base = db.collection(context_1.COL.processos).where('organization_id', '==', orgId).where('vinculos', 'array-contains', `${modulo}:${id}`);
+        const processos = [];
+        let mais = false;
+        let ultimo;
+        // ponytail: até 4 páginas de 50 lidas; um registro com mais processos invisíveis que isso mostra só o que coube.
+        for (let pag = 0; pag < 4 && !mais; pag++) {
+            const snap = await (ultimo ? base.startAfter(ultimo) : base).limit(MAX_VINCULADOS).get();
+            for (const d of snap.docs) {
+                const x = d.data();
+                if (x.status === 'excluido' || (0, secretaria_1.ehParte)(x, auth.uid) || !(0, secretaria_1.podeVer)(x, c.ctx))
+                    continue;
+                if (processos.length === MAX_VINCULADOS) {
+                    mais = true;
+                    break;
+                }
+                const r = resumo(d.id, x);
+                processos.push({ id: r.id, numero: r.numero, assunto: r.assunto, fase_nome: r.fase_nome, status: r.status, sigilo: r.sigilo, origem: ((_e = (_d = x.origem) === null || _d === void 0 ? void 0 : _d.ref) === null || _e === void 0 ? void 0 : _e.id) === id });
+            }
+            if (snap.size < MAX_VINCULADOS)
+                break;
+            ultimo = snap.docs[snap.size - 1];
+        }
+        return { ligada: true, pode_autuar: c.ctx.unidadeIds.length > 0, processos, mais };
     }
     if (p.action === 'contadores') {
         // Carga por unidade (processos não arquivados) e totais, por contagem
@@ -382,7 +451,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const assuntoInformado = form.assunto === 'oculto' ? '' : (0, secretaria_1.texto)(p.assunto);
         const descricao = form.descricao === 'oculto' ? '' : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
         const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes, form.polos);
-        const origem = form.origem === 'oculto' ? null : (0, secretaria_1.sanitizeOrigem)(p.origem);
+        // Nascido de outro registro: a origem vale mesmo que o formulário não a peça.
+        const refOrigem = await refDaOrigem(c, (_f = p.origem) === null || _f === void 0 ? void 0 : _f.ref);
+        const origemInformada = form.origem === 'oculto' ? null : (0, secretaria_1.sanitizeOrigem)(p.origem);
+        const origem = refOrigem
+            ? { tipo: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.tipo) || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro'), descricao: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.descricao) || '', ref: refOrigem }
+            : origemInformada;
         let campos = [];
         try {
             (0, camposProcesso_1.validarPadrao)(form, { assunto: assuntoInformado, descricao, partes, origem });
@@ -397,7 +471,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const numTipo = (0, numeracao_1.numeracaoTipoDe)(tipo === null || tipo === void 0 ? void 0 : tipo.numeracao);
         const numeracao = numTipo.modo === 'nenhuma' ? null
             : numTipo.modo === 'propria' ? { partes: numTipo.partes }
-                : (0, numeracao_1.numeracaoDe)((_d = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _d === void 0 ? void 0 : _d.numeracao);
+                : (0, numeracao_1.numeracaoDe)((_g = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _g === void 0 ? void 0 : _g.numeracao);
         const usaOrgao = numeracao === null || numeracao === void 0 ? void 0 : numeracao.partes.some((x) => x.t === 'sigla_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
         const orgao = usaOrgao && unidade.orgao_id ? (await (0, orgaos_2.lerOrgaos)(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
         const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
@@ -425,10 +499,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const fases = rito.fases;
             // Campos que o tipo exige para sair de cada fase (cópia: mudar o tipo depois não muda este processo).
             const exigidos = (0, camposProcesso_1.camposExigidos)(form, fases.map((f) => f.id));
-            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero }, (numeracao ? {} : { sem_numero: true })), { assunto,
+            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero }, (numeracao ? {} : { sem_numero: true })), { assunto,
                 descricao,
                 partes,
-                campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+                campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), { 
+                // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
+                vinculos: (0, modulos_1.vinculosDe)(origem, campos) }), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
             tx.set(procRef, Object.assign(Object.assign({}, base), mov));
             return numero;
@@ -439,7 +515,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
     const calendario = p.action === 'abrirPrazo'
-        ? (0, secretaria_1.sanitizeCalendario)((_e = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _e === void 0 ? void 0 : _e.calendario)
+        ? (0, secretaria_1.sanitizeCalendario)((_h = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _h === void 0 ? void 0 : _h.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
     let expedidas = 1;
@@ -537,7 +613,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (!mudou.length)
                 throw new https_1.HttpsError('invalid-argument', 'Nada foi alterado');
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'dados', `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, secretaria_1.MAX_TEXTO_LONGO), Object.assign({ campos: mudou.length, visivel_partes: false }, (0, exigencias_1.marcasNaFase)(data, 'dados')));
-            tx.update(ref, Object.assign(Object.assign({}, mov), { descricao, campos }));
+            tx.update(ref, Object.assign(Object.assign({}, mov), { descricao, campos, vinculos: (0, modulos_1.vinculosDe)(data.origem, campos, data.vinculos_acoes || []) }));
             return mov;
         }
         if (p.action === 'concluirOrientacao') {
@@ -605,13 +681,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 const consolidacao = feita
                     ? itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) }))
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
-                tx.update(ref, Object.assign(Object.assign(Object.assign({}, em.mov), mov), { acoes_feitas: feitas, consolidacao: consolidacao.itens.length ? consolidacao : firestore_1.FieldValue.delete() }));
+                tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), { acoes_feitas: feitas, consolidacao: consolidacao.itens.length ? consolidacao : firestore_1.FieldValue.delete() }), vinculoDaAcao(dado)));
                 return mov;
             }
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', dest === 'autos'
                 ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
                 : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: vePartes }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
-            tx.update(ref, Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }));
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }), vinculoDaAcao(dado)));
             return mov;
         }
         if (p.action === 'atribuir') {
