@@ -10,20 +10,34 @@ import type { CampoValor, Formulario } from './camposProcesso';
  * abaixo só entram como pré-preenchimento de campo próprio do tipo (editável,
  * validado como digitado e nunca mostrado às partes).
  */
-export const MODULOS = ['consultas', 'expedientes', 'parcerias', 'juri'] as const;
+export const MODULOS = ['consultas', 'expedientes', 'parcerias', 'juri', 'paginas'] as const;
 export type Modulo = typeof MODULOS[number];
-export const ROTULO_MODULO: Record<Modulo, string> = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri' };
+export const ROTULO_MODULO: Record<Modulo, string> = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri', paginas: 'Páginas próprias' };
+/**
+ * Páginas próprias (tipos de entidade do órgão, `customRecords`): o campo e a
+ * ação dizem de qual página (`pagina` = id do tipo). São internas: nada delas
+ * chega às partes (refsFechadas e informações) e não trazem dados para campos.
+ */
+export const ehInterno = (r: { modulo?: string } | null | undefined): boolean => r?.modulo === 'paginas';
 /** Dados do registro que um campo próprio do tipo pode receber, e de que tipo (espelho em src/lib/camposProcesso.js). */
 export const DADOS_REGISTRO: Record<Modulo, Record<string, 'texto' | 'data'>> = {
     consultas: { consulente: 'texto', local: 'texto', materia: 'texto', entrada: 'data' },
     expedientes: { origem: 'texto', sistema: 'texto', objeto: 'texto', entrada: 'data' },
     parcerias: { tipo: 'texto', objeto: 'texto', partes: 'texto', assinatura: 'data', termo_final: 'data' },
     juri: { comarca: 'texto', data_juri: 'data' },
+    paginas: {},
 };
-const COLECAO: Record<Modulo, string> = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris' };
+const COLECAO: Record<Modulo, string> = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris', paginas: 'customRecords' };
 
-/** Registro de outro módulo, como fica no processo. `restrito`: a origem tem acesso restrito (as partes nunca veem). */
-export interface Ref { modulo: Modulo; id: string; numero: string; titulo?: string; restrito?: true }
+/**
+ * Registro de outro módulo, como fica no processo. `restrito`: a origem tem
+ * acesso restrito (as partes nunca veem). `pagina`: tipo da página própria.
+ */
+export interface Ref { modulo: Modulo; id: string; numero: string; titulo?: string; restrito?: true; pagina?: string }
+
+/** Tipo de página própria, só o que a referência usa. */
+export interface TipoPagina { label_singular?: unknown; fields?: Array<{ key?: unknown; type?: unknown }> }
+export const ID_PAGINA = /^[A-Za-z0-9_-]{1,128}$/;
 
 type Flags = Record<string, unknown>;
 
@@ -43,6 +57,8 @@ export function modulosAtivos(org: Record<string, unknown> | null | undefined, f
         expedientes: on('expedientes'),
         parcerias: flags.parcerias_enabled !== false && on('parcerias'),
         juri: flags.jurimetria_enabled === true && on('jurimetria'),
+        // Páginas próprias só existem com a flag da plataforma ligada (as abas seguem a mesma regra).
+        paginas: flags.custom_entities === true,
     };
 }
 
@@ -67,9 +83,24 @@ export async function lerFlags(db: admin.firestore.Firestore): Promise<Flags> {
 const curto = (v: unknown, max: number) => (v === undefined || v === null ? '' : String(v).trim().slice(0, max));
 const sim = (v: unknown) => v === true || (typeof v === 'string' && /^sim$/i.test(v.trim()));
 
+/**
+ * Página própria: o "número" é o primeiro campo de texto preenchido (na ordem
+ * do tipo) e o título é o nome do tipo; sem texto, as 6 primeiras letras do id.
+ */
+export function refDePagina(id: string, d: Record<string, unknown>, tipo: TipoPagina | null | undefined): Ref {
+    const valores = (d.values && typeof d.values === 'object' ? d.values : {}) as Record<string, unknown>;
+    const campo = (tipo?.fields || []).find((f) => f.type === 'text' && typeof f.key === 'string' && curto(valores[f.key], 80));
+    const t = curto(tipo?.label_singular, 160);
+    return {
+        modulo: 'paginas', id, numero: (campo ? curto(valores[campo.key as string], 80) : '') || `#${id.slice(0, 6)}`,
+        ...(t ? { titulo: t } : {}), pagina: curto(d.entity_type_id, 128),
+    };
+}
+
 /** Número e título do registro, por módulo (o que se mostra e se guarda no processo). */
 export function refDe(modulo: Modulo, id: string, d: Record<string, unknown>): Ref {
-    const pares: Record<Modulo, [unknown, unknown]> = {
+    if (modulo === 'paginas') return refDePagina(id, d, null);
+    const pares: Record<Exclude<Modulo, 'paginas'>, [unknown, unknown]> = {
         consultas: [getSmartField(d, 'process_number'), d.matter_object],
         expedientes: [d.expediente_number, d.object],
         parcerias: [d.pgea || d.PGEA || d.partnership_number, d.subject || d.assunto],
@@ -90,6 +121,12 @@ export async function resolverRegistro(db: admin.firestore.Firestore, orgId: str
         const s = await db.collection(COLECAO[modulo]).doc(id).get();
         const d = s.data();
         if (!s.exists || !d || d.organization_id !== orgId) return null;
+        if (modulo === 'paginas') {
+            const tid = String(d.entity_type_id || '');
+            const t = ID_PAGINA.test(tid) ? (await db.collection('entityTypes').doc(tid).get()).data() : null;
+            if (!t || t.organization_id !== orgId) return null;
+            return refDePagina(id, d, t as TipoPagina);
+        }
         return refDe(modulo, id, d);
     } catch {
         return null;
@@ -129,8 +166,10 @@ export async function refsDoFormulario(
  * que fosse público quando foi escolhido.
  */
 export async function refsFechadas(db: admin.firestore.Firestore, orgId: string, refs: Array<Ref | undefined | null>): Promise<Set<string>> {
-    const unicos = [...new Map(refs.filter((r): r is Ref => !!r && MODULOS.includes(r.modulo)).map((r) => [`${r.modulo}:${r.id}`, r])).values()];
-    const fechadas = new Set<string>();
+    const todos = [...new Map(refs.filter((r): r is Ref => !!r && MODULOS.includes(r.modulo)).map((r) => [`${r.modulo}:${r.id}`, r])).values()];
+    // Página própria é sempre interna: fechada para as partes, sem precisar ler.
+    const fechadas = new Set<string>(todos.filter(ehInterno).map((r) => `${r.modulo}:${r.id}`));
+    const unicos = todos.filter((r) => !ehInterno(r));
     if (!unicos.length) return fechadas;
     const snaps = await db.getAll(...unicos.map((r) => db.collection(COLECAO[r.modulo]).doc(r.id)));
     snaps.forEach((s, i) => {

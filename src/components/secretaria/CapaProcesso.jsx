@@ -8,7 +8,7 @@ import { DadosCampos } from './CamposProcesso';
 import { POLOS, STATUS_ROTULO, SeloUrgente, dataHora, rotuloOrigem } from './comum';
 import AjudaTermo from './AjudaTermo';
 import { ROTULO_DESTINO } from '@/lib/exigencias';
-import { ABA_DO_MODULO, ROTULO_REF, integracoesLigadas, registrosLigados } from '@/lib/camposProcesso';
+import { ROTULO_REF, abaDoRegistro, integracoesLigadas, registrosLigados } from '@/lib/camposProcesso';
 import { createPageUrl } from '@/utils';
 
 // Capa do processo: só informação, igual para todos os perfis, sem nenhum
@@ -78,7 +78,7 @@ function RegistrosLigados({ p, informacoes, estado }) {
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                 {lista.map((r) => {
                     const nome = `${ROTULO_REF[r.modulo]} ${r.numero}`;
-                    const href = `${createPageUrl('Organization')}?id=${encodeURIComponent(orgId || '')}&tab=${ABA_DO_MODULO[r.modulo]}&abrir=${encodeURIComponent(r.id)}`;
+                    const href = `${createPageUrl('Organization')}?id=${encodeURIComponent(orgId || '')}&tab=${encodeURIComponent(abaDoRegistro(r))}&abrir=${encodeURIComponent(r.id)}`;
                     return (
                         <li key={`${r.modulo}:${r.id}`} className="py-2 flex flex-wrap items-center justify-between gap-2">
                             <div className="min-w-0">
@@ -88,7 +88,7 @@ function RegistrosLigados({ p, informacoes, estado }) {
                                 </p>
                                 <p className="text-xs text-slate-600 dark:text-slate-400">{r.de.map((d) => (d === 'origem' ? 'Nasceu deste registro' : d)).join(' · ')}</p>
                             </div>
-                            {orgId && ligadas[r.modulo]
+                            {orgId && ligadas[r.modulo] && abaDoRegistro(r)
                                 ? (
                                     <Button asChild variant="outline" size="sm" className="h-11 sm:h-8 gap-1">
                                         <Link to={href} aria-label={`Abrir ${nome}`}>

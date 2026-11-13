@@ -9,19 +9,19 @@ const ex = require('../lib/shared/exigencias');
 
 test('modulosAtivos: mesma regra das abas do órgão', () => {
     // Órgão antigo, sem moduleConfig: tudo ligado; Júri só com a flag da plataforma.
-    assert.deepEqual(m.modulosAtivos({}, {}), { consultas: true, expedientes: true, parcerias: true, juri: false });
+    assert.deepEqual(m.modulosAtivos({}, {}), { consultas: true, expedientes: true, parcerias: true, juri: false, paginas: false });
     assert.equal(m.modulosAtivos({}, { jurimetria_enabled: true }).juri, true);
     assert.equal(m.modulosAtivos({}, { parcerias_enabled: false }).parcerias, false);
     const org = { moduleConfig: { processes: { enabled: true }, expedientes: { enabled: false }, jurimetria: { enabled: true } } };
-    assert.deepEqual(m.modulosAtivos(org, { jurimetria_enabled: true }), { consultas: true, expedientes: false, parcerias: false, juri: true });
+    assert.deepEqual(m.modulosAtivos(org, { jurimetria_enabled: true }), { consultas: true, expedientes: false, parcerias: false, juri: true, paginas: false });
     // Páginas personalizadas desligadas na plataforma: o moduleConfig não vale.
     assert.equal(m.modulosAtivos(org, { custom_entities: false }).expedientes, true);
 });
 
 test('integracoesDe: só o que o admin ligou e o órgão tem ativo', () => {
     const org = { moduleConfig: { processes: { enabled: true } }, secretariaConfig: { integracoes: { consultas: true, expedientes: true, juri: 'sim' } } };
-    assert.deepEqual(m.integracoesGravadas(org), { consultas: true, expedientes: true, parcerias: false, juri: false });
-    assert.deepEqual(m.integracoesDe(org, {}), { consultas: true, expedientes: false, parcerias: false, juri: false });
+    assert.deepEqual(m.integracoesGravadas(org), { consultas: true, expedientes: true, parcerias: false, juri: false, paginas: false });
+    assert.deepEqual(m.integracoesDe(org, {}), { consultas: true, expedientes: false, parcerias: false, juri: false, paginas: false });
 });
 
 test('refDe: só número e título; acesso restrito marcado', () => {

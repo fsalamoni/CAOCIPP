@@ -8,6 +8,7 @@ import GenericSummary from './GenericSummary';
 import GenericRecordForm from './GenericRecordForm';
 import GenericRecordDetailSheet from './GenericRecordDetailSheet';
 import SpreadsheetImportDialog from './SpreadsheetImportDialog';
+import { useAbrirDaUrl } from '@/hooks/useAbrirDaUrl';
 
 /**
  * Orquestra a visualização de um tipo de entidade personalizado.
@@ -32,6 +33,8 @@ export default function CustomEntityView({ mode, entityTypeId, organizationId, m
     const openCreate = () => { setEditingRecord(null); setFormOpen(true); };
     const openEdit = (rec) => { setEditingRecord(rec); setDetailOpen(false); setFormOpen(true); };
     const openDetail = (rec) => { setDetailRecord(rec); setDetailOpen(true); };
+    // ?abrir=<id> (link do Processo Eletrônico): abre o registro desta página.
+    useAbrirDaUrl({ lista: records, colecao: 'customRecords', orgId: organizationId, carregando: recordsLoading, abrir: (r) => (r.entity_type_id === entityTypeId ? openDetail(r) : null) });
 
     if (typeLoading) {
         return (

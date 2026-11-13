@@ -13,7 +13,7 @@ import PrimeirosPassos from './PrimeirosPassos';
 import PreviaRito from './PreviaRito';
 import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
 import { ABAS_CONFIG, abaInicial } from '@/lib/passosConfiguracao';
-import { RegistroContexto } from './SeletorRegistro';
+import { ProvedorRegistros } from './SeletorRegistro';
 import AjudaTermo from './AjudaTermo';
 
 /**
@@ -51,7 +51,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
     };
 
     return (
-        <RegistroContexto.Provider value={{ orgId, ligadas: integracoesLigadas(estado) }}>
+        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)}>
         <div className="space-y-5">
             <Card>
                 <CardHeader>
@@ -100,7 +100,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
                     preferencias={<Preferencias estado={estado} saving={saving} onSalvar={(p, ok) => salvar('salvarPreferencias', p, ok)} />} />
             )}
         </div>
-        </RegistroContexto.Provider>
+        </ProvedorRegistros>
     );
 }
 
@@ -150,6 +150,7 @@ function Integracoes({ estado, saving, onSalvar }) {
         expedientes: 'Ligar o processo a um expediente do órgão.',
         parcerias: 'Ligar o processo a uma parceria (convênio, termo de cooperação ou fomento).',
         juri: 'Ligar o processo a um júri da base de Jurimetria.',
+        paginas: 'Ligar o processo a um registro das páginas próprias do órgão. Fica só com a equipe: as partes nunca o veem.',
     };
     return (
         <Card>
@@ -167,7 +168,7 @@ function Integracoes({ estado, saving, onSalvar }) {
                         <div key={m} className="flex items-start justify-between gap-3 rounded-md border border-slate-200 dark:border-slate-700 p-3">
                             <div className="min-w-0 text-sm">
                                 <p className="font-medium text-slate-800 dark:text-slate-100">{rotulo}</p>
-                                <p className="text-slate-600 dark:text-slate-400">{ativo ? DESCRICAO[m] : 'O módulo não está ativo neste órgão. Ative em Páginas e módulos para poder integrar.'}</p>
+                                <p className="text-slate-600 dark:text-slate-400">{ativo ? DESCRICAO[m] : m === 'paginas' ? 'As páginas próprias ainda não estão liberadas pela administração da plataforma.' : 'O módulo não está ativo neste órgão. Ative em Páginas e módulos para poder integrar.'}</p>
                             </div>
                             <Switch checked={ativo && gravadas[m] === true} disabled={saving || !ativo} aria-label={`Integrar ${rotulo} aos processos`}
                                 onCheckedChange={(v) => onSalvar({ ...gravadas, [m]: v }, v ? `${rotulo} integrado aos processos` : `Integração com ${rotulo} desligada`)} />

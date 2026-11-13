@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Páginas próprias ligadas aos processos
+- Em **Integrações**, as páginas próprias do órgão (as páginas personalizadas
+  com tabela, formulário e fases) entram como mais um módulo. Ligada, o tipo
+  de processo pode ter um campo e o rito uma ação que pedem um registro de
+  uma página escolhida ("De qual página"), procurado pelo nome.
+- A ficha do registro mostra os processos ligados e o botão **Criar processo
+  eletrônico**; a Capa do processo abre o registro na página dele.
+- Registro de página própria fica só com a equipe: as partes nunca o veem, no
+  portal nem nos modelos.
+
 ### 13/11/2026 — Admin delegado por órgão interno
 - Cada órgão interno pode ter até 10 pessoas que o administram (**Quem
   administra este órgão**, no cadastro do órgão). Elas configuram o órgão, os

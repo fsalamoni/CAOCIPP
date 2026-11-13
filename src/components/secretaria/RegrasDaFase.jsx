@@ -17,7 +17,7 @@ import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
 import AjudaTermo from './AjudaTermo';
-import { EditorCampos } from './CamposProcesso';
+import { EditorCampos, EscolhaPagina } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
@@ -124,7 +124,7 @@ export function CondicaoPorResposta({ id, f, limite = Infinity, valor, onChange,
 
 /** Configuração de uma ação: o que pede, onde fica, quem vê, se é obrigatória. */
 function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
-    const { ligadas } = useContext(RegistroContexto);
+    const { ligadas, paginas } = useContext(RegistroContexto);
     const pede = pedidoDaAcao(r);
     const dest = destinoDaAcao(r);
     const set = (patch) => {
@@ -158,8 +158,9 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     </div>
                     {pede === 'registro' ? (
                         <div>
-                            <NativeSelect id={`${id}-mod`} label="De qual módulo" value={r?.modulo || 'consultas'} onChange={(v) => set({ modulo: v })}
+                            <NativeSelect id={`${id}-mod`} label="De qual módulo" value={r?.modulo || 'consultas'} onChange={(v) => set({ modulo: v, pagina: v === 'paginas' ? r?.pagina || paginas?.[0]?.id : undefined })}
                                 options={MODULOS.map(([m, l]) => [m, ligadas?.[m] ? l : `${l} (integração desligada)`])} />
+                            {r?.modulo === 'paginas' && <div className="mt-2"><EscolhaPagina id={`${id}-pag`} paginas={paginas} value={r?.pagina} onChange={(v) => set({ pagina: v })} /></div>}
                             {!ligadas?.[r?.modulo || 'consultas'] && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">A integração com este módulo está desligada: ligue em "Integrações com outros módulos", na configuração do Processo Eletrônico, para salvar o rito.</p>}
                         </div>
                     ) : pede === 'lista' ? (

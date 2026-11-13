@@ -143,7 +143,7 @@ export function texto(v: unknown, max = MAX_TEXTO_CURTO): string {
 export const ORIGENS = ['requerimento', 'representacao', 'oficio', 'de_oficio', 'outro_processo', 'outro'] as const;
 export type TipoOrigem = typeof ORIGENS[number];
 /** Registro de outro módulo ou outro processo ('pe') de onde o processo nasceu; o servidor relê. */
-export interface RefOrigem { modulo: string; id: string; numero: string; titulo?: string }
+export interface RefOrigem { modulo: string; id: string; numero: string; titulo?: string; pagina?: string }
 export interface Origem { tipo: TipoOrigem; descricao: string; ref?: RefOrigem }
 const ROTULO_REF: Record<string, string> = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri' };
 export const ROTULO_ORIGEM: Record<TipoOrigem, string> = {

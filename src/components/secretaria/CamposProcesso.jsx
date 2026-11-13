@@ -11,7 +11,7 @@ import {
     COM_OPCOES, CONDICIONANTES, copiarCampos, FORMATOS, MAX_CAMPOS, MODULOS, PADROES, POLOS, ROTULO_MODULO, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, opcoesImportar, textoCondicao, valorTexto, visiveis,
 } from '@/lib/camposProcesso';
 import { NativeSelect } from './comum';
-import SeletorRegistro, { RegistroContexto } from './SeletorRegistro';
+import SeletorRegistro, { RegistroContexto, nomeDoModulo } from './SeletorRegistro';
 import FormularioAutuacao from './FormularioAutuacao';
 
 // ============================================================================
@@ -76,7 +76,7 @@ export function CamposProcesso({ campos, valores, onChange, prefixo = 'cp' }) {
                             </div>
                         ) : <Input {...comum} className="mt-1" inputMode="decimal" placeholder="0" value={v} onChange={(e) => onChange(c.id, e.target.value)} />)}
                         {c.tipo === 'data' && <Input {...comum} className="mt-1" type="date" value={v} onChange={(e) => onChange(c.id, e.target.value)} />}
-                        {c.tipo === 'registro' && <SeletorRegistro id={id} aria-required={comum['aria-required']} aria-describedby={comum['aria-describedby']} modulo={c.modulo} value={bruto && typeof bruto === 'object' ? bruto : ''} onChange={(x) => onChange(c.id, x)} />}
+                        {c.tipo === 'registro' && <SeletorRegistro id={id} aria-required={comum['aria-required']} aria-describedby={comum['aria-describedby']} modulo={c.modulo} pagina={c.pagina} value={bruto && typeof bruto === 'object' ? bruto : ''} onChange={(x) => onChange(c.id, x)} />}
                         {c.tipo === 'registro' && bruto?.restrito && campos.some((d) => d.importar?.de === c.id) && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Registro de acesso restrito: os dados dele não são trazidos para os campos.</p>}
                         {c.tipo === 'lista' && (
                             <select {...comum} className={seletor} value={v} onChange={(e) => onChange(c.id, e.target.value)}>
@@ -237,6 +237,18 @@ function ExigirEm({ c, fases, onChange }) {
     );
 }
 
+/** Qual página própria o registro vem (campo do tipo ou ação do rito). */
+export function EscolhaPagina({ id, paginas, value, onChange }) {
+    if (!paginas?.length) return <p id={id} className="text-xs text-amber-800 dark:text-amber-200 self-end">O órgão ainda não tem páginas próprias ativas. Crie uma em Páginas e módulos.</p>;
+    return (
+        <div className="sm:max-w-xs">
+            <NativeSelect id={id} label="De qual página" value={value || ''} onChange={onChange}
+                options={[...(value && !paginas.some((x) => x.id === value) ? [[value, 'Página que não existe mais']] : []), ...(value ? [] : [['', 'Escolha a página…']]), ...paginas.map((x) => [x.id, x.plural])]} />
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Registros de página própria ficam só com a equipe: as partes nunca os veem.</p>
+        </div>
+    );
+}
+
 /**
  * Lista de campos para criar, ordenar, configurar e remover. Serve ao
  * formulário do tipo de processo e à ação do rito que pede um formulário
@@ -244,7 +256,7 @@ function ExigirEm({ c, fases, onChange }) {
  * "partes veem" por campo, que são da ação inteira).
  */
 export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, paraAcao = false, prefixo = 'fc' }) {
-    const { ligadas } = useContext(RegistroContexto);
+    const { ligadas, paginas } = useContext(RegistroContexto);
     const [aberto, setAberto] = useState(null);
     const setCampo = (i, patch) => onChange(campos.map((c, j) => (j === i ? { ...c, ...patch } : c)));
     const mover = (i, d) => {
@@ -257,14 +269,15 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
         onChange([...campos, c]);
         setAberto(c.id);
     };
-    const rotuloTipo = (c) => (c.tipo === 'registro' ? `Registro de ${ROTULO_MODULO[c.modulo] || 'outro módulo'}` : TIPOS_CAMPO.find(([id]) => id === c.tipo)?.[1] || c.tipo);
+    const rotuloTipo = (c) => (c.tipo === 'registro' ? `Registro de ${nomeDoModulo(c.modulo, c.pagina, paginas)}` : TIPOS_CAMPO.find(([id]) => id === c.tipo)?.[1] || c.tipo);
     // Registro: vem de um módulo com a integração ligada (os desligados aparecem, sem poder escolher).
     const opcoesModulo = MODULOS.map(([m, l]) => [m, ligadas?.[m] ? l : `${l} (integração desligada)`]);
     // Trocar o tipo ou o formato solta o dado importado; o registro que muda de módulo solta quem importava dele.
     const trocarTipo = (i, v) => onChange(campos.map((c, j) => (j === i
         ? { ...c, tipo: v, formato: undefined, importar: undefined, modulo: v === 'registro' ? (MODULOS.find(([m]) => ligadas?.[m])?.[0] || 'consultas') : undefined }
         : c.importar?.de === campos[i].id ? { ...c, importar: undefined } : c)));
-    const trocarModulo = (i, v) => onChange(campos.map((c, j) => (j === i ? { ...c, modulo: v } : c.importar?.de === campos[i].id ? { ...c, importar: undefined } : c)));
+    // Página própria: começa na primeira página do órgão (o servidor exige qual).
+    const trocarModulo = (i, v) => onChange(campos.map((c, j) => (j === i ? { ...c, modulo: v, pagina: v === 'paginas' ? c.pagina || paginas?.[0]?.id : undefined, ...(v === 'paginas' ? { visivel_partes: false } : {}) } : c.importar?.de === campos[i].id ? { ...c, importar: undefined } : c)));
     const secoes = [...new Set(campos.map((c) => c.secao?.trim()).filter(Boolean))];
     const nomeFase = (id) => fases.find((f) => f.id === id)?.nome;
     // Remover um campo solta quem dependia dele (o campo volta a aparecer sempre).
@@ -294,7 +307,7 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
                                 {!paraAcao && c.exigir_em?.some(nomeFase) && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={`Exigido para sair de: ${c.exigir_em.map(nomeFase).filter(Boolean).join(', ')}`}>Exigido em {c.exigir_em.filter(nomeFase).length === 1 ? nomeFase(c.exigir_em.find(nomeFase)) : `${c.exigir_em.filter(nomeFase).length} fases`}</Badge>}
                                 {c.condicao && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={textoCondicao(campos, c)}>Condicional</Badge>}
                                 {!paraAcao && c.importar && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex">Do registro</Badge>}
-                                {!paraAcao && c.visivel_partes && <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">Partes veem</Badge>}
+                                {!paraAcao && c.visivel_partes && c.modulo !== 'paginas' && <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">Partes veem</Badge>}
                             </button>
                             <Button type="button" size="sm" variant="ghost" className={ICONE} disabled={i === 0} onClick={() => mover(i, -1)} aria-label={`Subir ${c.rotulo || 'campo'}`}><ArrowUp className="w-4 h-4" /></Button>
                             <Button type="button" size="sm" variant="ghost" className={ICONE} disabled={i === campos.length - 1} onClick={() => mover(i, 1)} aria-label={`Descer ${c.rotulo || 'campo'}`}><ArrowDown className="w-4 h-4" /></Button>
@@ -316,7 +329,10 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
                                 </div>
                                 {c.tipo === 'registro' && (
                                     <div className="space-y-1">
-                                        <div className="sm:max-w-xs"><NativeSelect id={p(`mod-${c.id}`)} label="De qual módulo" value={c.modulo || ''} onChange={(v) => trocarModulo(i, v)} options={opcoesModulo} /></div>
+                                        <div className="grid sm:grid-cols-2 gap-3">
+                                            <div className="sm:max-w-xs"><NativeSelect id={p(`mod-${c.id}`)} label="De qual módulo" value={c.modulo || ''} onChange={(v) => trocarModulo(i, v)} options={opcoesModulo} /></div>
+                                            {c.modulo === 'paginas' && <EscolhaPagina id={p(`pag-${c.id}`)} paginas={paginas} value={c.pagina} onChange={(v) => setCampo(i, { pagina: v })} />}
+                                        </div>
                                         <p className="text-xs text-slate-600 dark:text-slate-400">Quem preenche procura pelo número ou assunto. O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito.{!paraAcao && ' Outros campos podem ser preenchidos com dados dele (em cada campo, "Preencher com dado de").'}</p>
                                         {c.modulo && !ligadas?.[c.modulo] && <p className="text-xs text-amber-800 dark:text-amber-200">A integração com {ROTULO_MODULO[c.modulo]} está desligada: ligue em "Integrações com outros módulos", no alto da configuração do Processo Eletrônico, para salvar e usar este campo.</p>}
                                     </div>
@@ -339,7 +355,7 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
                                 <MostrarQuando p={p} c={c} anteriores={campos.slice(0, i).filter((d) => CONDICIONANTES.includes(d.tipo))} onChange={(patch) => setCampo(i, patch)} />
                                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                                     <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.obrigatorio} disabled={!paraAcao && !!c.exigir_em?.some(nomeFase)} onCheckedChange={(x) => setCampo(i, { obrigatorio: x === true })} /> {paraAcao ? 'Obrigatório ao cumprir a ação' : 'Obrigatório na autuação'}</label>
-                                    {!paraAcao && <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.visivel_partes} disabled={!!c.importar} onCheckedChange={(x) => setCampo(i, { visivel_partes: x === true })} /> Mostrar às partes no portal</label>}
+                                    {!paraAcao && <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.visivel_partes && c.modulo !== 'paginas'} disabled={!!c.importar || c.modulo === 'paginas'} onCheckedChange={(x) => setCampo(i, { visivel_partes: x === true })} /> Mostrar às partes no portal</label>}
                                 </div>
                                 {!paraAcao && <ExigirEm c={c} fases={fases} onChange={(patch) => setCampo(i, patch)} />}
                             </div>

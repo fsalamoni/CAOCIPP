@@ -21,6 +21,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.atendeCondicao = exports.rotuloDe = exports.POLOS = exports.ROTULO_PADRAO = exports.PADROES = exports.MAX_OPCOES = exports.MAX_CAMPOS = exports.FORMATOS = exports.TIPOS_CAMPO = void 0;
 exports.formularioDe = formularioDe;
+exports.paginaDe = paginaDe;
 exports.sanitizeCampos = sanitizeCampos;
 exports.sanitizeFormulario = sanitizeFormulario;
 exports.cpfCnpj = cpfCnpj;
@@ -93,6 +94,13 @@ function formularioDe(tipo) {
  * formulário): nome, tipo, opções, módulo, formato, condição e nomes repetidos.
  * Lança Error com mensagem para o usuário. O teto de quantidade fica com quem chama.
  */
+/** Página própria escolhida num campo ou ação 'registro' (id do tipo); obrigatória. */
+function paginaDe(v, rotulo) {
+    const p = typeof v === 'string' ? v.trim() : '';
+    if (!modulos_1.ID_PAGINA.test(p))
+        throw new Error(`Escolha de qual página própria vem o registro de "${rotulo}"`);
+    return p;
+}
 function sanitizeCampos(lista) {
     const ids = new Set();
     const campos = lista.map((x, i) => {
@@ -109,6 +117,7 @@ function sanitizeCampos(lista) {
         const modulo = tipo === 'registro' && modulos_1.MODULOS.includes(o.modulo) ? o.modulo : undefined;
         if (tipo === 'registro' && !modulo)
             throw new Error(`Escolha de que módulo vem o registro de "${rotulo}"`);
+        const pagina = modulo === 'paginas' ? paginaDe(o.pagina, rotulo) : '';
         const formato = exports.FORMATOS.includes(o.formato) && FORMATO_DO_TIPO[o.formato] === tipo ? o.formato : undefined;
         const secao = texto(o.secao, 60);
         const exigir = [...new Set((Array.isArray(o.exigir_em) ? o.exigir_em : []).map((s) => texto(s, 60)).filter(Boolean))].slice(0, 30);
@@ -117,7 +126,7 @@ function sanitizeCampos(lista) {
         if (!id || ids.has(id))
             id = `c${Date.now().toString(36)}${i}`;
         ids.add(id);
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true }, (formato ? { formato } : {})), (modulo ? { modulo } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {})), (o.importar && typeof o.importar === 'object' ? { importar: { de: texto(o.importar.de, 24), dado: texto(o.importar.dado, 24) } } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true && modulo !== 'paginas' }, (formato ? { formato } : {})), (modulo ? { modulo } : {})), (pagina ? { pagina } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {})), (o.importar && typeof o.importar === 'object' ? { importar: { de: texto(o.importar.de, 24), dado: texto(o.importar.dado, 24) } } : {}));
     });
     // Dado importado: vem de um campo 'registro' do mesmo formulário, de um dado
     // que o módulo dele tem, e cabe no tipo do campo; nunca vai às partes.
@@ -335,10 +344,10 @@ function validarCampos(form, valores, antes = [], refs = new Map()) {
             const ref = refs.get(c.id);
             if (ref === 'desligada')
                 throw new Error(`A integração com ${modulos_1.ROTULO_MODULO[c.modulo]} está desligada neste órgão: "${c.rotulo}" não pode ser escolhido agora`);
-            if (!ref || ref.id !== id || ref.modulo !== c.modulo)
+            if (!ref || ref.id !== id || ref.modulo !== c.modulo || (c.pagina && ref.pagina !== c.pagina))
                 throw new Error(`"${c.rotulo}": registro não encontrado em ${modulos_1.ROTULO_MODULO[c.modulo] || 'outro módulo'}`);
             lidos.set(c.id, ref.numero);
-            out.push({ id: c.id, rotulo: c.rotulo, tipo: 'registro', valor: ref.numero, ref, visivel_partes: c.visivel_partes && !ref.restrito });
+            out.push({ id: c.id, rotulo: c.rotulo, tipo: 'registro', valor: ref.numero, ref, visivel_partes: c.visivel_partes && !ref.restrito && !(0, modulos_1.ehInterno)(ref) });
             continue;
         }
         const valor = valorDe(c, v[c.id]);

@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ehModuloOrigem = exports.idEscolhido = exports.DADOS_REGISTRO = exports.ROTULO_MODULO = exports.MODULOS = void 0;
+exports.ehModuloOrigem = exports.idEscolhido = exports.ID_PAGINA = exports.DADOS_REGISTRO = exports.ehInterno = exports.ROTULO_MODULO = exports.MODULOS = void 0;
 exports.modulosAtivos = modulosAtivos;
 exports.integracoesGravadas = integracoesGravadas;
 exports.integracoesDe = integracoesDe;
 exports.lerFlags = lerFlags;
+exports.refDePagina = refDePagina;
 exports.refDe = refDe;
 exports.resolverRegistro = resolverRegistro;
 exports.refsDoFormulario = refsDoFormulario;
@@ -19,16 +20,25 @@ const fields_1 = require("./fields");
  * abaixo só entram como pré-preenchimento de campo próprio do tipo (editável,
  * validado como digitado e nunca mostrado às partes).
  */
-exports.MODULOS = ['consultas', 'expedientes', 'parcerias', 'juri'];
-exports.ROTULO_MODULO = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri' };
+exports.MODULOS = ['consultas', 'expedientes', 'parcerias', 'juri', 'paginas'];
+exports.ROTULO_MODULO = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri', paginas: 'Páginas próprias' };
+/**
+ * Páginas próprias (tipos de entidade do órgão, `customRecords`): o campo e a
+ * ação dizem de qual página (`pagina` = id do tipo). São internas: nada delas
+ * chega às partes (refsFechadas e informações) e não trazem dados para campos.
+ */
+const ehInterno = (r) => (r === null || r === void 0 ? void 0 : r.modulo) === 'paginas';
+exports.ehInterno = ehInterno;
 /** Dados do registro que um campo próprio do tipo pode receber, e de que tipo (espelho em src/lib/camposProcesso.js). */
 exports.DADOS_REGISTRO = {
     consultas: { consulente: 'texto', local: 'texto', materia: 'texto', entrada: 'data' },
     expedientes: { origem: 'texto', sistema: 'texto', objeto: 'texto', entrada: 'data' },
     parcerias: { tipo: 'texto', objeto: 'texto', partes: 'texto', assinatura: 'data', termo_final: 'data' },
     juri: { comarca: 'texto', data_juri: 'data' },
+    paginas: {},
 };
-const COLECAO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris' };
+const COLECAO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris', paginas: 'customRecords' };
+exports.ID_PAGINA = /^[A-Za-z0-9_-]{1,128}$/;
 /**
  * Módulos ativos no órgão, com a mesma regra das abas (resolveBuiltinModules e
  * getOrganizationTabs no cliente): sem `moduleConfig`, tudo ligado; páginas
@@ -45,6 +55,8 @@ function modulosAtivos(org, flags) {
         expedientes: on('expedientes'),
         parcerias: flags.parcerias_enabled !== false && on('parcerias'),
         juri: flags.jurimetria_enabled === true && on('jurimetria'),
+        // Páginas próprias só existem com a flag da plataforma ligada (as abas seguem a mesma regra).
+        paginas: flags.custom_entities === true,
     };
 }
 /** O que o admin gravou (sem conferir se o módulo está ativo). */
@@ -65,8 +77,20 @@ async function lerFlags(db) {
 }
 const curto = (v, max) => (v === undefined || v === null ? '' : String(v).trim().slice(0, max));
 const sim = (v) => v === true || (typeof v === 'string' && /^sim$/i.test(v.trim()));
+/**
+ * Página própria: o "número" é o primeiro campo de texto preenchido (na ordem
+ * do tipo) e o título é o nome do tipo; sem texto, as 6 primeiras letras do id.
+ */
+function refDePagina(id, d, tipo) {
+    const valores = (d.values && typeof d.values === 'object' ? d.values : {});
+    const campo = ((tipo === null || tipo === void 0 ? void 0 : tipo.fields) || []).find((f) => f.type === 'text' && typeof f.key === 'string' && curto(valores[f.key], 80));
+    const t = curto(tipo === null || tipo === void 0 ? void 0 : tipo.label_singular, 160);
+    return Object.assign(Object.assign({ modulo: 'paginas', id, numero: (campo ? curto(valores[campo.key], 80) : '') || `#${id.slice(0, 6)}` }, (t ? { titulo: t } : {})), { pagina: curto(d.entity_type_id, 128) });
+}
 /** Número e título do registro, por módulo (o que se mostra e se guarda no processo). */
 function refDe(modulo, id, d) {
+    if (modulo === 'paginas')
+        return refDePagina(id, d, null);
     const pares = {
         consultas: [(0, fields_1.getSmartField)(d, 'process_number'), d.matter_object],
         expedientes: [d.expediente_number, d.object],
@@ -86,6 +110,13 @@ async function resolverRegistro(db, orgId, modulo, id) {
         const d = s.data();
         if (!s.exists || !d || d.organization_id !== orgId)
             return null;
+        if (modulo === 'paginas') {
+            const tid = String(d.entity_type_id || '');
+            const t = exports.ID_PAGINA.test(tid) ? (await db.collection('entityTypes').doc(tid).get()).data() : null;
+            if (!t || t.organization_id !== orgId)
+                return null;
+            return refDePagina(id, d, t);
+        }
         return refDe(modulo, id, d);
     }
     catch (_a) {
@@ -123,8 +154,10 @@ async function refsDoFormulario(db, orgId, org, form, valores, antes = []) {
  * que fosse público quando foi escolhido.
  */
 async function refsFechadas(db, orgId, refs) {
-    const unicos = [...new Map(refs.filter((r) => !!r && exports.MODULOS.includes(r.modulo)).map((r) => [`${r.modulo}:${r.id}`, r])).values()];
-    const fechadas = new Set();
+    const todos = [...new Map(refs.filter((r) => !!r && exports.MODULOS.includes(r.modulo)).map((r) => [`${r.modulo}:${r.id}`, r])).values()];
+    // Página própria é sempre interna: fechada para as partes, sem precisar ler.
+    const fechadas = new Set(todos.filter(exports.ehInterno).map((r) => `${r.modulo}:${r.id}`));
+    const unicos = todos.filter((r) => !(0, exports.ehInterno)(r));
     if (!unicos.length)
         return fechadas;
     const snaps = await db.getAll(...unicos.map((r) => db.collection(COLECAO[r.modulo]).doc(r.id)));

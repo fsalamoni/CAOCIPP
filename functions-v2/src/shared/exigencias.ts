@@ -8,7 +8,7 @@
 // ============================================================================
 
 import { MODULOS, Modulo } from './modulos';
-import { CampoDef, sanitizeCampos } from './camposProcesso';
+import { CampoDef, paginaDe, sanitizeCampos } from './camposProcesso';
 
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
@@ -118,6 +118,8 @@ export interface RegraAcao {
     opcoes?: string[];
     /** Pede 'registro': de qual módulo do órgão. */
     modulo?: Modulo;
+    /** Módulo 'paginas': de qual página própria (id do tipo). */
+    pagina?: string;
     /** Pede 'formulario': os campos (como os do tipo de processo; quem vê é a ação inteira). */
     campos?: CampoDef[];
     /** Onde fica o registro de cumprimento (ausente = evento). Para documento, vale `documento.destino`. */
@@ -219,6 +221,7 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
         if (pedeBruto === 'registro') {
             if (!MODULOS.includes(r.modulo as Modulo)) throw new Error(`A ação "${acao}" pede um registro: escolha de que módulo`);
             out.modulo = r.modulo as Modulo;
+            if (out.modulo === 'paginas') out.pagina = paginaDe(r.pagina, acao);
         }
         if (pedeBruto === 'formulario') {
             const lista = Array.isArray(r.campos) ? r.campos : [];
