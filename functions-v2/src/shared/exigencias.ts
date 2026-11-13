@@ -94,6 +94,18 @@ export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', '
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 
+/**
+ * Condição pela resposta de uma ação de escolha (lista ou sim/não) da mesma
+ * fase: vale quando a resposta registrada está entre `valores`. Usada na ação
+ * (`RegraAcao.se`: só vale nesse caso) e na saída (`Fase.condicoes_regra`).
+ */
+export interface Condicao { acao: number; valores: string[] }
+/** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
+export const QUEM = ['responsavel', 'gestor'] as const;
+export type Quem = typeof QUEM[number];
+/** Respostas das ações de escolha na rodada da fase: { fase: { índice: 'opção' | 'sim' | 'nao' } }. */
+export type Respostas = Record<string, Record<string, string>>;
+
 export interface RegraAcao {
     /** Ausente = só confirmar (caixa de marcar). */
     pede?: Exclude<Pedido, 'confirmar' | 'documento'>;
@@ -111,6 +123,10 @@ export interface RegraAcao {
     obrigatoria?: true;
     /** Não impede a fase de seguir, mas quem a conclui é avisado de que ficou por fazer. */
     recomendada?: true;
+    /** Só vale (aparece e é cobrada) quando a resposta de uma ação anterior for uma destas. */
+    se?: Condicao;
+    /** Quem pode cumprir. Ausente = quem tem o processo. */
+    quem?: Quem;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -207,8 +223,63 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     if (partes) out.partes = true;
     if (r.obrigatoria === true) out.obrigatoria = true;
     else if (r.recomendada === true) out.recomendada = true;
+    if (QUEM.includes(r.quem as Quem)) out.quem = r.quem as Quem;
     return Object.keys(out).length ? out : null;
 }
+
+/** Opções que a resposta da ação pode ter (só ações de escolha condicionam). */
+export function opcoesDaResposta(r: RegraAcao | null | undefined): string[] | null {
+    if (!r || r.documento) return null;
+    if (r.pede === 'lista') return r.opcoes || [];
+    if (r.pede === 'sim_nao') return ['sim', 'nao'];
+    return null;
+}
+
+/** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */
+export const chaveDaResposta = (v: unknown): string => (typeof v === 'boolean' ? (v ? 'sim' : 'nao') : String(v ?? ''));
+
+/**
+ * Saneia a condição contra as regras já saneadas da fase. `mapa` traduz o índice
+ * mandado pelo cliente para o índice gravado (linhas vazias saem); `antesDe`
+ * limita a ações anteriores (ação condicional). Inválida: lança com mensagem.
+ */
+export function sanitizeCondicao(raw: unknown, regras: Array<RegraAcao | null>, acoes: string[], quem: string,
+    mapa?: Map<number, number>, antesDe = Infinity): Condicao | undefined {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const o = raw as Record<string, unknown>;
+    const bruto = Number(o.acao);
+    const acao = mapa ? mapa.get(bruto) : bruto;
+    // A ação de que dependia saiu (linha vazia): a condição sai com ela.
+    if (acao === undefined) return undefined;
+    const opcoes = Number.isInteger(acao) && acao >= 0 && acao < Math.min(acoes.length, antesDe) ? opcoesDaResposta(regras[acao]) : null;
+    if (!opcoes) throw new Error(`${quem} depende da resposta de uma ação de escolha ${antesDe === Infinity ? 'desta fase' : 'anterior'}`);
+    const valores = [...new Set((Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80)))].filter((v) => opcoes.includes(v));
+    if (!valores.length) throw new Error(`${quem}: escolha ao menos uma resposta de "${acoes[acao]}"`);
+    return { acao, valores };
+}
+
+/**
+ * A condição vale com as respostas da rodada? Sem condição, sempre. Com `f`,
+ * a resposta só conta se a ação que a deu também vale (condições em cadeia:
+ * desfeita a resposta de cima, a de baixo deixa de pesar).
+ */
+export function condicaoAtendida(c: Condicao | undefined, resp: Record<string, string> | undefined, f?: FaseRegras): boolean {
+    if (!c) return true;
+    if (resp?.[String(c.acao)] === undefined || !c.valores.includes(resp[String(c.acao)])) return false;
+    // A condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
+    return !f || acaoAtiva(f, c.acao, resp);
+}
+
+/** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
+export function acaoAtiva(f: FaseRegras | undefined, i: number, resp: Record<string, string> | undefined): boolean {
+    const se = f?.acoes_regras?.[i]?.se;
+    if (!se) return true;
+    return se.acao < i && condicaoAtendida(se, resp, f);
+}
+
+/** Respostas da rodada da fase atual. */
+export const respostasDaFase = (proc: { acoes_respostas?: unknown; fase_atual?: unknown }): Record<string, string> | undefined =>
+    ((proc.acoes_respostas || {}) as Respostas)[String(proc.fase_atual)];
 
 /** Onde fica o ato durante a fase (valor estranho lê como o padrão). */
 export function destinoDoAto(f: FaseRegras | undefined, ato: OutroAto): DestinoAto {
@@ -245,10 +316,16 @@ function sanitizeRegistroAtos(fo: Record<string, unknown>): RegistroAtos | undef
 }
 
 /** Saneia registro, regras das ações (alinhadas às ações) e documentos da fase. Lança Error com mensagem para o usuário. */
-export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[]) {
+export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[], mapa?: Map<number, number>) {
     const registroAtos = sanitizeRegistroAtos(fo);
     const brutas = Array.isArray(fo.acoes_regras) ? fo.acoes_regras : [];
     const regras = acoes.map((a, i) => sanitizeRegra(brutas[i], a));
+    // "Só vale se": depende de uma ação de escolha anterior (nunca dela mesma nem de uma posterior).
+    regras.forEach((r, i) => {
+        const b = brutas[i] as Record<string, unknown> | undefined;
+        const se = sanitizeCondicao(b?.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
+        if (se) regras[i] = { ...(r || {}), se };
+    });
     const documentos = (Array.isArray(fo.documentos) ? fo.documentos : [])
         .map((d) => sanitizeExigencia(d)).filter((d): d is Exigencia => !!d).slice(0, MAX_DOCUMENTOS_FASE);
     return {
@@ -259,31 +336,33 @@ export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[]) {
 }
 
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
-export function exigenciasDaFase(f: FaseRegras | undefined): Array<Exigencia & { chave: string; acao_idx?: number }> {
+export function exigenciasDaFase(f: FaseRegras | undefined, resp?: Record<string, string>): Array<Exigencia & { chave: string; acao_idx?: number }> {
     if (!f) return [];
     return [
         ...(f.documentos || []).map((d, i) => ({ ...d, chave: `d${i}` })),
-        ...(f.acoes_regras || []).flatMap((r, i) => (r?.documento && f.acoes?.[i] ? [{ ...r.documento, chave: `a${i}`, acao_idx: i }] : [])),
+        // Ação condicional que não vale agora não exige o documento.
+        ...(f.acoes_regras || []).flatMap((r, i) => (r?.documento && f.acoes?.[i] && acaoAtiva(f, i, resp) ? [{ ...r.documento, chave: `a${i}`, acao_idx: i }] : [])),
     ];
 }
 
 export type Cumpridas = Record<string, Record<string, { documento_id: string; ordem?: number | null }>>;
 
 /** Documentos exigidos ainda não cumpridos na fase. */
-export function pendentesDaFase(f: FaseRegras | undefined, cumpridas: Cumpridas | undefined) {
+export function pendentesDaFase(f: FaseRegras | undefined, cumpridas: Cumpridas | undefined, resp?: Record<string, string>) {
     const feitas = (f && cumpridas?.[f.id]) || {};
-    return exigenciasDaFase(f).filter((e) => !feitas[e.chave]);
+    return exigenciasDaFase(f, resp).filter((e) => !feitas[e.chave]);
 }
 
 /** Documentos obrigatórios ainda não cumpridos: os recomendados e opcionais não impedem a fase de seguir. */
-export const documentosQueFaltam = (f: FaseRegras | undefined, cumpridas: Cumpridas | undefined) =>
-    pendentesDaFase(f, cumpridas).filter((e) => !e.nivel);
+export const documentosQueFaltam = (f: FaseRegras | undefined, cumpridas: Cumpridas | undefined, resp?: Record<string, string>) =>
+    pendentesDaFase(f, cumpridas, resp).filter((e) => !e.nivel);
 
 /** Ações obrigatórias (sem documento) ainda não feitas na fase. */
-export function acoesObrigatoriasPendentes(f: FaseRegras | undefined, feitas: number[] | undefined) {
+export function acoesObrigatoriasPendentes(f: FaseRegras | undefined, feitas: number[] | undefined, resp?: Record<string, string>) {
     if (!f) return [];
     const ok = new Set(feitas || []);
-    return (f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) ? [{ descricao: a, acao_idx: i }] : []));
+    return (f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) && acaoAtiva(f, i, resp)
+        ? [{ descricao: a, acao_idx: i }] : []));
 }
 
 export interface DocJuntado { origem: string; tipo?: string; modelo_id?: string; peticao?: boolean; /** Guardado fora dos autos. */ controle?: boolean }
@@ -346,12 +425,14 @@ export function camposDoCumprimento(
 }
 
 /** Ao entrar numa fase (inclusive voltando a ela), o que ela exige recomeça: a rodada anterior fica nos movimentos. */
-export function camposAoEntrarNaFase(proc: { exigencias_cumpridas?: unknown; acoes_feitas?: unknown }, faseId: string): Record<string, unknown> {
+export function camposAoEntrarNaFase(proc: { exigencias_cumpridas?: unknown; acoes_feitas?: unknown; acoes_respostas?: unknown }, faseId: string): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     const ex = (proc.exigencias_cumpridas || {}) as Record<string, unknown>;
     const ac = (proc.acoes_feitas || {}) as Record<string, unknown>;
+    const rs = (proc.acoes_respostas || {}) as Record<string, unknown>;
     if (faseId in ex) { const { [faseId]: _x, ...resto } = ex; out.exigencias_cumpridas = resto; }
     if (faseId in ac) { const { [faseId]: _y, ...resto } = ac; out.acoes_feitas = resto; }
+    if (faseId in rs) { const { [faseId]: _z, ...resto } = rs; out.acoes_respostas = resto; }
     return out;
 }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { seguintes } from '@/lib/secretariaRito';
+import { textoCondicao } from '@/lib/exigencias';
 import { TH, TW, desenharFluxo, quebrar } from '@/lib/fluxoBpmn';
 
 // Diagrama do fluxo de um rito no formato BPMN, como o Bizagi desenha: da
@@ -163,7 +164,7 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
             <ol className="sr-only">
                 {fases.map((f, i) => {
                     const s = seguintes(fases, i);
-                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] ? ` (${f.condicoes[id]})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
+                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] || f.condicoes_regra?.[id] ? ` (${[f.condicoes?.[id], f.condicoes_regra?.[id] ? `quando ${textoCondicao(f, f.condicoes_regra[id])}` : null].filter(Boolean).join('; ')})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
                 })}
             </ol>
         </div>

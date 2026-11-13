@@ -11,6 +11,7 @@ import {
     DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
+    QUEM, acoesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
@@ -84,8 +85,43 @@ function EscolhaDestino({ id, valor, opcoes, onChange, acao, fase, documento }) 
     );
 }
 
+/**
+ * Condição pela resposta de uma ação de escolha (lista ou sim/não) da fase: qual
+ * ação e quais respostas. `limite`: só ações antes dele (ação condicional).
+ */
+export function CondicaoPorResposta({ id, f, limite = Infinity, valor, onChange, rotulo, vazio }) {
+    const escolhas = acoesDeEscolha(f, limite);
+    if (!escolhas.length && !valor) {
+        return <p className="text-xs text-slate-600 dark:text-slate-400">{rotulo}: {vazio.toLowerCase()}. Para condicionar, crie {limite === Infinity ? 'nesta fase' : 'antes dela'} uma ação que pede escolha (lista ou sim/não).</p>;
+    }
+    const ops = valor ? opcoesDaResposta(f.acoes_regras?.[valor.acao]) || [] : [];
+    const problema = problemaDaCondicao(f, valor, limite);
+    const opcoes = [['', vazio], ...escolhas.map(([i, a]) => [String(i), `Conforme a resposta de "${a.trim()}"`])];
+    if (valor && !escolhas.some(([i]) => i === valor.acao)) opcoes.push([String(valor.acao), `Ação ${valor.acao + 1} (não serve mais)`]);
+    return (
+        <div className="space-y-1">
+            <NativeSelect id={`${id}-acao`} label={rotulo} value={valor ? String(valor.acao) : ''} options={opcoes}
+                onChange={(v) => onChange(v === '' ? undefined : { acao: Number(v), valores: [] })} />
+            {valor && ops.length > 0 && (
+                <div role="group" aria-label={`Respostas que fazem valer: ${rotulo}`} className="flex flex-wrap gap-x-4 gap-y-1 pl-1">
+                    {ops.map(([v, l]) => (
+                        <label key={v} className="flex min-h-[2.75rem] sm:min-h-0 items-center gap-2 text-sm">
+                            <Checkbox checked={valor.valores.includes(v)}
+                                onCheckedChange={(c) => onChange({ ...valor, valores: c === true ? [...new Set([...valor.valores, v])] : valor.valores.filter((x) => x !== v) })} />
+                            {l}
+                        </label>
+                    ))}
+                </div>
+            )}
+            {problema
+                ? <p className="text-xs text-amber-800 dark:text-amber-200">Esta condição {problema}: escolha de novo.</p>
+                : valor && !valor.valores.length && <p className="text-xs text-amber-800 dark:text-amber-200">Marque ao menos uma resposta.</p>}
+        </div>
+    );
+}
+
 /** Configuração de uma ação: o que pede, onde fica, quem vê, se é obrigatória. */
-function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
+function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
     const { ligadas } = useContext(RegistroContexto);
     const pede = pedidoDaAcao(r);
     const dest = destinoDaAcao(r);
@@ -154,6 +190,18 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
             <p className="text-xs text-slate-600 dark:text-slate-400">
                 {FRASE_NIVEL[nivelDaAcao(r)]}{pede === 'documento' ? ' Na juntada, quem junta decide se as partes veem.' : ''}
             </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                    <CondicaoPorResposta id={`${id}-se`} f={f} limite={i} valor={r?.se} rotulo="Quando vale" vazio="Sempre" onChange={(se) => set({ se })} />
+                    {r?.se && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Só aparece e só é cobrada quando a resposta for uma das marcadas.</p>}
+                </div>
+                {pede !== 'documento' && (
+                    <div>
+                        <NativeSelect id={`${id}-quem`} label="Quem pode cumprir" value={r?.quem || ''} onChange={(v) => set({ quem: v || undefined })} options={QUEM} />
+                        {r?.quem && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">A administração do órgão também pode.</p>}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -196,10 +244,12 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
     const nova = () => `k${chaves.current.seq++}`;
     while (chaves.current.lista.length < acoes.length) chaves.current.lista.push(nova());
     if (chaves.current.lista.length > acoes.length) chaves.current.lista = chaves.current.lista.slice(0, acoes.length);
-    const gravar = (as, rs) => {
+    // `origem[j]`: de que posição veio a ação j (-1, nova). As condições acompanham a ação de que dependem.
+    const gravar = (as, rs, origem = as.map((_, j) => (j < acoes.length ? j : -1))) => {
         const alinhadas = as.map((_, i) => rs[i] || null);
-        mudar({ acoes: as, acoes_regras: alinhadas.some(Boolean) ? alinhadas : undefined });
+        mudar({ acoes: as, ...remapearCondicoes(f, origem, alinhadas) });
     };
+    const indices = acoes.map((_, j) => j);
     const setTexto = (i, v) => {
         const linhas = v.split(/\r?\n/);
         if (linhas.length > 1) {
@@ -210,7 +260,7 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
             const as = [...acoes.slice(0, i), ...novas, ...acoes.slice(i + 1)];
             chaves.current.lista.splice(i + 1, 0, ...novas.slice(1).map(nova));
             const rs = [...regras.slice(0, i), regras[i] || null, ...novas.slice(1).map(() => null), ...regras.slice(i + 1)];
-            return gravar(as, rs);
+            return gravar(as, rs, [...indices.slice(0, i + 1), ...novas.slice(1).map(() => -1), ...indices.slice(i + 1)]);
         }
         const rs = [...regras];
         if (rs[i]?.documento) rs[i] = { ...rs[i], documento: { ...rs[i].documento, descricao: v } };
@@ -218,11 +268,11 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
     };
     const remover = (i) => {
         chaves.current.lista.splice(i, 1);
-        gravar(acoes.filter((_, j) => j !== i), regras.filter((_, j) => j !== i));
+        gravar(acoes.filter((_, j) => j !== i), regras.filter((_, j) => j !== i), indices.filter((j) => j !== i));
     };
     const moverPara = (de, para) => {
         chaves.current.lista = mudarDeLugar(chaves.current.lista, de, para);
-        gravar(mudarDeLugar(acoes, de, para), mudarDeLugar(acoes.map((_, j) => regras[j] || null), de, para));
+        gravar(mudarDeLugar(acoes, de, para), mudarDeLugar(acoes.map((_, j) => regras[j] || null), de, para), mudarDeLugar(indices, de, para));
         // A ação aberta continua aberta no lugar novo.
         if (aberta !== null) setAberta(mudarDeLugar(acoes.map((_, j) => j), de, para).indexOf(aberta));
     };
@@ -264,7 +314,7 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
                             {aberto ? <ChevronDown className="w-3.5 h-3.5 mt-px shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 mt-px shrink-0" />}
                             <span>Pede {resumoDaAcao(r)}</span>
                         </button>
-                        {aberto && a.trim() && <div className="sm:pl-6"><ConfigAcao id={`${id}-a${i}`} acao={a.trim()} fase={f.nome} r={r} modelos={modelos} onChange={(n) => { const rs = acoes.map((_, j) => regras[j] || null); rs[i] = n; gravar(acoes, rs); }} /></div>}
+                        {aberto && a.trim() && <div className="sm:pl-6"><ConfigAcao id={`${id}-a${i}`} acao={a.trim()} fase={f.nome} f={f} i={i} r={r} modelos={modelos} onChange={(n) => { const rs = acoes.map((_, j) => regras[j] || null); rs[i] = n; gravar(acoes, rs); }} /></div>}
                         {aberto && !a.trim() && <p className="text-xs text-slate-600 pl-6">Escreva a ação para configurá-la.</p>}
                         {aberto && acoes.length > 1 && (
                             // No celular, além de arrastar: subir e descer com botões.

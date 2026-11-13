@@ -706,6 +706,43 @@ Cada documento da fase e cada ação diz se é preciso para a fase seguir:
 - "Criar tipo de processo com este rito" vem desmarcado quando o órgão já
   tem tipos ativos (marcado no primeiro rito).
 
+### Condições pela resposta, quem cumpre e simulação (13/11/2026)
+
+A resposta de uma ação **de escolha** da fase (lista de opções ou sim/não)
+passa a decidir o resto da fase:
+
+- **Ação condicional** ("Quando vale", na configuração da ação): a ação só
+  aparece e só é cobrada quando a resposta de uma ação de escolha **anterior**
+  da mesma fase for uma das marcadas. Sem a resposta, a equipe vê a ação
+  apagada, com "vale só se …". O servidor recusa cumprir ação que não vale e
+  não a conta nas exigências da fase. Documento condicional já juntado fica
+  registrado se a resposta mudar ("cumprida antes de a resposta mudar").
+- **Regra da saída** ("Regra desta saída", em Encaminhamentos): a saída é
+  indicada quando a resposta for uma das marcadas. O botão principal do
+  processo já leva à saída indicada, e o diálogo de fase a mostra como
+  "Indicada pela resposta". Seguir por uma saída com regra sem a resposta é
+  permitido, mas exige motivo; o movimento registra `fora_da_condicao` e a
+  descrição diz "(sem a resposta que o rito pede para esta saída)". Saídas
+  sem regra seguem livres. A condição escrita (texto) continua valendo como
+  orientação.
+- **Quem pode cumprir** (ações que não são documento): qualquer pessoa da
+  equipe (padrão), só o **responsável designado** ou só **quem gere a
+  unidade**. A administração do órgão sempre pode. Para os demais, a ação
+  mostra o aviso e o servidor recusa (`permission-denied`).
+- Respostas ficam em `acoes_respostas[faseId][idx]` (só lista e sim/não), são
+  apagadas ao desfazer a ação e ao reentrar na fase. Regras em
+  `acoes_regras[i].se = { acao, valores }`, `acoes_regras[i].quem` e
+  `fases[].condicoes_regra[faseDestino] = { acao, valores }`.
+- **Editor**: mover, inserir ou remover ações leva as condições junto; a que
+  dependia de ação removida sai. Pendências graves: condição sem resposta
+  marcada, que depende de ação que não é mais de escolha ou que não vem antes.
+  O servidor valida o mesmo ao salvar.
+- **Prévia com simulação**: na prévia do rito, escolha a resposta de cada
+  ação de escolha para ver quais ações passam a valer e qual saída fica
+  indicada; "Ir para …" anda a simulação para a fase seguinte. O fluxograma
+  e a lista do fluxo mostram "quando …" nas setas com regra. A parte nunca vê
+  condições.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

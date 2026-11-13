@@ -213,3 +213,49 @@ test('documento recomendado ou opcional não impede a fase; orientação em qual
     assert.deepEqual(x.documentosQueFaltam(fase, {}).map((e) => e.chave), ['d2']);
     assert.deepEqual(x.acoesObrigatoriasPendentes(fase, []).map((e) => e.acao_idx), [3]);
 });
+
+test('condições pela resposta: ação e saída, com índices e validação', () => {
+    const rito = s.sanitizeRito({ nome: 'R', fases: [
+        { id: 'a', nome: 'Análise', proximas: ['b', 'c'], acoes: ['Decidir', ' ', 'Notificar', 'Arquivar nota'],
+            acoes_regras: [{ pede: 'lista', opcoes: ['Deferido', 'Indeferido'], obrigatoria: true }, null,
+                { se: { acao: 0, valores: ['Indeferido', 'xpto'] }, obrigatoria: true, quem: 'gestor' }, { quem: 'qualquer' }],
+            condicoes_regra: { b: { acao: 0, valores: ['Deferido'] }, c: { acao: 0, valores: ['Indeferido'] }, zz: { acao: 0, valores: ['Deferido'] } } },
+        { id: 'b', nome: 'Deferimento', final: true },
+        { id: 'c', nome: 'Recurso', final: true }] });
+    const f = rito.fases[0];
+    // Linha vazia saiu: "Notificar" passou a ser a ação 1 e a condição continua na ação 0.
+    assert.deepEqual(f.acoes, ['Decidir', 'Notificar', 'Arquivar nota']);
+    assert.deepEqual(f.acoes_regras[1].se, { acao: 0, valores: ['Indeferido'] });
+    assert.equal(f.acoes_regras[1].quem, 'gestor');
+    assert.equal(f.acoes_regras[2], null);
+    assert.deepEqual(f.condicoes_regra, { b: { acao: 0, valores: ['Deferido'] }, c: { acao: 0, valores: ['Indeferido'] } });
+    // Ação condicional não cobrada sem a resposta; cobrada com ela.
+    assert.deepEqual(x.acoesObrigatoriasPendentes(f, [0], { 0: 'Deferido' }), []);
+    assert.deepEqual(x.acoesObrigatoriasPendentes(f, [0], { 0: 'Indeferido' }).map((e) => e.acao_idx), [1]);
+    assert.equal(x.condicaoAtendida(f.condicoes_regra.b, { 0: 'Deferido' }), true);
+    assert.equal(x.condicaoAtendida(f.condicoes_regra.b, undefined), false);
+    assert.equal(x.chaveDaResposta(false), 'nao');
+    // Depender de ação posterior, de ação que não é escolha, ou sem resposta válida: recusa.
+    assert.throws(() => s.sanitizeRito({ nome: 'R', fases: [{ nome: 'F', acoes: ['A', 'B'], acoes_regras: [{ se: { acao: 1, valores: ['sim'] } }, { pede: 'sim_nao' }] }] }), /ação de escolha anterior/);
+    assert.throws(() => s.sanitizeRito({ nome: 'R', fases: [{ nome: 'F', acoes: ['A', 'B'], acoes_regras: [{ pede: 'texto' }, { se: { acao: 0, valores: ['x'] } }] }] }), /ação de escolha/);
+    assert.throws(() => s.sanitizeRito({ nome: 'R', fases: [{ nome: 'F', acoes: ['A', 'B'], acoes_regras: [{ pede: 'sim_nao' }, { se: { acao: 0, valores: ['talvez'] } }] }] }), /ao menos uma resposta/);
+    // Saída implícita (a seguinte da lista) também pode ter condição.
+    const r2 = s.sanitizeRito({ nome: 'R', fases: [{ id: 'p', nome: 'P', acoes: ['Ok?'], acoes_regras: [{ pede: 'sim_nao' }], condicoes_regra: { q: { acao: 0, valores: ['sim'] } } }, { id: 'q', nome: 'Q' }] });
+    assert.deepEqual(r2.fases[0].condicoes_regra, { q: { acao: 0, valores: ['sim'] } });
+    // Documento de ação condicional só é exigido quando ela vale.
+    const r3 = s.sanitizeRito({ nome: 'R', fases: [{ nome: 'F', acoes: ['Há recurso?', 'Juntar recurso'], acoes_regras: [{ pede: 'sim_nao' }, { pede: 'documento', se: { acao: 0, valores: ['sim'] } }] }] });
+    assert.equal(x.pendentesDaFase(r3.fases[0], {}, { 0: 'nao' }).length, 0);
+    assert.equal(x.pendentesDaFase(r3.fases[0], {}, { 0: 'sim' }).length, 1);
+    // Reentrar na fase limpa as respostas da rodada.
+    assert.deepEqual(x.camposAoEntrarNaFase({ acoes_respostas: { f: { 0: 'sim' }, g: {} } }, 'f'), { acoes_respostas: { g: {} } });
+});
+
+test('condições em cadeia: resposta de ação que deixou de valer não pesa', () => {
+    const f = { acoes: ['Cabe recurso?', 'Decisão', 'Notificar'], acoes_regras: [{ pede: 'sim_nao' },
+        { pede: 'lista', opcoes: ['A', 'B'], se: { acao: 0, valores: ['sim'] } },
+        { obrigatoria: true, se: { acao: 1, valores: ['A'] } }] };
+    assert.equal(x.acaoAtiva(f, 2, { 0: 'sim', 1: 'A' }), true);
+    assert.equal(x.acaoAtiva(f, 2, { 0: 'nao', 1: 'A' }), false);
+    assert.equal(x.condicaoAtendida({ acao: 1, valores: ['A'] }, { 1: 'A' }, f), false);
+    assert.deepEqual(x.acoesObrigatoriasPendentes(f, [0, 1], { 0: 'nao', 1: 'A' }), []);
+});

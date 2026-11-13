@@ -6,7 +6,7 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
-import { Cumpridas, Destino, camposDoCumprimento, marcasDoDestino, pendentesDaFase, reconhecer } from '../shared/exigencias';
+import { Cumpridas, Destino, camposDoCumprimento, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { lotacoesDe } from '../shared/secretaria';
@@ -306,7 +306,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 if (pendenciaAlvo && !resolvida) throw new HttpsError('aborted', 'A pendência já foi apreciada por outra pessoa');
                 // Documento exigido pelo rito na fase (ou numa ação dela): a juntada o cumpre.
                 const fase = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual);
-                const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined);
+                const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined, respostasDaFase(atual));
                 let cumpre: string[] = [];
                 try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id }, p.atende); } catch (e) { erroUsuario(e); }
                 const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
@@ -354,7 +354,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const { ref, doc } = await lerDoc(tx);
                 exigirMinutaDaMinhaUnidade(doc);
                 const fase = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual);
-                const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined);
+                const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined, respostasDaFase(atual));
                 let cumpre: string[] = [];
                 try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id, controle: true }, p.atende); } catch (e) { erroUsuario(e); }
                 const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));

@@ -19,10 +19,14 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.QUEM = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
+exports.opcoesDaResposta = opcoesDaResposta;
+exports.sanitizeCondicao = sanitizeCondicao;
+exports.condicaoAtendida = condicaoAtendida;
+exports.acaoAtiva = acaoAtiva;
 exports.destinoDoAto = destinoDoAto;
 exports.marcasDoAto = marcasDoAto;
 exports.sanitizeRegras = sanitizeRegras;
@@ -90,6 +94,8 @@ exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
 exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'documento'];
 exports.MAX_OPCOES_ACAO = 30;
+/** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
+exports.QUEM = ['responsavel', 'gestor'];
 exports.MAX_DOCUMENTOS_FASE = 5;
 /** Onde fica o cumprimento da ação. */
 function destinoDaAcao(r) {
@@ -178,8 +184,69 @@ function sanitizeRegra(raw, acao) {
         out.obrigatoria = true;
     else if (r.recomendada === true)
         out.recomendada = true;
+    if (exports.QUEM.includes(r.quem))
+        out.quem = r.quem;
     return Object.keys(out).length ? out : null;
 }
+/** Opções que a resposta da ação pode ter (só ações de escolha condicionam). */
+function opcoesDaResposta(r) {
+    if (!r || r.documento)
+        return null;
+    if (r.pede === 'lista')
+        return r.opcoes || [];
+    if (r.pede === 'sim_nao')
+        return ['sim', 'nao'];
+    return null;
+}
+/** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */
+const chaveDaResposta = (v) => (typeof v === 'boolean' ? (v ? 'sim' : 'nao') : String(v !== null && v !== void 0 ? v : ''));
+exports.chaveDaResposta = chaveDaResposta;
+/**
+ * Saneia a condição contra as regras já saneadas da fase. `mapa` traduz o índice
+ * mandado pelo cliente para o índice gravado (linhas vazias saem); `antesDe`
+ * limita a ações anteriores (ação condicional). Inválida: lança com mensagem.
+ */
+function sanitizeCondicao(raw, regras, acoes, quem, mapa, antesDe = Infinity) {
+    if (!raw || typeof raw !== 'object')
+        return undefined;
+    const o = raw;
+    const bruto = Number(o.acao);
+    const acao = mapa ? mapa.get(bruto) : bruto;
+    // A ação de que dependia saiu (linha vazia): a condição sai com ela.
+    if (acao === undefined)
+        return undefined;
+    const opcoes = Number.isInteger(acao) && acao >= 0 && acao < Math.min(acoes.length, antesDe) ? opcoesDaResposta(regras[acao]) : null;
+    if (!opcoes)
+        throw new Error(`${quem} depende da resposta de uma ação de escolha ${antesDe === Infinity ? 'desta fase' : 'anterior'}`);
+    const valores = [...new Set((Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80)))].filter((v) => opcoes.includes(v));
+    if (!valores.length)
+        throw new Error(`${quem}: escolha ao menos uma resposta de "${acoes[acao]}"`);
+    return { acao, valores };
+}
+/**
+ * A condição vale com as respostas da rodada? Sem condição, sempre. Com `f`,
+ * a resposta só conta se a ação que a deu também vale (condições em cadeia:
+ * desfeita a resposta de cima, a de baixo deixa de pesar).
+ */
+function condicaoAtendida(c, resp, f) {
+    if (!c)
+        return true;
+    if ((resp === null || resp === void 0 ? void 0 : resp[String(c.acao)]) === undefined || !c.valores.includes(resp[String(c.acao)]))
+        return false;
+    // A condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
+    return !f || acaoAtiva(f, c.acao, resp);
+}
+/** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
+function acaoAtiva(f, i, resp) {
+    var _a, _b;
+    const se = (_b = (_a = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _a === void 0 ? void 0 : _a[i]) === null || _b === void 0 ? void 0 : _b.se;
+    if (!se)
+        return true;
+    return se.acao < i && condicaoAtendida(se, resp, f);
+}
+/** Respostas da rodada da fase atual. */
+const respostasDaFase = (proc) => (proc.acoes_respostas || {})[String(proc.fase_atual)];
+exports.respostasDaFase = respostasDaFase;
 /** Onde fica o ato durante a fase (valor estranho lê como o padrão). */
 function destinoDoAto(f, ato) {
     var _a, _b;
@@ -209,37 +276,49 @@ function sanitizeRegistroAtos(fo) {
     return Object.keys(out).length ? out : undefined;
 }
 /** Saneia registro, regras das ações (alinhadas às ações) e documentos da fase. Lança Error com mensagem para o usuário. */
-function sanitizeRegras(fo, acoes) {
+function sanitizeRegras(fo, acoes, mapa) {
     const registroAtos = sanitizeRegistroAtos(fo);
     const brutas = Array.isArray(fo.acoes_regras) ? fo.acoes_regras : [];
     const regras = acoes.map((a, i) => sanitizeRegra(brutas[i], a));
+    // "Só vale se": depende de uma ação de escolha anterior (nunca dela mesma nem de uma posterior).
+    regras.forEach((r, i) => {
+        const b = brutas[i];
+        const se = sanitizeCondicao(b === null || b === void 0 ? void 0 : b.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
+        if (se)
+            regras[i] = Object.assign(Object.assign({}, (r || {})), { se });
+    });
     const documentos = (Array.isArray(fo.documentos) ? fo.documentos : [])
         .map((d) => sanitizeExigencia(d)).filter((d) => !!d).slice(0, exports.MAX_DOCUMENTOS_FASE);
     return Object.assign(Object.assign(Object.assign({}, (registroAtos ? { registro_atos: registroAtos } : {})), (regras.some(Boolean) ? { acoes_regras: regras } : {})), (documentos.length ? { documentos } : {}));
 }
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
-function exigenciasDaFase(f) {
+function exigenciasDaFase(f, resp) {
     if (!f)
         return [];
     return [
         ...(f.documentos || []).map((d, i) => (Object.assign(Object.assign({}, d), { chave: `d${i}` }))),
-        ...(f.acoes_regras || []).flatMap((r, i) => { var _a; return ((r === null || r === void 0 ? void 0 : r.documento) && ((_a = f.acoes) === null || _a === void 0 ? void 0 : _a[i]) ? [Object.assign(Object.assign({}, r.documento), { chave: `a${i}`, acao_idx: i })] : []); }),
+        // Ação condicional que não vale agora não exige o documento.
+        ...(f.acoes_regras || []).flatMap((r, i) => { var _a; return ((r === null || r === void 0 ? void 0 : r.documento) && ((_a = f.acoes) === null || _a === void 0 ? void 0 : _a[i]) && acaoAtiva(f, i, resp) ? [Object.assign(Object.assign({}, r.documento), { chave: `a${i}`, acao_idx: i })] : []); }),
     ];
 }
 /** Documentos exigidos ainda não cumpridos na fase. */
-function pendentesDaFase(f, cumpridas) {
+function pendentesDaFase(f, cumpridas, resp) {
     const feitas = (f && (cumpridas === null || cumpridas === void 0 ? void 0 : cumpridas[f.id])) || {};
-    return exigenciasDaFase(f).filter((e) => !feitas[e.chave]);
+    return exigenciasDaFase(f, resp).filter((e) => !feitas[e.chave]);
 }
 /** Documentos obrigatórios ainda não cumpridos: os recomendados e opcionais não impedem a fase de seguir. */
-const documentosQueFaltam = (f, cumpridas) => pendentesDaFase(f, cumpridas).filter((e) => !e.nivel);
+const documentosQueFaltam = (f, cumpridas, resp) => pendentesDaFase(f, cumpridas, resp).filter((e) => !e.nivel);
 exports.documentosQueFaltam = documentosQueFaltam;
 /** Ações obrigatórias (sem documento) ainda não feitas na fase. */
-function acoesObrigatoriasPendentes(f, feitas) {
+function acoesObrigatoriasPendentes(f, feitas, resp) {
     if (!f)
         return [];
     const ok = new Set(feitas || []);
-    return (f.acoes || []).flatMap((a, i) => { var _a, _b, _c; return (((_b = (_a = f.acoes_regras) === null || _a === void 0 ? void 0 : _a[i]) === null || _b === void 0 ? void 0 : _b.obrigatoria) && !((_c = f.acoes_regras[i]) === null || _c === void 0 ? void 0 : _c.documento) && !ok.has(i) ? [{ descricao: a, acao_idx: i }] : []); });
+    return (f.acoes || []).flatMap((a, i) => {
+        var _a, _b, _c;
+        return (((_b = (_a = f.acoes_regras) === null || _a === void 0 ? void 0 : _a[i]) === null || _b === void 0 ? void 0 : _b.obrigatoria) && !((_c = f.acoes_regras[i]) === null || _c === void 0 ? void 0 : _c.documento) && !ok.has(i) && acaoAtiva(f, i, resp)
+            ? [{ descricao: a, acao_idx: i }] : []);
+    });
 }
 /** Redigir = produzido pelo órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
 function atende(e, d) {
@@ -302,6 +381,7 @@ function camposAoEntrarNaFase(proc, faseId) {
     const out = {};
     const ex = (proc.exigencias_cumpridas || {});
     const ac = (proc.acoes_feitas || {});
+    const rs = (proc.acoes_respostas || {});
     if (faseId in ex) {
         const _a = ex, _b = faseId, _x = _a[_b], resto = __rest(_a, [typeof _b === "symbol" ? _b : _b + ""]);
         out.exigencias_cumpridas = resto;
@@ -309,6 +389,10 @@ function camposAoEntrarNaFase(proc, faseId) {
     if (faseId in ac) {
         const _c = ac, _d = faseId, _y = _c[_d], resto = __rest(_c, [typeof _d === "symbol" ? _d : _d + ""]);
         out.acoes_feitas = resto;
+    }
+    if (faseId in rs) {
+        const _e = rs, _f = faseId, _z = _e[_f], resto = __rest(_e, [typeof _f === "symbol" ? _f : _f + ""]);
+        out.acoes_respostas = resto;
     }
     return out;
 }

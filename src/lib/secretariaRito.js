@@ -80,6 +80,10 @@ export function copiarFases(fases, validos = new Set(), origem = null) {
         if (i >= 0 || c.proximas) c.proximas = antes.map(novo).filter(Boolean);
         if (!c.final && antes.length && !c.proximas.length) { c.final = true; c.sem_saida = true; }
         if (c.condicoes) c.condicoes = Object.fromEntries(Object.entries(c.condicoes).map(([k, v]) => [novo(k), v]).filter(([k]) => k));
+        if (c.condicoes_regra) {
+            c.condicoes_regra = Object.fromEntries(Object.entries(c.condicoes_regra).map(([k, v]) => [novo(k), v]).filter(([k]) => k && c.proximas?.includes(k)));
+            if (!Object.keys(c.condicoes_regra).length) delete c.condicoes_regra;
+        }
         if (c.certidao?.grupo) {
             const { grupo, ...resto } = c.certidao;
             const g = novo(grupo);
@@ -99,7 +103,7 @@ export function simplificar(fases) {
         const { proximas: _p, final, ...resto } = f;
         if (final) return i < fases.length - 1 ? { ...resto, final: true } : resto;
         // Saída com condição escrita fica explícita, mesmo sendo a seguinte da lista.
-        const temCondicao = resto.condicoes && Object.keys(resto.condicoes).length > 0;
+        const temCondicao = Object.keys(resto.condicoes || {}).length > 0 || Object.keys(resto.condicoes_regra || {}).length > 0;
         return (igual && !temCondicao) || p.length === 0 ? resto : { ...resto, proximas: p };
     });
 }

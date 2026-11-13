@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { CertidaoFase, Exigencia, RegraAcao, Registro, RegistroAtos, sanitizeRegras } from './exigencias';
+import { CertidaoFase, Condicao, Exigencia, RegraAcao, Registro, RegistroAtos, sanitizeCondicao, sanitizeRegras } from './exigencias';
 
 // ============================================================================
 // Processo Eletrônico (antiga Secretaria Processual; os nomes internos
@@ -47,6 +47,8 @@ export interface Fase {
     modelos?: string[];
     /** Condição de cada saída: { id da próxima fase: "se deferido" }. */
     condicoes?: Record<string, string>;
+    /** Saída indicada pela resposta de uma ação de escolha da fase: { id da próxima fase: condição }. Seguir por outra pede motivo. */
+    condicoes_regra?: Record<string, Condicao>;
     /** Formato antigo do registro da fase (processos autuados antes de nov/2026). */
     registro?: Registro;
     /** Onde ficam a entrada/saída da fase e as remessas durante ela (ver shared/exigencias.ts). Ausente = autos. */
@@ -182,7 +184,7 @@ export function sanitizeRito(input: unknown): Rito {
         if (original) ids.set(original, id);
         return { fo, id, nomeFase };
     });
-    const fases: Fase[] = brutas.map(({ fo, id, nomeFase }) => {
+    const fases: Fase[] = brutas.map(({ fo, id, nomeFase }, i) => {
         const prazo = Number(fo.prazo_dias);
         const orientacao = texto(fo.orientacao, MAX_TEXTO_LONGO);
         const final = fo.final === true;
@@ -201,6 +203,9 @@ export function sanitizeRito(input: unknown): Rito {
         const acoes = mantidas.map(([a]) => a);
         const regrasBrutas = Array.isArray(fo.acoes_regras) ? fo.acoes_regras : [];
         const regrasAlinhadas = mantidas.map(([, i]) => regrasBrutas[i]);
+        // Índice que o cliente mandou -> índice gravado (as condições apontam para ações).
+        const mapa = new Map(mantidas.map(([, i], j) => [i, j]));
+        const regras = sanitizeRegras({ ...fo, acoes_regras: regrasAlinhadas }, acoes, mapa);
         const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, MAX_MODELOS_FASE);
         // Condições só para saídas que existem (referência pelo id do cliente ou final).
         const condicoes: Record<string, string> = {};
@@ -209,6 +214,18 @@ export function sanitizeRito(input: unknown): Rito {
                 const alvo = ids.get(k) ?? (vistos.has(k) ? k : null);
                 const rot = texto(v, 80);
                 if (alvo && rot && proximas.includes(alvo)) condicoes[alvo] = rot;
+            }
+        }
+        // Saída pela resposta: só para saídas que existem (as explícitas, ou a seguinte da lista quando não há).
+        const condicoesRegra: Record<string, Condicao> = {};
+        if (fo.condicoes_regra && typeof fo.condicoes_regra === 'object') {
+            const saidas = final ? [] : proximas.length ? proximas : (brutas[i + 1] ? [brutas[i + 1].id] : []);
+            for (const [k, v] of Object.entries(fo.condicoes_regra as Record<string, unknown>)) {
+                const alvo = ids.get(k) ?? (vistos.has(k) ? k : null);
+                if (!alvo || !saidas.includes(alvo)) continue;
+                const nomeAlvo = brutas.find((b) => b.id === alvo)?.nomeFase || alvo;
+                const cond = sanitizeCondicao(v, regras.acoes_regras || [], acoes, `A saída de "${nomeFase}" para "${nomeAlvo}"`, mapa);
+                if (cond) condicoesRegra[alvo] = cond;
             }
         }
         // Grupo da certidão: o id (do cliente ou final) de outra fase, ou a própria fase.
@@ -234,7 +251,8 @@ export function sanitizeRito(input: unknown): Rito {
             ...(acoes.length ? { acoes } : {}),
             ...(modelos.length ? { modelos } : {}),
             ...(Object.keys(condicoes).length ? { condicoes } : {}),
-            ...sanitizeRegras({ ...fo, acoes_regras: regrasAlinhadas }, acoes),
+            ...(Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {}),
+            ...regras,
         };
     });
     // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Eye, FilePen, Send } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Eye, FilePen, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
-import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao } from '@/lib/exigencias';
+import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao, acaoAtiva, opcoesDaResposta, saidasComCondicao, textoCondicao } from '@/lib/exigencias';
 
 /** Rascunho do editor de rito (unidade_ref, modelos_ref) no formato do rito gravado. */
 const doRascunho = (r) => ({
@@ -47,7 +47,10 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     const ritos = rascunho ? [doRascunho(rascunho)] : (estado.ritos || []).filter((r) => r.ativo);
     const [aberto, setAberto] = useState(false);
     const [ritoId, setRitoId] = useState('');
-    const [faseId, setFaseId] = useState('');
+    const [faseId, setFaseIdBruto] = useState('');
+    // Simulação: respostas dadas às ações de escolha da fase mostrada (zeram ao trocar de fase, como no processo).
+    const [sim, setSim] = useState({});
+    const setFaseId = (v) => { setFaseIdBruto(v); setSim({}); };
     const rito = ritos.find((r) => r.id === ritoId) || ritos[0];
     const fases = rito?.fases || [];
     const i = Math.max(0, fases.findIndex((f) => f.id === faseId));
@@ -55,13 +58,18 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || rascunho?.unidades?.find((u) => u.ref === id)?.nome || '';
     const nomeModelo = (id) => (estado.modelos || []).find((m) => m.id === id)?.nome || rascunho?.modelos?.find((m) => m.ref === id)?.nome || 'modelo excluído';
     const prox = fase ? seguintes(fases, i).map((id) => fases.find((f) => f.id === id)).filter(Boolean) : [];
+    const saidas = fase && prox.length ? saidasComCondicao(fases, fase, sim).filter((s) => prox.some((p) => p.id === s.fase.id)) : [];
+    const indicadas = saidas.filter((s) => s.indicada);
     let principal = null;
     if (fase) {
         if (prox.length === 0) principal = { rotulo: 'Fase final: arquivar', icone: CheckCircle2 };
         else if (prox.length === 1) {
             const outra = prox[0].unidade_id && prox[0].unidade_id !== fase.unidade_id;
-            principal = outra ? { rotulo: `Concluir e enviar para ${nomeUnidade(prox[0].unidade_id)}`, icone: Send } : { rotulo: `Concluir e seguir para ${prox[0].nome}`, icone: CheckCircle2 };
-        } else principal = { rotulo: 'Seguir para a próxima fase…', icone: CheckCircle2 };
+            // Saída única com regra pela resposta: sem a resposta, o processo pede motivo para seguir.
+            const motivo = saidas[0]?.contra ? ' (sem a resposta indicada: pede motivo)' : '';
+            principal = outra ? { rotulo: `Concluir e enviar para ${nomeUnidade(prox[0].unidade_id)}${motivo}`, icone: Send } : { rotulo: `Concluir e seguir para ${prox[0].nome}${motivo}`, icone: CheckCircle2 };
+        } else if (indicadas.length === 1) principal = { rotulo: `Concluir e seguir para ${indicadas[0].fase.nome} (indicada pela resposta)`, icone: CheckCircle2 };
+        else principal = { rotulo: 'Seguir para a próxima fase…', icone: CheckCircle2 };
     }
     const faltam = fase ? etapasAteOFim(fases, fase.id) : null;
     const tipo = (estado.tipos || []).find((t) => t.rito_id === rito?.id);
@@ -115,11 +123,26 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     </p>
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
                                     {acoes.length > 0 && (
-                                        <ul className="space-y-1">{acoes.map(({ a, k, r }) => (
-                                            <li key={k} className="flex items-start gap-2 text-sm"><Checkbox disabled aria-label={a} className="mt-0.5" />
-                                                <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· pede {resumoDaAcao(r)}</span></span>
-                                            </li>
-                                        ))}</ul>
+                                        <ul className="space-y-1.5">{acoes.map(({ a, k, r }) => {
+                                            const ativa = acaoAtiva(fase, k, sim);
+                                            const ops = opcoesDaResposta(r);
+                                            return (
+                                                <li key={k} className={`flex items-start gap-2 text-sm ${ativa ? '' : 'text-slate-600 dark:text-slate-400'}`}><Checkbox disabled aria-label={a} className="mt-0.5" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· pede {resumoDaAcao(r)}{ativa ? '' : ` · vale só se ${textoCondicao(fase, r.se)}`}</span></span>
+                                                        {ops && ativa && (
+                                                            <label className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">Simular resposta:
+                                                                <select value={sim[k] ?? ''} onChange={(e) => setSim((s) => { const n = { ...s }; if (e.target.value) n[k] = e.target.value; else delete n[k]; return n; })}
+                                                                    className="h-11 sm:h-8 w-full sm:w-auto max-w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                                                                    <option value="">(sem resposta)</option>
+                                                                    {ops.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                                                </select>
+                                                            </label>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}</ul>
                                     )}
                                     {(fase.documentos || []).length > 0 && <p className="text-sm">Documentos da fase: {fase.documentos.map((d) => `${d.descricao}${d.nivel === 'recomendado' ? ' (recomendado)' : d.nivel === 'opcional' ? ' (opcional)' : ''}`).join('; ')}</p>}
                                     {(niveis.fase !== 'autos' || niveis.remessas !== 'autos') && (
@@ -131,7 +154,22 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                         <div className="flex flex-wrap gap-2">{fase.modelos.map((m) => <Button key={m} size="sm" variant="outline" className="gap-1 pointer-events-none"><FilePen className="w-3.5 h-3.5" aria-hidden /> Redigir {nomeModelo(m)}</Button>)}</div>
                                     )}
                                     {principal && <Button className="gap-2 pointer-events-none" aria-disabled><principal.icone className="w-4 h-4" aria-hidden /> {principal.rotulo}</Button>}
-                                    {prox.length > 1 && <p className="text-xs text-slate-600 dark:text-slate-300">Alternativas: {prox.map((f) => `${f.nome}${fase.condicoes?.[f.id] ? ` (${fase.condicoes[f.id]})` : ''}`).join(' · ')}</p>}
+                                    {(prox.length > 1 || fase.condicoes_regra?.[prox[0]?.id]) && <p className="text-xs text-slate-600 dark:text-slate-300">{prox.length > 1 ? 'Alternativas' : 'Saída'}: {prox.map((f) => {
+                                        const c = fase.condicoes_regra?.[f.id];
+                                        const s = saidas.find((x) => x.fase.id === f.id);
+                                        const extra = [fase.condicoes?.[f.id], c ? `quando ${textoCondicao(fase, c)}` : null].filter(Boolean).join('; ');
+                                        return `${f.nome}${extra ? ` (${extra})` : ''}${s?.indicada ? ' [indicada]' : s?.contra ? ' [pede motivo]' : ''}`;
+                                    }).join(' · ')}</p>}
+                                    {prox.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-2 border-t border-indigo-200/70 dark:border-indigo-900 pt-2">
+                                            <span className="text-xs text-slate-600 dark:text-slate-300">Simular o andamento:</span>
+                                            {prox.map((p) => (
+                                                <Button key={p.id} size="sm" variant={saidas.find((s) => s.fase.id === p.id)?.indicada ? 'default' : 'outline'} className="gap-1" onClick={() => setFaseId(p.id)}>
+                                                    Ir para {p.nome} <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <FluxoRito fases={fases} atual={fase.id} unidades={estado.unidades} />
                             </TabsContent>
