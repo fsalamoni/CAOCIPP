@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: retificar a autuação
+- **Retificação da autuação**: assunto, origem, sigilo e partes corrigidos
+  com motivo, num termo próprio nos autos.
+- **Partes retiradas, nunca apagadas**: quem sai do processo perde o portal
+  (também os representantes), fica riscado e no histórico.
+- **Arquivos ao autuar**: entram como minutas do processo novo.
+- **Celular**: Novo processo e a correção em tela cheia, com os botões
+  sempre à vista.
+
 ### 13/11/2026 — Processo Eletrônico: tipos com versões
 - **Versões do tipo de processo**: cada salvamento guarda a anterior; uma
   versão antiga abre no editor e só vale ao salvar.

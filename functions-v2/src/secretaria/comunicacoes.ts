@@ -15,7 +15,7 @@ import { COL, Contexto, erroUsuario, registrarMovimento } from './context';
 const br = (iso: string) => (iso.length > 10 ? hojeBrasil(new Date(iso)) : iso).split('-').reverse().join('/');
 /** O texto entra no meio da certidão: sem o ponto final dele, para não dobrar. */
 const semPonto = (s: string) => s.replace(/[.\s]+$/, '');
-type Parte = { nome: string; polo: string; uid?: string; representantes?: Array<{ uid?: string }> };
+type Parte = { nome: string; polo: string; uid?: string; retirada?: unknown;representantes?: Array<{ uid?: string }> };
 
 export interface ConfigComunicacoes { calendario: CalendarioOrgao; dias: number }
 
@@ -62,6 +62,7 @@ export async function expedir(
     for (const idx of ped.partes_idx) {
         const parte = partes[idx];
         if (!parte) throw new HttpsError('invalid-argument', 'Destinatário inválido');
+        if (parte.retirada) throw new HttpsError('failed-precondition', `${parte.nome} foi retirada do processo`);
         const temConta = !!parte.uid || (parte.representantes || []).some((r) => r.uid);
         if (!ped.outro_meio && !temConta) {
             throw new HttpsError('failed-precondition', `${parte.nome} ainda não tem conta habilitada no portal. Convide a parte (ou um representante) ou registre a comunicação feita por outro meio.`);

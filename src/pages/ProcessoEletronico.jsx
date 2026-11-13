@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Paperclip, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,7 +16,7 @@ import { PROCESSO_ELETRONICO_TAB } from '@/lib/organizationModules';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import OrgTabBar from '@/components/organization/OrgTabBar';
-import { secConfig, secProcesso } from '@/services/secretariaService';
+import { arquivoParaBase64, secConfig, secDocumento, secProcesso } from '@/services/secretariaService';
 import ProcessoView from '@/components/secretaria/ProcessoView';
 import ErroQuery from '@/components/secretaria/ErroQuery';
 import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
@@ -449,10 +449,15 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
 /** Processos por página na lista (o servidor aceita até 200). */
 const PAGINA = 100;
 
+const MAX_MB_ANEXO = 5;
+const MAX_ANEXOS = 10;
+
 function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada }) {
     const qc = useQueryClient();
     const [aberto, setAberto] = useState(false);
     const [salvando, setSalvando] = useState(false);
+    // Arquivos que entram como minutas logo depois de autuar.
+    const [anexos, setAnexos] = useState([]);
     const ritosAtivos = estado.ritos.filter((r) => r.ativo);
     // Rito que só se autua por tipo não aparece em "Sem tipo".
     const ritosSemTipo = ritosAtivos.filter((r) => !r.exigir_tipo);
@@ -515,10 +520,20 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
         setSalvando(true);
         try {
             const r = await secProcesso(orgId, 'autuar', f);
-            toast.success(`Processo ${r.numero} autuado`);
+            // Os arquivos vão como minutas, um a um; falha num não desfaz a autuação.
+            const falharam = [];
+            for (const file of anexos) {
+                try {
+                    const base64 = await arquivoParaBase64(file);
+                    await secDocumento(orgId, r.id, 'upload', { titulo: file.name.replace(/\.[^.]+$/, ''), tipo: 'Documento', nomeArquivo: file.name, mime: file.type, base64 });
+                } catch { falharam.push(file.name); }
+            }
+            if (falharam.length) toast.warning(`Processo ${r.numero} autuado. Não foi possível anexar ${falharam.join(', ')}: anexe no processo.`);
+            else toast.success(`Processo ${r.numero} autuado${anexos.length ? ` com ${anexos.length} ${anexos.length === 1 ? 'minuta' : 'minutas'}` : ''}`);
             qc.invalidateQueries({ queryKey: ['sec-processos', orgId] });
             setAberto(false);
             setF(vazio);
+            setAnexos([]);
             onCriado(r.id);
         } catch (e) {
             toast.error(e?.message || 'Não foi possível autuar');
@@ -530,9 +545,9 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
     return (
         <Dialog open={aberto} onOpenChange={(o) => { setAberto(o); if (!o && f.origem?.ref) setF(vazio); }}>
             <Button className="gap-2" onClick={() => setAberto(true)}><Plus className="w-4 h-4" /> Novo processo</Button>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>Autuar processo</DialogTitle></DialogHeader>
-                <div className="space-y-4">
+            <DialogContent className="max-w-2xl p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden max-sm:max-w-none max-sm:w-screen max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none">
+                <DialogHeader className="px-4 pt-4 pr-12 pb-3 sm:px-6"><DialogTitle>Autuar processo</DialogTitle></DialogHeader>
+                <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
                     {tiposAtivos.length > 0 && (
                         <div>
                             <NativeSelect id="sec-tipo" label="Tipo de processo" value={f.tipo_id} onChange={escolherTipo}
@@ -557,12 +572,35 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                             <FluxoRito fases={ritoSel.fases} unidades={estado.unidades} className="mt-2" />
                         </details>
                     )}
+                    <div>
+                        <Label htmlFor="sec-anexos">Arquivos (opcional)</Label>
+                        <Input id="sec-anexos" type="file" multiple className="mt-1" accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx,.odt,.xlsx" aria-describedby="sec-anexos-ajuda"
+                            onChange={(e) => {
+                                const novos = [...(e.target.files || [])];
+                                e.target.value = '';
+                                const grandes = novos.filter((x) => x.size > MAX_MB_ANEXO * 1024 * 1024);
+                                if (grandes.length) toast.error(`Acima de ${MAX_MB_ANEXO} MB: ${grandes.map((x) => x.name).join(', ')}`);
+                                setAnexos((a) => [...a, ...novos.filter((x) => x.size <= MAX_MB_ANEXO * 1024 * 1024)].slice(0, MAX_ANEXOS));
+                            }} />
+                        <p id="sec-anexos-ajuda" className="text-xs text-slate-600 dark:text-slate-400 mt-1">Entram como minutas, só para a equipe, até {MAX_MB_ANEXO} MB cada. Junte aos autos no processo; a minuta não cumpre a exigência de juntar documento até ser juntada.</p>
+                        {anexos.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                                {anexos.map((a, i) => (
+                                    <li key={`${a.name}-${i}`} className="flex items-center gap-2 text-sm">
+                                        <Paperclip className="w-3.5 h-3.5 shrink-0 text-slate-500" aria-hidden />
+                                        <span className="flex-1 min-w-0 truncate">{a.name}</span>
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Tirar ${a.name}`} onClick={() => setAnexos((x) => x.filter((_, j) => j !== i))}><X className="w-4 h-4" aria-hidden /></Button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400">{exemploNumero ? <>Número no formato <b className="font-mono">{exemploNumero}</b>, dado ao autuar.</> : 'Este tipo de processo não tem número: recebe um identificador (SN-…).'}</p>
                     {tocado && falta.length > 0 && (
                         <p className="text-sm text-amber-800 dark:text-amber-300" role="status">Para autuar: {falta.join('; ')}.</p>
                     )}
                 </div>
-                <DialogFooter>
+                <DialogFooter className="border-t border-slate-200 dark:border-slate-700 px-4 pt-3 sm:px-6 flex-row justify-end gap-2 sm:space-x-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     <Button variant="outline" onClick={() => setAberto(false)}>Cancelar</Button>
                     <Button onClick={salvar} disabled={salvando || !f.rito_id || falta.length > 0}>
                         {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Autuar
