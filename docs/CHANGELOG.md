@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Admin delegado por órgão interno
+- Cada órgão interno pode ter até 10 pessoas que o administram (**Quem
+  administra este órgão**, no cadastro do órgão). Elas configuram o órgão, os
+  que ficam abaixo dele e as unidades deles: dados da unidade, equipe,
+  pedidos de lotação, convites, papel timbrado e modelos; criam órgãos
+  subordinados e unidades e excluem subordinados levando o conteúdo para outro
+  órgão que administram.
+- No órgão que lhe foi delegado, quem administra não muda o órgão superior
+  nem a lista de admins; isso fica com o admin da entidade. Ritos, tipos de
+  processo, integrações e preferências seguem só com o admin da entidade, e
+  administrar não dá acesso a processos de unidades em que a pessoa não está
+  lotada.
+- Na aba **Unidades** do Processo Eletrônico, o cartão "Órgãos que você
+  administra" e as unidades desses órgãos em "Unidades que você gere".
+
 ### 13/11/2026 — Levar processos para a versão nova do rito
 - No menu de um rito com mais de uma versão, **Atualizar processos** mostra
   quantos processos em andamento ou sobrestados estão em versões anteriores,

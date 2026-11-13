@@ -185,7 +185,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         ]);
         // Todo usuário lotado precisa ver os nomes de colegas para atribuir
         // processos; e-mail só para quem administra ou gere unidade.
-        const veEmail = c.ctx.isAdmin || c.gestorDe.length > 0;
+        const veEmail = c.ctx.isAdmin || c.gestorDe.length > 0 || (c.adminOrgaos || []).length > 0;
         const membros = memSnap.docs.filter((d) => d.data().active !== false).map((d) => {
             const m = d.data();
             return {
@@ -220,6 +220,8 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             uid: c.ctx.uid,
             minhasUnidades: minhas,
             gestorDe: c.gestorDe,
+            // Órgãos internos que a pessoa administra por delegação (com os subordinados).
+            adminOrgaos: c.adminOrgaos || [],
             // Órgãos internos, na ordem do organograma (vazio = entidade singular).
             orgaos: (0, orgaos_1.emArvore)((0, orgaos_1.orgaosDe)((_d = cfgSnap.data()) === null || _d === void 0 ? void 0 : _d.orgaos)),
             // Unidade excluída só empresta o nome ao que já está nos autos.
@@ -264,7 +266,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             excluidos: [
                 ...(c.ctx.isAdmin ? ritosSnap.docs.filter((d) => d.data().excluido === true).map((d) => lixo('rito', d)) : []),
                 ...(c.ctx.isAdmin ? tiposSnap.docs.filter((d) => d.data().excluido === true).map((d) => (Object.assign(Object.assign({}, lixo('tipo', d)), { rito_id: d.data().rito_id || null }))) : []),
-                ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id && c.gestorDe.includes(d.data().unidade_id))))
+                ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id ? c.gestorDe.includes(d.data().unidade_id) : (0, context_1.administraOrgao)(c, d.data().orgao_id))))
                     .map((d) => (Object.assign(Object.assign({}, lixo('modelo', d)), { unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null }))),
             ].sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))),
             suspensa_plataforma: ((_k = c.org.secretariaConfig) === null || _k === void 0 ? void 0 : _k.suspensa_plataforma) === true,
@@ -354,7 +356,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (unidadeId)
             (0, context_1.exigirGestor)(c, unidadeId);
         else
-            (0, context_1.exigirAdmin)(c);
+            (0, context_1.exigirAdminDoOrgao)(c, p.orgao_id || null);
         const a = arquivoRecebido(p.arquivo, ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf', 'text/html', 'text/plain']);
         try {
             return Object.assign(Object.assign({}, (await (0, importarModelo_1.interpretarModelo)(a.buf, a.mime))), { nome: a.nome.replace(/\.[a-z0-9]{2,5}$/i, ''), original_possivel: importarModelo_1.MIMES_ORIGINAL.includes(a.mime) });
@@ -370,14 +372,16 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const atual = p.id ? (await col.doc(p.id).get()).data() : null;
         if (p.id && ((atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId || (atual === null || atual === void 0 ? void 0 : atual.excluido) === true))
             throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
-        // Modelo do órgão: admin. Modelo de unidade: gestão dela (antes e depois de mudar).
+        // Modelo da entidade: admin. De órgão interno: admin ou quem administra o órgão.
+        // De unidade: gestão dela. Vale antes e depois de mudar.
         const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
-        for (const u of new Set([unidadeId, atual ? (atual.unidade_id || null) : unidadeId])) {
+        for (const u of new Set([unidadeId, atual ? (atual.unidade_id || null) : unidadeId]))
             if (u)
                 (0, context_1.exigirGestor)(c, u);
-            else
-                (0, context_1.exigirAdmin)(c);
-        }
+        if (!unidadeId)
+            (0, context_1.exigirAdminDoOrgao)(c, m.orgao_id || null);
+        if (atual && !atual.unidade_id)
+            (0, context_1.exigirAdminDoOrgao)(c, atual.orgao_id || null);
         const nome = (0, secretaria_1.texto)(m.nome, 120);
         if (!nome)
             throw new https_1.HttpsError('invalid-argument', 'Dê um nome ao modelo');
@@ -433,7 +437,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (atual.unidade_id && c.unidades.some((u) => u.id === atual.unidade_id && !u.excluida))
             (0, context_1.exigirGestor)(c, String(atual.unidade_id));
         else
-            (0, context_1.exigirAdmin)(c);
+            (0, context_1.exigirAdminDoOrgao)(c, atual.unidade_id ? null : atual.orgao_id || null);
         if (!excluir && naoExcluidos(await db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_MODELOS) {
             throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
         }
@@ -455,10 +459,12 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const atual = (await ref.get()).data();
         if (!atual || atual.organization_id !== orgId || atual.excluido === true)
             throw new https_1.HttpsError('not-found', 'Não encontrado');
-        if (col === context_1.COL.ritos || !atual.unidade_id)
+        if (col !== context_1.COL.modelos)
             (0, context_1.exigirAdmin)(c);
-        else
+        else if (atual.unidade_id)
             (0, context_1.exigirGestor)(c, String(atual.unidade_id));
+        else
+            (0, context_1.exigirAdminDoOrgao)(c, atual.orgao_id || null);
         if (p.action === 'versoes' && (col === context_1.COL.tipos || col === context_1.COL.ritos) && p.versao) {
             const v = (await ref.collection('versoes').doc(String(Number(p.versao) || 0).padStart(6, '0')).get()).data();
             if (!v)

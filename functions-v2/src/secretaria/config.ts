@@ -5,7 +5,7 @@ import { HISTORICO_CONFIG, MAX_TEXTO_LONGO, Rito, acoesHistorico, assuntoHistori
 import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { numeracaoDe, numeracaoTipoDe, sanitizeNumeracao, sanitizeNumeracaoTipo } from '../shared/numeracao';
-import { COL, REGION, carregarContexto, erroUsuario, exigirAdmin, exigirAuth, exigirGestor } from './context';
+import { COL, REGION, administraOrgao, carregarContexto, erroUsuario, exigirAdmin, exigirAdminDoOrgao, exigirAuth, exigirGestor } from './context';
 import { cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
 import { emArvore, orgaosDe, sanitizeCompetencias } from '../shared/orgaos';
 import { criarEstrutura, lerOrgaos, removerOrgao, salvarOrgao } from './orgaos';
@@ -212,7 +212,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         ]);
         // Todo usuário lotado precisa ver os nomes de colegas para atribuir
         // processos; e-mail só para quem administra ou gere unidade.
-        const veEmail = c.ctx.isAdmin || c.gestorDe.length > 0;
+        const veEmail = c.ctx.isAdmin || c.gestorDe.length > 0 || (c.adminOrgaos || []).length > 0;
         const membros = memSnap.docs.filter((d) => d.data().active !== false).map((d) => {
             const m = d.data();
             return {
@@ -246,6 +246,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             uid: c.ctx.uid,
             minhasUnidades: minhas,
             gestorDe: c.gestorDe,
+            // Órgãos internos que a pessoa administra por delegação (com os subordinados).
+            adminOrgaos: c.adminOrgaos || [],
             // Órgãos internos, na ordem do organograma (vazio = entidade singular).
             orgaos: emArvore(orgaosDe(cfgSnap.data()?.orgaos)),
             // Unidade excluída só empresta o nome ao que já está nos autos.
@@ -297,7 +299,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             excluidos: [
                 ...(c.ctx.isAdmin ? ritosSnap.docs.filter((d) => d.data().excluido === true).map((d) => lixo('rito', d)) : []),
                 ...(c.ctx.isAdmin ? tiposSnap.docs.filter((d) => d.data().excluido === true).map((d) => ({ ...lixo('tipo', d), rito_id: d.data().rito_id || null })) : []),
-                ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id && c.gestorDe.includes(d.data().unidade_id))))
+                ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id ? c.gestorDe.includes(d.data().unidade_id) : administraOrgao(c, d.data().orgao_id))))
                     .map((d) => ({ ...lixo('modelo', d), unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null })),
             ].sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))),
             suspensa_plataforma: c.org.secretariaConfig?.suspensa_plataforma === true,
@@ -371,7 +373,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
     if (p.action === 'importarModelo') {
         // Só interpreta e devolve a proposta; nada é gravado até salvarModelo.
         const unidadeId = p.unidade_id ? String(p.unidade_id) : null;
-        if (unidadeId) exigirGestor(c, unidadeId); else exigirAdmin(c);
+        if (unidadeId) exigirGestor(c, unidadeId); else exigirAdminDoOrgao(c, p.orgao_id || null);
         const a = arquivoRecebido(p.arquivo, ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf', 'text/html', 'text/plain']);
         try {
             return { ...(await interpretarModelo(a.buf, a.mime)), nome: a.nome.replace(/\.[a-z0-9]{2,5}$/i, ''), original_possivel: MIMES_ORIGINAL.includes(a.mime) };
@@ -386,11 +388,12 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const col = db.collection(COL.modelos);
         const atual = p.id ? (await col.doc(p.id).get()).data() : null;
         if (p.id && (atual?.organization_id !== orgId || atual?.excluido === true)) throw new HttpsError('not-found', 'Modelo não encontrado');
-        // Modelo do órgão: admin. Modelo de unidade: gestão dela (antes e depois de mudar).
+        // Modelo da entidade: admin. De órgão interno: admin ou quem administra o órgão.
+        // De unidade: gestão dela. Vale antes e depois de mudar.
         const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
-        for (const u of new Set([unidadeId, atual ? (atual.unidade_id || null) : unidadeId])) {
-            if (u) exigirGestor(c, u); else exigirAdmin(c);
-        }
+        for (const u of new Set([unidadeId, atual ? (atual.unidade_id || null) : unidadeId])) if (u) exigirGestor(c, u);
+        if (!unidadeId) exigirAdminDoOrgao(c, m.orgao_id || null);
+        if (atual && !atual.unidade_id) exigirAdminDoOrgao(c, atual.orgao_id || null);
         const nome = texto(m.nome, 120);
         if (!nome) throw new HttpsError('invalid-argument', 'Dê um nome ao modelo');
         // Modelo da entidade pode ser só de um órgão interno (vale para as unidades dele).
@@ -436,7 +439,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const atual = (await ref.get()).data();
         const excluir = p.action === 'excluirModelo';
         if (!atual || atual.organization_id !== orgId || (atual.excluido === true) !== !excluir) throw new HttpsError('not-found', 'Modelo não encontrado');
-        if (atual.unidade_id && c.unidades.some((u) => u.id === atual.unidade_id && !u.excluida)) exigirGestor(c, String(atual.unidade_id)); else exigirAdmin(c);
+        if (atual.unidade_id && c.unidades.some((u) => u.id === atual.unidade_id && !u.excluida)) exigirGestor(c, String(atual.unidade_id)); else exigirAdminDoOrgao(c, atual.unidade_id ? null : atual.orgao_id || null);
         if (!excluir && naoExcluidos(await db.collection(COL.modelos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_MODELOS) {
             throw new HttpsError('resource-exhausted', 'Limite de modelos atingido');
         }
@@ -456,7 +459,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         const ref = db.collection(col).doc(String(p.id || '_'));
         const atual = (await ref.get()).data();
         if (!atual || atual.organization_id !== orgId || atual.excluido === true) throw new HttpsError('not-found', 'Não encontrado');
-        if (col === COL.ritos || !atual.unidade_id) exigirAdmin(c); else exigirGestor(c, String(atual.unidade_id));
+        if (col !== COL.modelos) exigirAdmin(c); else if (atual.unidade_id) exigirGestor(c, String(atual.unidade_id)); else exigirAdminDoOrgao(c, atual.orgao_id || null);
         if (p.action === 'versoes' && (col === COL.tipos || col === COL.ritos) && p.versao) {
             const v = (await ref.collection('versoes').doc(String(Number(p.versao) || 0).padStart(6, '0')).get()).data();
             if (!v) throw new HttpsError('not-found', 'Versão não encontrada');

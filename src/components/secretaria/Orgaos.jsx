@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, Landmark, Loader2, Network, Plus, Trash2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Building2, Landmark, Loader2, Network, Plus, Trash2, Wand2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
-import { CARGOS, ESTRUTURAS, NATUREZAS, descendentes, emArvore, problemasEstrutura, rotuloNatureza, unidadesDoOrgao } from '@/lib/orgaos';
+import { CARGOS, ESTRUTURAS, NATUREZAS, descendentes, emArvore, orgaosDoDelegado, problemasEstrutura, rotuloNatureza, unidadesDoOrgao } from '@/lib/orgaos';
 import { ListaTextos, NativeSelect, rotuloUnidade } from './comum';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
 import { ListaModelos } from './ConfiguracaoDocumentos';
@@ -68,14 +68,18 @@ export function Organograma({ nos, unidadesDe, nomeTitular, onAbrir, chave = 'id
     );
 }
 
-const NOVO = { nome: '', sigla: '', natureza: 'executivo', pai_id: '', decisao: 'singular', titular_cargo: '', titular_uid: '', competencias: [], descricao: '', ativo: true };
+const NOVO = { nome: '', sigla: '', natureza: 'executivo', pai_id: '', decisao: 'singular', titular_cargo: '', titular_uid: '', admins_uids: [], competencias: [], descricao: '', ativo: true };
+const MAX_ADMINS = 10;
 
 /**
  * Aba "Estrutura": a entidade é singular (sem órgãos internos) ou composta por
  * órgãos em árvore, cada um com unidades, competências, titular e decisão.
+ * Para o admin delegado, só os órgãos que ele administra.
  */
 export default function EstruturaOrgaos({ orgId, estado }) {
-    const orgaos = estado.orgaos || [];
+    const meus = orgaosDoDelegado(estado);
+    const delegado = !!meus;
+    const orgaos = meus || estado.orgaos || [];
     const [orgao, setOrgao] = useState(null);
     const [assistente, setAssistente] = useState(false);
     const [novaUnidade, setNovaUnidade] = useState(null); // { orgaoId }
@@ -85,19 +89,27 @@ export default function EstruturaOrgaos({ orgId, estado }) {
     return (
         <Card>
             <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-                <div className="min-w-0 flex-1">
-                    <CardTitle className="text-base">Estrutura da entidade</CardTitle>
+                <div className="min-w-[14rem] flex-1">
+                    <CardTitle className="text-base">{delegado ? (orgaos.length > 1 ? 'Órgãos que você administra' : 'Órgão que você administra') : 'Estrutura da entidade'}</CardTitle>
+                    {delegado ? (
+                        <CardDescription>
+                            O admin da entidade deixou com você estes órgãos internos e os que ficam abaixo deles. Aqui você edita os órgãos, cria subordinados e unidades
+                            e cuida dos dados, das equipes e dos modelos. Ritos, tipos de processo e integrações seguem com o admin da entidade.
+                        </CardDescription>
+                    ) : (
                     <CardDescription>
                         A entidade pode ser singular, só com as suas unidades, ou composta por órgãos internos (conselhos, presidência, diretorias, comissões).
                         Cada órgão tem as próprias unidades, competências, titular e forma de decidir, e os processos tramitam de um órgão para outro.
                     </CardDescription>
+                    )}
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setAssistente(true)}><Wand2 className="w-4 h-4" /> Montar estrutura</Button>
-                    <Button size="sm" className="gap-1" onClick={() => setOrgao({ ...NOVO })}><Plus className="w-4 h-4" /> Novo órgão interno</Button>
+                    {!delegado && <Button size="sm" variant="outline" className="gap-1" onClick={() => setAssistente(true)}><Wand2 className="w-4 h-4" /> Montar estrutura</Button>}
+                    <Button size="sm" className="gap-1" onClick={() => setOrgao({ ...NOVO, pai_id: delegado ? orgaos[0]?.id || '' : '' })}><Plus className="w-4 h-4" /> {delegado ? 'Novo órgão subordinado' : 'Novo órgão interno'}</Button>
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
+                {!delegado && (<>
                 <div className="flex items-center gap-3 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 p-3">
                     <Landmark className="w-5 h-5 text-indigo-700 dark:text-indigo-300 shrink-0" aria-hidden />
                     <div className="min-w-0">
@@ -123,13 +135,14 @@ export default function EstruturaOrgaos({ orgId, estado }) {
                         </div>
                     </div>
                 )}
+                </>)}
 
                 {orgaos.length > 0 && (
-                    <Organograma nos={orgaos} onAbrir={(o) => setOrgao({ ...NOVO, ...o, pai_id: o.pai_id || '', titular_uid: o.titular_uid || '' })}
+                    <Organograma nos={orgaos} onAbrir={(o) => setOrgao({ ...NOVO, ...o, pai_id: o.pai_id || '', titular_uid: o.titular_uid || '', admins_uids: o.admins_uids || [] })}
                         unidadesDe={(o) => estado.unidades.filter((u) => u.orgao_id === o.id)} nomeTitular={(o) => nomeMembro(o.titular_uid)} />
                 )}
 
-                {orgaos.length > 0 && soltas.length > 0 && (
+                {!delegado && orgaos.length > 0 && soltas.length > 0 && (
                     <section aria-labelledby="un-soltas">
                         <h3 id="un-soltas" className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-2">Unidades ligadas direto à entidade</h3>
                         <div className="flex flex-wrap gap-2">
@@ -147,7 +160,7 @@ export default function EstruturaOrgaos({ orgId, estado }) {
                     onNovaUnidade={(orgaoId) => { setOrgao(null); setNovaUnidade({ orgaoId }); }} onAbrirUnidade={(id) => { setOrgao(null); setUnidade(id); }} />
             )}
             <MontarEstrutura orgId={orgId} estado={estado} aberto={assistente} onFechar={() => setAssistente(false)} />
-            <NovaUnidade orgId={orgId} orgaos={orgaos} orgaoId={novaUnidade?.orgaoId} aberto={!!novaUnidade} onFechar={() => setNovaUnidade(null)} onCriada={(id) => { setNovaUnidade(null); setUnidade(id); }} />
+            <NovaUnidade orgId={orgId} orgaos={orgaos} semEntidade={delegado} orgaoId={novaUnidade?.orgaoId} aberto={!!novaUnidade} onFechar={() => setNovaUnidade(null)} onCriada={(id) => { setNovaUnidade(null); setUnidade(id); }} />
             {unidade && <GestaoUnidade orgId={orgId} estado={estado} unidadeId={unidade} onFechar={() => setUnidade(null)} />}
         </Card>
     );
@@ -162,6 +175,15 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
     const set = (k, v) => setO((x) => ({ ...x, [k]: v }));
     const orgaos = estado.orgaos || [];
     const proibidos = o.id ? descendentes(orgaos, o.id) : new Set();
+    // Admin delegado: escolhe só entre os órgãos que administra; no órgão que lhe
+    // foi delegado (raiz) não muda o superior nem quem administra (o servidor confere).
+    const delegado = !estado.isAdmin;
+    const meus = new Set(estado.adminOrgaos || []);
+    const raiz = delegado && !!o.id && !meus.has(inicial.pai_id);
+    const podeMover = estado.isAdmin || (delegado && !!o.id && !raiz);
+    const superiores = orgaos.filter((x) => !proibidos.has(x.id) && (!delegado || meus.has(x.id))).map((x) => [x.id, `${'— '.repeat(x.nivel - 1)}${x.nome}`]);
+    const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome || 'Membro que saiu';
+    const admins = o.admins_uids || [];
     const unidades = o.id ? estado.unidades.filter((u) => u.orgao_id === o.id) : [];
     const subordinados = o.id ? orgaos.filter((x) => x.pai_id === o.id).length : 0;
     const rodar = async (acao, payload, ok) => {
@@ -192,9 +214,11 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{NATUREZAS[o.natureza]?.descricao}</p>
                         </div>
                         <div>
-                            <NativeSelect id="og-pai" label="Órgão superior" value={o.pai_id} onChange={(v) => set('pai_id', v)}
-                                options={[['', `Nenhum (ligado direto a ${estado.orgao || 'entidade'})`], ...orgaos.filter((x) => !proibidos.has(x.id)).map((x) => [x.id, `${'— '.repeat(x.nivel - 1)}${x.nome}`])]} />
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Define a posição no organograma.</p>
+                            <NativeSelect id="og-pai" label="Órgão superior" value={o.pai_id} onChange={(v) => set('pai_id', v)} disabled={raiz}
+                                options={raiz
+                                    ? [[o.pai_id, orgaos.find((x) => x.id === o.pai_id)?.nome || `Nenhum (ligado direto a ${estado.orgao || 'entidade'})`]]
+                                    : [...(delegado ? [] : [['', `Nenhum (ligado direto a ${estado.orgao || 'entidade'})`]]), ...superiores]} />
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{raiz ? 'Só o admin da entidade muda a posição deste órgão.' : 'Define a posição no organograma.'}</p>
                         </div>
                     </div>
                     <fieldset>
@@ -217,6 +241,35 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                         <NativeSelect id="og-titular" label="Quem ocupa hoje" value={o.titular_uid} onChange={(v) => set('titular_uid', v)}
                             options={[['', 'Ninguém indicado'], ...estado.membros.map((m) => [m.uid, m.nome])]} />
                     </div>
+                    <section aria-labelledby="og-admins-titulo" className="space-y-2">
+                        <h3 id="og-admins-titulo" className="text-sm font-medium">Quem administra este órgão</h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                            Configura este órgão, os subordinados e as unidades deles: dados, equipes, pedidos de lotação e modelos. Não muda ritos, tipos de processo
+                            nem integrações, e só vê os processos das unidades em que estiver lotado.
+                        </p>
+                        {admins.length > 0 ? (
+                            <ul className="flex flex-wrap gap-2" aria-label="Admins deste órgão">
+                                {admins.map((uid) => (
+                                    <li key={uid} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 pl-3 text-sm text-indigo-900 dark:text-indigo-100">
+                                        {nomeMembro(uid)}
+                                        {!raiz && (
+                                            <button type="button" className="inline-flex min-h-11 min-w-11 sm:min-h-7 sm:min-w-7 items-center justify-center rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                                aria-label={`Tirar ${nomeMembro(uid)} da administração do órgão`} onClick={() => set('admins_uids', admins.filter((x) => x !== uid))}>
+                                                <X className="w-3.5 h-3.5" aria-hidden />
+                                            </button>
+                                        )}
+                                        {raiz && <span className="pr-3" />}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : <p className="text-sm text-slate-600 dark:text-slate-400">{delegado ? 'Ninguém indicado.' : 'Ninguém indicado: só o admin da entidade configura este órgão.'}</p>}
+                        {raiz
+                            ? <p className="text-xs text-slate-600 dark:text-slate-400">Só o admin da entidade muda quem administra este órgão. Nos órgãos abaixo dele, você pode indicar.</p>
+                            : admins.length < MAX_ADMINS && (
+                                <NativeSelect id="og-admins" label="Indicar alguém" value="" onChange={(v) => v && set('admins_uids', [...admins, v])}
+                                    options={[['', 'Escolher membro…'], ...estado.membros.filter((m) => !admins.includes(m.uid)).map((m) => [m.uid, m.nome])]} />
+                            )}
+                    </section>
                     <ListaTextos id="og-comp" rotulo="Competências" ajuda="O que cabe a este órgão decidir ou fazer. Uma por linha." itens={o.competencias} onChange={(v) => set('competencias', v)} placeholder="Ex.: Julgar recursos contra decisões das diretorias" />
                     <div><Label htmlFor="og-desc">Observações (opcional)</Label><Textarea id="og-desc" rows={2} maxLength={1000} value={o.descricao} onChange={(e) => set('descricao', e.target.value)} placeholder="Composição, mandato, base no estatuto…" /></div>
 
@@ -243,31 +296,31 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                     <section role="alertdialog" aria-labelledby="og-excluir" aria-describedby="og-excluir-aviso" className="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 space-y-3 text-sm">
                         <h3 id="og-excluir" className="font-semibold text-red-900 dark:text-red-100">Excluir {inicial.nome}?</h3>
                         <p id="og-excluir-aviso" className="font-medium text-red-900 dark:text-red-100">Esta exclusão não pode ser desfeita. Para ter o órgão de volta, será preciso criá-lo de novo e ligar outra vez as unidades, os tipos de processo e os modelos.</p>
-                        {estado.isAdmin && inicial.ativo !== false && (
+                        {inicial.ativo !== false && (
                             <div className="rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 p-3 space-y-2">
                                 <p className="text-slate-800 dark:text-slate-200">Só quer parar de usar este órgão? Desative em vez de excluir. É o mesmo que desmarcar "Órgão ativo" e salvar. Ele sai do organograma que as equipes veem, mas guarda as unidades, os tipos de processo e os modelos, e pode ser ativado de novo quando quiser. As unidades dele continuam recebendo processos. Para parar também, desative cada unidade.</p>
                                 <Button type="button" size="sm" variant="outline" disabled={ocupado || !o.nome.trim()} onClick={() => salvar({ ...o, ativo: false }, 'Órgão desativado')}>Desativar em vez de excluir</Button>
                             </div>
                         )}
                         {unidades.length || subordinados ? (
-                            estado.isAdmin ? (
+                            podeMover ? (
                                 <>
                                     <p>Neste órgão estão {[unidades.length && `${unidades.length} unidade${unidades.length > 1 ? 's' : ''}`, subordinados && `${subordinados} órgão${subordinados > 1 ? 's' : ''} subordinado${subordinados > 1 ? 's' : ''}`].filter(Boolean).join(' e ')}. Eles, os tipos de processo e os modelos do órgão passam para o destino abaixo. Os processos seguem nas mesmas unidades.{unidades.length > 0 && ' Se a numeração usa a sigla ou a contagem por órgão, os próximos processos dessas unidades passam a ser numerados pelo destino escolhido.'}</p>
                                     <NativeSelect id="og-destino" label="Para onde vai o que está neste órgão" value={destino} onChange={setDestino}
-                                        options={[['', `Direto na entidade (${estado.orgao || 'sem órgão'})`], ...orgaos.filter((x) => !proibidos.has(x.id)).map((x) => [x.id, `${'— '.repeat(x.nivel - 1)}${x.nome}`])]} />
+                                        options={[...(delegado ? [] : [['', `Direto na entidade (${estado.orgao || 'sem órgão'})`]]), ...superiores]} />
                                 </>
                             ) : <p role="alert" className="text-amber-800 dark:text-amber-300">Este órgão tem unidades ou órgãos subordinados. Só o admin do órgão pode excluí-lo.</p>
                         ) : <p>O órgão está vazio. {destino ? `Tipos de processo e modelos ligados a ele passam para ${orgaos.find((x) => x.id === destino)?.nome || 'o órgão superior'}.` : 'Tipos de processo e modelos ligados a ele passam a valer para a entidade inteira.'}</p>}
                         <div className="flex flex-wrap gap-2 justify-end">
                             <Button type="button" variant="outline" size="sm" autoFocus onClick={() => setConfirmar(false)}>Manter o órgão</Button>
-                            <Button type="button" variant="destructive" size="sm" disabled={ocupado || (!estado.isAdmin && (unidades.length || subordinados))}
+                            <Button type="button" variant="destructive" size="sm" disabled={ocupado || (!podeMover && (unidades.length || subordinados)) || (delegado && podeMover && !destino)}
                                 onClick={() => rodar('removerOrgao', { id: o.id, destino: destino || null }, 'Órgão excluído')}>{ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Excluir órgão</Button>
                         </div>
                     </section>
                 )}
                 <DialogFooter className="gap-2 sm:justify-between">
                     <div>
-                        {o.id && !confirmar && (estado.isAdmin || inicial.criado_por === estado.uid) && <Button type="button" variant="ghost" className="gap-1 text-red-700 dark:text-red-400" onClick={() => setConfirmar(true)}><Trash2 className="w-4 h-4" /> Excluir órgão</Button>}
+                        {o.id && !confirmar && (estado.isAdmin || podeMover || inicial.criado_por === estado.uid) && <Button type="button" variant="ghost" className="gap-1 text-red-700 dark:text-red-400" onClick={() => setConfirmar(true)}><Trash2 className="w-4 h-4" /> Excluir órgão</Button>}
                     </div>
                     <div className="flex gap-2 justify-end">
                         <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>

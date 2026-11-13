@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import { randomBytes } from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { Orgao, orgaosDe, sanitizeOrgao, sanitizeProposta, validarEstrutura } from '../shared/orgaos';
+import { Orgao, conferirDelegado, orgaosAdministrados, orgaosDe, sanitizeOrgao, sanitizeProposta, validarEstrutura } from '../shared/orgaos';
 import { COL, Contexto, erroUsuario, exigirAdmin } from './context';
 
 /**
@@ -21,10 +21,10 @@ export async function lerOrgaos(db: admin.firestore.Firestore, orgId: string, tx
     return orgaosDe((tx ? await tx.get(ref) : await ref.get()).data()?.orgaos);
 }
 
-async function exigirMembro(c: Contexto, uid: string | null) {
+async function exigirMembro(c: Contexto, uid: string | null, papel = 'O titular') {
     if (!uid) return;
     const s = await c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`).get();
-    if (!s.exists || s.data()?.active === false) throw new HttpsError('invalid-argument', 'O titular precisa ser membro ativo');
+    if (!s.exists || s.data()?.active === false) throw new HttpsError('invalid-argument', `${papel} precisa ser membro ativo`);
 }
 
 /** Regrava a lista de órgãos dentro de uma transação, validando a estrutura inteira. */
@@ -38,19 +38,25 @@ async function mudar(c: Contexto, uid: string, fn: (atuais: Orgao[]) => Orgao[])
     });
 }
 
+/**
+ * Cria ou edita um órgão interno. O admin da entidade mexe em tudo; o admin
+ * delegado, só no que administra (conferirDelegado, dentro da transação).
+ */
 export async function salvarOrgao(c: Contexto, p: Payload, uid: string, auditar: Auditar) {
-    exigirAdmin(c);
+    if (!c.ctx.isAdmin && !(c.adminOrgaos || []).length) exigirAdmin(c);
     const id = p.id ? String(p.id) : novoId();
     let orgao: Orgao;
     try { orgao = sanitizeOrgao(p.orgao, id); } catch (e) { erroUsuario(e); }
     await exigirMembro(c, orgao!.titular_uid);
+    for (const a of orgao!.admins_uids) await exigirMembro(c, a, 'Quem administra o órgão');
     await mudar(c, uid, (atuais) => {
         const i = atuais.findIndex((o) => o.id === id);
         if (p.id && i < 0) throw new HttpsError('not-found', 'Órgão não encontrado');
+        if (!c.ctx.isAdmin) conferirDelegado(atuais, uid, orgao);
         if (i < 0) return [...atuais, { ...orgao, ordem: atuais.length, criado_por: uid }];
         return atuais.map((o) => (o.id === id ? { ...orgao, criado_por: o.criado_por || null } : o));
     });
-    await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao!.nome, superior: orgao!.pai_id });
+    await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao!.nome, superior: orgao!.pai_id, admins: orgao!.admins_uids.length });
     return { success: true, id };
 }
 
@@ -58,7 +64,9 @@ export async function salvarOrgao(c: Contexto, p: Payload, uid: string, auditar:
  * Exclui o órgão interno. O que estava nele (unidades, órgãos subordinados,
  * tipos de processo e modelos) passa para `destino`: outro órgão ou, vazio,
  * direto na entidade. Nada se apaga e os processos seguem nas mesmas unidades.
- * O admin exclui qualquer órgão; quem o criou, só o vazio.
+ * O admin exclui qualquer órgão; quem o criou, só o vazio; o admin delegado,
+ * os que ficam abaixo do órgão que lhe foi delegado, levando o conteúdo para
+ * outro órgão que administra.
  */
 export async function removerOrgao(c: Contexto, p: Payload, uid: string, auditar: Auditar) {
     const id = String(p.id || '');
@@ -69,9 +77,13 @@ export async function removerOrgao(c: Contexto, p: Payload, uid: string, auditar
     await mudar(c, uid, (atuais) => {
         const alvo = atuais.find((o) => o.id === id);
         if (!alvo) throw new HttpsError('not-found', 'Órgão não encontrado');
-        if (!c.ctx.isAdmin && alvo.criado_por !== uid) throw new HttpsError('permission-denied', 'Só o admin do órgão ou quem criou este órgão interno pode excluí-lo');
+        const meus = c.ctx.isAdmin ? [] : orgaosAdministrados(atuais, uid);
+        // Delegado: o órgão fica abaixo de um que ele administra, e o conteúdo vai para outro que administra.
+        const delegado = !!alvo.pai_id && meus.includes(alvo.pai_id);
+        if (delegado && !(destino && meus.includes(destino))) throw new HttpsError('invalid-argument', 'Escolha como destino um órgão que você administra');
+        if (!c.ctx.isAdmin && !delegado && alvo.criado_por !== uid) throw new HttpsError('permission-denied', 'Só o admin do órgão ou quem criou este órgão interno pode excluí-lo');
         subordinados = atuais.filter((o) => o.pai_id === id).length;
-        if ((unidades.length || subordinados) && !c.ctx.isAdmin) {
+        if ((unidades.length || subordinados) && !c.ctx.isAdmin && !delegado) {
             throw new HttpsError('permission-denied', 'Este órgão tem unidades ou órgãos subordinados. Só o admin do órgão pode excluí-lo, levando-os para outro lugar.');
         }
         if (destino && (destino === id || !atuais.some((o) => o.id === destino))) throw new HttpsError('invalid-argument', 'Escolha um destino válido');

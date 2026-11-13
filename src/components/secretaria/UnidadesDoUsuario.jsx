@@ -13,7 +13,7 @@ import { useAuth } from '@/lib/FirebaseAuthContext';
 import { secConfig } from '@/services/secretariaService';
 import { TIPOS_UNIDADE, dataHora } from './comum';
 import GestaoUnidade from './GestaoUnidade';
-import { Organograma } from './Orgaos';
+import EstruturaOrgaos, { Organograma } from './Orgaos';
 import { nomeOrgao } from '@/lib/orgaos';
 
 /**
@@ -62,6 +62,8 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
                     <CardContent>{gerida && <GestaoUnidade orgId={orgId} estado={estado} unidadeId={gerida} embutido />}</CardContent>
                 </Card>
             )}
+
+            {!estado.isAdmin && (estado.adminOrgaos || []).length > 0 && <EstruturaOrgaos orgId={orgId} estado={estado} />}
 
             {(estado.orgaos || []).length > 0 && (
                 <Card>

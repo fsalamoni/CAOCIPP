@@ -60,11 +60,15 @@ async function salvarUnidade(c, p, uid, auditar) {
     const competencias = (0, orgaos_1.sanitizeCompetencias)(u.competencias);
     if (p.id) {
         const atual = (0, context_1.exigirGestor)(c, p.id);
-        // O gestor (sem ser admin) cuida da equipe e da descrição; nome, tipo
-        // e ativação são do admin do órgão.
-        const dados = c.ctx.isAdmin
+        // O gestor cuida da equipe e da descrição; nome, tipo, ativação e
+        // órgão são do admin da entidade ou de quem administra o órgão da unidade.
+        const estrutura = (0, context_1.administraOrgao)(c, atual.orgao_id);
+        // Delegado só leva a unidade para outro órgão que administra (nunca direto à entidade).
+        if (estrutura && !c.ctx.isAdmin && 'orgao_id' in u)
+            (0, context_1.exigirAdminDoOrgao)(c, orgaoId || null);
+        const dados = estrutura
             ? Object.assign({ nome: (0, secretaria_1.texto)(u.nome) || atual.nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), ativa: u.ativa !== false }, ('orgao_id' in u ? { orgao_id: orgaoId || null } : {})) : {};
-        if (c.ctx.isAdmin && !(0, secretaria_1.texto)(u.nome))
+        if (estrutura && !(0, secretaria_1.texto)(u.nome))
             throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
         // Unidade inativa não movimenta: desativar com processo em andamento deixaria o processo preso.
         if (dados.ativa === false && atual.ativa !== false) {
@@ -84,7 +88,7 @@ async function salvarUnidade(c, p, uid, auditar) {
             const atuais = (0, secretaria_1.lotacoesDe)((await tx.get(ref)).data() || {});
             const final = (0, secretaria_1.sanitizeLotacoes)(Array.isArray(p.lotacoes_base) ? (0, secretaria_1.mesclarLotacoes)(atuais, (0, secretaria_1.sanitizeLotacoes)(p.lotacoes_base), lotacoes) : lotacoes);
             // Gestor não tira a própria gestão (evita unidade sem ninguém que a gerencie por engano).
-            if (!c.ctx.isAdmin && !final.some((l) => l.uid === uid && l.gestor)) {
+            if (!estrutura && !final.some((l) => l.uid === uid && l.gestor)) {
                 throw new https_1.HttpsError('failed-precondition', 'Você não pode tirar a sua própria gestão da unidade; peça ao admin do órgão');
             }
             removidos = atuais.filter((l) => !final.some((x) => x.uid === l.uid)).map((l) => l.uid);
@@ -95,7 +99,8 @@ async function salvarUnidade(c, p, uid, auditar) {
         await auditar('SECRETARIA_UNIDADE_SALVA', Object.assign({ unidade_id: atual.id, nome: dados.nome || atual.nome, lotacoes: total }, (liberados ? { atribuicoes_removidas: liberados } : {})));
         return { success: true, id: atual.id, atribuicoes_removidas: liberados };
     }
-    (0, context_1.exigirAdmin)(c);
+    // Unidade nova: o admin da entidade, ou o delegado dentro de um órgão que administra.
+    (0, context_1.exigirAdminDoOrgao)(c, orgaoId || null);
     const nome = (0, secretaria_1.texto)(u.nome);
     if (!nome)
         throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
