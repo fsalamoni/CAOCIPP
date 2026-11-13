@@ -5,6 +5,23 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Andamento automático da fase
+- No rito, cada fase ganhou a seção **Andamento automático**: **seguir
+  sozinha** quando as ações obrigatórias são cumpridas (enviando o processo
+  para a unidade da fase seguinte, se for outra) e **arquivar ao entrar**,
+  para a última fase.
+- A fase pode **conduzir a consulta ou o expediente ligado** ao processo:
+  ao entrar na fase ou quando alguém assume, o registro vai para a coluna
+  escolhida (Pendente, Em elaboração, Em revisão, Revisadas, Na pasta…), com
+  data e histórico, na mesma transação do ato.
+- Tela do processo: botão **Assumir** para quem é da unidade, enquanto o
+  processo não tem responsável, e aviso de para onde o processo foi quando a
+  fase segue sozinha.
+- O que a fase faz sozinha fica em registro interno; nada disso vai às
+  partes. Se faltar documento exigido ou houver mais de uma saída, a fase
+  espera o botão.
+- Guia do rito: nova parte 8, com a tabela do exemplo de consultas.
+
 ### 13/11/2026 — Capa simples e folha de dados no PDF do processo
 - A **primeira página** do PDF traz só o órgão, o número do processo, a data
   da autuação e se está ativo ou arquivado.

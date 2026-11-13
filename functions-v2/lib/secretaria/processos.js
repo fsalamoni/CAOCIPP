@@ -25,6 +25,10 @@ const camposProcesso_1 = require("../shared/camposProcesso");
 const numeracao_1 = require("../shared/numeracao");
 const informacoes_1 = require("../shared/informacoes");
 const modulos_1 = require("../shared/modulos");
+const situacaoRegistro_1 = require("../shared/situacaoRegistro");
+const history_1 = require("../shared/history");
+const normalization_1 = require("../shared/normalization");
+const webhooks_1 = require("../shared/webhooks");
 const portalAvisos_1 = require("./portalAvisos");
 const orgaos_1 = require("../shared/orgaos");
 const orgaos_2 = require("./orgaos");
@@ -85,7 +89,7 @@ function textoCondicao(f, c) {
  * `para` null: só encerra (arquivamento).
  */
 function efeitosDaMudanca(proc, deId, para, calendario, quem) {
-    var _a, _b;
+    var _a, _b, _d;
     const hoje = (0, secretaria_1.hojeBrasil)();
     const agora = new Date().toISOString();
     const frases = [];
@@ -98,7 +102,7 @@ function efeitosDaMudanca(proc, deId, para, calendario, quem) {
         daFase.forEach((x) => interno.push(`Prazo interno da fase encerrado ${hoje <= x.vence_em ? 'no prazo' : 'fora do prazo'}: ${x.descricao}.`));
     }
     const dias = Number(para === null || para === void 0 ? void 0 : para.prazo_dias);
-    if ((para === null || para === void 0 ? void 0 : para.prazo_auto) && Number.isInteger(dias) && dias > 0 && dias <= secretaria_1.MAX_PRAZO_DIAS && prazos.length < secretaria_1.MAX_ITENS) {
+    if ((para === null || para === void 0 ? void 0 : para.prazo_auto) && !((_a = para.ao_entrar) === null || _a === void 0 ? void 0 : _a.arquivar) && Number.isInteger(dias) && dias > 0 && dias <= secretaria_1.MAX_PRAZO_DIAS && prazos.length < secretaria_1.MAX_ITENS) {
         const contagem = para.prazo_contagem === 'corridos' ? 'corridos' : 'uteis';
         const vence = (0, secretaria_1.calcularVencimento)(hoje, dias, contagem, calendario);
         prazos = [...prazos, {
@@ -108,12 +112,12 @@ function efeitosDaMudanca(proc, deId, para, calendario, quem) {
         interno.push(`Prazo interno da fase aberto: ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'}, vence em ${vence.split('-').reverse().join('/')}.`);
     }
     const campos = prazos === antes ? {} : Object.assign({ prazos }, (0, secretaria_1.derivados)((proc.pendencias || []), prazos));
-    if (((_a = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _a === void 0 ? void 0 : _a.urgente) && proc.urgente !== true) {
+    if (((_b = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _b === void 0 ? void 0 : _b.urgente) && proc.urgente !== true) {
         campos.urgente = true;
         campos.urgencia = { motivo: `Regra da fase ${para.nome}`, por: quem, em: agora };
         frases.push('Tramitação urgente pela regra da fase.');
     }
-    if (((_b = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _b === void 0 ? void 0 : _b.sem_responsavel) && proc.responsavel_uid) {
+    if (((_d = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _d === void 0 ? void 0 : _d.sem_responsavel) && proc.responsavel_uid) {
         campos.responsavel_uid = null;
         interno.push('Responsável designado retirado pela regra da fase.');
     }
@@ -126,6 +130,74 @@ function registrarInternos(tx, c, ref, proc, interno) {
     return (0, context_1.registrarMovimento)(tx, c, ref, proc, 'efeitos_fase', interno.join(' '), (0, exigencias_1.marcasDoDestino)('informacao'));
 }
 const SEM_EFEITOS = { texto: '', interno: [], campos: {} };
+const SEM_REGISTROS = new Map();
+/**
+ * Lê, dentro da transação e antes de qualquer escrita, o registro ligado de
+ * cada módulo que alguma fase do rito conduz (`situacao_registro`). Rito sem
+ * essa regra não lê nada.
+ */
+async function lerRegistrosDoRito(tx, c, proc) {
+    const modulos = [...new Set((proc.fases || []).map((f) => { var _a; return (_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo; }).filter((m) => !!m))];
+    if (!modulos.length)
+        return SEM_REGISTROS;
+    const ligadas = (0, modulos_1.integracoesDe)(c.org, await (0, modulos_1.lerFlags)(c.db));
+    const lidos = new Map();
+    for (const m of modulos) {
+        const nome = modulos_1.ROTULO_MODULO[m];
+        const alvo = (0, situacaoRegistro_1.registroDoProcesso)(proc, m);
+        if (!ligadas[m])
+            lidos.set(m, { falta: `a integração com ${nome} está desligada` });
+        else if ('falta' in alvo)
+            lidos.set(m, { falta: alvo.falta === 'varios' ? `o processo tem mais de um registro de ${nome} ligado e não nasceu de nenhum deles` : `o processo não tem registro de ${nome} ligado` });
+        else {
+            const ref = c.db.collection(modulos_1.COLECAO[m]).doc(alvo.id);
+            const d = (await tx.get(ref)).data();
+            if (!d || d.organization_id !== c.orgId)
+                lidos.set(m, { falta: `o registro de ${nome} ligado não existe mais` });
+            else if (d.anonymized === true)
+                lidos.set(m, { falta: `o registro de ${nome} ligado foi anonimizado` });
+            else
+                lidos.set(m, { ref, doc: d, modulo: m, numero: (0, modulos_1.refDe)(m, alvo.id, d).numero });
+        }
+    }
+    return lidos;
+}
+/**
+ * Põe o registro ligado na situação que a fase pede (ao entrar nela ou quando
+ * alguém assume o processo). Vai na mesma transação do ato: a fase do processo
+ * e a coluna do registro nunca ficam diferentes. Devolve o que dizer à equipe
+ * no registro interno e, se o registro foi arquivado, os dados para o webhook.
+ */
+function aplicarSituacao(tx, c, registros, fase, gatilho, proc, quem) {
+    const cfg = fase === null || fase === void 0 ? void 0 : fase.situacao_registro;
+    const alvo = cfg === null || cfg === void 0 ? void 0 : cfg[gatilho];
+    if (!fase || !cfg || !alvo)
+        return { notas: [], arquivou: null };
+    const nome = modulos_1.ROTULO_MODULO[cfg.modulo];
+    const r = registros.get(cfg.modulo);
+    if (!r || 'falta' in r)
+        return { notas: [`Situação em ${nome} não alterada: ${r ? r.falta : 'o registro ligado não foi lido'}.`], arquivou: null };
+    const m = (0, situacaoRegistro_1.mudancasDaSituacao)(r.doc, alvo, (0, secretaria_1.hojeBrasil)(), quem);
+    if (!m)
+        return { notas: [], arquivou: null };
+    const agora = new Date();
+    const entrada = {
+        date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName,
+        action: `Situação "${alvo}" pelo processo eletrônico ${proc.numero} (fase ${fase.nome})`, timestamp: agora.toISOString(),
+    };
+    // `set` com `merge`: registros importados têm campos com ponto no nome, que `update` leria como caminho.
+    tx.set(r.ref, Object.assign(Object.assign({}, m), { updated_at: firestore_1.FieldValue.serverTimestamp(), updated_by: c.ctx.uid, activity_log: firestore_1.FieldValue.arrayUnion(entrada) }), { merge: true });
+    tx.set(r.ref.collection('history').doc((0, history_1.historyEntryId)(entrada)), Object.assign(Object.assign({}, entrada), { created_at: firestore_1.FieldValue.serverTimestamp() }));
+    return {
+        notas: [`${nome} ${r.numero}: situação "${alvo}" pela regra da fase.`],
+        arquivou: m.archived_date ? { modulo: r.modulo, id: r.ref.id, numero: r.numero } : null,
+    };
+}
+/** Fase que arquiva ao entrar: o arquivamento é um ato próprio, logo depois da mudança de fase. */
+function arquivarPelaFase(tx, c, ref, proc, fase) {
+    const mov = (0, context_1.registrarMovimento)(tx, c, ref, proc, 'situacao', `Arquivado pela regra da fase ${fase.nome}.`, { de: proc.status, para: 'arquivado', automatico: true });
+    return Object.assign(Object.assign({}, mov), { status: 'arquivado' });
+}
 /**
  * Saída que o rito condiciona à resposta de uma ação: seguir por ela sem a
  * resposta que a indica pede motivo (fica no movimento como contra a condição).
@@ -293,7 +365,7 @@ function resumo(id, d) {
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l;
+    var _a, _b, _d, _e, _f, _g, _h, _j, _k;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -663,11 +735,52 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         });
         return { success: true, id: procRef.id, numero };
     }
+    return movimentar(c, p);
+});
+/**
+ * Avanço automático da fase (`avanco: 'auto'`): cumprida a última ação
+ * obrigatória, o processo segue para a saída do rito, com a remessa à unidade
+ * da fase de destino quando ela é outra. É o mesmo ato do botão "Concluir e
+ * seguir", com as mesmas conferências; se ele não couber (algo em aberto, mais
+ * de uma saída, o processo mudou), nada acontece e o botão continua na tela.
+ */
+async function avancarSozinho(c, id) {
+    var _a;
+    try {
+        const d = (await c.db.collection(context_1.COL.processos).doc(id).get()).data();
+        if (!d)
+            return null;
+        const tipo = d.campos_exigidos && d.tipo_id ? (await c.db.collection(context_1.COL.tipos).doc(String(d.tipo_id)).get()).data() : null;
+        const form = tipo && tipo.organization_id === c.orgId ? (0, camposProcesso_1.formularioDe)(tipo) : null;
+        if (exigenciasAbertas(d, form).length)
+            return null;
+        const saida = (0, secretaria_1.saidaAutomatica)(d, c.unidades.filter((u) => u.ativa !== false).map((u) => String(u.id)));
+        if (!saida)
+            return null;
+        const r = await movimentar(c, Object.assign({ organizationId: c.orgId, id, version: d.version, fase_id: saida.fase_id }, (saida.unidade_destino ? { action: 'tramitar', unidade_destino: saida.unidade_destino } : { action: 'avancarFase' })), { automatico: true });
+        const fase = (d.fases || []).find((f) => f.id === saida.fase_id);
+        return Object.assign(Object.assign({}, r), { avancou: { fase: (fase === null || fase === void 0 ? void 0 : fase.nome) || '', unidade: saida.unidade_destino ? (0, context_1.nomeUnidade)(c, saida.unidade_destino) : '', arquivado: ((_a = fase === null || fase === void 0 ? void 0 : fase.ao_entrar) === null || _a === void 0 ? void 0 : _a.arquivar) === true } });
+    }
+    catch (e) {
+        console.warn('[secretaria] avanço automático não aplicado', id, e === null || e === void 0 ? void 0 : e.message);
+        return null;
+    }
+}
+/**
+ * Movimentação de um processo existente. `opcoes.automatico`: chamada do
+ * próprio servidor (avanço automático da fase); nunca vem do cliente.
+ */
+async function movimentar(c, p, opcoes = {}) {
+    var _a;
+    const { db, orgId } = c;
+    const textoAuto = opcoes.automatico ? ' Avanço automático: as ações obrigatórias da fase foram cumpridas.' : '';
+    let tentarAuto = false;
+    let registroArquivado = null;
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
     const calendario = ['abrirPrazo', 'tramitar', 'avancarFase'].includes(String(p.action))
-        ? (0, secretaria_1.sanitizeCalendario)((_l = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _l === void 0 ? void 0 : _l.calendario)
+        ? (0, secretaria_1.sanitizeCalendario)((_a = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _a === void 0 ? void 0 : _a.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
     let expedidas = 1;
@@ -675,7 +788,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     let recebeu = null;
     let pendenciaAberta = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d, _e, _f, _g, _h, _j, _k;
+        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -686,6 +799,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (data.status === 'arquivado' && p.action !== 'alterarStatus') {
             throw new https_1.HttpsError('failed-precondition', 'Processo arquivado: reative-o antes de movimentar');
         }
+        // Registro ligado (consulta, expediente) cuja situação o rito conduz: lido antes de qualquer escrita.
+        const registros = ['tramitar', 'avancarFase', 'atribuir'].includes(String(p.action)) ? await lerRegistrosDoRito(tx, c, data) : SEM_REGISTROS;
         if (p.action === 'tramitar') {
             const destino = c.unidades.find((u) => u.id === p.unidade_destino && u.ativa !== false);
             if (!destino)
@@ -732,19 +847,27 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, novaFase === null || novaFase === void 0 ? void 0 : novaFase.id);
             // Sair do grupo da certidão conjunta: a pendente é emitida antes da remessa.
-            const em = emitirSe(!!novaFase && (0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, novaFase.id), tx, c, ref, data);
+            // A fase de destino pode arquivar ao entrar: a certidão pendente sai antes.
+            const arquiva = ((_d = novaFase === null || novaFase === void 0 ? void 0 : novaFase.ao_entrar) === null || _d === void 0 ? void 0 : _d.arquivar) === true;
+            const em = emitirSe(!!novaFase && (arquiva || (0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, novaFase.id)), tx, c, ref, data);
             if (em.proc !== data)
                 expedidas = 2;
             // A remessa já tira o responsável: os efeitos não repetem isso.
-            const ef = novaFase ? efeitosDaMudanca(Object.assign(Object.assign({}, data), { responsavel_uid: null }), String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
+            const efFase = novaFase ? efeitosDaMudanca(Object.assign(Object.assign({}, data), { responsavel_uid: null }), String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
+            const sit = aplicarSituacao(tx, c, registros, novaFase, 'ao_entrar', data);
+            registroArquivado = sit.arquivou;
+            const ef = Object.assign(Object.assign({}, efFase), { interno: [...efFase.interno, ...sit.notas] });
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + com((0, context_1.nomeUnidade)(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${ef.texto}` : ''}`
-                + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign(Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})) : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)), (idsMinutas.length ? { minutas: idsMinutas } : {})));
+                + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}${textoAuto}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (opcoes.automatico ? { automatico: true } : {})), (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign(Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})) : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)), (idsMinutas.length ? { minutas: idsMinutas } : {})));
             const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), ef.interno);
             if (ef.interno.length)
                 expedidas += 1;
+            const ma = arquiva ? arquivarPelaFase(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), mi), novaFase) : {};
+            if (arquiva)
+                expedidas += 1;
             minutas.forEach((s) => tx.update(s.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(destino.id) }));
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? Object.assign(Object.assign({ fase_atual: novaFase.id }, (0, exigencias_1.camposAoEntrarNaFase)(data, novaFase.id)), ef.campos) : {})), { orientacao: orientacao
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), ma), { unidade_atual: destino.id, unidades_historico: firestore_1.FieldValue.arrayUnion(destino.id), responsavel_uid: null, recebido_em: new Date().toISOString() }), (novaFase ? Object.assign(Object.assign({ fase_atual: novaFase.id }, (0, exigencias_1.camposAoEntrarNaFase)(data, novaFase.id)), ef.campos) : {})), { orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
                     : firestore_1.FieldValue.delete() }));
             recebeu = { unidadeId: destino.id, proc: data };
@@ -806,11 +929,11 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 // Parte que sai com comunicação aguardando ciência: a ciência por decurso correria contra quem saiu.
                 const pendente = (data.comunicacoes || []).find((x) => x.status === 'aguardando' && ret.retiradas.includes(x.parte_idx));
                 if (pendente)
-                    throw new https_1.HttpsError('failed-precondition', `${((_d = partesAntes[pendente.parte_idx]) === null || _d === void 0 ? void 0 : _d.nome) || 'A parte'} tem comunicação aguardando ciência. Torne sem efeito as comunicações pendentes antes de retirar a parte.`);
+                    throw new https_1.HttpsError('failed-precondition', `${((_e = partesAntes[pendente.parte_idx]) === null || _e === void 0 ? void 0 : _e.nome) || 'A parte'} tem comunicação aguardando ciência. Torne sem efeito as comunicações pendentes antes de retirar a parte.`);
                 const convites = db.collection(context_1.COL.convites);
                 for (const i of ret.retiradas) {
                     // Quem sai perde o portal: convites revogados e contas desligadas, também dos representantes.
-                    const _l = ret.partes[i], { uid: _u, convite_hash: hash } = _l, resto = __rest(_l, ["uid", "convite_hash"]);
+                    const _o = ret.partes[i], { uid: _u, convite_hash: hash } = _o, resto = __rest(_o, ["uid", "convite_hash"]);
                     if (hash)
                         tx.set(convites.doc(hash), { revogado: true }, { merge: true });
                     const reps = (resto.representantes || []).map((_a) => {
@@ -867,12 +990,14 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             // Caixa de marcar das ações da fase: movimento interno leve, sem documento.
             const fase = (data.fases || []).find((f) => f.id === data.fase_atual);
             const idx = Number(p.acao_idx);
-            const acao = (_e = fase === null || fase === void 0 ? void 0 : fase.acoes) === null || _e === void 0 ? void 0 : _e[idx];
+            const acao = (_f = fase === null || fase === void 0 ? void 0 : fase.acoes) === null || _f === void 0 ? void 0 : _f[idx];
             if (!fase || !acao)
                 throw new https_1.HttpsError('invalid-argument', 'Ação da fase inválida');
-            const regra = (_f = fase.acoes_regras) === null || _f === void 0 ? void 0 : _f[idx];
+            const regra = (_g = fase.acoes_regras) === null || _g === void 0 ? void 0 : _g[idx];
             if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'orientacao')
                 throw new https_1.HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
+            // Fase que segue sozinha: cumprida uma ação obrigatória, o servidor confere, depois deste ato, se era a última.
+            tentarAuto = fase.avanco === 'auto' && p.feita !== false && (regra === null || regra === void 0 ? void 0 : regra.obrigatoria) === true && !opcoes.automatico;
             const respostas = (0, exigencias_1.respostasDaFase)(data);
             // Ação condicional: só vale com a resposta que o rito pede.
             if (p.feita !== false && !(0, exigencias_1.acaoAtiva)(fase, idx, respostas)) {
@@ -966,10 +1091,15 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (alvo && !((unidade === null || unidade === void 0 ? void 0 : unidade.membros_uids) || []).includes(alvo)) {
                 throw new https_1.HttpsError('invalid-argument', 'A pessoa precisa estar lotada na unidade que tem o processo');
             }
-            const nomeAlvo = alvo ? ((_g = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _g === void 0 ? void 0 : _g.user_name) || 'membro' : '';
+            const nomeAlvo = alvo ? ((_h = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _h === void 0 ? void 0 : _h.user_name) || 'membro' : '';
+            // A fase pode mudar a situação do registro ligado quando alguém assume (ex.: a consulta entra em elaboração).
+            const faseAtual = (data.fases || []).find((f) => f.id === data.fase_atual);
+            const sit = alvo ? aplicarSituacao(tx, c, registros, faseAtual, 'ao_assumir', data, { uid: String(alvo), nome: (0, normalization_1.formatPersonName)(String(nomeAlvo)) }) : { notas: [], arquivou: null };
+            registroArquivado = sit.arquivou;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'atribuicao', alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', Object.assign({ responsavel_uid: alvo }, (0, exigencias_1.marcasNaFase)(data, 'atribuicao')));
-            tx.update(ref, Object.assign(Object.assign({}, mov), { responsavel_uid: alvo }));
-            return mov;
+            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign({}, data), mov), sit.notas);
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), mi), { responsavel_uid: alvo }));
+            return Object.assign(Object.assign({}, mov), mi);
         }
         if (p.action === 'avancarFase') {
             const fases = (data.fases || []);
@@ -990,29 +1120,37 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const contraCondicao = foraDoFluxo ? null : foraDaCondicao(data, alvo.id);
             if (contraCondicao && !motivo)
                 throw new https_1.HttpsError('invalid-argument', `O rito leva a ${alvo.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
-            const de = ((_h = fases.find((f) => f.id === data.fase_atual)) === null || _h === void 0 ? void 0 : _h.nome) || data.fase_atual;
+            const de = ((_j = fases.find((f) => f.id === data.fase_atual)) === null || _j === void 0 ? void 0 : _j.nome) || data.fase_atual;
             const dispensadas = dispensarExigencias(data, motivo, formAtual);
             const destinoMov = dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
             // Motivo longo não se resume numa certidão conjunta: a mudança tem termo próprio.
             const grupo = (0, exigencias_1.grupoDe)(alvo);
-            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`;
-            const junta = !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= exigencias_1.MAX_ITEM_CERTIDAO && (0, exigencias_1.mudancaNaCertidao)(fases, data.fase_atual, alvo.id);
+            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}${textoAuto}`;
+            // A fase de destino pode arquivar ao entrar: a certidão pendente sai antes e a mudança tem termo próprio.
+            const arquiva = ((_k = alvo.ao_entrar) === null || _k === void 0 ? void 0 : _k.arquivar) === true;
+            const junta = !arquiva && !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= exigencias_1.MAX_ITEM_CERTIDAO && (0, exigencias_1.mudancaNaCertidao)(fases, data.fase_atual, alvo.id);
             const item = { seq: 0, fase_id: data.fase_atual, texto: descricao.replace(/\.$/, ''), autor: c.userName, em: new Date().toISOString(), partes: destinoMov === 'autos' };
-            const em = emitirSe((0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
+            const em = emitirSe(arquiva || (0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data)
                 expedidas = 2;
-            const ef = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName);
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})), (dispensadas.length ? { dispensadas } : {})), (junta ? Object.assign({ consolidada: true }, (0, exigencias_1.marcasDoDestino)('nenhum')) : (0, exigencias_1.marcasDoDestino)(destinoMov))));
+            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName);
+            const sit = aplicarSituacao(tx, c, registros, alvo, 'ao_entrar', data);
+            registroArquivado = sit.arquivou;
+            const ef = Object.assign(Object.assign({}, efFase), { interno: [...efFase.interno, ...sit.notas] });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (opcoes.automatico ? { automatico: true } : {})), (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})), (dispensadas.length ? { dispensadas } : {})), (junta ? Object.assign({ consolidada: true }, (0, exigencias_1.marcasDoDestino)('nenhum')) : (0, exigencias_1.marcasDoDestino)(destinoMov))));
             const consolidacao = junta
                 ? { consolidacao: itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) })) }
                 : {};
             const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), consolidacao), ef.interno);
             if (ef.interno.length)
                 expedidas += 1;
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), consolidacao), { fase_atual: alvo.id }), (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id)), ef.campos));
-            return mov;
+            const ma = arquiva ? arquivarPelaFase(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), mi), alvo) : {};
+            if (arquiva)
+                expedidas += 1;
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), ma), consolidacao), { fase_atual: alvo.id }), (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id)), ef.campos));
+            return Object.assign(Object.assign(Object.assign({}, mov), mi), ma);
         }
         if (p.action === 'urgencia') {
             const urgente = p.urgente === true;
@@ -1028,7 +1166,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (p.action === 'expedirComunicacao') {
             if (data.status !== 'em_tramitacao')
                 throw new https_1.HttpsError('failed-precondition', 'O processo não está em tramitação');
-            const lista = (_j = p.comunicacao) === null || _j === void 0 ? void 0 : _j.partes_idx;
+            const lista = (_l = p.comunicacao) === null || _l === void 0 ? void 0 : _l.partes_idx;
             expedidas = Array.isArray(lista) ? new Set(lista).size || 1 : 1;
             return (0, comunicacoes_1.expedir)(tx, c, ref, data, p.comunicacao, cfgCom);
         }
@@ -1088,7 +1226,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }
         if (p.action === 'resolverPendencia') {
             // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (((_k = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _k === void 0 ? void 0 : _k.tipo) !== 'gabinete') {
+            if (((_m = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _m === void 0 ? void 0 : _m.tipo) !== 'gabinete') {
                 throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
@@ -1216,6 +1354,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     });
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
     void (0, portalAvisos_1.avisarPartesDoMovimento)(db, String(p.id), undefined, expedidas);
+    // Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro.
+    const ra = registroArquivado;
+    if (ra) {
+        void (0, webhooks_1.fireOrgWebhook)(orgId, 'archived', ra.modulo === 'consultas'
+            ? { entity_type: 'process', entity_id: ra.id, process_number: ra.numero }
+            : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
+    }
     const r = recebeu;
     if (r)
         void (0, avisosEquipe_1.avisarUnidadeRecebeu)(c, r.unidadeId, r.proc, String(p.id), motivo || (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO));
@@ -1231,6 +1376,11 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         }).catch(() => false) : false;
         return { success: true, version: resultado.version, link, emailEnviado: enviado };
     }
+    if (tentarAuto) {
+        const auto = await avancarSozinho(c, String(p.id));
+        if (auto)
+            return auto;
+    }
     return { success: true, version: resultado.version };
-});
+}
 //# sourceMappingURL=processos.js.map

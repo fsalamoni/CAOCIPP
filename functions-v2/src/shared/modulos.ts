@@ -27,7 +27,7 @@ export const DADOS_REGISTRO: Record<Modulo, Record<string, 'texto' | 'data'>> = 
     juri: { comarca: 'texto', data_juri: 'data' },
     paginas: {},
 };
-const COLECAO: Record<Modulo, string> = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris', paginas: 'customRecords' };
+export const COLECAO: Record<Modulo, string> = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris', paginas: 'customRecords' };
 
 /**
  * Registro de outro módulo, como fica no processo. `restrito`: a origem tem

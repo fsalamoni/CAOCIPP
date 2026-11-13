@@ -186,6 +186,11 @@ informado.
   **arquivamento** encerra; desarquivar é ato motivado.
 - **Paralelismo.** O motor do SIGO anda uma fase por vez; etapas paralelas
   do desenho viram sequência.
+- **Impulso automático.** O rito pode mandar a fase seguir sozinha quando as
+  ações obrigatórias são cumpridas e arquivar ao entrar na última fase. É o
+  mesmo ato de quem cumpriu a ação, com as mesmas permissões e o mesmo
+  registro; o termo diz que foi automático. Nunca escolhe entre duas saídas
+  nem dispensa documento exigido: na dúvida, espera o botão.
 
 ## 8. Prazos
 
@@ -233,6 +238,7 @@ informado.
 | Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |
 | Minuta | Trabalho interno da unidade (`minutaAcessivel`); segue com o processo quando marcada na remessa (`unidades_acesso`), sem constar do termo |
 | Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a secretaria expede, sempre nos autos |
+| Impulso automático | `fase.avanco: 'auto'` (`saidaAutomatica`), `fase.ao_entrar.arquivar` e `fase.situacao_registro` (coluna da consulta ou do expediente ligado, `functions-v2/src/shared/situacaoRegistro.ts`), aplicados em `functions-v2/src/secretaria/processos.ts` |
 | Impedimento de parte | `ehParte` em `functions-v2/src/shared/secretaria.ts` |
 
 ## 12. Antes de mexer no Processo Eletrônico

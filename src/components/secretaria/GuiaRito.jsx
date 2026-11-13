@@ -129,7 +129,27 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <Termo nome="Orientação a quem cumpre">Texto curto que aparece abaixo da ação, na tela do processo.</Termo>
                             </ul>
                         </Parte>
-                        <Parte titulo="8. Exemplo: a fase Recebimento de uma consulta">
+                        <Parte titulo="8. Andamento automático da fase">
+                            <p>Em <strong>Andamento automático</strong>, a fase pode andar sem que ninguém precise lembrar do passo seguinte.</p>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Seguir sozinha">Cumprida a última ação obrigatória, o processo vai para a próxima fase. Se ela corre em outra unidade, ele é enviado para lá no mesmo ato. Com mais de uma saída, a fase segue quando a resposta de uma ação indicar uma só. Se ainda faltar documento ou dado exigido, nada acontece e o botão Concluir continua na tela.</Termo>
+                                <Termo nome="Arquivar ao entrar">Para a última fase do rito. O processo é arquivado assim que chega nela, com quem fez e a data nos autos.</Termo>
+                                <Termo nome="Consulta ou expediente ligado">A fase diz em que coluna do quadro de Consultas (ou de Expedientes) o registro fica quando o processo entra nela e quando alguém assume o processo. Vale para o registro de onde o processo nasceu, ou para o único ligado a ele.</Termo>
+                                <Termo nome="Assumir">Na tela do processo, quem é da unidade vê o botão <strong>Assumir</strong> enquanto o processo não tem responsável. Onde esse registro fica, você escolhe em Registros, na linha "Atribuir a uma pessoa".</Termo>
+                            </ul>
+                            <p>O que a fase faz sozinha fica num registro só da equipe, nos eventos do processo. Quando o processo não tem consulta ligada, o registro diz isso e nada muda no quadro.</p>
+                            <table className={tabela}>
+                                <thead><tr><th>Fase do exemplo</th><th>Ao entrar, a consulta fica</th><th>Outras regras</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Recebimento</td><td>Não muda</td><td>Segue sozinha</td></tr>
+                                    <tr><td>Análise</td><td>Pendente</td><td>Ao assumir: Em elaboração</td></tr>
+                                    <tr><td>Revisão</td><td>Em revisão</td><td></td></tr>
+                                    <tr><td>Devolução</td><td>Revisadas</td><td>Segue sozinha</td></tr>
+                                    <tr><td>Arquivamento</td><td>Na pasta</td><td>Arquiva ao entrar</td></tr>
+                                </tbody>
+                            </table>
+                        </Parte>
+                        <Parte titulo="9. Exemplo: a fase Recebimento de uma consulta">
                             <table className={tabela}>
                                 <thead><tr><th>Ação</th><th>O que pede</th><th>Quando vale</th></tr></thead>
                                 <tbody>

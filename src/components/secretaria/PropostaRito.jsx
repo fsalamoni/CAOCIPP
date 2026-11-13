@@ -30,6 +30,8 @@ import { TIPOS_UNIDADE, copiarTexto } from './comum';
 import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
 import GuiaRito from './GuiaRito';
+import AndamentoDaFase from './AndamentoDaFase';
+import { MODULOS_SITUACAO, resumoAndamento } from '@/lib/andamentoFase';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -93,6 +95,14 @@ export function pendenciasDaProposta(p, ligadas = null) {
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um registro de ${mod}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou mude o que a ação pede.` });
             }
         });
+        const sit = f.situacao_registro;
+        if (sit?.modulo && ligadas && !ligadas[sit.modulo]) {
+            out.push({ fase: f.id, grave: true, texto: `${rot} muda a situação em ${MODULOS_SITUACAO.find(([m]) => m === sit.modulo)?.[1] || sit.modulo}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou tire a regra em "Andamento automático".` });
+        }
+        if (sit?.modulo && !sit.ao_entrar && !sit.ao_assumir) out.push({ fase: f.id, texto: `${rot} escolheu um registro para conduzir, mas não disse a situação: a regra é descartada ao salvar.` });
+        if (f.avanco === 'auto' && !f.final && !(f.acoes_regras || []).some((r, k) => r?.obrigatoria && (f.acoes || [])[k]?.trim())) {
+            out.push({ fase: f.id, texto: `${rot} segue sozinha, mas não tem ação obrigatória: ela só segue pelo botão.` });
+        }
         const semTexto = (f.acoes || []).filter((a) => !a.trim()).length;
         if (semTexto) out.push({ fase: f.id, texto: `${rot} tem ${plural(semTexto, 'ação sem texto, que é descartada', 'ações sem texto, que são descartadas')} ao salvar.` });
         const semDescricao = (f.documentos || []).filter((d) => !(d.descricao || '').trim()).length;
@@ -665,7 +675,7 @@ function Revisao({
                             {p.fases.map((f, i) => (
                                 <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
                                     aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
-                                    nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d) => mudarFase(f.id, d)}
+                                    nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d) => mudarFase(f.id, d)} ligadas={ligadas}
                                     mover={(d) => { mover(i, d); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${i + d + 1} de ${p.fases.length}.`); }}
                                     moverPara={(para) => { moverPara(i, para); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${para + 1} de ${p.fases.length}.`); }} remover={() => remover(f.id)}
                                     inserirAbaixo={() => inserirAbaixo(i)} duplicar={() => duplicar(i)}
@@ -931,7 +941,7 @@ function Secao({ titulo, resumo, abertaDe = false, children }) {
 
 function CartaoFase({
     f, i, total, fases, existentes, unidadesNovas, nomeModelo, modelos, mudar, mover, moverPara, remover, inserirAbaixo, duplicar, novaUnidade, addModelo,
-    aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas,
+    aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas, ligadas,
 }) {
     const [novoModelo, setNovoModelo] = useState('');
     const outras = fases.filter((x) => x.id !== f.id);
@@ -1026,6 +1036,9 @@ function CartaoFase({
                 <AoEntrarNaFase f={f} i={i} mudar={mudar} />
             </Secao>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
+            <Secao titulo="Andamento automático" resumo={resumoAndamento(f).join('; ') || 'a fase só anda pelo botão'}>
+                <AndamentoDaFase f={f} mudar={mudar} ligadas={ligadas} />
+            </Secao>
             <Secao titulo="Registros, certidão conjunta e documentos" resumo={nDocs ? plural(nDocs, 'documento pedido', 'documentos pedidos') : 'onde fica cada ato da fase'}>
                 <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} aplicarATodas={outrosEmTodas} />
             </Secao>
