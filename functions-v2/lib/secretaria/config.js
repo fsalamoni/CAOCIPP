@@ -29,6 +29,7 @@ const importarModelo_1 = require("./importarModelo");
 const conversao_1 = require("./conversao");
 const modulos_1 = require("../shared/modulos");
 const unidades_1 = require("./unidades");
+const migrarRito_1 = require("./migrarRito");
 var documentoConfig_2 = require("./documentoConfig");
 Object.defineProperty(exports, "TIPOS_DOCUMENTO_PADRAO", { enumerable: true, get: function () { return documentoConfig_2.TIPOS_DOCUMENTO_PADRAO; } });
 /**
@@ -324,6 +325,11 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         return (0, unidades_1.salvarUnidade)(c, p, auth.uid, audit);
     if (p.action === 'excluirUnidade')
         return (0, unidades_1.excluirUnidade)(c, p, auth.uid, audit);
+    // Levar processos em andamento para a versão atual do rito (só o admin; o próprio migrarRito confere).
+    if (p.action === 'migrarRito') {
+        exigirAtivo();
+        return (0, migrarRito_1.migrarRito)(c, p, audit);
+    }
     if (p.action === 'salvarOrgao')
         return (0, orgaos_2.salvarOrgao)(c, p, auth.uid, audit);
     if (p.action === 'removerOrgao')

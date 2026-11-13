@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Levar processos para a versão nova do rito
+- No menu de um rito com mais de uma versão, **Atualizar processos** mostra
+  quantos processos em andamento ou sobrestados estão em versões anteriores,
+  por versão e fase, e os leva para a versão atual. Quem está numa fase que
+  deixou de existir vai para a fase que o admin escolher.
+- O que já foi feito na fase (ações, respostas, documentos exigidos) segue
+  pelo texto da ação e pela descrição do documento. Nada dos autos muda; cada
+  processo ganha um registro interno, fora do portal das partes.
+- Só o admin do órgão; até 300 processos por vez.
+
 ### 13/11/2026 — Processo Eletrônico mais claro e mais fácil no celular
 - **Glossário**: botão "?" ao lado de autos, autuar, certidão conjunta,
   ciência por decurso, dispensa, juntada, remessa e sobrestar, com uma

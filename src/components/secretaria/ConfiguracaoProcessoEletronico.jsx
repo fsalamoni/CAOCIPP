@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plug, Plus, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import ConfiguracaoCalendario from './ConfiguracaoCalendario';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
 import HistoricoConfiguracao from './HistoricoConfiguracao';
 import VersoesDialog from './VersoesDialog';
+import MigrarRitoDialog from './MigrarRitoDialog';
 import EstruturaOrgaos from './Orgaos';
 import { TextosComunicacao } from './Comunicacoes';
 import { BloqueioRito, CartaoComMenu, ConfirmarExclusao, Excluidos, LixeiraConfiguracao } from './Lixeira';
@@ -186,6 +187,7 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
         onPedidoAtendido?.();
     }, [pedido]);
     const [excluir, setExcluir] = useState(null);
+    const [migrar, setMigrar] = useState(null);
     const tiposDe = (id) => (estado.tipos || []).filter((t) => t.rito_id === id);
     const bloqueio = excluir && tiposDe(excluir.id).length ? <BloqueioRito tipos={tiposDe(excluir.id)} onAbrirTipo={(id) => { setExcluir(null); onAbrirTipo(id); }} /> : null;
     return (
@@ -203,7 +205,8 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
                 {estado.ritos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400 md:col-span-2">Nenhum rito ainda. Sem rito não dá para autuar: comece por <b>Novo rito</b> (há modelos prontos) ou importe o fluxo de um arquivo.</p>}
                 {estado.ritos.map((r) => (
                     <CartaoComMenu key={r.id} nome={r.nome} className={item} onEditar={() => setAberto({ rito: r })} onDuplicar={() => setAberto({ copia: r })}
-                        onExcluir={() => setExcluir({ colecao: 'rito', id: r.id, nome: r.nome })}>
+                        onExcluir={() => setExcluir({ colecao: 'rito', id: r.id, nome: r.nome })}
+                        extras={r.versao > 1 ? [{ rotulo: 'Atualizar processos', icone: RefreshCw, onSelect: () => setMigrar(r) }] : []}>
                         <div className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o rito </span>{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{r.fases.length} fases: {r.fases.map((f) => f.nome).join(' → ')}</p>
                         {tiposDe(r.id).length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Usado por: {tiposDe(r.id).map((t) => t.nome).join(', ')}</p>}
@@ -217,6 +220,7 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
                     extra={aberto.rito && <VersoesDialog orgId={orgId} colecao="rito" id={aberto.rito.id} nome={aberto.rito.nome} estado={estado} onRestaurado={() => setAberto(null)} />} />
             )}
             <ConfirmarExclusao orgId={orgId} alvo={excluir} onFechar={() => setExcluir(null)} bloqueio={bloqueio} />
+            {migrar && <MigrarRitoDialog orgId={orgId} rito={migrar} onFechar={() => setMigrar(null)} />}
         </Card>
     );
 }

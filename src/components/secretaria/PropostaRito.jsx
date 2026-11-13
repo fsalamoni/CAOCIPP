@@ -361,7 +361,7 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
                                 apagarRascunho(orgId, rito?.id);
                                 setRascunho(null);
                                 if (editando && !payload.unidades.length && !payload.modelos.length && !payload.tipo_processo) {
-                                    toast.success(`Rito salvo (versão ${r.versao}). Processos em andamento seguem com a versão com que foram autuados.`);
+                                    toast.success(`Rito salvo (versão ${r.versao}). Processos em andamento seguem com a versão com que foram autuados; para trazê-los, use "Atualizar processos" no menu do rito.`);
                                     fechar();
                                     return;
                                 }
