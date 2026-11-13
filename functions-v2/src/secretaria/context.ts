@@ -11,6 +11,7 @@ import {
     podeVer,
 } from '../shared/secretaria';
 import { geraTermo, visivelParaPartes } from '../shared/autos';
+import { orgaosAdministrados, orgaosDe } from '../shared/orgaos';
 
 export const REGION = 'southamerica-east1';
 
@@ -37,8 +38,13 @@ export interface Contexto {
     ctx: ContextoUsuario;
     userName: string;
     unidades: Array<{ id: string } & admin.firestore.DocumentData>;
-    /** Unidades ativas em que o usuário é gestor (configura a unidade). */
+    /**
+     * Unidades que o usuário configura: ativas em que é gestor e, como admin
+     * delegado, todas (inclusive inativas) dos órgãos internos que administra.
+     */
     gestorDe: string[];
+    /** Órgãos internos que o usuário administra por delegação (com os subordinados). */
+    adminOrgaos?: string[];
 }
 
 export function exigirAuth(request: { auth?: { uid: string; token: Record<string, unknown> } }) {
@@ -59,12 +65,13 @@ export async function carregarContexto(
         throw new HttpsError('invalid-argument', 'organizationId é obrigatório');
     }
     const db = admin.firestore();
-    const [memSnap, orgSnap, unSnap] = await Promise.all([
+    const [memSnap, orgSnap, unSnap, cfgSnap] = await Promise.all([
         db.collection('userOrganizations').doc(`${auth.uid}_${orgId}`).get(),
         db.collection('organizations').doc(orgId).get(),
         // ponytail: lê todas as unidades do órgão e filtra em memória (dezenas,
         // não milhares); trocar por um índice de lotação se passar de centenas.
         db.collection(COL.unidades).where('organization_id', '==', orgId).get(),
+        db.collection(COL.config).doc(orgId).get(),
     ]);
     if (!memSnap.exists || !orgSnap.exists || memSnap.data()?.active === false) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização');
@@ -81,7 +88,10 @@ export async function carregarContexto(
     const unidades = unSnap.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string } & admin.firestore.DocumentData));
     const ativas = unidades.filter((u) => u.ativa !== false);
     const unidadeIds = ativas.filter((u) => lotacoesDe(u).some((l) => l.uid === auth.uid)).map((u) => u.id);
-    const gestorDe = ativas.filter((u) => lotacoesDe(u).some((l) => l.uid === auth.uid && l.gestor)).map((u) => u.id);
+    const adminOrgaos = orgaosAdministrados(orgaosDe(cfgSnap.data()?.orgaos), auth.uid);
+    const gestorDe = unidades.filter((u) => !u.excluida && (
+        (u.ativa !== false && lotacoesDe(u).some((l) => l.uid === auth.uid && l.gestor)) || (!!u.orgao_id && adminOrgaos.includes(String(u.orgao_id)))
+    )).map((u) => u.id);
     return {
         db,
         orgId,
@@ -90,7 +100,22 @@ export async function carregarContexto(
         userName: String(auth.token.name || mem.user_name || mem.user_email || 'Usuário'),
         unidades,
         gestorDe,
+        adminOrgaos,
     };
+}
+
+/** Admin da entidade ou admin delegado do órgão interno `orgaoId`. */
+export function administraOrgao(c: Contexto, orgaoId: unknown): boolean {
+    return c.ctx.isAdmin || (!!orgaoId && (c.adminOrgaos || []).includes(String(orgaoId)));
+}
+
+/** Admin da entidade, ou admin delegado quando há órgão interno (vazio = só a entidade). */
+export function exigirAdminDoOrgao(c: Contexto, orgaoId: unknown) {
+    if (!administraOrgao(c, orgaoId)) {
+        throw new HttpsError('permission-denied', orgaoId
+            ? 'Só o admin da entidade ou quem administra este órgão interno pode fazer isso'
+            : 'É preciso a permissão "Configurar Processo Eletrônico"');
+    }
 }
 
 export function exigirAdmin(c: Contexto) {

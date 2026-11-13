@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ESTRUTURAS, descendentes, emArvore, problemasEstrutura, unidadeComOrgao, unidadesDoOrgao } from './orgaos.js';
+import { ESTRUTURAS, descendentes, emArvore, orgaosDoDelegado, problemasEstrutura, unidadeComOrgao, unidadesDoOrgao } from './orgaos.js';
+
+test('admin delegado vê só o que administra, a partir do órgão delegado; o admin vê tudo', () => {
+    const orgaos = [{ id: 'pres', pai_id: null }, { id: 'dir', pai_id: 'pres' }, { id: 'setor', pai_id: 'dir' }, { id: 'cons', pai_id: null }];
+    assert.equal(orgaosDoDelegado({ isAdmin: true, orgaos }), null);
+    const v = orgaosDoDelegado({ isAdmin: false, orgaos, adminOrgaos: ['dir', 'setor'] });
+    assert.deepEqual(v.map((o) => [o.id, o.nivel, o.raiz, o.pai_id]), [['dir', 1, true, 'pres'], ['setor', 2, false, 'dir']]);
+    assert.deepEqual(orgaosDoDelegado({ isAdmin: false, orgaos }), []);
+});
 
 test('organograma: subordinados logo abaixo; superior sumido vai para o primeiro nível', () => {
     const l = [{ id: 'c', pai_id: 'b' }, { id: 'a', pai_id: null }, { id: 'b', pai_id: 'a' }, { id: 'x', pai_id: 'sumiu' }];

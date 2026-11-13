@@ -34,6 +34,17 @@ export function emArvore(orgaos, chave = 'id', chavePai = 'pai_id') {
     return out;
 }
 
+/**
+ * Admin delegado: só os órgãos que administra, em árvore a partir dos que lhe
+ * foram delegados (`raiz`). Para o admin da entidade, null (vê todos).
+ */
+export function orgaosDoDelegado(estado) {
+    if (!estado || estado.isAdmin) return null;
+    const meus = new Set(estado.adminOrgaos || []);
+    const lista = (estado.orgaos || []).filter((o) => meus.has(o.id)).map((o) => ({ ...o, raiz: !meus.has(o.pai_id), pai_vis: meus.has(o.pai_id) ? o.pai_id : null }));
+    return emArvore(lista, 'id', 'pai_vis').map(({ pai_vis, ...o }) => o);
+}
+
 /** Um órgão e todos os que estão abaixo dele (não podem ser o superior dele). */
 export function descendentes(orgaos, id) {
     const ids = new Set([id]);

@@ -13,6 +13,8 @@ export type Natureza = typeof NATUREZAS[number];
 export const MAX_ORGAOS = 60;
 export const MAX_NIVEIS = 6;
 export const MAX_COMPETENCIAS = 20;
+/** Admins delegados por órgão interno. */
+export const MAX_ADMINS_ORGAO = 10;
 const MAX_COMPETENCIA = 300;
 
 export interface Orgao {
@@ -26,6 +28,12 @@ export interface Orgao {
     decisao: 'singular' | 'colegiada';
     titular_cargo: string;
     titular_uid: string | null;
+    /**
+     * Admins delegados: configuram este órgão, os subordinados e as unidades
+     * deles (dados, equipe, modelos). Ritos, tipos e integrações seguem com o
+     * admin da entidade.
+     */
+    admins_uids: string[];
     competencias: string[];
     descricao: string;
     ordem: number;
@@ -56,6 +64,7 @@ export function sanitizeOrgao(raw: unknown, id: string, ordem = 0): Orgao {
         decisao: o.decisao === 'colegiada' ? 'colegiada' : 'singular',
         titular_cargo: texto(o.titular_cargo, 80),
         titular_uid: typeof o.titular_uid === 'string' && o.titular_uid ? o.titular_uid.slice(0, 128) : null,
+        admins_uids: [...new Set((Array.isArray(o.admins_uids) ? o.admins_uids : []).filter((x): x is string => typeof x === 'string' && !!x).map((x) => x.slice(0, 128)))].slice(0, MAX_ADMINS_ORGAO),
         competencias: sanitizeCompetencias(o.competencias),
         descricao: texto(o.descricao, 1000),
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
@@ -71,6 +80,41 @@ export function orgaosDe(raw: unknown): Orgao[] {
         try { out.push(sanitizeOrgao(o, String((o as { id?: unknown })?.id || ''), i)); } catch { /* ignora item inválido */ }
     }
     return out;
+}
+
+/**
+ * Órgãos que `uid` administra por delegação: aqueles em que está em
+ * `admins_uids` e todos os que ficam abaixo deles.
+ */
+export function orgaosAdministrados(orgaos: Orgao[], uid: string): string[] {
+    const porId = new Map(orgaos.map((o) => [o.id, o]));
+    return orgaos.filter((o) => {
+        // O contador protege de ciclo em dado antigo (validarEstrutura já o recusa ao gravar).
+        for (let a: Orgao | undefined = o, n = 0; a && n <= orgaos.length; a = a.pai_id ? porId.get(a.pai_id) : undefined, n++) {
+            if (a.admins_uids.includes(uid)) return true;
+        }
+        return false;
+    }).map((o) => o.id);
+}
+
+/**
+ * Admin delegado (sem ser admin da entidade) salvando o órgão `novo`:
+ * só mexe no que administra. No órgão que lhe foi delegado (a raiz), não
+ * muda o superior nem os admins; abaixo dela, cria, move e indica admins
+ * desde que tudo fique dentro do que administra. Lança com a explicação.
+ */
+export function conferirDelegado(atuais: Orgao[], uid: string, novo: Orgao): void {
+    const meus = new Set(orgaosAdministrados(atuais, uid));
+    const atual = atuais.find((o) => o.id === novo.id);
+    if (atual && !meus.has(atual.id)) throw new Error('Você não administra este órgão interno');
+    const raiz = !!atual && !(atual.pai_id && meus.has(atual.pai_id));
+    if (raiz) {
+        const mesmos = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+        if ((novo.pai_id || null) !== (atual!.pai_id || null)) throw new Error('Só o admin da entidade muda o órgão superior deste órgão');
+        if (!mesmos(novo.admins_uids, atual!.admins_uids)) throw new Error('Só o admin da entidade muda quem administra este órgão');
+        return;
+    }
+    if (!novo.pai_id || !meus.has(novo.pai_id)) throw new Error('Escolha como superior um órgão que você administra');
 }
 
 /** Nível de cada órgão na árvore (1 = ligado à entidade); lança se houver ciclo ou pai inexistente. */

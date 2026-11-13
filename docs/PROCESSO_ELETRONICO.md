@@ -918,12 +918,28 @@ direto a ela) ou **composta** por órgãos em árvore.
   `validarEstrutura`: sem ciclo, superior existente, nome único entre irmãos,
   limites; `emArvore`; `sanitizeProposta`). A lista é validada inteira, em
   transação, a cada gravação (`functions-v2/src/secretaria/orgaos.ts`).
-- **Ações de `secretariaConfig`** (só admin): `salvarOrgao {id?, orgao}`,
+- **Ações de `secretariaConfig`** (admin; veja o admin delegado abaixo): `salvarOrgao {id?, orgao}`,
   `removerOrgao {id}` (recusa órgão com unidades ou subordinados) e
   `criarEstrutura {orgaos: [{chave, pai_chave, ..., unidades: [{nome, tipo}]}]}`
   (assistente; soma aos existentes). `estado` devolve `orgaos` na ordem do
   organograma, com `nivel`. `salvarUnidade` e `salvarTipo` validam
   `orgao_id` e só o alteram quando o campo vem no pedido.
+- **Admin delegado** (nov/2026): `orgao.admins_uids` (até 10 membros
+  ativos). `orgaosAdministrados(orgaos, uid)` dá os órgãos em que a pessoa
+  está em `admins_uids` e todos os abaixo deles; `carregarContexto` lê
+  `secConfig` e guarda em `c.adminOrgaos`, e `gestorDe` passa a incluir as
+  unidades desses órgãos (também inativas, para reativar), o que libera
+  equipe, convites, pedidos, timbrado e modelos da unidade pelo
+  `exigirGestor` de sempre. `exigirAdminDoOrgao(c, orgaoId)` cobre o que
+  antes era só do admin: dados da unidade e unidade nova (`salvarUnidade`,
+  sempre dentro de órgão administrado, nunca direto na entidade) e modelos de
+  órgão interno (`salvarModelo`, `importarModelo`, `excluirModelo`,
+  `restaurar`, `versoes`). `salvarOrgao` confere com `conferirDelegado`
+  dentro da transação: no órgão delegado (raiz) não muda `pai_id` nem
+  `admins_uids`; abaixo dele, o superior tem de ser órgão administrado.
+  `removerOrgao` aceita do delegado órgão abaixo da raiz, com destino
+  administrado. `estado` devolve `adminOrgaos`; ritos, tipos, integrações,
+  histórico e preferências seguem com `exigirAdmin`. `podeVer` não muda.
 - **Processo:** `autuar` recusa tipo de um órgão por unidade de outro;
   `tramitar` entre órgãos diferentes escreve "Remetido de Órgão › Unidade
   para Órgão › Unidade" e grava `orgao_de`/`orgao_para` nos dados do

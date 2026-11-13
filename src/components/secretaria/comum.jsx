@@ -64,7 +64,7 @@ export const modelosDaUnidade = (estado, unidadeId) => {
     return (estado.modelos || []).filter((m) => m.ativo && (m.unidade_id ? m.unidade_id === unidadeId : !m.orgao_id || m.orgao_id === orgao));
 };
 
-export function NativeSelect({ label, value, onChange, options, id }) {
+export function NativeSelect({ label, value, onChange, options, id, disabled = false }) {
     const selId = id || `sel-${label}`;
     return (
         <div>
@@ -73,7 +73,8 @@ export function NativeSelect({ label, value, onChange, options, id }) {
                 id={selId}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900"
+                disabled={disabled}
+                className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900 disabled:opacity-60"
             >
                 {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
