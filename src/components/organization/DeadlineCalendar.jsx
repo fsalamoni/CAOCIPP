@@ -4,9 +4,11 @@
 // ----------------------------------------------------------------------------
 // Mostra, num calendário mensal, os dias em que há entrada, distribuição,
 // remessa/devolução de revisão ou arquivamento de Consultas, Expedientes e
-// Parcerias (PGEA, assinatura, termo final, aviso de renovação) do órgão.
+// Parcerias (PGEA, assinatura, termo final, aviso de renovação) do órgão, e
+// os prazos abertos dos processos eletrônicos (`pe`, resumo de `listar`).
 // Clicar num dia lista os itens daquele dia; clicar num item leva à lista
-// (Consultas/Expedientes/Parcerias) com o número/PGEA já preenchido na busca.
+// (Consultas/Expedientes/Parcerias) com o número/PGEA já preenchido na busca,
+// ou abre o processo eletrônico. A legenda mostra só o que há no calendário.
 // ============================================================================
 
 import React, { useMemo, useState } from 'react';
@@ -39,11 +41,14 @@ const PARCERIA_EVENT_FIELDS = [
     { field: 'renewal_notice_date', label: 'Aviso de renovação', dot: 'bg-emerald-500' },
 ];
 
+const PE_DOT = 'bg-indigo-500';
+const TIPO = { processo: 'Consulta', expediente: 'Expediente', parceria: 'Parceria', pe: 'Processo eletrônico' };
+
 function dayKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export default function DeadlineCalendar({ organization, processes = [], expedientes = [], parcerias = [] }) {
+export default function DeadlineCalendar({ organization, processes = [], expedientes = [], parcerias = [], pe = [], onAbrirPe, peEstado = 'ok' }) {
     const navigate = useNavigate();
     const [cursor, setCursor] = useState(() => {
         const d = new Date();
@@ -77,8 +82,14 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
         processes.forEach((p) => addRecord(p, 'processo', EVENT_FIELDS, (r) => r.process_number));
         expedientes.forEach((e) => addRecord(e, 'expediente', EVENT_FIELDS, (r) => r.expediente_number));
         parcerias.forEach((p) => addRecord(p, 'parceria', PARCERIA_EVENT_FIELDS, (r) => r.pgea));
+        // Processo eletrônico: um evento por prazo aberto (servidor antigo: só o próximo vencimento).
+        pe.forEach((p) => {
+            const prazos = p.prazos_abertos ?? (p.proximo_vencimento && p.status === 'em_tramitacao' ? [{ vence_em: p.proximo_vencimento }] : []);
+            prazos.forEach((x) => addRecord({ id: p.id, numero: p.numero, d: x.vence_em }, 'pe',
+                [{ field: 'd', label: x.descricao ? `Prazo: ${x.descricao}` : 'Prazo', dot: PE_DOT }], (r) => r.numero));
+        });
         return map;
-    }, [processes, expedientes, parcerias]);
+    }, [processes, expedientes, parcerias, pe]);
 
     const year = cursor.getFullYear();
     const month = cursor.getMonth();
@@ -92,12 +103,27 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
         return arr;
     }, [firstWeekday, daysInMonth, year, month]);
 
+    // Legenda só com o que aparece no mês da tela (no Painel do PE não há Entrada nem Distribuição).
+    const legenda = useMemo(() => {
+        const vistos = new Map();
+        for (const d of cells) {
+            for (const e of (d && eventsByDay.get(dayKey(d))) || []) {
+                const label = e.kind === 'pe' ? 'Prazo do processo eletrônico' : e.label;
+                if (!vistos.has(label)) vistos.set(label, e.dot);
+            }
+        }
+        return [...vistos.entries()];
+    }, [cells, eventsByDay]);
+
     const todayKey = dayKey(new Date());
     const selectedEvents = selectedDayKey ? (eventsByDay.get(selectedDayKey) || []) : [];
 
     const goToRecord = (evt) => {
         if (!organization?.id) return;
-        if (evt.kind === 'processo') {
+        if (evt.kind === 'pe') {
+            if (onAbrirPe) onAbrirPe(evt.id);
+            else navigate(`${createPageUrl('ProcessoEletronico')}?org=${organization.id}&p=${encodeURIComponent(evt.id)}`);
+        } else if (evt.kind === 'processo') {
             localStorage.setItem('processSearchTerm', evt.number || '');
             navigate(`${createPageUrl('Organization')}?id=${organization.id}&tab=processes`);
         } else if (evt.kind === 'expediente') {
@@ -166,6 +192,8 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                                 <button
                                     key={key}
                                     type="button"
+                                    aria-label={`${date.getDate()} de ${PT_MONTHS_FULL[month]}${dayEvents.length ? `: ${dayEvents.length} evento(s)` : ''}`}
+                                    aria-pressed={isSelected}
                                     onClick={() => setSelectedDayKey(dayEvents.length > 0 ? key : null)}
                                     className={cn(
                                         'aspect-square rounded-lg border p-1.5 flex flex-col items-start justify-between text-left transition-colors',
@@ -193,8 +221,11 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                        {EVENT_FIELDS.map(({ field, label, dot }) => (
-                            <div key={field} className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        {peEstado === 'carregando' && <p role="status" className="text-xs text-slate-500 dark:text-slate-400">Carregando os prazos dos processos eletrônicos…</p>}
+                        {peEstado === 'erro' && <p role="status" className="text-xs text-amber-700 dark:text-amber-300">Não foi possível carregar os prazos dos processos eletrônicos.</p>}
+                        {!legenda.length && peEstado === 'ok' && <p className="text-xs text-slate-500 dark:text-slate-400">Nada com data neste mês.</p>}
+                        {legenda.map(([label, dot]) => (
+                            <div key={label} className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                                 <span className={cn('w-2 h-2 rounded-full', dot)} />
                                 {label}
                             </div>
@@ -226,11 +257,11 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                                     <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                                         {evt.number || '(sem número)'}
                                     </span>
-                                    <span className="text-xs text-slate-400 dark:text-slate-400 shrink-0">
-                                        {evt.kind === 'processo' ? 'Consulta' : evt.kind === 'parceria' ? 'Parceria' : 'Expediente'}
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                                        {TIPO[evt.kind] || 'Expediente'}
                                     </span>
                                 </div>
-                                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">{evt.label}</span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400 truncate min-w-0">{evt.label}</span>
                             </button>
                         ))}
                     </CardContent>

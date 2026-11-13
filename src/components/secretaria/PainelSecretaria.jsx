@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { secProcesso } from '@/services/secretariaService';
 import { rotuloUnidade } from './comum';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
+import DeadlineCalendar from '@/components/organization/DeadlineCalendar';
 
 const hojeBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somar = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -45,6 +46,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
             pendentes: ativos.filter((p) => p.pendencia_desde).sort((a, b) => a.pendencia_desde.localeCompare(b.pendencia_desde)).slice(0, 8),
             idadeMedia: ativos.length ? Math.round(ativos.reduce((s, p) => s + (p.autuado_em ? dias(p.autuado_em) : 0), 0) / ativos.length) : 0,
             hoje,
+            ativosLista: ativos,
         };
     }, [q.data, unidade]);
 
@@ -70,6 +72,11 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 </select>
                 <p className="text-sm text-slate-600 dark:text-slate-400">Idade média dos processos em tramitação: {m.idadeMedia} dias</p>
             </div>
+            {q.data?.truncado && (
+                <p role="status" className="text-sm rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 px-3 py-2">
+                    Mostrando os 5.000 processos mais recentes: os números podem estar incompletos.
+                </p>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 {kpis.map(({ rotulo, valor, icone: Icone, cor }) => (
                     <div key={rotulo} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
@@ -125,6 +132,10 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                     </CardContent>
                 </Card>
             </div>
+            <section aria-label="Prazos no calendário" className="space-y-2">
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Prazos no calendário</h3>
+                <DeadlineCalendar organization={{ id: orgId }} pe={m.ativosLista} onAbrirPe={onAbrir} />
+            </section>
         </div>
     );
 }

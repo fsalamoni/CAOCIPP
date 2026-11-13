@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { secProcesso } from '@/services/secretariaService';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses, useExpedientes, useParcerias, useOrganizationMembers, useOrganizationRealtime, useOrganizationUserNameMap } from '@/hooks/useFirestore';
@@ -90,6 +92,15 @@ export default function Organization() {
   const customEntitiesOn = useFlag(FEATURE_FLAGS.CUSTOM_ENTITIES.key);
   const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
   const deadlineCalendarOn = useFlag(FEATURE_FLAGS.DEADLINE_CALENDAR.key);
+  // Prazos do Processo Eletrônico no calendário: a mesma lista do Painel do PE
+  // (só os processos que a pessoa vê), lida só com a aba do calendário aberta.
+  const peLigado = organization?.secretariaConfig?.enabled === true && organization?.secretariaConfig?.suspensa_plataforma !== true;
+  const peCalendario = useQuery({
+    queryKey: ['sec-processos', organization?.id, 'todos'],
+    queryFn: () => secProcesso(organization.id, 'listar', { escopo: 'todos' }),
+    enabled: !!organization?.id && peLigado && deadlineCalendarOn && activeTab === 'calendar',
+    retry: false, staleTime: 60_000,
+  });
   // Flag global do módulo de Parcerias: quando DESLIGADA, as abas e a página
   // de Parcerias não aparecem em nenhum órgão, mesmo que o órgão tenha a
   // chave `moduleConfig.parcerias.enabled = true` (defesa em profundidade).
@@ -477,6 +488,8 @@ export default function Organization() {
               processes={processes}
               expedientes={expedientes}
               parcerias={parcerias}
+              pe={peCalendario.data?.processos || []}
+              peEstado={!peCalendario.isFetched && peCalendario.fetchStatus === 'fetching' ? 'carregando' : peCalendario.isError ? 'erro' : 'ok'}
             />
           )}
 

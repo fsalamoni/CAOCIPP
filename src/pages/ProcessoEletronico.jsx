@@ -132,13 +132,16 @@ export default function ProcessoEletronico() {
                 <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Processo Eletrônico desativado</h1>
                 <p className="text-slate-600 dark:text-slate-300">
                     {estado?.isAdmin
-                        ? 'Ative e configure o módulo no Painel Administrativo do órgão, seção Processo Eletrônico.'
+                        ? 'Ative aqui ou no Painel Administrativo do órgão, seção Processo Eletrônico. Na primeira ativação, a plataforma cria a unidade "Secretaria" com você lotado como gestor e um "Rito comum".'
                         : 'Peça ao administrador do órgão para ativar o Processo Eletrônico.'}
                 </p>
-                {/* Quem não é admin não vê o Painel Administrativo: vai para a página inicial do órgão. */}
-                <Button variant="outline" onClick={() => navigate(`${createPageUrl('Organization')}?id=${orgId}${estado?.isAdmin ? '&tab=admin&secao=secretaria' : ''}`)}>
-                    {estado?.isAdmin ? 'Abrir a configuração' : 'Ir para o órgão'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                    {estado?.isAdmin && <AtivarAgora orgId={orgId} />}
+                    {/* Quem não é admin não vê o Painel Administrativo: vai para a página inicial do órgão. */}
+                    <Button variant="outline" onClick={() => navigate(`${createPageUrl('Organization')}?id=${orgId}${estado?.isAdmin ? '&tab=admin&secao=secretaria' : ''}`)}>
+                        {estado?.isAdmin ? 'Abrir a configuração' : 'Ir para o órgão'}
+                    </Button>
+                </div>
             </div>
             </>
         );
@@ -608,5 +611,26 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/** Ativa o PE da própria página desativada (o servidor confere que é admin). */
+function AtivarAgora({ orgId }) {
+    const qc = useQueryClient();
+    const [salvando, setSalvando] = useState(false);
+    const ativar = async () => {
+        setSalvando(true);
+        try {
+            await secConfig(orgId, 'ativar', { enabled: true });
+            await qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
+            toast.success('Processo Eletrônico ativado');
+        } catch (e) {
+            toast.error(e?.message || 'Não foi possível ativar');
+        } finally { setSalvando(false); }
+    };
+    return (
+        <Button onClick={ativar} disabled={salvando} className="gap-1">
+            {salvando && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />} {salvando ? 'Ativando…' : 'Ativar agora'}
+        </Button>
     );
 }

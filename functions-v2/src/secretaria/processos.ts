@@ -334,6 +334,12 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         pendencias_abertas: d.pendencias_abertas || 0,
         fase_suspensa: d.fase_suspensa === true,
         proximo_vencimento: d.proximo_vencimento || null,
+        // Calendário: até 5 prazos abertos (data e descrição curta), só em tramitação. Sem destinatário.
+        prazos_abertos: d.status === 'em_tramitacao'
+            ? ((d.prazos || []) as Prazo[]).filter((x) => x.status === 'aberto' && x.vence_em)
+                .sort((a, b) => String(a.vence_em).localeCompare(String(b.vence_em))).slice(0, 5)
+                .map((x) => ({ vence_em: x.vence_em, descricao: String(x.descricao || '').slice(0, 60) }))
+            : [],
         comunicacoes_aguardando: d.comunicacoes_aguardando || 0,
         // Pesquisa e painéis.
         rito_id: d.rito_id || null,

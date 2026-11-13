@@ -209,7 +209,7 @@ export const FEATURE_FLAGS = {
         key: 'deadline_calendar',
         label: 'Vista de calendário de vencimentos',
         description:
-            'Adiciona uma aba de calendário mensal com as datas relevantes (distribuição, revisão, arquivamento) de Consultas e Expedientes do órgão.',
+            'Adiciona uma aba de calendário mensal com as datas relevantes de Consultas, Expedientes e Parcerias do órgão e os prazos abertos dos processos eletrônicos que a pessoa vê.',
         category: 'Prazos',
         risk: 'low',
         default: false,
