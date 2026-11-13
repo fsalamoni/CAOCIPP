@@ -11,7 +11,7 @@ import {
     DESTINO_INFO, DESTINOS_DOCUMENTO, MAX_CAMPOS_ACAO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
-    QUEM, VE, podeReservar, acoesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes,
+    QUEM, VE, podeReservar, alternativasPossiveis, chaveDaCondicao, fontesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes, soOrienta,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
@@ -88,22 +88,28 @@ function EscolhaDestino({ id, valor, opcoes, onChange, acao, fase, documento }) 
 }
 
 /**
- * Condição pela resposta de uma ação de escolha (lista ou sim/não) da fase: qual
- * ação e quais respostas. `limite`: só ações antes dele (ação condicional).
+ * Condição pela resposta de uma ação de escolha (lista ou sim/não) da fase, ou
+ * de um campo de escolha do formulário de uma ação: de onde vem a resposta e
+ * quais respostas. `limite`: só ações antes dele (ação condicional).
  */
 export function CondicaoPorResposta({ id, f, limite = Infinity, valor, onChange, rotulo, vazio }) {
-    const escolhas = acoesDeEscolha(f, limite);
-    if (!escolhas.length && !valor) {
-        return <p className="text-xs text-slate-600 dark:text-slate-400">{rotulo}: {vazio.toLowerCase()}. Para condicionar, crie {limite === Infinity ? 'nesta fase' : 'antes dela'} uma ação que pede escolha (lista ou sim/não).</p>;
+    const fontes = fontesDeEscolha(f, limite);
+    if (!fontes.length && !valor) {
+        return <p className="text-xs text-slate-600 dark:text-slate-400">{rotulo}: {vazio.toLowerCase()}. Para condicionar, crie {limite === Infinity ? 'nesta fase' : 'antes dela'} uma ação que pede escolha (lista ou sim/não) ou um formulário com um campo de escolha.</p>;
     }
-    const ops = valor ? opcoesDaResposta(f.acoes_regras?.[valor.acao]) || [] : [];
+    const ops = valor ? opcoesDaResposta(f.acoes_regras?.[valor.acao], valor.campo) || [] : [];
     const problema = problemaDaCondicao(f, valor, limite);
-    const opcoes = [['', vazio], ...escolhas.map(([i, a]) => [String(i), `Conforme a resposta de "${a.trim()}"`])];
-    if (valor && !escolhas.some(([i]) => i === valor.acao)) opcoes.push([String(valor.acao), `Ação ${valor.acao + 1} (não serve mais)`]);
+    const opcoes = [['', vazio], ...fontes.map((s) => [chaveDaCondicao(s), `Conforme ${s.rotulo}`])];
+    if (valor && !fontes.some((s) => chaveDaCondicao(s) === chaveDaCondicao(valor))) opcoes.push([chaveDaCondicao(valor), `Ação ${valor.acao + 1} (não serve mais)`]);
     return (
         <div className="space-y-1">
-            <NativeSelect id={`${id}-acao`} label={rotulo} value={valor ? String(valor.acao) : ''} options={opcoes}
-                onChange={(v) => onChange(v === '' ? undefined : { acao: Number(v), valores: [] })} />
+            <NativeSelect id={`${id}-acao`} label={rotulo} value={valor ? chaveDaCondicao(valor) : ''} options={opcoes}
+                onChange={(v) => {
+                    if (v === '') return onChange(undefined);
+                    // '2' é a ação 2; '2.sistema' é o campo "sistema" do formulário dela.
+                    const [a, ...campo] = v.split('.');
+                    return onChange({ acao: Number(a), ...(campo.length ? { campo: campo.join('.') } : {}), valores: [] });
+                }} />
             {valor && ops.length > 0 && (
                 <div role="group" aria-label={`Respostas que fazem valer: ${rotulo}`} className="flex flex-wrap gap-x-4 gap-y-1 pl-1">
                     {ops.map(([v, l]) => (
@@ -138,6 +144,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
         // Nos autos toda a equipe lê: o dado deixa de ser reservado.
         : set({ destino: v === 'evento' ? undefined : v, autos: undefined, partes: (v !== 'nenhum' && partesVeem(r)) || undefined, ...(['autos', 'consolidar'].includes(v) ? { ve: undefined } : {}) }));
     // Por que a parte não pode ver (a opção fica visível, desligada, com o motivo).
+    const alternativas = alternativasPossiveis(f, i);
     const semPartes = r?.ve ? 'Dado reservado a quem gere a unidade não vai ao portal.'
         : dest === 'nenhum' ? 'Sem evento nunca aparece no portal.'
         : pede === 'confirmar' && !['autos', 'consolidar'].includes(dest) ? 'Só confirmar, fora dos autos, não tem o que mostrar: escolha "Nos autos" ou peça um dado.' : null;
@@ -150,6 +157,20 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     onChange(v === 'registro' && !r?.modulo ? { ...n, modulo: MODULOS.find(([m]) => ligadas?.[m])?.[0] || 'consultas' } : n);
                 }} options={PEDIDOS} />
             </div>
+            {soOrienta(r) && (
+                <>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Aparece na tela do processo como um lembrete da fase. Ninguém marca, não gera registro e não impede a fase de seguir.</p>
+                    <div>
+                        <Label htmlFor={`${id}-aj`}>Detalhe da orientação</Label>
+                        <Input id={`${id}-aj`} className="mt-1" value={r?.ajuda || ''} maxLength={200} placeholder="Opcional: aparece abaixo da ação, na tela do processo"
+                            onChange={(e) => set({ ajuda: e.target.value || undefined })} />
+                    </div>
+                    <div className="sm:max-w-sm">
+                        <CondicaoPorResposta id={`${id}-se`} f={f} limite={i} valor={r?.se} rotulo="Quando vale" vazio="Sempre" onChange={(se) => set({ se })} />
+                    </div>
+                </>
+            )}
+            {!soOrienta(r) && <>
             <EscolhaDestino id={`${id}-dest`} valor={dest} onChange={setDestino} acao={acao} fase={fase}
                 documento={pede === 'documento'} opcoes={pede === 'documento' ? DESTINOS_DOCUMENTO : Object.entries(DESTINO_INFO).map(([d, x]) => [d, x.rotulo])} />
             {pede !== 'confirmar' && pede !== 'documento' && (
@@ -217,7 +238,18 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                         </p>
                     </div>
                 )}
+                {pede !== 'documento' && (alternativas.length > 0 || Number.isInteger(r?.ou)) && (
+                    <div>
+                        <NativeSelect id={`${id}-ou`} label="Alternativa a" value={Number.isInteger(r?.ou) ? String(r.ou) : ''}
+                            onChange={(v) => set({ ou: v === '' ? undefined : Number(v) })}
+                            options={[['', 'Nenhuma: vale por si'], ...alternativas.map(([k, a]) => [String(k), `"${a.trim()}"`])]} />
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                            {Number.isInteger(r?.ou) ? 'Cumprida uma das duas, a outra deixa de ser cobrada.' : 'Para "faça isto ou aquilo": escolha a ação anterior que esta substitui.'}
+                        </p>
+                    </div>
+                )}
             </div>
+            </>}
         </div>
     );
 }

@@ -69,10 +69,11 @@ function exigenciasAbertas(proc, form) {
  */
 /** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial. */
 function textoCondicao(f, c) {
-    var _a, _b;
+    var _a, _b, _d;
     const r = (_a = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _a === void 0 ? void 0 : _a[c.acao];
-    const rot = (v) => ((r === null || r === void 0 ? void 0 : r.pede) === 'sim_nao' ? (v === 'sim' ? 'Sim' : 'Não') : v);
-    return `"${(r === null || r === void 0 ? void 0 : r.rotulo) || ((_b = f === null || f === void 0 ? void 0 : f.acoes) === null || _b === void 0 ? void 0 : _b[c.acao]) || 'a resposta'}" for ${c.valores.map(rot).join(' ou ')}`;
+    const simNao = (c.campo ? (_d = (_b = r === null || r === void 0 ? void 0 : r.campos) === null || _b === void 0 ? void 0 : _b.find((x) => x.id === c.campo)) === null || _d === void 0 ? void 0 : _d.tipo : r === null || r === void 0 ? void 0 : r.pede) === 'sim_nao';
+    const rot = (v) => (simNao ? (v === 'sim' ? 'Sim' : 'Não') : v);
+    return `"${(0, exigencias_1.rotuloDaCondicao)(f, c)}" for ${c.valores.map(rot).join(' ou ')}`;
 }
 /**
  * O que o rito faz ao trocar de fase (ou na autuação, sem fase de origem):
@@ -171,7 +172,7 @@ const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fas
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
 async function valorDaAcao(c, regra, acao, bruto) {
     const pede = (0, exigencias_1.pedidoDaAcao)(regra);
-    if (pede === 'confirmar' || pede === 'documento')
+    if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao')
         return null;
     const rotulo = (regra === null || regra === void 0 ? void 0 : regra.rotulo) || acao;
     if (pede === 'formulario') {
@@ -870,6 +871,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (!fase || !acao)
                 throw new https_1.HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = (_f = fase.acoes_regras) === null || _f === void 0 ? void 0 : _f[idx];
+            if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'orientacao')
+                throw new https_1.HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
             const respostas = (0, exigencias_1.respostasDaFase)(data);
             // Ação condicional: só vale com a resposta que o rito pede.
             if (p.feita !== false && !(0, exigencias_1.acaoAtiva)(fase, idx, respostas)) {
@@ -909,14 +912,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
             // Resposta de escolha guardada na rodada da fase: as ações e saídas condicionadas a leem.
-            const respondeu = (0, exigencias_1.opcoesDaResposta)(regra) !== null;
+            // No formulário, cada campo de escolha preenchido responde por si ('2.sistema').
+            const respondeu = (0, exigencias_1.respondeNaRodada)(regra);
             const todasRespostas = Object.assign({}, (data.acoes_respostas || {}));
             if (respondeu) {
-                const daFase = Object.assign({}, (todasRespostas[fase.id] || {}));
+                const daFase = Object.fromEntries(Object.entries(todasRespostas[fase.id] || {}).filter(([k]) => !(0, exigencias_1.respostaDaAcao)(k, idx)));
                 if (feita && dado)
-                    daFase[String(idx)] = (0, exigencias_1.chaveDaResposta)(dado.valor);
-                else
-                    delete daFase[String(idx)];
+                    Object.assign(daFase, (0, exigencias_1.respostasDaAcao)(regra, idx, dado.valor));
                 todasRespostas[fase.id] = daFase;
             }
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, CheckCircle2, Eye, FilePen, Send } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Eye, FilePen, Info, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
-import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao, acaoAtiva, opcoesDaResposta, saidasComCondicao, textoCondicao } from '@/lib/exigencias';
+import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao, acaoAtiva, camposDeEscolha, opcoesDaResposta, saidasComCondicao, soOrienta, textoCondicao } from '@/lib/exigencias';
 
 /** Rascunho do editor de rito (unidade_ref, modelos_ref) no formato do rito gravado. */
 const doRascunho = (r) => ({
@@ -129,19 +129,23 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                         <ul className="space-y-1.5">{acoes.map(({ a, k, r }) => {
                                             const ativa = acaoAtiva(fase, k, sim);
                                             const ops = opcoesDaResposta(r);
+                                            // O que se simula: a resposta da ação, ou cada campo de escolha do formulário dela.
+                                            const simulaveis = ops ? [{ chave: String(k), rotulo: 'Simular resposta', ops }]
+                                                : camposDeEscolha(r).filter((c) => c.id).map((c) => ({ chave: `${k}.${c.id}`, rotulo: `Simular "${c.rotulo || 'campo'}"`, ops: opcoesDaResposta(r, c.id) || [] }));
                                             return (
-                                                <li key={k} className={`flex items-start gap-2 text-sm ${ativa ? '' : 'text-slate-600 dark:text-slate-400'}`}><Checkbox disabled aria-label={a} className="mt-0.5" />
+                                                <li key={k} className={`flex items-start gap-2 text-sm ${ativa ? '' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                    {soOrienta(r) ? <Info className="w-4 h-4 mt-0.5 shrink-0 text-indigo-700 dark:text-indigo-300" aria-hidden /> : <Checkbox disabled aria-label={a} className="mt-0.5" />}
                                                     <div className="min-w-0 flex-1">
-                                                        <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· pede {resumoDaAcao(r)}{ativa ? '' : ` · vale só se ${textoCondicao(fase, r.se)}`}</span></span>
-                                                        {ops && ativa && (
-                                                            <label className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">Simular resposta:
-                                                                <select value={sim[k] ?? ''} onChange={(e) => setSim((s) => { const n = { ...s }; if (e.target.value) n[k] = e.target.value; else delete n[k]; return n; })}
+                                                        <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· {soOrienta(r) ? '' : 'pede '}{resumoDaAcao(r)}{ativa ? '' : ` · vale só se ${textoCondicao(fase, r.se)}`}</span></span>
+                                                        {ativa && simulaveis.map((s) => (
+                                                            <label key={s.chave} className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">{s.rotulo}:
+                                                                <select value={sim[s.chave] ?? ''} onChange={(e) => setSim((x) => { const n = { ...x }; if (e.target.value) n[s.chave] = e.target.value; else delete n[s.chave]; return n; })}
                                                                     className="h-11 sm:h-8 w-full sm:w-auto max-w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
                                                                     <option value="">(sem resposta)</option>
-                                                                    {ops.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                                                    {s.ops.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                                                                 </select>
                                                             </label>
-                                                        )}
+                                                        ))}
                                                     </div>
                                                 </li>
                                             );

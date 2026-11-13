@@ -36,12 +36,14 @@ export function SelosAcao({ r }) {
  * Uma ação da fase. `info`: a informação registrada nesta rodada da fase (se a ação pede um dado).
  * `onMarcar(feita, valor)` chama o servidor.
  */
-export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, onMarcar, onRegistrar, onDesfazer }) {
+export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer }) {
     const pede = pedidoDaAcao(r);
     // Reservada pelo rito a outra pessoa: quem tem o processo vê por quê não pode cumprir.
-    const aviso = reservada && !feita && (
+    // `nota`: recado sobre a ação pendente (ex.: a alternativa já foi cumprida).
+    const aviso = !feita && (reservada || nota) && (
         <span className="block text-xs text-slate-600 dark:text-slate-400">
-            {r?.quem === 'responsavel' ? 'Só o responsável designado cumpre esta ação (use "Atribuir" se for o caso).' : 'Só quem gere a unidade cumpre esta ação.'}
+            {reservada && (r?.quem === 'responsavel' ? 'Só o responsável designado cumpre esta ação (use "Atribuir" se for o caso).' : 'Só quem gere a unidade cumpre esta ação.')}
+            {reservada && nota ? ' ' : ''}{nota}
         </span>
     );
     if (pede === 'confirmar') {

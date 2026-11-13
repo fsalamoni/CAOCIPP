@@ -11,7 +11,7 @@ import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
-    tituloCertidao, visivelCertidao, acaoAtiva, chaveDaResposta, condicaoAtendida, opcoesDaResposta, respostasDaFase, Condicao,
+    tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, rotuloDaCondicao, Condicao,
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
 import {
@@ -143,8 +143,9 @@ function exigenciasAbertas(proc: admin.firestore.DocumentData, form?: Formulario
 /** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial. */
 function textoCondicao(f: Fase | undefined, c: Condicao): string {
     const r = f?.acoes_regras?.[c.acao];
-    const rot = (v: string) => (r?.pede === 'sim_nao' ? (v === 'sim' ? 'Sim' : 'Não') : v);
-    return `"${r?.rotulo || f?.acoes?.[c.acao] || 'a resposta'}" for ${c.valores.map(rot).join(' ou ')}`;
+    const simNao = (c.campo ? r?.campos?.find((x) => x.id === c.campo)?.tipo : r?.pede) === 'sim_nao';
+    const rot = (v: string) => (simNao ? (v === 'sim' ? 'Sim' : 'Não') : v);
+    return `"${rotuloDaCondicao(f, c)}" for ${c.valores.map(rot).join(' ou ')}`;
 }
 
 /**
@@ -252,7 +253,7 @@ const textoDispensa = (d: string[]) => (d.length ? ` Dispensado o que o rito exi
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
 async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regra: RegraAcao | null | undefined, acao: string, bruto: unknown) {
     const pede = pedidoDaAcao(regra);
-    if (pede === 'confirmar' || pede === 'documento') return null;
+    if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao') return null;
     const rotulo = regra?.rotulo || acao;
     if (pede === 'formulario') {
         // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).
@@ -962,6 +963,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const acao = fase?.acoes?.[idx];
             if (!fase || !acao) throw new HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = fase.acoes_regras?.[idx];
+            if (regra?.pede === 'orientacao') throw new HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
             const respostas = respostasDaFase(data);
             // Ação condicional: só vale com a resposta que o rito pede.
             if (p.feita !== false && !acaoAtiva(fase, idx, respostas)) {
@@ -997,11 +999,12 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (feita) lista.add(idx); else lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
             // Resposta de escolha guardada na rodada da fase: as ações e saídas condicionadas a leem.
-            const respondeu = opcoesDaResposta(regra) !== null;
+            // No formulário, cada campo de escolha preenchido responde por si ('2.sistema').
+            const respondeu = respondeNaRodada(regra);
             const todasRespostas = { ...(data.acoes_respostas || {}) } as Record<string, Record<string, string>>;
             if (respondeu) {
-                const daFase = { ...(todasRespostas[fase.id] || {}) };
-                if (feita && dado) daFase[String(idx)] = chaveDaResposta(dado.valor); else delete daFase[String(idx)];
+                const daFase = Object.fromEntries(Object.entries(todasRespostas[fase.id] || {}).filter(([k]) => !respostaDaAcao(k, idx)));
+                if (feita && dado) Object.assign(daFase, respostasDaAcao(regra, idx, dado.valor));
                 todasRespostas[fase.id] = daFase;
             }
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};

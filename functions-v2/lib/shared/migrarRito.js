@@ -56,10 +56,12 @@ function migrarEstado(proc, novas, faseDestino) {
         if (!nova || !rs || typeof rs !== 'object' || (mudouDeFase && fid === faseDestino))
             continue;
         const out = {};
+        // A chave é a ação ('2') ou um campo do formulário dela ('2.sistema'): o campo acompanha a ação.
         for (const [k, v] of Object.entries(rs)) {
-            const j = acaoNova(antigas.get(fid), nova, Number(k));
+            const [i, ...campo] = k.split('.');
+            const j = acaoNova(antigas.get(fid), nova, Number(i));
             if (j >= 0)
-                out[String(j)] = v;
+                out[[j, ...campo].join('.')] = v;
         }
         if (Object.keys(out).length)
             respostas[fid] = out;

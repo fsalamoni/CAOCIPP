@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Ações do rito com mais opções
+- **Condição por campo do formulário**: "Quando vale" e a regra da saída
+  aceitam um campo de lista ou de sim ou não do formulário de uma ação da
+  fase. Ex.: "Registrar no SIM" só vale se o campo "Sistema utilizado" dos
+  dados básicos não for SIM.
+- **Ações alternativas** ("Alternativa a"): faça isto ou aquilo. Cumprida uma,
+  a outra deixa de ser cobrada; sem nenhuma, a fase pede "A ou B".
+- **Ação que só orienta**: lembrete na tela do processo, sem caixa de marcar,
+  sem registro e sem cobrança.
+- Prévia, desenho do fluxo e guia do rito acompanham as três opções.
+
 ### 13/11/2026 — Fluxo do rito por ações e desvios, e guia do rito
 - O desenho do fluxo passa a seguir a leitura do BPMN: a **fase é a moldura**,
   cada **ação é uma caixa** dentro dela e cada "Quando vale" vira um **losango**

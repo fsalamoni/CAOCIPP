@@ -91,7 +91,7 @@ export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
@@ -101,8 +101,10 @@ export const MAX_CAMPOS_ACAO = 10;
  * Condição pela resposta de uma ação de escolha (lista ou sim/não) da mesma
  * fase: vale quando a resposta registrada está entre `valores`. Usada na ação
  * (`RegraAcao.se`: só vale nesse caso) e na saída (`Fase.condicoes_regra`).
+ * Com `campo`, a resposta é a de um campo de escolha (lista ou sim/não) do
+ * formulário que a ação pede.
  */
-export interface Condicao { acao: number; valores: string[] }
+export interface Condicao { acao: number; campo?: string; valores: string[] }
 /** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
 export const QUEM = ['responsavel', 'gestor'] as const;
 export type Quem = typeof QUEM[number];
@@ -119,7 +121,7 @@ export const PEDIDOS_RESERVAVEIS: readonly Pedido[] = ['texto', 'texto_longo', '
 export type Respostas = Record<string, Record<string, string>>;
 
 export interface RegraAcao {
-    /** Ausente = só confirmar (caixa de marcar). */
+    /** Ausente = só confirmar (caixa de marcar). 'orientacao': não se marca, só orienta quem está na fase. */
     pede?: Exclude<Pedido, 'confirmar' | 'documento'>;
     /** Nome do dado pedido (ex.: "Número no SIM"). Ausente = o texto da ação. */
     rotulo?: string;
@@ -141,6 +143,8 @@ export interface RegraAcao {
     recomendada?: true;
     /** Só vale (aparece e é cobrada) quando a resposta de uma ação anterior for uma destas. */
     se?: Condicao;
+    /** Alternativa a uma ação anterior da fase: cumprida uma do grupo, as outras deixam de ser cobradas. */
+    ou?: number;
     /** Quem pode cumprir. Ausente = quem tem o processo. */
     quem?: Quem;
     /** Quem da equipe vê o dado. Ausente = toda a equipe. */
@@ -220,6 +224,8 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     }
     const out: RegraAcao = {};
     if (ajuda) out.ajuda = ajuda;
+    // Só orientação: não se marca, não gera registro, não é cobrada.
+    if (pedeBruto === 'orientacao') return { ...out, pede: 'orientacao' };
     if (pedeBruto !== 'confirmar') {
         out.pede = pedeBruto;
         const rotulo = texto(r.rotulo, 80);
@@ -272,9 +278,20 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     return Object.keys(out).length ? out : null;
 }
 
-/** Opções que a resposta da ação pode ter (só ações de escolha condicionam). */
-export function opcoesDaResposta(r: RegraAcao | null | undefined): string[] | null {
+/** Campos do formulário da ação que condicionam: os de escolha, e nunca os de ação com dado reservado. */
+const camposDeEscolha = (r: RegraAcao | null | undefined): CampoDef[] =>
+    (r?.pede === 'formulario' && !r.ve ? (r.campos || []).filter((c) => c.tipo === 'lista' || c.tipo === 'sim_nao') : []);
+
+/**
+ * Opções que a resposta da ação pode ter (só ações de escolha condicionam).
+ * Com `campo`, as do campo de escolha do formulário que a ação pede.
+ */
+export function opcoesDaResposta(r: RegraAcao | null | undefined, campo?: string): string[] | null {
     if (!r || r.documento) return null;
+    if (campo) {
+        const c = camposDeEscolha(r).find((x) => x.id === campo);
+        return !c ? null : c.tipo === 'lista' ? c.opcoes || [] : ['sim', 'nao'];
+    }
     if (r.pede === 'lista') return r.opcoes || [];
     if (r.pede === 'sim_nao') return ['sim', 'nao'];
     return null;
@@ -282,6 +299,27 @@ export function opcoesDaResposta(r: RegraAcao | null | undefined): string[] | nu
 
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */
 export const chaveDaResposta = (v: unknown): string => (typeof v === 'boolean' ? (v ? 'sim' : 'nao') : String(v ?? ''));
+
+/** Onde a resposta fica na rodada da fase: '2' (a ação 2) ou '2.sistema' (o campo "sistema" do formulário da ação 2). */
+export const chaveDaCondicao = (c: { acao: number; campo?: string }): string => (c.campo ? `${c.acao}.${c.campo}` : String(c.acao));
+
+/** A chave da rodada é da ação `idx` (a própria resposta ou a de um campo dela)? */
+export const respostaDaAcao = (chave: string, idx: number): boolean => chave === String(idx) || chave.startsWith(`${idx}.`);
+
+/** A ação deixa resposta na rodada (é de escolha, ou pede formulário com campo de escolha)? */
+export const respondeNaRodada = (r: RegraAcao | null | undefined): boolean => opcoesDaResposta(r) !== null || camposDeEscolha(r).length > 0;
+
+/** O que a ação cumprida responde na rodada: { '2': 'SPU' } ou, no formulário, { '2.sistema': 'SPU' } por campo de escolha preenchido. */
+export function respostasDaAcao(r: RegraAcao | null | undefined, idx: number, valor: unknown): Record<string, string> {
+    if (opcoesDaResposta(r) !== null) return { [String(idx)]: chaveDaResposta(valor) };
+    const dados = Array.isArray(valor) ? (valor as Array<{ id?: string; valor?: unknown }>) : [];
+    const out: Record<string, string> = {};
+    for (const c of camposDeEscolha(r)) {
+        const v = dados.find((x) => x?.id === c.id)?.valor;
+        if (v !== null && v !== undefined && v !== '') out[`${idx}.${c.id}`] = chaveDaResposta(v);
+    }
+    return out;
+}
 
 /**
  * Saneia a condição contra as regras já saneadas da fase. `mapa` traduz o índice
@@ -296,11 +334,52 @@ export function sanitizeCondicao(raw: unknown, regras: Array<RegraAcao | null>, 
     const acao = mapa ? mapa.get(bruto) : bruto;
     // A ação de que dependia saiu (linha vazia): a condição sai com ela.
     if (acao === undefined) return undefined;
-    const opcoes = Number.isInteger(acao) && acao >= 0 && acao < Math.min(acoes.length, antesDe) ? opcoesDaResposta(regras[acao]) : null;
-    if (!opcoes) throw new Error(`${quem} depende da resposta de uma ação de escolha ${antesDe === Infinity ? 'desta fase' : 'anterior'}`);
+    const campo = typeof o.campo === 'string' && o.campo ? o.campo.slice(0, 24) : undefined;
+    const opcoes = Number.isInteger(acao) && acao >= 0 && acao < Math.min(acoes.length, antesDe) ? opcoesDaResposta(regras[acao], campo) : null;
+    if (!opcoes) {
+        throw new Error(campo
+            ? `${quem} depende de um campo de escolha do formulário de uma ação ${antesDe === Infinity ? 'desta fase' : 'anterior'} (sem dado reservado)`
+            : `${quem} depende da resposta de uma ação de escolha ${antesDe === Infinity ? 'desta fase' : 'anterior'}`);
+    }
     const valores = [...new Set((Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80)))].filter((v) => opcoes.includes(v));
     if (!valores.length) throw new Error(`${quem}: escolha ao menos uma resposta de "${acoes[acao]}"`);
-    return { acao, valores };
+    return { acao, ...(campo ? { campo } : {}), valores };
+}
+
+/** Rótulo do dado que a condição lê: o da ação ou o do campo do formulário. */
+export function rotuloDaCondicao(f: FaseRegras | undefined, c: Condicao): string {
+    const r = f?.acoes_regras?.[c.acao];
+    const campo = c.campo ? r?.campos?.find((x) => x.id === c.campo) : undefined;
+    return campo?.rotulo || r?.rotulo || f?.acoes?.[c.acao] || 'a resposta';
+}
+
+/**
+ * "Alternativa a": aponta para uma ação anterior da fase que se marca (não
+ * documento nem orientação). Inválida: lança com mensagem.
+ */
+function sanitizeOu(raw: unknown, regras: Array<RegraAcao | null>, acoes: string[], i: number, mapa?: Map<number, number>): number | undefined {
+    if (raw === undefined || raw === null || raw === '') return undefined;
+    const alvo = mapa ? mapa.get(Number(raw)) : Number(raw);
+    if (alvo === undefined) return undefined; // a ação de que era alternativa saiu
+    const marca = (r: RegraAcao | null) => !r?.documento && r?.pede !== 'orientacao';
+    if (!Number.isInteger(alvo) || alvo < 0 || alvo >= i || !marca(regras[alvo]) || !marca(regras[i])) {
+        throw new Error(`A ação "${acoes[i]}" só pode ser alternativa a uma ação anterior da fase que se marca (sem documento)`);
+    }
+    return alvo;
+}
+
+/** Ações do mesmo grupo de alternativas que `i` (inclui `i`). Sem alternativa, só ela. */
+export function grupoDeAlternativas(f: FaseRegras | undefined, i: number): number[] {
+    const regras = f?.acoes_regras || [];
+    // O rito só aponta para trás: a subida termina.
+    const raiz = (k: number): number => { const o = regras[k]?.ou; return typeof o === 'number' && o >= 0 && o < k ? raiz(o) : k; };
+    const r = raiz(i);
+    return (f?.acoes || []).map((_a, k) => k).filter((k) => raiz(k) === r);
+}
+
+/** Outra ação do grupo de alternativas já foi cumprida (e vale agora)? */
+export function alternativaCumprida(f: FaseRegras | undefined, i: number, feitas: Set<number>, resp: Record<string, string> | undefined): boolean {
+    return grupoDeAlternativas(f, i).some((k) => k !== i && feitas.has(k) && acaoAtiva(f, k, resp));
 }
 
 /**
@@ -310,7 +389,8 @@ export function sanitizeCondicao(raw: unknown, regras: Array<RegraAcao | null>, 
  */
 export function condicaoAtendida(c: Condicao | undefined, resp: Record<string, string> | undefined, f?: FaseRegras): boolean {
     if (!c) return true;
-    if (resp?.[String(c.acao)] === undefined || !c.valores.includes(resp[String(c.acao)])) return false;
+    const k = chaveDaCondicao(c);
+    if (resp?.[k] === undefined || !c.valores.includes(resp[k])) return false;
     // A condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
     return !f || acaoAtiva(f, c.acao, resp);
 }
@@ -370,6 +450,8 @@ export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[], map
         const b = brutas[i] as Record<string, unknown> | undefined;
         const se = sanitizeCondicao(b?.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
         if (se) regras[i] = { ...(r || {}), se };
+        const ou = sanitizeOu(b?.ou, regras, acoes, i, mapa);
+        if (ou !== undefined) regras[i] = { ...(regras[i] || {}), ou };
     });
     const documentos = (Array.isArray(fo.documentos) ? fo.documentos : [])
         .map((d) => sanitizeExigencia(d)).filter((d): d is Exigencia => !!d).slice(0, MAX_DOCUMENTOS_FASE);
@@ -406,8 +488,14 @@ export const documentosQueFaltam = (f: FaseRegras | undefined, cumpridas: Cumpri
 export function acoesObrigatoriasPendentes(f: FaseRegras | undefined, feitas: number[] | undefined, resp?: Record<string, string>) {
     if (!f) return [];
     const ok = new Set(feitas || []);
-    return (f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) && acaoAtiva(f, i, resp)
-        ? [{ descricao: a, acao_idx: i }] : []));
+    const cobrada = (i: number) => !!f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) && acaoAtiva(f, i, resp)
+        && !alternativaCumprida(f, i, ok, resp);
+    return (f.acoes || []).flatMap((_a, i) => {
+        if (!cobrada(i)) return [];
+        // Alternativas: o grupo aparece uma vez, como "A ou B" (só as que valem agora).
+        const grupo = grupoDeAlternativas(f, i).filter((k) => acaoAtiva(f, k, resp));
+        return grupo.find(cobrada) === i ? [{ descricao: grupo.map((k) => (f.acoes || [])[k]).join(' ou '), acao_idx: i }] : [];
+    });
 }
 
 export interface DocJuntado { origem: string; tipo?: string; modelo_id?: string; peticao?: boolean; /** Guardado fora dos autos. */ controle?: boolean }

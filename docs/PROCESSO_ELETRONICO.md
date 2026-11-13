@@ -806,7 +806,8 @@ passa a decidir o resto da fase:
   condiciona outras ações. Reservado nunca vai ao portal nem aos modelos
   (`partes` sai na gravação do rito). A cadeia de eventos é conferida sobre
   os movimentos completos.
-- Respostas ficam em `acoes_respostas[faseId][idx]` (só lista e sim/não), são
+- Respostas ficam em `acoes_respostas[faseId][idx]` (lista e sim/não; campo de
+  escolha de formulário em `[idx.campo]`, ver "Ações com mais opções"), são
   apagadas ao desfazer a ação e ao reentrar na fase. Regras em
   `acoes_regras[i].se = { acao, valores }`, `acoes_regras[i].quem` e
   `fases[].condicoes_regra[faseDestino] = { acao, valores }`.
@@ -844,8 +845,47 @@ passa a decidir o resto da fase:
   registros escolhidos entram nos vínculos do processo; se algum for de acesso
   restrito, as partes não veem o formulário, e o portal o esconde se um deles
   ficar restrito depois (`refsFechadas`).
-- **Resposta**: o formulário não é ação de escolha (não indica saída nem
-  condiciona outras ações); para isso, use uma ação de lista ou de sim ou não.
+- **Resposta**: cada campo de lista ou de sim ou não do formulário condiciona
+  outras ações e indica saída, como uma ação de escolha (ver a seguir).
+
+### Ações com mais opções: campo do formulário, alternativas e orientação (13/11/2026)
+
+Três opções a mais na configuração da ação (`RegrasDaFase.jsx`), validadas no
+servidor (`shared/exigencias.ts`) e espelhadas em `src/lib/exigencias.js`:
+
+- **Condição por campo do formulário**: "Quando vale" e "Regra desta saída"
+  aceitam, além da resposta de uma ação de escolha, um **campo de lista ou de
+  sim ou não** do formulário de uma ação da mesma fase ("Conforme "Sistema
+  utilizado", de "Registrar os dados básicos""). Regra:
+  `se = { acao, campo, valores }` (`campo` é o `id` do campo). Ao cumprir o
+  formulário, `marcarAcao` grava uma resposta por campo de escolha preenchido
+  em `acoes_respostas[faseId]['idx.campo']` (`respostasDaAcao`); desfazer a
+  ação tira todas (`respostaDaAcao`). Formulário com dado **reservado a quem
+  gere a unidade** não condiciona nem grava resposta, para o valor não chegar
+  a quem não pode vê-lo. A migração de rito leva a chave junto com a ação.
+  Limite: em processo que já tinha o formulário cumprido antes de a condição
+  existir, a resposta só passa a contar quando a ação for refeita. A condição
+  continua valendo só dentro da fase (não lê resposta de fase anterior).
+- **Ações alternativas** ("Alternativa a"): a ação aponta uma ação
+  **anterior** da fase que se marca (`acoes_regras[i].ou = índice`). O grupo é
+  o das ações ligadas à mesma raiz (`grupoDeAlternativas`). Cumprida uma que
+  vale agora, as outras deixam de ser cobradas e recomendadas
+  (`alternativaCumprida`); na tela do processo a pendente mostra "Dispensada:
+  a alternativa a esta ação já foi cumprida" e continua podendo ser marcada.
+  Sem nenhuma cumprida, a exigência aparece uma vez, como "A ou B". Documento
+  e orientação não entram em grupo. Ao reordenar, a marca acompanha a ação e
+  sai se a ordem inverter ou a ação apontada for removida.
+- **Só orientação** ("O que pede" = "Nada: só orienta (não se marca)",
+  `pede: 'orientacao'`): lembrete da fase ou ação que o nome da fase já diz.
+  Aparece na tela do processo com ícone de informação e o "Detalhe da
+  orientação" (`ajuda`), sem caixa de marcar. Não guarda destino, nível, quem
+  cumpre nem partes; pode ter "Quando vale". O servidor recusa marcá-la e
+  nunca a cobra. Não vai ao portal, aos autos nem aos eventos.
+- **Prévia**: simula também os campos de escolha do formulário. **Desenho**:
+  o desvio usa o rótulo do campo, "ou" aparece na ligação entre alternativas e
+  a orientação é uma caixa branca pontilhada (legenda "Orientação").
+- Testes: `functions-v2/test/acoesOpcoes.test.js`, `src/lib/exigencias.test.js`
+  e `src/lib/fluxoBpmn.test.js`.
 
 ## Urgência (nov/2026)
 
@@ -1492,7 +1532,9 @@ moldura, tracejada quando opcional) e cada **"Quando vale"** de ação vira um
 **desvio** (losango) com a condição escrita, o caminho do "sim" pelas ações
 condicionais e o do "não" contornando o grupo. `itensDaFase` monta essa lista
 (um desvio por grupo de ações seguidas com a mesma condição) e `desenharFluxo`
-dá a cada fase a altura do que ela contém. O portal das partes não passa
+dá a cada fase a altura do que ela contém. Ação alternativa leva "ou" na
+ligação que chega a ela, e a ação que só orienta é uma caixa branca pontilhada
+(não é tarefa). O portal das partes não passa
 `acoes`: a fase continua uma caixa com o nome público, sem ações nem raias.
 
 **Guia do rito** (`GuiaRito.jsx`): botão no editor de rito (na tela inicial e
