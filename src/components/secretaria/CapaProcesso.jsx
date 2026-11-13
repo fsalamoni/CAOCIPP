@@ -40,8 +40,9 @@ function Parte({ x }) {
     return (
         <li className="py-1.5">
             <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="font-medium">{x.nome}</span>
+                <span className={`font-medium ${x.retirada ? 'line-through text-slate-600 dark:text-slate-400' : ''}`}>{x.nome}</span>
                 <span className="text-slate-600 dark:text-slate-400">{POLOS[x.polo] || x.polo}{x.documento ? ` · ${x.documento}` : ''}</span>
+                {x.retirada && <Badge variant="outline">Retirada do processo</Badge>}
                 {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
             </div>
             {(x.representantes || []).length > 0 && (
@@ -105,9 +106,11 @@ function RegistrosLigados({ p, informacoes, estado }) {
 
 export default function CapaProcesso({ p, movimentos, informacoes = [], estado, nomeUnidade, cadeiaQuebradaEm, onLer, onVerEventos }) {
     const responsavel = p.responsavel_uid ? estado.membros.find((m) => m.uid === p.responsavel_uid)?.nome : null;
-    const requerentes = p.partes.filter((x) => x.polo === 'requerente');
+    // Parte retirada fica no fim, riscada; não conta como parte do processo.
+    const ativas = p.partes.filter((x) => !x.retirada);
+    const requerentes = ativas.filter((x) => x.polo === 'requerente');
     const ordemPolo = Object.keys(POLOS);
-    const partes = [...p.partes].sort((a, b) => ordemPolo.indexOf(a.polo) - ordemPolo.indexOf(b.polo));
+    const partes = [...ativas].sort((a, b) => ordemPolo.indexOf(a.polo) - ordemPolo.indexOf(b.polo)).concat(p.partes.filter((x) => x.retirada));
     const unidadeAutuacao = p.unidade_autuacao ? nomeUnidade(p.unidade_autuacao) : null;
     const dias = diasDesde(p.recebido_em);
     const atos = movimentos.filter((m) => m.origem === 'usuario');
@@ -174,7 +177,7 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
 
                 <RegistrosLigados p={p} informacoes={informacoes} estado={estado} />
 
-                <Bloco titulo={`Partes (${p.partes.length})`}>
+                <Bloco titulo={`Partes (${ativas.length})`}>
                     {partes.length
                         ? <ul className="divide-y divide-slate-100 dark:divide-slate-800">{partes.map((x, i) => <Parte key={i} x={x} />)}</ul>
                         : <p className="text-sm text-slate-600">Nenhuma parte cadastrada.</p>}

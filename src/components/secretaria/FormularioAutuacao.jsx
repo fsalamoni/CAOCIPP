@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link2, X } from 'lucide-react';
+import { Link2, Undo2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,8 +21,10 @@ const seletor = 'h-9 rounded-md border border-input bg-transparent px-2 text-sm 
 /**
  * `f` = { assunto, descricao, origem, unidade_id, sigilo, urgente, motivo_urgencia, partes, campos };
  * `unidades` = [[id, nome]]; `rito` = o que mostrar no lugar do rito; `tipo` = tipo escolhido (ou null).
+ * `retificar`: a mesma tela corrige um processo já autuado (sem unidade nem
+ * urgência; a ligação com a origem fica; parte existente sai por "Retirar").
  */
-export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', unidades = [], rito = null, tipo = null }) {
+export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', unidades = [], rito = null, tipo = null, retificar = false }) {
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     const id = (k) => `${prefixo}-${k}`;
     const rot = (k) => rotuloDe(form, k);
@@ -53,9 +55,11 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
                         Nasce de {(ROTULO_REF[f.origem.ref.modulo] || 'registro').toLowerCase()} <b className="font-mono">{f.origem.ref.numero}</b>{f.origem.ref.titulo ? ` · ${f.origem.ref.titulo}` : ''}
                         <span className="block text-xs text-indigo-900/80 dark:text-indigo-200/80">Fica na capa e no PDF da equipe, e o processo aparece no registro de origem. As partes não veem.</span>
                     </p>
-                    <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 shrink-0" aria-label="Tirar a origem" onClick={() => set('origem', { tipo: f.origem.tipo, descricao: f.origem.descricao })}>
-                        <X className="w-3.5 h-3.5" aria-hidden /> Tirar
-                    </Button>
+                    {!retificar && (
+                        <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 shrink-0" aria-label="Tirar a origem" onClick={() => set('origem', { tipo: f.origem.tipo, descricao: f.origem.descricao })}>
+                            <X className="w-3.5 h-3.5" aria-hidden /> Tirar
+                        </Button>
+                    )}
                 </div>
             )}
             {form.assunto !== 'oculto' && (
@@ -95,7 +99,7 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
             )}
             <div className="grid sm:grid-cols-3 gap-3">
                 {rito}
-                {form.unidade !== 'oculto' && (
+                {!retificar && form.unidade !== 'oculto' && (
                     <div>
                         <NativeSelect id={id('unidade')} label={rot('unidade')} value={f.unidade_id} onChange={(v) => set('unidade_id', v)} options={unidades} />
                         {ajuda('unidade')}
@@ -109,8 +113,8 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
                     </div>
                 )}
             </div>
-            {fixos.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Definido pelo tipo: {fixos.join(' · ')}.</p>}
-            {(form.urgencia !== 'oculto' || urgenteFixo) && (
+            {!retificar && fixos.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Definido pelo tipo: {fixos.join(' · ')}.</p>}
+            {!retificar && (form.urgencia !== 'oculto' || urgenteFixo) && (
                 <div className={`rounded-lg border px-3 py-2 space-y-2 ${f.urgente ? 'border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
                     <label className="flex items-center gap-2 text-sm font-medium">
                         <input type="checkbox" checked={f.urgente} disabled={urgenteFixo || form.urgencia === 'oculto'} onChange={(e) => set('urgente', e.target.checked)} />
@@ -133,17 +137,35 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
                     {ajuda('partes')}
                     {f.partes.map((pa, i) => {
                         const mudar = (d) => set('partes', f.partes.map((x, j) => (j === i ? { ...x, ...d } : x)));
+                        if (pa.retirada) {
+                            // Parte existente não se apaga: sai do processo e segue no histórico.
+                            return (
+                                <div key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm">
+                                    <span className="flex-1 min-w-0 line-through text-slate-600 dark:text-slate-400">{pa.nome} ({pa.polo})</span>
+                                    <span role="status" className="text-xs text-slate-600 dark:text-slate-400">{pa.ja_retirada ? 'retirada do processo' : `sai ao salvar${pa.portal ? ' e perde o acesso ao portal' : ''}`}</span>
+                                    {!pa.ja_retirada && (
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 gap-1" autoFocus aria-label={`Desfazer a retirada de ${pa.nome}`} onClick={() => mudar({ retirada: false })}>
+                                            <Undo2 className="w-3.5 h-3.5" aria-hidden /> Desfazer
+                                        </Button>
+                                    )}
+                                </div>
+                            );
+                        }
                         return (
                             <div key={i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end rounded-md sm:rounded-none border sm:border-0 border-slate-200 dark:border-slate-700 p-2 sm:p-0">
                                 <Input className="col-span-2 sm:col-span-4" placeholder="Nome" aria-label="Nome da parte" value={pa.nome} onChange={(e) => mudar({ nome: e.target.value })} />
                                 <Input className="sm:col-span-2" placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ" value={pa.documento} onChange={(e) => mudar({ documento: e.target.value })} />
                                 <Input className="sm:col-span-3" type="email" placeholder="E-mail (convite)" aria-label="E-mail da parte" value={pa.email || ''} onChange={(e) => mudar({ email: e.target.value })} />
-                                {polos.length > 1
+                                {polos.length > 1 || (pa.polo && !form.polos.includes(pa.polo))
                                     ? <select className={`sm:col-span-2 ${seletor}`} value={pa.polo} onChange={(e) => mudar({ polo: e.target.value })} aria-label="Polo">
+                                        {pa.polo && !form.polos.includes(pa.polo) && <option value={pa.polo}>{POLOS.find(([v]) => v === pa.polo)?.[1] || pa.polo} (fora deste tipo)</option>}
                                         {polos.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                                     </select>
                                     : <span className="sm:col-span-2 h-9 flex items-center text-sm text-slate-600 dark:text-slate-400">{polos[0]?.[1]}</span>}
-                                <Button type="button" variant="ghost" size="sm" className="sm:col-span-1" onClick={() => set('partes', f.partes.filter((_, j) => j !== i))} aria-label="Remover parte">×</Button>
+                                {pa.existente
+                                    ? <Button type="button" variant="ghost" size="sm" className="sm:col-span-1 px-1 text-xs" onClick={() => mudar({ retirada: true, ...(pa.orig || {}) })} aria-label={`Retirar ${pa.nome || 'a parte'} do processo`}
+                                        title={pa.portal ? 'Retira do processo; quem acompanha pelo portal perde o acesso' : 'Retira do processo'}>Retirar</Button>
+                                    : <Button type="button" variant="ghost" size="sm" className="sm:col-span-1" onClick={() => set('partes', f.partes.filter((_, j) => j !== i))} aria-label="Remover parte">×</Button>}
                             </div>
                         );
                     })}

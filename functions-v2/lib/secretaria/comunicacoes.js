@@ -64,6 +64,8 @@ async function expedir(tx, c, ref, data, raw, cfg) {
         const parte = partes[idx];
         if (!parte)
             throw new https_1.HttpsError('invalid-argument', 'Destinatário inválido');
+        if (parte.retirada)
+            throw new https_1.HttpsError('failed-precondition', `${parte.nome} foi retirada do processo`);
         const temConta = !!parte.uid || (parte.representantes || []).some((r) => r.uid);
         if (!ped.outro_meio && !temConta) {
             throw new https_1.HttpsError('failed-precondition', `${parte.nome} ainda não tem conta habilitada no portal. Convide a parte (ou um representante) ou registre a comunicação feita por outro meio.`);

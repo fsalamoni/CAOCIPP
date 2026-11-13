@@ -18,8 +18,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
-import { CamposProcesso, DadosCampos } from './CamposProcesso';
-import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, valoresDe } from '@/lib/camposProcesso';
+import { DadosCampos } from './CamposProcesso';
+import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, partesParaCorrecao, pedidoDeCorrecao, valoresDe } from '@/lib/camposProcesso';
+import FormularioAutuacao from './FormularioAutuacao';
 
 /** Formulário do tipo do processo hoje (também de tipo excluído); null se a tela não o conhece. */
 const formDoTipo = (estado, p) => {
@@ -159,7 +160,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const agora = new Date();
     const valoresCampos = {
         numero: p.numero, assunto: p.assunto, tipo_processo: p.tipo_nome || '', unidade: nomeUnidade(p.unidade_atual), fase: p.fase_nome,
-        partes: p.partes.map((x) => `${x.nome} (${x.polo})`).join('; '), orgao: estado.orgao || '',
+        partes: p.partes.filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join('; '), orgao: estado.orgao || '',
         usuario: estado.membros.find((m) => m.uid === estado.uid)?.nome || '',
         data: agora.toLocaleDateString('pt-BR'), data_extenso: agora.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
     };
@@ -286,7 +287,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     </div>
                     {noGabinete && noAndamento && (
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            {p.partes.map((x) => `${x.nome} (${x.polo})`).join(' · ') || 'Sem partes'}{p.tipo_nome ? ` · ${p.tipo_nome}` : ''}
+                            {p.partes.filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join(' · ') || 'Sem partes'}{p.tipo_nome ? ` · ${p.tipo_nome}` : ''}
                             {diasTramitando != null && ` · ${diasTramitando} dia${diasTramitando === 1 ? '' : 's'} em tramitação`}
                             {ultimoDoc && ` · último documento: nº ${ultimoDoc.ordem}, ${ultimoDoc.titulo}`}
                         </p>
@@ -322,7 +323,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <DropdownMenuItem disabled={!podeMexer || !naSecretaria || p.status !== 'em_tramitacao'} onSelect={() => setAcao({ tipo: 'comunicar' })}>Intimar ou comunicar uma parte</DropdownMenuItem>
                                     <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'urgencia' })}>{p.urgente ? 'Retirar a urgência' : 'Marcar como urgente'}</DropdownMenuItem>
                                     <DropdownMenuItem onSelect={() => setAcao({ tipo: 'situacao' })}>Alterar a situação</DropdownMenuItem>
-                                    <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'dados' })}>Corrigir os dados do processo</DropdownMenuItem>
+                                    <DropdownMenuItem disabled={!podeMexer} onSelect={() => setAcao({ tipo: 'dados' })}>Corrigir dados ou retificar a autuação</DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                 </>
                             )}
@@ -602,9 +603,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <p className="text-sm text-slate-600 dark:text-slate-400">Convide as partes e os representantes para acompanharem e peticionarem pelo portal.</p>
                             </CardHeader>
                             <CardContent className="text-sm">
-                                {p.partes.length === 0 && <p className="text-slate-600">Nenhuma parte cadastrada. Inclua partes em Mais › Corrigir os dados do processo, se o tipo permitir.</p>}
+                                {p.partes.length === 0 && <p className="text-slate-600">Nenhuma parte cadastrada. Inclua partes em Mais › Corrigir dados ou retificar a autuação, se o tipo permitir.</p>}
                                 <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {p.partes.map((x, i) => (
+                                    {p.partes.map((x, i) => (x.retirada ? (
+                                        <li key={i} className="py-2 flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-400">
+                                            <span className="flex-1 min-w-[10rem] line-through">{x.nome} ({x.polo})</span>
+                                            <Badge variant="outline">Retirada{x.retirada.em ? ` em ${new Date(x.retirada.em).toLocaleDateString('pt-BR')}` : ''}</Badge>
+                                        </li>
+                                    ) : (
                                         <li key={i} className="py-2 space-y-1">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span className="flex-1 min-w-[10rem]">{x.nome} ({x.polo}){x.email ? ` · ${x.email}` : ''}</span>
@@ -630,7 +636,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                 </ul>
                                             )}
                                         </li>
-                                    ))}
+                                    )))}
                                 </ul>
                             </CardContent>
                         </Card>
@@ -974,7 +980,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <div className="col-span-2 sm:col-span-1">
                     <Label htmlFor="prazo-dest">Destinatário</Label>
                     <Input id="prazo-dest" list="prazo-partes" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder="Opcional" />
-                    <datalist id="prazo-partes">{(p.partes || []).map((x, i) => <option key={i} value={x.nome} />)}</datalist>
+                    <datalist id="prazo-partes">{(p.partes || []).filter((x) => !x.retirada).map((x, i) => <option key={i} value={x.nome} />)}</datalist>
                 </div>
             </div>
         );
@@ -1230,43 +1236,51 @@ function EditarDados({ p, tipo, foco, ocupado, onFechar, onSalvar }) {
     // Veio de "Preencher": leva direto ao campo que falta.
     useEffect(() => {
         if (!foco) return undefined;
-        const t = setTimeout(() => document.getElementById(`ed-${foco}`)?.focus(), 120);
+        const t = setTimeout(() => document.getElementById(`ed-cp-${foco}`)?.focus(), 120);
         return () => clearTimeout(t);
     }, [foco]);
-    const [descricao, setDescricao] = useState(p.descricao || '');
-    const [campos, setCampos] = useState(() => valoresDe(p.campos, form));
+    const [f, setF] = useState(() => ({
+        assunto: p.assunto || '', descricao: p.descricao || '', sigilo: p.sigilo || 'normal', unidade_id: '', urgente: false, motivo_urgencia: '',
+        origem: { tipo: p.origem?.tipo || '', descricao: p.origem?.descricao || '', ...(p.origem?.ref ? { ref: p.origem.ref } : {}) },
+        partes: partesParaCorrecao(p.partes), campos: valoresDe(p.campos, form),
+    }));
     const [motivo, setMotivo] = useState('');
-    const falta = faltando({ ...form, assunto: 'opcional', partes: 'opcional', origem: 'opcional' }, { descricao, campos });
+    const { pedido, retifica } = pedidoDeCorrecao(p, f, form);
+    // Dado da autuação que não foi mexido não é cobrado pela regra nova do tipo (como no servidor).
+    const solto = Object.fromEntries(['assunto', 'origem', 'partes'].filter((k) => !(k in pedido)).map((k) => [k, 'opcional']));
+    const falta = [
+        ...faltando({ ...form, ...solto }, f),
+        ...(retifica && motivo.replace(/[^\p{L}]/gu, '').length < 5 ? ['Informe o motivo da retificação (ao menos 5 letras)'] : []),
+    ];
     // Campos que o tipo deixou de ter continuam gravados, só para leitura.
     const antigos = (p.campos || []).filter((c) => !form.campos.some((d) => d.id === c.id));
     return (
         <Dialog open onOpenChange={(o) => !o && onFechar()}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
-                <DialogHeader>
-                    <DialogTitle>Editar dados do processo</DialogTitle>
-                    <DialogDescription>A alteração fica registrada no histórico do processo, com o que mudou.</DialogDescription>
+            <DialogContent className="max-w-2xl p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden max-sm:max-w-none max-sm:w-screen max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none">
+                <DialogHeader className="px-4 pt-4 pr-12 pb-3 sm:px-6">
+                    <DialogTitle>Corrigir dados ou retificar a autuação</DialogTitle>
+                    <DialogDescription>Descrição e campos: a correção fica no histórico. Assunto, origem, sigilo e partes: é uma retificação, pede o motivo e gera termo nos autos.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                    {form.descricao !== 'oculto' && (
-                        <div>
-                            <Label htmlFor="ed-desc">Descrição{form.descricao === 'obrigatorio' && <span className="text-red-600 dark:text-red-400" aria-hidden> *</span>}</Label>
-                            <Textarea id="ed-desc" className="mt-1" rows={3} maxLength={4000} value={descricao} onChange={(e) => setDescricao(e.target.value)} />
-                        </div>
-                    )}
-                    <CamposProcesso prefixo="ed" campos={form.campos} valores={campos} onChange={(id, v) => setCampos((x) => ({ ...x, [id]: v }))} />
+                <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
+                    <FormularioAutuacao prefixo="ed" retificar form={form} f={f} setF={setF} tipo={tipo || null} />
                     {antigos.length > 0 && (
                         <div className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 p-3">
                             <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Campos que este tipo de processo não usa mais (mantidos como foram gravados)</p>
                             <DadosCampos campos={antigos} />
                         </div>
                     )}
-                    <div><Label htmlFor="ed-motivo">Motivo da alteração</Label><Input id="ed-motivo" className="mt-1" maxLength={200} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Opcional" /></div>
+                    <div>
+                        <Label htmlFor="ed-motivo">{retifica ? <>Motivo da retificação<span className="text-red-600 dark:text-red-400" aria-hidden> *</span></> : 'Motivo da alteração'}</Label>
+                        <Input id="ed-motivo" className="mt-1" maxLength={200} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={retifica ? 'Ex.: nome da parte grafado errado na autuação' : 'Opcional'}
+                            aria-required={retifica || undefined} />
+                    </div>
+                    {retifica && <p className="text-xs text-slate-600 dark:text-slate-400">A retificação fica nos autos como "Termo de retificação da autuação", visível só à equipe. As partes veem o assunto e os nomes já corrigidos.</p>}
                     {falta.length > 0 && <p className="text-sm text-amber-800 dark:text-amber-300" role="status">Para salvar: {falta.join('; ')}.</p>}
                 </div>
-                <DialogFooter>
+                <DialogFooter className="border-t border-slate-200 dark:border-slate-700 px-4 pt-3 sm:px-6 flex-row justify-end gap-2 sm:space-x-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     <Button variant="outline" onClick={onFechar}>Cancelar</Button>
-                    <Button disabled={ocupado || falta.length > 0} onClick={() => onSalvar({ descricao, campos, motivo })}>
-                        {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Salvar
+                    <Button disabled={ocupado || falta.length > 0} onClick={() => onSalvar({ descricao: f.descricao, campos: f.campos, motivo, ...pedido })}>
+                        {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {retifica ? 'Retificar' : 'Salvar'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

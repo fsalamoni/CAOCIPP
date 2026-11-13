@@ -34,6 +34,7 @@ exports.valorTexto = valorTexto;
 exports.dadoDoFormulario = dadoDoFormulario;
 exports.formParaCorrecao = formParaCorrecao;
 exports.diferencasCampos = diferencasCampos;
+exports.retificarPartes = retificarPartes;
 const modulos_1 = require("./modulos");
 // Sem importar ./secretaria: o rito (./exigencias, que ./secretaria importa) usa os campos
 // na ação que pede um formulário. O mesmo corte de texto de lá.
@@ -448,5 +449,63 @@ function diferencasCampos(antes, depois) {
         if (!d.has(c.id))
             out.push(`${c.rotulo}: apagado (era "${curto(valorTexto(c))}")`);
     return out;
+}
+/**
+ * Retificação da lista de partes: a lista só cresce (a posição i é sempre a
+ * mesma parte, porque comunicações e convites apontam pelo índice). Parte
+ * existente não perde o nome; sai por `retirada`, que não volta atrás. Do
+ * cliente vêm só nome, documento, e-mail, polo e o pedido de retirada; conta,
+ * convites e representantes ficam como estavam. Lança Error com texto ao usuário.
+ */
+function retificarPartes(antes, entrada, polos, max, quem) {
+    if (!Array.isArray(entrada))
+        throw new Error('Lista de partes inválida');
+    if (entrada.length < antes.length)
+        throw new Error('Nenhuma parte pode ser apagada: use "Retirar" para tirá-la do processo');
+    const reserva = polos.includes('interessado') ? 'interessado' : polos[0];
+    const partes = [];
+    const mudou = [];
+    const retiradas = [];
+    const renomeadas = [];
+    entrada.forEach((x, i) => {
+        const o = (x && typeof x === 'object' ? x : {});
+        const a = antes[i];
+        if (a === null || a === void 0 ? void 0 : a.retirada) {
+            partes.push(a);
+            return;
+        }
+        // Quem sai fica com os dados gravados: edição na mesma linha não vale.
+        if (a && o.retirada === true) {
+            partes.push(Object.assign(Object.assign({}, a), { retirada: quem }));
+            retiradas.push(i);
+            mudou.push(`Parte retirada: ${a.nome} (${a.polo})`);
+            return;
+        }
+        const nome = texto(o.nome);
+        const polo = typeof o.polo === 'string' && o.polo ? o.polo : ((a === null || a === void 0 ? void 0 : a.polo) || reserva);
+        // Polo antigo que o tipo deixou de aceitar pode ficar; novo ou trocado precisa estar no tipo.
+        if (polo !== (a === null || a === void 0 ? void 0 : a.polo) && !polos.includes(polo))
+            throw new Error(`O polo "${polo.slice(0, 20)}" não é aceito neste tipo de processo`);
+        const dados = { nome, documento: texto(o.documento, 30), email: texto(o.email, 120), polo };
+        if (!a) {
+            if (!nome)
+                return; // linha nova em branco
+            partes.push(dados);
+            mudou.push(`Parte incluída: ${nome} (${polo})`);
+            return;
+        }
+        if (!nome)
+            throw new Error(`Informe o nome da ${i + 1}ª parte. Para tirá-la do processo, use "Retirar".`);
+        const nova = Object.assign(Object.assign({}, a), dados);
+        if (nome !== a.nome || dados.documento !== (a.documento || '') || dados.email !== (a.email || '') || polo !== a.polo) {
+            mudou.push(`Parte corrigida: ${nome !== a.nome ? `${a.nome} → ${nome}` : nome} (${polo !== a.polo ? `${a.polo} → ${polo}` : polo})`);
+        }
+        if (nome !== a.nome)
+            renomeadas.push(i);
+        partes.push(nova);
+    });
+    if (partes.length > max)
+        throw new Error(`Até ${max} partes por processo (contando as retiradas)`);
+    return { partes, mudou, retiradas, renomeadas };
 }
 //# sourceMappingURL=camposProcesso.js.map

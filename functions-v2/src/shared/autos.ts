@@ -57,6 +57,7 @@ const TITULOS: Record<string, string> = {
     habilitacao: 'Termo de habilitação',
     acesso_revogado: 'Certidão de revogação de acesso',
     dados: 'Certidão de alteração de dados',
+    retificacao: 'Termo de retificação da autuação',
     urgencia: 'Certidão de urgência',
     comunicacao: 'Certidão de comunicação',
     ciencia: 'Termo de ciência',

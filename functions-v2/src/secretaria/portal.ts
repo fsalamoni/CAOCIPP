@@ -180,7 +180,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             if (conv.usado_por === uid) return { success: true, processoId: ref.id, organizationId: proc.organization_id };
             const partes = [...(proc.partes || [])];
             const parte = partes[conv.parte_idx];
-            if (!parte || parte.nome !== conv.parte_nome) throw new HttpsError('failed-precondition', 'A parte do convite não existe mais no processo');
+            if (!parte || parte.nome !== conv.parte_nome || parte.retirada) throw new HttpsError('failed-precondition', 'A parte do convite não existe mais no processo');
             const ridx = typeof conv.representante_idx === 'number' ? conv.representante_idx : -1;
             let rotulo = `${parte.nome} (${parte.polo})`;
             let assina = parte.nome;
@@ -326,7 +326,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 fase_nome: nomeParaPartes(data, data.fase_atual),
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
-                partes: (data.partes || []).map((x: { nome: string; polo: string }) => ({ nome: x.nome, polo: x.polo })),
+                partes: (data.partes || []).filter((x: { retirada?: unknown }) => !x.retirada).map((x: { nome: string; polo: string }) => ({ nome: x.nome, polo: x.polo })),
                 prazos: prazosPublicos(data)
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
@@ -376,7 +376,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             `Processo nº ${proc.numero}`, `Assunto: ${proc.assunto}`, '',
             `Situação: ${situacao}. Fase atual: ${fase}.`,
             `Autuado em ${proc.autuado_em ? brDataHora(proc.autuado_em) : '—'}.`,
-            `Partes: ${((proc.partes || []) as Array<{ nome: string; polo: string }>).map((x) => `${x.nome} (${x.polo})`).join('; ')}.`, '',
+            `Partes: ${((proc.partes || []) as Array<{ nome: string; polo: string; retirada?: unknown }>).filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join('; ')}.`, '',
             `Prazos em aberto: ${prazosPublicos(proc).map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
             'Últimos movimentos:',
             ...movs.map((m) => `${brDataHora(m.em)} — ${m.descricao}`), '',

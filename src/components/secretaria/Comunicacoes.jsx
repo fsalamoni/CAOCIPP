@@ -103,7 +103,9 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
         if (!aberto) return;
         setEspecie('intimacao'); setTexto(''); setDocumento(''); setMeio('plataforma'); setOutroMeio(''); setDataCiencia(hojeIso());
         setModoPrazo('dias'); setDias(sugerido ? String(sugerido) : ''); setContagem('uteis');
-        setPartes(p.partes.length === 1 ? [0] : []);
+        // Parte retirada não recebe comunicação; o índice continua o da lista inteira.
+        const ativas = p.partes.map((x, i) => [x, i]).filter(([x]) => !x.retirada);
+        setPartes(ativas.length === 1 ? [ativas[0][1]] : []);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aberto]);
 
@@ -162,9 +164,9 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
 
                     <fieldset>
                         <legend className="text-sm font-medium mb-1">2. A quem</legend>
-                        {p.partes.length === 0 && <p className="text-sm text-slate-600">O processo não tem partes cadastradas. Inclua as partes em Dados do processo.</p>}
+                        {!p.partes.some((x) => !x.retirada) && <p className="text-sm text-slate-600">O processo não tem partes cadastradas. Inclua as partes em Mais › Corrigir dados ou retificar a autuação.</p>}
                         <div className="space-y-1">
-                            {p.partes.map((x, i) => (
+                            {p.partes.map((x, i) => [x, i]).filter(([x]) => !x.retirada).map(([x, i]) => (
                                 <label key={i} className={`${radio} items-center ${partes.includes(i) ? ativo : inativo}`}>
                                     <input type="checkbox" checked={partes.includes(i)} onChange={() => marcar(i)} />
                                     <span className="flex-1">{x.nome} <span className="text-slate-600 dark:text-slate-400">({x.polo})</span></span>
@@ -238,7 +240,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
                         </div>
                         {meio === 'plataforma' && semConta.length > 0 && (
                             <p role="alert" className="mt-2 text-sm rounded-md bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-100 px-3 py-2">
-                                {semConta.map((i) => p.partes[i].nome).join(', ')} ainda não {semConta.length > 1 ? 'têm' : 'tem'} conta no portal. Convide a parte em Dados do processo ou registre a comunicação feita por outro meio.
+                                {semConta.map((i) => p.partes[i].nome).join(', ')} ainda não {semConta.length > 1 ? 'têm' : 'tem'} conta no portal. Convide a parte no cartão "Partes no portal" ou registre a comunicação feita por outro meio.
                             </p>
                         )}
                         {meio === 'outro' && (

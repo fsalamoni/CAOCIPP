@@ -292,7 +292,9 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 
 No processo, cada item de `partes[]` pode ter `uid` (conta habilitada),
 `convite_hash` (último convite) e `representantes[]` (até 5 por parte, cada um
-`{ nome, email?, uid?, convite_hash?, habilitada_em?, conta? }`);
+`{ nome, email?, uid?, convite_hash?, habilitada_em?, conta? }`) e, se a parte
+saiu do processo pela retificação, `retirada { em, por }` (a parte fica na lista,
+na mesma posição, sem conta nem convite);
 `partes_uids[]` lista todas as contas habilitadas (partes e representantes) e
 é o que o portal consulta e o que impede o acesso como equipe. No aceite, a
 function grava `users/{uid}.portal_partes = true` (só para o menu do SIGO
@@ -311,7 +313,7 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarIntegracoes {integracoes}` (admin), `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; com `rito_id` edita; ver Importação de ritos), `excluirRito` (admin), `salvarCalendario`, `versoes` (`colecao: 'rito' \| 'modelo' \| 'tipo'`; com `versao`, no tipo, devolve o conteúdo) e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
-| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`, com `origem.ref {modulo, id}` quando nasce de outro registro), `vinculados {modulo, id}` (processos ligados a um registro de outro módulo ou derivados de outro processo, `modulo: 'pe'`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
+| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`, com `origem.ref {modulo, id}` quando nasce de outro registro), `vinculados {modulo, id}` (processos ligados a um registro de outro módulo ou derivados de outro processo, `modulo: 'pe'`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo; com `assunto`, `origem`, `sigilo` ou `partes`, retificação com `motivo` obrigatório) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta` e `upload` (opcional `modelo_id`), `editarMinuta`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar`, `resolve_pendencia_id` e `atende`, as exigências do rito que o documento cumpre), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
@@ -1521,17 +1523,57 @@ admin define, em cada tipo, o que quem autua preenche:
   gravados; um campo retirado do tipo continua no processo como foi gravado.
   A correção segue o formulário atual, mas um campo obrigatório criado depois
   não é cobrado de processo que nunca o teve (`formParaCorrecao`, no servidor
-  e na tela); o obrigatório já gravado não pode ser apagado.
+  e na tela); o obrigatório já gravado não pode ser apagado, e o que só estava
+  oculto pela condição volta a ser cobrado quando a resposta o faz aparecer.
+  A descrição que o tipo passou a exigir não trava processo autuado sem ela.
   Os valores entram no movimento de autuação (cadeia de hashes), aparecem em
   "Identificação", na Capa, e contam na busca da lista (`campos_resumo`).
 - **Correção:** valor que volta igual ao gravado fica como está, mesmo que o
   tipo tenha passado a pedir formato ou mudado as opções; só o valor alterado
   segue as regras de agora. Campo que virou lista de várias opções (ou o
   contrário) chega à tela já convertido.
-  Mais › "Corrigir os dados do processo", no Andamento
+  Mais › "Corrigir dados ou retificar a autuação", no Andamento
   (`alterarDados`, exige a posse do processo)
   corrige a descrição e os campos próprios. O movimento `dados` registra o que
   mudou (de/para) e o motivo, e não aparece para as partes.
+- **Retificação da autuação** (13/11/2026): a mesma tela (o formulário da
+  autuação com `retificar`) muda assunto, origem, sigilo e partes, quando o
+  tipo os usa. Cada dado só muda se vier no pedido (cliente antigo segue
+  igual), e o dado não mexido não é cobrado por regra nova do tipo. Exige
+  motivo com ao menos 5 letras e grava o movimento `retificacao` ("Termo de
+  retificação da autuação"), **sempre nos autos**, fora do portal e fora da
+  configuração "dados" do rito, porque mexe na identificação do processo;
+  mudança mista leva descrição e campos no mesmo termo. Assunto vazio volta
+  ao nome do tipo (ou do rito). A ligação com o registro de origem nunca vem
+  do cliente nem sai; só o tipo e a referência mudam.
+  **Partes** (`retificarPartes`): a lista só cresce e a posição de cada parte
+  nunca muda (comunicações e convites apontam pelo índice). Parte existente
+  não perde o nome; sai por "Retirar", que grava `retirada` e não volta atrás
+  (para desfazer, inclua a parte de novo). Do cliente vêm só nome, documento,
+  e-mail, polo e o pedido de retirada; conta, convites e representantes ficam
+  como estavam. Polo antigo que o tipo deixou de aceitar pode ficar; polo novo
+  ou trocado segue o tipo. O limite de 50 conta as retiradas. Retirar parte
+  com comunicação aguardando ciência é recusado (torne-a sem efeito antes).
+  A retirada revoga o convite da parte e os dos representantes, tira as
+  contas deles e recalcula `partes_uids`. A parte retirada guarda os dados
+  gravados (edição feita na mesma linha não vale). Renomear parte leva o nome
+  novo ao convite pendente, aos prazos abertos dirigidos a ela, às
+  comunicações aguardando ciência e às petições em aberto (o portal casa
+  prazos e petições pelo nome); o que já se cumpriu guarda o nome da época.
+  O motivo abre o texto do termo e vai também em `dados.motivo`. Parte retirada não recebe comunicação nem
+  convite, não aceita convite, some da lista de partes do portal, da certidão
+  de andamento e do PDF das partes, aparece riscada na tela e na Capa (fora da
+  contagem) e "(retirada)" no PDF da equipe;
+  `partes_resumo` a mantém para a busca achar o histórico. Trocar o tipo do
+  processo não é retificação: use "Novo processo derivado deste".
+- **Arquivos na autuação** (13/11/2026): o Novo processo aceita até 10
+  arquivos (5 MB cada). Depois de autuar, a tela os envia um a um como
+  minutas (`secretariaDocumento` `upload`), internas e fora do portal; uma
+  falha não desfaz a autuação e o aviso diz o que anexar no processo. A minuta
+  não cumpre a exigência "juntar" do rito até ser juntada.
+- **Tela cheia no celular**: Novo processo e a correção dos dados ocupam a
+  tela inteira no celular, com o rodapé (Cancelar e Autuar/Salvar) fixo e
+  respeitando a área segura; no computador seguem como janela.
 - **Portal:** as partes veem só os campos marcados "mostrar às partes".
 
 Processo autuado sem tipo (escolhendo o rito) usa o formulário padrão. O

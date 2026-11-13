@@ -196,7 +196,7 @@ export function faltando(form, f) {
     if (form.assunto === 'obrigatorio' && vazio(f.assunto)) out.push(`Preencha "${rotuloDe(form, 'assunto')}"`);
     if (form.descricao === 'obrigatorio' && vazio(f.descricao)) out.push(`Preencha "${rotuloDe(form, 'descricao')}"`);
     if (form.origem === 'obrigatorio' && !f.origem?.ref && vazio(f.origem?.tipo) && vazio(f.origem?.descricao)) out.push(`Informe "${rotuloDe(form, 'origem')}"`);
-    if (form.partes === 'obrigatorio' && !(f.partes || []).some((p) => !vazio(p.nome))) out.push(`Informe ao menos um item em "${rotuloDe(form, 'partes')}"`);
+    if (form.partes === 'obrigatorio' && !(f.partes || []).some((p) => !vazio(p.nome) && !p.retirada)) out.push(`Informe ao menos um item em "${rotuloDe(form, 'partes')}"`);
     const aparecem = visiveis(form.campos, f.campos);
     for (const c of form.campos) {
         if (!aparecem.has(c.id)) continue;
@@ -317,4 +317,35 @@ export function camposFaltandoNaFase(p, form = null) {
         if (!def || e.id in tem || (def.condicao && !atendeCondicao(tem[def.condicao.campo_id], def.condicao))) return [];
         return [{ id: e.id, rotulo: def.rotulo, ...(def.condicao ? { condicao: def.condicao } : {}) }];
     });
+}
+
+/** Partes do processo como a tela de correção as edita (a posição de cada uma nunca muda). */
+export const partesParaCorrecao = (partes = []) => partes.map((x) => ({
+    nome: x.nome || '', documento: x.documento || '', email: x.email || '', polo: x.polo, existente: true, ja_retirada: !!x.retirada, retirada: !!x.retirada,
+    portal: x.portal || ((x.representantes || []).some((r) => r.portal) ? 'representante' : null),
+    orig: { nome: x.nome || '', documento: x.documento || '', email: x.email || '', polo: x.polo },
+}));
+
+/**
+ * O que a tela de correção manda além da descrição e dos campos: só o dado da
+ * autuação que mudou (assunto, origem, sigilo, partes). `retifica` diz se é
+ * retificação (pede motivo e gera termo nos autos). Espelho de `alterarDados`.
+ */
+export function pedidoDeCorrecao(p, f, form) {
+    const out = {};
+    const t = (v) => String(v || '').trim();
+    if (form.assunto !== 'oculto' && t(f.assunto) !== t(p.assunto)) out.assunto = t(f.assunto);
+    if (form.sigilo !== 'oculto' && (f.sigilo || 'normal') !== (p.sigilo || 'normal')) out.sigilo = f.sigilo;
+    const o = p.origem || null;
+    if (form.origem !== 'oculto' && (t(f.origem?.tipo) !== t(o?.tipo) || t(f.origem?.descricao) !== t(o?.descricao))) {
+        out.origem = { tipo: t(f.origem?.tipo), descricao: t(f.origem?.descricao) };
+    }
+    if (form.partes !== 'oculto') {
+        const linha = (x) => JSON.stringify([t(x.nome), t(x.documento), t(x.email), x.polo]);
+        const antes = p.partes || [];
+        const partes = f.partes || [];
+        const mudou = partes.some((x, i) => (i < antes.length ? !x.ja_retirada && (x.retirada || linha(x) !== linha(antes[i])) : !!t(x.nome)));
+        if (mudou) out.partes = partes.map((x) => ({ nome: t(x.nome), documento: t(x.documento), email: t(x.email), polo: x.polo, ...(x.retirada && !x.ja_retirada ? { retirada: true } : {}) }));
+    }
+    return { pedido: out, retifica: Object.keys(out).length > 0 };
 }

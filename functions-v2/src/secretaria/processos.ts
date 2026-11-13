@@ -15,7 +15,7 @@ import {
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
 import {
-    CampoExigido, CampoValor, Formulario, POLOS, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto,
+    CampoExigido, CampoValor, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
@@ -800,27 +800,95 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         }
 
         if (p.action === 'alterarDados') {
-            // Corrige a descrição e os campos próprios; o que mudou fica no histórico.
+            // Corrige a descrição e os campos próprios e, com motivo, retifica a
+            // autuação (assunto, origem, sigilo e partes); o que mudou fica nos autos.
             const tipo = data.tipo_id ? (await tx.get(db.collection(COL.tipos).doc(String(data.tipo_id)))).data() : null;
             const antes = (data.campos || []) as CampoValor[];
             // Obrigatório criado depois da autuação não trava a correção de quem nunca o teve.
             const form = formParaCorrecao(formularioDe(tipo && tipo.organization_id === orgId ? tipo : null), antes, String(data.descricao || ''));
-            const descricao = form.descricao === 'oculto' ? String(data.descricao || '') : texto(p.descricao, MAX_TEXTO_LONGO);
+            const descricao = form.descricao === 'oculto' || !('descricao' in p) ? String(data.descricao || '') : texto(p.descricao, MAX_TEXTO_LONGO);
+            // Cada dado da autuação só muda se vier no pedido (cliente antigo segue igual).
+            const vem = (k: 'assunto' | 'origem' | 'sigilo' | 'partes') => k in p && form[k] !== 'oculto';
+            const assuntoInformado = vem('assunto') ? texto(p.assunto) : '';
+            const assunto = vem('assunto') ? assuntoInformado || String(data.tipo_nome || data.rito_nome || data.assunto) : String(data.assunto || '');
+            const origemAntes = (data.origem || null) as Origem | null;
+            let origem = origemAntes;
+            if (vem('origem')) {
+                const o = sanitizeOrigem(p.origem);
+                // A ligação com o registro de origem nunca vem do cliente nem sai.
+                origem = origemAntes?.ref ? { tipo: o?.tipo || origemAntes.tipo, descricao: o?.descricao || '', ref: origemAntes.ref } : o;
+            }
+            const sigilo = vem('sigilo') ? (p.sigilo === 'restrito' ? 'restrito' : 'normal') : data.sigilo;
+            const partesAntes = (data.partes || []) as ParteGravada[];
+            let ret = { partes: partesAntes, mudou: [] as string[], retiradas: [] as number[], renomeadas: [] as number[] };
             let campos: CampoValor[] = [];
             try {
-                validarPadrao({ ...form, assunto: 'opcional', partes: 'opcional', origem: 'opcional' }, { assunto: '', descricao, partes: [], origem: null });
-                campos = validarCampos(form, p.campos, antes, await refsDoFormulario(db, orgId, c.org, form, p.campos, antes));
+                if (vem('partes')) ret = retificarPartes(partesAntes, p.partes, form.polos, MAX_PARTES, { em: new Date().toISOString(), por: c.userName });
+                validarPadrao({ ...form, ...(vem('assunto') ? {} : { assunto: 'opcional' }), ...(vem('partes') ? {} : { partes: 'opcional' }), ...(vem('origem') ? {} : { origem: 'opcional' }) },
+                    { assunto: assuntoInformado, descricao, partes: ret.partes.filter((x) => !x.retirada), origem });
+                campos = 'campos' in p ? validarCampos(form, p.campos, antes, await refsDoFormulario(db, orgId, c.org, form, p.campos, antes)) : antes;
             } catch (e) { erroUsuario(e); }
             // Campo que o tipo deixou de ter continua no processo como foi gravado.
             const idsForm = new Set(form.campos.map((x) => x.id));
-            campos = [...campos, ...antes.filter((x) => !idsForm.has(x.id))];
+            if ('campos' in p) campos = [...campos, ...antes.filter((x) => !idsForm.has(x.id))];
+            const retif: string[] = [];
+            if (assunto !== String(data.assunto || '')) retif.push(`Assunto: "${data.assunto || ''}" → "${assunto}"`);
+            if (sigilo !== data.sigilo) retif.push(`Sigilo: ${data.sigilo || 'normal'} → ${sigilo}`);
+            if (JSON.stringify(origem ? { t: origem.tipo, d: origem.descricao } : null) !== JSON.stringify(origemAntes ? { t: origemAntes.tipo, d: origemAntes.descricao } : null)) retif.push('Origem alterada');
+            retif.push(...ret.mudou);
             const mudou = diferencasCampos(antes, campos);
             if (descricao !== String(data.descricao || '')) mudou.unshift('Descrição alterada');
-            if (!mudou.length) throw new HttpsError('invalid-argument', 'Nada foi alterado');
-            const mov = registrarMovimento(tx, c, ref, data, 'dados',
-                `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, MAX_TEXTO_LONGO),
-                { campos: mudou.length, visivel_partes: false, ...marcasNaFase(data, 'dados') });
-            tx.update(ref, { ...mov, descricao, campos, vinculos: vinculosDe(data.origem, campos, data.vinculos_acoes || []) });
+            if (!mudou.length && !retif.length) throw new HttpsError('invalid-argument', 'Nada foi alterado');
+            const extra: Record<string, unknown> = {};
+            if (retif.length) {
+                if (motivo.replace(/[^\p{L}]/gu, '').length < 5) throw new HttpsError('invalid-argument', 'Informe o motivo da retificação (ao menos 5 letras)');
+                // Parte que sai com comunicação aguardando ciência: a ciência por decurso correria contra quem saiu.
+                const pendente = ((data.comunicacoes || []) as { parte_idx: number; status: string }[]).find((x) => x.status === 'aguardando' && ret.retiradas.includes(x.parte_idx));
+                if (pendente) throw new HttpsError('failed-precondition', `${partesAntes[pendente.parte_idx]?.nome || 'A parte'} tem comunicação aguardando ciência. Torne sem efeito as comunicações pendentes antes de retirar a parte.`);
+                const convites = db.collection(COL.convites);
+                for (const i of ret.retiradas) {
+                    // Quem sai perde o portal: convites revogados e contas desligadas, também dos representantes.
+                    const { uid: _u, convite_hash: hash, ...resto } = ret.partes[i];
+                    if (hash) tx.set(convites.doc(hash), { revogado: true }, { merge: true });
+                    const reps = (resto.representantes || []).map(({ uid: _r, convite_hash: h, ...r }) => {
+                        if (h) tx.set(convites.doc(h), { revogado: true }, { merge: true });
+                        return r;
+                    });
+                    ret.partes[i] = { ...resto, ...(resto.representantes ? { representantes: reps } : {}) };
+                }
+                // Quem mudou de nome continua com o que é seu: convite pendente,
+                // prazo aberto, comunicação aguardando ciência e petição em aberto
+                // (o portal casa prazos e petições pelo nome).
+                let prazos = (data.prazos || []) as Prazo[];
+                let pendencias = (data.pendencias || []) as Pendencia[];
+                let comunicacoes = (data.comunicacoes || []) as Array<{ parte_idx: number; status: string; parte_nome?: string }>;
+                for (const i of ret.renomeadas) {
+                    const x = ret.partes[i];
+                    const velho = partesAntes[i].nome;
+                    if (x.convite_hash) tx.set(convites.doc(x.convite_hash), { parte_nome: x.nome }, { merge: true });
+                    for (const r of x.representantes || []) if (r.convite_hash) tx.set(convites.doc(r.convite_hash), { parte_nome: x.nome }, { merge: true });
+                    prazos = prazos.map((q) => (q.status === 'aberto' && q.destinatario === velho ? { ...q, destinatario: x.nome } : q));
+                    pendencias = pendencias.map((q) => (q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${velho} (`) ? { ...q, aberta_por: `${x.nome}${String(q.aberta_por).slice(velho.length)}` } : q));
+                    comunicacoes = comunicacoes.map((q) => (q.parte_idx === i && q.status === 'aguardando' ? { ...q, parte_nome: x.nome } : q));
+                }
+                if (ret.renomeadas.length) Object.assign(extra, { prazos, pendencias, comunicacoes });
+                if (ret.retiradas.length) {
+                    extra.partes_uids = [...new Set(ret.partes.filter((x) => !x.retirada).flatMap((x) => [x.uid, ...(x.representantes || []).map((r) => r.uid)]).filter((u): u is string => !!u))];
+                }
+                extra.partes = ret.partes;
+                extra.assunto = assunto;
+                extra.sigilo = sigilo;
+                extra.origem = origem;
+            }
+            // Retificação mexe na identificação do processo: sempre nos autos, com o termo próprio.
+            const mov = retif.length
+                ? registrarMovimento(tx, c, ref, data, 'retificacao',
+                    `Autuação retificada. Motivo: ${motivo}. ${[...retif, ...mudou].join('; ')}.`.slice(0, MAX_TEXTO_LONGO),
+                    { motivo, campos: mudou.length, retificados: retif.length, visivel_partes: false })
+                : registrarMovimento(tx, c, ref, data, 'dados',
+                    `Dados do processo alterados. ${mudou.join('; ')}.${motivo ? ` Motivo: ${motivo}` : ''}`.slice(0, MAX_TEXTO_LONGO),
+                    { campos: mudou.length, visivel_partes: false, ...marcasNaFase(data, 'dados') });
+            tx.update(ref, { ...mov, descricao, campos, ...extra, vinculos: vinculosDe(origem, campos, data.vinculos_acoes || []) });
             return mov;
         }
 
@@ -1118,6 +1186,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const partes = [...(data.partes || [])];
             const parte = partes[idx];
             if (!Number.isInteger(idx) || !parte) throw new HttpsError('invalid-argument', 'Parte inválida');
+            if (parte.retirada) throw new HttpsError('failed-precondition', `${parte.nome} foi retirada do processo`);
             // Alvo: a própria parte, um representante já listado (representante_idx)
             // ou um representante novo ({ nome, email }). Cada um tem a própria conta.
             type Rep = { nome: string; email?: string; uid?: string; convite_hash?: string };
