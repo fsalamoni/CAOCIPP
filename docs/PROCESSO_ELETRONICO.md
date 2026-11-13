@@ -1472,6 +1472,9 @@ final. `fasesSeguintes` aplica a regra acima.
 **Tela do rito** (`PropostaRito.jsx`, a mesma para criar e editar): fases em
 cartões (reordenar, remover, escolher o que vem depois, ações e suas regras,
 orientação) e o diagrama do fluxo (`FluxoRito.jsx`, SVG) atualizado ao vivo.
+A fase aberta (`CartaoFase`) tem fundo e borda índigo, campos e blocos
+internos brancos e um rodapé "Fim da fase N" com "Recolher", para marcar
+onde os dados da fase começam e terminam.
 
 **Diagrama do fluxo** (`FluxoRito.jsx`, geometria em `src/lib/fluxoBpmn.js`):
 todo rito, importado ou não, é desenhado na notação BPMN usada pelo Bizagi, da
