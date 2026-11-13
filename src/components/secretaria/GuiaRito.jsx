@@ -149,7 +149,23 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 </tbody>
                             </table>
                         </Parte>
-                        <Parte titulo="9. Exemplo: a fase Recebimento de uma consulta">
+                        <Parte titulo="9. Fase de espera (diligências externas)">
+                            <p>Às vezes o trabalho de uma fase para à espera de alguém de fora: um ofício a outro órgão, uma informação pedida a terceiros. Para isso existe a <strong>fase de espera</strong>: o processo entra nela, aguarda e <strong>volta para a fase de onde veio</strong>, que é retomada como estava.</p>
+                            <ol className="list-decimal space-y-1.5 pl-5">
+                                <li>Crie a fase (ex.: Diligências externas) e, em <strong>Encaminhamentos</strong>, marque <strong>Fase de espera</strong>. Ela não tem saídas próprias.</li>
+                                <li>Nas fases em que a espera pode acontecer (ex.: Análise e Revisão), em Encaminhamentos, acrescente a fase de espera como <strong>alternativa</strong>.</li>
+                                <li>Na fase de espera, cadastre as ações que registram a ida e a volta (ex.: Registrar a remessa, com data e destinatário; Registrar o retorno, com data). Escolha onde cada uma fica em <strong>Onde fica o cumprimento</strong>.</li>
+                            </ol>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Na tela do processo">A fase que leva à espera mostra o botão <strong>Aguardar</strong>. Na espera, o botão principal é <strong>Encerrar a espera e voltar</strong>.</Termo>
+                                <Termo nome="Nada se perde">Ir para a espera não conclui a fase: o que falta nela não precisa de dispensa, e o que já foi cumprido continua cumprido na volta. Quem respondia pelo processo continua respondendo.</Termo>
+                                <Termo nome="Onde fica o registro">A ida e a volta seguem a regra de <strong>Registros</strong> das duas fases. Para não gerar evento impresso, deixe a entrada e a saída da fase de espera como informação.</Termo>
+                                <Termo nome="Consulta ligada">Em Andamento automático, a fase de espera pode pôr a consulta em <em>Aguarda retorno de terceiros</em>. Na volta, vale a situação da fase de origem (a de quem assumiu, se o processo tem responsável).</Termo>
+                                <Termo nome="Voltar sozinha">Com <strong>Seguir sozinha</strong> marcada, a espera termina quando a última ação obrigatória (ex.: Registrar o retorno) é cumprida.</Termo>
+                            </ul>
+                            <p>A fase de espera não pode ser a primeira nem a final. O prazo automático da fase de origem é encerrado na ida e reaberto inteiro na volta.</p>
+                        </Parte>
+                        <Parte titulo="10. Exemplo: a fase Recebimento de uma consulta">
                             <table className={tabela}>
                                 <thead><tr><th>Ação</th><th>O que pede</th><th>Quando vale</th></tr></thead>
                                 <tbody>

@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Fase de espera (diligências externas)
+- No rito, uma fase pode ser marcada como **Fase de espera**: o processo
+  entra nela vindo de outra fase, aguarda e **volta para a fase de onde
+  veio**, que é retomada como estava (ações já cumpridas continuam
+  cumpridas; quem respondia pelo processo continua respondendo).
+- Ir para a espera não conclui a fase de origem e não pede dispensa do que
+  falta nela. Da espera, a saída prevista é só a volta.
+- Tela do processo: botão **Aguardar** nas fases que levam à espera e
+  **Encerrar a espera e voltar** durante ela.
+- A espera pode pôr a consulta ligada em "Aguarda retorno de terceiros" e,
+  com "Seguir sozinha", termina quando o retorno é registrado.
+- Desenho do rito, Prévia e Guia do rito (parte 9) mostram a espera e a
+  volta.
+
 ### 13/11/2026 — Andamento automático da fase
 - No rito, cada fase ganhou a seção **Andamento automático**: **seguir
   sozinha** quando as ações obrigatórias são cumpridas (enviando o processo

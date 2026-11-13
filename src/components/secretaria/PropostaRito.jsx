@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
-import { copiarFases, modelosDeRito, novoIdFase, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
+import { copiarFases, ehEspera, modelosDeRito, novoIdFase, origensDaEspera, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
 import { MAX_CAMPOS_ACAO, problemaDaCondicao, registroComOutros, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
 import { MODULOS, integracoesLigadas, problemasFormulario } from '@/lib/camposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
@@ -111,9 +111,10 @@ export function pendenciasDaProposta(p, ligadas = null) {
         if (soltas.has(f.id)) out.push({ fase: f.id, texto: `${rot} não é alcançada: nenhuma fase segue para ela. Ligue-a no fluxo em "Encaminhamentos" de outra fase.` });
         if (presas.has(f.id)) out.push({ fase: f.id, texto: `${rot} entra num ciclo sem saída: dali o processo nunca chega a uma fase final.` });
         if (!f.unidade_ref) out.push({ fase: f.id, texto: `${rot} não tem unidade: a fase vai correr na unidade que estiver com o processo.` });
-        if (!f.final) {
+        if (f.espera && i === 0) out.push({ fase: f.id, texto: `${rot} é a primeira fase e não pode ser de espera: a marca é descartada ao salvar.` });
+        if (!f.final && !ehEspera(p.fases, i)) {
             const saidas = (f.proximas || []).filter((id) => id !== f.id);
-            if (i === p.fases.length - 1 && saidas.length === 0) out.push({ fase: f.id, texto: `${rot} é a última e não termina o processo: marque "O processo termina nesta fase" ou indique para onde segue.` });
+            if (!p.fases.some((x, k) => k > i && !ehEspera(p.fases, k)) && saidas.length === 0) out.push({ fase: f.id, texto: `${rot} é a última e não termina o processo: marque "O processo termina nesta fase" ou indique para onde segue.` });
             saidas.filter((id) => !ids.has(id)).forEach(() => out.push({ fase: f.id, grave: true, texto: `${rot} segue para uma fase que não existe mais.` }));
             saidas.filter((id) => f.condicoes_regra?.[id]).forEach((id) => {
                 const c = f.condicoes_regra[id];
@@ -121,9 +122,11 @@ export function pendenciasDaProposta(p, ligadas = null) {
                 const alvo = p.fases.find((x) => x.id === id)?.nome || 'outra fase';
                 if (prob) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a regra da saída para ${alvo} ${prob}. Ajuste em "Encaminhamentos".` });
             });
-            if (saidas.length > 1) {
-                const semCond = saidas.filter((id) => !(f.condicoes?.[id] || '').trim() && !f.condicoes_regra?.[id]);
-                if (semCond.length) out.push({ fase: f.id, texto: `${rot} tem ${saidas.length} saídas e ${semCond.length} sem condição: a equipe não saberá quando escolher cada uma.` });
+            // A saída para uma fase de espera é desvio eventual: não entra na conta das alternativas.
+            const caminho = saidas.filter((id) => !ehEspera(p.fases, p.fases.findIndex((x) => x.id === id)));
+            if (caminho.length > 1) {
+                const semCond = caminho.filter((id) => !(f.condicoes?.[id] || '').trim() && !f.condicoes_regra?.[id]);
+                if (semCond.length) out.push({ fase: f.id, texto: `${rot} tem ${caminho.length} saídas e ${semCond.length} sem condição: a equipe não saberá quando escolher cada uma.` });
             }
         }
     });
@@ -466,8 +469,9 @@ function Revisao({
     // Assim a fase que entra logo abaixo (ou no fim) não muda o caminho de quem já estava lá.
     const fixarSaida = (fases, i) => {
         const f = fases[i];
-        if (!f || f.final || (f.proximas || []).some((x) => x !== f.id && fases.some((y) => y.id === x))) return fases;
-        const fixa = i < fases.length - 1 ? { proximas: [fases[i + 1].id] } : { final: true };
+        if (!f || f.final || ehEspera(fases, i) || (f.proximas || []).some((x) => x !== f.id && fases.some((y) => y.id === x))) return fases;
+        const seguinte = fases.find((x, k) => k > i && !ehEspera(fases, k));
+        const fixa = seguinte ? { proximas: [seguinte.id] } : { final: true };
         return fases.map((x, k) => (k === i ? { ...x, ...fixa } : x));
     };
     const duplicar = (i) => {
@@ -946,7 +950,9 @@ function CartaoFase({
     const [novoModelo, setNovoModelo] = useState('');
     const outras = fases.filter((x) => x.id !== f.id);
     const saidas = f.proximas || [];
-    const proxLista = i < total - 1 ? fases[i + 1].nome : null;
+    const espera = ehEspera(fases, i);
+    const origens = espera ? origensDaEspera(fases, f.id).map((id) => fases.find((x) => x.id === id)?.nome || '?') : [];
+    const proxLista = fases.find((x, k) => k > i && !ehEspera(fases, k))?.nome || null;
     const setSaida = (k, id) => {
         const novas = [...saidas];
         const antiga = novas[k];
@@ -970,7 +976,7 @@ function CartaoFase({
     };
     const nomeDe = (id) => fases.find((x) => x.id === id)?.nome || '?';
     const nAcoes = (f.acoes || []).filter((a) => a.trim()).length;
-    const resumo = f.final ? 'Fim do processo' : saidas.length > 1 ? `${saidas.length} saídas` : saidas.length === 1 ? `→ ${nomeDe(saidas[0])}` : proxLista ? `→ ${proxLista}` : 'Sem saída';
+    const resumo = f.final ? 'Fim do processo' : espera ? 'Espera: volta à fase de origem' : saidas.length > 1 ? `${saidas.length} saídas` : saidas.length === 1 ? `→ ${nomeDe(saidas[0])}` : proxLista ? `→ ${proxLista}` : 'Sem saída';
     const nDocs = (f.documentos || []).length;
     const nModelos = (f.modelos_ref || []).length;
     const rotulo = f.nome.trim() || `fase ${i + 1}`;
@@ -1059,7 +1065,23 @@ function CartaoFase({
             <fieldset>
                 <legend className="text-xs font-medium mb-1">Encaminhamentos</legend>
                 <label className="flex items-center gap-2 text-sm mb-2"><Checkbox checked={!!f.final} onCheckedChange={(c) => mudar({ final: c === true })} /> O processo termina nesta fase</label>
-                {!f.final && (
+                {i > 0 && !f.final && (
+                    <label className="flex items-start gap-2 text-sm mb-2">
+                        <Checkbox className="mt-0.5" checked={!!f.espera}
+                            onCheckedChange={(c) => mudar(c === true ? { espera: true, proximas: [], condicoes: {}, condicoes_regra: undefined } : { espera: undefined })} />
+                        <span>Fase de espera (ex.: diligência externa)
+                            <span className="block text-xs text-slate-600 dark:text-slate-400">O processo entra nela vindo de outra fase, aguarda e volta para a fase de onde veio, que é retomada como estava.</span>
+                        </span>
+                    </label>
+                )}
+                {espera && (
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                        {origens.length
+                            ? `Entra-se nela por ${origens.join(', ')}. Ao concluir, o processo volta para a fase de onde veio.`
+                            : 'Nenhuma fase leva a esta ainda. Na fase de origem (ex.: Análise), em Encaminhamentos, acrescente esta como alternativa.'}
+                    </p>
+                )}
+                {!f.final && !espera && (
                     <div className="space-y-1.5">
                         {saidas.length === 0 && <p className="text-xs text-slate-600">{proxLista ? `Segue para a próxima da lista (${proxLista}).` : 'Última fase.'}</p>}
                         {saidas.map((id, k) => (
@@ -1067,7 +1089,7 @@ function CartaoFase({
                                 <div className="flex flex-wrap gap-2 items-center">
                                     <span className="text-xs text-slate-600">→</span>
                                     <select aria-label="Próxima fase" value={id} onChange={(e) => setSaida(k, e.target.value)} className={`${campo} h-8 flex-1 min-w-[9rem]`}>
-                                        {outras.map((x) => <option key={x.id} value={x.id}>{x.nome || '(sem nome)'}</option>)}
+                                        {outras.map((x) => <option key={x.id} value={x.id}>{x.nome || '(sem nome)'}{ehEspera(fases, fases.indexOf(x)) ? ' (espera)' : ''}</option>)}
                                     </select>
                                     <Input aria-label="Condição desta saída" value={f.condicoes?.[id] || ''} onChange={(e) => mudar({ condicoes: { ...(f.condicoes || {}), [id]: e.target.value } })} placeholder="Condição (ex.: se deferido)" className="h-8 flex-1 min-w-[9rem]" />
                                     <Button size="icon" variant="ghost" className={ICONE} onClick={() => tirarSaida(id)} aria-label="Tirar esta saída"><X className="w-4 h-4" /></Button>

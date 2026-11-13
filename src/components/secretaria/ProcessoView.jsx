@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
     AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
-    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive,
+    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive, Hourglass,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +34,7 @@ import { CartaoComunicacoes, ExpedirComunicacao, nomeEspecie } from './Comunicac
 import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { seguintes } from '@/lib/secretariaRito';
+import { saidasDoProcesso } from '@/lib/secretariaRito';
 import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
@@ -203,7 +203,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const controles = documentos.filter((d) => d.status === 'controle');
     const iAtual = p.fases.findIndex((f) => f.id === p.fase_atual);
     const faseAtual = p.fases[iAtual];
-    const proximas = seguintes(p.fases, iAtual).map((id) => p.fases.find((f) => f.id === id)).filter(Boolean);
+    // Saídas agora: o caminho do rito, as fases de espera a que esta leva e, em espera, a fase de onde o processo veio.
+    const { caminho: proximas, esperas, volta } = saidasDoProcesso(p);
     // O rito pode dizer em que unidade a fase corre: sugere remeter para lá.
     const unidadeDaFase = faseAtual?.unidade_id && faseAtual.unidade_id !== p.unidade_atual
         ? estado.unidades.find((u) => u.id === faseAtual.unidade_id && u.ativa) : null;
@@ -213,7 +214,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const respostas = p.acoes_respostas?.[p.fase_atual];
     // Documentos que o rito exige na fase (dela ou de uma ação que vale agora) e o que já foi juntado.
     const exigencias = situacaoDaFase(faseAtual, p.exigencias_cumpridas, respostas);
-    const saidas = faseAtual ? saidasComCondicao(p.fases, faseAtual, respostas) : [];
+    const saidas = faseAtual ? saidasComCondicao(p.fases, faseAtual, respostas).filter((s) => proximas.includes(s.fase)) : [];
     const indicadas = saidas.filter((s) => s.indicada);
     // Ação reservada pelo rito: ao responsável designado ou a quem gere a unidade (a administração sempre pode).
     const podeCumprir = (r) => !r?.quem || estado.isAdmin
@@ -242,6 +243,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             principal = noGabinete
                 ? { rotulo: 'Apreciar a pendência', icone: AlertCircle, acao: () => setAcao({ tipo: 'resolver', pendencia: pendenciasAbertas.find((x) => x.interrompe) || pendenciasAbertas[0] }) }
                 : null;
+        } else if (faseAtual?.espera) {
+            // Fim da espera: volta para a fase de origem, na unidade em que o processo estava.
+            const un = volta && p.espera?.unidade !== p.unidade_atual ? estado.unidades.find((u) => u.id === p.espera?.unidade && u.ativa) : null;
+            principal = !volta
+                ? { rotulo: 'Encerrar a espera: escolher a fase…', icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase' }) }
+                : un
+                    ? { rotulo: `Encerrar a espera e devolver para ${un.nome}`, icone: Send, acao: () => setAcao({ tipo: 'tramitar', destino: un.id, fase_id: volta.id }) }
+                    : { rotulo: `Encerrar a espera e voltar para ${volta.nome}`, icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase', fase_id: volta.id }) };
         } else if (proximas.length === 1) {
             const f = proximas[0];
             const un = f.unidade_id && f.unidade_id !== p.unidade_atual ? estado.unidades.find((u) => u.id === f.unidade_id && u.ativa) : null;
@@ -384,8 +393,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span>Nesta fase: {p.fase_nome}</span>
-                        {proximas.length > 0 && <span className="text-sm font-normal text-slate-600">segue para {proximas.map((f) => f.nome).join(' ou ')}</span>}
-                        {proximas.length === 0 && <span className="text-sm font-normal text-slate-600">fase final</span>}
+                        {volta && <span className="text-sm font-normal text-slate-600">em espera · volta para {volta.nome}</span>}
+                        {!volta && proximas.length > 0 && <span className="text-sm font-normal text-slate-600">segue para {proximas.map((f) => f.nome).join(' ou ')}</span>}
+                        {proximas.length === 0 && <span className="text-sm font-normal text-slate-600">{faseAtual?.espera ? 'fase de espera' : 'fase final'}</span>}
                         {faseAtual?.prazo_dias > 0 && <span className="text-sm font-normal text-slate-600">· prazo da fase: {faseAtual.prazo_dias} dias</span>}
                         {faseAtual?.nome_publico && <span className="text-sm font-normal text-slate-600">· as partes veem "{faseAtual.nome_publico}"</span>}
                     </CardTitle>
@@ -405,6 +415,20 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <UserPlus className="w-4 h-4" aria-hidden /> Assumir
                             </Button>
                             <span className="text-xs text-slate-600 dark:text-slate-300">O processo está sem responsável. Quem assume passa a responder por ele nesta unidade.</span>
+                        </div>
+                    )}
+                    {podeMexer && p.status === 'em_tramitacao' && !p.fase_suspensa && esperas.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {esperas.map((f) => {
+                                const un = f.unidade_id && f.unidade_id !== p.unidade_atual ? estado.unidades.find((u) => u.id === f.unidade_id && u.ativa) : null;
+                                return (
+                                    <Button key={f.id} size="sm" variant="outline" className="gap-1" disabled={ocupado}
+                                        onClick={() => setAcao(un ? { tipo: 'tramitar', destino: un.id, fase_id: f.id } : { tipo: 'fase', fase_id: f.id })}>
+                                        <Hourglass className="w-4 h-4" aria-hidden /> Aguardar: {f.nome}
+                                    </Button>
+                                );
+                            })}
+                            <span className="text-xs text-slate-600 dark:text-slate-300">Esta fase fica como está e é retomada quando o processo voltar.</span>
                         </div>
                     )}
                 </CardHeader>
@@ -939,6 +963,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         ...camposFaltandoNaFase(p, formDoTipo(estado, p)).map((c) => ({ descricao: `Preencher "${c.rotulo}"` }))];
     // Recomendado e ainda não feito: só avisa, a fase segue sem motivo.
     const recomendados = recomendadosNaFase(faseDoProc, p.exigencias_cumpridas, p.acoes_feitas?.[p.fase_atual], resp);
+    // Fase de espera: ir para ela não conclui a fase atual (nada a dispensar); voltar dela retoma a fase de origem.
+    const paraEspera = (id) => !!id && p.fases.find((f) => f.id === id)?.espera === true;
+    const ehVolta = (id) => !!id && faseDoProc?.espera === true && p.espera?.fase === id;
+    const notaEspera = (id) => (paraEspera(id)
+        ? <p className="text-sm text-slate-700 dark:text-slate-300">Fase de espera: <b>{p.fase_nome}</b> fica como está e é retomada quando o processo voltar.</p>
+        : ehVolta(id) ? <p className="text-sm text-slate-700 dark:text-slate-300">Fim da espera: <b>{p.fases.find((f) => f.id === id)?.nome}</b> é retomada como estava.</p> : null);
     const avisoDispensa = (exigPendentes.length > 0 || recomendados.length > 0) && (
         <>
             {exigPendentes.length > 0 && (
@@ -1119,7 +1149,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     }
     if (tipo === 'tramitar' || tipo === 'devolver') {
         const devolver = tipo === 'devolver';
-        titulo = devolver ? 'Devolver à secretaria com orientação' : acao.fase_id ? 'Concluir a fase e enviar para outra unidade' : 'Enviar para outra unidade';
+        titulo = devolver ? 'Devolver à secretaria com orientação' : acao.fase_id ? (paraEspera(acao.fase_id) ? 'Enviar para outra unidade e aguardar' : ehVolta(acao.fase_id) ? 'Encerrar a espera e devolver o processo' : 'Concluir a fase e enviar para outra unidade') : 'Enviar para outra unidade';
         const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== p.unidade_atual);
         const passou = p.unidades_historico || [];
         // Devolver: a unidade que remeteu ao gabinete, ou a primeira secretaria.
@@ -1137,7 +1167,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         campo = (
             <div className="space-y-2">
                 {faseNova && <p className="text-sm text-slate-700 dark:text-slate-300">A fase passa de <b>{p.fase_nome}</b> para <b>{faseNova.nome}</b> no mesmo ato.</p>}
-                {faseNova && avisoDispensa}
+                {faseNova && !paraEspera(faseNova.id) && avisoDispensa}
+                {faseNova && notaEspera(faseNova.id)}
                 {!devolver && minutasDaUnidade.length > 0 && (
                     <fieldset>
                         <legend className="text-sm font-medium mb-1">Minutas que seguem com o processo</legend>
@@ -1162,7 +1193,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         );
         exigeValor = !destino;
         if (devolver) { exigeTexto = true; rotuloTexto = 'Orientação para a secretaria (fica em destaque no processo até ser concluída)'; }
-        else if (faseNova && exigPendentes.length) { exigeTexto = true; rotuloTexto = 'Motivo da dispensa do que o rito exige'; }
+        else if (faseNova && !paraEspera(faseNova.id) && exigPendentes.length) { exigeTexto = true; rotuloTexto = 'Motivo da dispensa do que o rito exige'; }
         if (!devolver && faseNova && contraCondicao(faseNova.id)) {
             exigeTexto = true;
             rotuloTexto = `O rito leva a ${faseNova.nome} quando ${contraCondicao(faseNova.id)}. Motivo para seguir assim${exigPendentes.length ? ' e dispensar o que o rito exige' : ''}`;
@@ -1171,7 +1202,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             ...(!devolver && levarIds.length ? { minutas: levarIds } : {}) }, devolver ? 'Processo devolvido com orientação' : 'Processo remetido');
     } else if (tipo === 'fase') {
         titulo = 'Mudar a fase';
-        const noFluxo = seguintes(p.fases, p.fases.findIndex((f) => f.id === p.fase_atual));
+        const sd = saidasDoProcesso(p);
+        const noFluxo = [...sd.caminho, ...sd.esperas].map((f) => f.id);
         const comCond = faseDoProc ? saidasComCondicao(p.fases, faseDoProc, resp) : [];
         const indicada = comCond.filter((s) => s.indicada);
         const escolhida = valor || acao.fase_id || (indicada.length === 1 ? indicada[0].fase.id : '') || noFluxo[0] || '';
@@ -1189,6 +1221,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                                 <button key={id} type="button" onClick={() => setValor(id)} aria-pressed={escolhida === id}
                                     className={`text-left rounded-md border px-3 py-2 text-sm ${escolhida === id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 dark:border-indigo-400' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
                                     <span className="font-medium">{nomeFase(id)}</span>
+                                    {paraEspera(id) && <span className="ml-2 text-xs font-medium text-slate-600 dark:text-slate-300">Espera</span>}
+                                    {ehVolta(id) && <span className="ml-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Volta da espera</span>}
                                     {comCond.find((s) => s.fase.id === id)?.indicada && <span className="ml-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Indicada pela resposta</span>}
                                     {faseDoProc?.condicoes_regra?.[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Quando {textoCondicao(faseDoProc, faseDoProc.condicoes_regra[id])}</span>}
                                     {condicoes[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Se {condicoes[id]}</span>}
@@ -1198,13 +1232,14 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                         </div>
                     </fieldset>
                 ) : <p className="text-sm text-slate-600 dark:text-slate-300">Esta é a fase final do rito.</p>}
-                {avisoDispensa}
+                {!paraEspera(escolhida) && avisoDispensa}
+                {notaEspera(escolhida)}
                 <NativeSelect id="fase-fora" label="Ou ir para outra fase (fora do caminho previsto no rito, exige motivo)" value={fora ? escolhida : ''} onChange={(v) => setValor(v || '')}
                     options={[['', '—'], ...p.fases.filter((f) => f.id !== p.fase_atual && !noFluxo.includes(f.id)).map((f) => [f.id, f.nome])]} />
             </div>
         );
         if (fora) { exigeTexto = true; rotuloTexto = 'Motivo para sair do caminho previsto'; }
-        if (exigPendentes.length) { exigeTexto = true; rotuloTexto = fora ? 'Motivo para sair do caminho previsto e dispensar o que o rito exige' : 'Motivo da dispensa do que o rito exige'; }
+        if (exigPendentes.length && !paraEspera(escolhida)) { exigeTexto = true; rotuloTexto = fora ? 'Motivo para sair do caminho previsto e dispensar o que o rito exige' : 'Motivo da dispensa do que o rito exige'; }
         if (contra) {
             exigeTexto = true;
             rotuloTexto = `O rito leva a ${nomeFase(escolhida)} quando ${contra}. Motivo para seguir assim${exigPendentes.length ? ' e dispensar o que o rito exige' : ''}`;

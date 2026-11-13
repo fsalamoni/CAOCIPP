@@ -103,8 +103,8 @@ export function nomeParaPartes(proc: admin.firestore.DocumentData, faseId: unkno
 }
 
 function fasesPublicas(proc: admin.firestore.DocumentData) {
-    return ((proc.fases || []) as Array<Record<string, unknown>>).map(({ id, nome, nome_publico, prazo_dias, proximas, final }) => (
-        { id, nome: nome_publico || nome, ...(prazo_dias ? { prazo_dias } : {}), ...(proximas ? { proximas } : {}), ...(final ? { final } : {}) }));
+    return ((proc.fases || []) as Array<Record<string, unknown>>).map(({ id, nome, nome_publico, prazo_dias, proximas, final, espera }) => (
+        { id, nome: nome_publico || nome, ...(prazo_dias ? { prazo_dias } : {}), ...(proximas ? { proximas } : {}), ...(final ? { final } : {}), ...(espera ? { espera: true } : {}) }));
 }
 
 /** Petições desta conta com a situação da apreciação. */

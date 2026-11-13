@@ -78,7 +78,7 @@ function nomeParaPartes(proc, faseId) {
     return (f === null || f === void 0 ? void 0 : f.nome_publico) || (f === null || f === void 0 ? void 0 : f.nome) || String(faseId || '');
 }
 function fasesPublicas(proc) {
-    return (proc.fases || []).map(({ id, nome, nome_publico, prazo_dias, proximas, final }) => (Object.assign(Object.assign(Object.assign({ id, nome: nome_publico || nome }, (prazo_dias ? { prazo_dias } : {})), (proximas ? { proximas } : {})), (final ? { final } : {}))));
+    return (proc.fases || []).map(({ id, nome, nome_publico, prazo_dias, proximas, final, espera }) => (Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nome_publico || nome }, (prazo_dias ? { prazo_dias } : {})), (proximas ? { proximas } : {})), (final ? { final } : {})), (espera ? { espera: true } : {}))));
 }
 /** Petições desta conta com a situação da apreciação. */
 function peticoesDaParte(proc, docs, uid) {
