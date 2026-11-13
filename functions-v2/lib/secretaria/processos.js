@@ -525,6 +525,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false || rito.excluido === true) {
             throw new https_1.HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
+        if (!tipo && rito.exigir_tipo === true)
+            throw new https_1.HttpsError('failed-precondition', `O rito "${rito.nome}" só é autuado por um tipo de processo. Escolha o tipo.`);
         // Formulário do tipo: o que se pede, o que é obrigatório, o que não se usa e os campos próprios.
         const form = (0, camposProcesso_1.formularioDe)(tipo);
         // Sigilo e urgência fora do formulário valem o que o tipo define.
@@ -592,7 +594,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 partes,
                 campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), { 
                 // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
-                vinculos: (0, modulos_1.vinculosDe)(origem, campos) }), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+                vinculos: (0, modulos_1.vinculosDe)(origem, campos) }), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
             const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName);
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
             const mi = registrarInternos(tx, c, procRef, Object.assign(Object.assign({}, base), mov), ef.interno);
@@ -691,8 +693,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         if (p.action === 'alterarDados') {
             // Corrige a descrição e os campos próprios; o que mudou fica no histórico.
             const tipo = data.tipo_id ? (await tx.get(db.collection(context_1.COL.tipos).doc(String(data.tipo_id)))).data() : null;
-            const form = (0, camposProcesso_1.formularioDe)(tipo && tipo.organization_id === orgId ? tipo : null);
             const antes = (data.campos || []);
+            // Obrigatório criado depois da autuação não trava a correção de quem nunca o teve.
+            const form = (0, camposProcesso_1.formParaCorrecao)((0, camposProcesso_1.formularioDe)(tipo && tipo.organization_id === orgId ? tipo : null), antes, String(data.descricao || ''));
             const descricao = form.descricao === 'oculto' ? String(data.descricao || '') : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
             let campos = [];
             try {

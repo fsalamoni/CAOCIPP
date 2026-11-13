@@ -15,7 +15,7 @@ import {
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
 import {
-    CampoExigido, CampoValor, Formulario, POLOS, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto,
+    CampoExigido, CampoValor, Formulario, POLOS, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto,
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
@@ -603,6 +603,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         if (!ritoSnap.exists || !rito || rito.organization_id !== orgId || rito.ativo === false || rito.excluido === true) {
             throw new HttpsError('invalid-argument', tipo ? 'O rito deste tipo de processo está inativo. Ajuste o tipo na Configuração.' : 'Escolha um rito ativo');
         }
+        if (!tipo && rito.exigir_tipo === true) throw new HttpsError('failed-precondition', `O rito "${rito.nome}" só é autuado por um tipo de processo. Escolha o tipo.`);
         // Formulário do tipo: o que se pede, o que é obrigatório, o que não se usa e os campos próprios.
         const form = formularioDe(tipo);
         // Sigilo e urgência fora do formulário valem o que o tipo define.
@@ -672,7 +673,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
                 vinculos: vinculosDe(origem, campos),
                 ...(urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {}),
-                ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome } : {}),
+                ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {}),
                 status: 'em_tramitacao',
                 rito_id: ritoSnap.id,
                 rito_nome: rito.nome,
@@ -801,8 +802,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         if (p.action === 'alterarDados') {
             // Corrige a descrição e os campos próprios; o que mudou fica no histórico.
             const tipo = data.tipo_id ? (await tx.get(db.collection(COL.tipos).doc(String(data.tipo_id)))).data() : null;
-            const form = formularioDe(tipo && tipo.organization_id === orgId ? tipo : null);
             const antes = (data.campos || []) as CampoValor[];
+            // Obrigatório criado depois da autuação não trava a correção de quem nunca o teve.
+            const form = formParaCorrecao(formularioDe(tipo && tipo.organization_id === orgId ? tipo : null), antes, String(data.descricao || ''));
             const descricao = form.descricao === 'oculto' ? String(data.descricao || '') : texto(p.descricao, MAX_TEXTO_LONGO);
             let campos: CampoValor[] = [];
             try {

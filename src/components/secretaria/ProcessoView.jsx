@@ -19,7 +19,7 @@ import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, bas
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
-import { camposFaltandoNaFase, faltando, formularioDe, valoresDe } from '@/lib/camposProcesso';
+import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, valoresDe } from '@/lib/camposProcesso';
 
 /** Formulário do tipo do processo hoje (também de tipo excluído); null se a tela não o conhece. */
 const formDoTipo = (estado, p) => {
@@ -1225,7 +1225,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
 
 /** Corrige a descrição e os campos próprios do tipo; o que mudou vai para o histórico. */
 function EditarDados({ p, tipo, foco, ocupado, onFechar, onSalvar }) {
-    const form = formularioDe(tipo);
+    // Obrigatório criado depois da autuação não trava a correção (espelho do servidor).
+    const form = formParaCorrecao(formularioDe(tipo), p.campos || [], p.descricao || '');
     // Veio de "Preencher": leva direto ao campo que falta.
     useEffect(() => {
         if (!foco) return undefined;

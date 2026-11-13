@@ -276,7 +276,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?, outros?{prazo?, pendencia?, urgencia?, dados?, atribuicao?}} (evento \| informacao \| nenhum; ausente = autos, atribuição = evento; o antigo registro? remessas_fora \| interno ainda é lido), certidao?{grupo?, titulo?, incluir_mudancas?}, acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], modulo? (pede registro: consultas \| expedientes \| parcerias \| juri), destino? (autos \| informacao \| nenhum \| consolidar; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
-| `secRitos/{id}/versoes/{000n}` e `secModelos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases` ou `nome, tipo_documento, descricao, conteudo`) |
+| `secRitos/{id}/versoes/{000n}`, `secModelos/{id}/versoes/{000n}` e `secTipos/{id}/versoes/{000n}` | versão anterior (até 20 por item): `versao, salvo_em, salvo_por` e os campos de conteúdo (`nome, descricao, fases, exigir_tipo`, `nome, tipo_documento, descricao, conteudo` ou os `CAMPOS_TIPO`) |
 | `secTipos/{id}` | `organization_id, nome, sigla, descricao, rito_id, sigilo_padrao, unidade_inicial, ativo, formulario{assunto, descricao, partes, origem ("opcional" \| "obrigatorio" \| "oculto"), sigilo, urgencia, unidade ("opcional" \| "oculto"), rotulos{}, ajudas{}, polos[], campos[{id, rotulo, tipo, obrigatorio, ajuda, opcoes[], visivel_partes, formato?, secao?, condicao?{campo_id, valor}, exigir_em?[], modulo? (tipo registro)}]} (até 40 campos), numeracao{modo: "orgao" \| "propria" \| "nenhuma", partes[]?}?` |
 | `secContadores/{chave}` | `seq` de cada contagem: `{org}_{ano}` (a de sempre, `000001/2026`) ou `{org}_{escopo}_{alvo}_{período}` |
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor (lista de textos na múltipla; número no registro), visivel_partes, formato?, ref?{modulo, id, numero, titulo?, restrito?} (registro)}], campos_exigidos?{fase_id: [{id, rotulo, condicao?}]}, origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
@@ -310,7 +310,7 @@ ignora as regras.
 
 | Function | Ações |
 |---|---|
-| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarIntegracoes {integracoes}` (admin), `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; com `rito_id` edita; ver Importação de ritos), `excluirRito` (admin), `salvarCalendario`, `versoes` e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
+| `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarIntegracoes {integracoes}` (admin), `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; com `rito_id` edita; ver Importação de ritos), `excluirRito` (admin), `salvarCalendario`, `versoes` (`colecao: 'rito' \| 'modelo' \| 'tipo'`; com `versao`, no tipo, devolve o conteúdo) e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
 | `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`, com `origem.ref {modulo, id}` quando nasce de outro registro), `vinculados {modulo, id}` (processos ligados a um registro de outro módulo ou derivados de outro processo, `modulo: 'pe'`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta` e `upload` (opcional `modelo_id`), `editarMinuta`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar`, `resolve_pendencia_id` e `atende`, as exigências do rito que o documento cumpre), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
@@ -1289,6 +1289,28 @@ misturam dentro de um processo.
   continuam com a cópia das fases com que foram autuados; documentos já
   redigidos não mudam. Botão **Versões** no editor de rito e no editor de
   modelo (`VersoesDialog.jsx`).
+- **Versões do tipo de processo** (13/11/2026): `salvarTipo` guarda a versão
+  anterior em `secTipos/{id}/versoes/{000n}` (`CAMPOS_TIPO`: nome, sigla,
+  descrição, rito, formulário, numeração, de onde nasce, sigilo, urgência,
+  unidade inicial e órgão) e soma 1 em `versao` (tipo antigo conta como 1).
+  `versoes` com `colecao: 'tipo'` lista (com o número de campos próprios) e,
+  com `versao`, devolve o conteúdo; o editor do tipo abre essa versão como
+  alteração não salva ("Abrir no editor"), e só salvar a grava, passando por
+  todas as validações de `salvarTipo`. `restaurarVersao` recusa tipo. O
+  processo guarda `tipo_versao` na autuação (rastreio; os campos já são
+  cópia). O cartão do tipo mostra "versão N".
+- **Editor do tipo**: fechar com alterações não salvas pede confirmação (X,
+  Cancelar, Esc), e o rodapé avisa "Alterações não salvas". Na aba
+  Formulário, "Copiar campos de outro tipo" acrescenta os campos próprios de
+  outro tipo (também de um excluído) até o limite, com id novo, condição
+  remapeada e "exigir para sair" só com fases do rito deste tipo
+  (`copiarCampos`); nomes repetidos aparecem nos ajustes antes de salvar.
+- **Rito só por tipo** (`exigir_tipo`, 13/11/2026): caixa "Autuar só por um
+  tipo de processo" nos dados do rito. Marcada, o rito some de "Sem tipo
+  (escolher o rito)" no Novo processo e `autuar` sem `tipo_id` é recusado. A
+  marca é sempre gravada (desmarcar apaga) e entra nas versões do rito;
+  restaurar uma versão anterior à opção volta sem ela. A tela avisa quando
+  nenhum tipo ativo usa o rito.
 - **Modelos:** cada cartão mostra "Indicado em: Rito › Fase" quando alguma
   fase o indica; no editor, **Duplicar** abre uma cópia (sem id, "(cópia)" no
   nome) para ajustar e salvar como modelo novo.
@@ -1495,8 +1517,11 @@ admin define, em cada tipo, o que quem autua preenche:
   `functions-v2/src/shared/camposProcesso.ts`): obrigatório vazio, número,
   data, opção de lista e formato inválidos são recusados com o nome do campo.
 - **No processo:** os valores ficam em `campos[]`, com a cópia do nome e do
-  tipo do campo. Mudar o tipo de processo depois não altera processos já
-  autuados; um campo retirado do tipo continua no processo como foi gravado.
+  tipo do campo. Mudar o tipo de processo depois não altera os valores já
+  gravados; um campo retirado do tipo continua no processo como foi gravado.
+  A correção segue o formulário atual, mas um campo obrigatório criado depois
+  não é cobrado de processo que nunca o teve (`formParaCorrecao`, no servidor
+  e na tela); o obrigatório já gravado não pode ser apagado.
   Os valores entram no movimento de autuação (cadeia de hashes), aparecem em
   "Identificação", na Capa, e contam na busca da lista (`campos_resumo`).
 - **Correção:** valor que volta igual ao gravado fica como está, mesmo que o

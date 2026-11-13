@@ -238,7 +238,7 @@ function sanitizeRito(input) {
     const totalCampos = fases.reduce((s, f) => s + (f.acoes_regras || []).reduce((t, r) => { var _a; return t + (((_a = r === null || r === void 0 ? void 0 : r.campos) === null || _a === void 0 ? void 0 : _a.length) || 0); }, 0), 0);
     if (totalCampos > exports.MAX_CAMPOS_RITO)
         throw new Error(`O rito aceita até ${exports.MAX_CAMPOS_RITO} campos de formulário somando todas as ações (há ${totalCampos})`);
-    return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases };
+    return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases, exigir_tipo: src.exigir_tipo === true };
 }
 /**
  * Fases para onde o processo segue a partir da atual: as `proximas` da fase,

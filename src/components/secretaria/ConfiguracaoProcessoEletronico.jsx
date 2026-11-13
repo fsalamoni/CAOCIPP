@@ -236,6 +236,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
                             {t.sigilo_padrao === 'restrito' && <Badge variant="outline">Restrito</Badge>}
                             {t.urgente && <SeloUrgente />}
                             {!t.ativo && <Badge variant="secondary">Inativo</Badge>}
+                            {t.versao > 1 && <span className="text-xs text-slate-600 dark:text-slate-400">versão {t.versao}</span>}
                             {t.numeracao?.modo === 'nenhuma' && <Badge variant="outline">Sem número</Badge>}
                             {t.numeracao?.modo === 'propria' && <span className="text-xs font-mono text-slate-600 dark:text-slate-400">{exemplo(t.numeracao, t)}</span>}
                         </div>
@@ -248,7 +249,8 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
             <ConfirmarExclusao orgId={orgId} alvo={excluir} onFechar={() => setExcluir(null)} onExcluido={() => setTipo(null)} />
 
             {tipo && (
-                <EditorTipo key={tipo.id || 'novo'} tipo={tipo} setTipo={setTipo} estado={estado} salvando={salvando} exemplo={exemplo} numeracaoOrgao={numeracaoOrgao}
+                <EditorTipo key={tipo.id || 'novo'} tipo={tipo} setTipo={setTipo} estado={estado} salvando={salvando} exemplo={exemplo} numeracaoOrgao={numeracaoOrgao} orgId={orgId}
+                    onAbrirVersao={(v) => setTipo(paraEditar({ ...tipo, ...v, id: tipo.id, ativo: tipo.ativo, versao: tipo.versao }))}
                     onSalvar={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)} onExcluir={() => setExcluir({ colecao: 'tipo', id: tipo.id, nome: tipo.nome })} />
             )}
 

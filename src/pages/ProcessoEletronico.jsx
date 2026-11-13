@@ -454,12 +454,14 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
     const [aberto, setAberto] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const ritosAtivos = estado.ritos.filter((r) => r.ativo);
+    // Rito que só se autua por tipo não aparece em "Sem tipo".
+    const ritosSemTipo = ritosAtivos.filter((r) => !r.exigir_tipo);
     // Tipo próprio de um órgão interno: só aparece para quem está lotado em unidade dele.
     const orgaoDe = (unidadeId) => estado.unidades.find((u) => u.id === unidadeId)?.orgao_id || null;
     const restrito = (t) => (t?.orgao_id && (estado.orgaos || []).some((o) => o.id === t.orgao_id) ? t.orgao_id : null);
     const unidadesPara = (t) => estado.minhasUnidades.filter((id) => !restrito(t) || orgaoDe(id) === restrito(t));
     const tiposAtivos = (estado.tipos || []).filter((t) => t.ativo && ritosAtivos.some((r) => r.id === t.rito_id) && unidadesPara(t).length > 0);
-    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosAtivos[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', urgente: false, motivo_urgencia: '', origem: { tipo: '', descricao: '' }, partes: [], campos: {} };
+    const vazio = { assunto: '', descricao: '', tipo_id: '', rito_id: ritosSemTipo[0]?.id || '', unidade_id: estado.minhasUnidades[0] || '', sigilo: 'normal', urgente: false, motivo_urgencia: '', origem: { tipo: '', descricao: '' }, partes: [], campos: {} };
     const [f, setF] = useState(vazio);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     // Escolher o tipo preenche rito, sigilo e unidade sugerida (se a pessoa está lotada nela).
@@ -475,7 +477,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                 rito_id: t.rito_id, sigilo: t.sigilo_padrao, urgente: t.urgente === true,
                 ...(t.unidade_inicial && unidadesPara(t).includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial }
                     : unidadesPara(t).includes(x.unidade_id) ? {} : { unidade_id: unidadesPara(t)[0] }),
-            } : {}),
+            } : ritosSemTipo.some((r) => r.id === x.rito_id) ? {} : { rito_id: ritosSemTipo[0]?.id || '' }),
         }));
     };
     const tipoSel = tiposAtivos.find((t) => t.id === f.tipo_id);
@@ -534,7 +536,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                     {tiposAtivos.length > 0 && (
                         <div>
                             <NativeSelect id="sec-tipo" label="Tipo de processo" value={f.tipo_id} onChange={escolherTipo}
-                                options={[['', 'Sem tipo (escolher o rito)'], ...tiposAtivos.map((t) => [t.id, `${t.sigla ? `${t.nome} (${t.sigla})` : t.nome}${sugeridosDe(t, f.origem?.ref) ? ' (sugerido)' : ''}`])]} />
+                                options={[['', ritosSemTipo.length ? 'Sem tipo (escolher o rito)' : 'Escolha o tipo…'], ...tiposAtivos.map((t) => [t.id, `${t.sigla ? `${t.nome} (${t.sigla})` : t.nome}${sugeridosDe(t, f.origem?.ref) ? ' (sugerido)' : ''}`])]} />
                             {tipoSel?.descricao && <p className="text-xs text-slate-600 mt-1">{tipoSel.descricao}</p>}
                         </div>
                     )}
@@ -542,7 +544,13 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                         unidades={unidadesPara(tipoSel).map((id) => [id, unidadeComOrgao(estado, id)])}
                         rito={tipoSel
                             ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>
-                            : <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)} options={ritosAtivos.map((r) => [r.id, r.nome])} />} />
+                            : ritosSemTipo.length
+                                ? <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)} options={ritosSemTipo.map((r) => [r.id, r.nome])} />
+                                : <div><Label>Rito</Label><p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{!ritosAtivos.length
+                                    ? 'Nenhum rito ativo neste órgão. Peça ao administrador que ative um rito.'
+                                    : !tiposAtivos.length
+                                        ? 'Os ritos deste órgão são autuados por tipo de processo, e nenhum tipo está disponível para as suas unidades. Fale com o administrador.'
+                                        : 'Os ritos deste órgão são autuados por tipo de processo: escolha o tipo.'}</p></div>} />
                     {ritoSel && (
                         <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
                             <summary className="text-sm cursor-pointer">Ver o fluxo do rito ({ritoSel.fases.length} fases)</summary>

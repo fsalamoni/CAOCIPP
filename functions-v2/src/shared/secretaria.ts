@@ -68,7 +68,11 @@ export interface Fase {
     /** Certidão conjunta: grupo de fases que divide uma certidão, título e se as mudanças entre elas entram nela. */
     certidao?: CertidaoFase;
 }
-export interface Rito { nome: string; descricao: string; fases: Fase[] }
+export interface Rito {
+    nome: string; descricao: string; fases: Fase[];
+    /** Só se autua por um tipo de processo (sempre gravado, para desligar apague a marca). */
+    exigir_tipo?: boolean;
+}
 
 export interface ContextoUsuario {
     uid: string;
@@ -288,7 +292,7 @@ export function sanitizeRito(input: unknown): Rito {
     }
     const totalCampos = fases.reduce((s, f) => s + (f.acoes_regras || []).reduce((t, r) => t + (r?.campos?.length || 0), 0), 0);
     if (totalCampos > MAX_CAMPOS_RITO) throw new Error(`O rito aceita até ${MAX_CAMPOS_RITO} campos de formulário somando todas as ações (há ${totalCampos})`);
-    return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases };
+    return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases, exigir_tipo: src.exigir_tipo === true };
 }
 
 /**

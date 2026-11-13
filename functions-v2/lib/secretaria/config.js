@@ -117,7 +117,9 @@ async function guardarVersao(ref, atual, campos) {
         await b.commit();
     }
 }
-const CAMPOS_RITO = ['nome', 'descricao', 'fases'];
+const CAMPOS_RITO = ['nome', 'descricao', 'fases', 'exigir_tipo'];
+/** Tipo de processo: o que o editor do tipo grava (a versão é aberta no editor, não restaurada direto). */
+const CAMPOS_TIPO = ['nome', 'sigla', 'descricao', 'rito_id', 'formulario', 'numeracao', 'pode_nascer_de', 'sigilo_padrao', 'urgente', 'unidade_inicial', 'orgao_id'];
 const CAMPOS_MODELO = ['nome', 'tipo_documento', 'descricao', 'conteudo'];
 const RITO_PADRAO = {
     nome: 'Rito comum',
@@ -221,7 +223,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             convitesEquipe: convites,
             ritos: ritosSnap.docs.filter((d) => d.data().excluido !== true).map((d) => {
                 const r = d.data();
-                return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false };
+                return { id: d.id, nome: r.nome, descricao: r.descricao, fases: r.fases, versao: r.versao, ativo: r.ativo !== false, exigir_tipo: r.exigir_tipo === true };
             }),
             tipos: naoExcluidos(tiposSnap).map((d) => {
                 const t = d.data();
@@ -229,6 +231,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                     orgao_id: t.orgao_id || null, formulario: (0, camposProcesso_1.formularioDe)(t), numeracao: (0, numeracao_1.numeracaoTipoDe)(t.numeracao), pode_nascer_de: nascerDe(t.pode_nascer_de),
+                    versao: Number(t.versao) || 1,
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             // Processos já autuados com um tipo excluído seguem com o formulário dele (Editar dados, filtro da lista).
@@ -409,11 +412,14 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         await audit(excluir ? 'SECRETARIA_MODELO_EXCLUIDO' : 'SECRETARIA_MODELO_RESTAURADO', { modelo_id: ref.id, nome: atual.nome, unidade_id: atual.unidade_id || null });
         return { success: true };
     }
-    // Versões anteriores de um rito (admin) ou de um modelo do editor (gestão).
+    // Versões anteriores de um rito (admin), de um modelo do editor (gestão) ou de um tipo (admin).
     if (p.action === 'versoes' || p.action === 'restaurarVersao') {
-        const col = p.colecao === 'rito' ? context_1.COL.ritos : p.colecao === 'modelo' ? context_1.COL.modelos : null;
+        const col = p.colecao === 'rito' ? context_1.COL.ritos : p.colecao === 'modelo' ? context_1.COL.modelos : p.colecao === 'tipo' ? context_1.COL.tipos : null;
         if (!col)
             throw new https_1.HttpsError('invalid-argument', 'Coleção inválida');
+        // Tipo: a versão abre no editor e passa pelas validações de salvarTipo ao salvar.
+        if (col === context_1.COL.tipos && p.action === 'restaurarVersao')
+            throw new https_1.HttpsError('invalid-argument', 'Abra a versão do tipo no editor e salve');
         const ref = db.collection(col).doc(String(p.id || '_'));
         const atual = (await ref.get()).data();
         if (!atual || atual.organization_id !== orgId || atual.excluido === true)
@@ -422,14 +428,30 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             (0, context_1.exigirAdmin)(c);
         else
             (0, context_1.exigirGestor)(c, String(atual.unidade_id));
+        if (p.action === 'versoes' && col === context_1.COL.tipos && p.versao) {
+            const v = (await ref.collection('versoes').doc(String(Number(p.versao) || 0).padStart(6, '0')).get()).data();
+            if (!v)
+                throw new https_1.HttpsError('not-found', 'Versão não encontrada');
+            // Completa com os padrões o que a versão não gravou (tipo antigo), para não herdar a versão atual.
+            return {
+                versao: v.versao,
+                tipo: {
+                    nome: v.nome || '', sigla: v.sigla || '', descricao: v.descricao || '', rito_id: v.rito_id || '', formulario: (0, camposProcesso_1.formularioDe)(v),
+                    numeracao: (0, numeracao_1.numeracaoTipoDe)(v.numeracao), pode_nascer_de: nascerDe(v.pode_nascer_de), sigilo_padrao: v.sigilo_padrao === 'restrito' ? 'restrito' : 'normal',
+                    urgente: v.urgente === true, unidade_inicial: v.unidade_inicial || null, orgao_id: v.orgao_id || null,
+                },
+            };
+        }
         if (p.action === 'versoes') {
             const snap = await ref.collection('versoes').orderBy('versao', 'desc').limit(MAX_VERSOES).get();
             return {
                 versao_atual: Number(atual.versao) || 1,
                 versoes: snap.docs.map((d) => {
+                    var _a;
                     const v = d.data();
                     const em = v.salvo_em && typeof v.salvo_em.toDate === 'function' ? v.salvo_em.toDate().toISOString() : (v.salvo_em || null);
-                    return { versao: v.versao, em, por: v.salvo_por || null, nome: v.nome || '', fases: Array.isArray(v.fases) ? v.fases.length : undefined };
+                    return { versao: v.versao, em, por: v.salvo_por || null, nome: v.nome || '', fases: Array.isArray(v.fases) ? v.fases.length : undefined,
+                        campos: Array.isArray((_a = v.formulario) === null || _a === void 0 ? void 0 : _a.campos) ? v.formulario.campos.length : undefined };
                 }),
             };
         }
@@ -443,6 +465,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         for (const k of campos)
             if (v[k] !== undefined)
                 volta[k] = v[k];
+        // Versão de antes da opção: o rito volta sem exigir tipo.
+        if (col === context_1.COL.ritos)
+            volta.exigir_tipo = v.exigir_tipo === true;
         await ref.update(volta);
         await audit('SECRETARIA_VERSAO_RESTAURADA', { colecao: p.colecao, id: ref.id, nome: v.nome || atual.nome, de_versao: v.versao, nova_versao: volta.versao });
         return { success: true, versao: volta.versao };
@@ -761,13 +786,14 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             if ((atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId || (atual === null || atual === void 0 ? void 0 : atual.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
             await exigirIntegracoes(c, modulosDoTipo(dados), modulosDoTipo(atual));
-            await ref.update(dados);
+            await guardarVersao(ref, atual, CAMPOS_TIPO);
+            await ref.update(Object.assign(Object.assign({}, dados), { versao: (Number(atual.versao) || 1) + 1 }));
         }
         else {
             if (naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS)
                 throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido');
             await exigirIntegracoes(c, modulosDoTipo(dados), new Set());
-            p.id = (await col.add(Object.assign(Object.assign({}, dados), { organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
+            p.id = (await col.add(Object.assign(Object.assign({}, dados), { versao: 1, organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
         }
         await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome, campos: formulario.campos.length });
         return { success: true, id: p.id };
