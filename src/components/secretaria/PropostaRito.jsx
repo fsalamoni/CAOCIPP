@@ -21,8 +21,8 @@ import {
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
 import { copiarFases, modelosDeRito, novoIdFase, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
-import { problemaDaCondicao, registroComOutros, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
-import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
+import { MAX_CAMPOS_ACAO, problemaDaCondicao, registroComOutros, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
+import { MODULOS, integracoesLigadas, problemasFormulario } from '@/lib/camposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import FluxoRito from './FluxoRito';
 import { AcoesDaFase, CondicaoPorResposta, RegistroEDocumentos } from './RegrasDaFase';
@@ -79,6 +79,14 @@ export function pendenciasDaProposta(p, ligadas = null) {
             }
             const prob = a.trim() && r?.se ? problemaDaCondicao(f, r.se, k) || (r.se.valores.length ? null : 'está sem resposta marcada') : null;
             if (prob) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a condição de "${a.trim()}" ${prob}. Ajuste em "Quando vale".` });
+            if (a.trim() && r?.pede === 'formulario') {
+                const campos = r.campos || [];
+                if (!campos.length) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um formulário: crie ao menos um campo.` });
+                if (campos.length > MAX_CAMPOS_ACAO) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" tem ${campos.length} campos; cabem ${MAX_CAMPOS_ACAO}.` });
+                problemasFormulario({ campos }).forEach((x) => out.push({ fase: f.id, grave: true, texto: `Em ${rot}, no formulário de "${a.trim()}": ${x}.` }));
+                campos.filter((c) => c.tipo === 'registro' && ligadas && !ligadas[c.modulo]).forEach((c) => out.push({ fase: f.id, grave: true,
+                    texto: `Em ${rot}, o campo "${c.rotulo.trim() || 'sem nome'}" da ação "${a.trim()}" pede um registro de ${MODULOS.find(([m]) => m === c.modulo)?.[1] || c.modulo}, mas essa integração está desligada.` }));
+            }
             if (a.trim() && r?.pede === 'registro' && ligadas && !ligadas[r.modulo]) {
                 const mod = MODULOS.find(([m]) => m === r.modulo)?.[1] || r.modulo;
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um registro de ${mod}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou mude o que a ação pede.` });

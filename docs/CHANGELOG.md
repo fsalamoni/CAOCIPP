@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: ação com formulário
+- **Uma ação pode pedir vários dados de uma vez**: o rito ganha "Um
+  formulário (vários campos)", com até 10 campos montados como os do tipo de
+  processo (data, lista, sim ou não, registro de outro módulo, campos que só
+  aparecem com certa resposta, obrigatórios). Quem cumpre preenche tudo num
+  diálogo, e o que foi preenchido vai num só registro: certidão, evento ou
+  certidão conjunta, com as partes vendo se a ação disser.
+
 ### 13/11/2026 — Processo Eletrônico: a fase age sozinha
 - **Prazo da fase que abre e fecha sozinho**: ao entrar na fase, o processo
   ganha o prazo da fase (dias úteis ou corridos, com o calendário do órgão);

@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
-    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
+    DESTINO_INFO, DESTINOS_DOCUMENTO, MAX_CAMPOS_ACAO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
     QUEM, acoesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes,
@@ -16,6 +16,7 @@ import {
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
+import { EditorCampos } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
@@ -164,6 +165,9 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                         <OpcoesDaLista id={`${id}-op`} opcoes={r?.opcoes || []} onChange={(opcoes) => set({ opcoes })} />
                     ) : null}
                 </div>
+            )}
+            {pede === 'formulario' && (
+                <EditorCampos campos={r?.campos || []} onChange={(campos) => set({ campos })} max={MAX_CAMPOS_ACAO} paraAcao prefixo={`${id}-fc`} />
             )}
             {pede === 'documento' && (
                 <CamposExigencia id={`${id}-doc`} e={r.documento} modelos={modelos} onChange={(d) => onChange({ ...r, documento: { ...d, descricao: acao } })} />

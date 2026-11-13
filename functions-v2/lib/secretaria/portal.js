@@ -282,7 +282,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const camposPartes = (data.campos || [])
             .filter((x) => x.visivel_partes === true);
         const infosPartes = (0, informacoes_1.informacoesDoAndamento)(todos, data.fases || [], true);
-        const fechadas = await (0, modulos_1.refsFechadas)(db, String(data.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.map((i) => i.ref)]);
+        const fechadas = await (0, modulos_1.refsFechadas)(db, String(data.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
         const aberta = (r) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         return {
             orgao: org.name || '',
@@ -300,7 +300,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
-                informacoes: infosPartes.filter((i) => aberta(i.ref))
+                informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))
                     .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
             },
             movimentos: todos.filter((m) => (0, autos_2.visivelParaPartes)(m))

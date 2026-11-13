@@ -23,6 +23,8 @@ export interface InformacaoAndamento {
     visivel_partes: boolean;
     /** Registro de outro módulo (ação que pede registro). */
     ref?: Ref;
+    /** Registros escolhidos num formulário da ação. */
+    refs?: Ref[];
 }
 
 interface Mov { seq: number; tipo: string; autor_nome?: string; em?: string; dados?: Record<string, unknown> }
@@ -57,6 +59,7 @@ export function informacoesDoAndamento(movs: Mov[], fases: Array<{ id: string; n
                 : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento',
             visivel_partes: d.visivel_partes === true,
             ...(d.ref && typeof d.ref === 'object' ? { ref: d.ref as Ref } : {}),
+            ...(Array.isArray(d.valor) && d.valor.some((x) => x?.ref) ? { refs: d.valor.map((x) => x?.ref).filter(Boolean) as Ref[] } : {}),
         };
         pilha.push(info);
         ordem.push(info);

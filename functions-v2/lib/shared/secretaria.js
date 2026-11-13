@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
 exports.minutaAcessivel = minutaAcessivel;
 exports.texto = texto;
@@ -72,6 +72,8 @@ exports.MAX_TEXTO_LONGO = 4000;
 exports.MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 exports.MAX_FASES = 60;
 exports.MAX_ACOES = 20;
+/** Campos de formulário somados em todas as ações do rito (o documento do rito tem limite de tamanho). */
+exports.MAX_CAMPOS_RITO = 200;
 exports.MAX_MODELOS_FASE = 10;
 exports.TIPOS_ARQUIVO_PERMITIDOS = {
     'application/pdf': 'pdf',
@@ -233,6 +235,9 @@ function sanitizeRito(input) {
         if (!Object.keys(f.certidao).length)
             delete f.certidao;
     }
+    const totalCampos = fases.reduce((s, f) => s + (f.acoes_regras || []).reduce((t, r) => { var _a; return t + (((_a = r === null || r === void 0 ? void 0 : r.campos) === null || _a === void 0 ? void 0 : _a.length) || 0); }, 0), 0);
+    if (totalCampos > exports.MAX_CAMPOS_RITO)
+        throw new Error(`O rito aceita até ${exports.MAX_CAMPOS_RITO} campos de formulário somando todas as ações (há ${totalCampos})`);
     return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases };
 }
 /**

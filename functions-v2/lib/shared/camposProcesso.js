@@ -7,9 +7,21 @@
 // test/camposProcesso.test.js. O cliente tem o espelho em
 // src/lib/camposProcesso.js (só para a tela; quem decide é o servidor).
 // ============================================================================
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.atendeCondicao = exports.rotuloDe = exports.POLOS = exports.ROTULO_PADRAO = exports.PADROES = exports.MAX_OPCOES = exports.MAX_CAMPOS = exports.FORMATOS = exports.TIPOS_CAMPO = void 0;
 exports.formularioDe = formularioDe;
+exports.sanitizeCampos = sanitizeCampos;
 exports.sanitizeFormulario = sanitizeFormulario;
 exports.cpfCnpj = cpfCnpj;
 exports.linkValido = linkValido;
@@ -19,9 +31,14 @@ exports.camposExigidos = camposExigidos;
 exports.camposFaltando = camposFaltando;
 exports.validarPadrao = validarPadrao;
 exports.valorTexto = valorTexto;
+exports.dadoDoFormulario = dadoDoFormulario;
 exports.diferencasCampos = diferencasCampos;
-const secretaria_1 = require("./secretaria");
 const modulos_1 = require("./modulos");
+// Sem importar ./secretaria: o rito (./exigencias, que ./secretaria importa) usa os campos
+// na ação que pede um formulário. O mesmo corte de texto de lá.
+const MAX_TEXTO_CURTO = 200;
+const MAX_TEXTO_LONGO = 4000;
+const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 exports.TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'multipla', 'sim_nao', 'registro'];
 /** Formato que valida e mostra o valor: os de texto curto e, para número, moeda. */
 exports.FORMATOS = ['email', 'telefone', 'cpf_cnpj', 'link', 'moeda'];
@@ -49,7 +66,7 @@ const usoDe = (k, v) => {
 };
 const textos = (v, max) => {
     const o = (v && typeof v === 'object' ? v : {});
-    return Object.fromEntries(exports.PADROES.map((k) => [k, (0, secretaria_1.texto)(o[k], max)]).filter(([, s]) => s));
+    return Object.fromEntries(exports.PADROES.map((k) => [k, texto(o[k], max)]).filter(([, s]) => s));
 };
 const polosDe = (v) => {
     const l = exports.POLOS.filter((p) => Array.isArray(v) && v.includes(p));
@@ -69,21 +86,21 @@ function formularioDe(tipo) {
     const f = ((tipo === null || tipo === void 0 ? void 0 : tipo.formulario) && typeof tipo.formulario === 'object' ? tipo.formulario : {});
     return Object.assign(Object.assign({}, padroesDe(f)), { campos: Array.isArray(f.campos) ? f.campos : [] });
 }
-/** Saneia o formulário vindo do cliente. Lança Error com mensagem para o usuário. */
-function sanitizeFormulario(input) {
-    const src = (input && typeof input === 'object' ? input : {});
-    const lista = Array.isArray(src.campos) ? src.campos : [];
-    if (lista.length > exports.MAX_CAMPOS)
-        throw new Error(`O tipo aceita até ${exports.MAX_CAMPOS} campos próprios`);
+/**
+ * Saneia uma lista de campos (do tipo de processo ou da ação que pede um
+ * formulário): nome, tipo, opções, módulo, formato, condição e nomes repetidos.
+ * Lança Error com mensagem para o usuário. O teto de quantidade fica com quem chama.
+ */
+function sanitizeCampos(lista) {
     const ids = new Set();
     const campos = lista.map((x, i) => {
         const o = (x && typeof x === 'object' ? x : {});
-        const rotulo = (0, secretaria_1.texto)(o.rotulo, 80);
+        const rotulo = texto(o.rotulo, 80);
         if (!rotulo)
             throw new Error(`Dê um nome ao campo ${i + 1}`);
         const tipo = exports.TIPOS_CAMPO.includes(o.tipo) ? o.tipo : 'texto';
         const opcoes = COM_OPCOES.includes(tipo)
-            ? [...new Set((Array.isArray(o.opcoes) ? o.opcoes : []).map((s) => (0, secretaria_1.texto)(s, 80)).filter(Boolean))].slice(0, exports.MAX_OPCOES)
+            ? [...new Set((Array.isArray(o.opcoes) ? o.opcoes : []).map((s) => texto(s, 80)).filter(Boolean))].slice(0, exports.MAX_OPCOES)
             : [];
         if (COM_OPCOES.includes(tipo) && opcoes.length < 2)
             throw new Error(`O campo "${rotulo}" é uma lista: informe ao menos duas opções`);
@@ -91,14 +108,14 @@ function sanitizeFormulario(input) {
         if (tipo === 'registro' && !modulo)
             throw new Error(`Escolha de que módulo vem o registro de "${rotulo}"`);
         const formato = exports.FORMATOS.includes(o.formato) && FORMATO_DO_TIPO[o.formato] === tipo ? o.formato : undefined;
-        const secao = (0, secretaria_1.texto)(o.secao, 60);
-        const exigir = [...new Set((Array.isArray(o.exigir_em) ? o.exigir_em : []).map((s) => (0, secretaria_1.texto)(s, 60)).filter(Boolean))].slice(0, 30);
+        const secao = texto(o.secao, 60);
+        const exigir = [...new Set((Array.isArray(o.exigir_em) ? o.exigir_em : []).map((s) => texto(s, 60)).filter(Boolean))].slice(0, 30);
         // O id identifica o campo nos processos já autuados: não muda quando o nome muda.
         let id = typeof o.id === 'string' && /^[a-z0-9_]{1,24}$/.test(o.id) ? o.id : '';
         if (!id || ids.has(id))
             id = `c${Date.now().toString(36)}${i}`;
         ids.add(id);
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: (0, secretaria_1.texto)(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true }, (formato ? { formato } : {})), (modulo ? { modulo } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true }, (formato ? { formato } : {})), (modulo ? { modulo } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {}));
     });
     // Condição: aponta um campo de escolha que vem antes, e um valor que ele aceita.
     campos.forEach((c, i) => {
@@ -109,16 +126,27 @@ function sanitizeFormulario(input) {
             throw new Error(`"${c.rotulo}" só pode depender de um campo de lista ou de sim ou não que venha antes dele`);
         }
         const v = c.condicao.valor;
-        const valor = alvo.tipo === 'sim_nao' ? (v === true || v === 'sim' ? true : v === false || v === 'nao' ? false : null) : typeof v === 'string' && alvo.opcoes.includes((0, secretaria_1.texto)(v, 80)) ? (0, secretaria_1.texto)(v, 80) : null;
+        const valor = alvo.tipo === 'sim_nao' ? (v === true || v === 'sim' ? true : v === false || v === 'nao' ? false : null) : typeof v === 'string' && alvo.opcoes.includes(texto(v, 80)) ? texto(v, 80) : null;
         if (valor === null)
             throw new Error(`Escolha quando "${c.rotulo}" aparece: um valor de "${alvo.rotulo}"`);
         c.condicao = { campo_id: alvo.id, valor };
     });
-    const padroes = padroesDe(src);
-    const reservados = [...Object.values(padroes.rotulos), 'assunto', 'descrição', 'descricao', 'partes'];
     campos.forEach((c, i) => {
         if (campos.some((d, j) => j < i && igual(d.rotulo, c.rotulo)))
             throw new Error(`Há dois campos chamados "${c.rotulo}"`);
+    });
+    return campos;
+}
+/** Saneia o formulário vindo do cliente. Lança Error com mensagem para o usuário. */
+function sanitizeFormulario(input) {
+    const src = (input && typeof input === 'object' ? input : {});
+    const lista = Array.isArray(src.campos) ? src.campos : [];
+    if (lista.length > exports.MAX_CAMPOS)
+        throw new Error(`O tipo aceita até ${exports.MAX_CAMPOS} campos próprios`);
+    const campos = sanitizeCampos(lista);
+    const padroes = padroesDe(src);
+    const reservados = [...Object.values(padroes.rotulos), 'assunto', 'descrição', 'descricao', 'partes'];
+    campos.forEach((c) => {
         if (reservados.some((r) => igual(r, c.rotulo)))
             throw new Error(`"${c.rotulo}" já é um campo padrão do processo`);
     });
@@ -235,7 +263,7 @@ function valorDe(c, v) {
     }
     if (c.tipo === 'texto' && c.formato)
         return comFormato(c.rotulo, c.formato, s);
-    return s.slice(0, c.tipo === 'texto_longo' ? secretaria_1.MAX_TEXTO_LONGO : secretaria_1.MAX_TEXTO_CURTO);
+    return s.slice(0, c.tipo === 'texto_longo' ? MAX_TEXTO_LONGO : MAX_TEXTO_CURTO);
 }
 /** O valor atende a condição? (lista: igual; múltipla: entre os marcados; sim ou não: igual). */
 const atendeCondicao = (valor, cond) => Array.isArray(valor) ? valor.includes(String(cond.valor)) : valor === cond.valor;
@@ -365,6 +393,24 @@ function valorTexto(c) {
     if (c.tipo === 'numero')
         return String(c.valor).replace('.', ',');
     return String(c.valor);
+}
+/**
+ * O dado de uma ação que pede um formulário: os campos preenchidos (sem a
+ * marca de partes, que é da ação), em texto "Campo: valor; ..." e os
+ * registros escolhidos (restrito se algum for).
+ */
+function dadoDoFormulario(rotulo, campos) {
+    const refs = campos.map((c) => c.ref).filter((r) => !!r);
+    return {
+        rotulo, tipo: 'formulario',
+        valor: campos.map((_a) => {
+            var { visivel_partes: _v } = _a, c = __rest(_a, ["visivel_partes"]);
+            return c;
+        }),
+        // Registro só pelo número (como a ação que pede um registro): o título pode não ser das partes.
+        valor_texto: campos.map((c) => `${c.rotulo}: ${c.tipo === 'registro' ? c.valor : valorTexto(c)}`).join('; '),
+        ref: undefined, refs, restrito: refs.some((r) => r.restrito === true),
+    };
 }
 /** O que mudou entre os campos gravados e os novos, em frases para o movimento. */
 function diferencasCampos(antes, depois) {

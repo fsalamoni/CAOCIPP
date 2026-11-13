@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { ROTULO_DESTINO, ROTULO_QUEM, destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
 import { dataHora } from './comum';
 import SeletorRegistro from './SeletorRegistro';
+import { CamposProcesso, DadosCampos } from './CamposProcesso';
+import { faltando } from '@/lib/camposProcesso';
 
 // Ações da fase na tela do processo (aba Andamento): cada uma do jeito que o
 // rito pediu (caixa de marcar, um dado ou um documento), dizendo onde o
@@ -61,7 +63,12 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {aviso}
-                {feita && info && (
+                {feita && info && info.tipo === 'formulario' && Array.isArray(info.valor) ? (
+                    <span className="block mt-1 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5">
+                        <DadosCampos campos={info.valor} />
+                        <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1">{info.por}, {dataHora(info.em)}</span>
+                    </span>
+                ) : feita && info && (
                     <span className="block text-slate-800 dark:text-slate-200">
                         {info.rotulo}: <b className="whitespace-pre-wrap break-words">{info.valor_texto}</b>
                         <span className="text-xs text-slate-600 dark:text-slate-400"> · {info.por}, {dataHora(info.em)}</span>
@@ -77,13 +84,19 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
 /** Diálogo para informar o dado que a ação pede. */
 export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const [valor, setValor] = useState('');
+    const [tentou, setTentou] = useState(false);
     if (!alvo) return null;
     const { acao, r, fase } = alvo;
     const pede = pedidoDaAcao(r);
     const dest = destinoDaAcao(r);
     const rotulo = r?.rotulo || acao;
-    const vazio = pede === 'sim_nao' ? valor === '' : !String(valor).trim();
-    const fechar = () => { setValor(''); onFechar(); };
+    // Formulário: vários campos de uma vez, conferidos como os do tipo de processo.
+    const form = pede === 'formulario' ? { campos: r?.campos || [] } : null;
+    const valores = form && valor && typeof valor === 'object' ? valor : {};
+    const falta = form ? faltando(form, { campos: valores }) : [];
+    const algum = Object.values(valores).some((x) => (Array.isArray(x) ? x.length : x && typeof x === 'object' ? true : String(x ?? '').trim()));
+    const vazio = form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
+    const fechar = () => { setValor(''); setTentou(false); onFechar(); };
     const onde = dest === 'autos'
         ? 'Vira certidão nos autos, com folha, e sai na impressão.'
         : dest === 'evento'
@@ -95,7 +108,8 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 : 'Fica só nas informações do processo e na aba Eventos, para controle. Não sai em impressão.';
     const quem = partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
     let campo;
-    if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
+    if (form) campo = <CamposProcesso prefixo="acao-f" campos={form.campos} valores={valores} onChange={(id, x) => setValor({ ...valores, [id]: x })} />;
+    else if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'numero') campo = <Input id="acao-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 12345" autoFocus />;
     else if (pede === 'data') campo = <Input id="acao-valor" type="date" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'registro') campo = <SeletorRegistro id="acao-valor" aria-describedby={r?.ajuda ? 'acao-ajuda' : undefined} modulo={r.modulo} value={valor} onChange={setValor} autoFocus />;
@@ -111,15 +125,23 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     } else campo = <Input id="acao-valor" maxLength={200} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     return (
         <Dialog open onOpenChange={(o) => !o && fechar()}>
-            <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
+            <DialogContent className={`${form ? 'max-w-2xl' : 'max-w-lg'} max-h-[90dvh] overflow-y-auto`}>
                 <DialogHeader>
                     <DialogTitle>{acao}</DialogTitle>
                     <DialogDescription>Fase {fase}. {onde} {quem}</DialogDescription>
                 </DialogHeader>
-                <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (!vazio) onEnviar(valor).then((ok) => ok && setValor('')); }}>
-                    <Label htmlFor="acao-valor">{rotulo}</Label>
+                <form className="space-y-2" onSubmit={(e) => {
+                    e.preventDefault();
+                    if (falta.length) { setTentou(true); return; }
+                    if (!vazio) onEnviar(form ? valores : valor).then((ok) => ok && (setValor(''), setTentou(false)));
+                }}>
+                    {form ? <p className="text-sm font-medium">{rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
+                    {r?.ajuda && form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
                     {campo}
-                    {r?.ajuda && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
+                    {r?.ajuda && !form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
+                    {tentou && falta.length > 0 && (
+                        <ul role="alert" className="text-sm text-red-700 dark:text-red-300 list-disc pl-5">{falta.map((x) => <li key={x}>{x}</li>)}</ul>
+                    )}
                     <DialogFooter className="pt-2">
                         <Button type="button" variant="ghost" onClick={fechar}>Cancelar</Button>
                         <Button type="submit" disabled={ocupado || vazio}>Registrar</Button>

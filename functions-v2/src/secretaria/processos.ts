@@ -15,11 +15,11 @@ import {
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
 import {
-    CampoExigido, CampoValor, Formulario, POLOS, TipoCampo, camposExigidos, camposFaltando, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto,
+    CampoExigido, CampoValor, Formulario, POLOS, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, diferencasCampos, formularioDe, validarCampos, validarPadrao, valorDe, valorTexto,
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
-import { MODULOS, Modulo, ROTULO_MODULO, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, resolverRegistro, vinculosDe } from '../shared/modulos';
+import { MODULOS, Modulo, ROTULO_MODULO, Ref, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, resolverRegistro, vinculosDe } from '../shared/modulos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
@@ -254,6 +254,14 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
     const pede = pedidoDaAcao(regra);
     if (pede === 'confirmar' || pede === 'documento') return null;
     const rotulo = regra?.rotulo || acao;
+    if (pede === 'formulario') {
+        // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).
+        const form = { campos: regra?.campos || [] } as Formulario;
+        let campos: CampoValor[] = [];
+        try { campos = validarCampos(form, bruto, [], await refsDoFormulario(c.db, c.orgId, c.org, form, bruto)); } catch (e) { erroUsuario(e); }
+        if (!campos.length) throw new HttpsError('invalid-argument', `Preencha "${rotulo}"`);
+        return dadoDoFormulario(rotulo, campos);
+    }
     if (pede === 'registro') {
         // Registro de outro módulo: o servidor lê e guarda só número e título; a parte vê só o número.
         const modulo = regra?.modulo as Modulo;
@@ -264,22 +272,22 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
         }
         const ref = await resolverRegistro(c.db, c.orgId, modulo, id);
         if (!ref) throw new HttpsError('invalid-argument', `"${rotulo}": registro não encontrado em ${ROTULO_MODULO[modulo]}`);
-        return { rotulo, tipo: 'registro' as TipoCampo, valor: ref.numero, valor_texto: ref.numero, ref, restrito: ref.restrito === true };
+        return { rotulo, tipo: 'registro' as TipoCampo, valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true };
     }
     const tipo = pede as TipoCampo;
     let valor: ReturnType<typeof valorDe> = null;
     try { valor = valorDe({ rotulo, tipo, opcoes: regra?.opcoes || [] }, bruto); } catch (e) { erroUsuario(e); }
     if (valor === null) throw new HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
-    return { rotulo, tipo, valor, valor_texto: valorTexto({ tipo, valor }), ref: undefined, restrito: false };
+    return { rotulo, tipo, valor, valor_texto: valorTexto({ tipo, valor }), ref: undefined, refs: [] as Ref[], restrito: false };
 }
 
 /** Registro pedido por uma ação entra nos vínculos (desfazer não tira: segue citado no histórico). */
 // ponytail: os 50 primeiros; paginar se um registro passar disso.
 const MAX_VINCULADOS = 50;
-const vinculoDaAcao = (dado: { ref?: { modulo: string; id: string } } | null) => {
-    if (!dado?.ref) return {};
-    const k = `${dado.ref.modulo}:${dado.ref.id}`;
-    return { vinculos: FieldValue.arrayUnion(k), vinculos_acoes: FieldValue.arrayUnion(k) };
+const vinculoDaAcao = (dado: { refs: Array<{ modulo: string; id: string }> } | null) => {
+    if (!dado?.refs.length) return {};
+    const k = dado.refs.map((r) => `${r.modulo}:${r.id}`);
+    return { vinculos: FieldValue.arrayUnion(...k), vinculos_acoes: FieldValue.arrayUnion(...k) };
 };
 
 /**

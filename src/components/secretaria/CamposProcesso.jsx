@@ -21,6 +21,8 @@ import FormularioAutuacao from './FormularioAutuacao';
 // ============================================================================
 
 const seletor = 'mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
+// Botões de ícone: 44px no toque, compactos a partir do tablet.
+const ICONE = 'h-11 w-11 sm:h-8 sm:w-auto shrink-0 px-0 sm:px-2';
 const Obrigatorio = () => <span className="text-red-600 dark:text-red-400" aria-hidden> *</span>;
 
 // Texto curto com formato: o teclado e a dica certos no celular.
@@ -159,7 +161,7 @@ function LinhaPadrao({ p, form, onChange }) {
 const PREVIA_VAZIA = { assunto: '', descricao: '', origem: { tipo: '', descricao: '' }, unidade_id: 'u', sigilo: 'normal', urgente: false, motivo_urgencia: '', partes: [], campos: {} };
 
 /** Quando o campo aparece: depende de um campo de escolha anterior. */
-function MostrarQuando({ c, anteriores, onChange }) {
+function MostrarQuando({ c, anteriores, onChange, p = (x) => `fc-${x}` }) {
     const alvo = anteriores.find((d) => d.id === c.condicao?.campo_id);
     const valores = alvo?.tipo === 'sim_nao' ? [['sim', 'Sim'], ['nao', 'Não']] : (alvo?.opcoes || []).map((o) => o.trim()).filter(Boolean).map((o) => [o, o]);
     const atual = typeof c.condicao?.valor === 'boolean' ? (c.condicao.valor ? 'sim' : 'nao') : c.condicao?.valor || '';
@@ -170,8 +172,8 @@ function MostrarQuando({ c, anteriores, onChange }) {
     return (
         <div className="grid sm:grid-cols-2 gap-3">
             <div>
-                <Label htmlFor={`fc-cond-${c.id}`}>Mostrar este campo</Label>
-                <select id={`fc-cond-${c.id}`} className={seletor} value={semAlvo ? '__perdido' : alvo?.id || ''}
+                <Label htmlFor={p(`cond-${c.id}`)}>Mostrar este campo</Label>
+                <select id={p(`cond-${c.id}`)} className={seletor} value={semAlvo ? '__perdido' : alvo?.id || ''}
                     onChange={(e) => {
                         const d = anteriores.find((x) => x.id === e.target.value);
                         const primeiro = d?.tipo === 'sim_nao' ? true : (d?.opcoes || []).map((o) => o.trim()).find(Boolean);
@@ -185,8 +187,8 @@ function MostrarQuando({ c, anteriores, onChange }) {
             </div>
             {alvo && (
                 <div>
-                    <Label htmlFor={`fc-condv-${c.id}`}>{alvo.tipo === 'multipla' ? 'incluir' : 'for'}</Label>
-                    <select id={`fc-condv-${c.id}`} className={seletor} value={semValor ? '__perdido' : atual} onChange={(e) => onChange({ condicao: { campo_id: alvo.id, valor: valorDe(alvo, e.target.value) } })}>
+                    <Label htmlFor={p(`condv-${c.id}`)}>{alvo.tipo === 'multipla' ? 'incluir' : 'for'}</Label>
+                    <select id={p(`condv-${c.id}`)} className={seletor} value={semValor ? '__perdido' : atual} onChange={(e) => onChange({ condicao: { campo_id: alvo.id, valor: valorDe(alvo, e.target.value) } })}>
                         {semValor && <option value="__perdido" disabled>Escolha um valor</option>}
                         {valores.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
@@ -214,7 +216,7 @@ function ExigirEm({ c, fases, onChange }) {
                     const on = sel.includes(f.id);
                     return (
                         <button key={f.id} type="button" aria-pressed={on} onClick={() => alternar(f.id)}
-                            className={`min-h-[2.25rem] rounded-full border px-3 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                            className={`min-h-[2.75rem] sm:min-h-0 rounded-full border px-3 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                             {f.nome}
                         </button>
                     );
@@ -234,23 +236,23 @@ function ExigirEm({ c, fases, onChange }) {
 }
 
 /**
- * Configuração do formulário de autuação de um tipo de processo. `tipo` serve à
- * prévia (urgência e sigilo); `fases`, as do rito do tipo, a "Exigir para sair das fases".
+ * Lista de campos para criar, ordenar, configurar e remover. Serve ao
+ * formulário do tipo de processo e à ação do rito que pede um formulário
+ * (`paraAcao`: obrigatório vale ao cumprir a ação; sem "exigir em" nem
+ * "partes veem" por campo, que são da ação inteira).
  */
-export function EditorFormulario({ form, onChange, tipo = null, fases = [], previa: comPrevia = true }) {
+export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, paraAcao = false, prefixo = 'fc' }) {
     const { ligadas } = useContext(RegistroContexto);
     const [aberto, setAberto] = useState(null);
-    const [previa, setPrevia] = useState(PREVIA_VAZIA);
-    const campos = form.campos;
-    const setCampo = (i, patch) => onChange({ ...form, campos: campos.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
+    const setCampo = (i, patch) => onChange(campos.map((c, j) => (j === i ? { ...c, ...patch } : c)));
     const mover = (i, d) => {
         const lista = [...campos];
         [lista[i], lista[i + d]] = [lista[i + d], lista[i]];
-        onChange({ ...form, campos: lista });
+        onChange(lista);
     };
     const adicionar = () => {
         const c = novoCampo();
-        onChange({ ...form, campos: [...campos, c] });
+        onChange([...campos, c]);
         setAberto(c.id);
     };
     const rotuloTipo = (c) => (c.tipo === 'registro' ? `Registro de ${ROTULO_MODULO[c.modulo] || 'outro módulo'}` : TIPOS_CAMPO.find(([id]) => id === c.tipo)?.[1] || c.tipo);
@@ -262,8 +264,86 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [], prev
     // Remover um campo solta quem dependia dele (o campo volta a aparecer sempre).
     const remover = (i) => {
         const id = campos[i].id;
-        onChange({ ...form, campos: campos.filter((_x, j) => j !== i).map((c) => (c.condicao?.campo_id === id ? { ...c, condicao: undefined } : c)) });
+        onChange(campos.filter((_x, j) => j !== i).map((c) => (c.condicao?.campo_id === id ? { ...c, condicao: undefined } : c)));
     };
+    const p = (s) => `${prefixo}-${s}`;
+
+    return (
+        <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">{paraAcao ? 'Campos do formulário' : 'Campos próprios'} <span className="font-normal text-slate-600 dark:text-slate-400">({campos.length} de {max})</span></p>
+                <Button type="button" size="sm" variant="outline" className="gap-1 h-11 sm:h-8" disabled={campos.length >= max} onClick={adicionar}><Plus className="w-4 h-4" /> Adicionar campo</Button>
+            </div>
+            {campos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">{paraAcao ? 'Nenhum campo ainda. Crie ao menos um.' : 'Nenhum campo próprio. Exemplos: Número de origem, Valor, Data do fato, Urgente.'}</p>}
+            {campos.map((c, i) => {
+                const expandido = aberto === c.id;
+                return (
+                    <div key={c.id} className="rounded-md border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center gap-1 px-2 py-1.5">
+                            <button type="button" className="flex w-0 flex-1 min-w-0 overflow-hidden items-center gap-2 text-left rounded min-h-[2.75rem] sm:min-h-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500" aria-expanded={expandido} onClick={() => setAberto(expandido ? null : c.id)}>
+                                <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${expandido ? 'rotate-180' : ''}`} aria-hidden />
+                                <span className="truncate text-sm font-medium">{c.rotulo.trim() || 'Campo sem nome'}{c.obrigatorio && <span className="sm:hidden"><Obrigatorio /><span className="sr-only"> (obrigatório)</span></span>}</span>
+                                <span className="shrink-0 hidden sm:inline text-xs text-slate-600 dark:text-slate-400">{rotuloTipo(c)}</span>
+                                {c.obrigatorio && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex">Obrigatório</Badge>}
+                                {!paraAcao && c.exigir_em?.some(nomeFase) && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={`Exigido para sair de: ${c.exigir_em.map(nomeFase).filter(Boolean).join(', ')}`}>Exigido em {c.exigir_em.filter(nomeFase).length === 1 ? nomeFase(c.exigir_em.find(nomeFase)) : `${c.exigir_em.filter(nomeFase).length} fases`}</Badge>}
+                                {c.condicao && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={textoCondicao(campos, c)}>Condicional</Badge>}
+                                {!paraAcao && c.visivel_partes && <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">Partes veem</Badge>}
+                            </button>
+                            <Button type="button" size="sm" variant="ghost" className={ICONE} disabled={i === 0} onClick={() => mover(i, -1)} aria-label={`Subir ${c.rotulo || 'campo'}`}><ArrowUp className="w-4 h-4" /></Button>
+                            <Button type="button" size="sm" variant="ghost" className={ICONE} disabled={i === campos.length - 1} onClick={() => mover(i, 1)} aria-label={`Descer ${c.rotulo || 'campo'}`}><ArrowDown className="w-4 h-4" /></Button>
+                            <Button type="button" size="sm" variant="ghost" className={ICONE} onClick={() => remover(i)} aria-label={`Remover ${c.rotulo || 'campo'}`}><Trash2 className="w-4 h-4" /></Button>
+                        </div>
+                        {expandido && (
+                            <div className="border-t border-slate-200 dark:border-slate-700 p-3 space-y-3">
+                                <div className="grid sm:grid-cols-3 gap-3">
+                                    <div className="sm:col-span-2"><Label htmlFor={p(`nome-${c.id}`)}>Nome do campo</Label><Input id={p(`nome-${c.id}`)} className="mt-1" maxLength={80} value={c.rotulo} onChange={(e) => setCampo(i, { rotulo: e.target.value })} placeholder={paraAcao ? 'Ex.: Data da audiência' : 'Ex.: Número de origem'} autoFocus={!c.rotulo} /></div>
+                                    <NativeSelect id={p(`tipo-${c.id}`)} label="Tipo" value={c.tipo} onChange={(v) => trocarTipo(i, v)} options={TIPOS_CAMPO} />
+                                </div>
+                                <div className="grid sm:grid-cols-2 gap-3">
+                                    {FORMATOS[c.tipo] && <NativeSelect id={p(`formato-${c.id}`)} label="Formato" value={c.formato || ''} onChange={(v) => setCampo(i, { formato: v || undefined })} options={FORMATOS[c.tipo]} />}
+                                    <div>
+                                        <Label htmlFor={p(`secao-${c.id}`)}>Seção</Label>
+                                        <Input id={p(`secao-${c.id}`)} className="mt-1" maxLength={60} list={p(`secoes-${c.id}`)} value={c.secao || ''} onChange={(e) => setCampo(i, { secao: e.target.value })} placeholder="Opcional. Ex.: Dados do fato" />
+                                        <datalist id={p(`secoes-${c.id}`)}>{secoes.map((s) => <option key={s} value={s} />)}</datalist>
+                                    </div>
+                                </div>
+                                {c.tipo === 'registro' && (
+                                    <div className="space-y-1">
+                                        <div className="sm:max-w-xs"><NativeSelect id={p(`mod-${c.id}`)} label="De qual módulo" value={c.modulo || ''} onChange={(v) => setCampo(i, { modulo: v })} options={opcoesModulo} /></div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">Quem preenche procura pelo número ou assunto. O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito.</p>
+                                        {c.modulo && !ligadas?.[c.modulo] && <p className="text-xs text-amber-800 dark:text-amber-200">A integração com {ROTULO_MODULO[c.modulo]} está desligada: ligue em "Integrações com outros módulos", no alto da configuração do Processo Eletrônico, para salvar e usar este campo.</p>}
+                                    </div>
+                                )}
+                                {COM_OPCOES.includes(c.tipo) && (
+                                    <div>
+                                        <Label htmlFor={p(`op-${c.id}`)}>Opções (uma por linha)</Label>
+                                        <Textarea id={p(`op-${c.id}`)} className="mt-1" rows={4} value={(c.opcoes || []).join('\n')} onChange={(e) => setCampo(i, { opcoes: e.target.value.split('\n').slice(0, 30) })} placeholder={'Ouvidoria\nOfício\nRepresentação'} />
+                                    </div>
+                                )}
+                                <div><Label htmlFor={p(`ajuda-${c.id}`)}>Orientação para quem preenche</Label><Input id={p(`ajuda-${c.id}`)} className="mt-1" maxLength={200} value={c.ajuda || ''} onChange={(e) => setCampo(i, { ajuda: e.target.value })} placeholder="Opcional; aparece abaixo do campo" /></div>
+                                <MostrarQuando p={p} c={c} anteriores={campos.slice(0, i).filter((d) => CONDICIONANTES.includes(d.tipo))} onChange={(patch) => setCampo(i, patch)} />
+                                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                                    <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.obrigatorio} disabled={!paraAcao && !!c.exigir_em?.some(nomeFase)} onCheckedChange={(x) => setCampo(i, { obrigatorio: x === true })} /> {paraAcao ? 'Obrigatório ao cumprir a ação' : 'Obrigatório na autuação'}</label>
+                                    {!paraAcao && <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.visivel_partes} onCheckedChange={(x) => setCampo(i, { visivel_partes: x === true })} /> Mostrar às partes no portal</label>}
+                                </div>
+                                {!paraAcao && <ExigirEm c={c} fases={fases} onChange={(patch) => setCampo(i, patch)} />}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+            {paraAcao && <p className="text-xs text-slate-600 dark:text-slate-400">Quem cumpre a ação preenche estes campos de uma vez. O que for preenchido vai num só registro, com destino e partes como a ação disser.</p>}
+        </div>
+    );
+}
+
+/**
+ * Configuração do formulário de autuação de um tipo de processo. `tipo` serve à
+ * prévia (urgência e sigilo); `fases`, as do rito do tipo, a "Exigir para sair das fases".
+ */
+export function EditorFormulario({ form, onChange, tipo = null, fases = [], previa: comPrevia = true }) {
+    const [previa, setPrevia] = useState(PREVIA_VAZIA);
+    const campos = form.campos;
 
     return (
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
@@ -278,70 +358,7 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [], prev
                 </ul>
             </section>
 
-            <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Campos próprios <span className="font-normal text-slate-600 dark:text-slate-400">({campos.length} de {MAX_CAMPOS})</span></p>
-                    <Button type="button" size="sm" variant="outline" className="gap-1" disabled={campos.length >= MAX_CAMPOS} onClick={adicionar}><Plus className="w-4 h-4" /> Adicionar campo</Button>
-                </div>
-                {campos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum campo próprio. Exemplos: Número de origem, Valor, Data do fato, Urgente.</p>}
-                {campos.map((c, i) => {
-                    const expandido = aberto === c.id;
-                    return (
-                        <div key={c.id} className="rounded-md border border-slate-200 dark:border-slate-700">
-                            <div className="flex items-center gap-1 px-2 py-1.5">
-                                <button type="button" className="flex flex-1 min-w-0 items-center gap-2 text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500" aria-expanded={expandido} onClick={() => setAberto(expandido ? null : c.id)}>
-                                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${expandido ? 'rotate-180' : ''}`} aria-hidden />
-                                    <span className="truncate text-sm font-medium">{c.rotulo.trim() || 'Campo sem nome'}</span>
-                                    <span className="shrink-0 text-xs text-slate-600 dark:text-slate-400">{rotuloTipo(c)}</span>
-                                    {c.obrigatorio && <Badge variant="outline" className="shrink-0">Obrigatório</Badge>}
-                                    {c.exigir_em?.some(nomeFase) && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={`Exigido para sair de: ${c.exigir_em.map(nomeFase).filter(Boolean).join(', ')}`}>Exigido em {c.exigir_em.filter(nomeFase).length === 1 ? nomeFase(c.exigir_em.find(nomeFase)) : `${c.exigir_em.filter(nomeFase).length} fases`}</Badge>}
-                                    {c.condicao && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={textoCondicao(campos, c)}>Condicional</Badge>}
-                                    {c.visivel_partes && <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">Partes veem</Badge>}
-                                </button>
-                                <Button type="button" size="sm" variant="ghost" disabled={i === 0} onClick={() => mover(i, -1)} aria-label={`Subir ${c.rotulo || 'campo'}`}><ArrowUp className="w-4 h-4" /></Button>
-                                <Button type="button" size="sm" variant="ghost" disabled={i === campos.length - 1} onClick={() => mover(i, 1)} aria-label={`Descer ${c.rotulo || 'campo'}`}><ArrowDown className="w-4 h-4" /></Button>
-                                <Button type="button" size="sm" variant="ghost" onClick={() => remover(i)} aria-label={`Remover ${c.rotulo || 'campo'}`}><Trash2 className="w-4 h-4" /></Button>
-                            </div>
-                            {expandido && (
-                                <div className="border-t border-slate-200 dark:border-slate-700 p-3 space-y-3">
-                                    <div className="grid sm:grid-cols-3 gap-3">
-                                        <div className="sm:col-span-2"><Label htmlFor={`fc-nome-${c.id}`}>Nome do campo</Label><Input id={`fc-nome-${c.id}`} className="mt-1" maxLength={80} value={c.rotulo} onChange={(e) => setCampo(i, { rotulo: e.target.value })} placeholder="Ex.: Número de origem" autoFocus={!c.rotulo} /></div>
-                                        <NativeSelect id={`fc-tipo-${c.id}`} label="Tipo" value={c.tipo} onChange={(v) => trocarTipo(i, v)} options={TIPOS_CAMPO} />
-                                    </div>
-                                    <div className="grid sm:grid-cols-2 gap-3">
-                                        {FORMATOS[c.tipo] && <NativeSelect id={`fc-formato-${c.id}`} label="Formato" value={c.formato || ''} onChange={(v) => setCampo(i, { formato: v || undefined })} options={FORMATOS[c.tipo]} />}
-                                        <div>
-                                            <Label htmlFor={`fc-secao-${c.id}`}>Seção</Label>
-                                            <Input id={`fc-secao-${c.id}`} className="mt-1" maxLength={60} list={`fc-secoes-${c.id}`} value={c.secao || ''} onChange={(e) => setCampo(i, { secao: e.target.value })} placeholder="Opcional. Ex.: Dados do fato" />
-                                            <datalist id={`fc-secoes-${c.id}`}>{secoes.map((s) => <option key={s} value={s} />)}</datalist>
-                                        </div>
-                                    </div>
-                                    {c.tipo === 'registro' && (
-                                        <div className="space-y-1">
-                                            <div className="sm:max-w-xs"><NativeSelect id={`fc-mod-${c.id}`} label="De qual módulo" value={c.modulo || ''} onChange={(v) => setCampo(i, { modulo: v })} options={opcoesModulo} /></div>
-                                            <p className="text-xs text-slate-600 dark:text-slate-400">Quem preenche procura pelo número ou assunto. O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito.</p>
-                                            {c.modulo && !ligadas?.[c.modulo] && <p className="text-xs text-amber-800 dark:text-amber-200">A integração com {ROTULO_MODULO[c.modulo]} está desligada: ligue em "Integrações com outros módulos", no alto da configuração do Processo Eletrônico, para salvar e usar este campo.</p>}
-                                        </div>
-                                    )}
-                                    {COM_OPCOES.includes(c.tipo) && (
-                                        <div>
-                                            <Label htmlFor={`fc-op-${c.id}`}>Opções (uma por linha)</Label>
-                                            <Textarea id={`fc-op-${c.id}`} className="mt-1" rows={4} value={(c.opcoes || []).join('\n')} onChange={(e) => setCampo(i, { opcoes: e.target.value.split('\n').slice(0, 30) })} placeholder={'Ouvidoria\nOfício\nRepresentação'} />
-                                        </div>
-                                    )}
-                                    <div><Label htmlFor={`fc-ajuda-${c.id}`}>Orientação para quem preenche</Label><Input id={`fc-ajuda-${c.id}`} className="mt-1" maxLength={200} value={c.ajuda || ''} onChange={(e) => setCampo(i, { ajuda: e.target.value })} placeholder="Opcional; aparece abaixo do campo" /></div>
-                                    <MostrarQuando c={c} anteriores={campos.slice(0, i).filter((d) => CONDICIONANTES.includes(d.tipo))} onChange={(patch) => setCampo(i, patch)} />
-                                    <div className="flex flex-wrap gap-x-6 gap-y-2">
-                                        <label className="flex items-center gap-2 text-sm"><Checkbox checked={c.obrigatorio} disabled={!!c.exigir_em?.some(nomeFase)} onCheckedChange={(x) => setCampo(i, { obrigatorio: x === true })} /> Obrigatório na autuação</label>
-                                        <label className="flex items-center gap-2 text-sm"><Checkbox checked={c.visivel_partes} onCheckedChange={(x) => setCampo(i, { visivel_partes: x === true })} /> Mostrar às partes no portal</label>
-                                    </div>
-                                    <ExigirEm c={c} fases={fases} onChange={(patch) => setCampo(i, patch)} />
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+            <EditorCampos campos={campos} fases={fases} onChange={(l) => onChange({ ...form, campos: l })} />
 
             {comPrevia && <details className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2">
                 <summary className="flex items-center gap-2 text-sm cursor-pointer"><Eye className="w-4 h-4" aria-hidden /> Ver como fica para quem autua</summary>

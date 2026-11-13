@@ -1,3 +1,4 @@
+import { novoCampo } from './camposProcesso.js';
 // ============================================================================
 // Espelho, para a tela, das regras do rito (functions-v2/src/shared/
 // exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
@@ -78,8 +79,11 @@ export const PEDIDOS = [
     ['lista', 'Uma escolha numa lista'],
     ['sim_nao', 'Sim ou não'],
     ['registro', 'Um registro de outro módulo'],
+    ['formulario', 'Um formulário (vários campos)'],
     ['documento', 'Um documento'],
 ];
+/** Campos de uma ação que pede um formulário (igual ao servidor). */
+export const MAX_CAMPOS_ACAO = 10;
 export const ROTULO_PEDIDO = Object.fromEntries(PEDIDOS);
 
 /** Para a fase seguir: obrigatória (padrão), recomendada (avisa) ou opcional. Igual ao servidor (NIVEIS). */
@@ -295,6 +299,7 @@ function regraComPedidoBase(r, pede, acao) {
         ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),
         ...(pede === 'lista' ? { opcoes: r?.opcoes || [] } : {}),
         ...(pede === 'registro' ? { modulo: r?.modulo || 'consultas' } : {}),
+        ...(pede === 'formulario' ? { campos: r?.campos?.length ? r.campos : [novoCampo()] } : {}),
         ...(dest !== 'evento' ? { destino: dest } : {}),
         ...(partesVeem(r) ? { partes: true } : {}),
         ...(r?.obrigatoria ? { obrigatoria: true } : r?.recomendada ? { recomendada: true } : {}),
@@ -310,7 +315,9 @@ export function resumoDaAcao(r) {
     if (pede === 'documento') {
         return dest === 'autos' ? 'documento juntado aos autos' : `documento guardado fora dos autos (${dest === 'evento' ? 'evento no extrato' : 'só no sistema'})`;
     }
-    const oque = pede === 'confirmar' ? 'confirmação' : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
+    const oque = pede === 'confirmar' ? 'confirmação'
+        : pede === 'formulario' ? `formulário de ${r?.campos?.length || 0} ${r?.campos?.length === 1 ? 'campo' : 'campos'}`
+            : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];
     const nivel = { '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)];
     return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${nivel}${r?.se ? '; condicional' : ''}${r?.quem ? `; ${ROTULO_QUEM[r.quem]}` : ''}`;

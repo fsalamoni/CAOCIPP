@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { MODULOS, Modulo } from './modulos';
+import { CampoDef, sanitizeCampos } from './camposProcesso';
 
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
@@ -90,9 +91,11 @@ export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'documento'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
+/** Campos de uma ação que pede um formulário. */
+export const MAX_CAMPOS_ACAO = 10;
 
 /**
  * Condição pela resposta de uma ação de escolha (lista ou sim/não) da mesma
@@ -115,6 +118,8 @@ export interface RegraAcao {
     opcoes?: string[];
     /** Pede 'registro': de qual módulo do órgão. */
     modulo?: Modulo;
+    /** Pede 'formulario': os campos (como os do tipo de processo; quem vê é a ação inteira). */
+    campos?: CampoDef[];
     /** Onde fica o registro de cumprimento (ausente = evento). Para documento, vale `documento.destino`. */
     destino?: DestinoAcao;
     /** As partes veem a informação (e a certidão, se nos autos) no portal. */
@@ -214,6 +219,19 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
         if (pedeBruto === 'registro') {
             if (!MODULOS.includes(r.modulo as Modulo)) throw new Error(`A ação "${acao}" pede um registro: escolha de que módulo`);
             out.modulo = r.modulo as Modulo;
+        }
+        if (pedeBruto === 'formulario') {
+            const lista = Array.isArray(r.campos) ? r.campos : [];
+            if (lista.length > MAX_CAMPOS_ACAO) throw new Error(`A ação "${acao}" aceita até ${MAX_CAMPOS_ACAO} campos`);
+            // Sem "exigir em" (o obrigatório vale ao cumprir a ação) e sem "partes veem" por campo:
+            // quem decide o que as partes veem é a ação inteira.
+            let campos: CampoDef[];
+            try {
+                campos = sanitizeCampos(lista.map((x) => (x && typeof x === 'object' ? { ...x, exigir_em: undefined } : x)))
+                    .map((c) => ({ ...c, visivel_partes: false }));
+            } catch (e) { throw new Error(`Na ação "${acao}": ${(e as Error).message}`); }
+            if (!campos.length) throw new Error(`A ação "${acao}" pede um formulário: crie ao menos um campo`);
+            out.campos = campos;
         }
     }
     const dest = lido(r.destino, DESTINOS_ACAO, r.autos === true ? 'autos' : 'evento');

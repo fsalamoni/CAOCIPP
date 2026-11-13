@@ -771,6 +771,33 @@ passa a decidir o resto da fase:
   e a lista do fluxo mostram "quando …" nas setas com regra. A parte nunca vê
   condições.
 
+### Ação que pede um formulário (13/11/2026)
+
+- **O que é**: em "O que pede", a opção "Um formulário (vários campos)". O
+  admin cria até 10 campos (`MAX_CAMPOS_ACAO`) com o mesmo editor dos campos
+  do tipo de processo (`EditorCampos`, em `CamposProcesso.jsx`): texto, texto
+  longo, número, data, lista, múltipla escolha, sim ou não e registro de outro
+  módulo, com formato, seção, orientação, campo que só aparece com certa
+  resposta e "Obrigatório ao cumprir a ação". Não há "exigir para sair das
+  fases" nem "partes veem" por campo: o destino e as partes são os da ação.
+- **Rito**: `acoes_regras[i] = { pede: 'formulario', rotulo, campos: CampoDef[] }`.
+  O servidor saneia os campos com `sanitizeCampos` (o mesmo do tipo, sem os
+  nomes reservados do formulário de autuação), recusa formulário sem campo e
+  limita a 200 campos de formulário somando o rito (`MAX_CAMPOS_RITO`, o
+  documento do rito tem limite de tamanho). Campo de registro exige a
+  integração ligada, como a ação que pede um registro.
+- **No processo**: "Registrar" abre o formulário; falta de obrigatório é
+  avisada na tela e conferida no servidor (`validarCampos`, registros relidos
+  com `refsDoFormulario`). Campo cuja condição não se cumpre não é gravado. O
+  movimento `acao_fase` guarda `tipo_valor: 'formulario'`, `valor` (os campos
+  preenchidos, como no processo) e `valor_texto` ("Campo: valor; …"), que vai
+  na certidão, no evento ou na certidão conjunta conforme o destino. Os
+  registros escolhidos entram nos vínculos do processo; se algum for de acesso
+  restrito, as partes não veem o formulário, e o portal o esconde se um deles
+  ficar restrito depois (`refsFechadas`).
+- **Resposta**: o formulário não é ação de escolha (não indica saída nem
+  condiciona outras ações); para isso, use uma ação de lista ou de sim ou não.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

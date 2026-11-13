@@ -315,7 +315,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const camposPartes = ((data.campos || []) as Array<{ rotulo: string; tipo: string; valor: unknown; visivel_partes?: boolean; formato?: string; ref?: Ref }>)
             .filter((x) => x.visivel_partes === true);
         const infosPartes = informacoesDoAndamento(todos as never, data.fases || [], true);
-        const fechadas = await refsFechadas(db, String(data.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.map((i) => i.ref)]);
+        const fechadas = await refsFechadas(db, String(data.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
         const aberta = (r?: Ref) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         return {
             orgao: org.name || '',
@@ -333,7 +333,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
-                informacoes: infosPartes.filter((i) => aberta(i.ref))
+                informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))
                     .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
             },
             movimentos: todos.filter((m) => visivelParaPartes(m as never))

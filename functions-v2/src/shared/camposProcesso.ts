@@ -7,8 +7,13 @@
 // src/lib/camposProcesso.js (só para a tela; quem decide é o servidor).
 // ============================================================================
 
-import { MAX_TEXTO_CURTO, MAX_TEXTO_LONGO, texto } from './secretaria';
 import { MODULOS, Modulo, ROTULO_MODULO, Ref, idEscolhido } from './modulos';
+
+// Sem importar ./secretaria: o rito (./exigencias, que ./secretaria importa) usa os campos
+// na ação que pede um formulário. O mesmo corte de texto de lá.
+const MAX_TEXTO_CURTO = 200;
+const MAX_TEXTO_LONGO = 4000;
+const texto = (v: unknown, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 export const TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'multipla', 'sim_nao', 'registro'] as const;
 export type TipoCampo = typeof TIPOS_CAMPO[number];
@@ -114,11 +119,12 @@ export function formularioDe(tipo: { formulario?: unknown } | null | undefined):
     return { ...padroesDe(f), campos: Array.isArray(f.campos) ? (f.campos as CampoDef[]) : [] };
 }
 
-/** Saneia o formulário vindo do cliente. Lança Error com mensagem para o usuário. */
-export function sanitizeFormulario(input: unknown): Formulario {
-    const src = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
-    const lista = Array.isArray(src.campos) ? src.campos : [];
-    if (lista.length > MAX_CAMPOS) throw new Error(`O tipo aceita até ${MAX_CAMPOS} campos próprios`);
+/**
+ * Saneia uma lista de campos (do tipo de processo ou da ação que pede um
+ * formulário): nome, tipo, opções, módulo, formato, condição e nomes repetidos.
+ * Lança Error com mensagem para o usuário. O teto de quantidade fica com quem chama.
+ */
+export function sanitizeCampos(lista: unknown[]): CampoDef[] {
     const ids = new Set<string>();
     const campos: CampoDef[] = lista.map((x, i) => {
         const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
@@ -156,10 +162,21 @@ export function sanitizeFormulario(input: unknown): Formulario {
         if (valor === null) throw new Error(`Escolha quando "${c.rotulo}" aparece: um valor de "${alvo.rotulo}"`);
         c.condicao = { campo_id: alvo.id, valor };
     });
-    const padroes = padroesDe(src);
-    const reservados = [...Object.values(padroes.rotulos) as string[], 'assunto', 'descrição', 'descricao', 'partes'];
     campos.forEach((c, i) => {
         if (campos.some((d, j) => j < i && igual(d.rotulo, c.rotulo))) throw new Error(`Há dois campos chamados "${c.rotulo}"`);
+    });
+    return campos;
+}
+
+/** Saneia o formulário vindo do cliente. Lança Error com mensagem para o usuário. */
+export function sanitizeFormulario(input: unknown): Formulario {
+    const src = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    const lista = Array.isArray(src.campos) ? src.campos : [];
+    if (lista.length > MAX_CAMPOS) throw new Error(`O tipo aceita até ${MAX_CAMPOS} campos próprios`);
+    const campos = sanitizeCampos(lista);
+    const padroes = padroesDe(src);
+    const reservados = [...Object.values(padroes.rotulos) as string[], 'assunto', 'descrição', 'descricao', 'partes'];
+    campos.forEach((c) => {
         if (reservados.some((r) => igual(r, c.rotulo))) throw new Error(`"${c.rotulo}" já é um campo padrão do processo`);
     });
     if (padroes.assunto === 'oculto' && padroes.descricao === 'oculto' && padroes.partes === 'oculto' && !campos.length) {
@@ -375,6 +392,22 @@ export function valorTexto(c: Pick<CampoValor, 'tipo' | 'valor'> & { formato?: F
     }
     if (c.tipo === 'numero') return String(c.valor).replace('.', ',');
     return String(c.valor);
+}
+
+/**
+ * O dado de uma ação que pede um formulário: os campos preenchidos (sem a
+ * marca de partes, que é da ação), em texto "Campo: valor; ..." e os
+ * registros escolhidos (restrito se algum for).
+ */
+export function dadoDoFormulario(rotulo: string, campos: CampoValor[]) {
+    const refs = campos.map((c) => c.ref).filter((r): r is Ref => !!r);
+    return {
+        rotulo, tipo: 'formulario' as const,
+        valor: campos.map(({ visivel_partes: _v, ...c }) => c),
+        // Registro só pelo número (como a ação que pede um registro): o título pode não ser das partes.
+        valor_texto: campos.map((c) => `${c.rotulo}: ${c.tipo === 'registro' ? c.valor : valorTexto(c)}`).join('; '),
+        ref: undefined, refs, restrito: refs.some((r) => r.restrito === true),
+    };
 }
 
 /** O que mudou entre os campos gravados e os novos, em frases para o movimento. */
