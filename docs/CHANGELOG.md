@@ -5,6 +5,11 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Editor de rito: fase aberta em destaque
+- No editor de rito, a fase aberta ganha fundo e borda próprios, e termina
+  numa linha **Fim da fase** com o botão **Recolher**: dá para ver onde os
+  dados de cada fase começam e acabam.
+
 ### 13/11/2026 — Dado da ação só para quem gere a unidade
 - Na configuração de cada ação do rito que pede um dado (texto, número,
   data ou formulário), **Quem vê o dado na equipe** pode ser "Só quem gere a

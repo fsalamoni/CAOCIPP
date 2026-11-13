@@ -913,7 +913,7 @@ function AoEntrarNaFase({ f, i, mudar }) {
 
 function Secao({ titulo, resumo, abertaDe = false, children }) {
     return (
-        <details open={abertaDe} className="group rounded-md border border-slate-200 dark:border-slate-700">
+        <details open={abertaDe} className="group rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <summary className="flex min-h-[2.75rem] sm:min-h-[2.25rem] cursor-pointer list-none items-center gap-2 px-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded-md">
                 <span>{titulo}</span>
                 {resumo && <span className="min-w-0 truncate text-xs font-normal text-slate-600 dark:text-slate-300">{resumo}</span>}
@@ -961,13 +961,14 @@ function CartaoFase({
     const rotulo = f.nome.trim() || `fase ${i + 1}`;
     return (
         <ItemOrdenavel id={f.id} rotulo={`Arrastar a fase ${rotulo}`}
-            className={`rounded-lg border bg-white dark:bg-slate-900 scroll-mt-4 ${selecionada ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'}`}>
+            // Fase aberta: fundo e borda próprios, para ver onde os dados dela começam e terminam.
+            className={`rounded-lg border scroll-mt-4 ${aberta ? 'bg-indigo-50 dark:bg-indigo-950/40 border-l-4' : 'bg-white dark:bg-slate-900'} ${selecionada ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : aberta ? 'border-indigo-300 dark:border-indigo-700' : 'border-slate-200 dark:border-slate-700'}`}>
         {({ alca }) => (
         <div id={`fase-${f.id}`} className="scroll-mt-4">
             <div className="flex items-center gap-0.5 pl-1 pr-1">
             {alca}
             <button type="button" onClick={onAlternar} aria-expanded={aberta} aria-controls={`fase-corpo-${f.id}`}
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2.5 pl-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">
+                className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2.5 pl-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${aberta ? 'hover:bg-indigo-100 dark:hover:bg-indigo-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                 <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-100 text-xs font-semibold flex items-center justify-center shrink-0">{i + 1}</span>
                 <span className="min-w-0 flex-1">
                     <span className={`block truncate text-sm font-medium ${f.nome.trim() ? '' : 'text-red-700 dark:text-red-300'}`}>{f.nome.trim() || 'Fase sem nome'}</span>
@@ -996,7 +997,7 @@ function CartaoFase({
             </DropdownMenu>
             </div>
             {aberta && (
-            <div id={`fase-corpo-${f.id}`} className="space-y-3 border-t border-slate-100 dark:border-slate-800 p-3">
+            <div id={`fase-corpo-${f.id}`} className="space-y-3 border-t border-indigo-200 dark:border-indigo-800 p-3 [&_input:not([type=checkbox])]:bg-white [&_select]:bg-white [&_textarea]:bg-white dark:[&_input:not([type=checkbox])]:bg-slate-900 dark:[&_select]:bg-slate-900 dark:[&_textarea]:bg-slate-900">
             <div className="flex flex-wrap items-center gap-2">
                 <Input id={`nome-${f.id}`} aria-label={`Nome da fase ${i + 1}`} value={f.nome} onChange={(e) => mudar({ nome: e.target.value })} placeholder="Nome da fase" className="h-9 flex-1 min-w-[10rem] font-medium" />
                 <Input aria-label={`Prazo da fase ${i + 1}, em dias`} type="number" min={1} max={3650} placeholder="Dias" value={f.prazo_dias || ''} onChange={(e) => mudar({ prazo_dias: Number(e.target.value) || undefined })} className="h-9 w-20" />
@@ -1044,7 +1045,7 @@ function CartaoFase({
                     <div className="space-y-1.5">
                         {saidas.length === 0 && <p className="text-xs text-slate-600">{proxLista ? `Segue para a próxima da lista (${proxLista}).` : 'Última fase.'}</p>}
                         {saidas.map((id, k) => (
-                            <div key={`${id}-${k}`} className="rounded-md border border-slate-200 dark:border-slate-700 p-2 space-y-2">
+                            <div key={`${id}-${k}`} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 space-y-2">
                                 <div className="flex flex-wrap gap-2 items-center">
                                     <span className="text-xs text-slate-600">→</span>
                                     <select aria-label="Próxima fase" value={id} onChange={(e) => setSaida(k, e.target.value)} className={`${campo} h-8 flex-1 min-w-[9rem]`}>
@@ -1073,6 +1074,10 @@ function CartaoFase({
             <div>
                 <Label htmlFor={`or-${f.id}`} className="text-xs">Orientação para a equipe</Label>
                 <Textarea id={`or-${f.id}`} rows={2} value={f.orientacao || ''} onChange={(e) => mudar({ orientacao: e.target.value })} />
+            </div>
+            <div className="flex items-center gap-2 border-t border-indigo-200 dark:border-indigo-800 pt-2 text-xs text-indigo-900 dark:text-indigo-200">
+                <span className="min-w-0 flex-1 truncate">Fim da fase {i + 1}: {rotulo}</span>
+                <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={onAlternar}><ChevronDown className="w-3.5 h-3.5 rotate-180" aria-hidden /> Recolher</Button>
             </div>
             </div>
             )}
