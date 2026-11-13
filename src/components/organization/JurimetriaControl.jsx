@@ -18,6 +18,7 @@ import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { resolveJurimetriaSettings, JURIMETRIA_DEFAULT_ANALYSIS } from '@/constants/jurimetria';
 import { filtrarJuris, formatNumber } from '@/lib/jurimetriaEngine';
+import { filtrarPE, peAtivo, useComPE } from '@/components/secretaria/ProcessosVinculados';
 import { useJurimetriaPref } from '@/hooks/useJurimetriaPrefs';
 import { deleteJuri, deleteJuris } from '@/services/jurimetriaService';
 
@@ -55,6 +56,12 @@ export default function JurimetriaControl({
     onGoToAdmin,
 }) {
     const settings = useMemo(() => resolveJurimetriaSettings(organization), [organization]);
+    const pe = useComPE(organization, 'juri');
+    // Filtro PE que deixou de valer (integração desligada, leitura cortada): volta a "qualquer",
+    // para a contagem e o cabeçalho dos relatórios não citarem um filtro que não está aplicado.
+    useEffect(() => {
+        if (filters.pe && filters.pe !== 'all' && !peAtivo(pe, filters.pe)) setFilters((f) => ({ ...f, pe: 'all' }));
+    }, [pe, filters.pe]);
     // Identidade do usuário: é ela que decide quais modelos de relatório ele
     // pode editar ou excluir (a checagem definitiva é do servidor).
     const { user } = useAuth();
@@ -94,8 +101,8 @@ export default function JurimetriaControl({
     }, [organization?.id]);
 
     const filtered = useMemo(
-        () => filtrarJuris(juris, filters, settings),
-        [juris, filters, settings]
+        () => filtrarPE(filtrarJuris(juris, filters, settings), pe, filters.pe),
+        [juris, filters, settings, pe]
     );
 
     // Mantém selecionados apenas os júris que continuam visíveis no recorte.
@@ -246,6 +253,7 @@ export default function JurimetriaControl({
                 members={members}
                 availableComarcas={availableComarcas}
                 availablePromotores={availablePromotores}
+                pe={pe}
                 analysis={analysis}
                 onAnalysisChange={setAnalysis}
             />
@@ -317,6 +325,7 @@ export default function JurimetriaControl({
                     <JuriTable
                         juris={filtered}
                         settings={settings}
+                        peIds={pe?.ids}
                         onView={handleView}
                         onEdit={handleEdit}
                         onDelete={setDeleteTarget}

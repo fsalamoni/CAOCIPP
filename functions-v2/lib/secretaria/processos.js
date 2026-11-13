@@ -357,6 +357,45 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         ]);
         return { total: total - excluidos, arquivados, ativos: total - arquivados - excluidos, por_unidade: Object.fromEntries(porUnidade) };
     }
+    if (p.action === 'indice') {
+        // Para as listas dos outros módulos e a busca (Ctrl+K): os processos que a
+        // pessoa vê (número, assunto, partes) e, por módulo ligado, os ids dos
+        // registros que têm processo. Mesma regra de 'vinculados': quem é parte
+        // não vê pelo órgão; restrito só para quem pode.
+        // ponytail: uma leitura por processo do órgão a cada 5 min por pessoa; se pesar,
+        // trocar por array-contains-any sobre os ids da página da tabela.
+        if (!c.ctx.isAdmin && !c.ctx.unidadeIds.length)
+            return { processos: [], com: {}, truncado: false };
+        const base = db.collection(context_1.COL.processos).where('organization_id', '==', orgId).orderBy('updated_at', 'desc')
+            .select('numero', 'assunto', 'partes', 'status', 'sigilo', 'unidade_atual', 'unidades_historico', 'partes_uids', 'vinculos', 'updated_at');
+        const docs = [];
+        let q = base.limit(500);
+        for (;;) {
+            const snap = await q.get();
+            docs.push(...snap.docs);
+            if (snap.size < 500 || docs.length >= MAX_LISTA)
+                break;
+            q = base.startAfter(snap.docs[snap.size - 1]).limit(500);
+        }
+        const ligadas = (0, modulos_1.integracoesDe)(c.org, await (0, modulos_1.lerFlags)(db));
+        const com = {};
+        const processos = [];
+        for (const d of docs.slice(0, MAX_LISTA)) {
+            const x = d.data();
+            if (x.status === 'excluido' || (0, secretaria_1.ehParte)(x, auth.uid) || !(0, secretaria_1.podeVer)(x, c.ctx))
+                continue;
+            const r = resumo(d.id, x);
+            processos.push({ id: d.id, numero: r.numero, assunto: r.assunto, partes_resumo: r.partes_resumo });
+            for (const v of (x.vinculos || [])) {
+                const [m, id] = v.split(':');
+                if (modulos_1.MODULOS.includes(m) && ligadas[m] && id)
+                    (com[m] || (com[m] = [])).push(id);
+            }
+        }
+        for (const m of Object.keys(com))
+            com[m] = [...new Set(com[m])];
+        return { processos, com, truncado: docs.length >= MAX_LISTA };
+    }
     if (p.action === 'listar') {
         // Lista inteira (Meu trabalho, Mesa, Painel). A caixa lê só as unidades
         // da pessoa; "todos" percorre o órgão em páginas de 500. O teto evita

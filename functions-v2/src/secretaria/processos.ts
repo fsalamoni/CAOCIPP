@@ -41,7 +41,7 @@ interface ProcRequest {
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
         | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia' | 'expedirComunicacao' | 'tornarSemEfeito'
-        | 'excluir' | 'restaurar' | 'excluidos' | 'emitirCertidao' | 'vinculados';
+        | 'excluir' | 'restaurar' | 'excluidos' | 'emitirCertidao' | 'vinculados' | 'indice';
     /** Comunicação a expedir (espécie, texto, destinatários, prazo, meio). */
     comunicacao?: unknown;
     comunicacao_id?: string;
@@ -415,6 +415,41 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             })),
         ]);
         return { total: total - excluidos, arquivados, ativos: total - arquivados - excluidos, por_unidade: Object.fromEntries(porUnidade) };
+    }
+
+    if (p.action === 'indice') {
+        // Para as listas dos outros módulos e a busca (Ctrl+K): os processos que a
+        // pessoa vê (número, assunto, partes) e, por módulo ligado, os ids dos
+        // registros que têm processo. Mesma regra de 'vinculados': quem é parte
+        // não vê pelo órgão; restrito só para quem pode.
+        // ponytail: uma leitura por processo do órgão a cada 5 min por pessoa; se pesar,
+        // trocar por array-contains-any sobre os ids da página da tabela.
+        if (!c.ctx.isAdmin && !c.ctx.unidadeIds.length) return { processos: [], com: {}, truncado: false };
+        const base = db.collection(COL.processos).where('organization_id', '==', orgId).orderBy('updated_at', 'desc')
+            .select('numero', 'assunto', 'partes', 'status', 'sigilo', 'unidade_atual', 'unidades_historico', 'partes_uids', 'vinculos', 'updated_at');
+        const docs: admin.firestore.QueryDocumentSnapshot[] = [];
+        let q = base.limit(500);
+        for (;;) {
+            const snap = await q.get();
+            docs.push(...snap.docs);
+            if (snap.size < 500 || docs.length >= MAX_LISTA) break;
+            q = base.startAfter(snap.docs[snap.size - 1]).limit(500);
+        }
+        const ligadas = integracoesDe(c.org, await lerFlags(db));
+        const com: Record<string, string[]> = {};
+        const processos: Array<{ id: string; numero: string; assunto: string; partes_resumo: string }> = [];
+        for (const d of docs.slice(0, MAX_LISTA)) {
+            const x = d.data();
+            if (x.status === 'excluido' || ehParte(x as never, auth.uid) || !podeVer(x as never, c.ctx)) continue;
+            const r = resumo(d.id, x);
+            processos.push({ id: d.id, numero: r.numero, assunto: r.assunto, partes_resumo: r.partes_resumo });
+            for (const v of (x.vinculos || []) as string[]) {
+                const [m, id] = v.split(':');
+                if (MODULOS.includes(m as Modulo) && ligadas[m as Modulo] && id) (com[m] ||= []).push(id);
+            }
+        }
+        for (const m of Object.keys(com)) com[m] = [...new Set(com[m])];
+        return { processos, com, truncado: docs.length >= MAX_LISTA };
     }
 
     if (p.action === 'listar') {

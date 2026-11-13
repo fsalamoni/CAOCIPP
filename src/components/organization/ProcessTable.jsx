@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { FiltroPE, SeloPE, filtrarPE, peAtivo, useComPE } from '@/components/secretaria/ProcessosVinculados';
 import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "@/components/ui/StatusBadge";
 import StageTimeBadge from "@/components/ui/StageTimeBadge";
@@ -90,6 +91,8 @@ export default function ProcessTable({
   const [responsibleFilter, setResponsibleFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState("all");
+  const pe = useComPE(organization, 'consultas');
+  const [peFilter, setPeFilter] = useState('all');
   const [dateFilters, setDateFilters] = useState({
     entry: { start: '', end: '' },
     distribution: { start: '', end: '' },
@@ -162,6 +165,7 @@ export default function ProcessTable({
     setResponsibleFilter("all");
     setLocationFilter("all");
     setUrgencyFilter("all");
+    setPeFilter('all');
     setIsAniversarianteFilter(false);
     setTextFilters({ matter_object: '', network_folder_path: '' });
     setDateFilters({
@@ -181,6 +185,7 @@ export default function ProcessTable({
     if (responsibleFilter !== "all") count++;
     if (locationFilter !== "all") count++;
     if (urgencyFilter !== "all") count++;
+    if (peAtivo(pe, peFilter)) count++;
     if (isAniversarianteFilter) count++;
     if (textFilters.matter_object) count++;
     if (textFilters.network_folder_path) count++;
@@ -188,7 +193,7 @@ export default function ProcessTable({
       if (d.start || d.end) count++;
     });
     return count;
-  }, [statusFilter, responsibleFilter, locationFilter, urgencyFilter, textFilters, dateFilters, isAniversarianteFilter]);
+  }, [statusFilter, responsibleFilter, locationFilter, urgencyFilter, textFilters, dateFilters, isAniversarianteFilter, pe, peFilter]);
 
   // ═══════════════════════════════════════════════════════════════════
   // COLUMN DEFINITIONS — Data-driven table architecture
@@ -213,6 +218,7 @@ export default function ProcessTable({
               </Tooltip>
             )}
             <span className="font-semibold text-slate-800 dark:text-slate-100">{getProcessField(process, 'process_number')}</span>
+            {pe?.ids.has(process.id) && <SeloPE />}
           </div>
         );
       }
@@ -361,7 +367,7 @@ export default function ProcessTable({
       width: 'w-[160px]', sortable: true,
       render: (process) => <StatusBadge status={calculateDerivedStatus(process)} className="" />
     },
-  ], [isStageIndicatorOn, stageAverages, stageTimeConfig, showThirdPartyPhase]);
+  ], [isStageIndicatorOn, stageAverages, stageTimeConfig, showThirdPartyPhase, pe]);
 
   const DEFAULT_VISIBLE = useMemo(() => {
     const map = {};
@@ -474,7 +480,7 @@ export default function ProcessTable({
   useEffect(() => {
     if (isInitialized) setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [search, statusFilter, responsibleFilter, locationFilter, urgencyFilter, dateFilters, textFilters]);
+  }, [search, statusFilter, responsibleFilter, locationFilter, urgencyFilter, dateFilters, textFilters, peFilter]);
 
   const filteredAndSortedProcesses = useMemo(() => {
     let result = [...processes];
@@ -530,6 +536,8 @@ export default function ProcessTable({
         return (val === true || String(val).toLowerCase().trim() === 'sim') === isUrgent;
       });
     }
+
+    result = filtrarPE(result, pe, peFilter);
 
     Object.keys(dateFilters).forEach(key => {
       const { start, end } = dateFilters[key];
@@ -594,7 +602,7 @@ export default function ProcessTable({
     });
 
     return result;
-  }, [processes, search, statusFilter, responsibleFilter, locationFilter, urgencyFilter, dateFilters, textFilters, sortConfig, isAniversarianteFilter]);
+  }, [processes, search, statusFilter, responsibleFilter, locationFilter, urgencyFilter, dateFilters, textFilters, sortConfig, isAniversarianteFilter, pe, peFilter]);
 
   const paginatedProcesses = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -654,7 +662,7 @@ export default function ProcessTable({
   // VISÕES SALVAS (flag `saved_views`)
   // ═══════════════════════════════════════════════════════════════════
   const currentFilterSnapshot = () => ({
-    search, statusFilter, responsibleFilter, locationFilter, urgencyFilter,
+    search, statusFilter, responsibleFilter, locationFilter, urgencyFilter, peFilter,
     dateFilters, textFilters, isAniversarianteFilter,
   });
 
@@ -674,6 +682,7 @@ export default function ProcessTable({
     setResponsibleFilter(f.responsibleFilter || 'all');
     setLocationFilter(f.locationFilter || 'all');
     setUrgencyFilter(f.urgencyFilter || 'all');
+    setPeFilter(f.peFilter || 'all');
     setDateFilters(f.dateFilters || {
       entry: { start: '', end: '' }, distribution: { start: '', end: '' }, analysis: { start: '', end: '' },
       review_submission: { start: '', end: '' }, reviewed: { start: '', end: '' }, review_return: { start: '', end: '' }, archived: { start: '', end: '' }
@@ -871,6 +880,8 @@ export default function ProcessTable({
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <FiltroPE pe={pe} value={peFilter} onChange={setPeFilter} />
 
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Longa Data</label>

@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FiltroPE, SeloPE, filtrarPE, peAtivo, useComPE } from '@/components/secretaria/ProcessosVinculados';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,8 @@ export default function ExpedienteTable({
   const [systemFilter, setSystemFilter] = useState("all");
   const [originFilter, setOriginFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState("all");
+  const pe = useComPE(organization, 'expedientes');
+  const [peFilter, setPeFilter] = useState('all');
   const [dateFilters, setDateFilters] = useState({
     entry: { start: '', end: '' },
     distribution: { start: '', end: '' },
@@ -150,6 +153,7 @@ export default function ExpedienteTable({
     setSystemFilter("all");
     setOriginFilter("all");
     setUrgencyFilter("all");
+    setPeFilter('all');
     setIsAniversarianteFilter(false);
     setDateFilters({
       entry: { start: '', end: '' },
@@ -169,12 +173,13 @@ export default function ExpedienteTable({
     if (systemFilter !== "all") count++;
     if (originFilter !== "all") count++;
     if (urgencyFilter !== "all") count++;
+    if (peAtivo(pe, peFilter)) count++;
     if (isAniversarianteFilter) count++;
     Object.values(dateFilters).forEach(d => {
       if (d.start || d.end) count++;
     });
     return count;
-  }, [statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, dateFilters, isAniversarianteFilter]);
+  }, [statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, dateFilters, isAniversarianteFilter, pe, peFilter]);
 
   // ═══════════════════════════════════════════════════════════════════
   // COLUMN DEFINITIONS for Expedientes
@@ -202,6 +207,7 @@ export default function ExpedienteTable({
               </Tooltip>
             )}
             <span className="font-semibold text-slate-800 dark:text-slate-100">{getExpedienteField(exp, 'expediente_number')}</span>
+            {pe?.ids.has(exp.id) && <SeloPE />}
           </div>
         );
       }
@@ -323,7 +329,7 @@ export default function ExpedienteTable({
       width: 'w-[160px]', sortable: true,
       render: (exp) => <StatusBadge status={calculateExpedienteDerivedStatus(exp)} className="" />
     },
-  ], [orgName, isStageIndicatorOn, stageAverages, stageTimeConfig]);
+  ], [orgName, isStageIndicatorOn, stageAverages, stageTimeConfig, pe]);
 
   const DEFAULT_VISIBLE = useMemo(() => {
     const map = {};
@@ -432,7 +438,7 @@ export default function ExpedienteTable({
   useEffect(() => {
     if (isInitialized) setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, dateFilters]);
+  }, [search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, dateFilters, peFilter]);
 
   const filteredAndSortedExpedientes = useMemo(() => {
     let result = [...expedientes];
@@ -482,6 +488,8 @@ export default function ExpedienteTable({
         return (val === true || String(val).toLowerCase().trim() === 'sim') === isUrgent;
       });
     }
+
+    result = filtrarPE(result, pe, peFilter);
 
     Object.keys(dateFilters).forEach(key => {
       const { start, end } = dateFilters[key];
@@ -538,7 +546,7 @@ export default function ExpedienteTable({
     });
 
     return result;
-  }, [expedientes, search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, dateFilters, sortConfig, isAniversarianteFilter]);
+  }, [expedientes, search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, dateFilters, sortConfig, isAniversarianteFilter, pe, peFilter]);
 
   const paginatedExpedientes = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -591,7 +599,7 @@ export default function ExpedienteTable({
   // VISÕES SALVAS (flag `saved_views`)
   // ═══════════════════════════════════════════════════════════════════
   const currentFilterSnapshot = () => ({
-    search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter,
+    search, statusFilter, responsibleFilter, systemFilter, originFilter, urgencyFilter, peFilter,
     dateFilters, isAniversarianteFilter,
   });
 
@@ -612,6 +620,7 @@ export default function ExpedienteTable({
     setSystemFilter(f.systemFilter || 'all');
     setOriginFilter(f.originFilter || 'all');
     setUrgencyFilter(f.urgencyFilter || 'all');
+    setPeFilter(f.peFilter || 'all');
     setDateFilters(f.dateFilters || {
       entry: { start: '', end: '' }, distribution: { start: '', end: '' }, analysis: { start: '', end: '' },
       review_submission: { start: '', end: '' }, reviewed: { start: '', end: '' }, review_return: { start: '', end: '' }, archived: { start: '', end: '' }
@@ -823,6 +832,8 @@ export default function ExpedienteTable({
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <FiltroPE pe={pe} value={peFilter} onChange={setPeFilter} />
 
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Longa Data</label>

@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico nas listas e na busca
+- **Selo "PE"** nas listas de Consultas, Expedientes, Parcerias e Júris,
+  ao lado do número do registro que tem processo eletrônico.
+- **Filtro "Processo eletrônico"** (com ou sem) nas quatro listas, também
+  nas visões salvas e no cabeçalho dos relatórios do Júri.
+- **Busca rápida (Ctrl+K)** acha processos eletrônicos pelo número, assunto
+  ou partes e abre o processo.
+
 ### 13/11/2026 — Processo Eletrônico: dados do registro e variáveis nos modelos
 - **Campo preenchido com dado do registro**: no tipo, um campo pode vir
   pré-preenchido com o consulente, a matéria, o objeto, a comarca, as datas

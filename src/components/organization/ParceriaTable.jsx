@@ -8,6 +8,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from '@/components/ui/badge';
+import { FiltroPE, SeloPE, filtrarPE, peAtivo, useComPE } from '@/components/secretaria/ProcessosVinculados';
 import { Checkbox } from '@/components/ui/checkbox';
 import StatusBadge from "@/components/ui/StatusBadge";
 import StageTimeBadge from "@/components/ui/StageTimeBadge";
@@ -212,6 +213,8 @@ export default function ParceriaTable({
     const [responsibleFilter, setResponsibleFilter] = useState('all');
     const [aditivoFilter, setAditivoFilter] = useState('all');
     const [urgencyFilter, setUrgencyFilter] = useState('all');
+    const pe = useComPE(organization, 'parcerias');
+    const [peFilter, setPeFilter] = useState('all');
     const [dateFilters, setDateFilters] = useState({
         signature: { start: '', end: '' },
         end: { start: '', end: '' },
@@ -234,10 +237,12 @@ export default function ParceriaTable({
     // do stageTimeConfig local). Usada tanto para activeColumns quanto
     // para o toggle de visibilidade.
     const allColumns = useMemo(() => {
-        const cols = [...DEFAULT_COLUMNS];
+        // Selo "PE" ao lado do PGEA quando o registro tem processo eletrônico.
+        const cols = DEFAULT_COLUMNS.map((c) => (c.key === 'pgea' && pe
+            ? { ...c, render: (p) => <span className="flex items-center gap-1.5">{c.render(p)}{pe.ids.has(p.id) && <SeloPE />}</span> } : c));
         if (isStageIndicatorOn) cols.push(getStageTimeColumn(stageTimeConfig));
         return cols;
-    }, [stageTimeConfig, isStageIndicatorOn]);
+    }, [stageTimeConfig, isStageIndicatorOn, pe]);
 
     // Visibilidade efetiva de uma coluna: quando o usuário nunca configurou,
     // respeita o `defaultVisible` da definição (espelho de ExpedienteTable, que
@@ -343,6 +348,7 @@ export default function ParceriaTable({
             const wantUrgent = urgencyFilter === 'sim' || urgencyFilter === 'urgent';
             out = out.filter((p) => isUrgencyMarked(getParceriaField(p, 'urgency_request')) === wantUrgent);
         }
+        out = filtrarPE(out, pe, peFilter);
         // Filtros por data de assinatura / termo final.
         const inRange = (val, range) => {
             if (!val) return true;
@@ -377,7 +383,7 @@ export default function ParceriaTable({
             return 0;
         });
         return sorted;
-    }, [parcerias, search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters, sortRules]);
+    }, [parcerias, search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters, sortRules, pe, peFilter]);
 
     function getSortValue(p, key) {
         if (key === 'status') return calculateParceriaDerivedStatus(p);
@@ -397,7 +403,7 @@ export default function ParceriaTable({
         return filteredAndSorted.slice(start, start + itemsPerPage);
     }, [filteredAndSorted, currentPage, itemsPerPage]);
 
-    useEffect(() => { setCurrentPage(1); }, [search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters]);
+    useEffect(() => { setCurrentPage(1); }, [search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters, peFilter]);
     useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [totalPages, currentPage]);
 
     // Ações.
@@ -408,6 +414,7 @@ export default function ParceriaTable({
         setResponsibleFilter('all');
         setAditivoFilter('all');
         setUrgencyFilter('all');
+        setPeFilter('all');
         setDateFilters({ signature: { start: '', end: '' }, end: { start: '', end: '' } });
     };
 
@@ -541,6 +548,7 @@ export default function ParceriaTable({
         if (view.responsibleFilter) setResponsibleFilter(view.responsibleFilter);
         if (view.aditivoFilter) setAditivoFilter(view.aditivoFilter);
         if (view.urgencyFilter) setUrgencyFilter(view.urgencyFilter);
+        setPeFilter(view.peFilter || 'all');
         if (view.dateFilters) setDateFilters(view.dateFilters);
         toast.success(`Visão "${view.name}" aplicada.`);
     };
@@ -549,7 +557,7 @@ export default function ParceriaTable({
         const view = {
             id: `v_${Date.now()}`,
             name: newViewName.trim(),
-            search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, dateFilters,
+            search, typeFilter, statusFilter, responsibleFilter, aditivoFilter, urgencyFilter, peFilter, dateFilters,
         };
         const next = [...savedViews, view];
         updatePreferences({ savedParceriaViews: next });
@@ -561,7 +569,7 @@ export default function ParceriaTable({
     };
 
     const hasFilters = search || typeFilter !== 'all' || statusFilter !== 'all'
-        || responsibleFilter !== 'all' || aditivoFilter !== 'all' || urgencyFilter !== 'all'
+        || responsibleFilter !== 'all' || aditivoFilter !== 'all' || urgencyFilter !== 'all' || peAtivo(pe, peFilter)
         || dateFilters.signature.start || dateFilters.signature.end
         || dateFilters.end.start || dateFilters.end.end;
 
@@ -572,6 +580,7 @@ export default function ParceriaTable({
         (typeFilter !== 'all' ? 1 : 0)
         + (aditivoFilter !== 'all' ? 1 : 0)
         + (urgencyFilter !== 'all' ? 1 : 0)
+        + (peAtivo(pe, peFilter) ? 1 : 0)
         + (dateFilters.signature.start || dateFilters.signature.end ? 1 : 0)
         + (dateFilters.end.start || dateFilters.end.end ? 1 : 0)
     );
@@ -682,6 +691,7 @@ export default function ParceriaTable({
                                                 </SelectContent>
                                             </Select>
                                         </div>
+                                        <FiltroPE pe={pe} value={peFilter} onChange={setPeFilter} />
                                     </div>
 
                                     <div className="pt-2">
