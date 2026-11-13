@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.marcasNaFase = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -86,6 +86,7 @@ exports.PADRAO_OUTRO = { prazo: 'autos', pendencia: 'autos', urgencia: 'autos', 
 /** Atribuição é sempre registro de controle: não vira termo nos autos. */
 const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhum'] : exports.DESTINOS_ATO);
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
+exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
 exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'documento'];
 exports.MAX_OPCOES_ACAO = 30;
@@ -131,27 +132,29 @@ function sanitizeExigencia(raw, descricaoPadrao = '') {
     const tipo = texto(o.tipo, 60);
     const modelo = texto(o.modelo_id, 40);
     const dest = destino(o.destino, 'autos');
-    return Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {}));
+    const nivel = exports.NIVEIS.includes(o.nivel) ? o.nivel : null;
+    return Object.assign(Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {})), (nivel ? { nivel } : {}));
 }
 function sanitizeRegra(raw, acao) {
     const r = (raw && typeof raw === 'object' ? raw : {});
     const pedeBruto = exports.PEDIDOS.includes(r.pede) ? r.pede : (r.documento ? 'documento' : 'confirmar');
+    // Orientação a quem cumpre: vale para qualquer ação.
+    const ajuda = texto(r.ajuda, 200);
     if (pedeBruto === 'documento') {
         const documento = sanitizeExigencia(r.documento || {}, acao);
         if (!documento)
             return null;
         documento.descricao = acao;
-        return { documento };
+        return Object.assign({ documento }, (ajuda ? { ajuda } : {}));
     }
     const out = {};
+    if (ajuda)
+        out.ajuda = ajuda;
     if (pedeBruto !== 'confirmar') {
         out.pede = pedeBruto;
         const rotulo = texto(r.rotulo, 80);
         if (rotulo && rotulo !== acao)
             out.rotulo = rotulo;
-        const ajuda = texto(r.ajuda, 200);
-        if (ajuda)
-            out.ajuda = ajuda;
         if (pedeBruto === 'lista') {
             const opcoes = [...new Set((Array.isArray(r.opcoes) ? r.opcoes : []).map((s) => texto(s, 80)).filter(Boolean))].slice(0, exports.MAX_OPCOES_ACAO);
             if (opcoes.length < 2)
@@ -173,6 +176,8 @@ function sanitizeRegra(raw, acao) {
         out.partes = true;
     if (r.obrigatoria === true)
         out.obrigatoria = true;
+    else if (r.recomendada === true)
+        out.recomendada = true;
     return Object.keys(out).length ? out : null;
 }
 /** Onde fica o ato durante a fase (valor estranho lê como o padrão). */
@@ -226,6 +231,9 @@ function pendentesDaFase(f, cumpridas) {
     const feitas = (f && (cumpridas === null || cumpridas === void 0 ? void 0 : cumpridas[f.id])) || {};
     return exigenciasDaFase(f).filter((e) => !feitas[e.chave]);
 }
+/** Documentos obrigatórios ainda não cumpridos: os recomendados e opcionais não impedem a fase de seguir. */
+const documentosQueFaltam = (f, cumpridas) => pendentesDaFase(f, cumpridas).filter((e) => !e.nivel);
+exports.documentosQueFaltam = documentosQueFaltam;
 /** Ações obrigatórias (sem documento) ainda não feitas na fase. */
 function acoesObrigatoriasPendentes(f, feitas) {
     if (!f)

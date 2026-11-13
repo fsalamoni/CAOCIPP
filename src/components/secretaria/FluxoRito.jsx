@@ -21,7 +21,7 @@ function raiaPadrao(unidades) {
     return (f) => f.raia || porId.get(f.unidade_id) || (typeof f.unidade === 'string' ? f.unidade : '') || '';
 }
 
-export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe, className = '', alturaMaxima = '60vh', legenda = false }) {
+export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe, className = '', alturaMaxima = '60vh', legenda = false, alertas = null }) {
     const uid = useId().replace(/:/g, '');
     const [zoom, setZoom] = useState(null); // null = ajustado à largura
     const [cheia, setCheia] = useState(false);
@@ -120,7 +120,8 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
                 const y0 = t.y + (TH - alturaTexto) / 2 + 9;
                 return (
                     <g key={t.id} {...props}>
-                        <title>{`${t.indice + 1}. ${f.nome}${f.prazo_dias ? ` · ${f.prazo_dias} dias` : ''}${f.orientacao ? `\n${f.orientacao}` : ''}`}</title>
+                        <title>{`${t.indice + 1}. ${f.nome}${f.prazo_dias ? ` · ${f.prazo_dias} dias` : ''}${alertas?.has(f.id) ? ' · fora do caminho até o fim (veja as pendências)' : ''}${f.orientacao ? `\n${f.orientacao}` : ''}`}</title>
+                        {alertas?.has(f.id) && <rect x={t.x - 3} y={t.y - 3} width={TW + 6} height={TH + 6} rx="10" strokeWidth="2" strokeDasharray="5 3" fill="none" className="stroke-amber-500 dark:stroke-amber-400" />}
                         {ativo && <rect x={t.x - 4} y={t.y - 4} width={TW + 8} height={TH + 8} rx="11" strokeWidth="2.5" fill="none" className="stroke-indigo-600 dark:stroke-indigo-400" />}
                         <rect x={t.x} y={t.y} width={TW} height={TH} rx="8" strokeWidth="1.4" fill={`url(#tarefa-${uid})`}
                             className={`stroke-[#2c6aa8] dark:stroke-[#7fb2e6] dark:[fill:#1c2f47] ${onSelecionar ? 'group-hover:stroke-indigo-600 group-focus-visible:stroke-indigo-600 group-focus-visible:[stroke-width:2.5]' : ''}`} />
@@ -143,6 +144,7 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
                         <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rotate-45 border border-[#a58a00] bg-[#fff7c2]" />Desvio</span>
                         <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#a61b1b] bg-[#f8d2d2]" />Fim</span>
                         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 border-t border-dashed border-slate-600" />Volta</span>
+                        {alertas?.size > 0 && <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border-2 border-dashed border-amber-500" />Fora do caminho</span>}
                     </span>
                 )}
                 <div className={`flex items-center gap-0.5 rounded-md bg-slate-100 dark:bg-slate-800 p-0.5 ${legenda ? '' : 'ml-auto'}`} role="group" aria-label="Visualização do fluxo">

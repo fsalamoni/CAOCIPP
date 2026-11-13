@@ -1,19 +1,21 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
-    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
-    grupoDe, niveisDaFase, opcoesDoAto, partesVeem, registroComOutros,
+    DESTINO_INFO, DESTINOS_DOCUMENTO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
+    grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
+import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
 // Usado pela tela de rito (criar e alterar). Fundamento e exemplos:
@@ -21,6 +23,18 @@ import { RegistroContexto } from './SeletorRegistro';
 
 export const MAX_ACOES = 20;
 export const MAX_DOCUMENTOS_FASE = 5;
+const MAX_OPCOES = 30; // igual ao servidor (MAX_OPCOES_ACAO)
+// Botões de ícone: 44px no toque, compactos a partir do tablet.
+const ICONE = 'shrink-0 h-11 w-11 sm:h-8 sm:w-8';
+const NIVEIS_DOC = [['', 'Obrigatório'], ['recomendado', 'Recomendado: avisa, não impede'], ['opcional', 'Opcional: só lembra']];
+const FRASE_NIVEL = {
+    '': 'Obrigatória: sem ela, a fase só segue com motivo de dispensa, que fica registrado.',
+    recomendado: 'Recomendada: a fase segue sem ela, mas quem conclui a fase é avisado de que ficou por fazer.',
+    opcional: 'Opcional: aparece na fase como lembrete e não impede nada.',
+};
+
+/** Move o item `de` para a posição `para` (as duas listas juntas). */
+const mudarDeLugar = (lista, de, para) => { const l = [...lista]; const [x] = l.splice(de, 1); l.splice(para, 0, x); return l; };
 
 /** Campos de um documento exigido: forma, tipo e modelo (a descrição fica com quem chama). */
 function CamposExigencia({ id, e, modelos, onChange }) {
@@ -81,7 +95,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
         onChange(Object.keys(n).length ? n : null);
     };
     const setDestino = (v) => (pede === 'documento'
-        ? onChange({ documento: { ...r.documento, destino: v === 'autos' ? undefined : v } })
+        ? onChange({ ...r, documento: { ...r.documento, destino: v === 'autos' ? undefined : v } })
         // Sem evento não aparece para ninguém: some também a marca das partes.
         : set({ destino: v === 'evento' ? undefined : v, autos: undefined, partes: (v !== 'nenhum' && partesVeem(r)) || undefined }));
     // Por que a parte não pode ver (a opção fica visível, desligada, com o motivo).
@@ -111,23 +125,18 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
                             {!ligadas?.[r?.modulo || 'consultas'] && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">A integração com este módulo está desligada: ligue em "Integrações com outros módulos", na configuração do Processo Eletrônico, para salvar o rito.</p>}
                         </div>
                     ) : pede === 'lista' ? (
-                        <div>
-                            <Label htmlFor={`${id}-op`}>Opções (separe por ponto e vírgula)</Label>
-                            <Input id={`${id}-op`} className="mt-1" value={(r?.opcoes || []).join(';')} placeholder="Ex.: PGEA; Arquivamento; Outro"
-                                onChange={(e) => set({ opcoes: e.target.value.split(';') })}
-                                onBlur={() => set({ opcoes: (r?.opcoes || []).map((s) => s.trim()).filter(Boolean) })} />
-                        </div>
-                    ) : (
-                        <div>
-                            <Label htmlFor={`${id}-aj`}>Orientação ao preencher</Label>
-                            <Input id={`${id}-aj`} className="mt-1" value={r?.ajuda || ''} maxLength={200} placeholder="Opcional" onChange={(e) => set({ ajuda: e.target.value || undefined })} />
-                        </div>
-                    )}
+                        <OpcoesDaLista id={`${id}-op`} opcoes={r?.opcoes || []} onChange={(opcoes) => set({ opcoes })} />
+                    ) : null}
                 </div>
             )}
             {pede === 'documento' && (
-                <CamposExigencia id={`${id}-doc`} e={r.documento} modelos={modelos} onChange={(d) => onChange({ documento: { ...d, descricao: acao } })} />
+                <CamposExigencia id={`${id}-doc`} e={r.documento} modelos={modelos} onChange={(d) => onChange({ ...r, documento: { ...d, descricao: acao } })} />
             )}
+            <div>
+                <Label htmlFor={`${id}-aj`}>Orientação a quem cumpre</Label>
+                <Input id={`${id}-aj`} className="mt-1" value={r?.ajuda || ''} maxLength={200} placeholder="Opcional: aparece abaixo da ação, na tela do processo"
+                    onChange={(e) => onChange(regraAjuda(r, e.target.value))} />
+            </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1">
                 {pede !== 'documento' && (
                     <div className="text-sm">
@@ -138,15 +147,37 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
                         {semPartes && <p className="text-xs text-slate-600 dark:text-slate-400 pl-6">{semPartes}</p>}
                     </div>
                 )}
-                <label className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={pede === 'documento' || r?.obrigatoria === true} disabled={pede === 'documento'} onCheckedChange={(c) => set({ obrigatoria: c === true ? true : undefined })} />
-                    Obrigatória para a fase seguir
-                </label>
+            </div>
+            <div className="sm:max-w-sm">
+                <NativeSelect id={`${id}-nivel`} label="Para a fase seguir" value={nivelDaAcao(r)} onChange={(v) => onChange(regraComNivel(r, v))} options={NIVEIS} />
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-                {pede === 'documento'
-                    ? 'Documento exigido: sem ele, a fase só segue com motivo de dispensa. Na juntada, quem junta decide se as partes veem.'
-                    : r?.obrigatoria ? 'Sem ela, a fase só segue com motivo de dispensa, que fica registrado.' : 'Opcional: a fase pode seguir sem ela.'}
+                {FRASE_NIVEL[nivelDaAcao(r)]}{pede === 'documento' ? ' Na juntada, quem junta decide se as partes veem.' : ''}
+            </p>
+        </div>
+    );
+}
+
+/** Ajuda da ação, guardada na regra (sem regra e sem ajuda, a ação volta a ser só confirmar). */
+function regraAjuda(r, v) {
+    const { ajuda: _a, ...resto } = r || {};
+    const n = { ...resto, ...(v ? { ajuda: v } : {}) };
+    return Object.keys(n).length ? n : null;
+}
+
+/** Opções de uma ação de escolha: uma por linha, com o limite à vista. */
+function OpcoesDaLista({ id, opcoes, onChange }) {
+    const validas = opcoes.filter((s) => s.trim()).length;
+    return (
+        <div>
+            <Label htmlFor={id}>Opções (uma por linha)</Label>
+            <Textarea id={id} className="mt-1" rows={Math.min(8, Math.max(3, opcoes.length + 1))} value={opcoes.join('\n')} placeholder={'PGEA\nArquivamento\nOutro'}
+                aria-describedby={`${id}-n`}
+                // Texto colado com ponto e vírgula (formato antigo) também vira uma opção por item.
+                onChange={(e) => onChange(e.target.value.split(/\r?\n|;/))}
+                onBlur={() => onChange([...new Set(opcoes.map((s) => s.trim()).filter(Boolean))])} />
+            <p id={`${id}-n`} className={`mt-1 text-xs ${validas > MAX_OPCOES || validas < 2 ? 'text-amber-800 dark:text-amber-200' : 'text-slate-600 dark:text-slate-400'}`}>
+                {validas} de {MAX_OPCOES} opções{validas < 2 ? ': informe ao menos duas' : validas > MAX_OPCOES ? `: só as ${MAX_OPCOES} primeiras ficam` : ''}.
             </p>
         </div>
     );
@@ -160,6 +191,11 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
     const [aberta, setAberta] = useState(null);
     const acoes = f.acoes || [];
     const regras = f.acoes_regras || [];
+    // Chave estável de cada ação (acompanha a ação ao arrastar): o foco do teclado fica na ação que foi movida.
+    const chaves = useRef({ lista: [], seq: 0 });
+    const nova = () => `k${chaves.current.seq++}`;
+    while (chaves.current.lista.length < acoes.length) chaves.current.lista.push(nova());
+    if (chaves.current.lista.length > acoes.length) chaves.current.lista = chaves.current.lista.slice(0, acoes.length);
     const gravar = (as, rs) => {
         const alinhadas = as.map((_, i) => rs[i] || null);
         mudar({ acoes: as, acoes_regras: alinhadas.some(Boolean) ? alinhadas : undefined });
@@ -172,33 +208,42 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
             const novas = todas.slice(0, MAX_ACOES - acoes.length + 1);
             if (novas.length < todas.length) toast.warning(`Cabem ${MAX_ACOES} ações por fase: ${todas.length - novas.length} linha(s) ficaram de fora.`);
             const as = [...acoes.slice(0, i), ...novas, ...acoes.slice(i + 1)];
+            chaves.current.lista.splice(i + 1, 0, ...novas.slice(1).map(nova));
             const rs = [...regras.slice(0, i), regras[i] || null, ...novas.slice(1).map(() => null), ...regras.slice(i + 1)];
             return gravar(as, rs);
         }
         const rs = [...regras];
-        if (rs[i]?.documento) rs[i] = { documento: { ...rs[i].documento, descricao: v } };
+        if (rs[i]?.documento) rs[i] = { ...rs[i], documento: { ...rs[i].documento, descricao: v } };
         return gravar(acoes.map((a, j) => (j === i ? v : a)), rs);
     };
-    const remover = (i) => gravar(acoes.filter((_, j) => j !== i), regras.filter((_, j) => j !== i));
-    const mover = (i, d) => {
-        const as = [...acoes]; const rs = acoes.map((_, j) => regras[j] || null);
-        [as[i], as[i + d]] = [as[i + d], as[i]]; [rs[i], rs[i + d]] = [rs[i + d], rs[i]];
-        gravar(as, rs);
-        if (aberta === i) setAberta(i + d);
+    const remover = (i) => {
+        chaves.current.lista.splice(i, 1);
+        gravar(acoes.filter((_, j) => j !== i), regras.filter((_, j) => j !== i));
     };
+    const moverPara = (de, para) => {
+        chaves.current.lista = mudarDeLugar(chaves.current.lista, de, para);
+        gravar(mudarDeLugar(acoes, de, para), mudarDeLugar(acoes.map((_, j) => regras[j] || null), de, para));
+        // A ação aberta continua aberta no lugar novo.
+        if (aberta !== null) setAberta(mudarDeLugar(acoes.map((_, j) => j), de, para).indexOf(aberta));
+    };
+    const mover = (i, d) => moverPara(i, i + d);
     const id = idBase || f.id;
+    const ids = chaves.current.lista.map((k) => `${id}-acao-${k}`);
     return (
         <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Ações da fase</legend>
             <p className="text-xs text-slate-600 dark:text-slate-400 -mt-1">
                 Cada ação aparece na tela do processo. Defina o que ela pede (só confirmar, um dado ou um documento), onde o cumprimento fica registrado e quem vê.
             </p>
+            <ListaOrdenavel ids={ids} nome={(k) => `a ação ${ids.indexOf(k) + 1}${acoes[ids.indexOf(k)]?.trim() ? `, ${acoes[ids.indexOf(k)].trim()}` : ''}`} onMover={moverPara}>
             {acoes.map((a, i) => {
                 const r = regras[i] || null;
                 const aberto = aberta === i;
                 return (
-                    <div key={i} className="rounded-md border border-slate-200 dark:border-slate-700 p-2 space-y-2">
+                    <ItemOrdenavel key={ids[i]} id={ids[i]} rotulo={`Arrastar a ação ${i + 1}`} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 space-y-2">
+                    {({ alca }) => (<>
                         <div className="flex items-center gap-1">
+                            {alca}
                             <span className="text-xs font-mono w-5 text-slate-500" aria-hidden>{i + 1}</span>
                             <Input className="flex-1 min-w-0" value={a} maxLength={200} placeholder="Ex.: Registrar a consulta no SIM" aria-label={`Ação ${i + 1}`}
                                 onChange={(e) => setTexto(i, e.target.value)}
@@ -211,19 +256,28 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
                                     }
                                 }}
                                 onKeyDown={(e) => { if (e.key === 'Enter' && a.trim() && i === acoes.length - 1 && acoes.length < MAX_ACOES) { e.preventDefault(); gravar([...acoes, ''], regras); } }} />
-                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" disabled={i === 0} onClick={() => mover(i, -1)} aria-label={`Subir a ação ${i + 1}`}><ArrowUp className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" disabled={i === acoes.length - 1} onClick={() => mover(i, 1)} aria-label={`Descer a ação ${i + 1}`}><ArrowDown className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" onClick={() => { remover(i); setAberta(null); }} aria-label={`Remover a ação ${i + 1}`}><Trash2 className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className={`${ICONE} hidden sm:inline-flex`} disabled={i === 0} onClick={() => mover(i, -1)} aria-label={`Subir a ação ${i + 1}`}><ArrowUp className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className={`${ICONE} hidden sm:inline-flex`} disabled={i === acoes.length - 1} onClick={() => mover(i, 1)} aria-label={`Descer a ação ${i + 1}`}><ArrowDown className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className={ICONE} onClick={() => { remover(i); setAberta(null); }} aria-label={`Remover a ação ${i + 1}`}><Trash2 className="w-4 h-4" /></Button>
                         </div>
-                        <button type="button" className="flex items-start gap-1 text-left text-xs text-indigo-700 dark:text-indigo-300 pl-6" aria-expanded={aberto} onClick={() => setAberta(aberto ? null : i)}>
+                        <button type="button" className="flex min-h-[2.75rem] sm:min-h-0 items-start gap-1 text-left text-xs text-indigo-700 dark:text-indigo-300 pl-6" aria-expanded={aberto} onClick={() => setAberta(aberto ? null : i)}>
                             {aberto ? <ChevronDown className="w-3.5 h-3.5 mt-px shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 mt-px shrink-0" />}
                             <span>Pede {resumoDaAcao(r)}</span>
                         </button>
                         {aberto && a.trim() && <div className="sm:pl-6"><ConfigAcao id={`${id}-a${i}`} acao={a.trim()} fase={f.nome} r={r} modelos={modelos} onChange={(n) => { const rs = acoes.map((_, j) => regras[j] || null); rs[i] = n; gravar(acoes, rs); }} /></div>}
                         {aberto && !a.trim() && <p className="text-xs text-slate-600 pl-6">Escreva a ação para configurá-la.</p>}
-                    </div>
+                        {aberto && acoes.length > 1 && (
+                            // No celular, além de arrastar: subir e descer com botões.
+                            <div className="flex gap-2 sm:hidden">
+                                <Button variant="outline" size="sm" className="h-11 gap-1" disabled={i === 0} onClick={() => mover(i, -1)}><ArrowUp className="w-4 h-4" aria-hidden /> Subir</Button>
+                                <Button variant="outline" size="sm" className="h-11 gap-1" disabled={i === acoes.length - 1} onClick={() => mover(i, 1)}><ArrowDown className="w-4 h-4" aria-hidden /> Descer</Button>
+                            </div>
+                        )}
+                    </>)}
+                    </ItemOrdenavel>
                 );
             })}
+            </ListaOrdenavel>
             {acoes.length < MAX_ACOES && (
                 <Button variant="outline" size="sm" className="gap-1" onClick={() => { gravar([...acoes, ''], regras); setAberta(null); }}><Plus className="w-4 h-4" /> Adicionar ação</Button>
             )}
@@ -356,8 +410,8 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
             <OutrosAtos f={f} id={id} mudar={mudar} aplicarATodas={fases.length > 1 ? aplicarATodas : null} />
             <CertidaoConjunta f={f} fases={fases} mudar={mudar} id={id} />
             <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Documentos exigidos na fase</legend>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Para sair da fase sem eles, é preciso informar o motivo da dispensa, que fica registrado.</p>
+                <legend className="text-sm font-medium">Documentos da fase</legend>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Obrigatório: para sair da fase sem ele, é preciso informar o motivo da dispensa, que fica registrado. Recomendado: quem conclui a fase é avisado, sem precisar de motivo. Opcional: só aparece como lembrete.</p>
                 {docs.map((d, k) => (
                     <div key={k} className="space-y-2 pl-3 border-l-2 border-indigo-200 dark:border-indigo-800">
                         <div className="flex gap-2 items-end">
@@ -365,10 +419,13 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
                                 <Label htmlFor={`${id}-dex-${k}`}>Documento</Label>
                                 <Input id={`${id}-dex-${k}`} className="mt-1" value={d.descricao || ''} maxLength={200} onChange={(e) => setDocs(docs.map((x, j) => (j === k ? { ...x, descricao: e.target.value } : x)))} placeholder="Ex.: Parecer da assessoria" />
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setDocs(docs.filter((_, j) => j !== k))} aria-label={`Remover o documento exigido ${k + 1}`}><Trash2 className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className={ICONE} onClick={() => setDocs(docs.filter((_, j) => j !== k))} aria-label={`Remover o documento exigido ${k + 1}`}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                         <CamposExigencia id={`${id}-dex-${k}`} e={d} modelos={modelos} onChange={(nv) => setDocs(docs.map((x, j) => (j === k ? nv : x)))} />
-                        <NativeSelect id={`${id}-dexd-${k}`} label="Onde fica" value={d.destino || 'autos'} onChange={(v) => setDocs(docs.map((x, j) => (j === k ? { ...x, destino: v === 'autos' ? undefined : v } : x)))} options={DESTINOS_DOCUMENTO} />
+                        <div className="grid sm:grid-cols-2 gap-2">
+                            <NativeSelect id={`${id}-dexd-${k}`} label="Onde fica" value={d.destino || 'autos'} onChange={(v) => setDocs(docs.map((x, j) => (j === k ? { ...x, destino: v === 'autos' ? undefined : v } : x)))} options={DESTINOS_DOCUMENTO} />
+                            <NativeSelect id={`${id}-dexn-${k}`} label="Para a fase seguir" value={d.nivel || ''} onChange={(v) => setDocs(docs.map((x, j) => (j === k ? { ...x, nivel: v || undefined } : x)))} options={NIVEIS_DOC} />
+                        </div>
                     </div>
                 ))}
                 {docs.length < MAX_DOCUMENTOS_FASE && (

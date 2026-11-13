@@ -22,6 +22,74 @@ export function seguintes(fases, i) {
     return i < fases.length - 1 ? [fases[i + 1].id] : [];
 }
 
+/** Saídas como o servidor vai gravar (sem a própria fase e sem as que não existem; vazio = a seguinte da lista). */
+function saidasGravadas(fases, i, ids) {
+    const f = fases[i];
+    if (f.final) return [];
+    const p = (f.proximas || []).filter((id) => id !== f.id && ids.has(id));
+    return p.length ? p : i < fases.length - 1 ? [fases[i + 1].id] : [];
+}
+
+/**
+ * Fases que nenhum caminho alcança a partir da primeira (`soltas`) e as que,
+ * alcançadas, nunca chegam ao fim (`presas`: ciclo sem saída). Fim = fase sem
+ * saída (final ou a última sem encaminhamento).
+ */
+export function problemasDoFluxo(fases) {
+    const ids = new Set(fases.map((f) => f.id));
+    const pos = new Map(fases.map((f, i) => [f.id, i]));
+    const saidas = fases.map((_, i) => saidasGravadas(fases, i, ids));
+    const alcancadas = new Set();
+    const fila = fases.length ? [0] : [];
+    while (fila.length) {
+        const i = fila.pop();
+        if (alcancadas.has(i)) continue;
+        alcancadas.add(i);
+        saidas[i].forEach((id) => fila.push(pos.get(id)));
+    }
+    // De trás para a frente: quem chega a uma fase de fim.
+    const chegam = new Set(fases.map((_, i) => i).filter((i) => !saidas[i].length));
+    for (let mudou = true; mudou;) {
+        mudou = false;
+        saidas.forEach((s, i) => { if (!chegam.has(i) && s.some((id) => chegam.has(pos.get(id)))) { chegam.add(i); mudou = true; } });
+    }
+    return {
+        soltas: fases.filter((_, i) => i > 0 && !alcancadas.has(i)).map((f) => f.id),
+        presas: fases.filter((_, i) => alcancadas.has(i) && !chegam.has(i)).map((f) => f.id),
+    };
+}
+
+/**
+ * Cópias das fases com ids novos. Saídas, condições e certidão conjunta entre
+ * as copiadas passam para as cópias; as que apontam para fora só ficam se a
+ * fase de destino estiver em `validos` (ids do rito que recebe as cópias).
+ * `origem`: o rito inteiro de onde vêm, para a saída implícita ("a seguinte da
+ * lista") virar explícita antes de copiar. A cópia que perde todas as saídas
+ * vira final (marcada em `sem_saida`), em vez de seguir sozinha para a fase
+ * que vier depois dela.
+ */
+export function copiarFases(fases, validos = new Set(), origem = null) {
+    const mapa = new Map(fases.map((f) => [f.id, novoIdFase()]));
+    const novo = (id) => mapa.get(id) || (validos.has(id) ? id : null);
+    const ids = origem ? new Set(origem.map((f) => f.id)) : null;
+    return fases.map((f) => {
+        const c = JSON.parse(JSON.stringify(f));
+        c.id = mapa.get(f.id);
+        const i = origem ? origem.findIndex((x) => x.id === f.id) : -1;
+        const antes = i >= 0 ? saidasGravadas(origem, i, ids) : (c.proximas || []);
+        if (i >= 0 || c.proximas) c.proximas = antes.map(novo).filter(Boolean);
+        if (!c.final && antes.length && !c.proximas.length) { c.final = true; c.sem_saida = true; }
+        if (c.condicoes) c.condicoes = Object.fromEntries(Object.entries(c.condicoes).map(([k, v]) => [novo(k), v]).filter(([k]) => k));
+        if (c.certidao?.grupo) {
+            const { grupo, ...resto } = c.certidao;
+            const g = novo(grupo);
+            c.certidao = g ? { ...resto, grupo: g } : resto;
+            if (!Object.keys(c.certidao).length) delete c.certidao;
+        }
+        return c;
+    });
+}
+
 /** Remove `proximas` que só repetem o fluxo linear, para o rito ficar simples. */
 export function simplificar(fases) {
     return fases.map((f, i) => {

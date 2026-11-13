@@ -191,3 +191,25 @@ test('partes: ação de só confirmar fora dos autos não tem o que mostrar; gua
     assert.equal(partesVeem({ autos: true }), true);
     assert.equal(visivelParaPartes({ seq: 1, tipo: 'guarda' }), false);
 });
+
+test('documento recomendado ou opcional não impede a fase; orientação em qualquer ação', () => {
+    const r = x.sanitizeRegras({
+        documentos: [{ descricao: 'Parecer', nivel: 'recomendado' }, { descricao: 'Foto', nivel: 'opcional' }, { descricao: 'Ofício', nivel: 'estranho' }],
+        acoes_regras: [
+            { documento: { forma: 'redigir', nivel: 'opcional' }, ajuda: 'Use o modelo da casa' },
+            { ajuda: 'Confira o SIM antes' },
+            { recomendada: true },
+            { obrigatoria: true, recomendada: true },
+        ],
+    }, ['Despachar', 'Conferir', 'Avisar', 'Certificar']);
+    assert.deepEqual(r.documentos.map((d) => d.nivel || null), ['recomendado', 'opcional', null]);
+    assert.deepEqual(r.acoes_regras[0], { documento: { descricao: 'Despachar', forma: 'redigir', nivel: 'opcional' }, ajuda: 'Use o modelo da casa' });
+    assert.deepEqual(r.acoes_regras[1], { ajuda: 'Confira o SIM antes' });
+    assert.deepEqual(r.acoes_regras[2], { recomendada: true });
+    assert.deepEqual(r.acoes_regras[3], { obrigatoria: true });
+    const fase = { id: 'f', acoes: ['Despachar', 'Conferir', 'Avisar', 'Certificar'], ...r };
+    // Pendentes (para reconhecer na juntada) seguem todos; o que impede a fase é só o obrigatório.
+    assert.deepEqual(x.pendentesDaFase(fase, {}).map((e) => e.chave), ['d0', 'd1', 'd2', 'a0']);
+    assert.deepEqual(x.documentosQueFaltam(fase, {}).map((e) => e.chave), ['d2']);
+    assert.deepEqual(x.acoesObrigatoriasPendentes(fase, []).map((e) => e.acao_idx), [3]);
+});

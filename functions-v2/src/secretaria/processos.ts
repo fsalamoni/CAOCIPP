@@ -10,7 +10,7 @@ import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
-    destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, pendentesDaFase, textoCertidao,
+    destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
     tituloCertidao, visivelCertidao,
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
@@ -130,7 +130,7 @@ function exigenciasAbertas(proc: admin.firestore.DocumentData, form?: Formulario
     const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
     const exigidos = ((proc.campos_exigidos || {}) as Record<string, CampoExigido[]>)[String(proc.fase_atual)];
     return [
-        ...pendentesDaFase(fase, proc.exigencias_cumpridas as Cumpridas | undefined),
+        ...documentosQueFaltam(fase, proc.exigencias_cumpridas as Cumpridas | undefined),
         ...acoesObrigatoriasPendentes(fase, (proc.acoes_feitas || {})[String(proc.fase_atual)]),
         ...camposFaltando(exigidos, proc.campos as CampoValor[] | undefined, form).map((x) => ({ descricao: `Preencher "${x.rotulo}"` })),
     ];

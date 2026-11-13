@@ -57,7 +57,7 @@ function exigenciasAbertas(proc, form) {
     const fase = (proc.fases || []).find((f) => f.id === proc.fase_atual);
     const exigidos = (proc.campos_exigidos || {})[String(proc.fase_atual)];
     return [
-        ...(0, exigencias_1.pendentesDaFase)(fase, proc.exigencias_cumpridas),
+        ...(0, exigencias_1.documentosQueFaltam)(fase, proc.exigencias_cumpridas),
         ...(0, exigencias_1.acoesObrigatoriasPendentes)(fase, (proc.acoes_feitas || {})[String(proc.fase_atual)]),
         ...(0, camposProcesso_1.camposFaltando)(exigidos, proc.campos, form).map((x) => ({ descricao: `Preencher "${x.rotulo}"` })),
     ];

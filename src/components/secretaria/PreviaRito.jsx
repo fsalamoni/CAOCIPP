@@ -121,7 +121,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                             </li>
                                         ))}</ul>
                                     )}
-                                    {(fase.documentos || []).length > 0 && <p className="text-sm">Documentos exigidos: {fase.documentos.map((d) => d.descricao).join('; ')}</p>}
+                                    {(fase.documentos || []).length > 0 && <p className="text-sm">Documentos da fase: {fase.documentos.map((d) => `${d.descricao}${d.nivel === 'recomendado' ? ' (recomendado)' : d.nivel === 'opcional' ? ' (opcional)' : ''}`).join('; ')}</p>}
                                     {(niveis.fase !== 'autos' || niveis.remessas !== 'autos') && (
                                         <p className="text-xs text-slate-600 dark:text-slate-300">
                                             {prox.length ? `Mudança para ${prox.map((x) => `${x.nome}: ${ROTULO_DESTINO[destinoTransicao(niveis.fase, niveisDaFase(x).fase)]}`).join('; para ')}. ` : ''}Remessas durante a fase: {ROTULO_DESTINO[niveis.remessas]}.

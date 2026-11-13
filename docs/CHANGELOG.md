@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: editor de rito mais livre e seguro
+- **Arrastar** fases e ações para mudar a ordem (mouse, toque ou teclado,
+  com anúncios para leitor de tela) e menu de cada fase: inserir abaixo,
+  duplicar, mover para o início ou o fim, remover.
+- **Copiar fases de outro rito** do órgão, com tudo o que têm.
+- **Desfazer e refazer** (botões e Ctrl+Z / Ctrl+Shift+Z); remover uma fase
+  mostra o aviso com "Desfazer".
+- **Obrigatório, recomendado ou opcional** para documentos e ações:
+  recomendado avisa ao sair da fase, sem exigir motivo; opcional só lembra.
+  Documento antigo continua obrigatório.
+- **Orientação a quem cumpre** em toda ação; opções da escolha uma por linha.
+- **Pendências novas**: fase que nada alcança, ciclo sem saída (também
+  marcados no fluxo), registro de módulo com integração desligada, ação sem
+  texto, modelos demais. "Salvar" leva até o que impede.
+
 ### 13/11/2026 — Processo Eletrônico: criar processo a partir dos outros módulos
 - **"Processos eletrônicos" na ficha** de cada consulta, expediente, parceria
   e júri (com a integração ligada): os processos ligados ao registro e o botão

@@ -22,7 +22,7 @@ export function SelosAcao({ r }) {
     const selos = [
         ...(pede !== 'documento' && dest !== 'evento' ? [ONDE[dest]] : []),
         ...(pede !== 'documento' && partesVeem(r) ? ['partes veem'] : []),
-        ...(r?.obrigatoria ? ['obrigatória'] : []),
+        ...(r?.obrigatoria ? ['obrigatória'] : r?.recomendada ? ['recomendada'] : []),
     ];
     if (!selos.length) return null;
     return <span className="text-xs text-slate-600 dark:text-slate-400"> · {selos.join(' · ')}</span>;
@@ -39,7 +39,8 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, ocupado, onMarcar,
             <label className={`flex items-start gap-2 text-sm ${podeMexer ? 'cursor-pointer' : ''}`}>
                 <input type="checkbox" className="mt-1" checked={feita} disabled={!podeMexer || ocupado}
                     onChange={(e) => onMarcar(e.target.checked)} />
-                <span><span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} /></span>
+                <span><span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
+                    {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}</span>
             </label>
         );
     }
@@ -51,6 +52,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, ocupado, onMarcar,
                 : <Circle className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" aria-hidden />}
             <span className="flex-1 min-w-[10rem]">
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
+                {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {feita && info && (
                     <span className="block text-slate-800 dark:text-slate-200">
                         {info.rotulo}: <b className="whitespace-pre-wrap break-words">{info.valor_texto}</b>
