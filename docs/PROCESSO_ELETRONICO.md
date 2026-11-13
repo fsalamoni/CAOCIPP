@@ -1479,12 +1479,29 @@ onde os dados da fase começam e terminam.
 **Diagrama do fluxo** (`FluxoRito.jsx`, geometria em `src/lib/fluxoBpmn.js`):
 todo rito, importado ou não, é desenhado na notação BPMN usada pelo Bizagi, da
 esquerda para a direita: uma raia por unidade, círculo verde de início,
-tarefas em caixas azuis (com o prazo), losango amarelo quando a fase tem mais
-de uma saída, círculo vermelho de fim, setas em ângulo reto com a condição
-escrita e voltas tracejadas. Quando o fluxo não cabe na largura da tela, ele
-continua na faixa de baixo (como um texto que muda de linha), para aparecer
-inteiro e legível. Há zoom, ajuste à largura e tela cheia (Esc fecha); leitores
-de tela recebem o fluxo em lista. O portal das partes não mostra as raias.
+losango amarelo quando a fase tem mais de uma saída, círculo vermelho de fim,
+setas em ângulo reto com a condição escrita e voltas tracejadas. Quando o
+fluxo não cabe na largura da tela, ele continua na faixa de baixo (como um
+texto que muda de linha), para aparecer inteiro e legível. Há zoom, ajuste à
+largura e tela cheia (Esc fecha); leitores de tela recebem o fluxo em lista.
+
+Nas telas da equipe (editor de rito, prévia, versões, tipo e processo), o
+diagrama recebe `acoes` e segue a leitura do BPMN: a **fase é a moldura** (nome
+e prazo no cabeçalho), cada **ação é uma tarefa** (caixa azul dentro da
+moldura, tracejada quando opcional) e cada **"Quando vale"** de ação vira um
+**desvio** (losango) com a condição escrita, o caminho do "sim" pelas ações
+condicionais e o do "não" contornando o grupo. `itensDaFase` monta essa lista
+(um desvio por grupo de ações seguidas com a mesma condição) e `desenharFluxo`
+dá a cada fase a altura do que ela contém. O portal das partes não passa
+`acoes`: a fase continua uma caixa com o nome público, sem ações nem raias.
+
+**Guia do rito** (`GuiaRito.jsx`): botão no editor de rito (na tela inicial e
+ao lado do fluxo) que abre o guia prático: as peças do rito com um exemplo
+desenhado pelo próprio `FluxoRito`, o passo a passo, o que a ação pode pedir,
+onde fica o cumprimento, ação condicional, níveis e quem cumpre e vê. As
+tabelas do guia leem `PEDIDOS`, `DESTINO_INFO` e `NIVEIS` de
+`src/lib/exigencias.js`, as mesmas listas do editor. Ao criar uma opção nova
+no editor, acrescente a explicação dela no guia.
 
 Pontos de partida:
 

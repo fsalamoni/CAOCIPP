@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TW, caminho, desenharFluxo, quebrar } from './fluxoBpmn.js';
+import { TH, TW, TWA, caminho, desenharFluxo, itensDaFase, quebrar } from './fluxoBpmn.js';
 
 const fases = [
     { id: 'a', nome: 'Receber', unidade: 'Protocolo', proximas: ['b', 'c'], condicoes: { b: 'Sim', c: 'Não' } },
@@ -90,4 +90,76 @@ test('desenharFluxo: fases da mesma coluna e raia se empilham sem se sobrepor', 
     const [b, c] = [g.tarefas[1], g.tarefas[2]];
     assert.equal(b.x, c.x);
     assert.ok(Math.abs(b.y - c.y) >= 60);
+});
+
+// Fase "Recebimento" do Rito Consultas: as ações complementares só valem se a consulta não veio pelo SIM.
+const recebimento = {
+    id: 'r', nome: 'Recebimento', unidade: 'Secretaria', proximas: ['n'],
+    acoes: ['Registrar os dados básicos', 'Sistema utilizado', 'Registrar no SIM e converter em PGEA', 'Informar o solicitante', '', 'Análise superficial'],
+    acoes_regras: [
+        { pede: 'formulario', campos: [{ rotulo: 'Assunto', tipo: 'texto' }], obrigatoria: true },
+        { pede: 'lista', opcoes: ['SIM', 'SPU', 'E-mail'], obrigatoria: true },
+        { obrigatoria: true, se: { acao: 1, valores: ['SPU', 'E-mail'] } },
+        { obrigatoria: true, se: { acao: 1, valores: ['SPU', 'E-mail'] } },
+        null,
+        { pede: 'texto_longo', destino: 'informacao' },
+    ],
+};
+
+test('itensDaFase: um desvio antes de cada grupo de ações com o mesmo "só se"; ação sem nome não entra', () => {
+    const itens = itensDaFase(recebimento);
+    assert.deepEqual(itens.map((i) => i.tipo), ['acao', 'acao', 'desvio', 'acao', 'acao', 'acao']);
+    assert.equal(itens[2].texto, 'Se "Sistema utilizado" for SPU ou E-mail');
+    assert.deepEqual(itens.filter((i) => i.tipo === 'acao').map((i) => !!i.chave), [false, false, true, true, false]);
+    assert.equal(itens[0].nivel, '');
+    assert.equal(itens[5].nivel, 'opcional');
+    assert.deepEqual(itensDaFase({ nome: 'x' }), []);
+    // Dois "só se" diferentes em seguida: dois desvios.
+    const dois = itensDaFase({ acoes: ['Decisão', 'A', 'B'], acoes_regras: [{ pede: 'sim_nao' }, { se: { acao: 0, valores: ['sim'] } }, { se: { acao: 0, valores: ['nao'] } }] });
+    assert.deepEqual(dois.map((i) => i.tipo), ['acao', 'desvio', 'acao', 'desvio', 'acao']);
+});
+
+test('desenharFluxo com ações: a fase vira moldura e as ações ficam dentro dela, sem se sobrepor', () => {
+    const fs = [recebimento, { id: 'n', nome: 'Análise', unidade: 'Assessoria', proximas: [], acoes: ['Assumir'] }];
+    const simples = desenharFluxo(fs, raia);
+    assert.equal(simples.comAcoes, false);
+    assert.equal(simples.tarefas[0].dentro, null);
+    assert.equal(simples.tarefas[0].w, TW);
+    const g = desenharFluxo(fs, raia, Infinity, { acoes: true });
+    assert.equal(g.comAcoes, true);
+    const [r, n] = g.tarefas;
+    assert.equal(r.w, TWA);
+    assert.ok(r.h > n.h && n.h > TH);
+    const nos = r.dentro.nos;
+    assert.equal(nos.filter((x) => x.tipo === 'acao').length, 5);
+    assert.equal(nos.filter((x) => x.tipo === 'desvio').length, 1);
+    // Tudo dentro da moldura, abaixo do cabeçalho, uma coisa abaixo da outra.
+    let fim = r.y + TH;
+    for (const x of nos) {
+        const [a, b] = x.tipo === 'acao' ? [x.y, x.y + x.h] : [x.ly - 8, x.cy + x.r];
+        assert.ok(a >= fim, `${x.nome || x.texto} sobrepõe o anterior`);
+        if (x.tipo === 'acao') assert.ok(x.x >= r.x && x.x + x.w <= r.x + r.w);
+        fim = b;
+    }
+    assert.ok(fim <= r.y + r.h);
+    // Ação condicional é mais estreita: à direita passa o caminho do "não".
+    const [livre, cond] = [nos.find((x) => x.indice === 0), nos.find((x) => x.indice === 2)];
+    assert.ok(cond.w < livre.w);
+    assert.equal(r.dentro.ligacoes.filter((l) => l.tipo === 'pulo').length, 1);
+    assert.deepEqual(r.dentro.rotulos.map((x) => x.texto), ['não', 'sim']);
+    // A raia cresce com a fase mais alta e o desenho continua contendo tudo.
+    const rr = g.raias.find((x) => x.nome === 'Secretaria');
+    assert.ok(r.y + r.h <= rr.y + rr.altura);
+    for (const t of g.tarefas) assert.ok(t.x + t.w < g.largura && t.y + t.h < g.altura);
+});
+
+test('desenharFluxo com ações: grupo condicional no fim da fase fecha dentro da moldura; uma fase por faixa', () => {
+    const f = { id: 'a', nome: 'Decidir', proximas: ['b'], acoes: ['Decisão', 'Intimar'], acoes_regras: [{ pede: 'sim_nao' }, { se: { acao: 0, valores: ['sim'] } }] };
+    const g = desenharFluxo([f, { id: 'b', nome: 'Fim', proximas: [] }], undefined, 1, { acoes: true });
+    assert.equal(g.faixas, 2);
+    const t = g.tarefas[0];
+    assert.deepEqual(t.dentro.ligacoes.map((l) => l.tipo), ['passo', 'passo', 'pe', 'pulo']);
+    assert.ok(t.dentro.nos.at(-1).y + t.dentro.nos.at(-1).h < t.y + t.h);
+    // A seta para a fase de baixo passa abaixo da moldura inteira, não por dentro dela.
+    assert.ok(g.tarefas[1].y > t.y + t.h);
 });

@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Fluxo do rito por ações e desvios, e guia do rito
+- O desenho do fluxo passa a seguir a leitura do BPMN: a **fase é a moldura**,
+  cada **ação é uma caixa** dentro dela e cada "Quando vale" vira um **losango**
+  com a condição, mostrando o caminho que pula as ações condicionais. Ação
+  opcional tem borda tracejada. Vale no editor de rito, na prévia, nas versões,
+  no tipo e na tela do processo. No portal das partes nada muda.
+- **Guia do rito**, no editor: explica as peças do rito com um exemplo
+  desenhado, o passo a passo para montar e o que cada opção da ação faz.
+
 ### 13/11/2026 — Editor de rito: fase aberta em destaque
 - No editor de rito, a fase aberta ganha fundo e borda próprios, e termina
   numa linha **Fim da fase** com o botão **Recolher**: dá para ver onde os

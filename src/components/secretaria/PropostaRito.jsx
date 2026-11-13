@@ -29,6 +29,7 @@ import { AcoesDaFase, CondicaoPorResposta, RegistroEDocumentos } from './RegrasD
 import { TIPOS_UNIDADE, copiarTexto } from './comum';
 import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
+import GuiaRito from './GuiaRito';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -295,7 +296,10 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
                                 </div>
                             )}
                             <section aria-labelledby="comecar-titulo" className="space-y-2">
-                                <h3 id="comecar-titulo" className="text-sm font-semibold">Começar sem arquivo</h3>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 id="comecar-titulo" className="text-sm font-semibold">Começar sem arquivo</h3>
+                                    <GuiaRito variante="ghost" className="ml-auto h-7 text-xs" />
+                                </div>
                                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                     <button type="button" onClick={() => comecar({ nome: '', descricao: '', fases: [{ id: novoIdFase(), nome: '', proximas: [] }] })}
                                         className="text-left rounded-md border border-slate-200 dark:border-slate-700 p-3 hover:border-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
@@ -614,10 +618,11 @@ function Revisao({
                     <section aria-label="Fluxo do rito" className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
                         <div className="mb-1 flex flex-wrap items-baseline gap-x-3">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5"><GitBranch className="w-4 h-4" aria-hidden /> Fluxo</h3>
-                            <p className="text-xs text-slate-600 dark:text-slate-300">Uma raia por unidade. Clique numa fase para abrir e ajustar.</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-300">Uma raia por unidade. A fase é a moldura; dentro dela, cada ação é uma caixa. Clique numa fase para abrir e ajustar.</p>
+                            <GuiaRito variante="ghost" className="ml-auto h-7 text-xs" />
                         </div>
                         {fluxo.length > 0
-                            ? <FluxoRito fases={fluxo} atual={sel} onSelecionar={irParaFase} legenda alturaMaxima="62vh" alertas={fluxoComProblema} />
+                            ? <FluxoRito acoes fases={fluxo} atual={sel} onSelecionar={irParaFase} legenda alturaMaxima="62vh" alertas={fluxoComProblema} />
                             : <p className="text-sm text-slate-600">Dê nome às fases para ver o fluxo.</p>}
                     </section>
                 </div>

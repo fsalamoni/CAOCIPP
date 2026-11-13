@@ -2,12 +2,14 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { seguintes } from '@/lib/secretariaRito';
 import { textoCondicao } from '@/lib/exigencias';
-import { TH, TW, desenharFluxo, quebrar } from '@/lib/fluxoBpmn';
+import { TH, desenharFluxo, itensDaFase, quebrar } from '@/lib/fluxoBpmn';
 
 // Diagrama do fluxo de um rito no formato BPMN, como o Bizagi desenha: da
 // esquerda para a direita, uma raia por unidade, círculo verde de início,
-// tarefas em caixas azuis, losango amarelo quando a fase tem mais de uma
-// saída (com a condição escrita na seta) e círculo vermelho no fim.
+// losango amarelo quando a fase tem mais de uma saída (com a condição escrita
+// na seta) e círculo vermelho no fim. Com `acoes` (telas da equipe), a fase é
+// uma moldura e, dentro dela, cada ação é uma caixa azul e cada "só se" é um
+// losango. Sem `acoes` (portal das partes), a fase é só a caixa com o nome.
 // Abre ajustado à largura (o fluxo inteiro à vista); dá para ampliar, rolar e
 // ver em tela cheia. SVG puro, segue o tema claro/escuro. A lista oculta
 // repete o fluxo em texto para leitores de tela. Geometria: lib/fluxoBpmn.js.
@@ -22,7 +24,9 @@ function raiaPadrao(unidades) {
     return (f) => f.raia || porId.get(f.unidade_id) || (typeof f.unidade === 'string' ? f.unidade : '') || '';
 }
 
-export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe, className = '', alturaMaxima = '60vh', legenda = false, alertas = null }) {
+const LOSANGO = 'fill-[#fff7c2] stroke-[#a58a00] dark:fill-[#4a4210] dark:stroke-[#e2c94a]';
+
+export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe, className = '', alturaMaxima = '60vh', legenda = false, alertas = null, acoes = false }) {
     const uid = useId().replace(/:/g, '');
     const [zoom, setZoom] = useState(null); // null = ajustado à largura
     const [cheia, setCheia] = useState(false);
@@ -39,12 +43,14 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
         return () => ro.disconnect();
     }, [cheia, temFases]);
     const g = useMemo(() => {
-        let d = desenharFluxo(fases, raia);
+        const op = { acoes };
+        let d = desenharFluxo(fases, raia, Infinity, op);
         if (!larguraCaixa) return d;
         const limite = larguraCaixa / ESCALA_MINIMA;
-        for (let n = d.tarefas.reduce((m, t) => Math.max(m, t.col), 0); n >= 2 && d.largura > limite; n--) d = desenharFluxo(fases, raia, n);
+        // Com as ações dentro, a fase é mais larga: no celular, pode ficar uma por linha.
+        for (let n = d.tarefas.reduce((m, t) => Math.max(m, t.col), 0); n >= (d.comAcoes ? 1 : 2) && d.largura > limite; n--) d = desenharFluxo(fases, raia, n, op);
         return d;
-    }, [fases, raia, larguraCaixa]);
+    }, [fases, raia, larguraCaixa, acoes]);
 
     useEffect(() => {
         if (!cheia) return undefined;
@@ -68,6 +74,9 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
             <defs>
                 <marker id={seta} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                     <path d="M0,0 L10,5 L0,10 z" className="fill-slate-600 dark:fill-slate-300" />
+                </marker>
+                <marker id={`${seta}-p`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" className="fill-slate-500 dark:fill-slate-400" />
                 </marker>
                 <linearGradient id={`tarefa-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0" stopColor="#f5f9fe" /><stop offset="1" stopColor="#d6e6f7" />
@@ -107,7 +116,7 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
             {g.desvios.map((d) => (
                 <g key={d.id}>
                     <title>Desvio: o processo segue por uma das saídas</title>
-                    <path d={`M${d.cx - d.r},${d.cy} L${d.cx},${d.cy - d.r} L${d.cx + d.r},${d.cy} L${d.cx},${d.cy + d.r} z`} strokeWidth="1.4" className="fill-[#fff7c2] stroke-[#a58a00] dark:fill-[#4a4210] dark:stroke-[#e2c94a]" />
+                    <path d={`M${d.cx - d.r},${d.cy} L${d.cx},${d.cy - d.r} L${d.cx + d.r},${d.cy} L${d.cx},${d.cy + d.r} z`} strokeWidth="1.4" className={LOSANGO} />
                     <path d={`M${d.cx - 5},${d.cy - 5} L${d.cx + 5},${d.cy + 5} M${d.cx + 5},${d.cy - 5} L${d.cx - 5},${d.cy + 5}`} strokeWidth="1.8" className="stroke-[#7a6600] dark:stroke-[#e2c94a]" />
                 </g>
             ))}
@@ -119,15 +128,44 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
                 const props = onSelecionar ? { role: 'button', tabIndex: 0, onClick: () => onSelecionar(f.id), onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelecionar(f.id); } }, className: 'cursor-pointer focus:outline-none group' } : {};
                 const alturaTexto = t.linhas.length * 12 + (t.prazo ? 12 : 0);
                 const y0 = t.y + (TH - alturaTexto) / 2 + 9;
+                const foco = onSelecionar ? 'group-hover:stroke-indigo-600 group-focus-visible:stroke-indigo-600 group-focus-visible:[stroke-width:2.5]' : '';
                 return (
                     <g key={t.id} {...props}>
                         <title>{`${t.indice + 1}. ${f.nome}${f.prazo_dias ? ` · ${f.prazo_dias} dias` : ''}${alertas?.has(f.id) ? ' · fora do caminho até o fim (veja as pendências)' : ''}${f.orientacao ? `\n${f.orientacao}` : ''}`}</title>
-                        {alertas?.has(f.id) && <rect x={t.x - 3} y={t.y - 3} width={TW + 6} height={TH + 6} rx="10" strokeWidth="2" strokeDasharray="5 3" fill="none" className="stroke-amber-500 dark:stroke-amber-400" />}
-                        {ativo && <rect x={t.x - 4} y={t.y - 4} width={TW + 8} height={TH + 8} rx="11" strokeWidth="2.5" fill="none" className="stroke-indigo-600 dark:stroke-indigo-400" />}
-                        <rect x={t.x} y={t.y} width={TW} height={TH} rx="8" strokeWidth="1.4" fill={`url(#tarefa-${uid})`}
-                            className={`stroke-[#2c6aa8] dark:stroke-[#7fb2e6] dark:[fill:#1c2f47] ${onSelecionar ? 'group-hover:stroke-indigo-600 group-focus-visible:stroke-indigo-600 group-focus-visible:[stroke-width:2.5]' : ''}`} />
-                        {t.linhas.map((l, k) => <text key={k} x={t.cx} y={y0 + k * 12} textAnchor="middle" fontSize="10.5" fontWeight={ativo ? 700 : 500} className="fill-slate-900 dark:fill-slate-50">{l}</text>)}
+                        {alertas?.has(f.id) && <rect x={t.x - 3} y={t.y - 3} width={t.w + 6} height={t.h + 6} rx="10" strokeWidth="2" strokeDasharray="5 3" fill="none" className="stroke-amber-500 dark:stroke-amber-400" />}
+                        {ativo && <rect x={t.x - 4} y={t.y - 4} width={t.w + 8} height={t.h + 8} rx="11" strokeWidth="2.5" fill="none" className="stroke-indigo-600 dark:stroke-indigo-400" />}
+                        {g.comAcoes ? (
+                            <>
+                                {/* A fase é a moldura: cabeçalho com o nome e, abaixo, o que se faz nela. */}
+                                <rect x={t.x} y={t.y} width={t.w} height={t.h} rx="8" strokeWidth="1.4" className={`fill-slate-50 stroke-slate-500 dark:fill-slate-900 dark:stroke-slate-400 ${foco}`} />
+                                <path d={t.dentro
+                                    ? `M${t.x + 0.7},${t.y + TH} V${t.y + 8} Q${t.x + 0.7},${t.y + 0.7} ${t.x + 8},${t.y + 0.7} H${t.x + t.w - 8} Q${t.x + t.w - 0.7},${t.y + 0.7} ${t.x + t.w - 0.7},${t.y + 8} V${t.y + TH} z`
+                                    : `M${t.x + 0.7},${t.y + TH - 8} V${t.y + 8} Q${t.x + 0.7},${t.y + 0.7} ${t.x + 8},${t.y + 0.7} H${t.x + t.w - 8} Q${t.x + t.w - 0.7},${t.y + 0.7} ${t.x + t.w - 0.7},${t.y + 8} V${t.y + TH - 8} Q${t.x + t.w - 0.7},${t.y + TH - 0.7} ${t.x + t.w - 8},${t.y + TH - 0.7} H${t.x + 8} Q${t.x + 0.7},${t.y + TH - 0.7} ${t.x + 0.7},${t.y + TH - 8} z`}
+                                    className="fill-indigo-100 dark:fill-indigo-950" />
+                                {t.dentro && <path d={`M${t.x},${t.y + TH} H${t.x + t.w}`} strokeWidth="1" className="stroke-slate-400 dark:stroke-slate-600" />}
+                            </>
+                        ) : (
+                            <rect x={t.x} y={t.y} width={t.w} height={t.h} rx="8" strokeWidth="1.4" fill={`url(#tarefa-${uid})`} className={`stroke-[#2c6aa8] dark:stroke-[#7fb2e6] dark:[fill:#1c2f47] ${foco}`} />
+                        )}
+                        {t.linhas.map((l, k) => <text key={k} x={t.cx} y={y0 + k * 12} textAnchor="middle" fontSize="10.5" fontWeight={ativo || g.comAcoes ? 700 : 500} className="fill-slate-900 dark:fill-slate-50">{l}</text>)}
                         {t.prazo && <text x={t.cx} y={y0 + t.linhas.length * 12} textAnchor="middle" fontSize="9.5" className="fill-slate-600 dark:fill-slate-300">{t.prazo} dias</text>}
+                        {t.dentro?.ligacoes.map((l, k) => (
+                            <path key={k} d={l.d} fill="none" strokeWidth="1.1" strokeLinejoin="round" markerEnd={l.tipo === 'passo' ? `url(#${seta}-p)` : undefined} className="stroke-slate-500 dark:stroke-slate-400" />
+                        ))}
+                        {t.dentro?.rotulos.map((r, k) => <text key={k} x={r.x} y={r.y} textAnchor={r.ancora} fontSize="8.5" className="fill-slate-600 dark:fill-slate-300">{r.texto}</text>)}
+                        {t.dentro?.nos.map((n, k) => (n.tipo === 'desvio' ? (
+                            <g key={k}>
+                                <title>{`${n.texto}: as ações seguintes só valem nesse caso`}</title>
+                                {n.linhas.map((l, j) => <text key={j} x={n.cx} y={n.ly + j * 11} textAnchor="middle" fontSize="9" fontStyle="italic" className="fill-slate-800 dark:fill-slate-100">{l}</text>)}
+                                <path d={`M${n.cx - n.r},${n.cy} L${n.cx},${n.cy - n.r} L${n.cx + n.r},${n.cy} L${n.cx},${n.cy + n.r} z`} strokeWidth="1.2" className={LOSANGO} />
+                            </g>
+                        ) : (
+                            <g key={k}>
+                                <title>{`Ação: ${n.nome}\n${n.resumo}`}</title>
+                                <rect x={n.x} y={n.y} width={n.w} height={n.h} rx="5" strokeWidth="1.1" strokeDasharray={n.nivel === 'opcional' ? '4 3' : undefined} fill={`url(#tarefa-${uid})`} className="stroke-[#2c6aa8] dark:stroke-[#7fb2e6] dark:[fill:#1c2f47]" />
+                                {n.linhas.map((l, j) => <text key={j} x={n.cx} y={n.y + 15 + j * 12} textAnchor="middle" fontSize="9.5" className="fill-slate-900 dark:fill-slate-50">{l}</text>)}
+                            </g>
+                        )))}
                     </g>
                 );
             })}
@@ -141,8 +179,12 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
                 {legenda && (
                     <span className="mr-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-slate-300" aria-hidden>
                         <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full border border-[#5b9a12] bg-[#e6f4c8]" />Início</span>
-                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-[#2c6aa8] bg-[#d6e6f7]" />Fase</span>
-                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rotate-45 border border-[#a58a00] bg-[#fff7c2]" />Desvio</span>
+                        {g.comAcoes
+                            ? <><span className="inline-flex items-center gap-1"><i className="inline-block h-3 w-4 rounded-sm border border-slate-500 border-t-4 border-t-indigo-200 bg-slate-50" />Fase</span>
+                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-[#2c6aa8] bg-[#d6e6f7]" />Ação</span>
+                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-dashed border-[#2c6aa8] bg-[#d6e6f7]" />Ação opcional</span></>
+                            : <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-[#2c6aa8] bg-[#d6e6f7]" />Fase</span>}
+                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rotate-45 border border-[#a58a00] bg-[#fff7c2]" />Desvio (escolha)</span>
                         <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#a61b1b] bg-[#f8d2d2]" />Fim</span>
                         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 border-t border-dashed border-slate-600" />Volta</span>
                         {alertas?.size > 0 && <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border-2 border-dashed border-amber-500" />Fora do caminho</span>}
@@ -164,7 +206,8 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
             <ol className="sr-only">
                 {fases.map((f, i) => {
                     const s = seguintes(fases, i);
-                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] || f.condicoes_regra?.[id] ? ` (${[f.condicoes?.[id], f.condicoes_regra?.[id] ? `quando ${textoCondicao(f, f.condicoes_regra[id])}` : null].filter(Boolean).join('; ')})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
+                    const dentro = acoes ? itensDaFase(f).map((it) => (it.tipo === 'desvio' ? `${it.texto}:` : it.nome)).join('; ') : '';
+                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}{dentro ? `. Ações: ${dentro}` : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] || f.condicoes_regra?.[id] ? ` (${[f.condicoes?.[id], f.condicoes_regra?.[id] ? `quando ${textoCondicao(f, f.condicoes_regra[id])}` : null].filter(Boolean).join('; ')})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
                 })}
             </ol>
         </div>

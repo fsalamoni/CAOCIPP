@@ -176,7 +176,7 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
                                     {rito && (
                                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
                                             <p className="text-sm font-medium">Fluxo deste tipo</p>
-                                            <FluxoRito fases={fases} unidades={estado.unidades} className="mt-2" />
+                                            <FluxoRito acoes fases={fases} unidades={estado.unidades} className="mt-2" />
                                         </div>
                                     )}
                                     {aviso(probDados)}
