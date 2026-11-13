@@ -430,6 +430,19 @@ A tela do processo (`ProcessoView.jsx`) separa o que **informa** do que
 (seções 3 e 4). O cabeçalho (número, assunto, fase, situação, com quem está,
 urgência, sigilo, integridade) aparece em todas as abas.
 
+No celular (abaixo de 640px), com um processo aberto, o cabeçalho da página e
+a barra de páginas do órgão saem e fica uma barra presa no alto com
+"Processos" e o número. Em "Meu trabalho" a linha inteira abre o processo
+("Assumir" não abre; o botão "Abrir processo N" é o caminho pelo teclado).
+
+**Glossário:** `src/lib/glossario.js` (oito termos, texto público) e o botão
+"?" `AjudaTermo.jsx` (popover Radix) ao lado de autos, autuar, certidão
+conjunta, ciência por decurso, dispensa, juntada, remessa e sobrestar nas
+telas da equipe; a Central de Ajuda tem a seção `#glossario`. Nenhuma tela do
+portal usa o "?" (`glossario.test.js` confere). Alvos de toque de 44px no
+celular: regra em `src/index.css` para rótulos com caixa de marcar ou chave,
+área invisível no `Switch` e filtros e caixas da aba Eventos.
+
 | Aba | Conteúdo | Ações |
 |---|---|---|
 | **Capa** (`CapaProcesso.jsx`) | Identificação (número, tipo, assunto, rito, autuação, descrição, campos do tipo); origem e quem solicitou (origem, referência, unidade de autuação, requerentes com representantes, ou "De ofício"); tramitação (situação, fase, com quem está e desde quando, responsável, urgência com motivo, sigilo); partes por polo, com representantes e quem acompanha pelo portal; cronologia dos atos dos autos (só eventos de origem `usuario`, com folhas; título que abre o documento no leitor) e a conferência da cadeia | Nenhuma |
@@ -885,6 +898,10 @@ Intimação, notificação, citação, ciência e comunicação. Lógica pura em
 `secretariaConfig.salvarTextosComunicacao {textos}` (admin; grava a lista
 inteira). `estado` devolve `textos_comunicacao`. No formulário de expedição,
 o texto pronto preenche o texto e o prazo, e a pessoa ajusta antes de expedir.
+Cada cartão tem o menu "Mais opções" (Editar, Duplicar, Excluir). Duplicar
+abre uma cópia não salva; excluir mostra um aviso com Desfazer por 8 s, que
+regrava a lista com o texto na posição antiga (`src/lib/textosProntos.js`,
+pela mesma ação, com o limite de 40).
 
 ## Órgãos internos (nov/2026)
 
@@ -942,20 +959,31 @@ criou o item, nos casos sem efeito sobre o trabalho de outros.
   se a de antes não estiver), com termo de restauração. Tela: Mais › Excluir
   processo; Processos › Todos › Excluídos (admin).
 - **Unidade** (`secretariaConfig` `excluirUnidade {id, sucessora?, simular?}`):
-  `simular` devolve o impacto (processos, arquivados, equipe, modelos). Com
+  `simular` devolve o impacto (processos, arquivados, equipe, modelos,
+  `tipos`, `ritos[{id,nome,fases}]` e `orgao`). Modelos da unidade, tipos
+  que entram por ela (`unidade_inicial`) e fases de rito que correm nela vão
+  para a sucessora, se houver (tipo de outro órgão interno fica sem
+  `unidade_inicial`). Sem sucessora, os modelos ficam inativos no órgão
+  interno da unidade ou na entidade, os tipos entram pela unidade de quem
+  autua e as fases correm na unidade que estiver com o processo. Processos
+  já autuados guardam as fases e não mudam. Salvar um tipo, salvar um rito
+  ou restaurar versão de rito descarta referência a unidade excluída. Com
   processos, só o admin exclui e escolhe a unidade sucessora: cada processo
   (em qualquer situação) vai para ela com termo de remessa "por exclusão da
   unidade", sem responsável, e as minutas seguem (`unidades_acesso`). A
   unidade fica `excluida: true`, inativa, sem equipe, pedidos e convites;
   `estado` a tira de `unidades` e devolve `unidades_excluidas` (o nome
   aparece como "Nome (excluída)" no que já passou por ela). Quem criou a
-  unidade (`criada_por_mim`) exclui a que não tem processo. Não há
+  unidade (`criada_por_mim`) exclui a que não tem processo nem é usada por
+  tipo ou fase de rito, escolhendo como sucessora só unidade que gere. Não há
   restauração pela tela.
 - **Órgão interno** (`removerOrgao {id, destino?}`): unidades, órgãos
   subordinados, tipos de processo e modelos do órgão passam para `destino`
   (outro órgão fora da sua subárvore ou, vazio, direto na entidade); os
   processos seguem nas mesmas unidades. Quem criou o órgão (`criado_por`,
-  gravado pelo servidor) exclui o órgão vazio.
+  gravado pelo servidor) exclui o órgão vazio. A confirmação avisa que não
+  se desfaz e, para o admin com o órgão ativo, oferece "Desativar em vez de
+  excluir" (`salvarOrgao` com `ativo: false`).
 - **Testes:** `functions-v2/test/exclusao.test.js`.
 
 ### Excluir, restaurar e duplicar ritos, tipos e modelos (nov/2026)

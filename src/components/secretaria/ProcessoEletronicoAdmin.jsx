@@ -14,6 +14,7 @@ import PreviaRito from './PreviaRito';
 import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
 import { ABAS_CONFIG, abaInicial } from '@/lib/passosConfiguracao';
 import { RegistroContexto } from './SeletorRegistro';
+import AjudaTermo from './AjudaTermo';
 
 /**
  * Painel Administrativo do órgão → Processo Eletrônico: liga ou desliga o
@@ -121,7 +122,7 @@ function Preferencias({ estado, saving, onSalvar }) {
                 </div>
                 <div className="flex flex-wrap items-start justify-between gap-4 rounded-md border border-slate-200 dark:border-slate-700 p-3">
                     <div className="flex-1 min-w-[14rem]">
-                        <label htmlFor="ciencia-dias" className="font-medium text-slate-800 dark:text-slate-100">Ciência por decurso</label>
+                        <div className="flex items-center gap-1"><label htmlFor="ciencia-dias" className="font-medium text-slate-800 dark:text-slate-100">Ciência por decurso</label><AjudaTermo id="ciencia_decurso" /></div>
                         <p>Intimação ou outra comunicação feita pela plataforma que a parte não abrir neste número de dias corridos é dada por ciente, e o prazo começa a contar. Zero desliga: só a parte dá ciência.</p>
                     </div>
                     <div className="flex items-center gap-2">

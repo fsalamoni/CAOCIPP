@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { GLOSSARIO } from '@/lib/glossario';
 import {
   HelpCircle,
   Users,
@@ -181,6 +182,17 @@ export default function Help() {
               ]}
             />
           </div>
+          <section id="glossario" aria-labelledby="glossario-titulo" className="scroll-mt-24 space-y-3">
+            <h3 id="glossario-titulo" className="font-semibold text-slate-900 dark:text-white">Glossário</h3>
+            <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
+              {Object.values(GLOSSARIO).map((t) => (
+                <div key={t.termo}>
+                  <dt className="text-sm font-medium text-indigo-900 dark:text-indigo-200">{t.termo}</dt>
+                  <dd className="text-sm text-slate-600 dark:text-slate-300">{t.definicao}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
         </CardContent>
       </Card>
 

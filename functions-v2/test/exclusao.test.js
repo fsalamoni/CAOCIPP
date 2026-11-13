@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { podeExcluirProcesso, mesclarLotacoes } = require('../lib/shared/secretaria');
+const { podeExcluirProcesso, mesclarLotacoes, trocarUnidadeDasFases } = require('../lib/shared/secretaria');
 
 const ctx = (uid, extra = {}) => ({ uid, isAdmin: false, unidadeIds: ['sec'], ...extra });
 const proc = { unidade_atual: 'sec', autuado_por: 'ana', status: 'em_tramitacao', partes_uids: [] };
@@ -29,4 +29,16 @@ test('equipe: quem salva a partir de versão antiga não desfaz o que outro fez'
     assert.deepEqual(mesclarLotacoes(atual, base, minha), [{ uid: 'a' }, { uid: 'b', atribuicao: 'Analista' }, { uid: 'c' }, { uid: 'd' }]);
     // Quem tirou "b" da equipe tira mesmo que outro o tenha alterado.
     assert.deepEqual(mesclarLotacoes(atual, base, [{ uid: 'a', gestor: true }]).map((l) => l.uid), ['a', 'c']);
+});
+
+test('exclusão de unidade: fases trocam para a sucessora ou ficam sem unidade', () => {
+    const fases = [{ id: 'a', unidade_id: 'x' }, { id: 'b', unidade_id: 'y' }, { id: 'c' }, { id: 'd', unidade_id: 'x', agente: 'Analista' }];
+    const r = trocarUnidadeDasFases(fases, 'x', 'z');
+    assert.equal(r.trocadas, 2);
+    assert.deepEqual(r.fases.map((f) => f.unidade_id), ['z', 'y', undefined, 'z']);
+    assert.equal(r.fases[3].agente, 'Analista');
+    const sem = trocarUnidadeDasFases(fases, 'x', null).fases;
+    assert.equal('unidade_id' in sem[0], false, 'sem sucessora a chave sai, como o sanitizeRito grava');
+    assert.equal(sem[1].unidade_id, 'y');
+    assert.deepEqual(trocarUnidadeDasFases(undefined, 'x', 'z'), { fases: [], trocadas: 0 });
 });

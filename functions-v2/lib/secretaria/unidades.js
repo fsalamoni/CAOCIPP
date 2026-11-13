@@ -128,12 +128,18 @@ async function liberarResponsaveis(c, unidadeId, uids) {
     return n;
 }
 const MAX_SUCESSAO = 500;
+const MAX_LOTE = 400; // como removerOrgao (orgaos.ts)
 /**
  * Exclui a unidade. Nada se apaga: ela some das listas e da escolha de destino,
- * mas o nome continua nos autos. Processos dela (em qualquer situação) vão para
- * a unidade sucessora, com termo de remessa e as minutas junto; a equipe, os
- * pedidos e os convites em aberto deixam de valer. `simular` só devolve o impacto.
- * Admin do órgão exclui qualquer unidade; quem a criou, só a que não tem processo.
+ * mas o nome continua nos autos. Processos dela vão para a sucessora, com termo
+ * de remessa e as minutas junto. Modelos dela, tipos que entram por ela e fases
+ * de rito que correm nela passam para a sucessora. Sem sucessora, os modelos vão,
+ * inativos, para o órgão interno dela (ou o órgão); os tipos entram pela unidade
+ * de quem autua e as fases correm na unidade que estiver com o processo.
+ * Processos já autuados guardam a cópia das fases e não mudam. A equipe, os
+ * pedidos e os convites em aberto deixam de valer. `simular` só devolve o
+ * impacto. Admin exclui qualquer unidade; quem a criou, só a que não tem
+ * processo nem é usada por tipo ou fase de rito.
  */
 async function excluirUnidade(c, p, uid, auditar) {
     const u = c.unidades.find((x) => x.id === String(p.id || '') && !x.excluida);
@@ -141,39 +147,93 @@ async function excluirUnidade(c, p, uid, auditar) {
         throw new https_1.HttpsError('not-found', 'Unidade não encontrada');
     if (!c.ctx.isAdmin && u.created_by !== uid)
         throw new https_1.HttpsError('permission-denied', 'Só o admin do órgão ou quem criou a unidade pode excluí-la');
-    const procs = await c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', u.id).limit(MAX_SUCESSAO + 1).get();
+    const doOrgao = (col) => c.db.collection(col).where('organization_id', '==', c.orgId);
+    const [procs, modelos, tipos, ritosSnap, convites, orgaos] = await Promise.all([
+        doOrgao(context_1.COL.processos).where('unidade_atual', '==', u.id).limit(MAX_SUCESSAO + 1).get(),
+        doOrgao(context_1.COL.modelos).where('unidade_id', '==', u.id).select('excluido').get(),
+        doOrgao(context_1.COL.tipos).where('unidade_inicial', '==', u.id).select('excluido', 'orgao_id').get(),
+        doOrgao(context_1.COL.ritos).select('nome', 'fases', 'excluido').get(),
+        doOrgao(context_1.COL.convitesEquipe).where('unidade_id', '==', u.id).get(),
+        (0, orgaos_2.lerOrgaos)(c.db, c.orgId),
+    ]);
+    const vivo = (d) => d.data().excluido !== true;
+    // Itens na lixeira também mudam (se restaurados, não podem apontar para unidade excluída), mas só os vivos contam e bloqueiam.
+    const ritos = ritosSnap.docs.map((d) => ({ d, n: (0, secretaria_1.trocarUnidadeDasFases)(d.data().fases, u.id, null).trocadas })).filter((r) => r.n > 0);
+    const ritosVivos = ritos.filter((r) => vivo(r.d));
+    const tiposVivos = tipos.docs.filter(vivo).length;
+    const abertos = convites.docs.filter((d) => !d.data().usado_por && !d.data().revogado);
+    const orgao = orgaos.find((o) => o.id === u.orgao_id) || null;
     const arquivados = procs.docs.filter((d) => d.data().status === 'arquivado').length;
     if (p.simular === true) {
-        const modelos = await c.db.collection(context_1.COL.modelos).where('organization_id', '==', c.orgId).where('unidade_id', '==', u.id).select('excluido').get();
-        return { processos: procs.size, arquivados, em_andamento: procs.size - arquivados, modelos: modelos.docs.filter((d) => d.data().excluido !== true).length, equipe: (0, secretaria_1.lotacoesDe)(u).length, pode_mover: c.ctx.isAdmin };
+        return {
+            processos: procs.size, arquivados, em_andamento: procs.size - arquivados, modelos: modelos.docs.filter(vivo).length, equipe: (0, secretaria_1.lotacoesDe)(u).length,
+            pode_mover: c.ctx.isAdmin, tipos: tiposVivos,
+            ritos: ritosVivos.map((r) => ({ id: r.d.id, nome: String(r.d.data().nome || ''), fases: r.n })),
+            orgao: (orgao === null || orgao === void 0 ? void 0 : orgao.nome) || null,
+        };
     }
-    let sucessora = null;
-    if (procs.size) {
-        if (!c.ctx.isAdmin)
-            throw new https_1.HttpsError('permission-denied', 'A unidade tem processos. Só o admin do órgão pode excluí-la, enviando os processos para outra unidade.');
-        if (procs.size > MAX_SUCESSAO)
-            throw new https_1.HttpsError('resource-exhausted', `A unidade tem mais de ${MAX_SUCESSAO} processos. Envie parte deles antes de excluí-la.`);
-        sucessora = c.unidades.find((x) => x.id === String(p.sucessora || '') && x.id !== u.id && x.ativa !== false && !x.excluida) || null;
-        if (!sucessora)
-            throw new https_1.HttpsError('invalid-argument', `Escolha a unidade ativa que recebe os ${procs.size} processo(s) desta unidade.`);
-        for (const d of procs.docs) {
-            await c.db.runTransaction(async (tx) => {
-                const data = (await tx.get(d.ref)).data();
-                if (!data || data.unidade_atual !== u.id)
-                    return;
-                const minutas = (await tx.get(d.ref.collection('documentos').where('status', '==', 'minuta'))).docs
-                    .filter((m) => (0, secretaria_1.minutaAcessivel)(m.data(), [u.id]));
-                const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'tramitacao', `Remetido de ${u.nome} para ${sucessora.nome}, por exclusão da unidade.`, Object.assign({ de: u.id, para: sucessora.id, exclusao_unidade: true }, (minutas.length ? { minutas: minutas.map((m) => m.id) } : {})));
-                minutas.forEach((m) => tx.update(m.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(sucessora.id) }));
-                tx.update(d.ref, Object.assign(Object.assign({}, mov), { unidade_atual: sucessora.id, unidades_historico: firestore_1.FieldValue.arrayUnion(sucessora.id), responsavel_uid: null, recebido_em: new Date().toISOString() }));
-            });
-        }
+    // Tipos e ritos são configuração do órgão: só o admin os reatribui.
+    if (!c.ctx.isAdmin && (procs.size || tiposVivos || ritosVivos.length)) {
+        throw new https_1.HttpsError('permission-denied', 'A unidade tem processos ou é usada por tipos de processo e fases de rito. Só o admin do órgão pode excluí-la.');
     }
-    await c.db.collection(context_1.COL.unidades).doc(u.id).update(Object.assign(Object.assign({ excluida: true, ativa: false }, camposLotacao([])), { pedidos: [], excluida_em: new Date().toISOString(), excluida_por: uid, updated_at: firestore_1.FieldValue.serverTimestamp(), updated_by: uid }));
-    const convites = await c.db.collection(context_1.COL.convitesEquipe).where('organization_id', '==', c.orgId).where('unidade_id', '==', u.id).get();
-    await Promise.all(convites.docs.filter((d) => !d.data().usado_por && !d.data().revogado).map((d) => d.ref.update({ revogado: true })));
-    await auditar('SECRETARIA_UNIDADE_EXCLUIDA', { unidade_id: u.id, nome: u.nome, processos: procs.size, sucessora: (sucessora === null || sucessora === void 0 ? void 0 : sucessora.id) || null });
-    return { success: true, processos: procs.size, sucessora: (sucessora === null || sucessora === void 0 ? void 0 : sucessora.nome) || null };
+    const sucId = String(p.sucessora || '');
+    const sucessora = sucId ? c.unidades.find((x) => x.id === sucId && x.id !== u.id && x.ativa !== false && !x.excluida) || null : null;
+    if (sucId && !sucessora)
+        throw new https_1.HttpsError('invalid-argument', 'A unidade escolhida para receber não está ativa');
+    if (sucessora && !c.ctx.isAdmin && !c.gestorDe.includes(sucessora.id))
+        throw new https_1.HttpsError('permission-denied', 'Escolha uma unidade que você gere');
+    if (procs.size > MAX_SUCESSAO)
+        throw new https_1.HttpsError('resource-exhausted', `A unidade tem mais de ${MAX_SUCESSAO} processos. Envie parte deles antes de excluí-la.`);
+    if (procs.size && !sucessora)
+        throw new https_1.HttpsError('invalid-argument', `Escolha a unidade ativa que recebe os ${procs.size} processo(s) desta unidade.`);
+    if (1 + modelos.size + tipos.size + ritos.length + abertos.length > MAX_LOTE) {
+        throw new https_1.HttpsError('resource-exhausted', 'A unidade tem itens demais ligados a ela para excluir de uma vez. Mova ou exclua parte dos modelos antes.');
+    }
+    // Validado tudo antes: nenhum processo sai se a exclusão for recusada. Repetir é seguro (os já movidos não voltam na consulta).
+    for (const d of procs.docs) {
+        await c.db.runTransaction(async (tx) => {
+            const data = (await tx.get(d.ref)).data();
+            if (!data || data.unidade_atual !== u.id)
+                return;
+            const minutas = (await tx.get(d.ref.collection('documentos').where('status', '==', 'minuta'))).docs
+                .filter((m) => (0, secretaria_1.minutaAcessivel)(m.data(), [u.id]));
+            const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'tramitacao', `Remetido de ${u.nome} para ${sucessora.nome}, por exclusão da unidade.`, Object.assign({ de: u.id, para: sucessora.id, exclusao_unidade: true }, (minutas.length ? { minutas: minutas.map((m) => m.id) } : {})));
+            minutas.forEach((m) => tx.update(m.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(sucessora.id) }));
+            tx.update(d.ref, Object.assign(Object.assign({}, mov), { unidade_atual: sucessora.id, unidades_historico: firestore_1.FieldValue.arrayUnion(sucessora.id), responsavel_uid: null, recebido_em: new Date().toISOString() }));
+        });
+    }
+    const agora = firestore_1.FieldValue.serverTimestamp();
+    const para = (sucessora === null || sucessora === void 0 ? void 0 : sucessora.id) || null;
+    const orgaoSuc = (sucessora === null || sucessora === void 0 ? void 0 : sucessora.orgao_id) || null;
+    const b = c.db.batch();
+    // Modelos, tipos e ritos foram lidos antes de mover os processos (pode levar segundos): só grava se ninguém os mudou desde então.
+    const igual = (d) => ({ lastUpdateTime: d.updateTime });
+    b.update(c.db.collection(context_1.COL.unidades).doc(u.id), Object.assign(Object.assign({ excluida: true, ativa: false }, camposLotacao([])), { pedidos: [], excluida_em: new Date().toISOString(), excluida_por: uid, updated_at: agora, updated_by: uid }));
+    // Sem sucessora, o modelo vira do órgão, inativo: o admin revê antes de valer para todas as unidades.
+    modelos.docs.forEach((d) => b.update(d.ref, para
+        ? { unidade_id: para, orgao_id: null, updated_at: agora, updated_by: uid }
+        : { unidade_id: null, orgao_id: (orgao === null || orgao === void 0 ? void 0 : orgao.id) || null, ativo: false, updated_at: agora, updated_by: uid }, igual(d)));
+    tipos.docs.forEach((d) => {
+        // Tipo de órgão interno só autua por unidade dele (processos.ts, autuar).
+        const oT = d.data().orgao_id || null;
+        const preso = oT && oT !== orgaoSuc && orgaos.some((o) => o.id === oT);
+        b.update(d.ref, { unidade_inicial: para && !preso ? para : null, updated_at: agora, updated_by: uid }, igual(d));
+    });
+    // ponytail: troca sem versão nova do rito ou do tipo (como removerOrgao); a auditoria registra. Versionar se o histórico precisar mostrar.
+    ritos.forEach(({ d }) => b.update(d.ref, { fases: (0, secretaria_1.trocarUnidadeDasFases)(d.data().fases, u.id, para).fases, updated_at: agora, updated_by: uid }, igual(d)));
+    abertos.forEach((d) => b.update(d.ref, { revogado: true }));
+    try {
+        await b.commit();
+    }
+    catch (e) {
+        // Os processos já movidos ficam na sucessora; repetir termina o resto com a configuração nova.
+        if (e.code === 9)
+            throw new https_1.HttpsError('aborted', 'Um modelo, tipo ou rito ligado à unidade mudou enquanto ela era excluída. Os processos já foram enviados; tente excluir de novo.');
+        throw e;
+    }
+    const fases = ritos.reduce((s, r) => s + r.n, 0);
+    await auditar('SECRETARIA_UNIDADE_EXCLUIDA', { unidade_id: u.id, nome: u.nome, processos: procs.size, sucessora: para, modelos: modelos.size, tipos: tipos.size, ritos: ritos.map((r) => r.d.id), fases });
+    return { success: true, processos: procs.size, sucessora: (sucessora === null || sucessora === void 0 ? void 0 : sucessora.nome) || null, modelos: modelos.size, tipos: tipos.size, fases };
 }
 async function obterUnidadeDocumento(c, p) {
     const u = (0, context_1.exigirGestor)(c, p.unidadeId);

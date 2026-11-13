@@ -173,6 +173,7 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
             onFechar();
         } catch (e) { toast.error(e?.message || 'Não foi possível concluir'); } finally { setOcupado(false); }
     };
+    const salvar = (x, ok) => rodar('salvarOrgao', { id: x.id, orgao: { ...x, pai_id: x.pai_id || null, titular_uid: x.titular_uid || null } }, ok);
     return (
         <Dialog open onOpenChange={(a) => !a && onFechar()}>
             <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
@@ -239,19 +240,26 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                     {o.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={o.ativo !== false} onCheckedChange={(c) => set('ativo', c === true)} /> Órgão ativo</label>}
                 </div>
                 {o.id && confirmar && (
-                    <section role="alertdialog" aria-labelledby="og-excluir" className="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 space-y-3 text-sm">
+                    <section role="alertdialog" aria-labelledby="og-excluir" aria-describedby="og-excluir-aviso" className="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 space-y-3 text-sm">
                         <h3 id="og-excluir" className="font-semibold text-red-900 dark:text-red-100">Excluir {inicial.nome}?</h3>
+                        <p id="og-excluir-aviso" className="font-medium text-red-900 dark:text-red-100">Esta exclusão não pode ser desfeita. Para ter o órgão de volta, será preciso criá-lo de novo e ligar outra vez as unidades, os tipos de processo e os modelos.</p>
+                        {estado.isAdmin && inicial.ativo !== false && (
+                            <div className="rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 p-3 space-y-2">
+                                <p className="text-slate-800 dark:text-slate-200">Só quer parar de usar este órgão? Desative em vez de excluir. É o mesmo que desmarcar "Órgão ativo" e salvar. Ele sai do organograma que as equipes veem, mas guarda as unidades, os tipos de processo e os modelos, e pode ser ativado de novo quando quiser. As unidades dele continuam recebendo processos. Para parar também, desative cada unidade.</p>
+                                <Button type="button" size="sm" variant="outline" disabled={ocupado || !o.nome.trim()} onClick={() => salvar({ ...o, ativo: false }, 'Órgão desativado')}>Desativar em vez de excluir</Button>
+                            </div>
+                        )}
                         {unidades.length || subordinados ? (
                             estado.isAdmin ? (
                                 <>
-                                    <p>Neste órgão estão {[unidades.length && `${unidades.length} unidade${unidades.length > 1 ? 's' : ''}`, subordinados && `${subordinados} órgão${subordinados > 1 ? 's' : ''} subordinado${subordinados > 1 ? 's' : ''}`].filter(Boolean).join(' e ')}. Eles, os tipos de processo e os modelos do órgão passam para o destino abaixo. Os processos seguem nas mesmas unidades.</p>
+                                    <p>Neste órgão estão {[unidades.length && `${unidades.length} unidade${unidades.length > 1 ? 's' : ''}`, subordinados && `${subordinados} órgão${subordinados > 1 ? 's' : ''} subordinado${subordinados > 1 ? 's' : ''}`].filter(Boolean).join(' e ')}. Eles, os tipos de processo e os modelos do órgão passam para o destino abaixo. Os processos seguem nas mesmas unidades.{unidades.length > 0 && ' Se a numeração usa a sigla ou a contagem por órgão, os próximos processos dessas unidades passam a ser numerados pelo destino escolhido.'}</p>
                                     <NativeSelect id="og-destino" label="Para onde vai o que está neste órgão" value={destino} onChange={setDestino}
                                         options={[['', `Direto na entidade (${estado.orgao || 'sem órgão'})`], ...orgaos.filter((x) => !proibidos.has(x.id)).map((x) => [x.id, `${'— '.repeat(x.nivel - 1)}${x.nome}`])]} />
                                 </>
                             ) : <p role="alert" className="text-amber-800 dark:text-amber-300">Este órgão tem unidades ou órgãos subordinados. Só o admin do órgão pode excluí-lo.</p>
-                        ) : <p>O órgão está vazio. Tipos de processo e modelos ligados a ele passam a valer para a entidade inteira.</p>}
+                        ) : <p>O órgão está vazio. {destino ? `Tipos de processo e modelos ligados a ele passam para ${orgaos.find((x) => x.id === destino)?.nome || 'o órgão superior'}.` : 'Tipos de processo e modelos ligados a ele passam a valer para a entidade inteira.'}</p>}
                         <div className="flex flex-wrap gap-2 justify-end">
-                            <Button type="button" variant="outline" size="sm" onClick={() => setConfirmar(false)}>Manter o órgão</Button>
+                            <Button type="button" variant="outline" size="sm" autoFocus onClick={() => setConfirmar(false)}>Manter o órgão</Button>
                             <Button type="button" variant="destructive" size="sm" disabled={ocupado || (!estado.isAdmin && (unidades.length || subordinados))}
                                 onClick={() => rodar('removerOrgao', { id: o.id, destino: destino || null }, 'Órgão excluído')}>{ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Excluir órgão</Button>
                         </div>
@@ -263,7 +271,7 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                     </div>
                     <div className="flex gap-2 justify-end">
                         <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>
-                        <Button disabled={ocupado || !o.nome.trim()} onClick={() => rodar('salvarOrgao', { id: o.id, orgao: { ...o, pai_id: o.pai_id || null, titular_uid: o.titular_uid || null } }, 'Órgão salvo')}>
+                        <Button disabled={ocupado || !o.nome.trim()} onClick={() => salvar(o, 'Órgão salvo')}>
                             {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {o.id ? 'Salvar' : 'Criar órgão'}
                         </Button>
                     </div>

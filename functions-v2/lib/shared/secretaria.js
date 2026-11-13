@@ -18,6 +18,7 @@ exports.texto = texto;
 exports.sanitizeOrigem = sanitizeOrigem;
 exports.slug = slug;
 exports.sanitizeRito = sanitizeRito;
+exports.trocarUnidadeDasFases = trocarUnidadeDasFases;
 exports.fasesSeguintes = fasesSeguintes;
 exports.proximaFase = proximaFase;
 exports.podeAgir = podeAgir;
@@ -241,6 +242,18 @@ function sanitizeRito(input) {
     if (totalCampos > exports.MAX_CAMPOS_RITO)
         throw new Error(`O rito aceita até ${exports.MAX_CAMPOS_RITO} campos de formulário somando todas as ações (há ${totalCampos})`);
     return { nome, descricao: texto(src.descricao, exports.MAX_TEXTO_LONGO), fases, exigir_tipo: src.exigir_tipo === true };
+}
+/** Fases que correm na unidade `de` passam a correr em `para` (null = na que estiver com o processo). */
+function trocarUnidadeDasFases(fases, de, para) {
+    let trocadas = 0;
+    const novas = (Array.isArray(fases) ? fases : []).map((f) => {
+        if ((f === null || f === void 0 ? void 0 : f.unidade_id) !== de)
+            return f;
+        trocadas++;
+        const { unidade_id: _u } = f, resto = __rest(f, ["unidade_id"]);
+        return (para ? Object.assign(Object.assign({}, resto), { unidade_id: para }) : resto);
+    });
+    return { fases: novas, trocadas };
 }
 /**
  * Fases para onde o processo segue a partir da atual: as `proximas` da fase,

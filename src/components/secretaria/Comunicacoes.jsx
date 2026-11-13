@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BellRing, CheckCircle2, Clock, Loader2, Megaphone, Plus, Send, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { dataHora } from './comum';
+import { toast } from 'sonner';
+import { CartaoComMenu } from './Lixeira';
+import { reinserir } from '@/lib/textosProntos';
+import AjudaTermo from './AjudaTermo';
 
 /**
  * Comunicações às partes, do lado da equipe: o cartão no processo e o
@@ -48,7 +52,7 @@ export function CartaoComunicacoes({ p, posse, podeMexer, naSecretaria, ocupado,
     return (
         <Card className={p.comunicacoes_aguardando ? 'border-sky-300 dark:border-sky-800' : ''}>
             <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
-                <CardTitle className="text-base">Comunicações às partes{p.comunicacoes_aguardando > 0 && <Badge className="ml-2 bg-sky-600 hover:bg-sky-600">{p.comunicacoes_aguardando} aguardando ciência</Badge>}</CardTitle>
+                <div className="flex items-center gap-1"><CardTitle className="text-base">Comunicações às partes{p.comunicacoes_aguardando > 0 && <Badge className="ml-2 bg-sky-600 hover:bg-sky-600">{p.comunicacoes_aguardando} aguardando ciência</Badge>}</CardTitle>{lista.some((c) => c.status === 'aguardando' || c.status === 'decurso') && <AjudaTermo id="ciencia_decurso" />}</div>
                 {posse && <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || !naSecretaria || ocupado} onClick={onNova}><Megaphone className="w-4 h-4" aria-hidden /> Intimar ou comunicar</Button>}
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
@@ -272,10 +276,46 @@ const TEXTO_NOVO = { nome: '', especie: '', texto: '', dias: '', contagem: 'utei
 
 /** Configuração: textos prontos para a secretaria usar ao intimar ou comunicar. */
 export function TextosComunicacao({ estado, salvando, onSalvar }) {
-    const textos = estado.textos_comunicacao || [];
+    // A ação grava a lista inteira: até o estado recarregar, vale a lista que acabou de ser gravada
+    // (senão um segundo excluir ou um Desfazer partiria da lista velha e traria de volta o que saiu).
+    const [ultima, setUltima] = useState(null);
+    useEffect(() => { setUltima(null); }, [estado.textos_comunicacao]);
+    const textos = ultima || estado.textos_comunicacao || [];
     const [t, setT] = useState(null);
+    const atuais = useRef(textos); atuais.current = textos; // "Desfazer" usa a lista de agora, não a do momento da remoção
+    const gravando = useRef(false);
+    const novoRef = useRef(null);
+    const removeu = useRef(false);
     const set = (k, v) => setT((x) => ({ ...x, [k]: v }));
-    const gravar = async (lista) => { if (await onSalvar(lista)) setT(null); };
+    const escrever = async (lista, aviso) => {
+        if (gravando.current) { toast.info('Aguarde terminar de salvar e tente de novo.'); return false; }
+        gravando.current = true;
+        try {
+            const ok = await onSalvar(lista, aviso);
+            if (ok) setUltima(lista);
+            return ok;
+        } finally { gravando.current = false; }
+    };
+    const gravar = async (lista, aviso) => { if (await escrever(lista, aviso)) setT(null); };
+    // Duplicar abre como texto novo, já preenchido. Só grava ao clicar em "Salvar".
+    const duplicar = (x) => {
+        setT({ ...x, id: undefined, nome: `${x.nome} (cópia)`.slice(0, 80), dias: x.dias ? String(x.dias) : '' });
+        requestAnimationFrame(() => document.getElementById('tx-nome')?.focus());
+    };
+    const remover = (x) => {
+        if (!x) return;
+        const i = textos.findIndex((y) => y.id === x.id);
+        const doDialogo = !!t;
+        gravar(textos.filter((y) => y.id !== x.id), () => {
+            // O cartão e o menu somem; o foco vai para "Novo texto" em vez de cair no corpo da página.
+            removeu.current = doDialogo;
+            novoRef.current?.focus();
+            toast(`O texto pronto "${x.nome}" foi removido.`, {
+                duration: 8000,
+                action: { label: 'Desfazer', onClick: () => escrever(reinserir(atuais.current, x, i), () => toast.success('Texto pronto restaurado')) },
+            });
+        });
+    };
     const salvar = () => {
         const item = { ...t, id: t.id || `t${Date.now().toString(36)}`, dias: Number(t.dias) || 0 };
         gravar(t.id ? textos.map((x) => (x.id === t.id ? item : x)) : [...textos, item]);
@@ -287,19 +327,24 @@ export function TextosComunicacao({ estado, salvando, onSalvar }) {
                     <CardTitle className="text-base">Textos prontos de intimações e comunicações</CardTitle>
                     <CardDescription>Frases que a secretaria usa sempre. Ao intimar ou comunicar, ela escolhe um texto pronto, ajusta o que precisar e expede. O prazo sugerido já vem preenchido.</CardDescription>
                 </div>
-                <Button size="sm" className="gap-1 shrink-0" onClick={() => setT({ ...TEXTO_NOVO })}><Plus className="w-4 h-4" aria-hidden /> Novo texto</Button>
+                <Button ref={novoRef} size="sm" className="gap-1 shrink-0" onClick={() => setT({ ...TEXTO_NOVO })}><Plus className="w-4 h-4" aria-hidden /> Novo texto</Button>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
                 {textos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum texto pronto ainda.</p>}
                 {textos.map((x) => (
-                    <button key={x.id} type="button" onClick={() => setT({ ...x, dias: x.dias ? String(x.dias) : '' })} className="w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium">{x.nome}</span><Badge variant="outline">{x.especie ? nomeEspecie(x.especie) : 'Qualquer espécie'}</Badge>{x.dias > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">prazo de {textoPrazo(x)}</span>}</span>
+                    <CartaoComMenu key={x.id} nome={x.nome}
+                        className="w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        onEditar={() => setT({ ...x, dias: x.dias ? String(x.dias) : '' })}
+                        onDuplicar={() => duplicar(x)}
+                        onExcluir={salvando ? null : () => remover(x)}>
+                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o texto pronto </span>{x.nome}</span><Badge variant="outline">{x.especie ? nomeEspecie(x.especie) : 'Qualquer espécie'}</Badge>{x.dias > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">prazo de {textoPrazo(x)}</span>}</span>
                         <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{x.texto}</span>
-                    </button>
+                    </CartaoComMenu>
                 ))}
             </CardContent>
             <Dialog open={!!t} onOpenChange={(a) => !a && setT(null)}>
-                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full"
+                    onCloseAutoFocus={(e) => { if (removeu.current) { e.preventDefault(); novoRef.current?.focus(); } removeu.current = false; }}>
                     <DialogHeader>
                         <DialogTitle>{t?.id ? 'Editar texto pronto' : 'Novo texto pronto'}</DialogTitle>
                         <DialogDescription>Fica disponível para a secretaria na hora de intimar ou comunicar uma parte.</DialogDescription>
@@ -325,7 +370,10 @@ export function TextosComunicacao({ estado, salvando, onSalvar }) {
                         </div>
                     )}
                     <DialogFooter className="gap-2 sm:justify-between">
-                        <div>{t?.id && <Button type="button" variant="ghost" className="text-red-700 dark:text-red-400" disabled={salvando} onClick={() => gravar(textos.filter((x) => x.id !== t.id))}>Remover</Button>}</div>
+                        <div className="flex gap-2">{t?.id && <>
+                            <Button type="button" variant="ghost" className="text-red-700 dark:text-red-400" disabled={salvando} onClick={() => remover(textos.find((x) => x.id === t.id))}>Remover</Button>
+                            <Button type="button" variant="ghost" disabled={salvando} onClick={() => duplicar(t)}>Duplicar</Button>
+                        </>}</div>
                         <div className="flex gap-2 justify-end">
                             <Button type="button" variant="outline" onClick={() => setT(null)}>Cancelar</Button>
                             <Button disabled={salvando || !t?.nome.trim() || !t?.texto.trim()} onClick={salvar}>Salvar</Button>

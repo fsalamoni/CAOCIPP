@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DadosCampos } from './CamposProcesso';
 import { POLOS, STATUS_ROTULO, SeloUrgente, dataHora, rotuloOrigem } from './comum';
+import AjudaTermo from './AjudaTermo';
 import { ROTULO_DESTINO } from '@/lib/exigencias';
 import { ABA_DO_MODULO, ROTULO_REF, integracoesLigadas, registrosLigados } from '@/lib/camposProcesso';
 import { createPageUrl } from '@/utils';
@@ -147,7 +148,7 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
 
                 <Bloco titulo="Tramitação">
                     <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
-                        <Item rotulo="Situação">{STATUS_ROTULO[p.status]}</Item>
+                        <Item rotulo="Situação">{STATUS_ROTULO[p.status]}{p.status === 'sobrestado' && <> <AjudaTermo id="sobrestar" /></>}</Item>
                         <Item rotulo="Fase">{p.fase_nome}</Item>
                         <Item rotulo="Com">{nomeUnidade(p.unidade_atual)}{dias != null ? ` · ${dias === 0 ? 'desde hoje' : `há ${plural(dias, 'dia', 'dias')}`}` : ''}</Item>
                         <Item rotulo="Responsável">{responsavel || 'Ninguém designado'}</Item>

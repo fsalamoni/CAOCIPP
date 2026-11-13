@@ -78,9 +78,11 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
                             const vencido = p.proximo_vencimento && p.proximo_vencimento < hoje;
                             const naUnidade = dias(p.recebido_em);
                             return (
-                                <div key={p.id} className="p-3 flex flex-wrap gap-x-4 gap-y-1 items-center">
-                                    <button type="button" onClick={() => onAbrir(p.id)} className="font-mono text-sm text-indigo-700 dark:text-indigo-300 hover:underline">{p.numero}</button>
-                                    <button type="button" onClick={() => onAbrir(p.id)} className="font-medium text-left text-slate-900 dark:text-white flex-1 min-w-[12rem] hover:underline">{p.assunto}</button>
+                                // A linha inteira abre o processo. "Abrir" é o caminho pelo teclado;
+                                // a linha não ganha foco para não pôr botão dentro de botão. O número é para copiar: clicar nele não abre.
+                                <div key={p.id} onClick={(e) => { if (assumindo === p.id || e.target.closest?.('[data-copiavel]') || window.getSelection()?.toString()) return; onAbrir(p.id); }} className="p-3 flex flex-wrap gap-x-4 gap-y-1 items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                                    <span data-copiavel="" className="font-mono text-sm text-indigo-700 dark:text-indigo-300 select-all cursor-text">{p.numero}</span>
+                                    <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}</span>
                                     <span className="text-xs text-slate-600 dark:text-slate-400">
                                         {p.fase_nome} · {nomeUnidade(p.unidade_atual)}{naUnidade != null ? ` ${ha(naUnidade)}` : ''}{p.responsavel_uid && p.responsavel_uid !== estado.uid ? ` · ${nomeMembro(p.responsavel_uid)}` : ''}
                                     </span>
@@ -92,8 +94,8 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
                                     {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}</Badge>}
                                     {p.proximo_vencimento && <Badge variant="outline" className={vencido ? 'border-red-400 text-red-700 dark:text-red-300' : ''}>Prazo {vencido ? 'vencido' : 'vence'} {p.proximo_vencimento.split('-').reverse().join('/')}</Badge>}
                                     {p.status !== 'em_tramitacao' && <Badge variant="outline">{STATUS_ROTULO[p.status]}</Badge>}
-                                    {!p.responsavel_uid && <Button size="sm" variant="outline" disabled={assumindo === p.id} onClick={() => assumir(p)}>{assumindo === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Assumir'}</Button>}
-                                    <Button size="sm" onClick={() => onAbrir(p.id)}>Abrir</Button>
+                                    {!p.responsavel_uid && <Button size="sm" variant="outline" disabled={assumindo === p.id} onClick={(e) => { e.stopPropagation(); assumir(p); }}>{assumindo === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Assumir'}</Button>}
+                                    <Button size="sm" aria-label={`Abrir processo ${p.numero}`} onClick={(e) => { e.stopPropagation(); onAbrir(p.id); }}>Abrir</Button>
                                 </div>
                             );
                         })}

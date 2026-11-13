@@ -16,6 +16,7 @@ import {
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
+import AjudaTermo from './AjudaTermo';
 import { EditorCampos } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 
@@ -362,8 +363,8 @@ function CertidaoConjunta({ f, fases, mudar, id }) {
     const raiz = fases.find((x) => x.id === grupo);
     const reunidaCom = f.certidao?.grupo && grupo !== f.id ? grupo : '';
     return (
-        <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Certidão conjunta</legend>
+        <fieldset className="space-y-2" aria-labelledby={`${id}-cc`}>
+            <legend className="text-sm font-medium inline-flex items-center gap-1"><span id={`${id}-cc`}>Certidão conjunta</span> <AjudaTermo id="certidao_conjunta" /></legend>
             <p className="text-xs text-slate-600 dark:text-slate-400">
                 {usa
                     ? 'As ações marcadas "Na certidão conjunta" não geram certidão cada uma: viram itens de uma só, com folha, quando o processo sai destas fases, é arquivado ou alguém pede "Emitir certidão agora".'
@@ -413,7 +414,7 @@ function OutrosAtos({ f, id, mudar, aplicarATodas }) {
                 ))}
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-                Sempre nos autos: autuação, juntada de documento, petição, comunicação e ciência, mudança de situação (sobrestar, arquivar, reativar), exclusão e restauração.
+                Sempre nos autos: autuação, juntada de documento, petição, comunicação e ciência, mudança de situação (sobrestar <AjudaTermo id="sobrestar" />, arquivar, reativar), exclusão e restauração.
             </p>
             {aplicarATodas && (
                 <Button variant="outline" size="sm" onClick={() => { aplicarATodas(atual); toast.success('Aplicado a todas as fases do rito'); }}>Aplicar a todas as fases</Button>
@@ -450,7 +451,7 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
                     <NativeSelect id={`${id}-rrem`} label="Remessas entre unidades durante a fase" value={n.remessas} onChange={(v) => setNivel('remessas', v)} options={DESTINOS_FASE} />
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                    Nos autos: termo com folha, que as partes veem. Evento no extrato: aparece na aba Eventos e ao fim do PDF, sem folha, e as partes não veem.
+                    Nos autos <AjudaTermo id="autos" />: termo com folha, que as partes veem. Evento no extrato: aparece na aba Eventos e ao fim do PDF, sem folha, e as partes não veem.
                     Só no sistema: aparece só na aba Eventos, para controle, e não sai em impressão. Sem evento: fica só um registro oculto, que não aparece nem como último andamento.
                     Remessa entre órgãos e dispensa de exigência vão sempre aos autos.
                 </p>
@@ -465,7 +466,7 @@ export function RegistroEDocumentos({ f, fases = [], modelos = [], mudar, idBase
             <CertidaoConjunta f={f} fases={fases} mudar={mudar} id={id} />
             <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Documentos da fase</legend>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Obrigatório: para sair da fase sem ele, é preciso informar o motivo da dispensa, que fica registrado. Recomendado: quem conclui a fase é avisado, sem precisar de motivo. Opcional: só aparece como lembrete.</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Obrigatório: para sair da fase sem ele, é preciso informar o motivo da dispensa <AjudaTermo id="dispensa" />, que fica registrado. Recomendado: quem conclui a fase é avisado, sem precisar de motivo. Opcional: só aparece como lembrete.</p>
                 {docs.map((d, k) => (
                     <div key={k} className="space-y-2 pl-3 border-l-2 border-indigo-200 dark:border-indigo-800">
                         <div className="flex gap-2 items-end">

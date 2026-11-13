@@ -295,6 +295,18 @@ export function sanitizeRito(input: unknown): Rito {
     return { nome, descricao: texto(src.descricao, MAX_TEXTO_LONGO), fases, exigir_tipo: src.exigir_tipo === true };
 }
 
+/** Fases que correm na unidade `de` passam a correr em `para` (null = na que estiver com o processo). */
+export function trocarUnidadeDasFases<T extends { unidade_id?: string }>(fases: unknown, de: string, para: string | null): { fases: T[]; trocadas: number } {
+    let trocadas = 0;
+    const novas = ((Array.isArray(fases) ? fases : []) as T[]).map((f) => {
+        if (f?.unidade_id !== de) return f;
+        trocadas++;
+        const { unidade_id: _u, ...resto } = f;
+        return (para ? { ...resto, unidade_id: para } : resto) as T;
+    });
+    return { fases: novas, trocadas };
+}
+
 /**
  * Fases para onde o processo segue a partir da atual: as `proximas` da fase,
  * ou a seguinte da lista. Ir para outra fase é possível, mas fica registrado

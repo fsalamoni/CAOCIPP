@@ -129,15 +129,16 @@ function CorpoGestao({ orgId, estado, unidade, onExcluida }) {
 }
 
 /**
- * Excluir a unidade: primeiro mostra o que muda (processos, equipe, modelos);
- * havendo processos, o admin escolhe a unidade que os recebe.
+ * Excluir a unidade: primeiro mostra o que muda (processos, equipe, modelos,
+ * tipos e fases de rito); havendo processos, o admin escolhe a unidade que os
+ * recebe. Sem processos, a escolha é opcional e leva modelos, tipos e fases.
  */
 function ExcluirUnidade({ orgId, estado, unidade, onExcluida }) {
     const qc = useQueryClient();
     const [impacto, setImpacto] = useState(null);
     const [sucessora, setSucessora] = useState('');
     const [ocupado, setOcupado] = useState(false);
-    const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== unidade.id);
+    const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== unidade.id && (estado.isAdmin || (estado.gestorDe || []).includes(u.id)));
     const abrir = async () => {
         setOcupado(true);
         try {
@@ -157,6 +158,11 @@ function ExcluirUnidade({ orgId, estado, unidade, onExcluida }) {
         } catch (e) { toast.error(e?.message || 'Não foi possível excluir'); } finally { setOcupado(false); }
     };
     const precisaSucessora = impacto?.processos > 0;
+    const ritosAfetados = impacto?.ritos || [];
+    const reatribui = impacto && (impacto.modelos > 0 || impacto.tipos > 0 || ritosAfetados.length > 0);
+    const soAdmin = impacto && !impacto.pode_mover && (precisaSucessora || impacto.tipos > 0 || ritosAfetados.length > 0);
+    const semEscolha = (txt) => (precisaSucessora ? '' : ` Sem escolha, ${txt}`);
+    const n = (q, um, varios) => (q === 1 ? `1 ${um}` : `${q} ${varios}`);
     return (
         <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
             <Button type="button" variant="ghost" className="gap-1 text-red-700 dark:text-red-400" disabled={ocupado} onClick={abrir}>
@@ -173,19 +179,22 @@ function ExcluirUnidade({ orgId, estado, unidade, onExcluida }) {
                             <ul className="list-disc pl-5 space-y-1">
                                 <li>{impacto.processos ? <><b>{impacto.processos === 1 ? 'O processo que está com ela vai' : `Os ${impacto.processos} processos que estão com ela vão`}</b>{impacto.arquivados ? ` (${impacto.arquivados} arquivado${impacto.arquivados > 1 ? 's' : ''})` : ''} para a unidade escolhida abaixo, com termo de remessa e as minutas junto.</> : 'Nenhum processo está com ela.'}</li>
                                 <li>{impacto.equipe ? `${impacto.equipe} pessoa(s) deixam de estar lotadas nela.` : 'Ela não tem equipe.'} Convites e pedidos de lotação em aberto deixam de valer.</li>
-                                {impacto.modelos > 0 && <li>{impacto.modelos} modelo(s) próprio(s) da unidade deixam de aparecer para quem redige.</li>}
+                                {impacto.modelos > 0 && <li>{n(impacto.modelos, 'modelo da unidade vai', 'modelos da unidade vão')} para a unidade escolhida abaixo.{semEscolha(`${impacto.modelos === 1 ? 'fica inativo' : 'ficam inativos'} nos modelos ${impacto.orgao ? `de ${impacto.orgao}` : 'do órgão'}, para o admin revisar.`)}</li>}
+                                {impacto.tipos > 0 && <li>{n(impacto.tipos, 'tipo de processo entra', 'tipos de processo entram')} por esta unidade. {impacto.tipos === 1 ? 'Passa' : 'Passam'} a entrar pela unidade escolhida abaixo.{semEscolha(`${impacto.tipos === 1 ? 'entra' : 'entram'} pela unidade de quem autua.`)}</li>}
+                                {ritosAfetados.map((r) => <li key={r.id}>{n(r.fases, 'fase', 'fases')} do rito {r.nome} {r.fases === 1 ? 'corre' : 'correm'} nesta unidade. {r.fases === 1 ? 'Passa' : 'Passam'} a correr na unidade escolhida abaixo.{semEscolha(`${r.fases === 1 ? 'corre' : 'correm'} na unidade que estiver com o processo.`)} Processos já autuados não mudam.</li>)}
                             </ul>
-                            {precisaSucessora && !impacto.pode_mover && <p role="alert" className="text-amber-800 dark:text-amber-300">Como a unidade tem processos, só o admin do órgão pode excluí-la.</p>}
-                            {precisaSucessora && impacto.pode_mover && (
+                            {soAdmin && <p role="alert" className="text-amber-800 dark:text-amber-300">Como a unidade tem processos ou é usada por tipos de processo e ritos, só o admin do órgão pode excluí-la.</p>}
+                            {!soAdmin && (precisaSucessora || reatribui) && (
                                 opcoes.length
-                                    ? <NativeSelect id={`suc-${unidade.id}`} label="Unidade que recebe os processos" value={sucessora} onChange={setSucessora} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, u.nome])]} />
-                                    : <p role="alert" className="text-amber-800 dark:text-amber-300">Não há outra unidade ativa para receber os processos. Crie uma antes.</p>
+                                    ? <NativeSelect id={`suc-${unidade.id}`} label={precisaSucessora ? 'Unidade que recebe os processos' : 'Unidade que fica com os modelos, tipos e fases (opcional)'} value={sucessora} onChange={setSucessora}
+                                        options={[['', precisaSucessora ? 'Escolha…' : 'Nenhuma'], ...opcoes.map((u) => [u.id, u.nome])]} />
+                                    : precisaSucessora && <p role="alert" className="text-amber-800 dark:text-amber-300">Não há outra unidade ativa para receber os processos. Crie uma antes.</p>
                             )}
                         </div>
                     )}
                     <DialogFooter className="gap-2">
                         <Button variant="outline" onClick={() => setImpacto(null)}>Cancelar</Button>
-                        <Button variant="destructive" disabled={ocupado || (precisaSucessora && (!impacto?.pode_mover || !sucessora))} onClick={excluir}>
+                        <Button variant="destructive" disabled={ocupado || soAdmin || (precisaSucessora && !sucessora)} onClick={excluir}>
                             {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Excluir unidade
                         </Button>
                     </DialogFooter>
