@@ -27,6 +27,7 @@ const orgaos_2 = require("./orgaos");
 const documentoConfig_1 = require("./documentoConfig");
 const importarModelo_1 = require("./importarModelo");
 const conversao_1 = require("./conversao");
+const modulos_1 = require("../shared/modulos");
 const unidades_1 = require("./unidades");
 var documentoConfig_2 = require("./documentoConfig");
 Object.defineProperty(exports, "TIPOS_DOCUMENTO_PADRAO", { enumerable: true, get: function () { return documentoConfig_2.TIPOS_DOCUMENTO_PADRAO; } });
@@ -129,6 +130,21 @@ const RITO_PADRAO = {
         { id: 'encerramento', nome: 'Encerramento' },
     ],
 };
+/** Módulos de onde o tipo (campos) ou o rito (ações) puxam registros. */
+const modulosDoForm = (f) => new Set(((f === null || f === void 0 ? void 0 : f.campos) || []).filter((x) => x.tipo === 'registro' && x.modulo).map((x) => String(x.modulo)));
+const modulosDoRito = (r) => new Set((Array.isArray(r === null || r === void 0 ? void 0 : r.fases) ? r.fases : [])
+    .flatMap((f) => (f.acoes_regras || []).filter((x) => (x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo).map((x) => String(x.modulo))));
+/** Módulo novo no tipo ou no rito precisa da integração ligada (o que já estava gravado segue valendo). */
+async function exigirIntegracoes(c, usados, antes) {
+    const novos = [...usados].filter((m) => !antes.has(m));
+    if (!novos.length)
+        return;
+    const ligadas = (0, modulos_1.integracoesDe)(c.org, await (0, modulos_1.lerFlags)(c.db));
+    const off = novos.filter((m) => !ligadas[m]);
+    if (off.length) {
+        throw new https_1.HttpsError('failed-precondition', `Ligue a integração com ${off.map((m) => modulos_1.ROTULO_MODULO[m] || m).join(' e ')} em "Integrações com outros módulos" antes de usar registros dele`);
+    }
+}
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     const auth = (0, context_1.exigirAuth)(request);
@@ -182,6 +198,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         return {
             enabled,
             peticao_interrompe: ((_c = c.org.secretariaConfig) === null || _c === void 0 ? void 0 : _c.peticao_interrompe) === true,
+            // Integrações: o que o admin ligou e quais módulos o órgão tem ativos.
+            integracoes: (0, modulos_1.integracoesGravadas)(c.org),
+            modulos_ativos: (0, modulos_1.modulosAtivos)(c.org, await (0, modulos_1.lerFlags)(db)),
             isAdmin: c.ctx.isAdmin,
             uid: c.ctx.uid,
             minhasUnidades: minhas,
@@ -482,6 +501,20 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         await audit('SECRETARIA_PREFERENCIAS', { peticao_interrompe: interrompe, ciencia_dias: dias });
         return { success: true };
     }
+    if (p.action === 'salvarIntegracoes') {
+        // Cada módulo do órgão pode entrar nos processos (campo e ação "registro"). Só o admin.
+        (0, context_1.exigirAdmin)(c);
+        const pedido = (p.integracoes && typeof p.integracoes === 'object' ? p.integracoes : {});
+        const ativos = (0, modulos_1.modulosAtivos)(c.org, await (0, modulos_1.lerFlags)(db));
+        // Módulo inativo agora não liga, mas guarda o que o admin tinha escolhido (volta a valer quando o módulo voltar).
+        const gravadas = (0, modulos_1.integracoesGravadas)(c.org);
+        const integracoes = Object.fromEntries(modulos_1.MODULOS.map((m) => [m, pedido[m] === true && (ativos[m] || gravadas[m])]));
+        await db.collection('organizations').doc(orgId).update({
+            'secretariaConfig.integracoes': integracoes, 'secretariaConfig.updated_at': agora, 'secretariaConfig.updated_by': auth.uid,
+        });
+        await audit('SECRETARIA_INTEGRACOES', integracoes);
+        return { success: true, integracoes };
+    }
     if (p.action === 'salvarNumeracao') {
         // Numeração do órgão: vale para quem autua sem tipo e para os tipos que não têm a sua.
         let numeracao;
@@ -584,6 +617,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             (0, context_1.erroUsuario)(e);
         }
         rito = filtrarRefsRito(rito, unidadesValidas, modelosValidos);
+        await exigirIntegracoes(c, modulosDoRito(rito), modulosDoRito(ritoAtual));
         const batch = db.batch();
         const origem = `Criada ao implantar o rito "${rito.nome}".`;
         for (const u of novasUnidades) {
@@ -646,6 +680,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             const snap = await ref.get();
             if (!snap.exists || ((_o = snap.data()) === null || _o === void 0 ? void 0 : _o.organization_id) !== orgId || ((_p = snap.data()) === null || _p === void 0 ? void 0 : _p.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
+            await exigirIntegracoes(c, modulosDoRito(rito), modulosDoRito(snap.data()));
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos. A versão anterior fica guardada.
             await guardarVersao(ref, snap.data(), CAMPOS_RITO);
@@ -655,6 +690,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             const qtd = (await col.where('organization_id', '==', orgId).select('excluido').get()).docs.filter((d) => d.data().excluido !== true).length;
             if (qtd >= MAX_RITOS)
                 throw new https_1.HttpsError('resource-exhausted', 'Limite de ritos atingido');
+            await exigirIntegracoes(c, modulosDoRito(rito), new Set());
             const ref = await col.add(Object.assign(Object.assign({}, rito), { organization_id: orgId, versao: 1, ativo: true, created_at: agora, created_by: auth.uid }));
             p.id = ref.id;
         }
@@ -720,11 +756,13 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             const atual = (await ref.get()).data();
             if ((atual === null || atual === void 0 ? void 0 : atual.organization_id) !== orgId || (atual === null || atual === void 0 ? void 0 : atual.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Tipo não encontrado');
+            await exigirIntegracoes(c, modulosDoForm(formulario), modulosDoForm(atual.formulario));
             await ref.update(dados);
         }
         else {
             if (naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS)
                 throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido');
+            await exigirIntegracoes(c, modulosDoForm(formulario), new Set());
             p.id = (await col.add(Object.assign(Object.assign({}, dados), { organization_id: orgId, created_at: agora, created_by: auth.uid }))).id;
         }
         await audit('SECRETARIA_TIPO_SALVO', { tipo_id: p.id, nome, campos: formulario.campos.length });

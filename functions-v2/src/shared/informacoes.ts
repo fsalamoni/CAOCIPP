@@ -5,6 +5,8 @@
 // uma cópia no processo). Lógica pura, testada em test/exigencias.test.js.
 // ============================================================================
 
+import type { Ref } from './modulos';
+
 export interface InformacaoAndamento {
     fase_id: string;
     fase_nome: string;
@@ -19,6 +21,8 @@ export interface InformacaoAndamento {
     /** nos autos (certidão), evento do extrato, só no sistema ou sem evento */
     destino: 'autos' | 'evento' | 'informacao' | 'nenhum' | 'consolidar';
     visivel_partes: boolean;
+    /** Registro de outro módulo (ação que pede registro). */
+    ref?: Ref;
 }
 
 interface Mov { seq: number; tipo: string; autor_nome?: string; em?: string; dados?: Record<string, unknown> }
@@ -52,6 +56,7 @@ export function informacoesDoAndamento(movs: Mov[], fases: Array<{ id: string; n
                 ? d.destino as InformacaoAndamento['destino']
                 : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento',
             visivel_partes: d.visivel_partes === true,
+            ...(d.ref && typeof d.ref === 'object' ? { ref: d.ref as Ref } : {}),
         };
         pilha.push(info);
         ordem.push(info);

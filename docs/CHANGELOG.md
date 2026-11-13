@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: integração com Consultas, Expedientes, Parcerias e Júri
+- **Integrações com outros módulos**, no Painel Administrativo do Processo
+  Eletrônico: o admin liga cada módulo ativo do órgão aos processos. Desligado,
+  tudo segue como antes.
+- **Campo "Registro de outro módulo"** no formulário do tipo e **ação que pede
+  um registro** no rito: quem preenche procura pelo número ou assunto e
+  escolhe. O processo guarda só o número e o título, lidos pelo servidor; as
+  partes veem só o número, nunca o de acesso restrito. Nada é escrito nos
+  outros módulos.
+- Desligar a integração não apaga o que já foi guardado nem trava a correção
+  de dados.
+
 ### 12/11/2026 — Processo Eletrônico: formulário do tipo mais livre
 - **Novos recursos nos campos próprios** do "Novo processo" (agora até 40):
   lista em que se marcam várias opções; formatos de e-mail, telefone, CPF ou

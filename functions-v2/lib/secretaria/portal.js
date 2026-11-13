@@ -19,6 +19,7 @@ const comunicacoes_1 = require("../shared/comunicacoes");
 const comunicacoes_2 = require("./comunicacoes");
 const meusProcessos_1 = require("../shared/meusProcessos");
 const informacoes_1 = require("../shared/informacoes");
+const modulos_1 = require("../shared/modulos");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -270,13 +271,18 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
             .filter((d) => d.visivel_partes !== false)
             .sort((a, b) => a.ordem - b.ordem);
+        // Registro de outro módulo que hoje é restrito, anonimizado ou sumiu: as partes não veem mais.
+        const camposPartes = (data.campos || [])
+            .filter((x) => x.visivel_partes === true);
+        const infosPartes = (0, informacoes_1.informacoesDoAndamento)(todos, data.fases || [], true);
+        const fechadas = await (0, modulos_1.refsFechadas)(db, String(data.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.map((i) => i.ref)]);
+        const aberta = (r) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         return {
             orgao: org.name || '',
             processo: {
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true,
                 // Só os campos que o órgão marcou para as partes verem.
-                campos: (data.campos || [])
-                    .filter((x) => x.visivel_partes === true).map((x) => (Object.assign({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor }, (x.formato ? { formato: x.formato } : {})))),
+                campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => (Object.assign({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor }, (x.formato ? { formato: x.formato } : {})))),
                 fase_nome: ((_d = (data.fases || []).find((f) => f.id === data.fase_atual)) === null || _d === void 0 ? void 0 : _d.nome) || data.fase_atual,
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
@@ -287,7 +293,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
-                informacoes: (0, informacoes_1.informacoesDoAndamento)(todos, data.fases || [], true)
+                informacoes: infosPartes.filter((i) => aberta(i.ref))
                     .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
             },
             movimentos: todos.filter((m) => (0, autos_2.visivelParaPartes)(m))

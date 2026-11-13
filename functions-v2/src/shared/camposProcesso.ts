@@ -8,8 +8,9 @@
 // ============================================================================
 
 import { MAX_TEXTO_CURTO, MAX_TEXTO_LONGO, texto } from './secretaria';
+import { MODULOS, Modulo, ROTULO_MODULO, Ref, idEscolhido } from './modulos';
 
-export const TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'multipla', 'sim_nao'] as const;
+export const TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'multipla', 'sim_nao', 'registro'] as const;
 export type TipoCampo = typeof TIPOS_CAMPO[number];
 /** Formato que valida e mostra o valor: os de texto curto e, para número, moeda. */
 export const FORMATOS = ['email', 'telefone', 'cpf_cnpj', 'link', 'moeda'] as const;
@@ -39,6 +40,8 @@ export interface CampoDef {
     condicao?: Condicao;
     /** Fases do rito que só se deixam com o campo preenchido (na autuação, opcional). */
     exigir_em?: string[];
+    /** Registro de outro módulo (tipo 'registro'): de qual. */
+    modulo?: Modulo;
 }
 export interface Condicao { campo_id: string; valor: string | boolean }
 /** Campos padrão do "Novo processo". Os de escolha (sigilo, urgência, unidade) só se mostram ou não. */
@@ -77,6 +80,8 @@ export interface CampoValor {
     valor: Valor;
     visivel_partes: boolean;
     formato?: Formato;
+    /** Registro de outro módulo: `valor` é o número; aqui, de onde veio. */
+    ref?: Ref;
 }
 
 const uso = (v: unknown, padrao: UsoCampo = 'opcional'): UsoCampo => (USOS.includes(v as UsoCampo) ? (v as UsoCampo) : padrao);
@@ -124,6 +129,8 @@ export function sanitizeFormulario(input: unknown): Formulario {
             ? [...new Set((Array.isArray(o.opcoes) ? o.opcoes : []).map((s) => texto(s, 80)).filter(Boolean))].slice(0, MAX_OPCOES)
             : [];
         if (COM_OPCOES.includes(tipo) && opcoes.length < 2) throw new Error(`O campo "${rotulo}" é uma lista: informe ao menos duas opções`);
+        const modulo = tipo === 'registro' && MODULOS.includes(o.modulo as Modulo) ? (o.modulo as Modulo) : undefined;
+        if (tipo === 'registro' && !modulo) throw new Error(`Escolha de que módulo vem o registro de "${rotulo}"`);
         const formato = FORMATOS.includes(o.formato as Formato) && FORMATO_DO_TIPO[o.formato as Formato] === tipo ? (o.formato as Formato) : undefined;
         const secao = texto(o.secao, 60);
         const exigir = [...new Set((Array.isArray(o.exigir_em) ? o.exigir_em : []).map((s) => texto(s, 60)).filter(Boolean))].slice(0, 30);
@@ -133,7 +140,7 @@ export function sanitizeFormulario(input: unknown): Formulario {
         ids.add(id);
         return {
             id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true,
-            ...(formato ? { formato } : {}), ...(secao ? { secao } : {}), ...(exigir.length ? { exigir_em: exigir } : {}),
+            ...(formato ? { formato } : {}), ...(modulo ? { modulo } : {}), ...(secao ? { secao } : {}), ...(exigir.length ? { exigir_em: exigir } : {}),
             ...(o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao as Condicao } : {}),
         };
     });
@@ -267,6 +274,7 @@ export const atendeCondicao = (valor: Valor | null | undefined, cond: Condicao) 
  */
 /** O valor veio igual ao gravado, como a tela o mostra (espelho de valoresDe no cliente)? */
 function igualAoGravado(a: CampoValor, bruto: unknown): boolean {
+    if (a.tipo === 'registro') return !!a.ref && idEscolhido(bruto) === a.ref.id;
     if (Array.isArray(a.valor)) return Array.isArray(bruto) && bruto.length === a.valor.length && bruto.every((x, i) => x === (a.valor as string[])[i]);
     if (a.tipo === 'sim_nao') return bruto === a.valor || bruto === (a.valor ? 'sim' : 'nao');
     if (a.tipo === 'numero') return bruto === a.valor || String(bruto ?? '').trim() === String(a.valor).replace('.', ',');
@@ -278,7 +286,7 @@ function igualAoGravado(a: CampoValor, bruto: unknown): boolean {
  * está, mesmo que o tipo tenha mudado depois (formato, opções, tipo do campo).
  * Assim um processo antigo não trava nem ganha diferença que ninguém fez.
  */
-export function validarCampos(form: Formulario, valores: unknown, antes: CampoValor[] = []): CampoValor[] {
+export function validarCampos(form: Formulario, valores: unknown, antes: CampoValor[] = [], refs: Map<string, Ref | null | 'desligada'> = new Map()): CampoValor[] {
     const v = (valores && typeof valores === 'object' ? valores : {}) as Record<string, unknown>;
     const out: CampoValor[] = [];
     const lidos = new Map<string, Valor>();
@@ -289,7 +297,21 @@ export function validarCampos(form: Formulario, valores: unknown, antes: CampoVa
         const gravado = gravados.get(c.id);
         if (gravado && igualAoGravado(gravado, v[c.id])) {
             lidos.set(c.id, gravado.valor);
-            out.push({ ...gravado, rotulo: c.rotulo, visivel_partes: c.visivel_partes });
+            out.push({ ...gravado, rotulo: c.rotulo, visivel_partes: c.visivel_partes && !gravado.ref?.restrito });
+            continue;
+        }
+        if (c.tipo === 'registro') {
+            // O servidor já leu o registro escolhido (refs); do cliente só vale o id.
+            const id = idEscolhido(v[c.id]);
+            if (!id) {
+                if (c.obrigatorio && !c.exigir_em?.length) throw new Error(`Escolha "${c.rotulo}"`);
+                continue;
+            }
+            const ref = refs.get(c.id);
+            if (ref === 'desligada') throw new Error(`A integração com ${ROTULO_MODULO[c.modulo!]} está desligada neste órgão: "${c.rotulo}" não pode ser escolhido agora`);
+            if (!ref || ref.id !== id || ref.modulo !== c.modulo) throw new Error(`"${c.rotulo}": registro não encontrado em ${ROTULO_MODULO[c.modulo!] || 'outro módulo'}`);
+            lidos.set(c.id, ref.numero);
+            out.push({ id: c.id, rotulo: c.rotulo, tipo: 'registro', valor: ref.numero, ref, visivel_partes: c.visivel_partes && !ref.restrito });
             continue;
         }
         const valor = valorDe(c, v[c.id]);
@@ -343,7 +365,8 @@ export function validarPadrao(form: Formulario, v: { assunto: string; descricao:
 }
 
 /** Valor como texto, para movimentos, busca e PDF. */
-export function valorTexto(c: Pick<CampoValor, 'tipo' | 'valor'> & { formato?: Formato }): string {
+export function valorTexto(c: Pick<CampoValor, 'tipo' | 'valor'> & { formato?: Formato; ref?: Ref }): string {
+    if (c.tipo === 'registro' && c.ref?.titulo) return `${c.valor} (${c.ref.titulo})`;
     if (Array.isArray(c.valor)) return c.valor.join(', ');
     if (c.tipo === 'sim_nao') return c.valor ? 'Sim' : 'Não';
     if (c.tipo === 'data') return String(c.valor).split('-').reverse().join('/');
@@ -359,10 +382,13 @@ export function diferencasCampos(antes: CampoValor[], depois: CampoValor[]): str
     const a = new Map(antes.map((c) => [c.id, c]));
     const d = new Map(depois.map((c) => [c.id, c]));
     const curto = (s: string) => (s.length > 80 ? `${s.slice(0, 79)}…` : s);
+    // Registro: outro registro com o mesmo número e título também é mudança.
+    const chave = (c: CampoValor) => `${valorTexto(c)}|${c.ref ? `${c.ref.modulo}:${c.ref.id}` : ''}`;
     const out: string[] = [];
     for (const c of depois) {
         const ant = a.get(c.id);
         if (!ant) out.push(`${c.rotulo}: "${curto(valorTexto(c))}"`);
+        else if (chave(ant) !== chave(c) && valorTexto(ant) === valorTexto(c)) out.push(`${c.rotulo}: trocado por outro registro com o mesmo número ("${curto(valorTexto(c))}")`);
         else if (valorTexto(ant) !== valorTexto(c)) out.push(`${c.rotulo}: de "${curto(valorTexto(ant))}" para "${curto(valorTexto(c))}"`);
     }
     for (const c of antes) if (!d.has(c.id)) out.push(`${c.rotulo}: apagado (era "${curto(valorTexto(c))}")`);

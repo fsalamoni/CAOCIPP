@@ -77,6 +77,7 @@ export const PEDIDOS = [
     ['data', 'Uma data'],
     ['lista', 'Uma escolha numa lista'],
     ['sim_nao', 'Sim ou não'],
+    ['registro', 'Um registro de outro módulo'],
     ['documento', 'Um documento'],
 ];
 export const ROTULO_PEDIDO = Object.fromEntries(PEDIDOS);
@@ -179,6 +180,7 @@ export function regraComPedido(r, pede, acao) {
         ...(pede !== 'confirmar' ? { pede } : {}),
         ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),
         ...(pede === 'lista' ? { opcoes: r?.opcoes || [] } : {}),
+        ...(pede === 'registro' ? { modulo: r?.modulo || 'consultas' } : {}),
         ...(dest !== 'evento' ? { destino: dest } : {}),
         ...(partesVeem(r) ? { partes: true } : {}),
         ...(r?.obrigatoria ? { obrigatoria: true } : {}),

@@ -19,6 +19,7 @@ import {
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
+import { MODULOS, Modulo, ROTULO_MODULO, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, resolverRegistro } from '../shared/modulos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
@@ -175,15 +176,27 @@ const itensDepois = (proc: admin.firestore.DocumentData, grupo: string, item: It
 const textoDispensa = (d: string[]) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
-function valorDaAcao(regra: RegraAcao | null | undefined, acao: string, bruto: unknown) {
+async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regra: RegraAcao | null | undefined, acao: string, bruto: unknown) {
     const pede = pedidoDaAcao(regra);
     if (pede === 'confirmar' || pede === 'documento') return null;
     const rotulo = regra?.rotulo || acao;
+    if (pede === 'registro') {
+        // Registro de outro módulo: o servidor lê e guarda só número e título; a parte vê só o número.
+        const modulo = regra?.modulo as Modulo;
+        const id = idEscolhido(bruto);
+        if (!id) throw new HttpsError('invalid-argument', `Escolha "${rotulo}"`);
+        if (!MODULOS.includes(modulo) || !integracoesDe(c.org, await lerFlags(c.db))[modulo]) {
+            throw new HttpsError('failed-precondition', `A integração com ${ROTULO_MODULO[modulo] || 'esse módulo'} está desligada neste órgão`);
+        }
+        const ref = await resolverRegistro(c.db, c.orgId, modulo, id);
+        if (!ref) throw new HttpsError('invalid-argument', `"${rotulo}": registro não encontrado em ${ROTULO_MODULO[modulo]}`);
+        return { rotulo, tipo: 'registro' as TipoCampo, valor: ref.numero, valor_texto: ref.numero, ref, restrito: ref.restrito === true };
+    }
     const tipo = pede as TipoCampo;
     let valor: ReturnType<typeof valorDe> = null;
     try { valor = valorDe({ rotulo, tipo, opcoes: regra?.opcoes || [] }, bruto); } catch (e) { erroUsuario(e); }
     if (valor === null) throw new HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
-    return { rotulo, tipo, valor, valor_texto: valorTexto({ tipo, valor }) };
+    return { rotulo, tipo, valor, valor_texto: valorTexto({ tipo, valor }), ref: undefined, restrito: false };
 }
 
 function resumo(id: string, d: admin.firestore.DocumentData) {
@@ -460,7 +473,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         let campos: CampoValor[] = [];
         try {
             validarPadrao(form, { assunto: assuntoInformado, descricao, partes, origem });
-            campos = validarCampos(form, p.campos);
+            campos = validarCampos(form, p.campos, [], await refsDoFormulario(db, orgId, c.org, form, p.campos));
         } catch (e) { erroUsuario(e); }
         // Sem assunto pedido, o processo se chama pelo tipo.
         const assunto = assuntoInformado || tipo?.nome || rito.nome;
@@ -631,7 +644,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             let campos: CampoValor[] = [];
             try {
                 validarPadrao({ ...form, assunto: 'opcional', partes: 'opcional', origem: 'opcional' }, { assunto: '', descricao, partes: [], origem: null });
-                campos = validarCampos(form, p.campos, antes);
+                campos = validarCampos(form, p.campos, antes, await refsDoFormulario(db, orgId, c.org, form, p.campos, antes));
             } catch (e) { erroUsuario(e); }
             // Campo que o tipo deixou de ter continua no processo como foi gravado.
             const idsForm = new Set(form.campos.map((x) => x.id));
@@ -673,7 +686,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             // Duas pessoas marcando a mesma caixa: a segunda não gera movimento repetido.
             if (lista.has(idx) === feita) throw new HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
-            const dado = feita ? valorDaAcao(regra, acao, p.valor) : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, p.valor) : null;
+            // Registro de origem restrita: as partes nunca o veem.
+            const vePartes = partesVeem(regra) && !dado?.restrito;
             if (feita) lista.add(idx); else lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
@@ -696,7 +711,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 const item: ItemCertidao = {
                     seq: 0, fase_id: fase.id, acao_idx: idx,
                     texto: textoDoItem(`"${acao}", da fase ${fase.nome}.${comDado}`.replace(/\.$/, '')),
-                    autor: c.userName, em: new Date().toISOString(), partes: partesVeem(regra),
+                    autor: c.userName, em: new Date().toISOString(), partes: vePartes,
                 };
                 const em = emitirSe(feita && antesDeJuntar(data, grupo, item), tx, c, ref, data);
                 if (em.proc !== data) expedidas = 2;
@@ -704,9 +719,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado} ${feita ? 'Entra na' : 'Sai da'} certidão conjunta, ainda não emitida.`,
                     {
                         fase_id: fase.id, acao_idx: idx, feita,
-                        ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {}),
+                        ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto, ...(dado.ref ? { ref: dado.ref } : {}) } : {}),
                         // O ato fica oculto; o dado segue a regra (as partes o veem nas informações, se ela disser).
-                        destino: dest, consolidada: true, ...marcasDoDestino('nenhum'), visivel_partes: partesVeem(regra),
+                        destino: dest, consolidada: true, ...marcasDoDestino('nenhum'), visivel_partes: vePartes,
                     });
                 const consolidacao = feita
                     ? itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) })
@@ -720,11 +735,11 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`,
                 {
                     fase_id: fase.id, acao_idx: idx, feita,
-                    ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {}),
+                    ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto, ...(dado.ref ? { ref: dado.ref } : {}) } : {}),
                     destino: dest,
                     ...(dest === 'autos' ? { nos_autos: true } : {}),
                     ...(dest === 'informacao' ? { fora_impressao: true } : {}),
-                    visivel_partes: partesVeem(regra),
+                    visivel_partes: vePartes,
                     ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
             tx.update(ref, { ...mov, acoes_feitas: feitas });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, Eye, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-    COM_OPCOES, CONDICIONANTES, FORMATOS, MAX_CAMPOS, PADROES, POLOS, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, textoCondicao, valorTexto, visiveis,
+    COM_OPCOES, CONDICIONANTES, FORMATOS, MAX_CAMPOS, MODULOS, PADROES, POLOS, ROTULO_MODULO, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, textoCondicao, valorTexto, visiveis,
 } from '@/lib/camposProcesso';
 import { NativeSelect } from './comum';
+import SeletorRegistro, { RegistroContexto } from './SeletorRegistro';
 import FormularioAutuacao from './FormularioAutuacao';
 
 // ============================================================================
@@ -42,7 +43,7 @@ export function CamposProcesso({ campos, valores, onChange, prefixo = 'cp' }) {
                 const bruto = valores?.[c.id];
                 // Múltipla sempre recebe lista (um valor antigo de uma opção só vira lista de um).
                 const v = c.tipo === 'multipla' ? (Array.isArray(bruto) ? bruto : bruto ? [String(bruto)] : []) : Array.isArray(bruto) ? (bruto[0] ?? '') : (bruto ?? '');
-                const largo = c.tipo === 'texto_longo' || c.tipo === 'multipla';
+                const largo = c.tipo === 'texto_longo' || c.tipo === 'multipla' || c.tipo === 'registro';
                 const comum = { id, 'aria-required': c.obrigatorio || undefined, 'aria-describedby': c.ajuda ? `${id}-ajuda` : undefined };
                 const secao = c.secao?.trim();
                 const novaSecao = secao && secao !== lista[i - 1]?.secao?.trim();
@@ -72,6 +73,7 @@ export function CamposProcesso({ campos, valores, onChange, prefixo = 'cp' }) {
                             </div>
                         ) : <Input {...comum} className="mt-1" inputMode="decimal" placeholder="0" value={v} onChange={(e) => onChange(c.id, e.target.value)} />)}
                         {c.tipo === 'data' && <Input {...comum} className="mt-1" type="date" value={v} onChange={(e) => onChange(c.id, e.target.value)} />}
+                        {c.tipo === 'registro' && <SeletorRegistro id={id} aria-required={comum['aria-required']} aria-describedby={comum['aria-describedby']} modulo={c.modulo} value={bruto && typeof bruto === 'object' ? bruto : ''} onChange={(x) => onChange(c.id, x)} />}
                         {c.tipo === 'lista' && (
                             <select {...comum} className={seletor} value={v} onChange={(e) => onChange(c.id, e.target.value)}>
                                 <option value="">Escolha…</option>
@@ -236,6 +238,7 @@ function ExigirEm({ c, fases, onChange }) {
  * prévia (urgência e sigilo); `fases`, as do rito do tipo, a "Exigir para sair das fases".
  */
 export function EditorFormulario({ form, onChange, tipo = null, fases = [], previa: comPrevia = true }) {
+    const { ligadas } = useContext(RegistroContexto);
     const [aberto, setAberto] = useState(null);
     const [previa, setPrevia] = useState(PREVIA_VAZIA);
     const campos = form.campos;
@@ -250,7 +253,10 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [], prev
         onChange({ ...form, campos: [...campos, c] });
         setAberto(c.id);
     };
-    const rotuloTipo = (t) => TIPOS_CAMPO.find(([id]) => id === t)?.[1] || t;
+    const rotuloTipo = (c) => (c.tipo === 'registro' ? `Registro de ${ROTULO_MODULO[c.modulo] || 'outro módulo'}` : TIPOS_CAMPO.find(([id]) => id === c.tipo)?.[1] || c.tipo);
+    // Registro: vem de um módulo com a integração ligada (os desligados aparecem, sem poder escolher).
+    const opcoesModulo = MODULOS.map(([m, l]) => [m, ligadas?.[m] ? l : `${l} (integração desligada)`]);
+    const trocarTipo = (i, v) => setCampo(i, { tipo: v, formato: undefined, modulo: v === 'registro' ? (MODULOS.find(([m]) => ligadas?.[m])?.[0] || 'consultas') : undefined });
     const secoes = [...new Set(campos.map((c) => c.secao?.trim()).filter(Boolean))];
     const nomeFase = (id) => fases.find((f) => f.id === id)?.nome;
     // Remover um campo solta quem dependia dele (o campo volta a aparecer sempre).
@@ -286,7 +292,7 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [], prev
                                 <button type="button" className="flex flex-1 min-w-0 items-center gap-2 text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500" aria-expanded={expandido} onClick={() => setAberto(expandido ? null : c.id)}>
                                     <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${expandido ? 'rotate-180' : ''}`} aria-hidden />
                                     <span className="truncate text-sm font-medium">{c.rotulo.trim() || 'Campo sem nome'}</span>
-                                    <span className="shrink-0 text-xs text-slate-600 dark:text-slate-400">{rotuloTipo(c.tipo)}</span>
+                                    <span className="shrink-0 text-xs text-slate-600 dark:text-slate-400">{rotuloTipo(c)}</span>
                                     {c.obrigatorio && <Badge variant="outline" className="shrink-0">Obrigatório</Badge>}
                                     {c.exigir_em?.some(nomeFase) && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={`Exigido para sair de: ${c.exigir_em.map(nomeFase).filter(Boolean).join(', ')}`}>Exigido em {c.exigir_em.filter(nomeFase).length === 1 ? nomeFase(c.exigir_em.find(nomeFase)) : `${c.exigir_em.filter(nomeFase).length} fases`}</Badge>}
                                     {c.condicao && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={textoCondicao(campos, c)}>Condicional</Badge>}
@@ -300,7 +306,7 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [], prev
                                 <div className="border-t border-slate-200 dark:border-slate-700 p-3 space-y-3">
                                     <div className="grid sm:grid-cols-3 gap-3">
                                         <div className="sm:col-span-2"><Label htmlFor={`fc-nome-${c.id}`}>Nome do campo</Label><Input id={`fc-nome-${c.id}`} className="mt-1" maxLength={80} value={c.rotulo} onChange={(e) => setCampo(i, { rotulo: e.target.value })} placeholder="Ex.: Número de origem" autoFocus={!c.rotulo} /></div>
-                                        <NativeSelect id={`fc-tipo-${c.id}`} label="Tipo" value={c.tipo} onChange={(v) => setCampo(i, { tipo: v, formato: undefined })} options={TIPOS_CAMPO} />
+                                        <NativeSelect id={`fc-tipo-${c.id}`} label="Tipo" value={c.tipo} onChange={(v) => trocarTipo(i, v)} options={TIPOS_CAMPO} />
                                     </div>
                                     <div className="grid sm:grid-cols-2 gap-3">
                                         {FORMATOS[c.tipo] && <NativeSelect id={`fc-formato-${c.id}`} label="Formato" value={c.formato || ''} onChange={(v) => setCampo(i, { formato: v || undefined })} options={FORMATOS[c.tipo]} />}
@@ -310,6 +316,13 @@ export function EditorFormulario({ form, onChange, tipo = null, fases = [], prev
                                             <datalist id={`fc-secoes-${c.id}`}>{secoes.map((s) => <option key={s} value={s} />)}</datalist>
                                         </div>
                                     </div>
+                                    {c.tipo === 'registro' && (
+                                        <div className="space-y-1">
+                                            <div className="sm:max-w-xs"><NativeSelect id={`fc-mod-${c.id}`} label="De qual módulo" value={c.modulo || ''} onChange={(v) => setCampo(i, { modulo: v })} options={opcoesModulo} /></div>
+                                            <p className="text-xs text-slate-600 dark:text-slate-400">Quem preenche procura pelo número ou assunto. O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito.</p>
+                                            {c.modulo && !ligadas?.[c.modulo] && <p className="text-xs text-amber-800 dark:text-amber-200">A integração com {ROTULO_MODULO[c.modulo]} está desligada: ligue em "Integrações com outros módulos", no alto da configuração do Processo Eletrônico, para salvar e usar este campo.</p>}
+                                        </div>
+                                    )}
                                     {COM_OPCOES.includes(c.tipo) && (
                                         <div>
                                             <Label htmlFor={`fc-op-${c.id}`}>Opções (uma por linha)</Label>

@@ -11,6 +11,8 @@ import { secConfig } from '@/services/secretariaService';
 import ConfiguracaoProcessoEletronico from './ConfiguracaoProcessoEletronico';
 import PrimeirosPassos from './PrimeirosPassos';
 import PreviaRito from './PreviaRito';
+import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
+import { RegistroContexto } from './SeletorRegistro';
 
 /**
  * Painel Administrativo do órgão → Processo Eletrônico: liga ou desliga o
@@ -41,6 +43,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
     };
 
     return (
+        <RegistroContexto.Provider value={{ orgId, ligadas: integracoesLigadas(estado) }}>
         <div className="space-y-5">
             <Card>
                 <CardHeader>
@@ -106,7 +109,51 @@ export default function ProcessoEletronicoAdmin({ organization }) {
 
             {estadoQ.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a configuração…</p>}
             {estadoQ.error && <p role="alert" className="text-sm text-red-600">{estadoQ.error.message}</p>}
+            {enabled && estado?.isAdmin && <Integracoes estado={estado} saving={saving} onSalvar={(integracoes, ok) => salvar('salvarIntegracoes', { integracoes }, ok)} />}
             {estado?.isAdmin && <ConfiguracaoProcessoEletronico orgId={orgId} estado={estado} aba={aba} onAba={setAba} />}
         </div>
+        </RegistroContexto.Provider>
+    );
+}
+
+/**
+ * Integrações com os outros módulos do órgão: ligada, o tipo de processo pode
+ * ter campo e o rito pode ter ação que escolhe um registro do módulo. Desligar
+ * não apaga nada do que os processos já guardaram.
+ */
+function Integracoes({ estado, saving, onSalvar }) {
+    const gravadas = estado.integracoes || {};
+    const ativos = estado.modulos_ativos || {};
+    const DESCRICAO = {
+        consultas: 'Ligar o processo à consulta que o originou ou que ele responde.',
+        expedientes: 'Ligar o processo a um expediente do órgão.',
+        parcerias: 'Ligar o processo a uma parceria (convênio, termo de cooperação ou fomento).',
+        juri: 'Ligar o processo a um júri da base de Jurimetria.',
+    };
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">Integrações com outros módulos</CardTitle>
+                <CardDescription>
+                    Ligada, o tipo de processo pode ter um campo e o rito pode ter uma ação que escolhe um registro do módulo, pelo número ou assunto.
+                    O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito. Desligar não apaga nada; os módulos continuam funcionando como sempre.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="grid sm:grid-cols-2 gap-3">
+                {MODULOS.map(([m, rotulo]) => {
+                    const ativo = ativos[m] === true;
+                    return (
+                        <div key={m} className="flex items-start justify-between gap-3 rounded-md border border-slate-200 dark:border-slate-700 p-3">
+                            <div className="min-w-0 text-sm">
+                                <p className="font-medium text-slate-800 dark:text-slate-100">{rotulo}</p>
+                                <p className="text-slate-600 dark:text-slate-400">{ativo ? DESCRICAO[m] : 'O módulo não está ativo neste órgão. Ative em Páginas e módulos para poder integrar.'}</p>
+                            </div>
+                            <Switch checked={ativo && gravadas[m] === true} disabled={saving || !ativo} aria-label={`Integrar ${rotulo} aos processos`}
+                                onCheckedChange={(v) => onSalvar({ ...gravadas, [m]: v }, v ? `${rotulo} integrado aos processos` : `Integração com ${rotulo} desligada`)} />
+                        </div>
+                    );
+                })}
+            </CardContent>
+        </Card>
     );
 }

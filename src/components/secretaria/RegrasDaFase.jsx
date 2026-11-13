@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import {
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
+import { MODULOS } from '@/lib/camposProcesso';
+import { RegistroContexto } from './SeletorRegistro';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
 // Usado pela tela de rito (criar e alterar). Fundamento e exemplos:
@@ -70,6 +72,7 @@ function EscolhaDestino({ id, valor, opcoes, onChange, acao, fase, documento }) 
 
 /** Configuração de uma ação: o que pede, onde fica, quem vê, se é obrigatória. */
 function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
+    const { ligadas } = useContext(RegistroContexto);
     const pede = pedidoDaAcao(r);
     const dest = destinoDaAcao(r);
     const set = (patch) => {
@@ -87,7 +90,11 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
     return (
         <div className="space-y-3 rounded-md bg-slate-50 dark:bg-slate-800/60 p-2">
             <div className="sm:max-w-sm">
-                <NativeSelect id={`${id}-pede`} label="O que pede" value={pede} onChange={(v) => onChange(regraComPedido(r, v, acao))} options={PEDIDOS} />
+                <NativeSelect id={`${id}-pede`} label="O que pede" value={pede} onChange={(v) => {
+                    const n = regraComPedido(r, v, acao);
+                    // Registro: o primeiro módulo com a integração ligada (o mesmo critério do campo do tipo).
+                    onChange(v === 'registro' && !r?.modulo ? { ...n, modulo: MODULOS.find(([m]) => ligadas?.[m])?.[0] || 'consultas' } : n);
+                }} options={PEDIDOS} />
             </div>
             <EscolhaDestino id={`${id}-dest`} valor={dest} onChange={setDestino} acao={acao} fase={fase}
                 documento={pede === 'documento'} opcoes={pede === 'documento' ? DESTINOS_DOCUMENTO : Object.entries(DESTINO_INFO).map(([d, x]) => [d, x.rotulo])} />
@@ -97,7 +104,13 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase }) {
                         <Label htmlFor={`${id}-rot`}>Nome do dado</Label>
                         <Input id={`${id}-rot`} className="mt-1" value={r?.rotulo || ''} maxLength={80} placeholder={acao || 'Ex.: Número no SIM'} onChange={(e) => set({ rotulo: e.target.value || undefined })} />
                     </div>
-                    {pede === 'lista' ? (
+                    {pede === 'registro' ? (
+                        <div>
+                            <NativeSelect id={`${id}-mod`} label="De qual módulo" value={r?.modulo || 'consultas'} onChange={(v) => set({ modulo: v })}
+                                options={MODULOS.map(([m, l]) => [m, ligadas?.[m] ? l : `${l} (integração desligada)`])} />
+                            {!ligadas?.[r?.modulo || 'consultas'] && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">A integração com este módulo está desligada: ligue em "Integrações com outros módulos", na configuração do Processo Eletrônico, para salvar o rito.</p>}
+                        </div>
+                    ) : pede === 'lista' ? (
                         <div>
                             <Label htmlFor={`${id}-op`}>Opções (separe por ponto e vírgula)</Label>
                             <Input id={`${id}-op`} className="mt-1" value={(r?.opcoes || []).join(';')} placeholder="Ex.: PGEA; Arquivamento; Outro"

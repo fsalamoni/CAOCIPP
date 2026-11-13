@@ -101,3 +101,17 @@ test('prévia: valor como o servidor gravaria', async () => {
     assert.deepEqual(g({ tipo: 'multipla', opcoes: ['A', 'B'] }, ['B', 'A']), ['A', 'B']);
     assert.equal(g({ tipo: 'multipla', opcoes: ['A'] }, ['C']), null);
 });
+
+test('registro de outro módulo: integração, configuração, valor e texto', async () => {
+    const m = await import('./camposProcesso.js');
+    assert.deepEqual(m.integracoesLigadas({ integracoes: { consultas: true, juri: true }, modulos_ativos: { consultas: true, juri: false } }),
+        { consultas: true, expedientes: false, parcerias: false, juri: false });
+    assert.match(problemasFormulario({ ...formularioPadrao(), campos: [{ rotulo: 'Consulta', tipo: 'registro' }] }).join(), /de que módulo/);
+    const c = { id: 'r', rotulo: 'Consulta', tipo: 'registro', modulo: 'consultas' };
+    assert.equal(m.valorComoGravado(c, { id: 'p1', numero: '00123/2026', titulo: 'Licitação' }), '00123/2026');
+    assert.equal(m.valorComoGravado(c, ''), null);
+    const gravado = { id: 'r', tipo: 'registro', valor: '00123/2026', ref: { modulo: 'consultas', id: 'p1', numero: '00123/2026', titulo: 'Licitação' } };
+    assert.equal(valorTexto(gravado), '00123/2026 (Licitação)');
+    assert.deepEqual(valoresDe([gravado]), { r: { id: 'p1', numero: '00123/2026', titulo: 'Licitação' } });
+    assert.deepEqual(faltando({ ...formularioPadrao(), assunto: 'opcional', campos: [{ ...c, obrigatorio: true }] }, { campos: { r: '' } }), ['Preencha "Consulta"']);
+});
