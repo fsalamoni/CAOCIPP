@@ -23,6 +23,7 @@ const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const numeracao_1 = require("../shared/numeracao");
 const informacoes_1 = require("../shared/informacoes");
+const modulos_1 = require("../shared/modulos");
 const portalAvisos_1 = require("./portalAvisos");
 const orgaos_1 = require("../shared/orgaos");
 const orgaos_2 = require("./orgaos");
@@ -97,11 +98,25 @@ const antesDeJuntar = (data, grupo, item) => {
 const itensDepois = (proc, grupo, item) => { var _a; return ({ grupo, itens: [...(((_a = proc.consolidacao) === null || _a === void 0 ? void 0 : _a.itens) || []), item] }); };
 const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
-function valorDaAcao(regra, acao, bruto) {
+async function valorDaAcao(c, regra, acao, bruto) {
     const pede = (0, exigencias_1.pedidoDaAcao)(regra);
     if (pede === 'confirmar' || pede === 'documento')
         return null;
     const rotulo = (regra === null || regra === void 0 ? void 0 : regra.rotulo) || acao;
+    if (pede === 'registro') {
+        // Registro de outro módulo: o servidor lê e guarda só número e título; a parte vê só o número.
+        const modulo = regra === null || regra === void 0 ? void 0 : regra.modulo;
+        const id = (0, modulos_1.idEscolhido)(bruto);
+        if (!id)
+            throw new https_1.HttpsError('invalid-argument', `Escolha "${rotulo}"`);
+        if (!modulos_1.MODULOS.includes(modulo) || !(0, modulos_1.integracoesDe)(c.org, await (0, modulos_1.lerFlags)(c.db))[modulo]) {
+            throw new https_1.HttpsError('failed-precondition', `A integração com ${modulos_1.ROTULO_MODULO[modulo] || 'esse módulo'} está desligada neste órgão`);
+        }
+        const ref = await (0, modulos_1.resolverRegistro)(c.db, c.orgId, modulo, id);
+        if (!ref)
+            throw new https_1.HttpsError('invalid-argument', `"${rotulo}": registro não encontrado em ${modulos_1.ROTULO_MODULO[modulo]}`);
+        return { rotulo, tipo: 'registro', valor: ref.numero, valor_texto: ref.numero, ref, restrito: ref.restrito === true };
+    }
     const tipo = pede;
     let valor = null;
     try {
@@ -112,7 +127,7 @@ function valorDaAcao(regra, acao, bruto) {
     }
     if (valor === null)
         throw new https_1.HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
-    return { rotulo, tipo, valor, valor_texto: (0, camposProcesso_1.valorTexto)({ tipo, valor }) };
+    return { rotulo, tipo, valor, valor_texto: (0, camposProcesso_1.valorTexto)({ tipo, valor }), ref: undefined, restrito: false };
 }
 function resumo(id, d) {
     var _a;
@@ -371,7 +386,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         let campos = [];
         try {
             (0, camposProcesso_1.validarPadrao)(form, { assunto: assuntoInformado, descricao, partes, origem });
-            campos = (0, camposProcesso_1.validarCampos)(form, p.campos);
+            campos = (0, camposProcesso_1.validarCampos)(form, p.campos, [], await (0, modulos_1.refsDoFormulario)(db, orgId, c.org, form, p.campos));
         }
         catch (e) {
             (0, context_1.erroUsuario)(e);
@@ -508,7 +523,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             let campos = [];
             try {
                 (0, camposProcesso_1.validarPadrao)(Object.assign(Object.assign({}, form), { assunto: 'opcional', partes: 'opcional', origem: 'opcional' }), { assunto: '', descricao, partes: [], origem: null });
-                campos = (0, camposProcesso_1.validarCampos)(form, p.campos, antes);
+                campos = (0, camposProcesso_1.validarCampos)(form, p.campos, antes, await (0, modulos_1.refsDoFormulario)(db, orgId, c.org, form, p.campos, antes));
             }
             catch (e) {
                 (0, context_1.erroUsuario)(e);
@@ -553,7 +568,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             if (lista.has(idx) === feita)
                 throw new https_1.HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
-            const dado = feita ? valorDaAcao(regra, acao, p.valor) : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, p.valor) : null;
+            // Registro de origem restrita: as partes nunca o veem.
+            const vePartes = (0, exigencias_1.partesVeem)(regra) && !(dado === null || dado === void 0 ? void 0 : dado.restrito);
             if (feita)
                 lista.add(idx);
             else
@@ -577,14 +594,14 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 const item = {
                     seq: 0, fase_id: fase.id, acao_idx: idx,
                     texto: (0, exigencias_1.textoDoItem)(`"${acao}", da fase ${fase.nome}.${comDado}`.replace(/\.$/, '')),
-                    autor: c.userName, em: new Date().toISOString(), partes: (0, exigencias_1.partesVeem)(regra),
+                    autor: c.userName, em: new Date().toISOString(), partes: vePartes,
                 };
                 const em = emitirSe(feita && antesDeJuntar(data, grupo, item), tx, c, ref, data);
                 if (em.proc !== data)
                     expedidas = 2;
-                const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'acao_fase', `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado} ${feita ? 'Entra na' : 'Sai da'} certidão conjunta, ainda não emitida.`, Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {})), { 
+                const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'acao_fase', `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado} ${feita ? 'Entra na' : 'Sai da'} certidão conjunta, ainda não emitida.`, Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), { 
                     // O ato fica oculto; o dado segue a regra (as partes o veem nas informações, se ela disser).
-                    destino: dest, consolidada: true }), (0, exigencias_1.marcasDoDestino)('nenhum')), { visivel_partes: (0, exigencias_1.partesVeem)(regra) }));
+                    destino: dest, consolidada: true }), (0, exigencias_1.marcasDoDestino)('nenhum')), { visivel_partes: vePartes }));
                 const consolidacao = feita
                     ? itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) }))
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
@@ -593,7 +610,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             }
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', dest === 'autos'
                 ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
-                : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto } : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: (0, exigencias_1.partesVeem)(regra) }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
+                : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: vePartes }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
             tx.update(ref, Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }));
             return mov;
         }

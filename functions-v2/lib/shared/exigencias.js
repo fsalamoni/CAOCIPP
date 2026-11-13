@@ -38,6 +38,7 @@ exports.tituloCertidao = tituloCertidao;
 exports.deveEmitir = deveEmitir;
 exports.textoCertidao = textoCertidao;
 exports.marcasDoDestino = marcasDoDestino;
+const modulos_1 = require("./modulos");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -86,7 +87,7 @@ exports.PADRAO_OUTRO = { prazo: 'autos', pendencia: 'autos', urgencia: 'autos', 
 const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhum'] : exports.DESTINOS_ATO);
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'documento'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'documento'];
 exports.MAX_OPCOES_ACAO = 30;
 exports.MAX_DOCUMENTOS_FASE = 5;
 /** Onde fica o cumprimento da ação. */
@@ -156,6 +157,11 @@ function sanitizeRegra(raw, acao) {
             if (opcoes.length < 2)
                 throw new Error(`A ação "${acao}" pede uma escolha: informe ao menos duas opções`);
             out.opcoes = opcoes;
+        }
+        if (pedeBruto === 'registro') {
+            if (!modulos_1.MODULOS.includes(r.modulo))
+                throw new Error(`A ação "${acao}" pede um registro: escolha de que módulo`);
+            out.modulo = r.modulo;
         }
     }
     const dest = lido(r.destino, exports.DESTINOS_ACAO, r.autos === true ? 'autos' : 'evento');

@@ -7,6 +7,8 @@
 // Fundamento: docs/LOGICA_PROCESSUAL.md, seções 5 e 6.
 // ============================================================================
 
+import { MODULOS, Modulo } from './modulos';
+
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v: unknown, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -83,7 +85,7 @@ export interface Exigencia {
 }
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'documento'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'documento'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 
@@ -94,6 +96,8 @@ export interface RegraAcao {
     rotulo?: string;
     ajuda?: string;
     opcoes?: string[];
+    /** Pede 'registro': de qual módulo do órgão. */
+    modulo?: Modulo;
     /** Onde fica o registro de cumprimento (ausente = evento). Para documento, vale `documento.destino`. */
     destino?: DestinoAcao;
     /** As partes veem a informação (e a certidão, se nos autos) no portal. */
@@ -178,6 +182,10 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
             const opcoes = [...new Set((Array.isArray(r.opcoes) ? r.opcoes : []).map((s) => texto(s, 80)).filter(Boolean))].slice(0, MAX_OPCOES_ACAO);
             if (opcoes.length < 2) throw new Error(`A ação "${acao}" pede uma escolha: informe ao menos duas opções`);
             out.opcoes = opcoes;
+        }
+        if (pedeBruto === 'registro') {
+            if (!MODULOS.includes(r.modulo as Modulo)) throw new Error(`A ação "${acao}" pede um registro: escolha de que módulo`);
+            out.modulo = r.modulo as Modulo;
         }
     }
     const dest = lido(r.destino, DESTINOS_ACAO, r.autos === true ? 'autos' : 'evento');

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ROTULO_DESTINO, destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
 import { dataHora } from './comum';
+import SeletorRegistro from './SeletorRegistro';
 
 // Ações da fase na tela do processo (aba Andamento): cada uma do jeito que o
 // rito pediu (caixa de marcar, um dado ou um documento), dizendo onde o
@@ -87,6 +88,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'numero') campo = <Input id="acao-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 12345" autoFocus />;
     else if (pede === 'data') campo = <Input id="acao-valor" type="date" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
+    else if (pede === 'registro') campo = <SeletorRegistro id="acao-valor" aria-describedby={r?.ajuda ? 'acao-ajuda' : undefined} modulo={r.modulo} value={valor} onChange={setValor} autoFocus />;
     else if (pede === 'lista' || pede === 'sim_nao') {
         const opcoes = pede === 'lista' ? (r.opcoes || []).map((o) => [o, o]) : [['sim', 'Sim'], ['nao', 'Não']];
         campo = (
@@ -107,7 +109,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (!vazio) onEnviar(valor).then((ok) => ok && setValor('')); }}>
                     <Label htmlFor="acao-valor">{rotulo}</Label>
                     {campo}
-                    {r?.ajuda && <p className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
+                    {r?.ajuda && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
                     <DialogFooter className="pt-2">
                         <Button type="button" variant="ghost" onClick={fechar}>Cancelar</Button>
                         <Button type="submit" disabled={ocupado || vazio}>Registrar</Button>

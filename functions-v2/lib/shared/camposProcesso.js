@@ -21,7 +21,8 @@ exports.validarPadrao = validarPadrao;
 exports.valorTexto = valorTexto;
 exports.diferencasCampos = diferencasCampos;
 const secretaria_1 = require("./secretaria");
-exports.TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'multipla', 'sim_nao'];
+const modulos_1 = require("./modulos");
+exports.TIPOS_CAMPO = ['texto', 'texto_longo', 'numero', 'data', 'lista', 'multipla', 'sim_nao', 'registro'];
 /** Formato que valida e mostra o valor: os de texto curto e, para número, moeda. */
 exports.FORMATOS = ['email', 'telefone', 'cpf_cnpj', 'link', 'moeda'];
 const FORMATO_DO_TIPO = { email: 'texto', telefone: 'texto', cpf_cnpj: 'texto', link: 'texto', moeda: 'numero' };
@@ -86,6 +87,9 @@ function sanitizeFormulario(input) {
             : [];
         if (COM_OPCOES.includes(tipo) && opcoes.length < 2)
             throw new Error(`O campo "${rotulo}" é uma lista: informe ao menos duas opções`);
+        const modulo = tipo === 'registro' && modulos_1.MODULOS.includes(o.modulo) ? o.modulo : undefined;
+        if (tipo === 'registro' && !modulo)
+            throw new Error(`Escolha de que módulo vem o registro de "${rotulo}"`);
         const formato = exports.FORMATOS.includes(o.formato) && FORMATO_DO_TIPO[o.formato] === tipo ? o.formato : undefined;
         const secao = (0, secretaria_1.texto)(o.secao, 60);
         const exigir = [...new Set((Array.isArray(o.exigir_em) ? o.exigir_em : []).map((s) => (0, secretaria_1.texto)(s, 60)).filter(Boolean))].slice(0, 30);
@@ -94,7 +98,7 @@ function sanitizeFormulario(input) {
         if (!id || ids.has(id))
             id = `c${Date.now().toString(36)}${i}`;
         ids.add(id);
-        return Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: (0, secretaria_1.texto)(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true }, (formato ? { formato } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: (0, secretaria_1.texto)(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true }, (formato ? { formato } : {})), (modulo ? { modulo } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {}));
     });
     // Condição: aponta um campo de escolha que vem antes, e um valor que ele aceita.
     campos.forEach((c, i) => {
@@ -243,6 +247,8 @@ exports.atendeCondicao = atendeCondicao;
  */
 /** O valor veio igual ao gravado, como a tela o mostra (espelho de valoresDe no cliente)? */
 function igualAoGravado(a, bruto) {
+    if (a.tipo === 'registro')
+        return !!a.ref && (0, modulos_1.idEscolhido)(bruto) === a.ref.id;
     if (Array.isArray(a.valor))
         return Array.isArray(bruto) && bruto.length === a.valor.length && bruto.every((x, i) => x === a.valor[i]);
     if (a.tipo === 'sim_nao')
@@ -256,8 +262,8 @@ function igualAoGravado(a, bruto) {
  * está, mesmo que o tipo tenha mudado depois (formato, opções, tipo do campo).
  * Assim um processo antigo não trava nem ganha diferença que ninguém fez.
  */
-function validarCampos(form, valores, antes = []) {
-    var _a;
+function validarCampos(form, valores, antes = [], refs = new Map()) {
+    var _a, _b, _c;
     const v = (valores && typeof valores === 'object' ? valores : {});
     const out = [];
     const lidos = new Map();
@@ -269,12 +275,29 @@ function validarCampos(form, valores, antes = []) {
         const gravado = gravados.get(c.id);
         if (gravado && igualAoGravado(gravado, v[c.id])) {
             lidos.set(c.id, gravado.valor);
-            out.push(Object.assign(Object.assign({}, gravado), { rotulo: c.rotulo, visivel_partes: c.visivel_partes }));
+            out.push(Object.assign(Object.assign({}, gravado), { rotulo: c.rotulo, visivel_partes: c.visivel_partes && !((_a = gravado.ref) === null || _a === void 0 ? void 0 : _a.restrito) }));
+            continue;
+        }
+        if (c.tipo === 'registro') {
+            // O servidor já leu o registro escolhido (refs); do cliente só vale o id.
+            const id = (0, modulos_1.idEscolhido)(v[c.id]);
+            if (!id) {
+                if (c.obrigatorio && !((_b = c.exigir_em) === null || _b === void 0 ? void 0 : _b.length))
+                    throw new Error(`Escolha "${c.rotulo}"`);
+                continue;
+            }
+            const ref = refs.get(c.id);
+            if (ref === 'desligada')
+                throw new Error(`A integração com ${modulos_1.ROTULO_MODULO[c.modulo]} está desligada neste órgão: "${c.rotulo}" não pode ser escolhido agora`);
+            if (!ref || ref.id !== id || ref.modulo !== c.modulo)
+                throw new Error(`"${c.rotulo}": registro não encontrado em ${modulos_1.ROTULO_MODULO[c.modulo] || 'outro módulo'}`);
+            lidos.set(c.id, ref.numero);
+            out.push({ id: c.id, rotulo: c.rotulo, tipo: 'registro', valor: ref.numero, ref, visivel_partes: c.visivel_partes && !ref.restrito });
             continue;
         }
         const valor = valorDe(c, v[c.id]);
         if (valor === null) {
-            if (c.obrigatorio && !((_a = c.exigir_em) === null || _a === void 0 ? void 0 : _a.length))
+            if (c.obrigatorio && !((_c = c.exigir_em) === null || _c === void 0 ? void 0 : _c.length))
                 throw new Error(`Preencha "${c.rotulo}"`);
             continue;
         }
@@ -327,6 +350,9 @@ function validarPadrao(form, v) {
 }
 /** Valor como texto, para movimentos, busca e PDF. */
 function valorTexto(c) {
+    var _a;
+    if (c.tipo === 'registro' && ((_a = c.ref) === null || _a === void 0 ? void 0 : _a.titulo))
+        return `${c.valor} (${c.ref.titulo})`;
     if (Array.isArray(c.valor))
         return c.valor.join(', ');
     if (c.tipo === 'sim_nao')
@@ -345,11 +371,15 @@ function diferencasCampos(antes, depois) {
     const a = new Map(antes.map((c) => [c.id, c]));
     const d = new Map(depois.map((c) => [c.id, c]));
     const curto = (s) => (s.length > 80 ? `${s.slice(0, 79)}…` : s);
+    // Registro: outro registro com o mesmo número e título também é mudança.
+    const chave = (c) => `${valorTexto(c)}|${c.ref ? `${c.ref.modulo}:${c.ref.id}` : ''}`;
     const out = [];
     for (const c of depois) {
         const ant = a.get(c.id);
         if (!ant)
             out.push(`${c.rotulo}: "${curto(valorTexto(c))}"`);
+        else if (chave(ant) !== chave(c) && valorTexto(ant) === valorTexto(c))
+            out.push(`${c.rotulo}: trocado por outro registro com o mesmo número ("${curto(valorTexto(c))}")`);
         else if (valorTexto(ant) !== valorTexto(c))
             out.push(`${c.rotulo}: de "${curto(valorTexto(ant))}" para "${curto(valorTexto(c))}"`);
     }

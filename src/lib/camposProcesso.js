@@ -13,7 +13,13 @@ export const TIPOS_CAMPO = [
     ['lista', 'Lista (escolhe uma)'],
     ['multipla', 'Lista (marca várias)'],
     ['sim_nao', 'Sim ou não'],
+    ['registro', 'Registro de outro módulo'],
 ];
+/** Módulos do órgão que entram nos processos (espelho de shared/modulos.ts). */
+export const MODULOS = [['consultas', 'Consultas'], ['expedientes', 'Expedientes'], ['parcerias', 'Parcerias'], ['juri', 'Júri']];
+export const ROTULO_MODULO = Object.fromEntries(MODULOS);
+/** Integrações que valem: ligadas pelo admin e com o módulo ativo no órgão. */
+export const integracoesLigadas = (estado) => Object.fromEntries(MODULOS.map(([m]) => [m, estado?.integracoes?.[m] === true && estado?.modulos_ativos?.[m] === true]));
 /** Formatos por tipo (o primeiro é o livre). */
 export const FORMATOS = {
     texto: [['', 'Livre'], ['email', 'E-mail'], ['telefone', 'Telefone'], ['cpf_cnpj', 'CPF ou CNPJ'], ['link', 'Endereço da internet']],
@@ -153,6 +159,7 @@ export function problemasFormulario(form, faseIds = null) {
         const nomeC = c.rotulo?.trim() || `Campo ${i + 1}`;
         const opcoes = (c.opcoes || []).map((o) => o.trim()).filter(Boolean);
         if (COM_OPCOES.includes(c.tipo) && new Set(opcoes).size < 2) out.push(`"${nomeC}": informe ao menos duas opções`);
+        if (c.tipo === 'registro' && !ROTULO_MODULO[c.modulo]) out.push(`"${nomeC}": escolha de que módulo vem o registro`);
         if (faseIds && c.exigir_em?.length && !c.exigir_em.some((f) => faseIds.includes(f))) {
             out.push(`"${nomeC}": as fases marcadas para exigir o campo não existem no rito deste tipo`);
         }
@@ -172,6 +179,8 @@ export function problemasFormulario(form, faseIds = null) {
  */
 export function valorComoGravado(c, v) {
     if (vazio(v)) return null;
+    // Registro: o processo guarda o número (as partes veem só ele).
+    if (c.tipo === 'registro') return v?.id ? String(v.numero || '') || null : null;
     const opcoes = c.opcoes || [];
     if (c.tipo === 'multipla') {
         const l = [...new Set((Array.isArray(v) ? v : [v]).map(String))];
@@ -199,6 +208,7 @@ export function valorComoGravado(c, v) {
 
 /** Valor gravado, como texto para mostrar. */
 export function valorTexto(c) {
+    if (c.tipo === 'registro' && c.ref?.titulo) return `${c.valor} (${c.ref.titulo})`;
     if (Array.isArray(c.valor)) return c.valor.join(', ');
     if (c.tipo === 'sim_nao') return c.valor ? 'Sim' : 'Não';
     if (c.tipo === 'data') return String(c.valor).split('-').reverse().join('/');
@@ -217,6 +227,8 @@ export function valoresDe(campos, form = null) {
     return Object.fromEntries((campos || []).map((c) => {
         const d = defs.get(c.id);
         if (d?.tipo === 'multipla' && !Array.isArray(c.valor)) return [c.id, (d.opcoes || []).filter((o) => o === String(c.valor))];
+        if (c.tipo === 'registro' && d && d.tipo !== 'registro') return [c.id, String(c.valor ?? '')];
+        if (c.tipo === 'registro') return [c.id, c.ref ? { id: c.ref.id, numero: c.ref.numero, titulo: c.ref.titulo || '' } : ''];
         if (d && d.tipo !== 'multipla' && Array.isArray(c.valor)) return [c.id, c.valor.find((o) => (d.opcoes || []).includes(o)) || ''];
         return [c.id, Array.isArray(c.valor) ? c.valor : c.tipo === 'sim_nao' ? (c.valor ? 'sim' : 'nao') : c.tipo === 'numero' ? String(c.valor).replace('.', ',') : String(c.valor)];
     }));

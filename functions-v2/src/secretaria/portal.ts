@@ -18,6 +18,7 @@ import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comun
 import { configComunicacoes, registrarCiencia } from './comunicacoes';
 import { situacaoDaParte } from '../shared/meusProcessos';
 import { informacoesDoAndamento } from '../shared/informacoes';
+import { Ref, refsFechadas } from '../shared/modulos';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -302,13 +303,18 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const documentos = docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
             .filter((d) => d.visivel_partes !== false)
             .sort((a, b) => a.ordem - b.ordem);
+        // Registro de outro módulo que hoje é restrito, anonimizado ou sumiu: as partes não veem mais.
+        const camposPartes = ((data.campos || []) as Array<{ rotulo: string; tipo: string; valor: unknown; visivel_partes?: boolean; formato?: string; ref?: Ref }>)
+            .filter((x) => x.visivel_partes === true);
+        const infosPartes = informacoesDoAndamento(todos as never, data.fases || [], true);
+        const fechadas = await refsFechadas(db, String(data.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.map((i) => i.ref)]);
+        const aberta = (r?: Ref) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         return {
             orgao: org.name || '',
             processo: {
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true,
                 // Só os campos que o órgão marcou para as partes verem.
-                campos: ((data.campos || []) as Array<{ rotulo: string; tipo: string; valor: unknown; visivel_partes?: boolean; formato?: string }>)
-                    .filter((x) => x.visivel_partes === true).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor, ...(x.formato ? { formato: x.formato } : {}) })),
+                campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor, ...(x.formato ? { formato: x.formato } : {}) })),
                 fase_nome: (data.fases || []).find((f: { id: string }) => f.id === data.fase_atual)?.nome || data.fase_atual,
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
@@ -319,7 +325,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 comunicacoes: comunicacoesDaConta(data, uid),
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
-                informacoes: informacoesDoAndamento(todos as never, data.fases || [], true)
+                informacoes: infosPartes.filter((i) => aberta(i.ref))
                     .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
             },
             movimentos: todos.filter((m) => visivelParaPartes(m as never))
