@@ -706,6 +706,34 @@ Cada documento da fase e cada ação diz se é preciso para a fase seguir:
 - "Criar tipo de processo com este rito" vem desmarcado quando o órgão já
   tem tipos ativos (marcado no primeiro rito).
 
+### Prazo automático, nome para as partes e efeitos ao entrar (13/11/2026)
+
+Seção "Prazo, nome para as partes e ao entrar" em cada fase do editor:
+
+- **Prazo automático** (`prazo_auto`, com `prazo_dias`; `prazo_contagem:
+  'corridos'` ou úteis, padrão): ao entrar na fase (autuação, mudança de fase
+  ou remessa com mudança de fase), o processo ganha um prazo "Fase X" com
+  `fase_id` e `automatico: true`, contado com o calendário do órgão. Ao sair
+  da fase ou arquivar, ele se encerra sozinho (no prazo ou fora do prazo).
+  Vale para processos autuados depois de salvar o rito (a fase vai copiada no
+  processo). É prazo **interno**: não aparece no portal, na certidão de
+  andamento nem nos lembretes às partes; para a equipe, entra nas listas de
+  vencimento como qualquer prazo.
+- **Nome para as partes** (`nome_publico`): o portal (lista, "Em que ponto
+  está", fluxo e certidão de andamento) usa esse nome. Os termos nos autos
+  usam sempre o nome oficial da fase.
+- **Ao entrar** (`ao_entrar`): `urgente` marca o processo como urgente
+  (motivo "Regra da fase X") se ainda não estiver; `sem_responsavel` tira o
+  responsável designado (a remessa a outra unidade já faz isso).
+- Registro: a urgência vai no termo da mudança (ou da autuação), que as
+  partes leem. O prazo interno e a retirada do responsável vão num registro
+  **só da equipe** (`efeitos_fase`, sem termo, fora do portal e dos e-mails),
+  gravado logo depois na mesma operação, por exemplo: "Prazo interno da fase
+  encerrado no prazo: Fase Triagem. Prazo interno da fase aberto: 3 dias
+  corridos, vence em 16/11/2026. Responsável designado retirado pela regra da
+  fase." Encerrar à mão um prazo automático também fica só para a equipe. A
+  prévia do rito mostra esses efeitos e o nome para as partes.
+
 ### Condições pela resposta, quem cumpre e simulação (13/11/2026)
 
 A resposta de uma ação **de escolha** da fase (lista de opções ou sim/não)

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaPortal = exports.COL_ACESSOS = exports.AVISOS_PARTE = exports.TIPOS_PETICAO_PORTAL = exports.MOVIMENTOS_INTERNOS = void 0;
+exports.nomeParaPartes = nomeParaPartes;
 const admin = require("firebase-admin");
 const numeracao_1 = require("../shared/numeracao");
 const firestore_1 = require("firebase-admin/firestore");
@@ -41,11 +42,12 @@ exports.AVISOS_PARTE = ['tudo', 'prazos', 'nenhum'];
 exports.COL_ACESSOS = 'secPortalAcessos';
 const brData = (iso) => iso.split('-').reverse().join('/');
 const brDataHora = (iso) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+/** Prazos abertos que as partes podem ver: o prazo automático da fase é da equipe, não delas. */
+const prazosPublicos = (proc) => (proc.prazos || []).filter((x) => x.status === 'aberto' && x.automatico !== true);
 /** Prazos abertos dirigidos a esta parte (ou sem destinatário). */
 function prazosDaParte(proc, parte) {
     const nome = ((parte === null || parte === void 0 ? void 0 : parte.nome) || '').toLowerCase();
-    return (proc.prazos || []).filter((x) => x.status === 'aberto'
-        && (!x.destinatario || String(x.destinatario).toLowerCase().includes(nome)));
+    return prazosPublicos(proc).filter((x) => !x.destinatario || String(x.destinatario).toLowerCase().includes(nome));
 }
 /**
  * Último andamento que a parte pode ver. Processo anterior ao campo
@@ -70,8 +72,13 @@ function comunicacoesDaConta(proc, uid) {
     }));
 }
 /** Fases vistas pela parte: só o que não é interno da equipe. */
+/** Nome da fase para as partes: o público, se o rito der um; senão o oficial. */
+function nomeParaPartes(proc, faseId) {
+    const f = (proc.fases || []).find((x) => x.id === faseId);
+    return (f === null || f === void 0 ? void 0 : f.nome_publico) || (f === null || f === void 0 ? void 0 : f.nome) || String(faseId || '');
+}
 function fasesPublicas(proc) {
-    return (proc.fases || []).map(({ id, nome, prazo_dias, proximas, final }) => (Object.assign(Object.assign(Object.assign({ id, nome }, (prazo_dias ? { prazo_dias } : {})), (proximas ? { proximas } : {})), (final ? { final } : {}))));
+    return (proc.fases || []).map(({ id, nome, nome_publico, prazo_dias, proximas, final }) => (Object.assign(Object.assign(Object.assign({ id, nome: nome_publico || nome }, (prazo_dias ? { prazo_dias } : {})), (proximas ? { proximas } : {})), (final ? { final } : {}))));
 }
 /** Petições desta conta com a situação da apreciação. */
 function peticoesDaParte(proc, docs, uid) {
@@ -115,7 +122,7 @@ function parteDoUsuario(proc, uid) {
     return undefined;
 }
 exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const db = admin.firestore();
@@ -227,7 +234,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         // "Para você": o que pede atenção da parte, em todos os processos.
         const paraVoce = [];
         const processos = visiveis.map((d) => {
-            var _a, _b;
+            var _a;
             const x = d.data();
             const parte = parteDoUsuario(x, uid);
             const visto = acessos[d.id] || '';
@@ -247,7 +254,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             }
             if (novidades)
                 paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: ultimo.descricao, em: ultimo.em });
-            return Object.assign({ id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: (_a = ativo.get(x.organization_id)) === null || _a === void 0 ? void 0 : _a.nome, fase_nome: ((_b = (x.fases || []).find((f) => f.id === x.fase_atual)) === null || _b === void 0 ? void 0 : _b.nome) || x.fase_atual, polo: parte === null || parte === void 0 ? void 0 : parte.polo, parte_nome: (parte === null || parte === void 0 ? void 0 : parte.nome) || null, como: (parte === null || parte === void 0 ? void 0 : parte.como) || 'parte', representante: (parte === null || parte === void 0 ? void 0 : parte.representante) || null, ultimo_movimento: ultimo, novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length, 
+            return Object.assign({ id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: (_a = ativo.get(x.organization_id)) === null || _a === void 0 ? void 0 : _a.nome, fase_nome: nomeParaPartes(x, x.fase_atual), polo: parte === null || parte === void 0 ? void 0 : parte.polo, parte_nome: (parte === null || parte === void 0 ? void 0 : parte.nome) || null, como: (parte === null || parte === void 0 ? void 0 : parte.como) || 'parte', representante: (parte === null || parte === void 0 ? void 0 : parte.representante) || null, ultimo_movimento: ultimo, novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length, 
                 // Planilha "Meus Processos Eletrônicos": o que fazer, prazos abertos e por abrir.
                 tipo_nome: x.tipo_nome || null, autuado_em: x.autuado_em || null, prazos: meusPrazos.map((q) => ({ id: q.id, descricao: q.descricao, vence_em: q.vence_em })).sort((a, b) => a.vence_em.localeCompare(b.vence_em)), peticoes_aguardando: minhasPeticoes.length }, (0, meusProcessos_1.situacaoDaParte)({ status: x.status, prazos: meusPrazos.map((q) => ({ descricao: q.descricao, vence_em: q.vence_em })), aguardando, peticoes: minhasPeticoes.length }, hoje));
         });
@@ -283,11 +290,11 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true,
                 // Só os campos que o órgão marcou para as partes verem.
                 campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => (Object.assign({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor }, (x.formato ? { formato: x.formato } : {})))),
-                fase_nome: ((_d = (data.fases || []).find((f) => f.id === data.fase_atual)) === null || _d === void 0 ? void 0 : _d.nome) || data.fase_atual,
+                fase_nome: nomeParaPartes(data, data.fase_atual),
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
                 partes: (data.partes || []).map((x) => ({ nome: x.nome, polo: x.polo })),
-                prazos: (data.prazos || []).filter((x) => x.status === 'aberto')
+                prazos: prazosPublicos(data)
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
@@ -316,7 +323,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
         const bytes = await (0, exportar_1.montarPdfAutos)({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
-            geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
+            geradoPor: `${((_d = parteDoUsuario(proc, uid)) === null || _d === void 0 ? void 0 : _d.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
         });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
     }
@@ -325,7 +332,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const { ref, data: proc, org } = await lerComoParte(db, uid, p.processoId);
         const movs = (await ref.collection('movimentos').orderBy('seq', 'desc').limit(40).get()).docs.map((d) => d.data())
             .filter((m) => (0, autos_2.visivelParaPartes)(m)).slice(0, 10);
-        const fase = ((_f = (proc.fases || []).find((f) => f.id === proc.fase_atual)) === null || _f === void 0 ? void 0 : _f.nome) || proc.fase_atual;
+        const fase = nomeParaPartes(proc, proc.fase_atual);
         const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status] || proc.status;
         const parte = parteDoUsuario(proc, uid);
         const linhas = [
@@ -335,7 +342,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             `Situação: ${situacao}. Fase atual: ${fase}.`,
             `Autuado em ${proc.autuado_em ? brDataHora(proc.autuado_em) : '—'}.`,
             `Partes: ${(proc.partes || []).map((x) => `${x.nome} (${x.polo})`).join('; ')}.`, '',
-            `Prazos em aberto: ${(proc.prazos || []).filter((x) => x.status === 'aberto').map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
+            `Prazos em aberto: ${prazosPublicos(proc).map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
             'Últimos movimentos:',
             ...movs.map((m) => `${brDataHora(m.em)} — ${m.descricao}`), '',
             `Certidão emitida pelo portal das partes em ${brDataHora(new Date().toISOString())} a pedido de ${(parte === null || parte === void 0 ? void 0 : parte.assina) || nomeConta}.`,
@@ -458,7 +465,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(db, procRef.id, uid);
-        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_g = parteDoUsuario(procAntes, uid)) === null || _g === void 0 ? void 0 : _g.assina) || 'A parte'), titulo, tipoPeticao);
+        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_e = parteDoUsuario(procAntes, uid)) === null || _e === void 0 ? void 0 : _e.assina) || 'A parte'), titulo, tipoPeticao);
         return Object.assign({ success: true }, r);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
