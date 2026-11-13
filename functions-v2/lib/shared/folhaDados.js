@@ -18,7 +18,7 @@ const situacaoDaCapa = (status) => (status === 'arquivado' ? 'Arquivado' : statu
 exports.situacaoDaCapa = situacaoDaCapa;
 function secoesDaFolha(d) {
     var _a;
-    const p = d.proc; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const p = d.proc;
     const secoes = [];
     const add = (titulo, itens) => {
         const validos = itens.filter((x) => !!x);

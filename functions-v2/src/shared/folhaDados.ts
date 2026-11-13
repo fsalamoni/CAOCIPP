@@ -31,7 +31,7 @@ const SITUACOES: Record<string, string> = { em_tramitacao: 'Em tramitação', so
 export const situacaoDaCapa = (status: unknown): string => (status === 'arquivado' ? 'Arquivado' : status === 'sobrestado' ? 'Ativo (sobrestado)' : 'Ativo');
 
 export function secoesDaFolha(d: DadosFolha): SecaoFolha[] {
-    const p = d.proc as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const p = d.proc as Record<string, any>;
     const secoes: SecaoFolha[] = [];
     const add = (titulo: string, itens: Array<ItemFolha | false | null | undefined | ''>) => {
         const validos = itens.filter((x): x is ItemFolha => !!x);
