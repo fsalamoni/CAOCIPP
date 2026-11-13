@@ -115,6 +115,8 @@ export const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
     && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
     && (pedidoDaAcao(r) !== 'confirmar' || ['autos', 'consolidar'].includes(destinoDaAcao(r)));
 export const pedeDado = (r) => !['confirmar', 'documento', 'orientacao'].includes(pedidoDaAcao(r));
+/** O dado da ação pode ir para a folha de dados do processo (evento 1 do PDF)? Reservado, nunca: a folha é de toda a equipe. */
+export const podeIrParaFolha = (r) => pedeDado(r) && !r?.ve;
 /** Ação que não se marca: só orienta quem está na fase. */
 export const soOrienta = (r) => r?.pede === 'orientacao';
 
@@ -370,6 +372,8 @@ function regraComPedidoSemNivel(r, pede, acao) {
     // A condição ("só vale se") e quem cumpre acompanham a ação (documento: quem cumpre é quem junta).
     const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem } : {}),
         ...(Number.isInteger(r?.ou) && pede !== 'documento' ? { ou: r.ou } : {}),
+        // A folha de dados segue enquanto a ação pedir um dado.
+        ...(r?.folha_dados && !['confirmar', 'documento'].includes(pede) ? { folha_dados: true } : {}),
         // Dado reservado segue se o pedido novo ainda puder ser reservado.
         ...(r?.ve && PEDIDOS_RESERVAVEIS.includes(pede) ? { ve: r.ve } : {}) };
     return Object.keys(extra).length ? { ...(nova || {}), ...extra } : nova;
@@ -413,7 +417,7 @@ export function resumoDaAcao(r) {
             : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];
     const nivel = { '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)];
-    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${nivel}${r?.se ? '; condicional' : ''}${Number.isInteger(r?.ou) ? '; alternativa a outra' : ''}${r?.quem ? `; ${ROTULO_QUEM[r.quem]}` : ''}`;
+    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${r?.folha_dados ? '; na folha de dados' : ''}${nivel}${r?.se ? '; condicional' : ''}${Number.isInteger(r?.ou) ? '; alternativa a outra' : ''}${r?.quem ? `; ${ROTULO_QUEM[r.quem]}` : ''}`;
 }
 
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */

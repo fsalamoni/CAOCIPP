@@ -6,6 +6,7 @@
 // ============================================================================
 
 import type { Ref } from './modulos';
+import { CampoValor, valorTexto } from './camposProcesso';
 
 export interface InformacaoAndamento {
     fase_id: string;
@@ -31,6 +32,8 @@ export interface InformacaoAndamento {
     autor_uid?: string;
     /** Reservado e quem lê não pode ver: sem valor. */
     oculta?: true;
+    /** O rito manda o dado para a folha de dados do processo (evento 1 do PDF). */
+    folha_dados?: true;
 }
 
 interface Mov { seq: number; tipo: string; autor_nome?: string; autor_uid?: string; em?: string; dados?: Record<string, unknown> }
@@ -88,9 +91,21 @@ export function informacoesDoAndamento(movs: Mov[], fases: Array<{ id: string; n
             ...(d.ref && typeof d.ref === 'object' ? { ref: d.ref as Ref } : {}),
             ...(Array.isArray(d.valor) && d.valor.some((x) => x?.ref) ? { refs: d.valor.map((x) => x?.ref).filter(Boolean) as Ref[] } : {}),
             ...(d.reservado === 'gestor' ? { reservado: 'gestor' as const, ve_unidade: String(d.ve_unidade || ''), autor_uid: m.autor_uid || '' } : {}),
+            ...(d.folha_dados === true ? { folha_dados: true as const } : {}),
         };
         pilha.push(info);
         ordem.push(info);
     }
     return soPartes ? ordem.filter((i) => i.visivel_partes) : ordem;
 }
+
+/** O dado em linhas "Rótulo: valor": o formulário abre um campo por linha (registro só pelo número, como na certidão). */
+export function linhasDaInformacao(i: Pick<InformacaoAndamento, 'rotulo' | 'tipo' | 'valor' | 'valor_texto'>): string[] {
+    if (i.tipo === 'formulario' && Array.isArray(i.valor)) {
+        return (i.valor as CampoValor[]).map((c) => `${c.rotulo}: ${c.tipo === 'registro' ? c.valor : valorTexto(c)}`);
+    }
+    return [`${i.rotulo}: ${i.valor_texto}`];
+}
+
+/** As informações que vão à folha de dados: as marcadas pelo rito, nunca as reservadas. */
+export const informacoesDaFolha = (infos: InformacaoAndamento[]): InformacaoAndamento[] => infos.filter((i) => i.folha_dados === true && !i.reservado);

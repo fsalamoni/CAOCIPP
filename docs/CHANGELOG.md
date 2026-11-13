@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Capa simples e folha de dados no PDF do processo
+- A **primeira página** do PDF traz só o órgão, o número do processo, a data
+  da autuação e se está ativo ou arquivado.
+- A **segunda página** é a folha de dados, que é a folha do evento 1: termo de
+  autuação, assunto, rito, partes, campos do processo e a situação atual. O
+  índice vem depois dela.
+- No rito, a ação que pede um dado ganhou **"Entra na folha de dados do
+  processo"**: o dado registrado depois (ex.: número do PGEA) completa a
+  folha, sem criar outra. Dado reservado não entra.
+- A cópia das partes mostra só o que o órgão marcou para elas.
+
 ### 13/11/2026 — Ações do rito com mais opções
 - **Condição por campo do formulário**: "Quando vale" e a regra da saída
   aceitam um campo de lista ou de sim ou não do formulário de uma ação da

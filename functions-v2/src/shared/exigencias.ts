@@ -149,6 +149,8 @@ export interface RegraAcao {
     quem?: Quem;
     /** Quem da equipe vê o dado. Ausente = toda a equipe. */
     ve?: Ve;
+    /** O dado entra na folha de dados do processo (a folha do evento 1, no PDF), seja qual for o destino. */
+    folha_dados?: true;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -262,7 +264,10 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     if (r.obrigatoria === true) out.obrigatoria = true;
     else if (r.recomendada === true) out.recomendada = true;
     if (QUEM.includes(r.quem as Quem)) out.quem = r.quem as Quem;
+    // Folha de dados: só ação que pede um dado (a confirmação simples não tem o que mostrar).
+    if (r.folha_dados === true && out.pede) out.folha_dados = true;
     if (VE.includes(r.ve as Ve)) {
+        if (out.folha_dados) throw new Error(`A ação "${acao}": dado reservado a quem gere a unidade não entra na folha de dados, que toda a equipe lê`);
         if (!out.pede || !PEDIDOS_RESERVAVEIS.includes(out.pede)) {
             throw new Error(`A ação "${acao}": só texto, número, data ou formulário pode ficar reservado a quem gere a unidade`);
         }

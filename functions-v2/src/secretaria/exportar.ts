@@ -2,15 +2,20 @@ import * as admin from 'firebase-admin';
 import { numeroArquivo } from '../shared/numeracao';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
-import { Fase, textoOrigem, verificarCadeia } from '../shared/secretaria';
+import { verificarCadeia } from '../shared/secretaria';
+import { CampoValor } from '../shared/camposProcesso';
+import { InformacaoAndamento, informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
+import { secoesDaFolha, situacaoDaCapa } from '../shared/folhaDados';
 import { Selecao, documentoDoEvento, folhasDoEvento, origemEvento, sanitizeSelecao, selecionar, tituloEvento } from '../shared/autos';
 import { REGION, carregarContexto, exigirAuth, lerProcesso, nomeUnidade } from './context';
 import { auditar } from './config';
 import { anexarCarimbado, folhaSimples, garantirCodigo, lerConfigDocumento, pdfDoDocumento, textoFolhas } from './autos';
 
 /**
- * Exporta os autos em um PDF único, em ordem cronológica: capa, índice dos
- * eventos (com folhas e hash) e as peças. Cada ato de usuário tem a sua
+ * Exporta os autos em um PDF único: capa (só órgão, número, data da autuação e
+ * se está ativo ou arquivado), a folha de dados do processo (a folha do evento
+ * 1, a autuação), o índice dos eventos (com folhas e hash) e as demais peças,
+ * em ordem cronológica. Cada ato de usuário tem a sua
  * página: o documento juntado (redigidos viram texto, PDFs entram página a
  * página, imagens como página, Word/planilha como folha de referência com o
  * hash) ou, sem documento, um termo de uma folha. Os registros do sistema
@@ -83,8 +88,11 @@ export interface OpcoesAutos {
     geradoPor: string;
     nomeUnidade: (id: string) => string;
     selecao?: Selecao;
-    /** PDF da equipe: a capa traz a origem (a referência é dado interno). */
+    /** PDF da equipe: a folha de dados traz a origem (a referência é dado interno) e o CPF/CNPJ das partes. */
     equipe?: boolean;
+    /** Folha de dados: campos do processo e informações do andamento, já filtrados para quem lê. */
+    campos?: CampoValor[];
+    informacoes?: InformacaoAndamento[];
 }
 
 export function selecaoOuErro(raw: unknown): Selecao {
@@ -92,6 +100,41 @@ export function selecaoOuErro(raw: unknown): Selecao {
 }
 
 const quandoBR = (iso: unknown) => new Date(String(iso)).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+const CINZA: [number, number, number] = [0.4, 0.4, 0.4];
+
+/**
+ * Folha de dados do processo: a página do evento 1 (autuação). Traz o termo
+ * de autuação, os dados do processo e os que o rito manda para cá. Pode
+ * passar de uma página; todas levam a folha do evento.
+ */
+async function folhaDadosPdf(o: OpcoesAutos, m: admin.firestore.DocumentData, geradoEm: string, integridade: string): Promise<Uint8Array> {
+    const pdf = await PDFDocument.create();
+    const w = new Escritor(pdf, await pdf.embedFont(StandardFonts.Helvetica), await pdf.embedFont(StandardFonts.HelveticaBold), '');
+    const unidade = o.nomeUnidade(String(m.unidade_id || ''));
+    w.y -= 40;
+    w.texto(String(o.orgNome || 'Órgão'), { size: 11, bold: true, espaco: 2 });
+    w.texto(`Processo nº ${o.proc.numero}`, { size: 10, cor: CINZA, espaco: 20 });
+    w.texto('TERMO DE AUTUAÇÃO', { size: 14, bold: true, espaco: 4 });
+    w.texto(`Evento nº ${m.seq} · Folha de dados do processo`, { size: 10, cor: CINZA, espaco: 14 });
+    w.texto(String(m.descricao), { size: 10, espaco: 2 });
+    w.texto(`Praticado por ${m.autor_nome}${unidade ? `, ${unidade}` : ''}, em ${quandoBR(m.em)}.`, { size: 9, cor: CINZA, espaco: 14 });
+    const secoes = secoesDaFolha({
+        proc: o.proc, equipe: o.equipe === true, campos: o.campos || [], informacoes: o.informacoes || [],
+        unidadeAtual: o.nomeUnidade(String(o.proc.unidade_atual || '')), geradoEm, quando: quandoBR,
+    });
+    for (const s of secoes) {
+        w.texto(s.titulo, { size: 10, bold: true, espaco: 3 });
+        for (const it of s.itens) {
+            w.texto(it.texto, { size: 10, espaco: it.nota ? 0 : 3 });
+            if (it.nota) w.texto(it.nota, { size: 7.5, cor: CINZA, espaco: 4 });
+        }
+        w.y -= 8;
+    }
+    w.texto('Folha montada pela plataforma na impressão, com o registro da autuação, os dados do processo e os que o rito traz para cá. Cada dado vem de um evento do processo, conferido pela cadeia de hash.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 4 });
+    w.texto(integridade, { size: 8, cor: [0.45, 0.45, 0.45], espaco: 4 });
+    w.texto(`SHA-256 do evento: ${m.hash}`, { size: 7, cor: [0.45, 0.45, 0.45] });
+    return pdf.save();
+}
 
 /** Página do ato de usuário que não juntou documento: o que foi feito, por quem e quando. */
 async function termoPdf(orgNome: string, numero: string, m: admin.firestore.DocumentData, unidade: string): Promise<Uint8Array> {
@@ -135,55 +178,29 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         return f ? textoFolhas(f[0], f[1] - f[0] + 1) : '';
     };
 
+    const integridade = quebra === null
+        ? `Integridade: cadeia de ${movimentos.length} eventos conferida (SHA-256).`
+        : `ATENÇÃO: a cadeia de eventos não confere a partir do evento ${quebra}.`;
+    // Capa: só o órgão, o número, a data da autuação e se está ativo ou arquivado.
+    // O resto (assunto, rito, partes, dados) está na folha de dados, que é a folha do evento 1.
     if (sel.capa) {
         const w = new Escritor(pdf, font, bold, rodape);
-        w.texto(String(o.orgNome || 'Órgão'), { size: 12, bold: true });
-        w.texto('Processo Eletrônico', { size: 10, cor: [0.4, 0.4, 0.4], espaco: 20 });
-        w.texto(`Processo nº ${proc.numero}`, { size: 18, bold: true });
-        w.texto(String(proc.assunto || ''), { size: 13, espaco: 14 });
+        w.y -= 150;
+        w.texto(String(o.orgNome || 'Órgão'), { size: 14, bold: true });
+        w.texto('Processo Eletrônico', { size: 10, cor: CINZA, espaco: 30 });
+        w.texto(`Processo nº ${proc.numero}`, { size: 22, bold: true, espaco: 18 });
+        w.texto(`Autuado em ${new Date(String(proc.autuado_em)).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`, { size: 12 });
+        w.texto(`Situação: ${situacaoDaCapa(proc.status)}`, { size: 12, espaco: 24 });
         if (parcial) {
             w.texto(sel.modo === 'intervalo'
                 ? `CÓPIA PARCIAL DOS AUTOS: ${textoFolhas(sel.folha_de!, sel.folha_a! - sel.folha_de! + 1)}.`
                 : `CÓPIA PARCIAL DOS AUTOS: ${escolhidos.length} de ${movimentos.length} eventos.`, { bold: true, cor: [0.7, 0.35, 0], espaco: 10 });
         }
-        const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual)?.nome || proc.fase_atual;
-        const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status as string] || proc.status;
-        for (const [k, v] of [
-            ['Rito', `${proc.rito_nome} (versão ${proc.rito_versao})`],
-            ['Fase atual', fase],
-            ['Situação', situacao],
-            ['Unidade atual', o.nomeUnidade(String(proc.unidade_atual || ''))],
-            ['Sigilo', proc.sigilo === 'restrito' ? 'Restrito' : 'Normal'],
-            ...(proc.urgente === true ? [['Tramitação', `URGENTE${proc.urgencia?.motivo ? ` (${proc.urgencia.motivo})` : ''}`]] : []),
-            ['Autuado em', `${quandoBR(proc.autuado_em)} por ${proc.autuado_por_nome}`],
-            ...(o.equipe && proc.origem ? [['Origem', textoOrigem(proc.origem)]] : []),
-        ]) w.texto(`${k}: ${v}`);
-        if (proc.descricao) w.texto(`\n${proc.descricao}`);
-        const partes = (proc.partes || []) as Array<{ nome: string; polo: string; documento?: string; retirada?: unknown }>;
-        if (partes.length) {
-            w.texto('\nPartes', { bold: true });
-            // CPF/CNPJ só na cópia da equipe: no portal, uma parte não vê o documento da outra.
-            for (const pa of partes.filter((x) => o.equipe || !x.retirada)) w.texto(`${pa.polo}: ${pa.nome}${o.equipe && pa.documento ? ` (${pa.documento})` : ''}${pa.retirada ? ' (retirada)' : ''}`);
-        }
-        w.texto(quebra === null
-            ? `\nIntegridade: cadeia de ${movimentos.length} eventos conferida (SHA-256).`
-            : `\nATENÇÃO: a cadeia de eventos não confere a partir do evento ${quebra}.`,
-        { bold: quebra !== null, cor: quebra === null ? [0.1, 0.4, 0.2] : [0.7, 0.1, 0.1] });
+        // Cadeia que não confere é aviso de capa; conferida, a frase vai na folha de dados.
+        if (quebra !== null) w.texto(integridade, { bold: true, cor: [0.7, 0.1, 0.1] });
     }
 
-    // Índice: os atos de usuário, na ordem, com as folhas de cada um.
-    if (sel.indice && atos.length) {
-        const w = new Escritor(pdf, font, bold, rodape);
-        w.texto('Índice dos autos', { size: 14, bold: true, espaco: 10 });
-        for (const m of atos) {
-            const d = docsPorId.get(documentoDoEvento(m as never) || '');
-            w.texto(`Evento ${m.seq} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
-            w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})` : `${tituloEvento(m as never)}. ${m.descricao}`, { size: 9, espaco: 0 });
-            w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
-        }
-    }
-
-    // Peças em ordem cronológica: o documento juntado ou o termo do ato.
+    // Peças: o documento juntado ou o termo do ato.
     const cfgs = new Map<string, ReturnType<typeof lerConfigDocumento>>();
     const cfgDe = (u: string) => { if (!cfgs.has(u)) cfgs.set(u, lerConfigDocumento(o.db, o.orgId, u)); return cfgs.get(u)!; };
     let bytesAnexos = 0;
@@ -211,19 +228,38 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         if (!gravada) folhaLegado += qtd;
     };
     const anexados = new Set<string>();
-    for (const m of atos) {
+    const anexarAto = async (m: admin.firestore.DocumentData) => {
         const docId = documentoDoEvento(m as never);
         if (docId) {
             const d = docsPorId.get(docId);
-            if (!d) continue; // documento que quem pede não pode ver
+            if (!d) return; // documento que quem pede não pode ver
             anexados.add(docId);
             await anexarDocumento(d, recorte.get(m.seq));
-        } else {
-            await anexarCarimbado(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || ''))), {
-                processo: String(proc.numero), folha: typeof m.folha === 'number' ? m.folha : null, titulo: tituloEvento(m as never),
-            });
+            return;
+        }
+        const info = { processo: String(proc.numero), folha: typeof m.folha === 'number' ? m.folha : null, titulo: tituloEvento(m as never) };
+        // A autuação é a folha de dados do processo; os demais atos sem documento, um termo de uma folha.
+        if (m.tipo === 'autuacao') await anexarCarimbado(pdf, await folhaDadosPdf(o, m, geradoEm, integridade), { ...info, mesmaFolha: true });
+        else await anexarCarimbado(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || ''))), info);
+    };
+    // A folha de dados (evento 1) vem logo depois da capa: é a segunda folha do processo impresso.
+    const autuacao = atos[0]?.tipo === 'autuacao' ? atos[0] : null;
+    if (autuacao) await anexarAto(autuacao);
+
+    // Índice: os atos de usuário, na ordem, com as folhas de cada um.
+    if (sel.indice && atos.length) {
+        const w = new Escritor(pdf, font, bold, rodape);
+        w.texto('Índice dos autos', { size: 14, bold: true, espaco: 10 });
+        for (const m of atos) {
+            const d = docsPorId.get(documentoDoEvento(m as never) || '');
+            w.texto(`Evento ${m.seq} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
+            w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})` : `${tituloEvento(m as never)}. ${m.descricao}`, { size: 9, espaco: 0 });
+            w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
     }
+
+    // As demais peças, em ordem cronológica.
+    for (const m of atos) if (m !== autuacao) await anexarAto(m);
     // Documento sem evento de juntada legível (dados antigos): entra ao fim da íntegra.
     if (!parcial) for (const d of docs) if (!anexados.has(String(d.id))) await anexarDocumento(d);
 
@@ -258,7 +294,11 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
         const docs = docSnap.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
             .sort((a, b) => a.ordem - b.ordem);
 
-        const bytes = await montarPdfAutos({ db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => nomeUnidade(c, id), selecao, equipe: true });
+        const bytes = await montarPdfAutos({
+            db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), ref, proc, movimentos, docs, geradoPor: c.userName, nomeUnidade: (id) => nomeUnidade(c, id), selecao, equipe: true,
+            campos: (proc.campos || []) as CampoValor[],
+            informacoes: informacoesDaFolha(informacoesDoAndamento(movimentos as never, proc.fases || [])),
+        });
         // Abrir uma peça no leitor não é exportação: só registra o PDF com capa ou de várias peças.
         if (selecao.capa || selecao.eventos.length !== 1) await auditar(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero, modo: selecao.modo });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${numeroArquivo(proc.numero)}.pdf` };

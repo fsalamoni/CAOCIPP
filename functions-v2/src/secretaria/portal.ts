@@ -17,7 +17,8 @@ import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comunicacoes';
 import { configComunicacoes, registrarCiencia } from './comunicacoes';
 import { situacaoDaParte } from '../shared/meusProcessos';
-import { informacoesDoAndamento } from '../shared/informacoes';
+import { informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
+import { CampoValor } from '../shared/camposProcesso';
 import { Ref, refsFechadas } from '../shared/modulos';
 
 /**
@@ -353,11 +354,20 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             ref.collection('movimentos').orderBy('seq').get(),
             ref.collection('documentos').where('status', '==', 'juntado').get(),
         ]);
-        const movimentos = movs.docs.map((d) => d.data()).filter((m) => visivelParaPartes(m as never));
+        const todos = movs.docs.map((d) => d.data());
+        const movimentos = todos.filter((m) => visivelParaPartes(m as never));
         const documentos = docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData)).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
+        // Folha de dados: só os campos e os dados do andamento que o órgão marcou para as partes,
+        // sem registro de outro módulo que hoje é restrito, anonimizado ou sumiu (como em "obter").
+        const camposPartes = ((proc.campos || []) as CampoValor[]).filter((x) => x.visivel_partes === true);
+        const infosPartes = informacoesDaFolha(informacoesDoAndamento(todos as never, proc.fases || [], true));
+        const fechadas = await refsFechadas(db, String(proc.organization_id), [...camposPartes.map((x) => x.ref), ...infosPartes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
+        const aberta = (r?: Ref) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         const bytes = await montarPdfAutos({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
             geradoPor: `${parteDoUsuario(proc, uid)?.assina || nomeConta} (parte)`, nomeUnidade: () => '', selecao: selecaoOuErro(p.selecao),
+            campos: camposPartes.filter((x) => aberta(x.ref)),
+            informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta)),
         });
         return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${numeroArquivo(proc.numero)}.pdf` };
     }

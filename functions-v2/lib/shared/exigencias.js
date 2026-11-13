@@ -225,7 +225,12 @@ function sanitizeRegra(raw, acao) {
         out.recomendada = true;
     if (exports.QUEM.includes(r.quem))
         out.quem = r.quem;
+    // Folha de dados: só ação que pede um dado (a confirmação simples não tem o que mostrar).
+    if (r.folha_dados === true && out.pede)
+        out.folha_dados = true;
     if (exports.VE.includes(r.ve)) {
+        if (out.folha_dados)
+            throw new Error(`A ação "${acao}": dado reservado a quem gere a unidade não entra na folha de dados, que toda a equipe lê`);
         if (!out.pede || !exports.PEDIDOS_RESERVAVEIS.includes(out.pede)) {
             throw new Error(`A ação "${acao}": só texto, número, data ou formulário pode ficar reservado a quem gere a unidade`);
         }

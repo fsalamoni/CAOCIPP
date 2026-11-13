@@ -219,6 +219,11 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                                 </ItemAutos>
                                             );
                                         })}
+                                        {acoes.some(({ r }) => r?.folha_dados) && (
+                                            <ItemAutos d="autos" nota="Montada na impressão, com os dados da autuação: é a folha do evento 1. Não cria folha nova.">
+                                                Folha de dados do processo: {acoes.filter(({ r }) => r?.folha_dados).map(({ a, r }) => r.rotulo || a).join('; ')}
+                                            </ItemAutos>
+                                        )}
                                         {acoes.some(({ r }) => destinoDaAcao(r) === 'consolidar') && (
                                             <ItemAutos d="autos" nota="Sai quando o processo deixa a fase (ou o grupo de fases), é arquivado ou alguém pede para emitir.">
                                                 {tituloCertidao(fases, grupoDe(fases, fase))}, reunindo os itens "Na certidão"

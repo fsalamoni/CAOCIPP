@@ -17,10 +17,13 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.informacoesDaFolha = void 0;
 exports.podeVerReservado = podeVerReservado;
 exports.semReservado = semReservado;
 exports.informacaoVisivel = informacaoVisivel;
 exports.informacoesDoAndamento = informacoesDoAndamento;
+exports.linhasDaInformacao = linhasDaInformacao;
+const camposProcesso_1 = require("./camposProcesso");
 /** Quem lê pode ver o dado reservado do movimento? */
 function podeVerReservado(d, autorUid, quem) {
     if (!(d === null || d === void 0 ? void 0 : d.reservado))
@@ -71,12 +74,22 @@ function informacoesDoAndamento(movs, fases, soPartes = false) {
         }
         if (d.valor === undefined || typeof d.rotulo !== 'string')
             continue;
-        const info = Object.assign(Object.assign(Object.assign({ fase_id: String(d.fase_id), fase_nome: nomes.get(String(d.fase_id)) || String(d.fase_id), acao_idx: Number(d.acao_idx), rotulo: d.rotulo, tipo: String(d.tipo_valor || 'texto'), valor: d.valor, valor_texto: String((_a = d.valor_texto) !== null && _a !== void 0 ? _a : d.valor), por: m.autor_nome || '', em: m.em || '', seq: m.seq, destino: ['autos', 'evento', 'informacao', 'nenhum', 'consolidar'].includes(String(d.destino))
+        const info = Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: String(d.fase_id), fase_nome: nomes.get(String(d.fase_id)) || String(d.fase_id), acao_idx: Number(d.acao_idx), rotulo: d.rotulo, tipo: String(d.tipo_valor || 'texto'), valor: d.valor, valor_texto: String((_a = d.valor_texto) !== null && _a !== void 0 ? _a : d.valor), por: m.autor_nome || '', em: m.em || '', seq: m.seq, destino: ['autos', 'evento', 'informacao', 'nenhum', 'consolidar'].includes(String(d.destino))
                 ? d.destino
-                : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento', visivel_partes: d.visivel_partes === true }, (d.ref && typeof d.ref === 'object' ? { ref: d.ref } : {})), (Array.isArray(d.valor) && d.valor.some((x) => x === null || x === void 0 ? void 0 : x.ref) ? { refs: d.valor.map((x) => x === null || x === void 0 ? void 0 : x.ref).filter(Boolean) } : {})), (d.reservado === 'gestor' ? { reservado: 'gestor', ve_unidade: String(d.ve_unidade || ''), autor_uid: m.autor_uid || '' } : {}));
+                : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento', visivel_partes: d.visivel_partes === true }, (d.ref && typeof d.ref === 'object' ? { ref: d.ref } : {})), (Array.isArray(d.valor) && d.valor.some((x) => x === null || x === void 0 ? void 0 : x.ref) ? { refs: d.valor.map((x) => x === null || x === void 0 ? void 0 : x.ref).filter(Boolean) } : {})), (d.reservado === 'gestor' ? { reservado: 'gestor', ve_unidade: String(d.ve_unidade || ''), autor_uid: m.autor_uid || '' } : {})), (d.folha_dados === true ? { folha_dados: true } : {}));
         pilha.push(info);
         ordem.push(info);
     }
     return soPartes ? ordem.filter((i) => i.visivel_partes) : ordem;
 }
+/** O dado em linhas "Rótulo: valor": o formulário abre um campo por linha (registro só pelo número, como na certidão). */
+function linhasDaInformacao(i) {
+    if (i.tipo === 'formulario' && Array.isArray(i.valor)) {
+        return i.valor.map((c) => `${c.rotulo}: ${c.tipo === 'registro' ? c.valor : (0, camposProcesso_1.valorTexto)(c)}`);
+    }
+    return [`${i.rotulo}: ${i.valor_texto}`];
+}
+/** As informações que vão à folha de dados: as marcadas pelo rito, nunca as reservadas. */
+const informacoesDaFolha = (infos) => infos.filter((i) => i.folha_dados === true && !i.reservado);
+exports.informacoesDaFolha = informacoesDaFolha;
 //# sourceMappingURL=informacoes.js.map

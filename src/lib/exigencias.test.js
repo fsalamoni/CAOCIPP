@@ -190,3 +190,17 @@ test('condição por campo do formulário, ações alternativas e ação que só
     const inverte = x.remapearCondicoes(f, [0, 1, 2, 4, 3, 5], [f.acoes_regras[0], f.acoes_regras[1], f.acoes_regras[2], f.acoes_regras[4], f.acoes_regras[3], f.acoes_regras[5]]);
     assert.equal(inverte.acoes_regras[3].ou, undefined);
 });
+
+test('folha de dados: só ação que pede dado, sem reserva; a marca segue na troca de pedido', async () => {
+    const x = await import('./exigencias.js');
+    assert.equal(x.podeIrParaFolha({ pede: 'texto' }), true);
+    assert.equal(x.podeIrParaFolha({ pede: 'formulario', campos: [] }), true);
+    assert.equal(x.podeIrParaFolha(null), false, 'só confirmar');
+    assert.equal(x.podeIrParaFolha({ pede: 'orientacao' }), false);
+    assert.equal(x.podeIrParaFolha({ documento: { forma: 'qualquer' } }), false);
+    assert.equal(x.podeIrParaFolha({ pede: 'texto', ve: 'gestor' }), false);
+    assert.equal(x.regraComPedido({ pede: 'texto', folha_dados: true }, 'data', 'X').folha_dados, true);
+    assert.equal(x.regraComPedido({ pede: 'texto', folha_dados: true }, 'confirmar', 'X')?.folha_dados, undefined);
+    assert.equal(x.regraComPedido({ pede: 'texto', folha_dados: true }, 'orientacao', 'X').folha_dados, undefined);
+    assert.match(x.resumoDaAcao({ pede: 'texto', destino: 'informacao', folha_dados: true }), /na folha de dados/);
+});

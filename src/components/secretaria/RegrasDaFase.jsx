@@ -11,7 +11,7 @@ import {
     DESTINO_INFO, DESTINOS_DOCUMENTO, MAX_CAMPOS_ACAO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
-    QUEM, VE, podeReservar, alternativasPossiveis, chaveDaCondicao, fontesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes, soOrienta,
+    QUEM, VE, podeReservar, podeIrParaFolha, alternativasPossiveis, chaveDaCondicao, fontesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes, soOrienta,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
@@ -212,6 +212,17 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                         {semPartes && <p className="text-xs text-slate-600 dark:text-slate-400 pl-6">{semPartes}</p>}
                     </div>
                 )}
+                {(podeIrParaFolha(r) || r?.folha_dados) && (
+                    <div className="text-sm">
+                        <label className="flex items-center gap-2">
+                            <Checkbox checked={r?.folha_dados === true} onCheckedChange={(c) => set({ folha_dados: c === true ? true : undefined })} />
+                            Entra na folha de dados do processo
+                        </label>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 pl-6">
+                            O dado sai na segunda folha do PDF, junto com os dados da autuação (evento 1), sem criar outra folha. {partesVeem(r) ? 'As partes também o leem ali.' : 'Na cópia das partes ele só aparece com "As partes veem no portal" marcado.'}
+                        </p>
+                    </div>
+                )}
             </div>
             <div className="sm:max-w-sm">
                 <NativeSelect id={`${id}-nivel`} label="Para a fase seguir" value={nivelDaAcao(r)} onChange={(v) => onChange(regraComNivel(r, v))} options={NIVEIS} />
@@ -232,7 +243,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 )}
                 {(podeReservar(r) || r?.ve) && (
                     <div>
-                        <NativeSelect id={`${id}-ve`} label="Quem vê o dado na equipe" value={r?.ve || ''} onChange={(v) => set({ ve: v || undefined, ...(v ? { partes: undefined } : {}) })} options={VE} />
+                        <NativeSelect id={`${id}-ve`} label="Quem vê o dado na equipe" value={r?.ve || ''} onChange={(v) => set({ ve: v || undefined, ...(v ? { partes: undefined, folha_dados: undefined } : {}) })} options={VE} />
                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                             {r?.ve ? 'Também veem quem registrou e a administração. Os demais veem que a ação foi feita, sem o dado. Nunca vai aos autos nem ao portal.' : 'Para um dado interno, como uma anotação do gestor, escolha "Só quem gere a unidade".'}
                         </p>

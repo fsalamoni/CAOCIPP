@@ -205,7 +205,8 @@ async function anexarCarimbado(destino, origem, info) {
         const i = indices[n];
         destino.addPage(pg);
         const { width, height } = pg.getSize();
-        const topo = (0, pdfDocumento_1.winAnsi)(`Processo nº ${info.processo}${info.folha ? ` · fls. ${info.folha + i}` : ''}`);
+        const fls = !info.folha ? '' : info.mesmaFolha ? ` · fls. ${info.folha}${i ? ' (continuação)' : ''}` : ` · fls. ${info.folha + i}`;
+        const topo = (0, pdfDocumento_1.winAnsi)(`Processo nº ${info.processo}${fls}`);
         pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: (0, pdf_lib_1.rgb)(0.25, 0.25, 0.4) });
         if (qr && info.codigo) {
             pg.drawImage(qr, { x: 14, y: height - 52, width: 34, height: 34 });
