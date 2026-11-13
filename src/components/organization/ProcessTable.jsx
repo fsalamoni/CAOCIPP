@@ -23,6 +23,7 @@ import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity, reso
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
+import { useAbrirDaUrl } from '@/hooks/useAbrirDaUrl';
 import {
   Tooltip,
   TooltipContent,
@@ -103,6 +104,8 @@ export default function ProcessTable({
     network_folder_path: ''
   });
   const [selectedProcess, setSelectedProcess] = useState(null);
+  // Link de outro lugar (processo eletrônico, busca): ?abrir=<id> abre a ficha.
+  useAbrirDaUrl({ lista: processes, colecao: 'processes', orgId: organization?.id, carregando: isLoading, abrir: setSelectedProcess });
   const [isAniversarianteFilter, setIsAniversarianteFilter] = useState(false);
 
   // Ações em massa (flag `bulk_actions`): IDs selecionados na página atual.

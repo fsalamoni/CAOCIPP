@@ -7,3 +7,9 @@ export function cn(...inputs) {
 
 
 export const isIframe = window.self !== window.top;
+
+/** Clicar num aviso (toast do sonner, fora do diálogo) não fecha o diálogo ou painel aberto. */
+export const naoFecharNoAviso = (fn) => (e) => {
+    if (e.target?.closest?.('[data-sonner-toaster]')) e.preventDefault();
+    fn?.(e);
+};

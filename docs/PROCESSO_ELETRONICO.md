@@ -434,6 +434,25 @@ urgência, sigilo, integridade) aparece em todas as abas.
   unidade de `unidades_historico`). O PDF da equipe traz a linha "Origem" na
   capa; o portal das partes não mostra a origem. Processos antigos não têm
   origem: a capa mostra "Não informado".
+- **Registros ligados (13/11/2026).** A Capa junta, sem repetir, os registros
+  de consultas, expedientes, parcerias e júri citados no processo: a origem,
+  os campos do tipo e as ações do rito que pediram um registro
+  (`registrosLigados` em `src/lib/camposProcesso.js`). Cada um diz de onde
+  veio, marca "acesso restrito" e tem **Abrir**, que leva à aba do módulo com
+  `?abrir=<id>`; com a integração desligada, aparece sem o botão. Só a equipe
+  vê a Capa; nada disso vai ao portal.
+- **`?abrir=<id>` nos módulos.** As abas de consultas, expedientes, parcerias
+  e júri abrem a ficha do registro pedido (`useAbrirDaUrl` em
+  `src/hooks/useAbrirDaUrl.js`): procura na lista carregada e, se não estiver
+  (paginação), lê o documento, conferindo o órgão; as regras do Firestore
+  continuam decidindo quem lê. Sem acesso, avisa. Espera a aba estar com o
+  órgão do endereço (busca em outro órgão), tira o parâmetro antes de abrir
+  (o mesmo registro pode ser pedido de novo) e recusa id com barra. A busca
+  rápida (Ctrl+K) usa o mesmo caminho e abre a ficha do resultado.
+- **Avisos (`toast` do sonner).** O `Toaster` do sonner passou a ser montado
+  em `App.jsx` (antes, nenhum aviso do sonner aparecia). `DialogContent` e
+  `SheetContent` ignoram o clique num aviso (`naoFecharNoAviso` em
+  `src/lib/utils.js`), para o "Desfazer" do aviso não fechar o editor.
 
 ## Registro nos autos e documentos exigidos (nov/2026)
 

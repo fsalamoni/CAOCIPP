@@ -126,3 +126,27 @@ test('origem com registro: preenche os campos do mesmo módulo e conta como orig
     assert.deepEqual(faltando(obrig, { origem: { tipo: '', descricao: '', ref } }), []);
     assert.deepEqual(faltando(obrig, { origem: { tipo: '', descricao: '' } }), ['Informe "Origem"']);
 });
+
+test('registrosLigados junta origem, campos e ações sem repetir e ignora processo', async () => {
+    const { registrosLigados } = await import('./camposProcesso.js');
+    const p = {
+        origem: { ref: { modulo: 'consultas', id: 'c1', numero: '10' } },
+        campos: [
+            { rotulo: 'Consulta base', ref: { modulo: 'consultas', id: 'c1', numero: '10', titulo: 'Merenda', restrito: true } },
+            { rotulo: 'Parceria', ref: { modulo: 'parcerias', id: 'p1', numero: 'PGEA 5', restrito: true } },
+            { rotulo: 'Texto', valor: 'x' },
+        ],
+    };
+    const info = [
+        { rotulo: 'Júri', fase_nome: 'Instrução', ref: { modulo: 'juri', id: 'j1', numero: '0001' } },
+        { rotulo: 'Outro processo', fase_nome: 'Instrução', ref: { modulo: 'pe', id: 'x', numero: 'PE 1' } },
+    ];
+    const r = registrosLigados(p, info);
+    assert.deepEqual(r.map((x) => `${x.modulo}:${x.id}`), ['consultas:c1', 'parcerias:p1', 'juri:j1']);
+    assert.deepEqual(r[0].de, ['origem', 'Consulta base']);
+    assert.equal(r[0].restrito, true);
+    assert.equal(r[0].titulo, 'Merenda');
+    assert.equal(r[1].restrito, true);
+    assert.deepEqual(r[2].de, ['Júri (Instrução)']);
+    assert.deepEqual(registrosLigados({ campos: [] }), []);
+});

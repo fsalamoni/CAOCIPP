@@ -15,6 +15,7 @@ import { useAditivos } from '@/hooks/useFirestore';
 import { importParceriasFromExcel, deleteParceria } from '@/services/functionsService';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { toast } from 'sonner';
+import { useAbrirDaUrl } from '@/hooks/useAbrirDaUrl';
 
 /**
  * ParceriaControl — container do módulo de Parcerias (lista + import + criar
@@ -67,6 +68,7 @@ export default function ParceriaControl({
         setDetailParceria(p);
         setDetailOpen(true);
     };
+    useAbrirDaUrl({ lista: parcerias, colecao: 'parcerias', orgId: organization?.id, carregando: parceriasLoading, abrir: handleView });
 
     const handleDelete = async (p) => {
         if (!p) return;

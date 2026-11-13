@@ -22,6 +22,31 @@ export const ROTULO_MODULO = Object.fromEntries(MODULOS);
 /** De onde um processo pode nascer: outro processo ('pe') ou registro de outro módulo (espelho de textoOrigem no servidor). */
 export const ORIGENS_REF = [['pe', 'Outro processo eletrônico'], ...MODULOS];
 export const ROTULO_REF = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri' };
+// Aba do órgão onde cada módulo mostra seus registros.
+export const ABA_DO_MODULO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'jurimetria' };
+
+/** Registros de outros módulos citados no processo (origem, campos da autuação, ações do rito), sem repetir. */
+export function registrosLigados(p, informacoes = []) {
+    const out = new Map();
+    const juntar = (ref, de) => {
+        if (!ref?.id || !ABA_DO_MODULO[ref.modulo]) return;
+        const k = `${ref.modulo}:${ref.id}`;
+        const atual = out.get(k);
+        if (atual) {
+            if (!atual.de.includes(de)) atual.de.push(de);
+            // Restrito em qualquer citação vale para todas; título que faltava vem da outra.
+            if (ref.restrito) atual.restrito = true;
+            if (!atual.titulo && ref.titulo) atual.titulo = ref.titulo;
+            return;
+        }
+        out.set(k, { ...ref, de: [de] });
+    };
+    juntar(p.origem?.ref, 'origem');
+    for (const c of p.campos || []) juntar(c.ref, c.rotulo);
+    for (const i of informacoes) juntar(i.ref, `${i.rotulo} (${i.fase_nome})`);
+    return [...out.values()];
+}
+
 /** Campos 'registro' do tipo que vêm do mesmo módulo da origem, já preenchidos com ela. */
 export const camposDaOrigem = (form, ref) => (ref && ref.modulo !== 'pe'
     ? Object.fromEntries((form?.campos || []).filter((c) => c.tipo === 'registro' && c.modulo === ref.modulo).map((c) => [c.id, { id: ref.id, numero: ref.numero, titulo: ref.titulo || '' }]))

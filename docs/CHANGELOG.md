@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: registros ligados na Capa
+- **Registros ligados** na Capa do processo: consultas, expedientes,
+  parcerias e júris citados na origem, nos campos ou nas ações do rito, com
+  de onde veio, aviso de acesso restrito e o botão **Abrir**.
+- **Abrir direto a ficha**: o link leva à aba do módulo e já abre o registro
+  (também na busca rápida, Ctrl+K), mesmo fora da página carregada.
+- **Avisos do sistema aparecem de novo em todo o SIGO**: as mensagens de
+  sucesso e de erro (como "Processo remetido" ou "Você não tem acesso") não
+  apareciam, porque o componente que as mostra não estava montado. Agora
+  aparecem no canto superior direito, com botão de fechar; clicar num aviso
+  (por exemplo, "Desfazer") não fecha o diálogo aberto.
+
 ### 13/11/2026 — Processo Eletrônico: editor de rito mais livre e seguro
 - **Arrastar** fases e ações para mudar a ordem (mouse, toque ou teclado,
   com anúncios para leitor de tela) e menu de cada fase: inserir abaixo,

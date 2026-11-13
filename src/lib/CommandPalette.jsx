@@ -102,17 +102,19 @@ export default function CommandPalette() {
     };
 
     const goToResult = (result) => {
+        // A ficha do registro abre direto (useAbrirDaUrl na aba).
+        const abrir = result.id ? `&abrir=${encodeURIComponent(result.id)}` : '';
         if (result.kind === 'processo') {
             localStorage.setItem('processSearchTerm', result.number || '');
-            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=processes`);
+            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=processes${abrir}`);
         } else if (result.kind === 'parceria') {
             localStorage.setItem('parceriaSearchTerm', result.number || '');
-            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=parcerias`);
+            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=parcerias${abrir}`);
         } else if (result.kind === 'juri') {
-            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=jurimetria`);
+            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=jurimetria${abrir}`);
         } else {
             localStorage.setItem('expedienteSearchTerm', result.number || '');
-            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=expedientes`);
+            goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=expedientes${abrir}`);
         }
     };
 

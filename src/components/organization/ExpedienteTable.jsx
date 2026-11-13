@@ -23,6 +23,7 @@ import { computeStageAverages, getDaysInCurrentStage, getStageTimeSeverity, reso
 import { logAccess } from "@/services/functionsService";
 import EmptyState from '../ui/EmptyState';
 import { toast } from 'sonner';
+import { useAbrirDaUrl } from '@/hooks/useAbrirDaUrl';
 import {
   Tooltip,
   TooltipContent,
@@ -82,6 +83,7 @@ export default function ExpedienteTable({
   });
   const [isAniversarianteFilter, setIsAniversarianteFilter] = useState(false);
   const [selectedExpediente, setSelectedExpediente] = useState(null);
+  useAbrirDaUrl({ lista: expedientes, colecao: 'expedientes', orgId: organization?.id, carregando: isLoading, abrir: setSelectedExpediente });
 
   // Ações em massa (flag `bulk_actions`): IDs selecionados na página atual.
   const [selectedIds, setSelectedIds] = useState(() => new Set());
