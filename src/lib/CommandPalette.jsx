@@ -14,7 +14,7 @@ import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { useOrganizations } from '@/hooks/useFirestore';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
-import { searchAcrossOrganizations } from '@/lib/globalSearch';
+import { aquecerPE, searchAcrossOrganizations } from '@/lib/globalSearch';
 import {
     CommandDialog,
     CommandInput,
@@ -77,6 +77,10 @@ export default function CommandPalette() {
     }, [open]);
 
     useEffect(() => {
+        if (open && enabled && isGlobalSearchOn) aquecerPE(organizations);
+    }, [open, enabled, isGlobalSearchOn, organizations]);
+
+    useEffect(() => {
         if (!enabled) return undefined;
 
         const handleKeyDown = (e) => {
@@ -104,7 +108,9 @@ export default function CommandPalette() {
     const goToResult = (result) => {
         // A ficha do registro abre direto (useAbrirDaUrl na aba).
         const abrir = result.id ? `&abrir=${encodeURIComponent(result.id)}` : '';
-        if (result.kind === 'processo') {
+        if (result.kind === 'pe') {
+            goTo(`${createPageUrl('ProcessoEletronico')}?org=${result.orgId}&p=${encodeURIComponent(result.id)}`);
+        } else if (result.kind === 'processo') {
             localStorage.setItem('processSearchTerm', result.number || '');
             goTo(`${createPageUrl('Organization')}?id=${result.orgId}&tab=processes${abrir}`);
         } else if (result.kind === 'parceria') {
@@ -152,7 +158,7 @@ export default function CommandPalette() {
             <CommandDialog open={open} onOpenChange={setOpen} commandProps={{ shouldFilter: !isGlobalSearchOn }}>
                 <CommandInput
                     placeholder={isGlobalSearchOn
-                        ? "Buscar página, órgão, Consulta, Expediente ou Parceria... (Esc para fechar)"
+                        ? "Buscar página, órgão, processo eletrônico, Consulta, Expediente, Parceria ou Júri... (Esc para fechar)"
                         : "Buscar página ou órgão... (Esc para fechar)"}
                     value={searchValue}
                     onValueChange={setSearchValue}
@@ -160,7 +166,7 @@ export default function CommandPalette() {
                 <CommandList>
                     <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
                     {isGlobalSearchOn && searchValue.trim().length >= 2 && (
-                        <CommandGroup heading="Consultas, Expedientes e Parcerias">
+                        <CommandGroup heading="Processos eletrônicos, Consultas, Expedientes, Parcerias e Júris">
                             {searching && searchResults.length === 0 && (
                                 <CommandItem disabled value="__searching__">
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -173,7 +179,7 @@ export default function CommandPalette() {
                                     value={`${result.number || ''} ${result.subtitle || ''} ${result.orgName || ''}`}
                                     onSelect={() => goToResult(result)}
                                 >
-                                    <FileText className="w-4 h-4 mr-2 shrink-0" />
+                                    {result.kind === 'pe' ? <Gavel className="w-4 h-4 mr-2 shrink-0" aria-label="Processo eletrônico" /> : <FileText className="w-4 h-4 mr-2 shrink-0" />}
                                     <span className="flex-1 min-w-0 truncate">
                                         <span className="font-semibold">{result.number || '(sem número)'}</span>
                                         {result.subtitle && <span className="text-muted-foreground"> — {result.subtitle}</span>}

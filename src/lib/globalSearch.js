@@ -22,6 +22,8 @@ import { db } from '@/config/firebase';
 import { getProcessField } from '@/utils/processUtils';
 import { getExpedienteField } from '@/utils/expedienteUtils';
 import { getParceriaField } from '@/utils/parceriaUtils';
+import { queryClientInstance } from '@/lib/query-client';
+import { secProcesso } from '@/services/secretariaService';
 
 const PER_ORG_LIMIT = 500;
 const MAX_RESULTS = 20;
@@ -30,6 +32,29 @@ const CACHE_TTL_MS = 60000;
 // O cache guarda também SE os júris foram incluídos: ligar o módulo de
 // Jurimetria invalida naturalmente uma entrada montada sem eles.
 const orgDataCache = new Map(); // orgId -> { processes, expedientes, parcerias, juris, includeJuris, fetchedAt }
+
+/**
+ * Processos eletrônicos que a pessoa vê no órgão (ação `indice`, a mesma do
+ * selo nas listas e com o mesmo cache de 5 min). Falha (PE suspenso, sem
+ * acesso) só tira o PE daquele órgão.
+ */
+function indicePE(org) {
+    const cfg = org?.secretariaConfig;
+    if (cfg?.enabled !== true || cfg.suspensa_plataforma === true) return Promise.resolve(null);
+    const leitura = queryClientInstance.fetchQuery({
+        queryKey: ['sec-processos', org.id, 'indice'],
+        // Falha guardada como null (mesma chave do selo nas listas): não chama de novo a cada tecla.
+        queryFn: () => secProcesso(org.id, 'indice').catch(() => null),
+        staleTime: 5 * 60e3, retry: false,
+    }).catch(() => null);
+    // Não segura os outros módulos: a primeira leitura segue em segundo plano e entra na próxima busca.
+    return Promise.race([leitura, new Promise((ok) => { setTimeout(() => ok(null), 1500); })]);
+}
+
+/** Começa a ler os processos eletrônicos ao abrir a paleta, para a primeira busca já tê-los. */
+export function aquecerPE(organizations) {
+    (organizations || []).forEach((org) => { indicePE(org); });
+}
 
 function matches(value, needle) {
     return typeof value === 'string' && value.toLowerCase().includes(needle);
@@ -103,8 +128,10 @@ export async function searchAcrossOrganizations(organizations, searchText, opts 
         return [];
     }
 
+    const digitos = needle.replace(/\D/g, '');
     const perOrgResults = await Promise.all(organizations.map(async (org) => {
         const found = [];
+        const pe = indicePE(org);
         try {
             const { processes, expedientes, parcerias, juris } = await getOrgData(org.id, { includeJuris });
 
@@ -182,7 +209,13 @@ export async function searchAcrossOrganizations(organizations, searchText, opts 
         } catch {
             // Falha ao buscar num órgão (ex.: sem permissão) não deve quebrar a busca nos demais.
         }
-        return found;
+        // Processos eletrônicos primeiro: número, assunto ou partes (nome ou CPF/CNPJ só com dígitos).
+        // As partes ajudam a achar, mas não aparecem no resultado.
+        const doPE = ((await pe)?.processos || []).filter((x) => matches(String(x.numero || ''), needle) || matches(x.assunto, needle)
+            || matches(String(x.partes_resumo || '').toLowerCase(), needle)
+            || (digitos.length >= 3 && String(x.partes_resumo || '').replace(/\D/g, '').includes(digitos)))
+            .map((x) => ({ kind: 'pe', id: x.id, orgId: org.id, orgName: org.name, number: x.numero, subtitle: x.assunto || '' }));
+        return [...doPE, ...found];
     }));
 
     return perOrgResults.flat().slice(0, MAX_RESULTS);

@@ -41,7 +41,10 @@ organizados assim.
   na barra horizontal (`OrgTabBar`) e no sub-menu lateral, e as duas continuam
   visíveis e com o item marcado dentro do módulo (o `Layout` trata
   `?org=` da página como o órgão ativo). Também aparece na paleta de comandos
-  (Ctrl+K) como "Processo Eletrônico · órgão". Na página, o admin tem o botão
+  (Ctrl+K) como "Processo Eletrônico · órgão", e a busca da paleta (flag
+  `global_search`) acha processos pelo número, assunto ou partes (nome ou
+  CPF/CNPJ) e abre direto (`?org=…&p=id`); as partes ajudam a achar mas não
+  aparecem no resultado. Na página, o admin tem o botão
   **Configurar**, que abre o Painel Administrativo na aba do módulo; quem não
   é admin, com o módulo desligado, é levado à página inicial do órgão.
 
@@ -313,7 +316,7 @@ ignora as regras.
 | Function | Ações |
 |---|---|
 | `secretariaConfig` | `estado`, `ativar`, `salvarUnidade` (admin; gestor só equipe e descrição), `obterUnidadeDocumento`, `salvarUnidadeDocumento` (gestor), `convidarEquipe`, `revogarConviteEquipe`, `convitesPendentes`, `pedirLotacao`, `decidirPedido` (gestor), `verConviteEquipe` e `aceitarConviteEquipe` (quem tem o link), `salvarRito`, `salvarTipo`, `salvarPreferencias`, `salvarIntegracoes {integracoes}` (admin), `salvarDocumentoConfig`, `salvarModelo` (admin; gestor para modelo da unidade; aceita `formato: 'original'` com o arquivo), `importarModelo` (mesma permissão; só interpreta e devolve a proposta), `obterModelo` e `baixarModelo` (qualquer membro; `baixarModelo` com `valores` devolve o Word preenchido), `extrairTextoRito` e `aplicarPropostaRito` (admin; com `rito_id` edita; ver Importação de ritos), `excluirRito` (admin), `salvarCalendario`, `versoes` (`colecao: 'rito' \| 'modelo' \| 'tipo'`; com `versao`, no tipo, devolve o conteúdo) e `restaurarVersao` (`colecao: 'rito' \| 'modelo'`; admin, ou gestor para modelo da unidade) |
-| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`, com `origem.ref {modulo, id}` quando nasce de outro registro), `vinculados {modulo, id}` (processos ligados a um registro de outro módulo ou derivados de outro processo, `modulo: 'pe'`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo; com `assunto`, `origem`, `sigilo` ou `partes`, retificação com `motivo` obrigatório) |
+| `secretariaProcesso` | `listar` (com `limite` e `cursor`, paginado), `contadores`, `obter`, `autuar` (opcional `origem`, com `origem.ref {modulo, id}` quando nasce de outro registro), `indice` (processos que a pessoa vê e ids com processo, para o selo e a busca), `vinculados {modulo, id}` (processos ligados a um registro de outro módulo ou derivados de outro processo, `modulo: 'pe'`), `tramitar` (opcionais `fase_id`, `orientacao` e `minutas`, as que seguem com o processo; com `fase_id` e documento exigido em aberto, `motivo` vira a dispensa), `atribuir`, `avancarFase` (idem), `alterarStatus`, `abrirPendencia`, `resolverPendencia`, `abrirPrazo`, `encerrarPrazo`, `convidarParte`, `revogarParte`, `marcarAcao`, `concluirOrientacao`, `alterarDados` (descrição e campos próprios do tipo; com `assunto`, `origem`, `sigilo` ou `partes`, retificação com `motivo` obrigatório) |
 | `secretariaPortal` | (partes, sem vínculo com o órgão) `aceitarConvite`, `preferencias`, `meusProcessos`, `obter`, `baixar`, `pdf`, `peticionar`, `exportar`, `certidao`, `comprovante` |
 | `secretariaDocumento` | `criarMinuta` e `upload` (opcional `modelo_id`), `editarMinuta`, `assinar`, `pedirAssinatura`, `juntar` (opcionais `assinar`, `resolve_pendencia_id` e `atende`, as exigências do rito que o documento cumpre), `excluirMinuta`, `baixar`, `pdf` (prévia da minuta com marca d'água ou documento juntado carimbado) |
 | `secretariaExportarPdf` | gera o PDF dos autos |
@@ -1499,7 +1502,24 @@ admin define, em cada tipo, o que quem autua preenche:
   `vinculos`, até 50, só os que a pessoa vê, sem os excluídos e sem aqueles
   em que ela é parte). Nada é escrito nos outros módulos. Processos autuados
   antes não têm `vinculos` e só aparecem depois de uma correção de dados.
-- **Editor do tipo em tela cheia** (`EditorTipo.jsx`): abas Dados (nome,
+- **Selo e filtro "Processo eletrônico" nas listas** (nov/2026): as tabelas
+  de Consultas, Expedientes, Parcerias e Júris mostram o selo "PE" ao lado do
+  número do registro que tem processo eletrônico, e ganham o filtro
+  "Processo eletrônico: qualquer, com ou sem" (conta nos filtros ativos, é
+  limpo com os demais e entra nas visões salvas; visão antiga vale
+  "qualquer"; no Júri, sai no cabeçalho dos relatórios). Vem da ação
+  `indice` (`secretariaProcesso`): lê o órgão em páginas de 500 até 5000
+  (`select` só dos campos de acesso, número, assunto, partes e `vinculos`),
+  fica com os que a pessoa vê (mesma regra de `vinculados`: sem excluídos,
+  sem aqueles em que ela é parte, restrito só para quem pode) e devolve
+  `{processos[{id, numero, assunto, partes_resumo}], com{modulo: ids[]},
+  truncado}`; `com` só traz módulos com a integração ligada. Membro sem
+  lotação recebe a lista vazia sem leitura. Com `truncado`, o "sem" some.
+  O cliente guarda em `['sec-processos', orgId, 'indice']` por 5 minutos,
+  a mesma chave da busca Ctrl+K, e as invalidações que já existem (autuar,
+  corrigir, excluir) a renovam. Custo: uma leitura por processo do órgão a
+  cada 5 minutos por pessoa que abre as listas. "Sem PE" considera só os
+  processos que quem filtra vê. (`EditorTipo.jsx`): abas Dados (nome,
   sigla, rito, sigilo, unidade, órgão, urgência, situação e o fluxo do rito),
   Formulário e Numeração, com a prévia ao lado no computador e atrás do botão
   Prévia no celular. A aba com ajuste pendente leva um ponto, e o rodapé diz

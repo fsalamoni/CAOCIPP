@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { FiltroPE } from '@/components/secretaria/ProcessosVinculados';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Filter, FilterX, ChevronDown, X, SlidersHorizontal, Info } from 'lucide-react';
@@ -29,6 +30,8 @@ export const EMPTY_JURIMETRIA_FILTERS = {
     dataDe: '',
     dataAte: '',
     somenteEfetivos: false,
+    // Processo eletrônico: 'all' | 'com' | 'sem' (só os processos que quem filtra vê).
+    pe: 'all',
     // Situação de expediente (dentro / prolongou / antecipou / sem expediente).
     expedientes: [],
     // Duração da sessão, em MINUTOS. Vazio = sem limite.
@@ -63,6 +66,7 @@ export function countActiveFilters(filters) {
     if (filters.dataDe) count += 1;
     if (filters.dataAte) count += 1;
     if (filters.somenteEfetivos) count += 1;
+    if (filters.pe && filters.pe !== 'all') count += 1;
     count += (filters.comarcas?.length || 0) > 0 ? 1 : 0;
     count += (filters.tipos?.length || 0) > 0 ? 1 : 0;
     count += (filters.resultados?.length || 0) > 0 ? 1 : 0;
@@ -106,6 +110,7 @@ export function describeFilters(filters, settings) {
         partes.push(`duração até ${formatDuracao(Number(filters.duracaoMax))}`);
     }
     if (filters.somenteEfetivos) partes.push('somente júris efetivos');
+    if (filters.pe === 'com' || filters.pe === 'sem') partes.push(`${filters.pe} processo eletrônico (dos que quem emitiu vê)`);
     if (filters.busca) partes.push(`busca "${filters.busca}"`);
     return partes.length ? `Filtros: ${partes.join('; ')}` : 'Sem filtros aplicados';
 }
@@ -259,6 +264,7 @@ export default function JurimetriaFilters({
     members = [],
     availableComarcas = [],
     availablePromotores = [],
+    pe = null,
     analysis,
     onAnalysisChange,
     className = '',
@@ -445,6 +451,8 @@ export default function JurimetriaFilters({
                                 {availablePromotores.slice(0, 200).map((p) => <option key={p} value={p} />)}
                             </datalist>
                         </div>
+
+                        <FiltroPE pe={pe} value={filters.pe || 'all'} onChange={(v) => set({ pe: v })} className="text-xs text-slate-500 dark:text-slate-400" />
 
                         <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
                             <div className="min-w-0">

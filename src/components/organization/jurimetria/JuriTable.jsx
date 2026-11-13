@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { SeloPE } from '@/components/secretaria/ProcessosVinculados';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -156,6 +157,7 @@ function loadVisible(columns) {
 export default function JuriTable({
     juris,
     settings,
+    peIds = null,
     onView,
     onEdit,
     onDelete,
@@ -396,6 +398,7 @@ export default function JuriTable({
                                                                 />
                                                             )}
                                                             {text || '—'}
+                                                            {peIds?.has(juri.id) && <SeloPE />}
                                                         </span>
                                                     </TableCell>
                                                 );
