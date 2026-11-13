@@ -949,6 +949,62 @@ opcionais; rito sem elas funciona como antes.
   parte 8 do Guia do rito. Testes: `functions-v2/test/andamentoAuto.test.js`
   e `src/lib/andamentoFase.test.js`.
 
+### Fase de espera (13/11/2026)
+
+Para o trabalho que para à espera de alguém de fora (diligência externa,
+informação pedida a terceiros). A fase marcada como **Fase de espera**
+(`fase.espera: true`, em Encaminhamentos) recebe o processo, aguarda e o
+**devolve à fase de onde ele veio**, que é retomada como estava.
+
+- **No rito.** A fase de espera não tem saídas próprias (`proximas`,
+  condições e `final` são descartados) e nunca é a primeira nem a final. Só
+  se entra nela por saída escrita: a fase de origem a lista em
+  Encaminhamentos, como alternativa. Quem não escreveu saídas segue para a
+  seguinte da lista **que não seja de espera** (`fasesSeguintes`). No
+  desenho, a espera aparece com setas de "volta" para as fases que levam a
+  ela.
+- **Ida.** Ao entrar na espera vindo de outra fase, o processo guarda
+  `espera: { fase, unidade, responsavel_uid, desde }`. Ir para a espera
+  **não conclui a fase de origem**: o que falta nela (ações obrigatórias,
+  documentos) não pede dispensa. O termo diz "(fase de espera)".
+- **Volta.** Na espera, a única saída prevista é a fase de origem
+  (`saidasDoProcesso`); outra fase é fora do fluxo e pede motivo. Na volta
+  (`retomada: true` no movimento, "(retomada depois da espera)" no texto),
+  o que já foi cumprido na fase de origem **continua valendo**: ações
+  feitas, respostas e documentos exigidos não recomeçam, ao contrário de
+  uma entrada comum na fase. A marca `espera` sai do processo. A espera tem
+  as suas próprias exigências (ex.: registrar a remessa e o retorno): sair
+  dela sem cumpri-las pede motivo de dispensa, que vai aos autos como em
+  qualquer fase.
+- **Unidade e responsável.** Se a espera corre em outra unidade, a volta
+  devolve o processo à unidade em que ele estava e, se quem respondia por
+  ele ainda está lotado nela, a responsabilidade volta junto. Na mesma
+  unidade, o responsável não muda, mesmo que a fase de origem tire o
+  responsável ao entrar.
+- **Seguir sozinha.** A saída para uma fase de espera é desvio eventual:
+  não conta como caminho do rito (uma fase com as saídas Revisão e
+  Diligências tem, para esse fim, uma saída só). Com "Seguir sozinha"
+  marcada na própria espera, cumprida a última ação obrigatória ela termina
+  e o processo volta (`saidaAutomatica`).
+- **Consulta ou expediente ligado.** A espera pode pôr o registro em
+  "Aguarda retorno de terceiros" (`situacao_registro.ao_entrar`). Na volta,
+  vale a situação da fase de origem: a de "quando alguém assume", se o
+  processo tem responsável; senão, a de "ao entrar".
+- **Tela do processo.** A fase que leva à espera mostra o botão
+  **Aguardar: (nome da fase)**; o botão principal continua seguindo o
+  caminho do rito. Na espera, o cabeçalho diz "em espera · volta para X" e o
+  botão principal é **Encerrar a espera e voltar para X** (ou "devolver
+  para" a unidade de origem).
+- **Registro.** A ida e a volta seguem as regras de Registros das duas
+  fases (vale o mais reservado). Para não gerar evento impresso, deixe a
+  fase de espera como informação.
+- **Limites.** O prazo automático da fase de origem é encerrado na ida e
+  reaberto inteiro na volta. Uma espera dentro de outra mantém a origem da
+  primeira. Rito migrado em que a fase de origem deixou de existir: a volta
+  vira "fora do fluxo" e pede motivo.
+- Testes: `functions-v2/test/faseEspera.test.js` e
+  `src/lib/faseEspera.test.js`. Guia do rito, parte 9.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

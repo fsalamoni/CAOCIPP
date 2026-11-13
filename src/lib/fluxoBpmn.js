@@ -13,7 +13,7 @@ import { niveisDoFluxo, seguintes } from './secretariaRito.js';
 import { chaveDaCondicao, nivelDaAcao, resumoDaAcao, soOrienta, textoCondicao } from './exigencias.js';
 
 /** Rótulo da seta: a condição escrita e, se houver, a regra pela resposta. */
-const rotuloSaida = (f, alvo) => [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo])}` : '']
+const rotuloSaida = (f, alvo) => (f.espera && !f.final ? 'volta' : null) || [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo])}` : '']
     .filter(Boolean).join('; ');
 
 export const TW = 128; // fase (sem as ações)

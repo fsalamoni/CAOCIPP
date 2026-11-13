@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { etapasAteOFim, seguintes } from '@/lib/secretariaRito';
+import { ehEspera, etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import { resumoAndamento } from '@/lib/andamentoFase';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
@@ -51,6 +51,8 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     const [faseId, setFaseIdBruto] = useState('');
     // Simulação: respostas dadas às ações de escolha da fase mostrada (zeram ao trocar de fase, como no processo).
     const [sim, setSim] = useState({});
+    // De que fase a simulação entrou na fase de espera: é para ela que a espera volta.
+    const [veioDe, setVeioDe] = useState('');
     const setFaseId = (v) => { setFaseIdBruto(v); setSim({}); };
     const rito = ritos.find((r) => r.id === ritoId) || ritos[0];
     const fases = rito?.fases || [];
@@ -58,12 +60,17 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     const fase = fases[i];
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || rascunho?.unidades?.find((u) => u.ref === id)?.nome || '';
     const nomeModelo = (id) => (estado.modelos || []).find((m) => m.id === id)?.nome || rascunho?.modelos?.find((m) => m.ref === id)?.nome || 'modelo excluído';
-    const prox = fase ? seguintes(fases, i).map((id) => fases.find((f) => f.id === id)).filter(Boolean) : [];
+    const todas = fase ? seguintes(fases, i).map((id) => fases.find((f) => f.id === id)).filter(Boolean) : [];
+    const deEspera = !!fase && ehEspera(fases, i);
+    // Fases de espera a que esta leva: desvio eventual, fora do caminho do rito.
+    const esperas = deEspera ? [] : todas.filter((f) => ehEspera(fases, fases.indexOf(f)));
+    const prox = deEspera ? (todas.some((f) => f.id === veioDe) ? todas.filter((f) => f.id === veioDe) : todas) : todas.filter((f) => !esperas.includes(f));
     const saidas = fase && prox.length ? saidasComCondicao(fases, fase, sim).filter((s) => prox.some((p) => p.id === s.fase.id)) : [];
     const indicadas = saidas.filter((s) => s.indicada);
     let principal = null;
     if (fase) {
-        if (prox.length === 0) principal = { rotulo: 'Fase final: arquivar', icone: CheckCircle2 };
+        if (deEspera) principal = { rotulo: prox.length === 1 ? `Encerrar a espera e voltar para ${prox[0].nome}` : 'Encerrar a espera e voltar para a fase de onde veio', icone: CheckCircle2 };
+        else if (prox.length === 0) principal = { rotulo: 'Fase final: arquivar', icone: CheckCircle2 };
         else if (prox.length === 1) {
             const outra = prox[0].unidade_id && prox[0].unidade_id !== fase.unidade_id;
             // Saída única com regra pela resposta: sem a resposta, o processo pede motivo para seguir.
@@ -171,12 +178,18 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                         const extra = [fase.condicoes?.[f.id], c ? `quando ${textoCondicao(fase, c)}` : null].filter(Boolean).join('; ');
                                         return `${f.nome}${extra ? ` (${extra})` : ''}${s?.indicada ? ' [indicada]' : s?.contra ? ' [pede motivo]' : ''}`;
                                     }).join(' · ')}</p>}
-                                    {prox.length > 0 && (
+                                    {esperas.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-300">Pode aguardar em {esperas.map((x) => x.nome).join(' ou ')} e depois voltar para esta fase, retomada como estava.</p>}
+                                    {prox.length + esperas.length > 0 && (
                                         <div className="flex flex-wrap items-center gap-2 border-t border-indigo-200/70 dark:border-indigo-900 pt-2">
                                             <span className="text-xs text-slate-600 dark:text-slate-300">Simular o andamento:</span>
                                             {prox.map((p) => (
                                                 <Button key={p.id} size="sm" variant={saidas.find((s) => s.fase.id === p.id)?.indicada ? 'default' : 'outline'} className="gap-1" onClick={() => setFaseId(p.id)}>
-                                                    Ir para {p.nome} <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+                                                    {deEspera ? 'Voltar para' : 'Ir para'} {p.nome} <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+                                                </Button>
+                                            ))}
+                                            {esperas.map((p) => (
+                                                <Button key={p.id} size="sm" variant="outline" className="gap-1" onClick={() => { setVeioDe(fase.id); setFaseId(p.id); }}>
+                                                    Aguardar em {p.nome} <ArrowRight className="w-3.5 h-3.5" aria-hidden />
                                                 </Button>
                                             ))}
                                         </div>
@@ -205,7 +218,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     {camposPartes.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Dados do processo que a parte vê: {camposPartes.map((c) => c.rotulo).join(', ')}.</p>}
                                     <p className="text-xs text-slate-600 dark:text-slate-400">A parte nunca vê orientações internas, condições nem o que o rito deixou fora do portal. Unidades, só pelo nome, nos termos de remessa que vão aos autos.</p>
                                 </div>
-                                <FluxoRito fases={fases.map((f) => ({ id: f.id, nome: f.nome_publico || f.nome, proximas: f.proximas, final: f.final }))} atual={fase.id} />
+                                <FluxoRito fases={fases.map((f) => ({ id: f.id, nome: f.nome_publico || f.nome, proximas: f.proximas, final: f.final, espera: f.espera }))} atual={fase.id} />
                             </TabsContent>
                             <TabsContent value="autos" className="space-y-3">
                                 <div className="rounded-lg border p-3 space-y-2">

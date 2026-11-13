@@ -1,4 +1,5 @@
 import { chaveCampo, novoCampo } from './camposProcesso.js';
+import { seguintes } from './secretariaRito.js';
 // ============================================================================
 // Espelho, para a tela, das regras do rito (functions-v2/src/shared/
 // exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
@@ -211,11 +212,10 @@ export function tirarDoGrupo(fases, id) {
 
 /** Fases para onde a fase segue: as saídas do rito ou, sem saídas, a próxima da lista. */
 export function saidasDaFase(fases, f) {
-    if (!f || f.final) return [];
-    const ids = (f.proximas || []).filter((id) => id !== f.id);
-    if (ids.length) return ids.map((id) => fases.find((x) => x.id === id)).filter(Boolean);
-    const i = fases.findIndex((x) => x.id === f.id);
-    return fases[i + 1] ? [fases[i + 1]] : [];
+    // Mesma conta do desenho do fluxo: a seguinte da lista pula a fase de espera, e a de espera volta para quem leva a ela.
+    const i = fases.findIndex((x) => x.id === f?.id);
+    if (i < 0) return [];
+    return seguintes(fases, i).filter((id) => id !== f.id).map((id) => fases.find((x) => x.id === id)).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------

@@ -50,6 +50,11 @@ export interface Fase {
     proximas?: string[];
     /** Fase terminal: o fluxo acaba nela, mesmo que não seja a última da lista. */
     final?: boolean;
+    /**
+     * Fase de espera (ex.: diligência externa): o processo entra nela por uma saída escrita de outra fase,
+     * aguarda e volta para a fase de onde veio, que é retomada como estava (ver `saidasDoProcesso`).
+     */
+    espera?: true;
     /** Unidade que cuida da fase (sugestão de tramitação ao entrar nela). */
     unidade_id?: string;
     /** Quem faz (cargo ou papel), ex.: "Analista", "Promotor". */
@@ -201,9 +206,10 @@ export function sanitizeRito(input: unknown): Rito {
         while (vistos.has(id)) id = `${id}_${i}`;
         vistos.add(id);
         if (original) ids.set(original, id);
-        return { fo, id, nomeFase };
+        // Fase de espera: nunca a primeira (o processo precisa ter de onde vir) nem a final.
+        return { fo, id, nomeFase, espera: fo.espera === true && i > 0 && fo.final !== true };
     });
-    const fases: Fase[] = brutas.map(({ fo, id, nomeFase }, i) => {
+    const fases: Fase[] = brutas.map(({ fo, id, nomeFase, espera }, i) => {
         const prazo = Number(fo.prazo_dias);
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
@@ -215,7 +221,7 @@ export function sanitizeRito(input: unknown): Rito {
         const situacaoRegistro = sanitizeSituacaoRegistro(fo.situacao_registro);
         const orientacao = texto(fo.orientacao, MAX_TEXTO_LONGO);
         const final = fo.final === true;
-        const proximas = !final && Array.isArray(fo.proximas)
+        const proximas = !final && !espera && Array.isArray(fo.proximas)
             ? [...new Set(fo.proximas.map((x) => {
                 const alvo = ids.get(String(x)) ?? (vistos.has(String(x)) ? String(x) : null);
                 if (!alvo) throw new Error(`A fase "${nomeFase}" aponta para uma fase que não existe`);
@@ -246,7 +252,7 @@ export function sanitizeRito(input: unknown): Rito {
         // Saída pela resposta: só para saídas que existem (as explícitas, ou a seguinte da lista quando não há).
         const condicoesRegra: Record<string, Condicao> = {};
         if (fo.condicoes_regra && typeof fo.condicoes_regra === 'object') {
-            const saidas = final ? [] : proximas.length ? proximas : (brutas[i + 1] ? [brutas[i + 1].id] : []);
+            const saidas = final || espera ? [] : proximas.length ? proximas : brutas.slice(i + 1).filter((b) => !b.espera).slice(0, 1).map((b) => b.id);
             for (const [k, v] of Object.entries(fo.condicoes_regra as Record<string, unknown>)) {
                 const alvo = ids.get(k) ?? (vistos.has(k) ? k : null);
                 if (!alvo || !saidas.includes(alvo)) continue;
@@ -278,6 +284,7 @@ export function sanitizeRito(input: unknown): Rito {
             ...(orientacao ? { orientacao } : {}),
             ...(proximas.length ? { proximas } : {}),
             ...(final ? { final: true } : {}),
+            ...(espera ? { espera: true as const } : {}),
             ...(unidade ? { unidade_id: unidade } : {}),
             ...(agente ? { agente } : {}),
             ...(acoes.length ? { acoes } : {}),
@@ -327,9 +334,25 @@ export function fasesSeguintes(fases: Fase[], atualId: string): Fase[] {
     const i = fases.findIndex((f) => f.id === atualId);
     if (i < 0) return [];
     const atual = fases[i];
-    if (atual.final) return [];
+    // Fase de espera não tem saída no rito: a volta depende de onde o processo veio (`saidasDoProcesso`).
+    if (atual.final || atual.espera) return [];
     if (atual.proximas?.length) return atual.proximas.map((id) => fases.find((f) => f.id === id)).filter((f): f is Fase => !!f);
-    return i < fases.length - 1 ? [fases[i + 1]] : [];
+    // Sem saída escrita, segue para a seguinte da lista; em fase de espera só se entra por saída escrita.
+    const seguinte = fases.slice(i + 1).find((f) => !f.espera);
+    return seguinte ? [seguinte] : [];
+}
+
+/** De onde o processo veio ao entrar numa fase de espera: para lá ele volta. */
+export interface Espera { fase: string; unidade: string; responsavel_uid?: string | null; desde?: string }
+
+/** Saídas previstas para o processo agora: as do rito ou, numa fase de espera, a fase de onde ele veio. */
+export function saidasDoProcesso(proc: { fases?: unknown; fase_atual?: unknown; espera?: unknown }): Fase[] {
+    const fases = (Array.isArray(proc.fases) ? proc.fases : []) as Fase[];
+    const atual = fases.find((f) => f.id === proc.fase_atual);
+    if (!atual?.espera) return fasesSeguintes(fases, String(proc.fase_atual));
+    const origem = (proc.espera as Espera | null | undefined)?.fase;
+    const volta = fases.find((f) => f.id === origem && !f.espera);
+    return volta ? [volta] : [];
 }
 
 /**
@@ -339,15 +362,23 @@ export function fasesSeguintes(fases: Fase[], atualId: string): Fase[] {
  * o botão). Quem chama confere antes que nada obrigatório está em aberto.
  */
 export function saidaAutomatica(
-    proc: { fases?: unknown; fase_atual?: unknown; status?: unknown; fase_suspensa?: unknown; unidade_atual?: unknown; acoes_respostas?: unknown },
+    proc: { fases?: unknown; fase_atual?: unknown; status?: unknown; fase_suspensa?: unknown; unidade_atual?: unknown; acoes_respostas?: unknown; espera?: unknown },
     unidadesAtivas: string[],
 ): { fase_id: string; unidade_destino?: string } | null {
     const fases = (Array.isArray(proc.fases) ? proc.fases : []) as Fase[];
     const atual = fases.find((f) => f.id === proc.fase_atual);
     if (!atual || atual.avanco !== 'auto' || proc.status !== 'em_tramitacao' || proc.fase_suspensa === true) return null;
+    if (atual.espera) {
+        // Fim da espera: volta para a fase de origem, na unidade em que o processo estava.
+        const volta = saidasDoProcesso(proc)[0];
+        const un = (proc.espera as Espera | null | undefined)?.unidade;
+        if (!volta) return null;
+        return { fase_id: volta.id, ...(un && un !== proc.unidade_atual && unidadesAtivas.includes(un) ? { unidade_destino: un } : {}) };
+    }
     const resp = respostasDaFase(proc);
     const cabe = (f: Fase) => !atual.condicoes_regra?.[f.id] || condicaoAtendida(atual.condicoes_regra[f.id], resp, atual);
-    const seguintes = fasesSeguintes(fases, atual.id);
+    // A saída para uma fase de espera é desvio eventual: não conta como caminho do rito.
+    const seguintes = fasesSeguintes(fases, atual.id).filter((f) => !f.espera);
     const indicadas = seguintes.filter((f) => atual.condicoes_regra?.[f.id] && cabe(f));
     const alvo = seguintes.length === 1 ? (cabe(seguintes[0]) ? seguintes[0] : null) : indicadas.length === 1 ? indicadas[0] : null;
     if (!alvo) return null;
@@ -357,7 +388,7 @@ export function saidaAutomatica(
 
 /** Fase seguinte no fluxo (a primeira, se houver ramificação), ou null. */
 export function proximaFase(rito: Rito, faseAtualId: string): Fase | null {
-    return fasesSeguintes(rito.fases, faseAtualId)[0] || null;
+    return fasesSeguintes(rito.fases, faseAtualId).find((f) => !f.espera) || null;
 }
 
 /** Quem tem o processo consigo: lotados na unidade que detém a posse. */

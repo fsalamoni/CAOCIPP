@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    fasesSeguintes, hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, proximaFase, saidaAutomatica, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
+    hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
@@ -271,6 +271,23 @@ function aplicarSituacao(
     };
 }
 
+/**
+ * Fase de espera: entrar nela guarda de onde o processo veio (fase, unidade e
+ * responsável); sair dela apaga. A volta para a fase de origem é a retomada.
+ */
+function camposDaEspera(proc: admin.firestore.DocumentData, de: Fase | undefined, para: Fase): Record<string, unknown> {
+    if (para.espera) {
+        if (de?.espera) return {};
+        const espera: Espera = { fase: String(proc.fase_atual), unidade: String(proc.unidade_atual), responsavel_uid: proc.responsavel_uid || null, desde: new Date().toISOString() };
+        return { espera };
+    }
+    return de?.espera && proc.espera ? { espera: FieldValue.delete() } : {};
+}
+/** O processo está voltando da espera para a fase de onde veio? Ela é retomada como estava. */
+const ehRetomada = (proc: admin.firestore.DocumentData, de: Fase | undefined, para: Fase | null | undefined): boolean =>
+    !!para && de?.espera === true && (proc.espera as Espera | undefined)?.fase === para.id;
+const marcaEspera = (retomada: boolean, para: Fase): string => (retomada ? ' (retomada depois da espera)' : para.espera ? ' (fase de espera)' : '');
+
 /** Fase que arquiva ao entrar: o arquivamento é um ato próprio, logo depois da mudança de fase. */
 function arquivarPelaFase(tx: admin.firestore.Transaction, c: Ctx, ref: admin.firestore.DocumentReference, proc: admin.firestore.DocumentData, fase: Fase): Record<string, unknown> {
     const mov = registrarMovimento(tx, c, ref, proc, 'situacao', `Arquivado pela regra da fase ${fase.nome}.`, { de: proc.status, para: 'arquivado', automatico: true });
@@ -410,6 +427,8 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         version: d.version,
         pendencias_abertas: d.pendencias_abertas || 0,
         fase_suspensa: d.fase_suspensa === true,
+        // Em fase de espera: a fase e a unidade para onde o processo volta.
+        espera: d.espera ? { fase: String(d.espera.fase || ''), unidade: String(d.espera.unidade || ''), desde: String(d.espera.desde || '') } : null,
         proximo_vencimento: d.proximo_vencimento || null,
         // Calendário: até 5 prazos abertos (data e descrição curta), só em tramitação. Sem destinatário.
         prazos_abertos: d.status === 'em_tramitacao'
@@ -691,6 +710,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
                 consolidacao: data.consolidacao || null,
                 exigencias_cumpridas: data.exigencias_cumpridas || {},
+                // Em fase de espera: a fase e a unidade para onde o processo volta.
+                espera: data.espera ? { fase: String(data.espera.fase || ''), unidade: String(data.espera.unidade || ''), desde: String(data.espera.desde || '') } : null,
                 campos_exigidos: data.campos_exigidos || {},
             },
             hoje: hojeBrasil(),
@@ -916,7 +937,12 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (p.fase_id && !novaFase) throw new HttpsError('invalid-argument', 'Fase inválida');
             if (novaFase && novaFase.id === data.fase_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa fase');
             if (novaFase && data.fase_suspensa === true) throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
-            const foraDoFluxo = !!novaFase && !fasesSeguintes(fases, data.fase_atual).some((f) => f.id === novaFase.id);
+            const foraDoFluxo = !!novaFase && !saidasDoProcesso(data).some((f) => f.id === novaFase.id);
+            const faseSai = fases.find((f) => f.id === data.fase_atual);
+            const retomada = ehRetomada(data, faseSai, novaFase);
+            // De volta à unidade em que estava: quem respondia pelo processo volta a responder, se ainda estiver lotado nela.
+            const esp = data.espera as Espera | undefined;
+            const responsavelDeVolta = retomada && esp?.responsavel_uid && destino.id === esp.unidade && (destino.membros_uids || []).includes(esp.responsavel_uid) ? esp.responsavel_uid : null;
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${novaFase!.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = novaFase && !foraDoFluxo ? foraDaCondicao(data, novaFase.id) : null;
             if (contraCondicao && !motivo) throw new HttpsError('invalid-argument', `O rito leva a ${novaFase!.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
@@ -937,7 +963,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     throw new HttpsError('invalid-argument', 'Só seguem com o processo minutas que estão com a unidade que remete');
                 }
             }
-            const dispensadas = novaFase ? dispensarExigencias(data, motivo, formAtual) : [];
+            // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
+            const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(data, motivo, formAtual) : [];
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, novaFase?.id);
@@ -948,14 +975,14 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (em.proc !== data) expedidas = 2;
             // A remessa já tira o responsável: os efeitos não repetem isso.
             const efFase = novaFase ? efeitosDaMudanca({ ...data, responsavel_uid: null }, String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
-            const sit = aplicarSituacao(tx, c, registros, novaFase, 'ao_entrar', data);
+            const sit = aplicarSituacao(tx, c, registros, novaFase, responsavelDeVolta && novaFase?.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data);
             registroArquivado = sit.arquivou;
             const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
             const mov = registrarMovimento(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao',
                 `${conclusao ? 'Conclusos a' : 'Remetido de ' + com(nomeUnidade(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
-                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${ef.texto}` : ''}`
+                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${marcaEspera(retomada, novaFase)}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${ef.texto}` : ''}`
                 + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}${textoAuto}`,
-                { de: data.unidade_atual, para: destino.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}) } : {}),
+                { de: data.unidade_atual, para: destino.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(retomada ? { retomada: true } : {}), ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}) } : {}),
                     ...(dispensadas.length ? { dispensadas } : {}), ...marcasDoDestino(destinoMov), ...(idsMinutas.length ? { minutas: idsMinutas } : {}) });
             const mi = registrarInternos(tx, c, ref, { ...em.proc, ...mov }, ef.interno);
             if (ef.interno.length) expedidas += 1;
@@ -969,9 +996,10 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 ...ma,
                 unidade_atual: destino.id,
                 unidades_historico: FieldValue.arrayUnion(destino.id),
-                responsavel_uid: null,
+                responsavel_uid: responsavelDeVolta,
                 recebido_em: new Date().toISOString(),
-                ...(novaFase ? { fase_atual: novaFase.id, ...camposAoEntrarNaFase(data, novaFase.id), ...ef.campos } : {}),
+                // Retomada: o que já foi cumprido na fase de origem continua valendo.
+                ...(novaFase ? { fase_atual: novaFase.id, ...(retomada ? {} : camposAoEntrarNaFase(data, novaFase.id)), ...ef.campos, ...camposDaEspera(data, faseSai, novaFase) } : {}),
                 orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: nomeUnidade(c, data.unidade_atual) }
                     : FieldValue.delete(),
@@ -1216,37 +1244,42 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const fases = (data.fases || []) as Fase[];
             const alvo = p.fase_id
                 ? fases.find((f) => f.id === p.fase_id)
-                : proximaFase({ nome: '', descricao: '', fases }, data.fase_atual);
+                : saidasDoProcesso(data).find((f) => !f.espera) || null;
             if (!alvo) throw new HttpsError('invalid-argument', 'Não há fase seguinte; escolha uma fase do rito');
             if (alvo.id === data.fase_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa fase');
             if (data.fase_suspensa === true) {
                 throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
             }
             // Sair do fluxo desenhado no rito é permitido, mas exige justificativa.
-            const foraDoFluxo = !fasesSeguintes(fases, data.fase_atual).some((f) => f.id === alvo.id);
+            const foraDoFluxo = !saidasDoProcesso(data).some((f) => f.id === alvo.id);
+            const faseSai = fases.find((f) => f.id === data.fase_atual);
+            const retomada = ehRetomada(data, faseSai, alvo);
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = foraDoFluxo ? null : foraDaCondicao(data, alvo.id);
             if (contraCondicao && !motivo) throw new HttpsError('invalid-argument', `O rito leva a ${alvo.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
-            const dispensadas = dispensarExigencias(data, motivo, formAtual);
+            // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
+            const dispensadas = alvo.espera ? [] : dispensarExigencias(data, motivo, formAtual);
             const destinoMov = dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
             // Motivo longo não se resume numa certidão conjunta: a mudança tem termo próprio.
             const grupo = grupoDe(alvo);
-            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}${textoAuto}`;
+            const descricao = `Fase alterada de ${de} para ${alvo.nome}${marcaEspera(retomada, alvo)}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}${textoAuto}`;
             // A fase de destino pode arquivar ao entrar: a certidão pendente sai antes e a mudança tem termo próprio.
             const arquiva = alvo.ao_entrar?.arquivar === true;
             const junta = !arquiva && !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= MAX_ITEM_CERTIDAO && mudancaNaCertidao(fases, data.fase_atual, alvo.id);
             const item: ItemCertidao = { seq: 0, fase_id: data.fase_atual, texto: descricao.replace(/\.$/, ''), autor: c.userName, em: new Date().toISOString(), partes: destinoMov === 'autos' };
             const em = emitirSe(arquiva || deveEmitir(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
-            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName);
-            const sit = aplicarSituacao(tx, c, registros, alvo, 'ao_entrar', data);
+            // Retomada: quem respondia pelo processo continua, mesmo que a fase tire o responsável ao entrar.
+            const alvoEf = retomada && alvo.ao_entrar?.sem_responsavel ? { ...alvo, ao_entrar: { ...alvo.ao_entrar, sem_responsavel: undefined } } : alvo;
+            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvoEf, calendario, c.userName);
+            const sit = aplicarSituacao(tx, c, registros, alvo, retomada && data.responsavel_uid && alvo.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data);
             registroArquivado = sit.arquivou;
             const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
             const mov = registrarMovimento(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`,
-                { de: data.fase_atual, para: alvo.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}), ...(dispensadas.length ? { dispensadas } : {}),
+                { de: data.fase_atual, para: alvo.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(retomada ? { retomada: true } : {}), ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}), ...(dispensadas.length ? { dispensadas } : {}),
                     ...(junta ? { consolidada: true, ...marcasDoDestino('nenhum') } : marcasDoDestino(destinoMov)) });
             const consolidacao = junta
                 ? { consolidacao: itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) }) }
@@ -1255,7 +1288,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (ef.interno.length) expedidas += 1;
             const ma = arquiva ? arquivarPelaFase(tx, c, ref, { ...em.proc, ...mov, ...mi }, alvo) : {};
             if (arquiva) expedidas += 1;
-            tx.update(ref, { ...em.mov, ...mov, ...mi, ...ma, ...consolidacao, fase_atual: alvo.id, ...camposAoEntrarNaFase(data, alvo.id), ...ef.campos });
+            tx.update(ref, { ...em.mov, ...mov, ...mi, ...ma, ...consolidacao, fase_atual: alvo.id, ...(retomada ? {} : camposAoEntrarNaFase(data, alvo.id)), ...ef.campos, ...camposDaEspera(data, faseSai, alvo) });
             return { ...mov, ...mi, ...ma };
         }
 

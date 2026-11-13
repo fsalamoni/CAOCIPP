@@ -14,20 +14,62 @@ export const novoIdFase = () => `f${Date.now().toString(36)}${(seq++).toString(3
 
 const sem = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
-/** Seguintes efetivas de cada fase (as explícitas ou a próxima da lista). */
+/**
+ * Fase de espera (ex.: diligência externa): o processo entra nela por uma
+ * saída escrita de outra fase e volta para a fase de onde veio. Nunca é a
+ * primeira nem a final (o servidor descarta a marca nesses casos).
+ */
+export const ehEspera = (fases, i) => i > 0 && fases[i]?.espera === true && !fases[i].final;
+
+/** Quem não escreveu saídas segue para a próxima da lista que não é de espera. */
+const seguinteDaLista = (fases, i) => {
+    const k = fases.findIndex((x, j) => j > i && !ehEspera(fases, j));
+    return k < 0 ? [] : [fases[k].id];
+};
+
+/** Fases que levam a uma fase de espera: é para uma delas que o processo volta. */
+export function origensDaEspera(fases, id) {
+    return fases.filter((x, k) => x.id !== id && !x.final && !ehEspera(fases, k) && (x.proximas || []).includes(id)).map((x) => x.id);
+}
+
+/**
+ * Seguintes efetivas de cada fase (as explícitas ou a próxima da lista). A
+ * fase de espera "segue" para as fases que levam a ela (a volta).
+ */
 export function seguintes(fases, i) {
     const f = fases[i];
     if (f?.final) return [];
+    if (ehEspera(fases, i)) return origensDaEspera(fases, f.id);
     if (f?.proximas?.length) return f.proximas.filter((id) => fases.some((x) => x.id === id));
-    return i < fases.length - 1 ? [fases[i + 1].id] : [];
+    return seguinteDaLista(fases, i);
+}
+
+/**
+ * Saídas do processo agora, como o servidor entende: `caminho` (as fases do
+ * rito, sem as de espera), `esperas` (fases de espera a que a atual leva) e
+ * `volta` (em fase de espera: a fase de onde o processo veio).
+ */
+export function saidasDoProcesso(p) {
+    const fases = p?.fases || [];
+    const i = fases.findIndex((f) => f.id === p?.fase_atual);
+    const fase = (id) => fases.find((f) => f.id === id);
+    if (i < 0) return { caminho: [], esperas: [], volta: null };
+    if (ehEspera(fases, i)) {
+        const volta = fase(p.espera?.fase) || null;
+        return { caminho: volta ? [volta] : [], esperas: [], volta };
+    }
+    const todas = seguintes(fases, i).map(fase).filter(Boolean);
+    const deEspera = (f) => ehEspera(fases, fases.indexOf(f));
+    return { caminho: todas.filter((f) => !deEspera(f)), esperas: todas.filter(deEspera), volta: null };
 }
 
 /** Saídas como o servidor vai gravar (sem a própria fase e sem as que não existem; vazio = a seguinte da lista). */
 function saidasGravadas(fases, i, ids) {
     const f = fases[i];
     if (f.final) return [];
+    if (ehEspera(fases, i)) return origensDaEspera(fases, f.id);
     const p = (f.proximas || []).filter((id) => id !== f.id && ids.has(id));
-    return p.length ? p : i < fases.length - 1 ? [fases[i + 1].id] : [];
+    return p.length ? p : seguinteDaLista(fases, i);
 }
 
 /**
@@ -76,8 +118,11 @@ export function copiarFases(fases, validos = new Set(), origem = null) {
         const c = JSON.parse(JSON.stringify(f));
         c.id = mapa.get(f.id);
         const i = origem ? origem.findIndex((x) => x.id === f.id) : -1;
-        const antes = i >= 0 ? saidasGravadas(origem, i, ids) : (c.proximas || []);
-        if (i >= 0 || c.proximas) c.proximas = antes.map(novo).filter(Boolean);
+        // Fase de espera não tem saída própria: volta para quem levar a ela no rito que a recebe.
+        const espera = c.espera === true && !c.final;
+        const antes = espera ? [] : i >= 0 ? saidasGravadas(origem, i, ids) : (c.proximas || []);
+        if (espera) delete c.proximas;
+        else if (i >= 0 || c.proximas) c.proximas = antes.map(novo).filter(Boolean);
         if (!c.final && antes.length && !c.proximas.length) { c.final = true; c.sem_saida = true; }
         if (c.condicoes) c.condicoes = Object.fromEntries(Object.entries(c.condicoes).map(([k, v]) => [novo(k), v]).filter(([k]) => k));
         if (c.condicoes_regra) {
@@ -97,11 +142,12 @@ export function copiarFases(fases, validos = new Set(), origem = null) {
 /** Remove `proximas` que só repetem o fluxo linear, para o rito ficar simples. */
 export function simplificar(fases) {
     return fases.map((f, i) => {
-        const linear = i < fases.length - 1 ? [fases[i + 1].id] : [];
+        const linear = seguinteDaLista(fases, i);
         const p = (f.proximas || []).filter((id) => id !== f.id && fases.some((x) => x.id === id));
         const igual = p.length === linear.length && p.every((id, k) => id === linear[k]);
         const { proximas: _p, final, ...resto } = f;
         if (final) return i < fases.length - 1 ? { ...resto, final: true } : resto;
+        if (ehEspera(fases, i)) return resto;
         // Saída com condição escrita fica explícita, mesmo sendo a seguinte da lista.
         const temCondicao = Object.keys(resto.condicoes || {}).length > 0 || Object.keys(resto.condicoes_regra || {}).length > 0;
         return (igual && !temCondicao) || p.length === 0 ? resto : { ...resto, proximas: p };
@@ -263,7 +309,8 @@ export function niveisDoFluxo(fases) {
     const nivel = new Map();
     if (!fases.length) return nivel;
     const idx = new Map(fases.map((f, i) => [f.id, i]));
-    const saidas = new Map(fases.map((f, i) => [f.id, seguintes(fases, i)]));
+    // A volta da fase de espera não conta para a posição: ela fica depois de quem leva a ela.
+    const saidas = new Map(fases.map((f, i) => [f.id, ehEspera(fases, i) ? [] : seguintes(fases, i)]));
     // 1) Voltas: arestas para um nó ainda na pilha da busca em profundidade.
     const avante = new Map(fases.map((f) => [f.id, []]));
     const estado = new Map(); // 1 = na pilha, 2 = concluído
