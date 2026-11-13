@@ -10,6 +10,7 @@ import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFieldValue } from '@/lib/fieldTypes';
 import { updateRecord } from '@/services/customEntitiesService';
+import { SeloPE } from '@/components/secretaria/ProcessosVinculados';
 
 /**
  * Kanban genérico — colunas = fases do tipo de entidade.
@@ -18,7 +19,7 @@ import { updateRecord } from '@/services/customEntitiesService';
  */
 export default function GenericKanbanBoard({
     entityType, records = [], isLoading, members = [], canEdit, canCreate,
-    onCreate, onOpen, onChanged,
+    onCreate, onOpen, onChanged, pe = null,
 }) {
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
     const [activeId, setActiveId] = useState(null);
@@ -145,6 +146,7 @@ export default function GenericKanbanBoard({
                             typesByKey={typesByKey}
                             onOpen={onOpen}
                             draggable={canEdit}
+                            pe={pe}
                         />
                     ))}
                 </div>
@@ -155,6 +157,7 @@ export default function GenericKanbanBoard({
                             primaryFields={primaryFields}
                             membersById={membersById}
                             typesByKey={typesByKey}
+                            comPE={!!pe?.ids.has(activeRecord.id)}
                             dragging
                         />
                     )}
@@ -164,7 +167,7 @@ export default function GenericKanbanBoard({
     );
 }
 
-function KanbanColumn({ phase, records, primaryFields, membersById, typesByKey, onOpen, draggable }) {
+function KanbanColumn({ phase, records, primaryFields, membersById, typesByKey, onOpen, draggable, pe }) {
     const { setNodeRef, isOver } = useDroppable({ id: phase.key });
     const overLimit = phase.wip_limit && records.length > phase.wip_limit;
     return (
@@ -197,6 +200,7 @@ function KanbanColumn({ phase, records, primaryFields, membersById, typesByKey, 
                             typesByKey={typesByKey}
                             onOpen={onOpen}
                             draggable={draggable}
+                            comPE={!!pe?.ids.has(r.id)}
                         />
                     ))
                 )}
@@ -205,7 +209,7 @@ function KanbanColumn({ phase, records, primaryFields, membersById, typesByKey, 
     );
 }
 
-function DraggableCard({ record, primaryFields, membersById, typesByKey, onOpen, draggable }) {
+function DraggableCard({ record, primaryFields, membersById, typesByKey, onOpen, draggable, comPE }) {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: record.id, disabled: !draggable,
     });
@@ -224,12 +228,13 @@ function DraggableCard({ record, primaryFields, membersById, typesByKey, onOpen,
                 primaryFields={primaryFields}
                 membersById={membersById}
                 typesByKey={typesByKey}
+                comPE={comPE}
             />
         </div>
     );
 }
 
-function RecordCardContent({ record, primaryFields, membersById, typesByKey, dragging }) {
+function RecordCardContent({ record, primaryFields, membersById, typesByKey, dragging, comPE }) {
     const type = typesByKey?.[record.record_type];
     return (
         <Card
@@ -246,7 +251,7 @@ function RecordCardContent({ record, primaryFields, membersById, typesByKey, dra
                 const val = formatFieldValue(f, record.values?.[f.key], { membersById });
                 return (
                     <div key={f.key} className={i === 0 ? 'font-medium text-sm truncate' : 'text-xs text-muted-foreground truncate'}>
-                        {i === 0 ? val : <><span className="opacity-70">{f.label}: </span>{val}</>}
+                        {i === 0 ? (comPE ? <span className="flex items-center gap-1.5 min-w-0"><span className="truncate">{val}</span><SeloPE /></span> : val) : <><span className="opacity-70">{f.label}: </span>{val}</>}
                     </div>
                 );
             })}

@@ -1542,7 +1542,10 @@ admin define, em cada tipo, o que quem autua preenche:
   integração ligada), a ficha do registro (`GenericRecordDetailSheet`) com
   "Processos eletrônicos" e "Criar processo eletrônico", `?abrir=<id>` na
   lista do tipo (`CustomEntityView`) e "Abrir" da Capa em `tab=clist:<id>`
-  (`abaDoRegistro`).
+  (`abaDoRegistro`). A lista e o painel da página mostram o selo "PE" (ao
+  lado da fase) nos registros com processo que a pessoa vê, e a lista tem o
+  filtro "Processo eletrônico", com a mesma ação `indice` das outras listas
+  (`useComPE(organization, 'paginas')`).
 - **Integrações com outros módulos** (nov/2026): no Painel Administrativo,
   a aba "Integrações" liga Consultas, Expedientes,
   Parcerias, Júri e páginas próprias aos processos (`secretariaConfig.integracoes`, ação

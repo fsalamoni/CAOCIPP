@@ -9,14 +9,15 @@ import GenericRecordForm from './GenericRecordForm';
 import GenericRecordDetailSheet from './GenericRecordDetailSheet';
 import SpreadsheetImportDialog from './SpreadsheetImportDialog';
 import { useAbrirDaUrl } from '@/hooks/useAbrirDaUrl';
+import { useComPE } from '@/components/secretaria/ProcessosVinculados';
 
 /**
  * Orquestra a visualização de um tipo de entidade personalizado.
  * props:
  *   - mode: 'panel' | 'list' | 'summary'
- *   - entityTypeId, organizationId, members, userRole
+ *   - entityTypeId, organizationId, organization, members, userRole
  */
-export default function CustomEntityView({ mode, entityTypeId, organizationId, members = [], userRole }) {
+export default function CustomEntityView({ mode, entityTypeId, organizationId, organization, members = [], userRole }) {
     const { entityType, isLoading: typeLoading } = useEntityType(entityTypeId);
     const { records, isLoading: recordsLoading } = useRecords(organizationId, entityTypeId);
 
@@ -25,6 +26,8 @@ export default function CustomEntityView({ mode, entityTypeId, organizationId, m
     const [detailRecord, setDetailRecord] = useState(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
+    // Selo e filtro "PE": registros desta página com processo eletrônico que a pessoa vê.
+    const pe = useComPE(organization, 'paginas');
 
     const canEdit = ['creator', 'admin', 'member'].includes(userRole);
     const canCreate = canEdit;
@@ -75,6 +78,7 @@ export default function CustomEntityView({ mode, entityTypeId, organizationId, m
                     onCreate={openCreate}
                     onOpen={openDetail}
                     onChanged={() => {}}
+                    pe={pe}
                 />
             )}
 
@@ -87,6 +91,7 @@ export default function CustomEntityView({ mode, entityTypeId, organizationId, m
                     canCreate={canCreate}
                     onCreate={openCreate}
                     onOpen={openDetail}
+                    pe={pe}
                 />
             )}
 

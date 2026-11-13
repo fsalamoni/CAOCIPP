@@ -5,6 +5,12 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Selo PE nas páginas próprias
+- A lista e o painel de cada página própria mostram o selo **PE** nos
+  registros que têm processo eletrônico, e a lista ganhou o filtro
+  **Processo eletrônico** (qualquer, com ou sem), como em Consultas,
+  Expedientes, Parcerias e Júri.
+
 ### 13/11/2026 — Páginas próprias ligadas aos processos
 - Em **Integrações**, as páginas próprias do órgão (as páginas personalizadas
   com tabela, formulário e fases) entram como mais um módulo. Ligada, o tipo

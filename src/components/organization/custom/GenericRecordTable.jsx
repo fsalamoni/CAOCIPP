@@ -9,15 +9,18 @@ import { Card } from '@/components/ui/card';
 import { Plus, Search, Eye, Loader2 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatFieldValue } from '@/lib/fieldTypes';
+import { FiltroPE, SeloPE, filtrarPE } from '@/components/secretaria/ProcessosVinculados';
 
 /**
  * Tabela genérica de registros.
- * props: entityType, records, isLoading, members, canCreate, onCreate, onOpen(record)
+ * props: entityType, records, isLoading, members, canCreate, onCreate, onOpen(record),
+ *   pe (useComPE: selo e filtro "Processo eletrônico", ou null)
  */
 export default function GenericRecordTable({
-    entityType, records = [], isLoading, members = [], canCreate, onCreate, onOpen,
+    entityType, records = [], isLoading, members = [], canCreate, onCreate, onOpen, pe = null,
 }) {
     const [search, setSearch] = useState('');
+    const [peFilter, setPeFilter] = useState('all');
 
     const membersById = useMemo(
         () => Object.fromEntries(members.map((m) => [m.user_id || m.id, m])),
@@ -48,9 +51,10 @@ export default function GenericRecordTable({
     );
 
     const filtered = useMemo(() => {
-        if (!search.trim()) return records;
+        const base = filtrarPE(records, pe, peFilter);
+        if (!search.trim()) return base;
         const q = search.toLowerCase();
-        return records.filter((r) => {
+        return base.filter((r) => {
             const inColumns = columns.some((c) => {
                 const txt = formatFieldValue(c, r.values?.[c.key], { membersById });
                 return String(txt).toLowerCase().includes(q);
@@ -59,19 +63,24 @@ export default function GenericRecordTable({
             const typeLabel = typesByKey[r.record_type]?.label;
             return typeLabel ? typeLabel.toLowerCase().includes(q) : false;
         });
-    }, [records, search, columns, membersById, typesByKey]);
+    }, [records, search, columns, membersById, typesByKey, pe, peFilter]);
+    const filtrando = !!search.trim() || filtered.length !== records.length;
 
     return (
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
-                <div className="relative max-w-sm w-full">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder={`Buscar ${entityType?.label_plural?.toLowerCase() || 'registros'}...`}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8"
-                    />
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-end w-full sm:w-auto">
+                    <div className="relative max-w-sm w-full">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder={`Buscar ${entityType?.label_plural?.toLowerCase() || 'registros'}...`}
+                            aria-label={`Buscar ${entityType?.label_plural?.toLowerCase() || 'registros'}`}
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-8"
+                        />
+                    </div>
+                    {pe && <div className="sm:w-56"><FiltroPE pe={pe} value={peFilter} onChange={setPeFilter} /></div>}
                 </div>
                 {canCreate && (
                     <Button onClick={onCreate} size="sm">
@@ -87,8 +96,8 @@ export default function GenericRecordTable({
                 </div>
             ) : filtered.length === 0 ? (
                 <EmptyState
-                    title={search ? 'Nenhum resultado' : `Nenhum ${entityType?.label_singular?.toLowerCase() || 'registro'}`}
-                    description={search ? 'Tente outra busca.' : 'Crie o primeiro registro para começar.'}
+                    title={filtrando ? 'Nenhum resultado' : `Nenhum ${entityType?.label_singular?.toLowerCase() || 'registro'}`}
+                    description={filtrando ? 'Tente outra busca ou outro filtro.' : 'Crie o primeiro registro para começar.'}
                 />
             ) : (
                 <Card className="overflow-hidden">
@@ -114,12 +123,15 @@ export default function GenericRecordTable({
                                             onClick={() => onOpen?.(r)}
                                         >
                                             <TableCell>
-                                                <Badge
-                                                    variant="outline"
-                                                    style={phase?.color ? { borderColor: phase.color, color: phase.color } : undefined}
-                                                >
-                                                    {phase?.label || r.phase || '—'}
-                                                </Badge>
+                                                <span className="flex items-center gap-1.5">
+                                                    <Badge
+                                                        variant="outline"
+                                                        style={phase?.color ? { borderColor: phase.color, color: phase.color } : undefined}
+                                                    >
+                                                        {phase?.label || r.phase || '—'}
+                                                    </Badge>
+                                                    {pe?.ids.has(r.id) && <SeloPE />}
+                                                </span>
                                             </TableCell>
                                             {hasTypes && (
                                                 <TableCell>
@@ -141,7 +153,7 @@ export default function GenericRecordTable({
                                                 </TableCell>
                                             ))}
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onOpen?.(r); }}>
+                                                <Button variant="ghost" size="icon" aria-label="Abrir" onClick={(e) => { e.stopPropagation(); onOpen?.(r); }}>
                                                     <Eye className="h-4 w-4" />
                                                 </Button>
                                             </TableCell>

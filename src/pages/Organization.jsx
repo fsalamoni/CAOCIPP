@@ -507,6 +507,7 @@ export default function Organization() {
               mode={customTab.mode}
               entityTypeId={customTab.typeId}
               organizationId={selectedOrgId}
+              organization={organization}
               members={activeMembers}
               userRole={userRole}
             />
