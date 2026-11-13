@@ -5,8 +5,47 @@
 // o rito disse. Derivadas dos movimentos (a fonte é a cadeia de eventos, não
 // uma cópia no processo). Lógica pura, testada em test/exigencias.test.js.
 // ============================================================================
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.podeVerReservado = podeVerReservado;
+exports.semReservado = semReservado;
+exports.informacaoVisivel = informacaoVisivel;
 exports.informacoesDoAndamento = informacoesDoAndamento;
+/** Quem lê pode ver o dado reservado do movimento? */
+function podeVerReservado(d, autorUid, quem) {
+    if (!(d === null || d === void 0 ? void 0 : d.reservado))
+        return true;
+    return quem.isAdmin || (!!autorUid && autorUid === quem.uid) || quem.gestorDe.includes(String(d.ve_unidade || ''));
+}
+/** Tira o dado do que quem lê não pode ver (o movimento e a informação seguem, sem o valor). */
+function semReservado(m, quem) {
+    var _a;
+    if (!((_a = m.dados) === null || _a === void 0 ? void 0 : _a.reservado) || podeVerReservado(m.dados, m.autor_uid, quem))
+        return m;
+    const _b = m.dados, { valor, valor_texto, ref } = _b, dados = __rest(_b, ["valor", "valor_texto", "ref"]);
+    void valor;
+    void valor_texto;
+    void ref;
+    return Object.assign(Object.assign({}, m), { dados: Object.assign(Object.assign({}, dados), { oculta: true }) });
+}
+function informacaoVisivel(i, quem) {
+    if (!i.reservado || podeVerReservado(i, i.autor_uid, quem))
+        return i;
+    const { ref, refs } = i, resto = __rest(i, ["ref", "refs"]);
+    void ref;
+    void refs;
+    return Object.assign(Object.assign({}, resto), { valor: null, valor_texto: '', oculta: true });
+}
 /**
  * Cada ação cumprida com um dado gera uma informação; desfazer a ação tira a
  * última informação dela. Voltar à fase e cumprir de novo acrescenta outra
@@ -32,9 +71,9 @@ function informacoesDoAndamento(movs, fases, soPartes = false) {
         }
         if (d.valor === undefined || typeof d.rotulo !== 'string')
             continue;
-        const info = Object.assign(Object.assign({ fase_id: String(d.fase_id), fase_nome: nomes.get(String(d.fase_id)) || String(d.fase_id), acao_idx: Number(d.acao_idx), rotulo: d.rotulo, tipo: String(d.tipo_valor || 'texto'), valor: d.valor, valor_texto: String((_a = d.valor_texto) !== null && _a !== void 0 ? _a : d.valor), por: m.autor_nome || '', em: m.em || '', seq: m.seq, destino: ['autos', 'evento', 'informacao', 'nenhum', 'consolidar'].includes(String(d.destino))
+        const info = Object.assign(Object.assign(Object.assign({ fase_id: String(d.fase_id), fase_nome: nomes.get(String(d.fase_id)) || String(d.fase_id), acao_idx: Number(d.acao_idx), rotulo: d.rotulo, tipo: String(d.tipo_valor || 'texto'), valor: d.valor, valor_texto: String((_a = d.valor_texto) !== null && _a !== void 0 ? _a : d.valor), por: m.autor_nome || '', em: m.em || '', seq: m.seq, destino: ['autos', 'evento', 'informacao', 'nenhum', 'consolidar'].includes(String(d.destino))
                 ? d.destino
-                : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento', visivel_partes: d.visivel_partes === true }, (d.ref && typeof d.ref === 'object' ? { ref: d.ref } : {})), (Array.isArray(d.valor) && d.valor.some((x) => x === null || x === void 0 ? void 0 : x.ref) ? { refs: d.valor.map((x) => x === null || x === void 0 ? void 0 : x.ref).filter(Boolean) } : {}));
+                : d.nos_autos === true ? 'autos' : d.fora_impressao === true ? 'informacao' : 'evento', visivel_partes: d.visivel_partes === true }, (d.ref && typeof d.ref === 'object' ? { ref: d.ref } : {})), (Array.isArray(d.valor) && d.valor.some((x) => x === null || x === void 0 ? void 0 : x.ref) ? { refs: d.valor.map((x) => x === null || x === void 0 ? void 0 : x.ref).filter(Boolean) } : {})), (d.reservado === 'gestor' ? { reservado: 'gestor', ve_unidade: String(d.ve_unidade || ''), autor_uid: m.autor_uid || '' } : {}));
         pilha.push(info);
         ordem.push(info);
     }

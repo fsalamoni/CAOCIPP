@@ -106,6 +106,15 @@ export interface Condicao { acao: number; valores: string[] }
 /** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
 export const QUEM = ['responsavel', 'gestor'] as const;
 export type Quem = typeof QUEM[number];
+/**
+ * Quem da equipe vê o dado da ação. Ausente = toda a equipe que vê o processo.
+ * 'gestor': só quem gere a unidade onde foi registrado, quem o registrou e a
+ * administração. Dado reservado nunca vai aos autos, ao portal nem a outro módulo.
+ */
+export const VE = ['gestor'] as const;
+export type Ve = typeof VE[number];
+/** O que pode ficar reservado: dado digitado (sem escolha que condiciona, sem registro de outro módulo). */
+export const PEDIDOS_RESERVAVEIS: readonly Pedido[] = ['texto', 'texto_longo', 'numero', 'data', 'formulario'];
 /** Respostas das ações de escolha na rodada da fase: { fase: { índice: 'opção' | 'sim' | 'nao' } }. */
 export type Respostas = Record<string, Record<string, string>>;
 
@@ -134,6 +143,8 @@ export interface RegraAcao {
     se?: Condicao;
     /** Quem pode cumprir. Ausente = quem tem o processo. */
     quem?: Quem;
+    /** Quem da equipe vê o dado. Ausente = toda a equipe. */
+    ve?: Ve;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -245,6 +256,19 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     if (r.obrigatoria === true) out.obrigatoria = true;
     else if (r.recomendada === true) out.recomendada = true;
     if (QUEM.includes(r.quem as Quem)) out.quem = r.quem as Quem;
+    if (VE.includes(r.ve as Ve)) {
+        if (!out.pede || !PEDIDOS_RESERVAVEIS.includes(out.pede)) {
+            throw new Error(`A ação "${acao}": só texto, número, data ou formulário pode ficar reservado a quem gere a unidade`);
+        }
+        if (out.campos?.some((c) => c.tipo === 'registro')) {
+            throw new Error(`A ação "${acao}": formulário com registro de outro módulo não pode ficar reservado`);
+        }
+        if (dest === 'autos' || dest === 'consolidar') {
+            throw new Error(`A ação "${acao}" fica nos autos, que toda a equipe lê: escolha outro lugar para reservar o dado`);
+        }
+        delete out.partes;
+        out.ve = r.ve as Ve;
+    }
     return Object.keys(out).length ? out : null;
 }
 

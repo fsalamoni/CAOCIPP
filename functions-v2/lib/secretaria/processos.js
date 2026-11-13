@@ -500,7 +500,10 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
             ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome').get(),
         ]);
-        const movimentos = movs.docs.map((d) => d.data());
+        // Dado reservado a quem gere a unidade: sai o valor para quem não pode vê-lo.
+        const quemLe = { uid: c.ctx.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe };
+        const movsBrutos = movs.docs.map((d) => d.data());
+        const movimentos = movsBrutos.map((m) => (0, informacoes_1.semReservado)(m, quemLe));
         const posse = (0, secretaria_1.podeAgir)(data, c.ctx);
         const documentos = docs.docs
             .map((d) => (Object.assign({ id: d.id }, d.data())))
@@ -519,7 +522,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         // Registro que hoje está restrito, anonimizado ou sumiu: marcado na resposta (nada é gravado),
         // para a capa avisar e os modelos não puxarem dado dele.
-        const informacoes = (0, informacoes_1.informacoesDoAndamento)(movimentos, data.fases || []);
+        const informacoes = (0, informacoes_1.informacoesDoAndamento)(movsBrutos, data.fases || []).map((i) => (0, informacoes_1.informacaoVisivel)(i, quemLe));
         const camposLidos = (data.campos || []);
         const origemLida = ((_f = data.origem) === null || _f === void 0 ? void 0 : _f.ref) ? data.origem : null;
         const fechadas = await (0, modulos_1.refsFechadas)(db, c.orgId, [origemLida === null || origemLida === void 0 ? void 0 : origemLida.ref, ...camposLidos.map((x) => x.ref), ...informacoes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
@@ -542,7 +545,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             documentos,
             informacoes: informacoes.map((i) => ([i.ref, ...(i.refs || [])].some(fechada)
                 ? Object.assign(Object.assign(Object.assign({}, i), { restrito: true, ref: marcar(i.ref) }), (i.refs ? { refs: i.refs.map(marcar) } : {})) : i)),
-            cadeiaQuebradaEm: (0, secretaria_1.verificarCadeia)(movimentos),
+            cadeiaQuebradaEm: (0, secretaria_1.verificarCadeia)(movsBrutos),
             posse,
             pode_excluir: (0, secretaria_1.podeExcluirProcesso)(data, movimentos, c.ctx),
         };
@@ -895,8 +898,11 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 throw new https_1.HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
             const dado = feita ? await valorDaAcao(c, regra, acao, p.valor) : null;
+            // Dado reservado: só quem gere a unidade (e quem registra, e a administração) o vê.
+            // Fica fora da descrição do movimento, que vai às listas, ao extrato e aos autos.
+            const reservado = !!dado && (regra === null || regra === void 0 ? void 0 : regra.ve) === 'gestor';
             // Registro de origem restrita: as partes nunca o veem.
-            const vePartes = (0, exigencias_1.partesVeem)(regra) && !(dado === null || dado === void 0 ? void 0 : dado.restrito);
+            const vePartes = (0, exigencias_1.partesVeem)(regra) && !(dado === null || dado === void 0 ? void 0 : dado.restrito) && !reservado;
             if (feita)
                 lista.add(idx);
             else
@@ -916,7 +922,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = (0, exigencias_1.destinoDaAcao)(regra);
-            const comDado = dado ? ` ${dado.rotulo}: ${dado.valor_texto}.` : '';
+            const comDado = !dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`;
             if (dest === 'consolidar') {
                 // Certidão conjunta: o ato fica oculto e entra como item da certidão do grupo.
                 const grupo = (0, exigencias_1.grupoDe)(fase);
@@ -948,7 +954,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             }
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', dest === 'autos'
                 ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
-                : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: vePartes }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
+                : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), (reservado ? { reservado: 'gestor', ve_unidade: String(data.unidade_atual || '') } : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: vePartes }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
             tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }), comResposta), vinculoDaAcao(dado)));
             return mov;
         }

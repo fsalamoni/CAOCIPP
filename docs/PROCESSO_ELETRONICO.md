@@ -791,6 +791,21 @@ passa a decidir o resto da fase:
   equipe (padrão), só o **responsável designado** ou só **quem gere a
   unidade**. A administração do órgão sempre pode. Para os demais, a ação
   mostra o aviso e o servidor recusa (`permission-denied`).
+- **Quem vê o dado na equipe** (`acoes_regras[i].ve`, nov/2026): toda a
+  equipe do processo (padrão) ou só **quem gere a unidade** (`'gestor'`).
+  Reservado, o dado só chega a quem gere a unidade onde foi registrado
+  (`ve_unidade`, gravado no movimento), a quem o registrou e à administração
+  (inclusive o admin delegado do órgão interno, que entra em `gestorDe`). Os
+  demais veem que a ação foi feita, sem o valor: `obter` tira `valor`,
+  `valor_texto` e `ref` do movimento (`semReservado`) e devolve a informação
+  com `oculta: true` (`informacaoVisivel`). A descrição do movimento, que vai
+  às listas (`ultimo_movimento`), ao extrato e ao PDF, diz só "reservado a
+  quem gere a unidade". Só pode ser reservado dado digitado (texto, texto
+  longo, número, data ou formulário sem registro de outro módulo), fora dos
+  autos e da certidão conjunta; escolha (lista, sim/não) fica de fora porque
+  condiciona outras ações. Reservado nunca vai ao portal nem aos modelos
+  (`partes` sai na gravação do rito). A cadeia de eventos é conferida sobre
+  os movimentos completos.
 - Respostas ficam em `acoes_respostas[faseId][idx]` (só lista e sim/não), são
   apagadas ao desfazer a ação e ao reentrar na fase. Regras em
   `acoes_regras[i].se = { acao, valores }`, `acoes_regras[i].quem` e

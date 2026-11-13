@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -99,6 +99,14 @@ exports.MAX_OPCOES_ACAO = 30;
 exports.MAX_CAMPOS_ACAO = 10;
 /** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
 exports.QUEM = ['responsavel', 'gestor'];
+/**
+ * Quem da equipe vê o dado da ação. Ausente = toda a equipe que vê o processo.
+ * 'gestor': só quem gere a unidade onde foi registrado, quem o registrou e a
+ * administração. Dado reservado nunca vai aos autos, ao portal nem a outro módulo.
+ */
+exports.VE = ['gestor'];
+/** O que pode ficar reservado: dado digitado (sem escolha que condiciona, sem registro de outro módulo). */
+exports.PEDIDOS_RESERVAVEIS = ['texto', 'texto_longo', 'numero', 'data', 'formulario'];
 exports.MAX_DOCUMENTOS_FASE = 5;
 /** Onde fica o cumprimento da ação. */
 function destinoDaAcao(r) {
@@ -145,6 +153,7 @@ function sanitizeExigencia(raw, descricaoPadrao = '') {
     return Object.assign(Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {})), (nivel ? { nivel } : {}));
 }
 function sanitizeRegra(raw, acao) {
+    var _a;
     const r = (raw && typeof raw === 'object' ? raw : {});
     const pedeBruto = exports.PEDIDOS.includes(r.pede) ? r.pede : (r.documento ? 'documento' : 'confirmar');
     // Orientação a quem cumpre: vale para qualquer ação.
@@ -209,6 +218,19 @@ function sanitizeRegra(raw, acao) {
         out.recomendada = true;
     if (exports.QUEM.includes(r.quem))
         out.quem = r.quem;
+    if (exports.VE.includes(r.ve)) {
+        if (!out.pede || !exports.PEDIDOS_RESERVAVEIS.includes(out.pede)) {
+            throw new Error(`A ação "${acao}": só texto, número, data ou formulário pode ficar reservado a quem gere a unidade`);
+        }
+        if ((_a = out.campos) === null || _a === void 0 ? void 0 : _a.some((c) => c.tipo === 'registro')) {
+            throw new Error(`A ação "${acao}": formulário com registro de outro módulo não pode ficar reservado`);
+        }
+        if (dest === 'autos' || dest === 'consolidar') {
+            throw new Error(`A ação "${acao}" fica nos autos, que toda a equipe lê: escolha outro lugar para reservar o dado`);
+        }
+        delete out.partes;
+        out.ve = r.ve;
+    }
     return Object.keys(out).length ? out : null;
 }
 /** Opções que a resposta da ação pode ter (só ações de escolha condicionam). */

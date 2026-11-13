@@ -168,8 +168,10 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
                             {informacoes.map((i) => (
                                 <div key={i.seq}>
                                     <dt className="text-xs text-slate-600 dark:text-slate-400">{i.rotulo} <span className="whitespace-nowrap">· {i.fase_nome}</span></dt>
-                                    <dd className="text-sm text-slate-900 dark:text-slate-100 break-words whitespace-pre-wrap">{i.valor_texto}</dd>
-                                    <dd className="text-xs text-slate-600 dark:text-slate-400">{i.por}, {dataHora(i.em)} · {ROTULO_DESTINO[i.destino]}{i.visivel_partes ? ' · partes veem' : ''}</dd>
+                                    <dd className="text-sm text-slate-900 dark:text-slate-100 break-words whitespace-pre-wrap">
+                                        {i.oculta ? <i className="text-slate-600 dark:text-slate-400">Reservado a quem gere a unidade</i> : i.valor_texto}
+                                    </dd>
+                                    <dd className="text-xs text-slate-600 dark:text-slate-400">{i.por}, {dataHora(i.em)} · {ROTULO_DESTINO[i.destino]}{i.visivel_partes ? ' · partes veem' : ''}{i.reservado && !i.oculta ? ' · só quem gere a unidade vê' : ''}</dd>
                                 </div>
                             ))}
                         </dl>

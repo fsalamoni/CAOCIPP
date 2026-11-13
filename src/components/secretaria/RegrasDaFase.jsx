@@ -11,7 +11,7 @@ import {
     DESTINO_INFO, DESTINOS_DOCUMENTO, MAX_CAMPOS_ACAO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
-    QUEM, acoesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes,
+    QUEM, VE, podeReservar, acoesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
@@ -135,9 +135,11 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
     const setDestino = (v) => (pede === 'documento'
         ? onChange({ ...r, documento: { ...r.documento, destino: v === 'autos' ? undefined : v } })
         // Sem evento não aparece para ninguém: some também a marca das partes.
-        : set({ destino: v === 'evento' ? undefined : v, autos: undefined, partes: (v !== 'nenhum' && partesVeem(r)) || undefined }));
+        // Nos autos toda a equipe lê: o dado deixa de ser reservado.
+        : set({ destino: v === 'evento' ? undefined : v, autos: undefined, partes: (v !== 'nenhum' && partesVeem(r)) || undefined, ...(['autos', 'consolidar'].includes(v) ? { ve: undefined } : {}) }));
     // Por que a parte não pode ver (a opção fica visível, desligada, com o motivo).
-    const semPartes = dest === 'nenhum' ? 'Sem evento nunca aparece no portal.'
+    const semPartes = r?.ve ? 'Dado reservado a quem gere a unidade não vai ao portal.'
+        : dest === 'nenhum' ? 'Sem evento nunca aparece no portal.'
         : pede === 'confirmar' && !['autos', 'consolidar'].includes(dest) ? 'Só confirmar, fora dos autos, não tem o que mostrar: escolha "Nos autos" ou peça um dado.' : null;
     return (
         <div className="space-y-3 rounded-md bg-slate-50 dark:bg-slate-800/60 p-2">
@@ -205,6 +207,14 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     <div>
                         <NativeSelect id={`${id}-quem`} label="Quem pode cumprir" value={r?.quem || ''} onChange={(v) => set({ quem: v || undefined })} options={QUEM} />
                         {r?.quem && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">A administração do órgão também pode.</p>}
+                    </div>
+                )}
+                {(podeReservar(r) || r?.ve) && (
+                    <div>
+                        <NativeSelect id={`${id}-ve`} label="Quem vê o dado na equipe" value={r?.ve || ''} onChange={(v) => set({ ve: v || undefined, ...(v ? { partes: undefined } : {}) })} options={VE} />
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                            {r?.ve ? 'Também veem quem registrou e a administração. Os demais veem que a ação foi feita, sem o dado. Nunca vai aos autos nem ao portal.' : 'Para um dado interno, como uma anotação do gestor, escolha "Só quem gere a unidade".'}
+                        </p>
                     </div>
                 )}
             </div>

@@ -25,9 +25,36 @@ export interface InformacaoAndamento {
     ref?: Ref;
     /** Registros escolhidos num formulário da ação. */
     refs?: Ref[];
+    /** Dado reservado (só quem gere `ve_unidade`, quem registrou e a administração). */
+    reservado?: 'gestor';
+    ve_unidade?: string;
+    autor_uid?: string;
+    /** Reservado e quem lê não pode ver: sem valor. */
+    oculta?: true;
 }
 
-interface Mov { seq: number; tipo: string; autor_nome?: string; em?: string; dados?: Record<string, unknown> }
+interface Mov { seq: number; tipo: string; autor_nome?: string; autor_uid?: string; em?: string; dados?: Record<string, unknown> }
+
+/** Quem lê pode ver o dado reservado do movimento? */
+export function podeVerReservado(d: { reservado?: unknown; ve_unidade?: unknown } | undefined, autorUid: unknown,
+    quem: { uid: string; isAdmin: boolean; gestorDe: string[] }): boolean {
+    if (!d?.reservado) return true;
+    return quem.isAdmin || (!!autorUid && autorUid === quem.uid) || quem.gestorDe.includes(String(d.ve_unidade || ''));
+}
+
+/** Tira o dado do que quem lê não pode ver (o movimento e a informação seguem, sem o valor). */
+export function semReservado<T extends { dados?: Record<string, unknown>; autor_uid?: string }>(m: T, quem: Parameters<typeof podeVerReservado>[2]): T {
+    if (!m.dados?.reservado || podeVerReservado(m.dados, m.autor_uid, quem)) return m;
+    const { valor, valor_texto, ref, ...dados } = m.dados;
+    void valor; void valor_texto; void ref;
+    return { ...m, dados: { ...dados, oculta: true } };
+}
+export function informacaoVisivel(i: InformacaoAndamento, quem: Parameters<typeof podeVerReservado>[2]): InformacaoAndamento {
+    if (!i.reservado || podeVerReservado(i, i.autor_uid, quem)) return i;
+    const { ref, refs, ...resto } = i;
+    void ref; void refs;
+    return { ...resto, valor: null, valor_texto: '', oculta: true };
+}
 
 /**
  * Cada ação cumprida com um dado gera uma informação; desfazer a ação tira a
@@ -60,6 +87,7 @@ export function informacoesDoAndamento(movs: Mov[], fases: Array<{ id: string; n
             visivel_partes: d.visivel_partes === true,
             ...(d.ref && typeof d.ref === 'object' ? { ref: d.ref as Ref } : {}),
             ...(Array.isArray(d.valor) && d.valor.some((x) => x?.ref) ? { refs: d.valor.map((x) => x?.ref).filter(Boolean) as Ref[] } : {}),
+            ...(d.reservado === 'gestor' ? { reservado: 'gestor' as const, ve_unidade: String(d.ve_unidade || ''), autor_uid: m.autor_uid || '' } : {}),
         };
         pilha.push(info);
         ordem.push(info);

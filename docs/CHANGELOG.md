@@ -5,6 +5,13 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Dado da ação só para quem gere a unidade
+- Na configuração de cada ação do rito que pede um dado (texto, número,
+  data ou formulário), **Quem vê o dado na equipe** pode ser "Só quem gere a
+  unidade". Quem registrou e a administração também veem; o resto da equipe
+  vê que a ação foi feita, sem o dado. O dado reservado nunca vai aos autos,
+  ao portal nem às listas.
+
 ### 13/11/2026 — Selo PE nas páginas próprias
 - A lista e o painel de cada página própria mostram o selo **PE** nos
   registros que têm processo eletrônico, e a lista ganhou o filtro
