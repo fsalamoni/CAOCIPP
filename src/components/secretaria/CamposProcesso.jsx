@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-    COM_OPCOES, CONDICIONANTES, copiarCampos, FORMATOS, MAX_CAMPOS, MODULOS, PADROES, POLOS, ROTULO_MODULO, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, textoCondicao, valorTexto, visiveis,
+    COM_OPCOES, CONDICIONANTES, copiarCampos, FORMATOS, MAX_CAMPOS, MODULOS, PADROES, POLOS, ROTULO_MODULO, TIPOS_CAMPO, USOS_CAMPO, USOS_ESCOLHA, novoCampo, opcoesImportar, textoCondicao, valorTexto, visiveis,
 } from '@/lib/camposProcesso';
 import { NativeSelect } from './comum';
 import SeletorRegistro, { RegistroContexto } from './SeletorRegistro';
@@ -77,6 +77,7 @@ export function CamposProcesso({ campos, valores, onChange, prefixo = 'cp' }) {
                         ) : <Input {...comum} className="mt-1" inputMode="decimal" placeholder="0" value={v} onChange={(e) => onChange(c.id, e.target.value)} />)}
                         {c.tipo === 'data' && <Input {...comum} className="mt-1" type="date" value={v} onChange={(e) => onChange(c.id, e.target.value)} />}
                         {c.tipo === 'registro' && <SeletorRegistro id={id} aria-required={comum['aria-required']} aria-describedby={comum['aria-describedby']} modulo={c.modulo} value={bruto && typeof bruto === 'object' ? bruto : ''} onChange={(x) => onChange(c.id, x)} />}
+                        {c.tipo === 'registro' && bruto?.restrito && campos.some((d) => d.importar?.de === c.id) && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Registro de acesso restrito: os dados dele não são trazidos para os campos.</p>}
                         {c.tipo === 'lista' && (
                             <select {...comum} className={seletor} value={v} onChange={(e) => onChange(c.id, e.target.value)}>
                                 <option value="">Escolha…</option>
@@ -259,13 +260,17 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
     const rotuloTipo = (c) => (c.tipo === 'registro' ? `Registro de ${ROTULO_MODULO[c.modulo] || 'outro módulo'}` : TIPOS_CAMPO.find(([id]) => id === c.tipo)?.[1] || c.tipo);
     // Registro: vem de um módulo com a integração ligada (os desligados aparecem, sem poder escolher).
     const opcoesModulo = MODULOS.map(([m, l]) => [m, ligadas?.[m] ? l : `${l} (integração desligada)`]);
-    const trocarTipo = (i, v) => setCampo(i, { tipo: v, formato: undefined, modulo: v === 'registro' ? (MODULOS.find(([m]) => ligadas?.[m])?.[0] || 'consultas') : undefined });
+    // Trocar o tipo ou o formato solta o dado importado; o registro que muda de módulo solta quem importava dele.
+    const trocarTipo = (i, v) => onChange(campos.map((c, j) => (j === i
+        ? { ...c, tipo: v, formato: undefined, importar: undefined, modulo: v === 'registro' ? (MODULOS.find(([m]) => ligadas?.[m])?.[0] || 'consultas') : undefined }
+        : c.importar?.de === campos[i].id ? { ...c, importar: undefined } : c)));
+    const trocarModulo = (i, v) => onChange(campos.map((c, j) => (j === i ? { ...c, modulo: v } : c.importar?.de === campos[i].id ? { ...c, importar: undefined } : c)));
     const secoes = [...new Set(campos.map((c) => c.secao?.trim()).filter(Boolean))];
     const nomeFase = (id) => fases.find((f) => f.id === id)?.nome;
     // Remover um campo solta quem dependia dele (o campo volta a aparecer sempre).
     const remover = (i) => {
         const id = campos[i].id;
-        onChange(campos.filter((_x, j) => j !== i).map((c) => (c.condicao?.campo_id === id ? { ...c, condicao: undefined } : c)));
+        onChange(campos.filter((_x, j) => j !== i).map((c) => ({ ...c, ...(c.condicao?.campo_id === id ? { condicao: undefined } : {}), ...(c.importar?.de === id ? { importar: undefined } : {}) })));
     };
     const p = (s) => `${prefixo}-${s}`;
 
@@ -288,6 +293,7 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
                                 {c.obrigatorio && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex">Obrigatório</Badge>}
                                 {!paraAcao && c.exigir_em?.some(nomeFase) && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={`Exigido para sair de: ${c.exigir_em.map(nomeFase).filter(Boolean).join(', ')}`}>Exigido em {c.exigir_em.filter(nomeFase).length === 1 ? nomeFase(c.exigir_em.find(nomeFase)) : `${c.exigir_em.filter(nomeFase).length} fases`}</Badge>}
                                 {c.condicao && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex" title={textoCondicao(campos, c)}>Condicional</Badge>}
+                                {!paraAcao && c.importar && <Badge variant="outline" className="shrink-0 hidden sm:inline-flex">Do registro</Badge>}
                                 {!paraAcao && c.visivel_partes && <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">Partes veem</Badge>}
                             </button>
                             <Button type="button" size="sm" variant="ghost" className={ICONE} disabled={i === 0} onClick={() => mover(i, -1)} aria-label={`Subir ${c.rotulo || 'campo'}`}><ArrowUp className="w-4 h-4" /></Button>
@@ -301,7 +307,7 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
                                     <NativeSelect id={p(`tipo-${c.id}`)} label="Tipo" value={c.tipo} onChange={(v) => trocarTipo(i, v)} options={TIPOS_CAMPO} />
                                 </div>
                                 <div className="grid sm:grid-cols-2 gap-3">
-                                    {FORMATOS[c.tipo] && <NativeSelect id={p(`formato-${c.id}`)} label="Formato" value={c.formato || ''} onChange={(v) => setCampo(i, { formato: v || undefined })} options={FORMATOS[c.tipo]} />}
+                                    {FORMATOS[c.tipo] && <NativeSelect id={p(`formato-${c.id}`)} label="Formato" value={c.formato || ''} onChange={(v) => setCampo(i, { formato: v || undefined, ...(v ? { importar: undefined } : {}) })} options={FORMATOS[c.tipo]} />}
                                     <div>
                                         <Label htmlFor={p(`secao-${c.id}`)}>Seção</Label>
                                         <Input id={p(`secao-${c.id}`)} className="mt-1" maxLength={60} list={p(`secoes-${c.id}`)} value={c.secao || ''} onChange={(e) => setCampo(i, { secao: e.target.value })} placeholder="Opcional. Ex.: Dados do fato" />
@@ -310,8 +316,8 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
                                 </div>
                                 {c.tipo === 'registro' && (
                                     <div className="space-y-1">
-                                        <div className="sm:max-w-xs"><NativeSelect id={p(`mod-${c.id}`)} label="De qual módulo" value={c.modulo || ''} onChange={(v) => setCampo(i, { modulo: v })} options={opcoesModulo} /></div>
-                                        <p className="text-xs text-slate-600 dark:text-slate-400">Quem preenche procura pelo número ou assunto. O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito.</p>
+                                        <div className="sm:max-w-xs"><NativeSelect id={p(`mod-${c.id}`)} label="De qual módulo" value={c.modulo || ''} onChange={(v) => trocarModulo(i, v)} options={opcoesModulo} /></div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">Quem preenche procura pelo número ou assunto. O processo guarda só o número e o título; as partes veem só o número, e nunca o de acesso restrito.{!paraAcao && ' Outros campos podem ser preenchidos com dados dele (em cada campo, "Preencher com dado de").'}</p>
                                         {c.modulo && !ligadas?.[c.modulo] && <p className="text-xs text-amber-800 dark:text-amber-200">A integração com {ROTULO_MODULO[c.modulo]} está desligada: ligue em "Integrações com outros módulos", no alto da configuração do Processo Eletrônico, para salvar e usar este campo.</p>}
                                     </div>
                                 )}
@@ -322,10 +328,18 @@ export function EditorCampos({ campos, onChange, fases = [], max = MAX_CAMPOS, p
                                     </div>
                                 )}
                                 <div><Label htmlFor={p(`ajuda-${c.id}`)}>Orientação para quem preenche</Label><Input id={p(`ajuda-${c.id}`)} className="mt-1" maxLength={200} value={c.ajuda || ''} onChange={(e) => setCampo(i, { ajuda: e.target.value })} placeholder="Opcional; aparece abaixo do campo" /></div>
+                                {!paraAcao && opcoesImportar(campos, c).length > 0 && (
+                                    <div className="sm:max-w-md">
+                                        <NativeSelect id={p(`imp-${c.id}`)} label="Preencher com dado de" value={c.importar ? `${c.importar.de}|${c.importar.dado}` : ''}
+                                            onChange={(v) => { const [de, dado] = v.split('|'); setCampo(i, v ? { importar: { de, dado }, visivel_partes: false } : { importar: undefined }); }}
+                                            options={[['', 'Não preencher'], ...opcoesImportar(campos, c)]} />
+                                        {c.importar && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Preenchido ao escolher o registro na autuação; quem autua pode editar; nunca aparece às partes.</p>}
+                                    </div>
+                                )}
                                 <MostrarQuando p={p} c={c} anteriores={campos.slice(0, i).filter((d) => CONDICIONANTES.includes(d.tipo))} onChange={(patch) => setCampo(i, patch)} />
                                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                                     <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.obrigatorio} disabled={!paraAcao && !!c.exigir_em?.some(nomeFase)} onCheckedChange={(x) => setCampo(i, { obrigatorio: x === true })} /> {paraAcao ? 'Obrigatório ao cumprir a ação' : 'Obrigatório na autuação'}</label>
-                                    {!paraAcao && <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.visivel_partes} onCheckedChange={(x) => setCampo(i, { visivel_partes: x === true })} /> Mostrar às partes no portal</label>}
+                                    {!paraAcao && <label className="flex items-center gap-2 text-sm min-h-[2.75rem] sm:min-h-0"><Checkbox checked={c.visivel_partes} disabled={!!c.importar} onCheckedChange={(x) => setCampo(i, { visivel_partes: x === true })} /> Mostrar às partes no portal</label>}
                                 </div>
                                 {!paraAcao && <ExigirEm c={c} fases={fases} onChange={(patch) => setCampo(i, patch)} />}
                             </div>

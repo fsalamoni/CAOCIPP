@@ -227,7 +227,7 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
             // quem decide o que as partes veem é a ação inteira.
             let campos: CampoDef[];
             try {
-                campos = sanitizeCampos(lista.map((x) => (x && typeof x === 'object' ? { ...x, exigir_em: undefined } : x)))
+                campos = sanitizeCampos(lista.map((x) => (x && typeof x === 'object' ? { ...x, exigir_em: undefined, importar: undefined } : x)))
                     .map((c) => ({ ...c, visivel_partes: false }));
             } catch (e) { throw new Error(`Na ação "${acao}": ${(e as Error).message}`); }
             if (!campos.length) throw new Error(`A ação "${acao}" pede um formulário: crie ao menos um campo`);

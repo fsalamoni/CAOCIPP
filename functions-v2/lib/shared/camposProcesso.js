@@ -117,7 +117,23 @@ function sanitizeCampos(lista) {
         if (!id || ids.has(id))
             id = `c${Date.now().toString(36)}${i}`;
         ids.add(id);
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true }, (formato ? { formato } : {})), (modulo ? { modulo } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true }, (formato ? { formato } : {})), (modulo ? { modulo } : {})), (secao ? { secao } : {})), (exigir.length ? { exigir_em: exigir } : {})), (o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao } : {})), (o.importar && typeof o.importar === 'object' ? { importar: { de: texto(o.importar.de, 24), dado: texto(o.importar.dado, 24) } } : {}));
+    });
+    // Dado importado: vem de um campo 'registro' do mesmo formulário, de um dado
+    // que o módulo dele tem, e cabe no tipo do campo; nunca vai às partes.
+    campos.forEach((c) => {
+        if (!c.importar)
+            return;
+        const alvo = campos.find((d) => d.id === c.importar.de && d.tipo === 'registro');
+        if (!alvo || !alvo.modulo)
+            throw new Error(`"${c.rotulo}" só pode ser preenchido com dado de um campo de registro deste formulário`);
+        const tipoDado = modulos_1.DADOS_REGISTRO[alvo.modulo][c.importar.dado];
+        if (!tipoDado)
+            throw new Error(`"${c.rotulo}": ${modulos_1.ROTULO_MODULO[alvo.modulo]} não tem esse dado`);
+        if (tipoDado === 'data' ? c.tipo !== 'data' : !(c.tipo === 'texto_longo' || (c.tipo === 'texto' && !c.formato))) {
+            throw new Error(`"${c.rotulo}" não combina com esse dado: ${tipoDado === 'data' ? 'uma data só vai para campo de data' : 'um texto só vai para campo de texto livre ou de texto longo'}`);
+        }
+        c.visivel_partes = false;
     });
     // Condição: aponta um campo de escolha que vem antes, e um valor que ele aceita.
     campos.forEach((c, i) => {

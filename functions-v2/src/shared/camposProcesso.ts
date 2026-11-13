@@ -7,7 +7,7 @@
 // src/lib/camposProcesso.js (só para a tela; quem decide é o servidor).
 // ============================================================================
 
-import { MODULOS, Modulo, ROTULO_MODULO, Ref, idEscolhido } from './modulos';
+import { DADOS_REGISTRO, MODULOS, Modulo, ROTULO_MODULO, Ref, idEscolhido } from './modulos';
 
 // Sem importar ./secretaria: o rito (./exigencias, que ./secretaria importa) usa os campos
 // na ação que pede um formulário. O mesmo corte de texto de lá.
@@ -47,6 +47,8 @@ export interface CampoDef {
     exigir_em?: string[];
     /** Registro de outro módulo (tipo 'registro'): de qual. */
     modulo?: Modulo;
+    /** Pré-preenchido com um dado do registro escolhido no campo `de` (tipo 'registro'). */
+    importar?: { de: string; dado: string };
 }
 export interface Condicao { campo_id: string; valor: string | boolean }
 /** Campos padrão do "Novo processo". Os de escolha (sigilo, urgência, unidade) só se mostram ou não. */
@@ -148,7 +150,21 @@ export function sanitizeCampos(lista: unknown[]): CampoDef[] {
             id, rotulo, tipo, obrigatorio: o.obrigatorio === true && !exigir.length, ajuda: texto(o.ajuda), opcoes, visivel_partes: o.visivel_partes === true,
             ...(formato ? { formato } : {}), ...(modulo ? { modulo } : {}), ...(secao ? { secao } : {}), ...(exigir.length ? { exigir_em: exigir } : {}),
             ...(o.condicao && typeof o.condicao === 'object' ? { condicao: o.condicao as Condicao } : {}),
+            ...(o.importar && typeof o.importar === 'object' ? { importar: { de: texto((o.importar as Record<string, unknown>).de, 24), dado: texto((o.importar as Record<string, unknown>).dado, 24) } } : {}),
         };
+    });
+    // Dado importado: vem de um campo 'registro' do mesmo formulário, de um dado
+    // que o módulo dele tem, e cabe no tipo do campo; nunca vai às partes.
+    campos.forEach((c) => {
+        if (!c.importar) return;
+        const alvo = campos.find((d) => d.id === c.importar!.de && d.tipo === 'registro');
+        if (!alvo || !alvo.modulo) throw new Error(`"${c.rotulo}" só pode ser preenchido com dado de um campo de registro deste formulário`);
+        const tipoDado = DADOS_REGISTRO[alvo.modulo][c.importar.dado];
+        if (!tipoDado) throw new Error(`"${c.rotulo}": ${ROTULO_MODULO[alvo.modulo]} não tem esse dado`);
+        if (tipoDado === 'data' ? c.tipo !== 'data' : !(c.tipo === 'texto_longo' || (c.tipo === 'texto' && !c.formato))) {
+            throw new Error(`"${c.rotulo}" não combina com esse dado: ${tipoDado === 'data' ? 'uma data só vai para campo de data' : 'um texto só vai para campo de texto livre ou de texto longo'}`);
+        }
+        c.visivel_partes = false;
     });
     // Condição: aponta um campo de escolha que vem antes, e um valor que ele aceita.
     campos.forEach((c, i) => {

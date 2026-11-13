@@ -347,9 +347,19 @@ export default function EditorDocumento({
                             <PopoverTrigger asChild>
                                 <button type="button" title="Inserir campo automático" aria-label="Inserir campo automático" onMouseDown={(e) => e.preventDefault()} className="h-8 px-1.5 shrink-0 inline-flex items-center gap-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm"><Braces className="w-4 h-4" /> Campo</button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-64 p-1" onOpenAutoFocus={(e) => e.preventDefault()}>
+                            <PopoverContent className="w-72 p-1 max-h-80 overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
                                 <p className="text-xs px-2 py-1 text-slate-600">Preenchido sozinho quando o modelo for usado num processo.</p>
-                                {campos.map(([k, r]) => <button key={k} type="button" onClick={() => ch().insertContent(`{{${k}}}`).run()} className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">{r} <span className="text-xs font-mono text-slate-600">{`{{${k}}}`}</span></button>)}
+                                {campos.map(([k, r, grupo], i) => (
+                                    <React.Fragment key={k}>
+                                        {grupo && grupo !== campos[i - 1]?.[2] && (
+                                            <>
+                                                <p className="text-xs font-semibold px-2 pt-2 text-slate-700 dark:text-slate-300">{grupo}</p>
+                                                {!campos[i - 1]?.[2] && <p className="text-xs px-2 pb-1 text-slate-600">Só entra o que as partes podem ver; o resto fica para preencher à mão.</p>}
+                                            </>
+                                        )}
+                                        <button type="button" onClick={() => ch().insertContent(`{{${k}}}`).run()} className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">{r} <span className="text-xs font-mono text-slate-600 break-all">{`{{${k}}}`}</span></button>
+                                    </React.Fragment>
+                                ))}
                             </PopoverContent>
                         </Popover>
                     )}
@@ -426,7 +436,7 @@ export default function EditorDocumento({
 
 /** Troca {{campo}} pelos valores do processo em todo o documento (modelos). */
 export function preencherCampos(doc, valores) {
-    const troca = (t) => t.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (m, k) => (valores[k] !== undefined && valores[k] !== null ? String(valores[k]) : m));
+    const troca = (t) => t.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/g, (m, k) => (valores[k] !== undefined && valores[k] !== null ? String(valores[k]) : m));
     const andar = (n) => (n.type === 'text' ? { ...n, text: troca(n.text) } : n.content ? { ...n, content: n.content.map(andar) } : n);
     return andar(doc);
 }
@@ -435,4 +445,5 @@ export const CAMPOS_MODELO = [
     ['numero', 'Número do processo'], ['assunto', 'Assunto'], ['tipo_processo', 'Tipo de processo'], ['partes', 'Partes'],
     ['unidade', 'Unidade atual'], ['fase', 'Fase atual'], ['orgao', 'Nome do órgão'], ['usuario', 'Seu nome'],
     ['data', 'Data de hoje'], ['data_extenso', 'Data por extenso'],
+    ['partes_requerente', 'Requerentes'], ['partes_requerido', 'Requeridos'], ['partes_interessado', 'Interessados'], ['partes_terceiro', 'Terceiros'],
 ];

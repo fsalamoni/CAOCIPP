@@ -19,7 +19,7 @@ import {
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacoesDoAndamento } from '../shared/informacoes';
-import { MODULOS, Modulo, ROTULO_MODULO, Ref, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, resolverRegistro, vinculosDe } from '../shared/modulos';
+import { MODULOS, Modulo, ROTULO_MODULO, Ref, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
@@ -535,11 +535,19 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null,
             }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
+        // Registro que hoje está restrito, anonimizado ou sumiu: marcado na resposta (nada é gravado),
+        // para a capa avisar e os modelos não puxarem dado dele.
+        const informacoes = informacoesDoAndamento(movimentos as never, data.fases || []);
+        const camposLidos = (data.campos || []) as Array<{ ref?: Ref }>;
+        const origemLida = data.origem?.ref ? data.origem : null;
+        const fechadas = await refsFechadas(db, c.orgId, [origemLida?.ref, ...camposLidos.map((x) => x.ref), ...informacoes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
+        const fechada = (r?: Ref | null) => !!r && fechadas.has(`${r.modulo}:${r.id}`);
+        const marcar = <T extends Ref | undefined>(r: T): T => (r && fechada(r) ? { ...r, restrito: true } : r);
         return {
             processo: {
                 ...resumo(ref.id, data),
                 descricao: data.descricao,
-                campos: data.campos || [],
+                campos: camposLidos.map((x) => (fechada(x.ref) ? { ...x, ref: { ...x.ref, restrito: true } } : x)),
                 partes: (data.partes || []).map(({ convite_hash, uid, representantes, ...x }: Record<string, unknown>) => ({
                     ...x, portal: uid ? 'ativo' : convite_hash ? 'convidado' : null,
                     representantes: ((representantes || []) as Array<Record<string, unknown>>).map(({ convite_hash: ch, uid: u, nome, email }) => ({
@@ -550,7 +558,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 unidades_historico: data.unidades_historico || [],
                 // A primeira unidade da lista é a que autuou (arrayUnion só acrescenta).
                 unidade_autuacao: (data.unidades_historico || [])[0] || null,
-                origem: data.origem || null,
+                origem: origemLida && fechada(origemLida.ref) ? { ...origemLida, ref: { ...origemLida.ref, restrito: true } } : data.origem || null,
                 autuado_em: data.autuado_em,
                 autuado_por: data.autuado_por_nome,
                 pendencias: data.pendencias || [],
@@ -566,7 +574,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             hoje: hojeBrasil(),
             movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
             documentos,
-            informacoes: informacoesDoAndamento(movimentos as never, data.fases || []),
+            informacoes: informacoes.map((i) => ([i.ref, ...(i.refs || [])].some(fechada)
+                ? { ...i, restrito: true, ref: marcar(i.ref), ...(i.refs ? { refs: i.refs.map(marcar) } : {}) } : i)),
             cadeiaQuebradaEm: verificarCadeia(movimentos as never),
             posse,
             pode_excluir: podeExcluirProcesso(data as never, movimentos as never, c.ctx),

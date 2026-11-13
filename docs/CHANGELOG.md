@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: dados do registro e variáveis nos modelos
+- **Campo preenchido com dado do registro**: no tipo, um campo pode vir
+  pré-preenchido com o consulente, a matéria, o objeto, a comarca, as datas
+  e outros dados do registro escolhido. Fica editável, nunca vai às partes e
+  não vem de registro restrito.
+- **Mais variáveis nos modelos**: campos do tipo, informações das ações e
+  partes por polo preenchem o modelo, no editor e no Word. Só entra o que as
+  partes podem ver.
+- **Selo de restrito atual**: a capa e os modelos passam a saber se o
+  registro ligado ficou restrito depois de escolhido.
+
 ### 13/11/2026 — Processo Eletrônico: retificar a autuação
 - **Retificação da autuação**: assunto, origem, sigilo e partes corrigidos
   com motivo, num termo próprio nos autos.

@@ -283,8 +283,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         const valores = p.valores && typeof p.valores === 'object' ? p.valores : null;
         if (valores && m.arquivo_mime === conversao_1.MIME_DOCX) {
             const limpos = {};
-            for (const [k, v] of Object.entries(valores).slice(0, 40))
-                if (/^[a-z0-9_]{1,40}$/.test(k))
+            // Fixos, campos do tipo e informações das ações; a chave vai até 60 como o nome no Word.
+            for (const [k, v] of Object.entries(valores).slice(0, 200))
+                if (/^[a-z0-9_]{1,60}$/.test(k))
                     limpos[k] = (0, secretaria_1.texto)(v, 2000);
             buf = await (0, importarModelo_1.preencherDocx)(buf, limpos);
         }

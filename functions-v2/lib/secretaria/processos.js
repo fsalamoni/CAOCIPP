@@ -285,7 +285,7 @@ function resumo(id, d) {
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -471,21 +471,30 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null,
         }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
+        // Registro que hoje está restrito, anonimizado ou sumiu: marcado na resposta (nada é gravado),
+        // para a capa avisar e os modelos não puxarem dado dele.
+        const informacoes = (0, informacoes_1.informacoesDoAndamento)(movimentos, data.fases || []);
+        const camposLidos = (data.campos || []);
+        const origemLida = ((_f = data.origem) === null || _f === void 0 ? void 0 : _f.ref) ? data.origem : null;
+        const fechadas = await (0, modulos_1.refsFechadas)(db, c.orgId, [origemLida === null || origemLida === void 0 ? void 0 : origemLida.ref, ...camposLidos.map((x) => x.ref), ...informacoes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
+        const fechada = (r) => !!r && fechadas.has(`${r.modulo}:${r.id}`);
+        const marcar = (r) => (r && fechada(r) ? Object.assign(Object.assign({}, r), { restrito: true }) : r);
         return {
-            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, campos: data.campos || [], partes: (data.partes || []).map((_a) => {
+            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, campos: camposLidos.map((x) => (fechada(x.ref) ? Object.assign(Object.assign({}, x), { ref: Object.assign(Object.assign({}, x.ref), { restrito: true }) }) : x)), partes: (data.partes || []).map((_a) => {
                     var { convite_hash, uid, representantes } = _a, x = __rest(_a, ["convite_hash", "uid", "representantes"]);
                     return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null, representantes: (representantes || []).map(({ convite_hash: ch, uid: u, nome, email }) => ({
                             nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null,
                         })) }));
                 }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], 
                 // A primeira unidade da lista é a que autuou (arrayUnion só acrescenta).
-                unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], acoes_feitas: data.acoes_feitas || {}, acoes_respostas: data.acoes_respostas || {}, 
+                unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: origemLida && fechada(origemLida.ref) ? Object.assign(Object.assign({}, origemLida), { ref: Object.assign(Object.assign({}, origemLida.ref), { restrito: true }) }) : data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], acoes_feitas: data.acoes_feitas || {}, acoes_respostas: data.acoes_respostas || {}, 
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
                 consolidacao: data.consolidacao || null, exigencias_cumpridas: data.exigencias_cumpridas || {}, campos_exigidos: data.campos_exigidos || {} }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,
-            informacoes: (0, informacoes_1.informacoesDoAndamento)(movimentos, data.fases || []),
+            informacoes: informacoes.map((i) => ([i.ref, ...(i.refs || [])].some(fechada)
+                ? Object.assign(Object.assign(Object.assign({}, i), { restrito: true, ref: marcar(i.ref) }), (i.refs ? { refs: i.refs.map(marcar) } : {})) : i)),
             cadeiaQuebradaEm: (0, secretaria_1.verificarCadeia)(movimentos),
             posse,
             pode_excluir: (0, secretaria_1.podeExcluirProcesso)(data, movimentos, c.ctx),
@@ -539,7 +548,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const descricao = form.descricao === 'oculto' ? '' : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
         const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes, form.polos);
         // Nascido de outro registro: a origem vale mesmo que o formulário não a peça.
-        const refOrigem = await refDaOrigem(c, (_f = p.origem) === null || _f === void 0 ? void 0 : _f.ref);
+        const refOrigem = await refDaOrigem(c, (_g = p.origem) === null || _g === void 0 ? void 0 : _g.ref);
         const origemInformada = form.origem === 'oculto' ? null : (0, secretaria_1.sanitizeOrigem)(p.origem);
         const origem = refOrigem
             ? { tipo: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.tipo) || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro'), descricao: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.descricao) || '', ref: refOrigem }
@@ -558,14 +567,14 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const numTipo = (0, numeracao_1.numeracaoTipoDe)(tipo === null || tipo === void 0 ? void 0 : tipo.numeracao);
         const numeracao = numTipo.modo === 'nenhuma' ? null
             : numTipo.modo === 'propria' ? { partes: numTipo.partes }
-                : (0, numeracao_1.numeracaoDe)((_g = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _g === void 0 ? void 0 : _g.numeracao);
+                : (0, numeracao_1.numeracaoDe)((_h = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _h === void 0 ? void 0 : _h.numeracao);
         const usaOrgao = numeracao === null || numeracao === void 0 ? void 0 : numeracao.partes.some((x) => x.t === 'sigla_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
         const orgao = usaOrgao && unidade.orgao_id ? (await (0, orgaos_2.lerOrgaos)(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
         const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
         const procRef = db.collection(context_1.COL.processos).doc();
         // Primeira fase com prazo automático: a contagem usa o calendário do órgão.
-        const calendarioAutuacao = ((_h = rito.fases[0]) === null || _h === void 0 ? void 0 : _h.prazo_auto)
-            ? (0, secretaria_1.sanitizeCalendario)((_j = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _j === void 0 ? void 0 : _j.calendario) : undefined;
+        const calendarioAutuacao = ((_j = rito.fases[0]) === null || _j === void 0 ? void 0 : _j.prazo_auto)
+            ? (0, secretaria_1.sanitizeCalendario)((_k = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _k === void 0 ? void 0 : _k.calendario) : undefined;
         const contadorRef = numeracao ? db.collection(context_1.COL.contadores).doc((0, numeracao_1.chaveContador)(orgId, numeracao, ctxNumero)) : null;
         const numero = await db.runTransaction(async (tx) => {
             var _a;
@@ -607,7 +616,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
     const calendario = ['abrirPrazo', 'tramitar', 'avancarFase'].includes(String(p.action))
-        ? (0, secretaria_1.sanitizeCalendario)((_k = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _k === void 0 ? void 0 : _k.calendario)
+        ? (0, secretaria_1.sanitizeCalendario)((_l = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _l === void 0 ? void 0 : _l.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
     let expedidas = 1;

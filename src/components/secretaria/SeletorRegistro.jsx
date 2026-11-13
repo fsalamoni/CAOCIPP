@@ -58,7 +58,8 @@ export default function SeletorRegistro({ id, modulo, value, onChange, disabled,
     }, [aberto]);
 
     const escolher = (r) => {
-        onChange({ id: r.id, numero: r.numero, titulo: r.titulo });
+        // Dados (ou a marca de restrito) seguem para pré-preencher campos; o servidor só usa o id.
+        onChange({ id: r.id, numero: r.numero, titulo: r.titulo, ...(r.restrito ? { restrito: true } : r.dados ? { dados: r.dados } : {}) });
         setAberto(false);
         setTexto('');
         setAnuncio(`Escolhido ${r.numero}${r.titulo ? `, ${r.titulo}` : ''}`);

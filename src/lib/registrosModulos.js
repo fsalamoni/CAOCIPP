@@ -10,6 +10,8 @@ import { collection, doc, getDoc, query, where, orderBy, limit, getDocs } from '
 import { db } from '@/config/firebase';
 import { getProcessField } from '@/utils/processUtils';
 import { getParceriaField } from '@/utils/parceriaUtils';
+import { getExpedienteField } from '@/utils/expedienteUtils';
+import { parseLocalDate } from '@/lib/dateUtils';
 
 // ponytail: os 500 mais recentes por módulo, filtrados na tela; um índice de busca no servidor se os órgãos passarem disso.
 const LIMITE = 500;
@@ -20,7 +22,23 @@ const COLECAO = { consultas: 'processes', expedientes: 'expedientes', parcerias:
 const CAMPO_NUMERO = { consultas: 'process_number', expedientes: 'expediente_number', parcerias: 'pgea', juri: 'numero_processo' };
 const cache = new Map();
 
-/** Número e título como o servidor guarda (espelho de refDe em shared/modulos.ts). */
+/** Dados do catálogo (DADOS_REGISTRO) que um campo próprio pode importar; o que não for data válida fica de fora. */
+function dadosDe(modulo, d) {
+    const txt = (v) => (v === undefined || v === null ? '' : String(v).trim().slice(0, 4000));
+    const data = (v) => {
+        const x = v ? parseLocalDate(v) : null;
+        return x && !Number.isNaN(x.getTime()) ? `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` : '';
+    };
+    const brutos = {
+        consultas: { consulente: txt(getProcessField(d, 'consultant')), local: txt(getProcessField(d, 'location')), materia: txt(d.matter_object), entrada: data(getProcessField(d, 'entry_date')) },
+        expedientes: { origem: txt(getExpedienteField(d, 'origin')), sistema: txt(getExpedienteField(d, 'system')), objeto: txt(getExpedienteField(d, 'object')), entrada: data(getExpedienteField(d, 'entry_date')) },
+        parcerias: { tipo: txt(getParceriaField(d, 'partnership_type')), objeto: txt(getParceriaField(d, 'object')), partes: txt(getParceriaField(d, 'parties')), assinatura: data(getParceriaField(d, 'signature_date')), termo_final: data(getParceriaField(d, 'end_date')) },
+        juri: { comarca: txt(d.comarca), data_juri: data(d.data_juri) },
+    }[modulo] || {};
+    return Object.fromEntries(Object.entries(brutos).filter(([, v]) => v));
+}
+
+/** Número e título como o servidor guarda (espelho de refDe em shared/modulos.ts); `dados` só de registro sem restrição, para pré-preencher. */
 export function registroDe(modulo, id, d) {
     const par = {
         consultas: [getProcessField(d, 'process_number'), d.matter_object],
@@ -30,7 +48,7 @@ export function registroDe(modulo, id, d) {
     }[modulo] || [];
     const s = (v) => (v === undefined || v === null ? '' : String(v).trim());
     const restrito = /^sim$/i.test(s(d.access_restriction)) || d.access_restriction === true || d.anonymized === true;
-    return { id, numero: s(par[0]).slice(0, 80) || 'sem número', titulo: s(par[1]).slice(0, 160), ...(restrito ? { restrito: true } : {}) };
+    return { id, numero: s(par[0]).slice(0, 80) || 'sem número', titulo: s(par[1]).slice(0, 160), ...(restrito ? { restrito: true } : { dados: dadosDe(modulo, d) }) };
 }
 
 async function registros(orgId, modulo) {

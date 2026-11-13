@@ -115,3 +115,14 @@ test('TXT e HTML', async () => {
     assert.ok(!JSON.stringify(h.conteudo).includes('alert'));
     assert.match(textos(h.conteudo), /\{\{usuario\}\}/);
 });
+
+test('campos: polos e origem têm chave própria; requerente segue em partes', () => {
+    assert.equal(im.campoConhecido('Requerido'), 'partes_requerido');
+    assert.equal(im.campoConhecido('terceiros'), 'partes_terceiro');
+    assert.equal(im.campoConhecido('partes_requerente'), 'partes_requerente');
+    assert.equal(im.campoConhecido('Origem'), null);
+    assert.equal(im.campoConhecido('requerente'), 'partes');
+    // Nome desconhecido vira a mesma chave que o rótulo do campo dá no SIGO (chaveCampo).
+    const ach = new Set(), desc = new Set();
+    assert.equal(im.normalizarCampos('«Nº do contrato» {{Prazo (30 dias)}} <<Ação civil>>', ach, desc), '{{n_do_contrato}} {{prazo_30_dias}} {{acao_civil}}');
+});

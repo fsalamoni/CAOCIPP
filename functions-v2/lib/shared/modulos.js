@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ehModuloOrigem = exports.idEscolhido = exports.ROTULO_MODULO = exports.MODULOS = void 0;
+exports.ehModuloOrigem = exports.idEscolhido = exports.DADOS_REGISTRO = exports.ROTULO_MODULO = exports.MODULOS = void 0;
 exports.modulosAtivos = modulosAtivos;
 exports.integracoesGravadas = integracoesGravadas;
 exports.integracoesDe = integracoesDe;
@@ -15,10 +15,19 @@ const fields_1 = require("./fields");
  * Integração do Processo Eletrônico com os outros módulos do órgão. O admin
  * liga cada uma em `secretariaConfig.integracoes`; só vale com o módulo ativo
  * no órgão. O processo guarda só número e título do registro escolhido, nunca
- * consulente, partes, promotor, responsável ou situação.
+ * consulente, partes, promotor, responsável ou situação. Os dados do catálogo
+ * abaixo só entram como pré-preenchimento de campo próprio do tipo (editável,
+ * validado como digitado e nunca mostrado às partes).
  */
 exports.MODULOS = ['consultas', 'expedientes', 'parcerias', 'juri'];
 exports.ROTULO_MODULO = { consultas: 'Consultas', expedientes: 'Expedientes', parcerias: 'Parcerias', juri: 'Júri' };
+/** Dados do registro que um campo próprio do tipo pode receber, e de que tipo (espelho em src/lib/camposProcesso.js). */
+exports.DADOS_REGISTRO = {
+    consultas: { consulente: 'texto', local: 'texto', materia: 'texto', entrada: 'data' },
+    expedientes: { origem: 'texto', sistema: 'texto', objeto: 'texto', entrada: 'data' },
+    parcerias: { tipo: 'texto', objeto: 'texto', partes: 'texto', assinatura: 'data', termo_final: 'data' },
+    juri: { comarca: 'texto', data_juri: 'data' },
+};
 const COLECAO = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias', juri: 'juris' };
 /**
  * Módulos ativos no órgão, com a mesma regra das abas (resolveBuiltinModules e
