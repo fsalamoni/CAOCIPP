@@ -5,7 +5,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     Fase, MAX_TEXTO_LONGO, MAX_UPLOAD_BYTES, Pendencia, Prazo, derivados, hojeBrasil, jsonCanonico, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
-import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer } from '../shared/exigencias';
+import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { COL, Contexto, REGION, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
 import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
@@ -471,7 +471,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const c = contextoParte(db, proc, uid, `${parte.assina} (parte)`);
             // Petição pode cumprir documento que o rito exige de fora (ex.: defesa prévia), pelo tipo.
             const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
-            const pendentes = pendentesDaFase(fase, proc.exigencias_cumpridas as Cumpridas | undefined);
+            const pendentes = pendentesDaFase(fase, proc.exigencias_cumpridas as Cumpridas | undefined, respostasDaFase(proc));
             const chaves = new Set([tipoPeticao, 'Petição'].filter(Boolean)
                 .flatMap((tipo) => reconhecer(pendentes, { origem: buf ? 'upload' : 'editor', tipo, peticao: true })));
             const cumpridas = pendentes.filter((e) => chaves.has(e.chave));

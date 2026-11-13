@@ -11,7 +11,7 @@ import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
-    tituloCertidao, visivelCertidao,
+    tituloCertidao, visivelCertidao, acaoAtiva, chaveDaResposta, condicaoAtendida, opcoesDaResposta, respostasDaFase, Condicao,
 } from '../shared/exigencias';
 import { sendEmail } from '../shared/email';
 import {
@@ -130,8 +130,8 @@ function exigenciasAbertas(proc: admin.firestore.DocumentData, form?: Formulario
     const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
     const exigidos = ((proc.campos_exigidos || {}) as Record<string, CampoExigido[]>)[String(proc.fase_atual)];
     return [
-        ...documentosQueFaltam(fase, proc.exigencias_cumpridas as Cumpridas | undefined),
-        ...acoesObrigatoriasPendentes(fase, (proc.acoes_feitas || {})[String(proc.fase_atual)]),
+        ...documentosQueFaltam(fase, proc.exigencias_cumpridas as Cumpridas | undefined, respostasDaFase(proc)),
+        ...acoesObrigatoriasPendentes(fase, (proc.acoes_feitas || {})[String(proc.fase_atual)], respostasDaFase(proc)),
         ...camposFaltando(exigidos, proc.campos as CampoValor[] | undefined, form).map((x) => ({ descricao: `Preencher "${x.rotulo}"` })),
     ];
 }
@@ -140,6 +140,24 @@ function exigenciasAbertas(proc: admin.firestore.DocumentData, form?: Formulario
  * Sair da fase com exigência em aberto: sem motivo, recusa; com motivo, a
  * dispensa fica no movimento (e nos autos). Devolve o que foi dispensado.
  */
+/** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial. */
+function textoCondicao(f: Fase | undefined, c: Condicao): string {
+    const r = f?.acoes_regras?.[c.acao];
+    const rot = (v: string) => (r?.pede === 'sim_nao' ? (v === 'sim' ? 'Sim' : 'Não') : v);
+    return `"${r?.rotulo || f?.acoes?.[c.acao] || 'a resposta'}" for ${c.valores.map(rot).join(' ou ')}`;
+}
+
+/**
+ * Saída que o rito condiciona à resposta de uma ação: seguir por ela sem a
+ * resposta que a indica pede motivo (fica no movimento como contra a condição).
+ */
+function foraDaCondicao(proc: admin.firestore.DocumentData, alvoId: string): string | null {
+    const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
+    const cond = fase?.condicoes_regra?.[alvoId];
+    if (!cond || condicaoAtendida(cond, respostasDaFase(proc), fase)) return null;
+    return textoCondicao(fase, cond);
+}
+
 function dispensarExigencias(proc: admin.firestore.DocumentData, motivo: string, form?: Formulario | null): string[] {
     const abertas = exigenciasAbertas(proc, form).map((e) => e.descricao);
     if (abertas.length && !motivo) {
@@ -477,6 +495,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 prazos: data.prazos || [],
                 comunicacoes: data.comunicacoes || [],
                 acoes_feitas: data.acoes_feitas || {},
+                acoes_respostas: data.acoes_respostas || {},
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
                 consolidacao: data.consolidacao || null,
                 exigencias_cumpridas: data.exigencias_cumpridas || {},
@@ -658,6 +677,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (novaFase && data.fase_suspensa === true) throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
             const foraDoFluxo = !!novaFase && !fasesSeguintes(fases, data.fase_atual).some((f) => f.id === novaFase.id);
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${novaFase!.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
+            const contraCondicao = novaFase && !foraDoFluxo ? foraDaCondicao(data, novaFase.id) : null;
+            if (contraCondicao && !motivo) throw new HttpsError('invalid-argument', `O rito leva a ${novaFase!.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
             const orientacao = texto(p.orientacao, MAX_TEXTO_LONGO);
             const faseDe = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             // Remessa entre órgãos internos: o termo diz de qual órgão para qual.
@@ -684,9 +705,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (em.proc !== data) expedidas = 2;
             const mov = registrarMovimento(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao',
                 `${conclusao ? 'Conclusos a' : 'Remetido de ' + com(nomeUnidade(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
-                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.` : ''}`
+                + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.` : ''}`
                 + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}`,
-                { de: data.unidade_atual, para: destino.id, ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}) } : {}),
+                { de: data.unidade_atual, para: destino.id, ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}) } : {}),
                     ...(dispensadas.length ? { dispensadas } : {}), ...marcasDoDestino(destinoMov), ...(idsMinutas.length ? { minutas: idsMinutas } : {}) });
             minutas.forEach((s) => tx.update(s.ref, { unidades_acesso: FieldValue.arrayUnion(destino.id) }));
             tx.update(ref, {
@@ -744,6 +765,20 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const acao = fase?.acoes?.[idx];
             if (!fase || !acao) throw new HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = fase.acoes_regras?.[idx];
+            const respostas = respostasDaFase(data);
+            // Ação condicional: só vale com a resposta que o rito pede.
+            if (p.feita !== false && !acaoAtiva(fase, idx, respostas)) {
+                throw new HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra!.se!)}`);
+            }
+            // Quem pode cumprir: o rito pode reservar ao responsável designado ou a quem gere a unidade.
+            if (regra?.quem && !c.ctx.isAdmin) {
+                const pode = regra.quem === 'responsavel' ? data.responsavel_uid === c.ctx.uid : c.gestorDe.includes(String(data.unidade_atual));
+                if (!pode) {
+                    throw new HttpsError('permission-denied', regra.quem === 'responsavel'
+                        ? `"${acao}" é do responsável pelo processo. Peça a atribuição ou a quem está designado.`
+                        : `"${acao}" é de quem gere a unidade.`);
+                }
+            }
             // Ação que o rito liga a um documento se cumpre na juntada (ou guardando o documento), não aqui.
             if (regra?.documento) {
                 throw new HttpsError('failed-precondition', regra.documento.destino
@@ -761,6 +796,15 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const vePartes = partesVeem(regra) && !dado?.restrito;
             if (feita) lista.add(idx); else lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
+            // Resposta de escolha guardada na rodada da fase: as ações e saídas condicionadas a leem.
+            const respondeu = opcoesDaResposta(regra) !== null;
+            const todasRespostas = { ...(data.acoes_respostas || {}) } as Record<string, Record<string, string>>;
+            if (respondeu) {
+                const daFase = { ...(todasRespostas[fase.id] || {}) };
+                if (feita && dado) daFase[String(idx)] = chaveDaResposta(dado.valor); else delete daFase[String(idx)];
+                todasRespostas[fase.id] = daFase;
+            }
+            const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
             const comDado = dado ? ` ${dado.rotulo}: ${dado.valor_texto}.` : '';
@@ -775,7 +819,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
                         `Certifico que foi desfeita a providência "${acao}", da fase ${fase.nome}.`,
                         { fase_id: fase.id, acao_idx: idx, feita, destino: 'autos', nos_autos: true, visivel_partes: partesVeem(regra) });
-                    tx.update(ref, { ...mov, acoes_feitas: feitas });
+                    tx.update(ref, { ...mov, acoes_feitas: feitas, ...comResposta });
                     return mov;
                 }
                 const item: ItemCertidao = {
@@ -796,7 +840,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 const consolidacao = feita
                     ? itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) })
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
-                tx.update(ref, { ...em.mov, ...mov, acoes_feitas: feitas, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
+                tx.update(ref, { ...em.mov, ...mov, acoes_feitas: feitas, ...comResposta, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
                 return mov;
             }
             const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
@@ -812,7 +856,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                     visivel_partes: vePartes,
                     ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
-            tx.update(ref, { ...mov, acoes_feitas: feitas, ...vinculoDaAcao(dado) });
+            tx.update(ref, { ...mov, acoes_feitas: feitas, ...comResposta, ...vinculoDaAcao(dado) });
             return mov;
         }
 
@@ -842,6 +886,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             // Sair do fluxo desenhado no rito é permitido, mas exige justificativa.
             const foraDoFluxo = !fasesSeguintes(fases, data.fase_atual).some((f) => f.id === alvo.id);
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
+            const contraCondicao = foraDoFluxo ? null : foraDaCondicao(data, alvo.id);
+            if (contraCondicao && !motivo) throw new HttpsError('invalid-argument', `O rito leva a ${alvo.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             const dispensadas = dispensarExigencias(data, motivo, formAtual);
             const destinoMov = dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, alvo.id);
@@ -849,13 +895,13 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
             // Motivo longo não se resume numa certidão conjunta: a mudança tem termo próprio.
             const grupo = grupoDe(alvo);
-            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`;
+            const descricao = `Fase alterada de ${de} para ${alvo.nome}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}`;
             const junta = !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= MAX_ITEM_CERTIDAO && mudancaNaCertidao(fases, data.fase_atual, alvo.id);
             const item: ItemCertidao = { seq: 0, fase_id: data.fase_atual, texto: descricao.replace(/\.$/, ''), autor: c.userName, em: new Date().toISOString(), partes: destinoMov === 'autos' };
             const em = emitirSe(deveEmitir(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
             const mov = registrarMovimento(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}`,
-                { de: data.fase_atual, para: alvo.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(dispensadas.length ? { dispensadas } : {}),
+                { de: data.fase_atual, para: alvo.id, ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}), ...(dispensadas.length ? { dispensadas } : {}),
                     ...(junta ? { consolidada: true, ...marcasDoDestino('nenhum') } : marcasDoDestino(destinoMov)) });
             const consolidacao = junta
                 ? { consolidacao: itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) }) }

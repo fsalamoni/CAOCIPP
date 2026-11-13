@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ROTULO_DESTINO, destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
+import { ROTULO_DESTINO, ROTULO_QUEM, destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
 import { dataHora } from './comum';
 import SeletorRegistro from './SeletorRegistro';
 
@@ -23,6 +23,7 @@ export function SelosAcao({ r }) {
         ...(pede !== 'documento' && dest !== 'evento' ? [ONDE[dest]] : []),
         ...(pede !== 'documento' && partesVeem(r) ? ['partes veem'] : []),
         ...(r?.obrigatoria ? ['obrigatória'] : r?.recomendada ? ['recomendada'] : []),
+        ...(r?.quem ? [ROTULO_QUEM[r.quem]] : []),
     ];
     if (!selos.length) return null;
     return <span className="text-xs text-slate-600 dark:text-slate-400"> · {selos.join(' · ')}</span>;
@@ -32,15 +33,21 @@ export function SelosAcao({ r }) {
  * Uma ação da fase. `info`: a informação registrada nesta rodada da fase (se a ação pede um dado).
  * `onMarcar(feita, valor)` chama o servidor.
  */
-export function AcaoDaFase({ acao, r, feita, info, podeMexer, ocupado, onMarcar, onRegistrar, onDesfazer }) {
+export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, onMarcar, onRegistrar, onDesfazer }) {
     const pede = pedidoDaAcao(r);
+    // Reservada pelo rito a outra pessoa: quem tem o processo vê por quê não pode cumprir.
+    const aviso = reservada && !feita && (
+        <span className="block text-xs text-slate-600 dark:text-slate-400">
+            {r?.quem === 'responsavel' ? 'Só o responsável designado cumpre esta ação (use "Atribuir" se for o caso).' : 'Só quem gere a unidade cumpre esta ação.'}
+        </span>
+    );
     if (pede === 'confirmar') {
         return (
             <label className={`flex items-start gap-2 text-sm ${podeMexer ? 'cursor-pointer' : ''}`}>
                 <input type="checkbox" className="mt-1" checked={feita} disabled={!podeMexer || ocupado}
                     onChange={(e) => onMarcar(e.target.checked)} />
                 <span><span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
-                    {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}</span>
+                    {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}{aviso}</span>
             </label>
         );
     }
@@ -53,6 +60,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, ocupado, onMarcar,
             <span className="flex-1 min-w-[10rem]">
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
+                {aviso}
                 {feita && info && (
                     <span className="block text-slate-800 dark:text-slate-200">
                         {info.rotulo}: <b className="whitespace-pre-wrap break-words">{info.valor_texto}</b>

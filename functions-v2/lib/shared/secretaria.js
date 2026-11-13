@@ -150,8 +150,8 @@ function sanitizeRito(input) {
             ids.set(original, id);
         return { fo, id, nomeFase };
     });
-    const fases = brutas.map(({ fo, id, nomeFase }) => {
-        var _a, _b;
+    const fases = brutas.map(({ fo, id, nomeFase }, i) => {
+        var _a, _b, _c, _d;
         const prazo = Number(fo.prazo_dias);
         const orientacao = texto(fo.orientacao, exports.MAX_TEXTO_LONGO);
         const final = fo.final === true;
@@ -173,6 +173,9 @@ function sanitizeRito(input) {
         const acoes = mantidas.map(([a]) => a);
         const regrasBrutas = Array.isArray(fo.acoes_regras) ? fo.acoes_regras : [];
         const regrasAlinhadas = mantidas.map(([, i]) => regrasBrutas[i]);
+        // Índice que o cliente mandou -> índice gravado (as condições apontam para ações).
+        const mapa = new Map(mantidas.map(([, i], j) => [i, j]));
+        const regras = (0, exigencias_1.sanitizeRegras)(Object.assign(Object.assign({}, fo), { acoes_regras: regrasAlinhadas }), acoes, mapa);
         const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, exports.MAX_MODELOS_FASE);
         // Condições só para saídas que existem (referência pelo id do cliente ou final).
         const condicoes = {};
@@ -184,13 +187,27 @@ function sanitizeRito(input) {
                     condicoes[alvo] = rot;
             }
         }
+        // Saída pela resposta: só para saídas que existem (as explícitas, ou a seguinte da lista quando não há).
+        const condicoesRegra = {};
+        if (fo.condicoes_regra && typeof fo.condicoes_regra === 'object') {
+            const saidas = final ? [] : proximas.length ? proximas : (brutas[i + 1] ? [brutas[i + 1].id] : []);
+            for (const [k, v] of Object.entries(fo.condicoes_regra)) {
+                const alvo = (_b = ids.get(k)) !== null && _b !== void 0 ? _b : (vistos.has(k) ? k : null);
+                if (!alvo || !saidas.includes(alvo))
+                    continue;
+                const nomeAlvo = ((_c = brutas.find((b) => b.id === alvo)) === null || _c === void 0 ? void 0 : _c.nomeFase) || alvo;
+                const cond = (0, exigencias_1.sanitizeCondicao)(v, regras.acoes_regras || [], acoes, `A saída de "${nomeFase}" para "${nomeAlvo}"`, mapa);
+                if (cond)
+                    condicoesRegra[alvo] = cond;
+            }
+        }
         // Grupo da certidão: o id (do cliente ou final) de outra fase, ou a própria fase.
         const cf = (fo.certidao && typeof fo.certidao === 'object' ? fo.certidao : {});
         const grupoBruto = texto(cf.grupo, 40);
-        const grupo = grupoBruto ? ((_b = ids.get(grupoBruto)) !== null && _b !== void 0 ? _b : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
+        const grupo = grupoBruto ? ((_d = ids.get(grupoBruto)) !== null && _d !== void 0 ? _d : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
         const titulo = texto(cf.titulo, 120);
         const certidao = Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (0, exigencias_1.sanitizeRegras)(Object.assign(Object.assign({}, fo), { acoes_regras: regrasAlinhadas }), acoes));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 ? { prazo_dias: prazo } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), regras);
     });
     // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).
     const raizes = new Map(fases.map((f) => {

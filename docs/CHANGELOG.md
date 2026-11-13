@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Processo Eletrônico: o rito decide pela resposta
+- **Ação que só vale com certa resposta**: numa fase com uma ação de escolha
+  (por exemplo, "Decisão: Deferido ou Indeferido"), outras ações podem valer
+  só para algumas respostas. Sem a resposta, aparecem apagadas e não são
+  cobradas.
+- **Saída indicada pela resposta**: cada encaminhamento pode ter uma regra. O
+  botão principal já leva à fase indicada; ir por outra saída com regra pede
+  motivo, que fica registrado.
+- **Quem pode cumprir** cada ação: qualquer pessoa da equipe, só o
+  responsável designado ou só quem gere a unidade.
+- **Simular o rito na prévia**: escolha respostas, veja o que passa a valer e
+  ande pelas fases, sem gravar nada. O fluxograma mostra as regras nas setas.
+
 ### 13/11/2026 — Processo Eletrônico: registros ligados na Capa
 - **Registros ligados** na Capa do processo: consultas, expedientes,
   parcerias e júris citados na origem, nos campos ou nas ações do rito, com

@@ -189,6 +189,81 @@ export function saidasDaFase(fases, f) {
     return fases[i + 1] ? [fases[i + 1]] : [];
 }
 
+// ---------------------------------------------------------------------------
+// Condições pela resposta (iguais às do servidor, em shared/exigencias.ts):
+// uma ação de escolha (lista ou sim/não) da fase decide se outra ação vale
+// (`regra.se`) e por qual saída o processo segue (`fase.condicoes_regra`).
+// ---------------------------------------------------------------------------
+
+/** Quem pode cumprir a ação (além da administração). */
+export const QUEM = [['', 'Quem tem o processo'], ['responsavel', 'Só o responsável designado'], ['gestor', 'Só quem gere a unidade']];
+export const ROTULO_QUEM = { responsavel: 'só o responsável', gestor: 'só quem gere a unidade' };
+
+/** Respostas possíveis de uma ação de escolha ([valor, rótulo]); null se a ação não é de escolha. */
+export function opcoesDaResposta(r) {
+    if (!r || r.documento) return null;
+    if (r.pede === 'lista') return (r.opcoes || []).map((o) => o.trim()).filter(Boolean).map((o) => [o, o]);
+    if (r.pede === 'sim_nao') return [['sim', 'Sim'], ['nao', 'Não']];
+    return null;
+}
+
+/** Ações de escolha da fase que podem condicionar (antes de `limite`): [índice, texto]. */
+export const acoesDeEscolha = (f, limite = Infinity) => (f?.acoes || [])
+    .map((a, i) => [i, a])
+    .filter(([i, a]) => i < limite && a.trim() && opcoesDaResposta(f.acoes_regras?.[i]));
+
+// Com `f`, a resposta só conta se a ação que a deu também vale (condições em cadeia), como no servidor.
+export const condicaoAtendida = (c, resp, f) => !c || (resp?.[c.acao] !== undefined && c.valores.includes(resp[c.acao])
+    && (!f || acaoAtiva(f, c.acao, resp)));
+export const acaoAtiva = (f, i, resp) => {
+    const se = f?.acoes_regras?.[i]?.se;
+    return !se || (se.acao < i && condicaoAtendida(se, resp, f));
+};
+
+/** "Decisão" for Deferido ou Parcial. */
+export function textoCondicao(f, c) {
+    if (!c) return '';
+    const r = f?.acoes_regras?.[c.acao];
+    const nomes = Object.fromEntries(opcoesDaResposta(r) || []);
+    return `"${r?.rotulo || f?.acoes?.[c.acao] || `ação ${c.acao + 1}`}" for ${c.valores.map((v) => nomes[v] || v).join(' ou ')}`;
+}
+
+/** O que está errado na condição (para as pendências do editor), ou null. */
+export function problemaDaCondicao(f, c, limite = Infinity) {
+    if (!c) return null;
+    const ops = c.acao < limite ? opcoesDaResposta(f?.acoes_regras?.[c.acao]) : null;
+    if (!ops || !(f?.acoes?.[c.acao] || '').trim()) return limite === Infinity ? 'depende de uma ação que não é mais de escolha' : 'depende de uma ação que não vem antes dela ou não é de escolha';
+    if (!c.valores.length) return null; // sem resposta marcada: quem chama avisa à parte
+    const validos = c.valores.filter((v) => ops.some(([o]) => o === v));
+    return validos.length ? null : 'nenhuma das respostas escolhidas existe mais';
+}
+
+/**
+ * As ações mudaram de lugar: `origem[j]` é o índice antigo da ação j (-1 se nova).
+ * As condições acompanham a ação de que dependem; as que dependiam de ação removida saem.
+ */
+export function remapearCondicoes(f, origem, regras) {
+    const novo = new Map(origem.map((o, j) => [o, j]).filter(([o]) => o >= 0));
+    const mapa = (c) => (novo.has(c.acao) ? { ...c, acao: novo.get(c.acao) } : null);
+    const rs = regras.map((r) => {
+        if (!r?.se) return r || null;
+        const se = mapa(r.se);
+        if (se) return { ...r, se };
+        const { se: _s, ...resto } = r;
+        return Object.keys(resto).length ? resto : null;
+    });
+    const cr = Object.fromEntries(Object.entries(f.condicoes_regra || {}).map(([k, c]) => [k, mapa(c)]).filter(([, c]) => c));
+    return { acoes_regras: rs.some(Boolean) ? rs : undefined, condicoes_regra: Object.keys(cr).length ? cr : undefined };
+}
+
+/** Saídas da fase com a condição de cada uma e se a resposta registrada a indica. */
+export function saidasComCondicao(fases, f, resp) {
+    return saidasDaFase(fases, f).map((x) => {
+        const c = f.condicoes_regra?.[x.id];
+        return { fase: x, condicao: c || null, indicada: !!c && condicaoAtendida(c, resp, f), contra: !!c && !condicaoAtendida(c, resp, f) };
+    });
+}
+
 /** Regra nova a partir de outra, trocando o que a ação pede (mantém destino, quem vê e obrigatoriedade). */
 export function regraComPedido(r, pede, acao) {
     const nova = regraComPedidoSemNivel(r, pede, acao);
@@ -199,6 +274,13 @@ export function regraComPedido(r, pede, acao) {
 }
 
 function regraComPedidoSemNivel(r, pede, acao) {
+    const nova = regraComPedidoBase(r, pede, acao);
+    // A condição ("só vale se") e quem cumpre acompanham a ação (documento: quem cumpre é quem junta).
+    const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem } : {}) };
+    return Object.keys(extra).length ? { ...(nova || {}), ...extra } : nova;
+}
+
+function regraComPedidoBase(r, pede, acao) {
     const dest = destinoDaAcao(r);
     // Documento novo vai aos autos, salvo se o criador já tinha escolhido outro destino para a ação.
     const escolhido = r?.documento?.destino || r?.destino;
@@ -231,43 +313,46 @@ export function resumoDaAcao(r) {
     const oque = pede === 'confirmar' ? 'confirmação' : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];
     const nivel = { '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)];
-    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${nivel}`;
+    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${nivel}${r?.se ? '; condicional' : ''}${r?.quem ? `; ${ROTULO_QUEM[r.quem]}` : ''}`;
 }
 
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
-export function exigenciasDaFase(f) {
+export function exigenciasDaFase(f, resp) {
     if (!f) return [];
     return [
         ...(f.documentos || []).map((d, i) => ({ ...d, chave: `d${i}` })),
-        ...(f.acoes_regras || []).flatMap((r, i) => (r?.documento && f.acoes?.[i] ? [{ ...r.documento, chave: `a${i}`, acao_idx: i }] : [])),
+        // Ação condicional que não vale agora não exige o documento.
+        ...(f.acoes_regras || []).flatMap((r, i) => (r?.documento && f.acoes?.[i] && acaoAtiva(f, i, resp) ? [{ ...r.documento, chave: `a${i}`, acao_idx: i }] : [])),
     ];
 }
 
 /** Cada exigência com o documento que a cumpriu (ou null). */
-export function situacaoDaFase(f, cumpridas) {
+export function situacaoDaFase(f, cumpridas, resp) {
     const feitas = (f && cumpridas?.[f.id]) || {};
-    return exigenciasDaFase(f).map((e) => ({ ...e, cumprida: feitas[e.chave] || null }));
+    return exigenciasDaFase(f, resp).map((e) => ({ ...e, cumprida: feitas[e.chave] || null }));
 }
 
-export const pendentesDaFase = (f, cumpridas) => situacaoDaFase(f, cumpridas).filter((e) => !e.cumprida);
+export const pendentesDaFase = (f, cumpridas, resp) => situacaoDaFase(f, cumpridas, resp).filter((e) => !e.cumprida);
 
-/** Ações obrigatórias (sem documento) ainda não feitas. */
-export function acoesObrigatoriasPendentes(f, feitas = []) {
+/** Ações obrigatórias (sem documento) ainda não feitas (a condicional só quando vale). */
+export function acoesObrigatoriasPendentes(f, feitas = [], resp) {
     if (!f) return [];
     const ok = new Set(feitas);
-    return (f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) ? [{ descricao: a, acao_idx: i }] : []));
+    return (f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.obrigatoria && !f.acoes_regras[i]?.documento && !ok.has(i) && acaoAtiva(f, i, resp)
+        ? [{ descricao: a, acao_idx: i }] : []));
 }
 
 /** Tudo o que falta para a fase seguir sem dispensa: documentos e ações obrigatórias (recomendados e opcionais não impedem). */
-export const faltaNaFase = (f, cumpridas, feitas) => [...pendentesDaFase(f, cumpridas).filter((e) => !e.nivel), ...acoesObrigatoriasPendentes(f, feitas)];
+export const faltaNaFase = (f, cumpridas, feitas, resp) => [...pendentesDaFase(f, cumpridas, resp).filter((e) => !e.nivel), ...acoesObrigatoriasPendentes(f, feitas, resp)];
 
 /** O que o rito recomenda na fase e ainda não foi feito: avisa quem conclui, sem impedir. */
-export function recomendadosNaFase(f, cumpridas, feitas = []) {
+export function recomendadosNaFase(f, cumpridas, feitas = [], resp) {
     if (!f) return [];
     const ok = new Set(feitas);
     return [
-        ...pendentesDaFase(f, cumpridas).filter((e) => e.nivel === 'recomendado'),
-        ...(f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.recomendada && !f.acoes_regras[i]?.documento && !ok.has(i) ? [{ descricao: a, acao_idx: i }] : [])),
+        ...pendentesDaFase(f, cumpridas, resp).filter((e) => e.nivel === 'recomendado'),
+        ...(f.acoes || []).flatMap((a, i) => (f.acoes_regras?.[i]?.recomendada && !f.acoes_regras[i]?.documento && !ok.has(i) && acaoAtiva(f, i, resp)
+            ? [{ descricao: a, acao_idx: i }] : [])),
     ];
 }
 

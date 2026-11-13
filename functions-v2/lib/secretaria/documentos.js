@@ -265,7 +265,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                 throw new https_1.HttpsError('aborted', 'A pendência já foi apreciada por outra pessoa');
             // Documento exigido pelo rito na fase (ou numa ação dela): a juntada o cumpre.
             const fase = (atual.fases || []).find((f) => f.id === atual.fase_atual);
-            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas);
+            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas, (0, exigencias_1.respostasDaFase)(atual));
             let cumpre = [];
             try {
                 cumpre = (0, exigencias_1.reconhecer)(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id }, p.atende);
@@ -306,7 +306,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             const { ref, doc } = await lerDoc(tx);
             exigirMinutaDaMinhaUnidade(doc);
             const fase = (atual.fases || []).find((f) => f.id === atual.fase_atual);
-            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas);
+            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas, (0, exigencias_1.respostasDaFase)(atual));
             let cumpre = [];
             try {
                 cumpre = (0, exigencias_1.reconhecer)(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id, controle: true }, p.atende);

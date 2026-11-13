@@ -21,11 +21,11 @@ import {
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
 import { copiarFases, modelosDeRito, novoIdFase, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
-import { registroComOutros, tirarDoGrupo } from '@/lib/exigencias';
+import { problemaDaCondicao, registroComOutros, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
 import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import FluxoRito from './FluxoRito';
-import { AcoesDaFase, RegistroEDocumentos } from './RegrasDaFase';
+import { AcoesDaFase, CondicaoPorResposta, RegistroEDocumentos } from './RegrasDaFase';
 import { TIPOS_UNIDADE, copiarTexto } from './comum';
 import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
@@ -77,6 +77,8 @@ export function pendenciasDaProposta(p, ligadas = null) {
             if (a.trim() && r?.pede === 'lista' && (r.opcoes || []).filter((o) => o.trim()).length < 2) {
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede uma escolha: informe ao menos duas opções.` });
             }
+            const prob = a.trim() && r?.se ? problemaDaCondicao(f, r.se, k) || (r.se.valores.length ? null : 'está sem resposta marcada') : null;
+            if (prob) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a condição de "${a.trim()}" ${prob}. Ajuste em "Quando vale".` });
             if (a.trim() && r?.pede === 'registro' && ligadas && !ligadas[r.modulo]) {
                 const mod = MODULOS.find(([m]) => m === r.modulo)?.[1] || r.modulo;
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um registro de ${mod}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou mude o que a ação pede.` });
@@ -94,8 +96,14 @@ export function pendenciasDaProposta(p, ligadas = null) {
             const saidas = (f.proximas || []).filter((id) => id !== f.id);
             if (i === p.fases.length - 1 && saidas.length === 0) out.push({ fase: f.id, texto: `${rot} é a última e não termina o processo: marque "O processo termina nesta fase" ou indique para onde segue.` });
             saidas.filter((id) => !ids.has(id)).forEach(() => out.push({ fase: f.id, grave: true, texto: `${rot} segue para uma fase que não existe mais.` }));
+            saidas.filter((id) => f.condicoes_regra?.[id]).forEach((id) => {
+                const c = f.condicoes_regra[id];
+                const prob = problemaDaCondicao(f, c) || (c.valores.length ? null : 'está sem resposta marcada');
+                const alvo = p.fases.find((x) => x.id === id)?.nome || 'outra fase';
+                if (prob) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a regra da saída para ${alvo} ${prob}. Ajuste em "Encaminhamentos".` });
+            });
             if (saidas.length > 1) {
-                const semCond = saidas.filter((id) => !(f.condicoes?.[id] || '').trim());
+                const semCond = saidas.filter((id) => !(f.condicoes?.[id] || '').trim() && !f.condicoes_regra?.[id]);
                 if (semCond.length) out.push({ fase: f.id, texto: `${rot} tem ${saidas.length} saídas e ${semCond.length} sem condição: a equipe não saberá quando escolher cada uma.` });
             }
         }
@@ -853,7 +861,20 @@ function CartaoFase({
         novas[k] = id;
         const condicoes = { ...(f.condicoes || {}) };
         if (antiga && condicoes[antiga] !== undefined) { condicoes[id] = condicoes[antiga]; delete condicoes[antiga]; }
-        mudar({ proximas: [...new Set(novas.filter(Boolean))], condicoes });
+        // A regra pela resposta acompanha a saída que mudou de destino.
+        const regra = { ...(f.condicoes_regra || {}) };
+        if (antiga && regra[antiga]) { regra[id] = regra[antiga]; delete regra[antiga]; }
+        mudar({ proximas: [...new Set(novas.filter(Boolean))], condicoes, condicoes_regra: Object.keys(regra).length ? regra : undefined });
+    };
+    const tirarSaida = (id) => {
+        const { [id]: _c, ...cond } = f.condicoes || {};
+        const { [id]: _r, ...regra } = f.condicoes_regra || {};
+        mudar({ proximas: saidas.filter((x) => x !== id), condicoes: cond, condicoes_regra: Object.keys(regra).length ? regra : undefined });
+    };
+    const setRegraSaida = (id, c) => {
+        const regra = { ...(f.condicoes_regra || {}) };
+        if (c) regra[id] = c; else delete regra[id];
+        mudar({ condicoes_regra: Object.keys(regra).length ? regra : undefined });
     };
     const nomeDe = (id) => fases.find((x) => x.id === id)?.nome || '?';
     const nAcoes = (f.acoes || []).filter((a) => a.trim()).length;
@@ -943,13 +964,21 @@ function CartaoFase({
                     <div className="space-y-1.5">
                         {saidas.length === 0 && <p className="text-xs text-slate-600">{proxLista ? `Segue para a próxima da lista (${proxLista}).` : 'Última fase.'}</p>}
                         {saidas.map((id, k) => (
-                            <div key={`${id}-${k}`} className="flex flex-wrap gap-2 items-center">
-                                <span className="text-xs text-slate-600">→</span>
-                                <select aria-label="Próxima fase" value={id} onChange={(e) => setSaida(k, e.target.value)} className={`${campo} h-8 flex-1 min-w-[9rem]`}>
-                                    {outras.map((x) => <option key={x.id} value={x.id}>{x.nome || '(sem nome)'}</option>)}
-                                </select>
-                                <Input aria-label="Condição desta saída" value={f.condicoes?.[id] || ''} onChange={(e) => mudar({ condicoes: { ...(f.condicoes || {}), [id]: e.target.value } })} placeholder="Condição (ex.: se deferido)" className="h-8 flex-1 min-w-[9rem]" />
-                                <Button size="icon" variant="ghost" className={ICONE} onClick={() => mudar({ proximas: saidas.filter((x) => x !== id) })} aria-label="Tirar esta saída"><X className="w-4 h-4" /></Button>
+                            <div key={`${id}-${k}`} className="rounded-md border border-slate-200 dark:border-slate-700 p-2 space-y-2">
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    <span className="text-xs text-slate-600">→</span>
+                                    <select aria-label="Próxima fase" value={id} onChange={(e) => setSaida(k, e.target.value)} className={`${campo} h-8 flex-1 min-w-[9rem]`}>
+                                        {outras.map((x) => <option key={x.id} value={x.id}>{x.nome || '(sem nome)'}</option>)}
+                                    </select>
+                                    <Input aria-label="Condição desta saída" value={f.condicoes?.[id] || ''} onChange={(e) => mudar({ condicoes: { ...(f.condicoes || {}), [id]: e.target.value } })} placeholder="Condição (ex.: se deferido)" className="h-8 flex-1 min-w-[9rem]" />
+                                    <Button size="icon" variant="ghost" className={ICONE} onClick={() => tirarSaida(id)} aria-label="Tirar esta saída"><X className="w-4 h-4" /></Button>
+                                </div>
+                                {/* Regra que vale: a resposta de uma ação de escolha indica esta saída; seguir por ela sem a resposta pede motivo. */}
+                                <CondicaoPorResposta id={`cr-${f.id}-${k}`} f={f} valor={f.condicoes_regra?.[id]} rotulo="Regra desta saída" vazio="Sem regra: a equipe escolhe"
+                                    onChange={(c) => setRegraSaida(id, c)} />
+                                {f.condicoes_regra?.[id]?.valores.length > 0 && (
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">Indicada quando {textoCondicao(f, f.condicoes_regra[id])}. Seguir por ela sem essa resposta exige motivo.</p>
+                                )}
                             </div>
                         ))}
                         {outras.length > 0 && (

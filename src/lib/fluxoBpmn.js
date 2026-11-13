@@ -7,6 +7,11 @@
 // ============================================================================
 
 import { niveisDoFluxo, seguintes } from './secretariaRito.js';
+import { textoCondicao } from './exigencias.js';
+
+/** Rótulo da seta: a condição escrita e, se houver, a regra pela resposta. */
+const rotuloSaida = (f, alvo) => [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo])}` : '']
+    .filter(Boolean).join('; ');
 
 export const TW = 128; // tarefa
 export const TH = 60;
@@ -116,7 +121,7 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity) {
         const c = nivel.get(f.id);
         if (saidas[i].length !== 1) extra[c] = true;
         for (const alvo of saidas[i]) {
-            const rot = String(f.condicoes?.[alvo] || '').trim();
+            const rot = rotuloSaida(f, alvo);
             if (!rot) continue;
             const ct = nivel.get(alvo);
             const precisa = VAO + Math.min(rot.length, MAX_ROTULO) * 5.4;
@@ -189,7 +194,7 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity) {
             const pts = b.col === t.col + 1 && !primeira(b.col)
                 ? [[sx, t.cy], [gx1, t.cy], [gx1, ey], [b.x - 1, ey]]
                 : [[sx, t.cy], [gx1, t.cy], [gx1, t.y + TH + 8 + p * 6], [gx2, t.y + TH + 8 + p * 6], [gx2, ey], [b.x - 1, ey]];
-            const rot = String(fases[i].condicoes?.[alvo] || '').trim();
+            const rot = rotuloSaida(fases[i], alvo);
             setas.push({
                 de: t.id, para: alvo, d: caminho(pts), tipo: volta ? 'volta' : 'fluxo',
                 // A condição fica acima da seta; na última de várias entradas, abaixo, para não cair sobre a seta vizinha.

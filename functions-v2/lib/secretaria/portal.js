@@ -443,7 +443,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             const c = contextoParte(db, proc, uid, `${parte.assina} (parte)`);
             // Petição pode cumprir documento que o rito exige de fora (ex.: defesa prévia), pelo tipo.
             const fase = (proc.fases || []).find((f) => f.id === proc.fase_atual);
-            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, proc.exigencias_cumpridas);
+            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, proc.exigencias_cumpridas, (0, exigencias_1.respostasDaFase)(proc));
             const chaves = new Set([tipoPeticao, 'Petição'].filter(Boolean)
                 .flatMap((tipo) => (0, exigencias_1.reconhecer)(pendentes, { origem: buf ? 'upload' : 'editor', tipo, peticao: true })));
             const cumpridas = pendentes.filter((e) => chaves.has(e.chave));
