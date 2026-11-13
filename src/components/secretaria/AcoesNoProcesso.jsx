@@ -26,6 +26,7 @@ export function SelosAcao({ r }) {
         ...(pede !== 'documento' && partesVeem(r) ? ['partes veem'] : []),
         ...(r?.obrigatoria ? ['obrigatória'] : r?.recomendada ? ['recomendada'] : []),
         ...(r?.quem ? [ROTULO_QUEM[r.quem]] : []),
+        ...(r?.ve === 'gestor' ? ['dado só para quem gere a unidade'] : []),
     ];
     if (!selos.length) return null;
     return <span className="text-xs text-slate-600 dark:text-slate-400"> · {selos.join(' · ')}</span>;
@@ -63,7 +64,12 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {aviso}
-                {feita && info && info.tipo === 'formulario' && Array.isArray(info.valor) ? (
+                {feita && info?.oculta ? (
+                    <span className="block text-slate-800 dark:text-slate-200">
+                        {info.rotulo}: <i className="text-slate-600 dark:text-slate-400">reservado a quem gere a unidade</i>
+                        <span className="text-xs text-slate-600 dark:text-slate-400"> · {info.por}, {dataHora(info.em)}</span>
+                    </span>
+                ) : feita && info && info.tipo === 'formulario' && Array.isArray(info.valor) ? (
                     <span className="block mt-1 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5">
                         <DadosCampos campos={info.valor} />
                         <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1">{info.por}, {dataHora(info.em)}</span>

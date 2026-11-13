@@ -132,3 +132,14 @@ test('níveis: obrigatório, recomendado e opcional', async () => {
     assert.equal(m.nivelDaAcao(m.regraComPedido({ documento: { descricao: 'A', nivel: 'recomendado' } }, 'confirmar', 'A')), 'recomendado');
     assert.equal(m.nivelDaAcao(m.regraComPedido(null, 'documento', 'A')), '');
 });
+
+test('dado reservado: só dado digitado fora dos autos, e segue na troca de pedido que ainda serve', async () => {
+    const { podeReservar, regraComPedido } = await import('./exigencias.js');
+    assert.equal(podeReservar({ pede: 'texto' }), true);
+    assert.equal(podeReservar({ pede: 'texto', destino: 'autos' }), false);
+    assert.equal(podeReservar({ pede: 'lista', opcoes: ['a', 'b'] }), false);
+    assert.equal(podeReservar(null), false);
+    assert.equal(podeReservar({ pede: 'formulario', campos: [{ tipo: 'registro' }] }), false);
+    assert.equal(regraComPedido({ pede: 'texto', ve: 'gestor' }, 'numero', 'X').ve, 'gestor');
+    assert.equal(regraComPedido({ pede: 'texto', ve: 'gestor' }, 'sim_nao', 'X')?.ve, undefined);
+});

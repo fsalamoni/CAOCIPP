@@ -222,6 +222,16 @@ export function saidasDaFase(fases, f) {
 /** Quem pode cumprir a ação (além da administração). */
 export const QUEM = [['', 'Quem tem o processo'], ['responsavel', 'Só o responsável designado'], ['gestor', 'Só quem gere a unidade']];
 export const ROTULO_QUEM = { responsavel: 'só o responsável', gestor: 'só quem gere a unidade' };
+/**
+ * Quem da equipe vê o dado da ação (espelho de VE no servidor). Reservado: só
+ * quem gere a unidade onde foi registrado, quem registrou e a administração.
+ */
+export const VE = [['', 'Toda a equipe do processo'], ['gestor', 'Só quem gere a unidade']];
+/** O que pode ficar reservado: dado digitado, sem escolha que condiciona nem registro de outro módulo. */
+export const PEDIDOS_RESERVAVEIS = ['texto', 'texto_longo', 'numero', 'data', 'formulario'];
+/** O dado da ação pode ser reservado? (o servidor confere de novo) */
+export const podeReservar = (r) => PEDIDOS_RESERVAVEIS.includes(pedidoDaAcao(r))
+    && !['autos', 'consolidar'].includes(destinoDaAcao(r)) && !(r?.campos || []).some((c) => c.tipo === 'registro');
 
 /** Respostas possíveis de uma ação de escolha ([valor, rótulo]); null se a ação não é de escolha. */
 export function opcoesDaResposta(r) {
@@ -300,7 +310,9 @@ export function regraComPedido(r, pede, acao) {
 function regraComPedidoSemNivel(r, pede, acao) {
     const nova = regraComPedidoBase(r, pede, acao);
     // A condição ("só vale se") e quem cumpre acompanham a ação (documento: quem cumpre é quem junta).
-    const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem } : {}) };
+    const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem } : {}),
+        // Dado reservado segue se o pedido novo ainda puder ser reservado.
+        ...(r?.ve && PEDIDOS_RESERVAVEIS.includes(pede) ? { ve: r.ve } : {}) };
     return Object.keys(extra).length ? { ...(nova || {}), ...extra } : nova;
 }
 

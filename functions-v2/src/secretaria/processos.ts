@@ -18,7 +18,7 @@ import {
     CampoExigido, CampoValor, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
-import { informacoesDoAndamento } from '../shared/informacoes';
+import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
 import { MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
@@ -560,7 +560,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome',
             ).get(),
         ]);
-        const movimentos = movs.docs.map((d) => d.data());
+        // Dado reservado a quem gere a unidade: sai o valor para quem não pode vê-lo.
+        const quemLe = { uid: c.ctx.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe };
+        const movsBrutos = movs.docs.map((d) => d.data());
+        const movimentos = movsBrutos.map((m) => semReservado(m, quemLe));
         const posse = podeAgir(data as never, c.ctx);
         const documentos = docs.docs
             .map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
@@ -579,7 +582,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         // Registro que hoje está restrito, anonimizado ou sumiu: marcado na resposta (nada é gravado),
         // para a capa avisar e os modelos não puxarem dado dele.
-        const informacoes = informacoesDoAndamento(movimentos as never, data.fases || []);
+        const informacoes = informacoesDoAndamento(movsBrutos as never, data.fases || []).map((i) => informacaoVisivel(i, quemLe));
         const camposLidos = (data.campos || []) as Array<{ ref?: Ref }>;
         const origemLida = data.origem?.ref ? data.origem : null;
         const fechadas = await refsFechadas(db, c.orgId, [origemLida?.ref, ...camposLidos.map((x) => x.ref), ...informacoes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
@@ -619,7 +622,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             documentos,
             informacoes: informacoes.map((i) => ([i.ref, ...(i.refs || [])].some(fechada)
                 ? { ...i, restrito: true, ref: marcar(i.ref), ...(i.refs ? { refs: i.refs.map(marcar) } : {}) } : i)),
-            cadeiaQuebradaEm: verificarCadeia(movimentos as never),
+            cadeiaQuebradaEm: verificarCadeia(movsBrutos as never),
             posse,
             pode_excluir: podeExcluirProcesso(data as never, movimentos as never, c.ctx),
         };
@@ -986,8 +989,11 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             if (lista.has(idx) === feita) throw new HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
             const dado = feita ? await valorDaAcao(c, regra, acao, p.valor) : null;
+            // Dado reservado: só quem gere a unidade (e quem registra, e a administração) o vê.
+            // Fica fora da descrição do movimento, que vai às listas, ao extrato e aos autos.
+            const reservado = !!dado && regra?.ve === 'gestor';
             // Registro de origem restrita: as partes nunca o veem.
-            const vePartes = partesVeem(regra) && !dado?.restrito;
+            const vePartes = partesVeem(regra) && !dado?.restrito && !reservado;
             if (feita) lista.add(idx); else lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
             // Resposta de escolha guardada na rodada da fase: as ações e saídas condicionadas a leem.
@@ -1001,7 +1007,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
-            const comDado = dado ? ` ${dado.rotulo}: ${dado.valor_texto}.` : '';
+            const comDado = !dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`;
             if (dest === 'consolidar') {
                 // Certidão conjunta: o ato fica oculto e entra como item da certidão do grupo.
                 const grupo = grupoDe(fase);
@@ -1044,6 +1050,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 {
                     fase_id: fase.id, acao_idx: idx, feita,
                     ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto, ...(dado.ref ? { ref: dado.ref } : {}) } : {}),
+                    ...(reservado ? { reservado: 'gestor', ve_unidade: String(data.unidade_atual || '') } : {}),
                     destino: dest,
                     ...(dest === 'autos' ? { nos_autos: true } : {}),
                     ...(dest === 'informacao' ? { fora_impressao: true } : {}),
