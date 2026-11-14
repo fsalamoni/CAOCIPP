@@ -10,9 +10,10 @@ import { Cumpridas, camposDoCumprimento, destinoDaGuarda, exigeAlgo, marcasDoDes
 import { avancarSozinho } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
+import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
 import { lotacoesDe, unidadeDecide } from '../shared/secretaria';
 import {
-    COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarMovimento,
+    COL, REGION, calendarioDasAcoes, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarInternos, registrarMovimento,
 } from './context';
 import {
     caminhoPdf, conteudoDoDocumento, folhasDoProcesso, lerConfigDocumento, novoCodigo, paginasDeArquivo, pdfCarimbado,
@@ -82,6 +83,8 @@ export const secretariaDocumento = onCall<DocRequest>(
         const p = request.data || ({} as DocRequest);
         const c = await carregarContexto(auth, p.organizationId);
         const { ref: procRef, data: proc } = await lerProcesso(c, p.processoId);
+        // Feriados locais e recesso, se o ato puder abrir prazo de ação.
+        const calendario = ['juntar', 'guardar'].includes(String(p.action)) ? await calendarioDasAcoes(c.db, c.orgId, proc) : undefined;
         const docsCol = procRef.collection('documentos');
         const agoraIso = new Date().toISOString();
         type Pedido = { docId: string; uid: string; titulo: string };
@@ -368,7 +371,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id }, p.atende); } catch (e) { erroUsuario(e); }
                 const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
-                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`
+                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
                     { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}),
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
@@ -389,16 +392,20 @@ export const secretariaDocumento = onCall<DocRequest>(
                     ...pend,
                 ];
                 const mexeuPendencias = pend.length > 0 || !!resolvida;
+                // Ação com prazo próprio cumprida pela juntada: o prazo dela se encerra (e o registro interno diz).
+                const pzA = camposDosPrazosDasAcoes(atual, exig, fase, c.userName, mexeuPendencias ? pendencias : undefined, calendario);
+                const mi = registrarInternos(tx, c, pr, { ...atual, ...mov }, pzA.notas);
                 tx.update(pr, {
-                    ...mov, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1,
+                    ...mov, ...mi, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1,
                     ...(mexeuPendencias ? { pendencias, ...derivados(pendencias, (atual.prazos || []) as Prazo[]) } : {}),
+                    ...pzA.campos,
                     ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
                 });
-                return { ordem, version: mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual) };
+                return { ordem, version: mi.version ?? mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual), internos: pzA.notas.length ? 1 : 0 };
             });
-            void avisarPartesDoMovimento(c.db, procRef.id);
+            void avisarPartesDoMovimento(c.db, procRef.id, undefined, 1 + r.internos);
             if (p.pendencia === 'sim' || p.pendencia === 'interrompe') void avisarPendencia(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
-            const { tentar, ...feito } = r;
+            const { tentar, internos: _i, ...feito } = r;
             return comAvanco(feito, tentar);
         }
 
@@ -426,11 +433,13 @@ export const secretariaDocumento = onCall<DocRequest>(
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
                 const exig = fase ? camposDoCumprimento(atual, fase.id, cumpridas, ref.id, null) : {};
                 tx.update(ref, { status: 'controle', visivel_partes: false, guardado_em: agoraIso, guardado_por: auth.uid, guardado_por_nome: c.userName });
+                const pzA = camposDosPrazosDasAcoes(atual, exig, fase, c.userName, undefined, calendario);
+                const mi = registrarInternos(tx, c, pr, { ...atual, ...mov }, pzA.notas);
                 tx.update(pr, {
-                    ...mov, ...exig,
+                    ...mov, ...mi, ...exig, ...pzA.campos,
                     ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
                 });
-                return { version: mov.version, tentar: podeSeguir(fase, atual) };
+                return { version: mi.version ?? mov.version, tentar: podeSeguir(fase, atual) };
             });
             const { tentar, ...feito } = r;
             return comAvanco(feito, tentar);

@@ -37,6 +37,25 @@ test('migrarEstado: fase que sumiu vai para o destino, que começa do zero', () 
     assert.throws(() => migrarEstado(proc, v2, 'f9'));
 });
 
+test('migrarEstado: o prazo da ação segue a ação; o da que sumiu é cancelado', () => {
+    const prazos = [
+        { id: 'p0', fase_id: 'f1', acao_idx: 0, status: 'aberto' }, // Conferir: vai para 1
+        { id: 'p1', fase_id: 'f1', acao_idx: 1, status: 'aberto' }, // Certificar: sumiu
+        { id: 'p2', fase_id: 'f1', acao_idx: 2, status: 'cumprido' }, // Despachar: vai para 0
+        { id: 'pf', fase_id: 'f1', status: 'aberto' }, // prazo da fase: fica
+        { id: 'pm', status: 'aberto' }, // prazo manual: fica
+    ];
+    const r = migrarEstado({ fases: v1, fase_atual: 'f1', prazos }, v2, 'f1', '2026-11-14');
+    assert.deepEqual(r.prazos.map((x) => [x.id, x.acao_idx, x.status, x.rodada_fim === true]), [
+        ['p0', 1, 'aberto', false], ['p1', 1, 'cancelado', true], ['p2', 0, 'cumprido', false], ['pf', undefined, 'aberto', false], ['pm', undefined, 'aberto', false],
+    ]);
+    assert.equal(r.prazos[1].encerrado_por, 'Atualização do rito');
+    assert.equal(r.prazos[3], prazos[3], 'o que não é de ação não muda');
+    const outra = migrarEstado({ fases: v1, fase_atual: 'f3', prazos: [{ id: 'q', fase_id: 'f2', acao_idx: 0, status: 'aberto' }] }, v2, 'f2', '2026-11-14');
+    assert.deepEqual([outra.prazos[0].status, outra.prazos[0].rodada_fim], ['cancelado', true], 'o destino recomeça: o prazo antigo não conta');
+    assert.equal(migrarEstado({ fase_atual: 'f2' }, v2, 'f2').prazos, undefined, 'sem prazos: nada a gravar');
+});
+
 test('migrarEstado: processo antigo sem estado não quebra', () => {
     const r = migrarEstado({ fase_atual: 'f2' }, v2, 'f2');
     assert.deepEqual([r.acoes_feitas, r.acoes_respostas, r.exigencias_cumpridas], [{}, {}, {}]);

@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { MODULOS_SITUACAO, comRegistroConduzido, comSituacao, nomeDoRegistro, situacoesDaRegra, valorDaRegra } from '@/lib/andamentoFase';
+import { comAoEntrar } from '@/lib/efeitosFase';
 import { RegistroContexto } from './SeletorRegistro';
 
 const campo = 'h-9 w-full rounded-md border border-input bg-transparent dark:bg-slate-900 px-2 text-sm';
@@ -18,11 +19,8 @@ export default function AndamentoDaFase({ f, mudar, ligadas }) {
     const { paginas } = useContext(RegistroContexto);
     const ae = f.ao_entrar || {};
     const s = f.situacao_registro || {};
-    const setArquivar = (v) => {
-        const { arquivar: _fora, ...resto } = ae;
-        const n = v ? { ...resto, arquivar: true } : resto;
-        mudar({ ao_entrar: Object.keys(n).length ? n : undefined });
-    };
+    // Fase que arquiva não designa responsável nem abre pendência: as duas escolhas saem.
+    const setArquivar = (v) => mudar({ ao_entrar: comAoEntrar(f, { arquivar: v }) });
     const setSit = (parte) => mudar({ situacao_registro: comSituacao(f, parte) });
     // Só os módulos com a integração ligada (o que a fase já usa continua à vista).
     const modulos = MODULOS_SITUACAO.filter(([m]) => !ligadas || ligadas[m] || s.modulo === m);

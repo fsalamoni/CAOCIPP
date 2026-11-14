@@ -22,6 +22,8 @@ const config_1 = require("./config");
 const autos_1 = require("../shared/autos");
 const exigencias_1 = require("../shared/exigencias");
 const permissoesFase_1 = require("../shared/permissoesFase");
+const efeitosFase_1 = require("../shared/efeitosFase");
+const prazosFase_1 = require("../shared/prazosFase");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const numeracao_1 = require("../shared/numeracao");
@@ -75,56 +77,94 @@ function exigenciasAbertas(proc, form) {
  */
 /** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial (com as fases, diz de qual fase é a resposta). */
 const textoCondicao = (f, c, fases) => (0, exigencias_1.textoDaCondicao)(f, c, (Array.isArray(fases) ? fases : undefined));
-/**
- * O que o rito faz ao trocar de fase (ou na autuação, sem fase de origem):
- * encerra o prazo automático da fase que sai, abre o da fase que entra,
- * marca a urgência e tira o responsável designado. Vai no mesmo movimento da
- * mudança: `texto` completa a descrição (só o que as partes podem ler: a
- * urgência), `interno` vai num registro só da equipe logo depois (prazo
- * interno e responsável), `campos` vai para o processo.
- * `para` null: só encerra (arquivamento).
- */
-function efeitosDaMudanca(proc, deId, para, calendario, quem) {
-    var _a, _b, _d;
+function efeitosDaMudanca(proc, deId, para, calendario, quem, opts = {}) {
+    var _a;
     const hoje = (0, secretaria_1.hojeBrasil)();
     const agora = new Date().toISOString();
     const frases = [];
     const interno = [];
     const antes = (proc.prazos || []);
-    let prazos = antes;
-    const daFase = antes.filter((x) => x.status === 'aberto' && x.fase_id && x.fase_id === deId);
-    if (daFase.length) {
-        prazos = prazos.map((x) => (daFase.includes(x) ? Object.assign(Object.assign({}, x), { status: 'cumprido', encerrado_em: hoje, encerrado_por: quem }) : x));
-        daFase.forEach((x) => interno.push(`Prazo interno da fase encerrado ${hoje <= x.vence_em ? 'no prazo' : 'fora do prazo'}: ${x.descricao}.`));
-    }
+    const saida = (0, prazosFase_1.encerrarPrazosDaFase)(antes, deId, hoje, quem);
+    let prazos = saida.prazos;
+    interno.push(...saida.notas);
     const dias = Number(para === null || para === void 0 ? void 0 : para.prazo_dias);
     if ((para === null || para === void 0 ? void 0 : para.prazo_auto) && !((_a = para.ao_entrar) === null || _a === void 0 ? void 0 : _a.arquivar) && Number.isInteger(dias) && dias > 0 && dias <= secretaria_1.MAX_PRAZO_DIAS && prazos.length < secretaria_1.MAX_ITENS) {
         const contagem = para.prazo_contagem === 'corridos' ? 'corridos' : 'uteis';
         const vence = (0, secretaria_1.calcularVencimento)(hoje, dias, contagem, calendario);
-        prazos = [...prazos, {
-                id: (0, crypto_1.randomBytes)(10).toString('hex'), descricao: `Fase ${para.nome}`, fase_id: para.id, dias, contagem, inicio: hoje, vence_em: vence,
-                status: 'aberto', aberto_em: agora, aberto_por: quem, automatico: true,
-            }];
+        prazos = [...prazos, Object.assign({ id: (0, crypto_1.randomBytes)(10).toString('hex'), descricao: `Fase ${para.nome}`, fase_id: para.id, dias, contagem, inicio: hoje, vence_em: vence, status: 'aberto', aberto_em: agora, aberto_por: quem, automatico: true }, (0, prazosFase_1.marcasDoPrazo)(para))];
         interno.push(`Prazo interno da fase aberto: ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'}, vence em ${vence.split('-').reverse().join('/')}.`);
     }
-    const campos = prazos === antes ? {} : Object.assign({ prazos }, (0, secretaria_1.derivados)((proc.pendencias || []), prazos));
-    if (((_b = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _b === void 0 ? void 0 : _b.urgente) && proc.urgente !== true) {
+    const campos = {};
+    const ae = para === null || para === void 0 ? void 0 : para.ao_entrar;
+    if (para && (ae === null || ae === void 0 ? void 0 : ae.urgente) && proc.urgente !== true) {
         campos.urgente = true;
         campos.urgencia = { motivo: `Regra da fase ${para.nome}`, por: quem, em: agora };
         frases.push('Tramitação urgente pela regra da fase.');
     }
-    if (((_d = para === null || para === void 0 ? void 0 : para.ao_entrar) === null || _d === void 0 ? void 0 : _d.sem_responsavel) && proc.responsavel_uid) {
-        campos.responsavel_uid = null;
-        interno.push('Responsável designado retirado pela regra da fase.');
+    // Na autuação não há urgência anterior a tirar: vale o que quem autua (ou o tipo) disse.
+    if ((ae === null || ae === void 0 ? void 0 : ae.sem_urgencia) && deId && proc.urgente === true) {
+        campos.urgente = false;
+        campos.urgencia = firestore_1.FieldValue.delete();
+        frases.push('Urgência retirada pela regra da fase.');
     }
-    return { texto: frases.length ? ` ${frases.join(' ')}` : '', interno, campos };
+    if ((ae === null || ae === void 0 ? void 0 : ae.sigilo) && (proc.sigilo === 'restrito' ? 'restrito' : 'normal') !== ae.sigilo) {
+        campos.sigilo = ae.sigilo;
+        interno.push(`Sigilo do processo alterado para ${ae.sigilo} pela regra da fase.`);
+    }
+    const antesPend = (proc.pendencias || []);
+    let pendencias = antesPend;
+    let pendencia;
+    if (para && !opts.retomada) {
+        if ((ae === null || ae === void 0 ? void 0 : ae.sem_responsavel) && proc.responsavel_uid) {
+            campos.responsavel_uid = null;
+            interno.push('Responsável designado retirado pela regra da fase.');
+        }
+        const d = opts.designacao;
+        if ((d === null || d === void 0 ? void 0 : d.uid) && d.uid !== proc.responsavel_uid) {
+            campos.responsavel_uid = d.uid;
+            interno.push(`Responsável designado pela regra da fase: ${d.nome || 'pessoa lotada na unidade'}.`);
+        }
+        else if (d && !d.uid)
+            interno.push(d.nota);
+        if ((ae === null || ae === void 0 ? void 0 : ae.pendencia) && !ae.arquivar && pendencias.length < secretaria_1.MAX_ITENS) {
+            const interrompe = ae.pendencia_interrompe === true;
+            pendencias = [...pendencias, {
+                    id: (0, crypto_1.randomBytes)(10).toString('hex'), tipo: 'manual', descricao: ae.pendencia, interrompe,
+                    status: 'aberta', aberta_em: agora, aberta_por: `Regra da fase ${para.nome}`,
+                }];
+            pendencia = ae.pendencia;
+            interno.push(`Pendência aberta para o decisor pela regra da fase: ${ae.pendencia}${interrompe ? ' (fase interrompida)' : ''}.`);
+        }
+    }
+    // Prazos das ações da fase que entra: os que já valem (na retomada, o que foi feito continua feito).
+    if (para && !(ae === null || ae === void 0 ? void 0 : ae.arquivar)) {
+        const depois = Object.assign(Object.assign(Object.assign(Object.assign({}, proc), campos), { prazos, fase_atual: para.id }), (opts.retomada ? {} : (0, exigencias_1.camposAoEntrarNaFase)(proc, para.id)));
+        const pa = (0, prazosFase_1.prazosDasAcoes)(depois, para, hoje, agora, calendario, quem, () => (0, crypto_1.randomBytes)(10).toString('hex'));
+        if (pa) {
+            prazos = pa.prazos;
+            interno.push(...pa.notas);
+        }
+    }
+    if (prazos !== antes || pendencias !== antesPend) {
+        Object.assign(campos, Object.assign(Object.assign(Object.assign({}, (prazos !== antes ? { prazos } : {})), (pendencias !== antesPend ? { pendencias } : {})), (0, secretaria_1.derivados)(pendencias, prazos)));
+    }
+    return Object.assign({ texto: frases.length ? ` ${frases.join(' ')}` : '', interno, campos }, (pendencia ? { pendencia } : {}));
+}
+/**
+ * Quem a fase designa como responsável ao entrar, entre os lotados na unidade
+ * que fica com o processo, com o nome (para o registro interno e para o
+ * registro ligado). Null: a fase não designa.
+ */
+async function designadoPelaFase(c, fase, unidade) {
+    const d = (0, efeitosFase_1.responsavelPelaFase)(fase === null || fase === void 0 ? void 0 : fase.ao_entrar, unidade ? (0, secretaria_1.lotacoesDe)(unidade) : [], c.ctx.uid);
+    if (!(d === null || d === void 0 ? void 0 : d.uid))
+        return d;
+    if (d.uid === c.ctx.uid)
+        return Object.assign(Object.assign({}, d), { nome: c.userName });
+    const m = (await c.db.collection('userOrganizations').doc(`${d.uid}_${c.orgId}`).get()).data();
+    return Object.assign(Object.assign({}, d), { nome: (0, normalization_1.formatPersonName)(String((m === null || m === void 0 ? void 0 : m.user_name) || (m === null || m === void 0 ? void 0 : m.user_email) || 'pessoa lotada na unidade')) });
 }
 /** O que a fase fez sozinha e só interessa à equipe: registro interno, sem termo, fora do portal. */
-function registrarInternos(tx, c, ref, proc, interno) {
-    if (!interno.length)
-        return {};
-    return (0, context_1.registrarMovimento)(tx, c, ref, proc, 'efeitos_fase', interno.join(' '), (0, exigencias_1.marcasDoDestino)('informacao'));
-}
 const SEM_EFEITOS = { texto: '', interno: [], campos: {} };
 const SEM_REGISTROS = new Map();
 /**
@@ -807,9 +847,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
         const procRef = db.collection(context_1.COL.processos).doc();
         // Primeira fase com prazo automático: a contagem usa o calendário do órgão.
-        const calendarioAutuacao = ((_j = rito.fases[0]) === null || _j === void 0 ? void 0 : _j.prazo_auto)
-            ? (0, secretaria_1.sanitizeCalendario)((_k = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _k === void 0 ? void 0 : _k.calendario) : undefined;
+        const fase1 = rito.fases[0];
+        const calendarioAutuacao = (fase1 === null || fase1 === void 0 ? void 0 : fase1.prazo_auto) || ((fase1 === null || fase1 === void 0 ? void 0 : fase1.acoes_regras) || []).some((r) => r === null || r === void 0 ? void 0 : r.prazo_dias)
+            ? (0, secretaria_1.sanitizeCalendario)((_j = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _j === void 0 ? void 0 : _j.calendario) : undefined;
         const contadorRef = numeracao ? db.collection(context_1.COL.contadores).doc((0, numeracao_1.chaveContador)(orgId, numeracao, ctxNumero)) : null;
+        // A primeira fase pode designar o responsável e avisar a equipe já na autuação.
+        const designacaoInicial = await designadoPelaFase(c, fase1, unidade);
+        let autuado = null;
         const numero = await db.runTransaction(async (tx) => {
             var _a;
             let numero = (0, numeracao_1.identificadorSemNumero)(procRef.id);
@@ -838,12 +882,18 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), { 
                 // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
                 vinculos: (0, modulos_1.vinculosDe)(origem, campos) }), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
-            const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName);
+            const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName, { designacao: designacaoInicial });
+            autuado = Object.assign({ proc: Object.assign(Object.assign({}, base), ef.campos) }, (ef.pendencia ? { pendencia: ef.pendencia } : {}));
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
-            const mi = registrarInternos(tx, c, procRef, Object.assign(Object.assign({}, base), mov), ef.interno);
+            const mi = (0, context_1.registrarInternos)(tx, c, procRef, Object.assign(Object.assign({}, base), mov), ef.interno);
             tx.set(procRef, Object.assign(Object.assign(Object.assign(Object.assign({}, base), ef.campos), mov), mi));
             return numero;
         });
+        const au = autuado;
+        if (au && ((_k = fase1 === null || fase1 === void 0 ? void 0 : fase1.aviso) === null || _k === void 0 ? void 0 : _k.para))
+            void (0, avisosEquipe_1.avisarEntradaNaFase)(c, fase1, unidadeId, au.proc, procRef.id, false, '');
+        if (au === null || au === void 0 ? void 0 : au.pendencia)
+            void (0, avisosEquipe_1.avisarPendencia)(c, au.proc, procRef.id, au.pendencia);
         return { success: true, id: procRef.id, numero };
     }
     return movimentar(c, p);
@@ -883,7 +933,7 @@ async function avancarSozinho(c, id) {
  * próprio servidor (avanço automático da fase); nunca vem do cliente.
  */
 async function movimentar(c, p, opcoes = {}) {
-    var _a;
+    var _a, _b, _d;
     const { db, orgId } = c;
     const textoAuto = opcoes.automatico ? ' Avanço automático: o que a fase exigia foi cumprido.' : '';
     let tentarAuto = false;
@@ -891,7 +941,7 @@ async function movimentar(c, p, opcoes = {}) {
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
-    const calendario = ['abrirPrazo', 'tramitar', 'avancarFase'].includes(String(p.action))
+    const calendario = ['abrirPrazo', 'tramitar', 'avancarFase', 'marcarAcao'].includes(String(p.action))
         ? (0, secretaria_1.sanitizeCalendario)((_a = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _a === void 0 ? void 0 : _a.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
@@ -899,8 +949,10 @@ async function movimentar(c, p, opcoes = {}) {
     const convite = { token: '', email: '', parte: '', numero: '', representaQuem: '' };
     let recebeu = null;
     let pendenciaAberta = null;
+    // Entrada em fase (com ou sem remessa): a fase diz quem é avisado.
+    let entrou = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -963,6 +1015,8 @@ async function movimentar(c, p, opcoes = {}) {
             }
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
             const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(c, data, motivo, formAtual) : [];
+            // A fase pode designar o responsável entre os lotados na unidade que recebe (na retomada, volta quem respondia).
+            const designacao = novaFase && !retomada ? await designadoPelaFase(c, novaFase, destino) : null;
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, novaFase === null || novaFase === void 0 ? void 0 : novaFase.id);
@@ -973,14 +1027,15 @@ async function movimentar(c, p, opcoes = {}) {
             if (em.proc !== data)
                 expedidas = 2;
             // A remessa já tira o responsável: os efeitos não repetem isso.
-            const efFase = novaFase ? efeitosDaMudanca(Object.assign(Object.assign({}, data), { responsavel_uid: null }), String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
-            const sit = aplicarSituacao(tx, c, registros, novaFase, responsavelDeVolta && ((_e = novaFase === null || novaFase === void 0 ? void 0 : novaFase.situacao_registro) === null || _e === void 0 ? void 0 : _e.ao_assumir) ? 'ao_assumir' : 'ao_entrar', data);
+            const efFase = novaFase ? efeitosDaMudanca(Object.assign(Object.assign({}, data), { responsavel_uid: null }), String(data.fase_atual), novaFase, calendario, c.userName, { retomada, designacao }) : SEM_EFEITOS;
+            // Designado pela fase: para o registro ligado, é alguém assumindo.
+            const sit = aplicarSituacao(tx, c, registros, novaFase, (responsavelDeVolta || (designacao === null || designacao === void 0 ? void 0 : designacao.uid)) && ((_e = novaFase === null || novaFase === void 0 ? void 0 : novaFase.situacao_registro) === null || _e === void 0 ? void 0 : _e.ao_assumir) ? 'ao_assumir' : 'ao_entrar', data, (designacao === null || designacao === void 0 ? void 0 : designacao.uid) ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
             const ef = Object.assign(Object.assign({}, efFase), { interno: [...efFase.interno, ...sit.notas] });
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao', `${conclusao ? 'Conclusos a' : 'Remetido de ' + com((0, context_1.nomeUnidade)(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${marcaEspera(retomada, novaFase)}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${ef.texto}` : ''}`
                 + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}${textoAuto}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.unidade_atual, para: destino.id }, (opcoes.automatico ? { automatico: true } : {})), (entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {})), (novaFase ? Object.assign(Object.assign(Object.assign({ fase_de: data.fase_atual, fase_para: novaFase.id }, (retomada ? { retomada: true } : {})), (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})) : {})), (dispensadas.length ? { dispensadas } : {})), (0, exigencias_1.marcasDoDestino)(destinoMov)), (idsMinutas.length ? { minutas: idsMinutas } : {})));
-            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), ef.interno);
+            const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), ef.interno);
             if (ef.interno.length)
                 expedidas += 1;
             const ma = arquiva ? arquivarPelaFase(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), mi), novaFase) : {};
@@ -991,6 +1046,11 @@ async function movimentar(c, p, opcoes = {}) {
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: (0, context_1.nomeUnidade)(c, data.unidade_atual) }
                     : firestore_1.FieldValue.delete() }));
             recebeu = { unidadeId: destino.id, proc: data };
+            const depois = Object.assign(Object.assign(Object.assign({}, data), ef.campos), { unidade_atual: destino.id, responsavel_uid: 'responsavel_uid' in ef.campos ? ef.campos.responsavel_uid : responsavelDeVolta });
+            if (novaFase && !retomada)
+                entrou = { fase: novaFase, unidadeId: destino.id, proc: depois, remessa: true };
+            if (efFase.pendencia)
+                pendenciaAberta = { proc: depois, descricao: efFase.pendencia };
             return mov;
         }
         if (p.action === 'alterarDados') {
@@ -1053,7 +1113,7 @@ async function movimentar(c, p, opcoes = {}) {
                 const convites = db.collection(context_1.COL.convites);
                 for (const i of ret.retiradas) {
                     // Quem sai perde o portal: convites revogados e contas desligadas, também dos representantes.
-                    const _s = ret.partes[i], { uid: _u, convite_hash: hash } = _s, resto = __rest(_s, ["uid", "convite_hash"]);
+                    const _q = ret.partes[i], { uid: _u, convite_hash: hash } = _q, resto = __rest(_q, ["uid", "convite_hash"]);
                     if (hash)
                         tx.set(convites.doc(hash), { revogado: true }, { merge: true });
                     const reps = (resto.representantes || []).map((_a) => {
@@ -1164,6 +1224,12 @@ async function movimentar(c, p, opcoes = {}) {
                 todasRespostas[fase.id] = daFase;
             }
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};
+            // Prazos das ações: encerra o da cumprida, reabre o da desfeita e acompanha a ação condicional que passou a valer (ou deixou).
+            const pz = (0, prazosFase_1.prazosDasAcoes)(Object.assign(Object.assign(Object.assign({}, data), { acoes_feitas: feitas }), comResposta), fase, (0, secretaria_1.hojeBrasil)(), new Date().toISOString(), calendario, c.userName, () => (0, crypto_1.randomBytes)(10).toString('hex'));
+            const comPrazos = pz ? Object.assign({ prazos: pz.prazos }, (0, secretaria_1.derivados)((data.pendencias || []), pz.prazos)) : {};
+            const notasPrazo = (pz === null || pz === void 0 ? void 0 : pz.notas) || [];
+            if (notasPrazo.length)
+                expedidas += 1;
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = (0, exigencias_1.destinoDaAcao)(regra);
             const comDado = !dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`;
@@ -1176,8 +1242,9 @@ async function movimentar(c, p, opcoes = {}) {
                 if (!feita && k < 0) {
                     // Já saiu em certidão emitida: desfazer precisa constar dos autos.
                     const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', `Certifico que foi desfeita a providência "${acao}", da fase ${fase.nome}.`, { fase_id: fase.id, acao_idx: idx, feita, destino: 'autos', nos_autos: true, visivel_partes: (0, exigencias_1.partesVeem)(regra) });
-                    tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }), comResposta));
-                    return mov;
+                    const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, data), mov), notasPrazo);
+                    tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), { acoes_feitas: feitas }), comResposta), comPrazos));
+                    return Object.assign(Object.assign({}, mov), mi);
                 }
                 const item = {
                     seq: 0, fase_id: fase.id, acao_idx: idx,
@@ -1186,21 +1253,23 @@ async function movimentar(c, p, opcoes = {}) {
                 };
                 const em = emitirSe(feita && antesDeJuntar(data, grupo, item), tx, c, ref, data);
                 if (em.proc !== data)
-                    expedidas = 2;
+                    expedidas += 1;
                 const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'acao_fase', `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado} ${feita ? 'Entra na' : 'Sai da'} certidão conjunta, ainda não emitida.`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), (dado && (regra === null || regra === void 0 ? void 0 : regra.folha_dados) ? { folha_dados: true } : {})), { 
                     // O ato fica oculto; o dado segue a regra (as partes o veem nas informações, se ela disser).
                     destino: dest, consolidada: true }), (0, exigencias_1.marcasDoDestino)('nenhum')), { visivel_partes: vePartes }));
                 const consolidacao = feita
                     ? itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) }))
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
-                tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), { acoes_feitas: feitas }), comResposta), { consolidacao: consolidacao.itens.length ? consolidacao : firestore_1.FieldValue.delete() }), vinculoDaAcao(dado)));
-                return mov;
+                const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), notasPrazo);
+                tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), { acoes_feitas: feitas }), comResposta), comPrazos), { consolidacao: consolidacao.itens.length ? consolidacao : firestore_1.FieldValue.delete() }), vinculoDaAcao(dado)));
+                return Object.assign(Object.assign({}, mov), mi);
             }
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', dest === 'autos'
                 ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
                 : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), (reservado ? { reservado: 'gestor', ve_unidade: String(data.unidade_atual || '') } : {})), (dado && (regra === null || regra === void 0 ? void 0 : regra.folha_dados) && !reservado ? { folha_dados: true } : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: vePartes }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { acoes_feitas: feitas }), comResposta), vinculoDaAcao(dado)));
-            return mov;
+            const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, data), mov), notasPrazo);
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), { acoes_feitas: feitas }), comResposta), comPrazos), vinculoDaAcao(dado)));
+            return Object.assign(Object.assign({}, mov), mi);
         }
         if (p.action === 'atribuir') {
             const alvo = p.responsavel_uid || null;
@@ -1214,7 +1283,7 @@ async function movimentar(c, p, opcoes = {}) {
             const sit = alvo ? aplicarSituacao(tx, c, registros, faseAtual, 'ao_assumir', data, { uid: String(alvo), nome: (0, normalization_1.formatPersonName)(String(nomeAlvo)) }) : { notas: [], arquivou: null };
             registroArquivado = sit.arquivou;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'atribuicao', alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', Object.assign({ responsavel_uid: alvo }, (0, exigencias_1.marcasNaFase)(data, 'atribuicao')));
-            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign({}, data), mov), sit.notas);
+            const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, data), mov), sit.notas);
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), mi), { responsavel_uid: alvo }));
             return Object.assign(Object.assign({}, mov), mi);
         }
@@ -1243,6 +1312,8 @@ async function movimentar(c, p, opcoes = {}) {
             const de = ((_k = fases.find((f) => f.id === data.fase_atual)) === null || _k === void 0 ? void 0 : _k.nome) || data.fase_atual;
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
             const dispensadas = alvo.espera ? [] : dispensarExigencias(c, data, motivo, formAtual);
+            // A fase pode designar o responsável entre os lotados na unidade que tem o processo.
+            const designacao = retomada ? null : await designadoPelaFase(c, alvo, c.unidades.find((u) => u.id === data.unidade_atual));
             const destinoMov = dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
@@ -1256,23 +1327,27 @@ async function movimentar(c, p, opcoes = {}) {
             const em = emitirSe(arquiva || (0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data)
                 expedidas = 2;
-            // Retomada: quem respondia pelo processo continua, mesmo que a fase tire o responsável ao entrar.
-            const alvoEf = retomada && ((_m = alvo.ao_entrar) === null || _m === void 0 ? void 0 : _m.sem_responsavel) ? Object.assign(Object.assign({}, alvo), { ao_entrar: Object.assign(Object.assign({}, alvo.ao_entrar), { sem_responsavel: undefined }) }) : alvo;
-            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvoEf, calendario, c.userName);
-            const sit = aplicarSituacao(tx, c, registros, alvo, retomada && data.responsavel_uid && ((_o = alvo.situacao_registro) === null || _o === void 0 ? void 0 : _o.ao_assumir) ? 'ao_assumir' : 'ao_entrar', data);
+            // Retomada: quem respondia pelo processo continua, mesmo que a fase tire ou designe o responsável ao entrar.
+            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName, { retomada, designacao });
+            const sit = aplicarSituacao(tx, c, registros, alvo, ((retomada && data.responsavel_uid) || (designacao === null || designacao === void 0 ? void 0 : designacao.uid)) && ((_m = alvo.situacao_registro) === null || _m === void 0 ? void 0 : _m.ao_assumir) ? 'ao_assumir' : 'ao_entrar', data, (designacao === null || designacao === void 0 ? void 0 : designacao.uid) ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
             const ef = Object.assign(Object.assign({}, efFase), { interno: [...efFase.interno, ...sit.notas] });
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (opcoes.automatico ? { automatico: true } : {})), (retomada ? { retomada: true } : {})), (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})), (dispensadas.length ? { dispensadas } : {})), (junta ? Object.assign({ consolidada: true }, (0, exigencias_1.marcasDoDestino)('nenhum')) : (0, exigencias_1.marcasDoDestino)(destinoMov))));
             const consolidacao = junta
                 ? { consolidacao: itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) })) }
                 : {};
-            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), consolidacao), ef.interno);
+            const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), consolidacao), ef.interno);
             if (ef.interno.length)
                 expedidas += 1;
             const ma = arquiva ? arquivarPelaFase(tx, c, ref, Object.assign(Object.assign(Object.assign({}, em.proc), mov), mi), alvo) : {};
             if (arquiva)
                 expedidas += 1;
             tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), ma), consolidacao), { fase_atual: alvo.id }), (retomada ? {} : (0, exigencias_1.camposAoEntrarNaFase)(data, alvo.id))), ef.campos), camposDaEspera(data, faseSai, alvo)));
+            const depois = Object.assign(Object.assign({}, data), ef.campos);
+            if (!retomada)
+                entrou = { fase: alvo, unidadeId: String(data.unidade_atual), proc: depois, remessa: false };
+            if (efFase.pendencia)
+                pendenciaAberta = { proc: depois, descricao: efFase.pendencia };
             return Object.assign(Object.assign(Object.assign({}, mov), mi), ma);
         }
         if (p.action === 'urgencia') {
@@ -1289,7 +1364,7 @@ async function movimentar(c, p, opcoes = {}) {
         if (p.action === 'expedirComunicacao') {
             if (data.status !== 'em_tramitacao')
                 throw new https_1.HttpsError('failed-precondition', 'O processo não está em tramitação');
-            const lista = (_p = p.comunicacao) === null || _p === void 0 ? void 0 : _p.partes_idx;
+            const lista = (_o = p.comunicacao) === null || _o === void 0 ? void 0 : _o.partes_idx;
             expedidas = Array.isArray(lista) ? new Set(lista).size || 1 : 1;
             return (0, comunicacoes_1.expedir)(tx, c, ref, data, p.comunicacao, cfgCom);
         }
@@ -1304,7 +1379,7 @@ async function movimentar(c, p, opcoes = {}) {
                 throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa situação');
             // O rito pode reservar a mudança de situação, na fase, a quem gere a unidade ou à administração.
             const faseSit = faseDoProcesso(data);
-            const reservaSit = (_q = faseSit === null || faseSit === void 0 ? void 0 : faseSit.permissoes) === null || _q === void 0 ? void 0 : _q.situacao;
+            const reservaSit = (_p = faseSit === null || faseSit === void 0 ? void 0 : faseSit.permissoes) === null || _p === void 0 ? void 0 : _p.situacao;
             if (reservaSit && !(0, permissoesFase_1.podeReserva)(reservaSit, atorDe(c, data))) {
                 throw new https_1.HttpsError('permission-denied', `Pelo rito, na fase ${faseSit.nome} só ${(0, permissoesFase_1.textoReserva)(reservaSit)} arquiva, sobresta ou reativa o processo.`);
             }
@@ -1320,7 +1395,7 @@ async function movimentar(c, p, opcoes = {}) {
                 expedidas = 2;
             const ef = status === 'arquivado' ? efeitosDaMudanca(data, String(data.fase_atual), null, undefined, c.userName) : SEM_EFEITOS;
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'situacao', `${rotulo}. Motivo: ${motivo}${dispensadas.length ? ` Exigências do rito não cumpridas: ${dispensadas.join('; ')}.` : ''}${ef.texto}`, Object.assign({ de: data.status, para: status }, (dispensadas.length ? { dispensadas } : {})));
-            const mi = registrarInternos(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), ef.interno);
+            const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), ef.interno);
             if (ef.interno.length)
                 expedidas += 1;
             tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), { status }), ef.campos));
@@ -1368,7 +1443,7 @@ async function movimentar(c, p, opcoes = {}) {
             const lista = pendencias.map((x) => (x.id === alvo.id
                 ? Object.assign(Object.assign({}, x), { status: 'resolvida', resolvida_em: agora, resolvida_por: c.userName, resolucao }) : x));
             const der = (0, secretaria_1.derivados)(lista, prazos);
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia_resolvida', `Pendência apreciada (${alvo.descricao}): ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`, Object.assign({ pendencia_id: alvo.id }, (0, exigencias_1.marcasNaFase)(data, 'pendencia')));
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'pendencia_resolvida', `Pendência apreciada${alvo.tipo === 'manual' ? '' : ` (${alvo.descricao})`}: ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`, Object.assign({ pendencia_id: alvo.id }, (0, exigencias_1.marcasNaFase)(data, 'pendencia')));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { pendencias: lista }), der));
             return mov;
         }
@@ -1492,8 +1567,13 @@ async function movimentar(c, p, opcoes = {}) {
             : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
     }
     const r = recebeu;
-    if (r)
-        void (0, avisosEquipe_1.avisarUnidadeRecebeu)(c, r.unidadeId, r.proc, String(p.id), motivo || (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO));
+    const en = entrou;
+    const recado = motivo || (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO);
+    // A fase que diz quem avisar decide o aviso da entrada (inclusive nenhum); sem isso, vale o de sempre: a unidade que recebe a remessa.
+    if ((_b = en === null || en === void 0 ? void 0 : en.fase.aviso) === null || _b === void 0 ? void 0 : _b.para)
+        void (0, avisosEquipe_1.avisarEntradaNaFase)(c, en.fase, en.unidadeId, en.proc, String(p.id), en.remessa, recado);
+    else if (r)
+        void (0, avisosEquipe_1.avisarUnidadeRecebeu)(c, r.unidadeId, r.proc, String(p.id), recado, (_d = en === null || en === void 0 ? void 0 : en.fase.aviso) === null || _d === void 0 ? void 0 : _d.mensagem);
     const pa = pendenciaAberta;
     if (pa)
         void (0, avisosEquipe_1.avisarPendencia)(c, pa.proc, String(p.id), pa.descricao);

@@ -5,6 +5,31 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — O que a fase faz ao entrar, quem ela avisa e prazo por ação
+- **Ao entrar na fase**, além de marcar urgente e tirar o responsável, o
+  rito agora pode: tirar a urgência, mudar o sigilo (restrito ou normal),
+  **designar o responsável** (quem moveu o processo, quem gere a unidade ou
+  quem tem certa atribuição na lotação) e **abrir uma pendência** para quem
+  decide, que pode interromper a fase.
+- **Quem é avisado** quando o processo entra na fase: toda a unidade, só
+  quem gere, só o responsável ou ninguém, com mensagem própria. Sem
+  escolha, vale o aviso de sempre (a unidade, na remessa).
+- **Prazo próprio da ação**: abre quando a ação passa a valer, encerra
+  quando ela é cumprida, reabre se for desfeita e termina com a fase.
+- **Antecedência do alerta** dos prazos que a fase abre (0 a 30 dias; o
+  padrão continua 2) e **regra do vencimento**: marcar urgente e avisar
+  quem gere a unidade, uma vez por prazo.
+- Tudo o que a fase faz sozinha fica em registro interno; prazos de fase e
+  de ação não aparecem para as partes.
+- **Menos coisa interna para as partes**: o motivo da urgência sai só na
+  folha de dados da equipe, e a apreciação de pendência aberta à mão ou pela
+  fase não repete o texto da pendência no ato público.
+- A ação que deixa de valer e volta conta o prazo de novo a partir do dia em
+  que voltou; a atualização de rito leva os prazos das ações junto com elas;
+  a juntada, a guarda e a petição contam o prazo com o calendário do órgão.
+- Ritos já gravados não mudam: sem as opções novas, tudo vale como antes.
+- Guia do rito, parte 14, explica cada opção, com um exemplo.
+
 ### 14/11/2026 — Desvios que leem outra fase e dados do processo; saída padrão
 - A condição de uma ação (**Quando vale**) e a de uma saída (**Regra desta
   saída**) agora também leem a resposta dada em **outra fase** e **dados do

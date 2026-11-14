@@ -220,6 +220,22 @@ informado.
 - **Prazo próprio** (da parte: preclusão) × **prazo impróprio** (do órgão:
   controle de gestão). O prazo da fase do rito é impróprio: sinaliza, não
   extingue direito.
+- **Prazo da ação** (do rito): também é impróprio e interno. Nasce quando a
+  ação passa a valer na fase, termina com o cumprimento dela ou com a saída
+  da fase, e nunca aparece para as partes. O prazo da parte nasce da
+  intimação, não do rito.
+- **Consequência do prazo impróprio vencido**: é de gestão, nunca
+  processual. O rito pode marcar a urgência e avisar quem gere a unidade;
+  não pode presumir o ato, dispensar a exigência nem mover o processo.
+- **O que a fase ajusta ao entrar** (urgência, sigilo, responsável,
+  pendência para quem decide) é ato de impulso oficial: vale o que o rito
+  diz, fica registrado só para a equipe e não substitui decisão. Designar
+  responsável não dá posse: ele precisa estar lotado na unidade que tem o
+  processo.
+- **Prazo que volta a valer conta de novo**: se a ação deixou de valer (a
+  condição mudou) e volta, o prazo recomeça no dia em que voltou. Se o
+  cumprimento foi desfeito, vale o vencimento de antes, porque o prazo nunca
+  deixou de correr.
 
 ## 9. Acesso, sigilo e papéis
 

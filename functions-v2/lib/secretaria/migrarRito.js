@@ -5,6 +5,7 @@ const https_1 = require("firebase-functions/v2/https");
 const context_1 = require("./context");
 const exigencias_1 = require("../shared/exigencias");
 const migrarRito_1 = require("../shared/migrarRito");
+const secretaria_1 = require("../shared/secretaria");
 /** Situações em que o processo ainda anda pelo rito (arquivado e excluído ficam como estão). */
 const SITUACOES = ['em_tramitacao', 'sobrestado'];
 // ponytail: uma transação por processo; acima disso, "Atualizar" de novo continua de onde parou.
@@ -62,12 +63,12 @@ async function migrarRito(c, p, auditar) {
                 return false;
             const de = Number(atual.rito_versao) || 1;
             const faseAntiga = ((_a = (atual.fases || []).find((f) => f.id === atual.fase_atual)) === null || _a === void 0 ? void 0 : _a.nome) || String(atual.fase_atual || '');
-            const est = (0, migrarRito_1.migrarEstado)(atual, novas, destino);
+            const est = (0, migrarRito_1.migrarEstado)(atual, novas, destino, (0, secretaria_1.hojeBrasil)());
             const faseNova = ((_b = novas.find((f) => f.id === destino)) === null || _b === void 0 ? void 0 : _b.nome) || destino;
             const texto = `Rito ${rito.nome} atualizado da versão ${de} para a ${versao} por decisão do admin do órgão.`
                 + (est.mudou_de_fase ? ` A fase ${faseAntiga}, que deixou de existir, passou a ${faseNova}.` : '');
             const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, atual, 'rito_atualizado', texto, Object.assign(Object.assign(Object.assign({}, (0, exigencias_1.marcasDoDestino)('informacao')), { visivel_partes: false, de_versao: de, para_versao: versao }), (est.mudou_de_fase ? { fase_de: atual.fase_atual, fase_para: destino } : {})));
-            tx.update(d.ref, Object.assign(Object.assign({}, mov), { rito_nome: rito.nome, rito_versao: versao, fases: est.fases, fase_atual: est.fase_atual, acoes_feitas: est.acoes_feitas, acoes_respostas: est.acoes_respostas, exigencias_cumpridas: est.exigencias_cumpridas }));
+            tx.update(d.ref, Object.assign(Object.assign(Object.assign({}, mov), { rito_nome: rito.nome, rito_versao: versao, fases: est.fases, fase_atual: est.fase_atual, acoes_feitas: est.acoes_feitas, acoes_respostas: est.acoes_respostas, exigencias_cumpridas: est.exigencias_cumpridas }), (est.prazos ? Object.assign({ prazos: est.prazos }, (0, secretaria_1.derivados)((atual.pendencias || []), est.prazos)) : {})));
             return true;
         });
         if (feito)

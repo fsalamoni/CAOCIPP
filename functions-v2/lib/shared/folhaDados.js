@@ -31,7 +31,8 @@ function secoesDaFolha(d) {
         linha('Tipo de processo', p.tipo_nome),
         linha('Rito', p.rito_nome ? `${p.rito_nome} (versão ${p.rito_versao})` : ''),
         linha('Sigilo', p.sigilo === 'restrito' ? 'Restrito' : 'Normal'),
-        p.urgente === true && linha('Tramitação', `URGENTE${((_a = p.urgencia) === null || _a === void 0 ? void 0 : _a.motivo) ? ` (${p.urgencia.motivo})` : ''}`),
+        // O motivo pode citar prazo ou fase internos: só na cópia da equipe.
+        p.urgente === true && linha('Tramitação', `URGENTE${d.equipe && ((_a = p.urgencia) === null || _a === void 0 ? void 0 : _a.motivo) ? ` (${p.urgencia.motivo})` : ''}`),
         // A referência da origem é dado interno: só na cópia da equipe.
         d.equipe && p.origem && linha('Origem', (0, secretaria_1.textoOrigem)(p.origem)),
     ]);

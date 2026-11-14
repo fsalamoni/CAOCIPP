@@ -547,6 +547,7 @@ function sanitizeRegras(fo, acoes, mapa) {
     const regras = acoes.map((a, i) => sanitizeRegra(brutas[i], a));
     // "Só vale se": depende de uma ação de escolha anterior (nunca dela mesma nem de uma posterior).
     regras.forEach((r, i) => {
+        var _b;
         const b = brutas[i];
         // A que lê outra fase, dado do processo ou várias coisas fica para o fim do rito (sanitizeRito), com todas as fases prontas.
         const se = condicaoAmpla(b === null || b === void 0 ? void 0 : b.se) ? undefined : sanitizeCondicao(b === null || b === void 0 ? void 0 : b.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
@@ -555,6 +556,11 @@ function sanitizeRegras(fo, acoes, mapa) {
         const ou = sanitizeOu(b === null || b === void 0 ? void 0 : b.ou, regras, acoes, i, mapa);
         if (ou !== undefined)
             regras[i] = Object.assign(Object.assign({}, (regras[i] || {})), { ou });
+        // Prazo próprio: qualquer ação que se cumpre (a que é só orientação não tem o que cumprir).
+        const prazo = Number(b === null || b === void 0 ? void 0 : b.prazo_dias);
+        if (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 && ((_b = regras[i]) === null || _b === void 0 ? void 0 : _b.pede) !== 'orientacao') {
+            regras[i] = Object.assign(Object.assign(Object.assign({}, (regras[i] || {})), { prazo_dias: prazo }), ((b === null || b === void 0 ? void 0 : b.prazo_contagem) === 'corridos' ? { prazo_contagem: 'corridos' } : {}));
+        }
     });
     const documentos = (Array.isArray(fo.documentos) ? fo.documentos : [])
         .map((d) => sanitizeExigencia(d)).filter((d) => !!d).slice(0, exports.MAX_DOCUMENTOS_FASE);

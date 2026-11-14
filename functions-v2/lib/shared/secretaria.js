@@ -55,6 +55,7 @@ const crypto_1 = require("crypto");
 const exigencias_1 = require("./exigencias");
 const situacaoRegistro_1 = require("./situacaoRegistro");
 const permissoesFase_1 = require("./permissoesFase");
+const efeitosFase_1 = require("./efeitosFase");
 exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
 exports.MAX_LOTACOES = 200;
 /**
@@ -183,8 +184,8 @@ function sanitizeRito(input) {
         const prazo = Number(fo.prazo_dias);
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
-        const ae = (fo.ao_entrar && typeof fo.ao_entrar === 'object' ? fo.ao_entrar : {});
-        const aoEntrar = Object.assign(Object.assign(Object.assign({}, (ae.urgente === true ? { urgente: true } : {})), (ae.sem_responsavel === true ? { sem_responsavel: true } : {})), (ae.arquivar === true ? { arquivar: true } : {}));
+        const aoEntrar = (0, efeitosFase_1.sanitizeAoEntrar)(fo.ao_entrar, nomeFase);
+        const aviso = (0, efeitosFase_1.sanitizeAviso)(fo.aviso);
         const situacaoRegistro = (0, situacaoRegistro_1.sanitizeSituacaoRegistro)(fo.situacao_registro);
         const permissoes = (0, permissoesFase_1.sanitizePermissoes)(fo.permissoes, nomeFase);
         const orientacao = texto(fo.orientacao, exports.MAX_TEXTO_LONGO);
@@ -210,6 +211,9 @@ function sanitizeRito(input) {
         // Índice que o cliente mandou -> índice gravado (as condições apontam para ações).
         const mapa = new Map(mantidas.map(([, i], j) => [i, j]));
         const regras = (0, exigencias_1.sanitizeRegras)(Object.assign(Object.assign({}, fo), { acoes_regras: regrasAlinhadas }), acoes, mapa);
+        // Antecedência do alerta e regra do vencimento: só para fase que abre prazo (o dela ou o de alguma ação).
+        const abrePrazo = (prazoOk && fo.prazo_auto === true) || (regras.acoes_regras || []).some((r) => r === null || r === void 0 ? void 0 : r.prazo_dias);
+        const prazosDaFase = (0, efeitosFase_1.sanitizePrazosDaFase)(fo, abrePrazo);
         const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, exports.MAX_MODELOS_FASE);
         // Condições só para saídas que existem (referência pelo id do cliente ou final).
         const condicoes = {};
@@ -254,7 +258,7 @@ function sanitizeRito(input) {
         const grupo = grupoBruto ? ((_e = ids.get(grupoBruto)) !== null && _e !== void 0 ? _e : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
         const titulo = texto(cf.titulo, 120);
         const certidao = Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), (saidaPadrao ? { saida_padrao: saidaPadrao } : {})), regras);
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (aviso ? { aviso } : {})), prazosDaFase), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), (saidaPadrao ? { saida_padrao: saidaPadrao } : {})), regras);
     });
     // 2ª passada das condições: as que leem outra fase, dado do processo ou várias coisas ao mesmo tempo.
     const daCondicao = (k) => ({ id: fases[k].id, nome: fases[k].nome, acoes: fases[k].acoes || [], regras: fases[k].acoes_regras || [], mapa: apoio[k].mapa });
@@ -591,10 +595,14 @@ function hojeBrasil(agora = new Date()) {
 function derivados(pendencias, prazos) {
     const abertas = pendencias.filter((p) => p.status === 'aberta');
     const vencimentos = prazos.filter((p) => p.status === 'aberto').map((p) => p.vence_em).sort();
+    // Prazo com antecedência maior que a padrão: o dia em que o alerta dele começa (o alerta diário busca por este campo).
+    const alertas = prazos.filter((p) => p.status === 'aberto' && typeof p.alerta_dias === 'number' && p.alerta_dias > efeitosFase_1.ALERTA_PADRAO)
+        .map((p) => somarDias(p.vence_em, -p.alerta_dias)).sort();
     return {
         pendencias_abertas: abertas.length,
         fase_suspensa: abertas.some((p) => p.interrompe),
         proximo_vencimento: vencimentos[0] || null,
+        proximo_alerta: alertas[0] || null,
     };
 }
 function tipoUnidade(v) {

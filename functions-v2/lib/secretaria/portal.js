@@ -1,4 +1,15 @@
 "use strict";
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaPortal = exports.COL_ACESSOS = exports.AVISOS_PARTE = exports.TIPOS_PETICAO_PORTAL = exports.MOVIMENTOS_INTERNOS = void 0;
 exports.nomeParaPartes = nomeParaPartes;
@@ -8,6 +19,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const exigencias_1 = require("../shared/exigencias");
+const prazosFase_1 = require("../shared/prazosFase");
 const context_1 = require("./context");
 const documentos_1 = require("./documentos");
 const autos_1 = require("./autos");
@@ -411,6 +423,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         }
         // Confere acesso antes de gravar o arquivo.
         const { ref: procRef, data: procAntes } = await lerComoParte(db, uid, p.processoId);
+        const calendario = await (0, context_1.calendarioDasAcoes)(db, String(procAntes.organization_id), procAntes);
         const ontem = new Date(Date.now() - 86400000).toISOString();
         const minhas = await procRef.collection('documentos').where('autor_uid', '==', uid).select('criado_em', 'peticao').get();
         if (minhas.docs.filter((d) => d.data().peticao === true && String(d.data().criado_em) > ontem).length >= MAX_PETICOES_DIA) {
@@ -470,12 +483,15 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? { mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
-            tx.update(procRef, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))));
-            return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
+            const pzA = (0, prazosFase_1.camposDosPrazosDasAcoes)(proc, exig, fase, `${parte.assina} (parte)`, pendencias, calendario);
+            const mi = (0, context_1.registrarInternos)(tx, c, procRef, Object.assign(Object.assign({}, proc), mov), pzA.notas);
+            tx.update(procRef, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))), pzA.campos));
+            return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id, internos: pzA.notas.length ? 1 : 0 };
         });
-        void (0, portalAvisos_1.avisarPartesDoMovimento)(db, procRef.id, uid);
+        const { internos } = r, protocolado = __rest(r, ["internos"]);
+        void (0, portalAvisos_1.avisarPartesDoMovimento)(db, procRef.id, uid, 1 + internos);
         void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_e = parteDoUsuario(procAntes, uid)) === null || _e === void 0 ? void 0 : _e.assina) || 'A parte'), titulo, tipoPeticao);
-        return Object.assign({ success: true }, r);
+        return Object.assign({ success: true }, protocolado);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
 });

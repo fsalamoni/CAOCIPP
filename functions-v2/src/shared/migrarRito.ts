@@ -21,7 +21,10 @@ export interface EstadoProcesso {
     acoes_feitas?: PorFase<number[]>;
     acoes_respostas?: PorFase<Record<string, string>>;
     exigencias_cumpridas?: PorFase<Record<string, unknown>>;
+    prazos?: PrazoMin[];
 }
+
+interface PrazoMin { fase_id?: unknown; acao_idx?: unknown; status?: unknown; [k: string]: unknown }
 
 /** Posição nova da ação `i` da fase antiga (pelo texto), ou -1. */
 function acaoNova(antiga: FaseMin | undefined, nova: FaseMin, i: number): number {
@@ -45,7 +48,7 @@ function chaveNova(antiga: FaseMin | undefined, nova: FaseMin, chave: string): s
  * que o processo fica: a mesma (se existe na versão nova) ou a escolhida pelo
  * admin. Indo para outra fase, ela começa do zero, como ao entrar nela.
  */
-export function migrarEstado(proc: EstadoProcesso, novas: FaseMin[], faseDestino: string) {
+export function migrarEstado(proc: EstadoProcesso, novas: FaseMin[], faseDestino: string, hoje = '') {
     const antigas = new Map((proc.fases || []).map((f) => [f.id, f]));
     const novasPorId = new Map(novas.map((f) => [f.id, f]));
     if (!novasPorId.has(faseDestino)) throw new Error('Fase de destino inexistente na versão atual do rito');
@@ -78,7 +81,22 @@ export function migrarEstado(proc: EstadoProcesso, novas: FaseMin[], faseDestino
         for (const [k, v] of Object.entries(cs)) { const j = chaveNova(antigas.get(fid), nova, k); if (j) out[j] = v; }
         if (Object.keys(out).length) cumpridas[fid] = out;
     }
-    return { fases: novas, fase_atual: faseDestino, acoes_feitas: feitas, acoes_respostas: respostas, exigencias_cumpridas: cumpridas, mudou_de_fase: mudouDeFase };
+    // Prazo próprio de ação segue a ação pelo texto. O da ação que sumiu (ou da fase que recomeça) é
+    // cancelado se estava aberto e, de todo modo, deixa de contar para a rodada.
+    const prazos = proc.prazos?.map((x) => {
+        if (typeof x.acao_idx !== 'number' || typeof x.fase_id !== 'string') return x;
+        const nova = novasPorId.get(x.fase_id);
+        const j = nova && !(mudouDeFase && x.fase_id === faseDestino) ? acaoNova(antigas.get(x.fase_id), nova, x.acao_idx) : -1;
+        if (j >= 0) return j === x.acao_idx ? x : { ...x, acao_idx: j };
+        if (x.rodada_fim === true && x.status !== 'aberto') return x;
+        return x.status === 'aberto'
+            ? { ...x, status: 'cancelado', encerrado_em: hoje, encerrado_por: 'Atualização do rito', rodada_fim: true }
+            : { ...x, rodada_fim: true };
+    });
+    return {
+        fases: novas, fase_atual: faseDestino, acoes_feitas: feitas, acoes_respostas: respostas, exigencias_cumpridas: cumpridas, mudou_de_fase: mudouDeFase,
+        ...(prazos ? { prazos } : {}),
+    };
 }
 
 /** Grupos da prévia: por versão e fase atual, dizendo se a fase existe na versão nova. */

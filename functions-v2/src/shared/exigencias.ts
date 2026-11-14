@@ -192,6 +192,10 @@ export interface RegraAcao {
     ve?: Ve;
     /** O dado entra na folha de dados do processo (a folha do evento 1, no PDF), seja qual for o destino. */
     folha_dados?: true;
+    /** Prazo próprio da ação, em dias: abre quando ela passa a valer na fase e encerra quando é cumprida (ver shared/prazosFase.ts). */
+    prazo_dias?: number;
+    /** Contagem do prazo da ação. Ausente = dias úteis. */
+    prazo_contagem?: 'corridos';
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -613,6 +617,11 @@ export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[], map
         if (se) regras[i] = { ...(r || {}), se };
         const ou = sanitizeOu(b?.ou, regras, acoes, i, mapa);
         if (ou !== undefined) regras[i] = { ...(regras[i] || {}), ou };
+        // Prazo próprio: qualquer ação que se cumpre (a que é só orientação não tem o que cumprir).
+        const prazo = Number(b?.prazo_dias);
+        if (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 && regras[i]?.pede !== 'orientacao') {
+            regras[i] = { ...(regras[i] || {}), prazo_dias: prazo, ...(b?.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' as const } : {}) };
+        }
     });
     const documentos = (Array.isArray(fo.documentos) ? fo.documentos : [])
         .map((d) => sanitizeExigencia(d)).filter((d): d is Exigencia => !!d).slice(0, MAX_DOCUMENTOS_FASE);

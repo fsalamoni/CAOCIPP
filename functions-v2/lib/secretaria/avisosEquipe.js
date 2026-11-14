@@ -5,6 +5,7 @@ exports.prefDe = prefDe;
 exports.notificarPessoas = notificarPessoas;
 exports.lotadosDaUnidade = lotadosDaUnidade;
 exports.avisarUnidadeRecebeu = avisarUnidadeRecebeu;
+exports.avisarEntradaNaFase = avisarEntradaNaFase;
 exports.avisarPedidoAssinatura = avisarPedidoAssinatura;
 exports.avisarPendencia = avisarPendencia;
 exports.avisarPeticao = avisarPeticao;
@@ -12,6 +13,7 @@ exports.enviarResumosDiarios = enviarResumosDiarios;
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const secretaria_1 = require("../shared/secretaria");
+const efeitosFase_1 = require("../shared/efeitosFase");
 const email_1 = require("../shared/email");
 const autos_1 = require("./autos");
 const context_1 = require("./context");
@@ -98,15 +100,38 @@ async function lotadosDaUnidade(db, unidadeId, unidade) {
 /** Processo chegou na unidade: avisa quem está lotado nela (menos quem remeteu). */
 /** Quem é parte no processo não é avisado como equipe (acompanha pelo portal). */
 const semPartes = (proc, uids) => uids.filter((u) => !(0, secretaria_1.ehParte)(proc, u));
-async function avisarUnidadeRecebeu(c, unidadeId, proc, procId, motivo) {
+const citacao = (t) => (t ? `<blockquote style="border-left:3px solid #6366f1;margin:0;padding:4px 12px;color:#1e293b">${escapar(t)}</blockquote>` : '');
+/** `recadoDaFase`: a mensagem que o rito manda acompanhar o aviso da fase em que o processo entrou. */
+async function avisarUnidadeRecebeu(c, unidadeId, proc, procId, motivo, recadoDaFase = '') {
     const unidade = c.unidades.find((u) => u.id === unidadeId);
     if (!unidade)
         return;
     await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidadeId, unidade)), {
         subtipo: 'recebido', procId,
         titulo: `${proc.urgente === true ? 'URGENTE: ' : ''}Processo ${proc.numero} chegou em ${unidade.nome}`,
-        mensagem: `${c.userName} remeteu: ${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}`.slice(0, 300),
-        html: `<p>${escapar(c.userName)} remeteu o processo <b>${escapar(String(proc.numero))}</b> (${escapar(String(proc.assunto || ''))}) para <b>${escapar(String(unidade.nome))}</b>.</p>${motivo ? `<blockquote style="border-left:3px solid #6366f1;margin:0;padding:4px 12px;color:#1e293b">${escapar(motivo)}</blockquote>` : ''}`,
+        mensagem: `${c.userName} remeteu: ${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}${recadoDaFase ? ` · ${recadoDaFase}` : ''}`.slice(0, 300),
+        html: `<p>${escapar(c.userName)} remeteu o processo <b>${escapar(String(proc.numero))}</b> (${escapar(String(proc.assunto || ''))}) para <b>${escapar(String(unidade.nome))}</b>.</p>${citacao(motivo)}${recadoDaFase ? `<p>${escapar(recadoDaFase)}</p>` : ''}`,
+    }, c.ctx.uid);
+}
+/**
+ * O processo entrou numa fase que diz quem avisar (a unidade, quem a gere, o
+ * responsável ou ninguém), com ou sem remessa. Substitui o aviso de chegada.
+ * `proc`: o processo já com o que a fase fez ao entrar (urgência, responsável).
+ */
+async function avisarEntradaNaFase(c, fase, unidadeId, proc, procId, remessa, motivo) {
+    var _a, _b;
+    const para = (_a = fase.aviso) === null || _a === void 0 ? void 0 : _a.para;
+    const unidade = c.unidades.find((u) => u.id === unidadeId);
+    if (!para || para === 'ninguem' || !unidade)
+        return;
+    const uids = (0, efeitosFase_1.destinatariosDoAviso)(para, (0, secretaria_1.lotacoesDe)(unidade), proc.responsavel_uid ? String(proc.responsavel_uid) : null);
+    const recado = ((_b = fase.aviso) === null || _b === void 0 ? void 0 : _b.mensagem) || '';
+    const onde = remessa ? `chegou em ${unidade.nome}, na fase ${fase.nome}` : `entrou na fase ${fase.nome}`;
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, uids), {
+        subtipo: 'recebido', procId,
+        titulo: `${proc.urgente === true ? 'URGENTE: ' : ''}Processo ${proc.numero} ${onde}`,
+        mensagem: `${recado ? `${recado} · ` : ''}${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}`.slice(0, 300),
+        html: `<p>O processo <b>${escapar(String(proc.numero))}</b> (${escapar(String(proc.assunto || ''))}) ${escapar(onde)}, por ato de ${escapar(c.userName)}.</p>${recado ? `<p>${escapar(recado)}</p>` : ''}${citacao(motivo)}`,
     }, c.ctx.uid);
 }
 /** Alguém pediu a assinatura de uma pessoa da unidade numa minuta. */

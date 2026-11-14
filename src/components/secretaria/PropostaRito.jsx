@@ -35,6 +35,8 @@ import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento } from '@/lib/an
 import { RegistroContexto } from './SeletorRegistro';
 import PermissoesDaFase from './PermissoesDaFase';
 import { alguemTem, resumoPermissoes } from '@/lib/permissoesFase';
+import { ALERTA_PADRAO, AVISO_PARA, DESIGNA, MAX_ALERTA_DIAS, MAX_MENSAGEM_AVISO, MAX_PENDENCIA_FASE, SIGILO_FASE, abrePrazo, comAoEntrar, comAviso, comPrazoVencido, efeitosAoEntrar, problemasDosEfeitos, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
+import { CampoAtribuicao } from './PermissoesDaFase';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -112,6 +114,7 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um registro de ${mod}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou mude o que a ação pede.` });
             }
         });
+        problemasDosEfeitos(f).forEach((x) => out.push({ fase: f.id, grave: true, texto: `${rot} ${x}. Ajuste em "Prazo, nome para as partes e ao entrar".` }));
         const sit = f.situacao_registro;
         if (sit?.modulo && ligadas && !ligadas[sit.modulo]) {
             out.push({ fase: f.id, grave: true, texto: `${rot} muda a situação em ${nomeDoModuloDaRegra(sit, paginas)}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou tire a regra em "Andamento automático".` });
@@ -913,19 +916,20 @@ function CopiarFasesDeRito({ aberto, ritos, onFechar, onCopiar }) {
 const resumoEntrada = (f) => [
     f.prazo_auto && f.prazo_dias ? `abre prazo de ${f.prazo_dias} dias` : null,
     f.nome_publico?.trim() ? `partes veem "${f.nome_publico.trim()}"` : null,
-    f.ao_entrar?.urgente ? 'marca urgente' : null,
-    f.ao_entrar?.sem_responsavel ? 'tira o responsável' : null,
+    ...efeitosAoEntrar(f),
+    textoDoAviso(f),
+    ...textosDosPrazos(f),
 ].filter(Boolean).join('; ') || 'nada automático';
 
 /** Prazo automático, nome para as partes e efeitos ao entrar na fase. */
 function AoEntrarNaFase({ f, i, mudar }) {
     const ae = f.ao_entrar || {};
-    const setAe = (k, v) => {
-        const n = { ...ae, [k]: v || undefined };
-        Object.keys(n).forEach((x) => n[x] === undefined && delete n[x]);
-        mudar({ ao_entrar: Object.keys(n).length ? n : undefined });
-    };
+    const setAe = (k, v) => mudar({ ao_entrar: comAoEntrar(f, { [k]: v || undefined }) });
+    const av = f.aviso || {};
+    const pv = f.prazo_vencido || {};
+    const temPrazo = abrePrazo(f);
     const caixa = 'flex min-h-[2.75rem] sm:min-h-0 items-start gap-2 text-sm';
+    const dica = 'text-xs text-slate-600 dark:text-slate-400';
     return (
         <div className="space-y-3">
             <div className="space-y-1.5">
@@ -947,6 +951,23 @@ function AoEntrarNaFase({ f, i, mudar }) {
                         </select>
                     </div>
                 )}
+                {temPrazo && (
+                    <fieldset className="space-y-1.5 rounded-md border border-slate-200 dark:border-slate-700 p-2">
+                        <legend className="px-1 text-xs font-medium">Prazos que a fase abre (o dela e os das ações)</legend>
+                        <div className="sm:max-w-xs">
+                            <Label htmlFor={`pa-${f.id}`} className="text-xs">O alerta diário começa quantos dias antes do vencimento</Label>
+                            <Input id={`pa-${f.id}`} type="number" min={0} max={MAX_ALERTA_DIAS} placeholder={String(ALERTA_PADRAO)} className="h-9 w-24"
+                                value={Number.isInteger(f.prazo_alerta_dias) ? f.prazo_alerta_dias : ''}
+                                onChange={(e) => { const n = e.target.value === '' ? NaN : Number(e.target.value); mudar({ prazo_alerta_dias: Number.isInteger(n) && n >= 0 && n <= MAX_ALERTA_DIAS ? n : undefined }); }} />
+                            <p className={`mt-1 ${dica}`}>Vazio: {ALERTA_PADRAO} dias, como nos demais prazos. Zero: só no dia do vencimento. Vale para o alerta diário de prazos (sino e e-mail), que o órgão liga em Calendário.</p>
+                        </div>
+                        <p className="text-xs font-medium pt-1">Se o prazo vencer sem ser cumprido</p>
+                        <label className={caixa}><Checkbox className="mt-0.5" checked={!!pv.urgente} onCheckedChange={(c) => mudar({ prazo_vencido: comPrazoVencido(f, { urgente: c === true }) })} />
+                            <span>Marcar o processo como urgente</span></label>
+                        <label className={caixa}><Checkbox className="mt-0.5" checked={!!pv.avisar_gestores} onCheckedChange={(c) => mudar({ prazo_vencido: comPrazoVencido(f, { avisar_gestores: c === true }) })} />
+                            <span>Avisar quem gere a unidade que está com o processo <span className={`block ${dica}`}>Uma vez por prazo, no alerta das 7h do dia seguinte ao vencimento. Fica no registro interno do processo; as partes não veem.</span></span></label>
+                    </fieldset>
+                )}
             </div>
             <div className="sm:max-w-md">
                 <Label htmlFor={`np-${f.id}`} className="text-xs">Nome que as partes veem no portal</Label>
@@ -958,9 +979,50 @@ function AoEntrarNaFase({ f, i, mudar }) {
                 <legend className="text-xs font-medium mb-1">Ao entrar na fase</legend>
                 <label className={caixa}><Checkbox className="mt-0.5" checked={!!ae.urgente} onCheckedChange={(c) => setAe('urgente', c === true)} />
                     <span>Marcar o processo como urgente</span></label>
+                <label className={caixa}><Checkbox className="mt-0.5" checked={!!ae.sem_urgencia} onCheckedChange={(c) => setAe('sem_urgencia', c === true)} />
+                    <span>Tirar a urgência do processo <span className={`block ${dica}`}>Para a fase em que a pressa acabou (ex.: aguardando cumprimento). Não vale na autuação.</span></span></label>
                 <label className={caixa}><Checkbox className="mt-0.5" checked={!!ae.sem_responsavel} onCheckedChange={(c) => setAe('sem_responsavel', c === true)} />
-                    <span>Tirar o responsável designado <span className="block text-xs text-slate-600 dark:text-slate-400">A remessa a outra unidade já faz isso.</span></span></label>
-                <p className="text-xs text-slate-600 dark:text-slate-400">O que a fase faz sozinha fica registrado nos eventos da equipe. As partes só veem a urgência, no termo da mudança.</p>
+                    <span>Tirar o responsável designado <span className={`block ${dica}`}>A remessa a outra unidade já faz isso.</span></span></label>
+                {!ae.arquivar && (
+                    <div className="grid sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <NativeSelect id={`rd-${f.id}`} label="Designar como responsável" value={ae.responsavel || ''} onChange={(v) => setAe('responsavel', v)} options={DESIGNA} />
+                            {ae.responsavel === 'atribuicao' && <CampoAtribuicao id={`rda-${f.id}`} value={ae.responsavel_atribuicao} onChange={(v) => mudar({ ao_entrar: comAoEntrar(f, { responsavel_atribuicao: v }) })} />}
+                            {ae.responsavel && <p className={`mt-1 ${dica}`}>{ae.responsavel === 'autor'
+                                ? 'Vale se a pessoa está lotada na unidade que fica com o processo.'
+                                : 'Entre os lotados na unidade que fica com o processo. Se houver mais de uma pessoa assim, ou nenhuma, ninguém é designado e o registro interno diz por quê.'}</p>}
+                        </div>
+                        <div>
+                            <NativeSelect id={`sg-${f.id}`} label="Sigilo do processo" value={ae.sigilo || ''} onChange={(v) => setAe('sigilo', v)} options={SIGILO_FASE} />
+                            {ae.sigilo && <p className={`mt-1 ${dica}`}>{ae.sigilo === 'restrito' ? 'Restrito: só as unidades por onde o processo passou leem os autos.' : 'Normal: toda a equipe lotada em alguma unidade lê os autos.'}</p>}
+                        </div>
+                        <div className="sm:col-span-2">
+                            <Label htmlFor={`pd-${f.id}`} className="text-xs">Abrir pendência para quem decide</Label>
+                            <Input id={`pd-${f.id}`} className="h-9" maxLength={MAX_PENDENCIA_FASE} value={ae.pendencia || ''} placeholder="Ex.: Decidir sobre a admissibilidade"
+                                onChange={(e) => mudar({ ao_entrar: comAoEntrar(f, { pendencia: e.target.value }) })} />
+                            {ae.pendencia?.trim() && (
+                                <label className={`${caixa} mt-1`}><Checkbox className="mt-0.5" checked={!!ae.pendencia_interrompe} onCheckedChange={(c) => setAe('pendencia_interrompe', c === true)} />
+                                    <span>A pendência interrompe a fase até ser apreciada <span className={`block ${dica}`}>O processo não muda de fase enquanto a unidade que decide não a apreciar.</span></span></label>
+                            )}
+                            <p className={`mt-1 ${dica}`}>Vazio: nenhuma. Quem aprecia é a unidade que decide (o gabinete, por padrão), com o processo: se a fase corre em outra unidade, faça a conclusão para ela.</p>
+                        </div>
+                    </div>
+                )}
+                <p className={dica}>O que a fase faz sozinha fica registrado nos eventos da equipe. As partes só veem a urgência (marcada ou retirada), no termo da mudança. Na volta de uma fase de espera, a fase é retomada como estava: não designa de novo nem reabre a pendência.</p>
+            </fieldset>
+            <fieldset className="space-y-2">
+                <legend className="text-xs font-medium mb-1">Quem é avisado quando o processo entra na fase</legend>
+                <div className="grid sm:grid-cols-2 gap-3">
+                    <NativeSelect id={`av-${f.id}`} label="Aviso (sino e e-mail da equipe)" value={av.para || ''} onChange={(v) => mudar({ aviso: comAviso(f, { para: v }) })} options={AVISO_PARA} />
+                    {av.para !== 'ninguem' && (
+                        <div>
+                            <Label htmlFor={`avm-${f.id}`}>Mensagem que acompanha o aviso</Label>
+                            <Input id={`avm-${f.id}`} className="mt-1 h-9" maxLength={MAX_MENSAGEM_AVISO} value={av.mensagem || ''} placeholder="Opcional. Ex.: Conferir a distribuição ainda hoje"
+                                onChange={(e) => mudar({ aviso: comAviso(f, { mensagem: e.target.value }) })} />
+                        </div>
+                    )}
+                </div>
+                <p className={dica}>Só a equipe recebe este aviso; as partes são avisadas pelo portal, como sempre. Quem praticou o ato não é avisado do próprio ato, e cada pessoa escolhe sino e e-mail em "Avisos".</p>
             </fieldset>
         </div>
     );

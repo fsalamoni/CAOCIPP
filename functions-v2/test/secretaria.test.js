@@ -82,7 +82,8 @@ test('derivados de pendências e prazos', () => {
         [{ id: 'a', status: 'aberta', interrompe: false }, { id: 'b', status: 'aberta', interrompe: true }, { id: 'c', status: 'resolvida', interrompe: true }],
         [{ id: 'x', status: 'aberto', vence_em: '2026-12-01' }, { id: 'y', status: 'aberto', vence_em: '2026-11-20' }, { id: 'z', status: 'cumprido', vence_em: '2026-01-01' }],
     );
-    assert.deepEqual(d, { pendencias_abertas: 2, fase_suspensa: true, proximo_vencimento: '2026-11-20' });
+    // proximo_alerta: só existe quando algum prazo aberto pede alerta com antecedência maior que a padrão.
+    assert.deepEqual(d, { pendencias_abertas: 2, fase_suspensa: true, proximo_vencimento: '2026-11-20', proximo_alerta: null });
 });
 
 test('rito com ramificações: próximas por id do cliente, orientação e validação', () => {

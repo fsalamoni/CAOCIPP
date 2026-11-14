@@ -1,6 +1,7 @@
 import { chaveCampo, novoCampo } from './camposProcesso.js';
 import { seguintes } from './secretariaRito.js';
 import { QUEM, rotuloQuem } from './permissoesFase.js';
+import { textoPrazoDaAcao } from './efeitosFase.js';
 // ============================================================================
 // Espelho, para a tela, das regras do rito (functions-v2/src/shared/
 // exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
@@ -561,6 +562,8 @@ function regraComPedidoSemNivel(r, pede, acao) {
     // A condição ("só vale se") e quem cumpre acompanham a ação (documento: quem cumpre é quem junta).
     const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem, ...(r.quem === 'atribuicao' ? { atribuicao: r.atribuicao || '' } : {}) } : {}),
         ...(Number.isInteger(r?.ou) && pede !== 'documento' ? { ou: r.ou } : {}),
+        // O prazo próprio acompanha a ação, seja o que for que ela peça.
+        ...(r?.prazo_dias > 0 && pede !== 'orientacao' ? { prazo_dias: r.prazo_dias, ...(r.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {}) } : {}),
         // A folha de dados segue enquanto a ação pedir um dado.
         ...(r?.folha_dados && !['confirmar', 'documento'].includes(pede) ? { folha_dados: true } : {}),
         // Dado reservado segue se o pedido novo ainda puder ser reservado.
@@ -606,7 +609,7 @@ export function resumoDaAcao(r) {
             : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];
     const nivel = { '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)];
-    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${r?.folha_dados ? '; na folha de dados' : ''}${nivel}${r?.se ? '; condicional' : ''}${Number.isInteger(r?.ou) ? '; alternativa a outra' : ''}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}`;
+    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${r?.folha_dados ? '; na folha de dados' : ''}${nivel}${r?.se ? '; condicional' : ''}${Number.isInteger(r?.ou) ? '; alternativa a outra' : ''}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}${r?.prazo_dias > 0 ? `; prazo próprio de ${textoPrazoDaAcao(r)}` : ''}`;
 }
 
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
