@@ -3,6 +3,7 @@ import { seguintes } from './secretariaRito.js';
 import { QUEM, rotuloQuem } from './permissoesFase.js';
 import { textoPrazoDaAcao } from './efeitosFase.js';
 import { RESPOSTAS, nomeEspecie, textoDosPolos } from './comunicacaoRito.js';
+import { nomeAudiencia } from './audiencias.js';
 // ============================================================================
 // Espelho, para a tela, das regras do rito (functions-v2/src/shared/
 // exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
@@ -87,10 +88,11 @@ export const PEDIDOS = [
     ['documento', 'Um documento'],
     ['comunicacao', 'Comunicar as partes (intimação, citação…)'],
     ['resposta', 'Esperar a resposta das partes'],
+    ['audiencia', 'Designar audiência ou sessão'],
     ['orientacao', 'Nada: só orienta (não se marca)'],
 ];
 /** Ações que o rito conduz com as partes: cumprem-se pela comunicação expedida e pela manifestação (ou decurso). */
-export const PEDIDOS_DAS_PARTES = ['comunicacao', 'resposta'];
+export const PEDIDOS_DAS_PARTES = ['comunicacao', 'resposta', 'audiencia'];
 export const daPartes = (r) => PEDIDOS_DAS_PARTES.includes(r?.pede);
 /** Campos de uma ação que pede um formulário (igual ao servidor). */
 export const MAX_CAMPOS_ACAO = 10;
@@ -594,7 +596,10 @@ function regraComPedidoBase(r, pede, acao) {
     if (PEDIDOS_DAS_PARTES.includes(pede)) {
         return {
             pede,
-            ...(pede === 'comunicacao' ? { comunicacao: r?.comunicacao || { especie: 'intimacao', dias: 0 } } : { resposta: r?.resposta || { de: -1 } }),
+            ...(pede === 'comunicacao' ? { comunicacao: r?.comunicacao || { especie: 'intimacao', dias: 0 } }
+                : pede === 'resposta' ? { resposta: r?.resposta || { de: -1 } }
+                    // A designação é ato público: sempre nos autos, e as partes veem.
+                    : { audiencia: r?.audiencia || { especie: 'audiencia' }, destino: 'autos', partes: true }),
             ...(r?.obrigatoria ? { obrigatoria: true } : r?.recomendada ? { recomendada: true } : {}),
             ...(r?.ajuda ? { ajuda: r.ajuda } : {}),
         };
@@ -625,6 +630,9 @@ export function resumoDaAcao(r) {
         return `comunica ${textoDosPolos(c)} (${nomeEspecie(c.especie).toLowerCase()}${prazo}); certidão nos autos${sufixo}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}${r?.prazo_dias > 0 ? `; expedir em ${textoPrazoDaAcao(r)}` : ''}`;
     }
     if (pede === 'resposta') return `espera a resposta das partes ou o fim do prazo; cumpre-se sozinha${sufixo}`;
+    if (pede === 'audiencia') {
+        return `designa ${nomeAudiencia(r?.audiencia?.especie).toLowerCase()}; certidão nos autos; partes veem${sufixo}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}${r?.prazo_dias > 0 ? `; designar em ${textoPrazoDaAcao(r)}` : ''}`;
+    }
     if (pede === 'documento') {
         return dest === 'autos' ? 'documento juntado aos autos' : `documento guardado fora dos autos (${dest === 'evento' ? 'evento no extrato' : 'só no sistema'})`;
     }

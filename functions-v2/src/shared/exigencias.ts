@@ -11,6 +11,7 @@ import { MODULOS, Modulo } from './modulos';
 import { CampoDef, paginaDe, sanitizeCampos } from './camposProcesso';
 import { QUEM, Quem, sanitizeQuem } from './permissoesFase';
 import { ComunicacaoDaAcao, RESPOSTAS, RespostaDaAcao, sanitizeComunicacaoDaAcao, sanitizeRespostaDaAcao } from './comunicacaoRito';
+import { AudienciaDaAcao, sanitizeAudienciaDaAcao } from './audiencias';
 
 export { QUEM, Quem };
 
@@ -95,7 +96,7 @@ export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
@@ -201,6 +202,8 @@ export interface RegraAcao {
     comunicacao?: ComunicacaoDaAcao;
     /** Pede 'resposta': a ação de comunicação cuja resposta se espera. */
     resposta?: RespostaDaAcao;
+    /** Pede 'audiencia': a espécie (ver shared/audiencias.ts). A designação vai sempre aos autos, e as partes veem. */
+    audiencia?: AudienciaDaAcao;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -282,6 +285,12 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     if (pedeBruto === 'comunicacao') {
         Object.assign(out, sanitizeQuem(r.quem, r.atribuicao, `A ação "${acao}"`));
         return { ...out, pede: 'comunicacao', comunicacao: sanitizeComunicacaoDaAcao(r.comunicacao, acao), ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
+    }
+    // Designar audiência: ato público, sempre nos autos e visto pelas partes.
+    if (pedeBruto === 'audiencia') {
+        Object.assign(out, sanitizeQuem(r.quem, r.atribuicao, `A ação "${acao}"`));
+        return { ...out, pede: 'audiencia', audiencia: sanitizeAudienciaDaAcao(r.audiencia, acao), destino: 'autos', partes: true,
+            ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
     }
     // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
     if (pedeBruto === 'resposta') {

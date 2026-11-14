@@ -35,6 +35,7 @@ const QUANDO_USAR = {
     formulario: 'Vários dados de uma vez, cada um com o seu campo. Um campo de lista ou de sim ou não também serve para criar desvios.',
     documento: 'Uma peça redigida no órgão ou um arquivo recebido.',
     comunicacao: 'Intimar, notificar ou citar as partes de um polo, com prazo e texto que o rito propõe. Cumpre-se expedindo pela própria ação (parte 15).',
+    audiencia: 'Marcar audiência, oitiva, sessão de julgamento, reunião ou inspeção: data, hora, local ou link e quem participa. A designação vai aos autos (parte 15).',
     resposta: 'Esperar a defesa ou manifestação das partes comunicadas. Cumpre-se sozinha, com a resposta no prazo ou com o fim dele (parte 15).',
     orientacao: 'Um lembrete a quem está na fase, ou uma ação que o nome da fase já diz. Ninguém marca e nada fica registrado.',
 };
@@ -285,12 +286,13 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 </tbody>
                             </table>
                         </Parte>
-                        <Parte titulo="15. Comunicação e resposta das partes (contraditório)">
+                        <Parte titulo="15. Comunicação, resposta e audiência (contraditório)">
                             <p>Em processos com partes, como o disciplinar, o sancionador, a apuração em contrato ou o recurso, o rito pode conduzir o contraditório. Duas opções de <strong>O que pede</strong> fazem isso juntas:</p>
                             <ul className="space-y-1.5">
                                 <Termo nome="Comunicar as partes">Escolha a <strong>espécie</strong> (intimação, notificação, citação, ciência ou comunicação), <strong>a quem</strong> (os polos: requerente, requerido, interessado, terceiro; todos marcados é todo mundo), o <strong>prazo de resposta</strong> (úteis ou corridos; vazio é sem prazo) e um <strong>texto proposto</strong>. Na tela do processo a ação ganha o botão <strong>Expedir</strong>, que abre a comunicação preenchida, só com as partes que a ação alcança. Ela se cumpre quando todas foram comunicadas, e volta a ficar por cumprir se uma comunicação for tornada sem efeito. O <strong>Prazo para expedir</strong> é interno, para a equipe.</Termo>
                                 <Termo nome="Esperar a resposta das partes">Escolha a comunicação anterior, da mesma fase, cuja resposta se espera (ela precisa ter prazo). A ação se cumpre sozinha quando cada parte comunicada se manifesta pelo portal dentro do prazo, ou quando o prazo dela acaba sem manifestação. A resposta fica <strong>Apresentada</strong>, <strong>Parcial</strong> (alguns responderam) ou <strong>Sem manifestação</strong>, e pode guiar o <strong>Quando vale</strong> de outras ações e as saídas da fase. Se a peça chegou por outro meio, a equipe registra a resposta à mão.</Termo>
                                 <Termo nome="Decurso do prazo">No dia seguinte ao fim do prazo sem manifestação, às 7h, o sistema certifica nos autos que o prazo decorreu sem manifestação. A certidão é pública: a parte a vê no portal e é avisada. A manifestação que chega depois do prazo é juntada normalmente, mas não desfaz a certidão nem conta como resposta no prazo.</Termo>
+                                <Termo nome="Designar audiência ou sessão">Escolha a <strong>espécie</strong> (audiência, de instrução, de conciliação, oitiva, sessão de julgamento, reunião, inspeção ou vistoria). Na tela do processo, o botão <strong>Designar</strong> pede a data, a hora, o modo (presencial, por videoconferência ou híbrido), o local ou o link e quem participa além das partes (testemunha, perito, informante, assistente técnico, intérprete). A designação é certidão nos autos, as partes a veem no portal e o processo mostra a próxima audiência. Desfazer cancela a audiência, também com certidão. Para intimar, ponha depois uma ação <strong>Comunicar as partes</strong> com <strong>{'{audiencia}'}</strong> no texto: na hora de expedir, vira a data, a hora e o local. A realização e a ata ficam com as ações seguintes: uma escolha (Realizada, Não realizada, Redesignada) e um documento da ata.</Termo>
                                 <Termo nome="Fase que segue sozinha">Com <strong>Andamento automático</strong>, a fase segue assim que a resposta (ou o decurso) cumpre o que faltava. Se o rito reservou a conclusão da fase a alguém, quem conclui é essa pessoa.</Termo>
                             </ul>
                             <p>Cada comunicação é uma certidão nos autos, e o prazo conta da ciência. A fase de espera não interrompe a espera: ela continua contando enquanto o processo está em diligência. Ao sair da fase, as comunicações daquela rodada deixam de contar; se o processo voltar, a ação comunica de novo.</p>
@@ -298,6 +300,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <thead><tr><th>Exemplo: processo disciplinar</th><th>Ações da fase</th><th>Saídas</th></tr></thead>
                                 <tbody>
                                     <tr><td>Citação e defesa</td><td>"Citar o acusado" (citação ao requerido, 10 dias úteis, obrigatória); "Aguardar a defesa" (espera a resposta da citação, obrigatória)</td><td>Resposta "Sem manifestação": vai a "Nomear defensor dativo"; senão, a "Instrução"</td></tr>
+                                    <tr><td>Instrução</td><td>"Designar audiência de instrução" (com testemunhas); "Intimar para a audiência" (intimação a todas as partes, sem prazo, texto com {'{audiencia}'}); "Audiência realizada?" (escolha); "Juntar a ata" (documento)</td><td>"Não realizada": volta a designar; senão, "Alegações finais"</td></tr>
                                     <tr><td>Alegações finais</td><td>"Intimar para alegações" (intimação a todas as partes, 10 dias corridos); "Aguardar alegações"</td><td>Segue sozinha para "Relatório"</td></tr>
                                     <tr><td>Julgamento</td><td>"Notificar a decisão" (notificação ao requerido, sem prazo)</td><td>Segue para "Prazo de recurso", fase com prazo próprio</td></tr>
                                 </tbody>

@@ -12,6 +12,7 @@ import SeletorRegistro from './SeletorRegistro';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
 import { faltando } from '@/lib/camposProcesso';
 import { RESPOSTAS } from '@/lib/comunicacaoRito';
+import { MAX_PARTICIPANTES, MODOS_AUDIENCIA, QUALIDADES } from '@/lib/audiencias';
 
 const br = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('/');
 
@@ -118,8 +119,50 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                     </span>
                 )}
             </span>
-            {podeMexer && !feita && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>Registrar</Button>}
+            {podeMexer && !feita && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : 'Registrar'}</Button>}
             {podeMexer && feita && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={onDesfazer}><Undo2 className="w-4 h-4" /> Desfazer</Button>}
+        </div>
+    );
+}
+
+/** Data, hora, modo, local ou link e participantes da audiência (conferidos de novo no servidor). */
+function CamposAudiencia({ a, onChange }) {
+    const sel = 'mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
+    const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const parts = a.participantes || [];
+    const setP = (k, x) => onChange({ participantes: parts.map((p, j) => (j === k ? { ...p, ...x } : p)) });
+    return (
+        <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+                <div><Label htmlFor="aud-data">Data</Label><Input id="aud-data" type="date" min={hoje} className="mt-1" value={a.data || ''} onChange={(e) => onChange({ data: e.target.value })} autoFocus /></div>
+                <div><Label htmlFor="aud-hora">Hora</Label><Input id="aud-hora" type="time" className="mt-1" value={a.hora || ''} onChange={(e) => onChange({ hora: e.target.value })} /></div>
+            </div>
+            <div>
+                <Label htmlFor="aud-modo">Modo</Label>
+                <select id="aud-modo" className={sel} value={a.modo} onChange={(e) => onChange({ modo: e.target.value })}>
+                    {MODOS_AUDIENCIA.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                </select>
+            </div>
+            {a.modo !== 'virtual' && <div><Label htmlFor="aud-local">Local</Label><Input id="aud-local" className="mt-1" maxLength={200} value={a.local || ''} placeholder="Ex.: Sala de audiências, 3º andar" onChange={(e) => onChange({ local: e.target.value })} /></div>}
+            {a.modo !== 'presencial' && <div><Label htmlFor="aud-link">Link ou sala virtual</Label><Input id="aud-link" className="mt-1" maxLength={300} value={a.link || ''} placeholder="Ex.: https://..." onChange={(e) => onChange({ link: e.target.value })} /></div>}
+            <fieldset>
+                <legend className="text-sm font-medium">Participam, além das partes (opcional)</legend>
+                <div className="mt-1 space-y-2">
+                    {parts.map((p, k) => (
+                        <div key={k} className="flex gap-2">
+                            <Input aria-label={`Nome do participante ${k + 1}`} placeholder="Nome" maxLength={120} value={p.nome} onChange={(e) => setP(k, { nome: e.target.value })} />
+                            <select aria-label={`Qualidade do participante ${k + 1}`} className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900" value={p.qualidade} onChange={(e) => setP(k, { qualidade: e.target.value })}>
+                                {QUALIDADES.map(([q, n]) => <option key={q} value={q}>{n}</option>)}
+                            </select>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => onChange({ participantes: parts.filter((_, j) => j !== k) })}>Tirar</Button>
+                        </div>
+                    ))}
+                    {parts.length < MAX_PARTICIPANTES && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onChange({ participantes: [...parts, { nome: '', qualidade: 'testemunha' }] })}>Incluir participante</Button>
+                    )}
+                </div>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Testemunhas, peritos e outros não têm conta no portal: o nome sai na certidão, e o órgão os convoca pelo meio que usa.</p>
+            </fieldset>
         </div>
     );
 }
@@ -138,9 +181,13 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const valores = form && valor && typeof valor === 'object' ? valor : {};
     const falta = form ? faltando(form, { campos: valores }) : [];
     const algum = Object.values(valores).some((x) => (Array.isArray(x) ? x.length : x && typeof x === 'object' ? true : String(x ?? '').trim()));
-    const vazio = form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
+    const aud = pede === 'audiencia' ? { modo: 'presencial', participantes: [], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
+    const vazio = aud ? !aud.data || !aud.hora || (aud.modo !== 'virtual' && !aud.local?.trim()) || (aud.modo !== 'presencial' && !aud.link?.trim())
+        : form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
     const fechar = () => { setValor(''); setTentou(false); onFechar(); };
-    const onde = pede === 'resposta'
+    const onde = pede === 'audiencia'
+        ? 'A designação vira certidão nos autos, com folha, e as partes a veem no portal. Para intimá-las, use a ação de comunicação do rito: {audiencia} no texto vira esta data e local.'
+        : pede === 'resposta'
         ? 'Registre só quando a manifestação chegou por outro meio (a equipe junta a peça). Com parte ainda no prazo, só "Apresentada" é aceita; o resto o sistema registra sozinho.'
         : dest === 'autos'
         ? 'Vira certidão nos autos, com folha, e sai na impressão.'
@@ -151,9 +198,10 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 : dest === 'consolidar'
                     ? 'Entra como item da certidão conjunta da fase, emitida nos autos quando o processo sair da fase (ou do grupo de fases).'
                 : 'Fica só nas informações do processo e na aba Eventos, para controle. Não sai em impressão.';
-    const quem = partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
+    const quem = pede === 'audiencia' ? '' : partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
     let campo;
-    if (form) campo = <CamposProcesso prefixo="acao-f" campos={form.campos} valores={valores} onChange={(id, x) => setValor({ ...valores, [id]: x })} />;
+    if (aud) campo = <CamposAudiencia a={aud} onChange={(x) => setValor({ ...aud, ...x })} />;
+    else if (form) campo = <CamposProcesso prefixo="acao-f" campos={form.campos} valores={valores} onChange={(id, x) => setValor({ ...valores, [id]: x })} />;
     else if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'numero') campo = <Input id="acao-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 12345" autoFocus />;
     else if (pede === 'data') campo = <Input id="acao-valor" type="date" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
@@ -178,9 +226,9 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 <form className="space-y-2" onSubmit={(e) => {
                     e.preventDefault();
                     if (falta.length) { setTentou(true); return; }
-                    if (!vazio) onEnviar(form ? valores : valor).then((ok) => ok && (setValor(''), setTentou(false)));
+                    if (!vazio) onEnviar(form ? valores : aud ? { ...aud, participantes: aud.participantes.filter((x) => x.nome.trim()) } : valor).then((ok) => ok && (setValor(''), setTentou(false)));
                 }}>
-                    {form ? <p className="text-sm font-medium">{rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
+                    {form || aud ? <p className="text-sm font-medium">{aud ? 'Quando e onde' : rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
                     {r?.ajuda && form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
                     {campo}
                     {r?.ajuda && !form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}

@@ -42,6 +42,7 @@ import { RegistroContexto } from './SeletorRegistro';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
+import { audienciasFuturas, nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
@@ -374,6 +375,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             {ultimoDoc && ` · último documento: nº ${ultimoDoc.ordem}, ${ultimoDoc.titulo}`}
                         </p>
                     )}
+                    {audienciasFuturas(p.audiencias, hoje).slice(0, 1).map((a) => (
+                        <p key={a.id} className="text-sm rounded-md border border-indigo-200 dark:border-indigo-800 px-3 py-1.5">
+                            <b>Próxima {nomeAudiencia(a.especie).toLowerCase()}:</b> {textoDaAudiencia(a)}.
+                        </p>
+                    ))}
                 </div>
             </div>
 

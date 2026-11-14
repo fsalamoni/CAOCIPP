@@ -1420,6 +1420,37 @@ recurso): o rito conduz o contraditório. Lógica pura em
 - Testes: `functions-v2/test/comunicacaoRito.test.js` e
   `src/lib/comunicacaoRito.test.js`. Guia do rito, parte 15.
 
+### Audiência como ação do rito (14/11/2026)
+
+`pede: 'audiencia'`, `audiencia: { especie }` (audiencia, instrucao,
+conciliacao, oitiva, sessao, reuniao, inspecao). Lógica pura em
+`shared/audiencias.ts`; espelho em `src/lib/audiencias.js`.
+
+- **Regra:** o servidor grava sempre `destino: 'autos'` e `partes: true`
+  (designação é ato público). Aceita `quem`, `se`, `ou` e `prazo_dias`
+  (prazo interno para designar).
+- **Designar** (`marcarAcao` com `valor: { data, hora, modo, local?, link?,
+  participantes? }`): data de hoje em diante, hora hh:mm, modo
+  `presencial | virtual | hibrida` (local exigido fora do virtual, link fora
+  do presencial), até 20 participantes além das partes (`testemunha, perito,
+  informante, assistente, interprete, outro`). Certidão nos autos com o texto
+  da audiência; grava `secProcessos.audiencias[]` (`id, fase_id, acao_idx,
+  especie, data, hora, modo, local, link, participantes, designada_em,
+  designada_por, status`) e o derivado `proxima_audiencia`
+  (`AAAA-MM-DDThh:mm` ou null).
+- **Desfazer** cancela a última designada da ação (`status: 'cancelada'`),
+  com certidão que diz qual foi cancelada. Redesignar é desfazer e designar.
+- **Comunicação:** `{audiencia}` no texto é trocado na tela pela próxima
+  audiência designada; o servidor recusa expedir texto que ainda tenha a
+  marca.
+- **Portal:** `obter` devolve `processo.audiencias` (designadas de hoje em
+  diante), mostradas em "Audiências designadas". A tela da equipe mostra a
+  próxima audiência no alto do processo.
+- **Participantes** não têm conta: o nome sai na certidão e o órgão os
+  convoca pelo meio que usa.
+- Testes: `functions-v2/test/audiencias.test.js` e
+  `src/lib/audiencias.test.js`. Guia do rito, parte 15.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
