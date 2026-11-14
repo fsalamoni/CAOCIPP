@@ -16,6 +16,7 @@ import {
 import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { responsavelPelaFase } from '../shared/efeitosFase';
 import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
+import { RESPOSTAS, encerrarComunicacoesDaFase, situacaoDaResposta } from '../shared/comunicacaoRito';
 import { sendEmail } from '../shared/email';
 import {
     CampoExigido, CampoValor, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
@@ -192,6 +193,10 @@ export function efeitosDaMudanca(
         interno.push(`Prazo interno da fase aberto: ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'}, vence em ${vence.split('-').reverse().join('/')}.`);
     }
     const campos: Record<string, unknown> = {};
+    // Saída da fase (salvo para a espera, que volta a ela como estava): as comunicações da rodada deixam de contar.
+    const comSaida = para?.espera ? null : encerrarComunicacoesDaFase(proc.comunicacoes, deId);
+    if (comSaida) campos.comunicacoes = comSaida;
+    if (deId && !para?.espera && !opts.retomada && proc.aguarda_resposta === true) campos.aguarda_resposta = false;
     const ae = para?.ao_entrar;
     if (para && ae?.urgente && proc.urgente !== true) {
         campos.urgente = true;
@@ -491,7 +496,7 @@ const textoDispensa = (d: string[]) => (d.length ? ` Dispensado o que o rito exi
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
 async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regra: RegraAcao | null | undefined, acao: string, bruto: unknown) {
     const pede = pedidoDaAcao(regra);
-    if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao') return null;
+    if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao') return null;
     const rotulo = regra?.rotulo || acao;
     if (pede === 'formulario') {
         // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).
@@ -514,9 +519,9 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
         // Página própria é interna: a informação nunca vai às partes.
         return { rotulo, tipo: 'registro' as TipoCampo, valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true || ehInterno(ref) };
     }
-    const tipo = pede as TipoCampo;
+    const tipo = (pede === 'resposta' ? 'lista' : pede) as TipoCampo;
     let valor: ReturnType<typeof valorDe> = null;
-    try { valor = valorDe({ rotulo, tipo, opcoes: regra?.opcoes || [] }, bruto); } catch (e) { erroUsuario(e); }
+    try { valor = valorDe({ rotulo, tipo, opcoes: pede === 'resposta' ? [...RESPOSTAS] : regra?.opcoes || [] }, bruto); } catch (e) { erroUsuario(e); }
     if (valor === null) throw new HttpsError('invalid-argument', tipo === 'sim_nao' ? `Responda sim ou não em "${rotulo}"` : `Informe "${rotulo}"`);
     return { rotulo, tipo, valor, valor_texto: valorTexto({ tipo, valor }), ref: undefined, refs: [] as Ref[], restrito: false };
 }
@@ -1031,6 +1036,9 @@ export async function avancarSozinho(c: Ctx, id: string): Promise<Record<string,
         const tipo = d.campos_exigidos && d.tipo_id ? (await c.db.collection(COL.tipos).doc(String(d.tipo_id)).get()).data() : null;
         const form = tipo && tipo.organization_id === c.orgId ? formularioDe(tipo) : null;
         if (exigenciasAbertas(d, form).length) return null;
+        // O sistema (regra do rito, sem ninguém no ato) não conclui fase cuja conclusão o rito reservou a alguém.
+        const atualF = ((d.fases || []) as Fase[]).find((f) => f.id === d.fase_atual);
+        if (c.ctx.uid === 'sistema' && atualF?.permissoes?.concluir) return null;
         const saida = saidaAutomatica(d, c.unidades.filter((u) => u.ativa !== false).map((u) => String(u.id)));
         if (!saida) return null;
         const r = await movimentar(c, {
@@ -1282,6 +1290,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (!fase || !acao) throw new HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = fase.acoes_regras?.[idx];
             if (regra?.pede === 'orientacao') throw new HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
+            if (regra?.pede === 'comunicacao') {
+                throw new HttpsError('failed-precondition', `"${acao}" se cumpre expedindo a comunicação pela própria ação, a todas as partes que ela alcança.`);
+            }
             // Fase que segue sozinha: cumprida uma ação obrigatória, o servidor confere, depois deste ato, se era a última.
             tentarAuto = fase.avanco === 'auto' && p.feita !== false && regra?.obrigatoria === true && !opcoes.automatico;
             const respostas = respostasDaFase(data);
@@ -1308,6 +1319,12 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (lista.has(idx) === feita) throw new HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
             const dado = feita ? await valorDaAcao(c, regra, acao, p.valor) : null;
+            // Resposta registrada à mão (manifestação por outro meio): "sem manifestação" ou "parcial" só depois de
+            // decorrido o prazo de quem foi comunicado. Contraditório: ninguém perde a vez antes da hora.
+            if (regra?.pede === 'resposta' && dado && dado.valor !== 'Apresentada'
+                && situacaoDaResposta(fase, idx, data.comunicacoes, hojeBrasil()).pendentes.length) {
+                throw new HttpsError('failed-precondition', `Ainda corre o prazo de resposta de parte comunicada: só "Apresentada" pode ser registrada antes do fim do prazo.`);
+            }
             // Dado reservado: só quem gere a unidade (e quem registra, e a administração) o vê.
             // Fica fora da descrição do movimento, que vai às listas, ao extrato e aos autos.
             const reservado = !!dado && regra?.ve === 'gestor';
@@ -1482,8 +1499,13 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
         if (p.action === 'expedirComunicacao') {
             if (data.status !== 'em_tramitacao') throw new HttpsError('failed-precondition', 'O processo não está em tramitação');
             const lista = (p.comunicacao as { partes_idx?: unknown[] } | undefined)?.partes_idx;
-            expedidas = Array.isArray(lista) ? new Set(lista).size || 1 : 1;
-            return expedir(tx, c, ref, data, p.comunicacao, cfgCom!);
+            const saida = { internos: 0, cumpridas: false };
+            const r = await expedir(tx, c, ref, data, p.comunicacao, cfgCom!, saida);
+            expedidas = (Array.isArray(lista) ? new Set(lista).size || 1 : 1) + saida.internos;
+            // Comunicação que cumpre ação do rito numa fase que segue sozinha: confere, depois, se era o que faltava.
+            const faseCom = ((data.fases || []) as Fase[]).find((f) => f.id === data.fase_atual);
+            tentarAuto = saida.cumpridas && faseCom?.avanco === 'auto' && !opcoes.automatico;
+            return r;
         }
         if (p.action === 'tornarSemEfeito') return tornarSemEfeito(tx, c, ref, data, p.comunicacao_id, motivo);
 

@@ -1371,6 +1371,55 @@ puras em `shared/efeitosFase.ts` e `shared/prazosFase.ts`; espelho da tela em
 - Testes: `functions-v2/test/efeitosFase.test.js` e
   `src/lib/efeitosFase.test.js`. Guia do rito, parte 14.
 
+### Comunicação e resposta das partes como ações do rito (14/11/2026)
+
+Para processos com partes (disciplinar, sancionador, apuração em contrato,
+recurso): o rito conduz o contraditório. Lógica pura em
+`shared/comunicacaoRito.ts`; espelho da tela em `src/lib/comunicacaoRito.js`.
+
+| Regra da ação | O que faz |
+|---|---|
+| `pede: 'comunicacao'`, `comunicacao: { especie, polos?, dias, contagem?, texto? }` | Comunica as partes dos `polos` (ausente = todas; as retiradas nunca). `dias` 0 = sem prazo de resposta. Sem destino nem `partes` na regra: o registro são as próprias comunicações. Aceita `quem`, `se`, `ou` e `prazo_dias` (prazo interno para expedir). |
+| `pede: 'resposta'`, `resposta: { de }` | Espera a resposta da comunicação `de` (ação anterior da mesma fase, com `dias` > 0). Sem `quem` nem `prazo_dias`. A resposta (`Apresentada`, `Parcial`, `Sem manifestação`) vale nas condições e saídas, como a de uma lista. |
+
+- **Expedir pela ação:** `expedirComunicacao` com `comunicacao.acao_idx`
+  aceita só partes que a ação alcança e grava `fase_id` e `acao_idx` em cada
+  comunicação. A ação se cumpre (`acoes_feitas`) quando todas as partes
+  previstas foram comunicadas na rodada, e volta a ficar por cumprir se uma
+  for tornada sem efeito; `marcarAcao` recusa marcá-la à mão.
+- **Resposta:** a petição da parte (ou de representante) dentro do prazo
+  marca `respondida_em` e `resposta_ordem` nas comunicações dela que a fase
+  espera, com registro interno. Antes da ciência também vale. Depois do
+  prazo, a petição é juntada, mas não conta.
+- **Decurso:** a rotina diária (`respostasPorDecurso`, às 7h, depois da
+  ciência por decurso) procura `aguarda_resposta == true` e, para cada
+  comunicação esperada com `vence_em` já passado e sem resposta, grava o
+  movimento público `decurso_prazo` ("Certidão de decurso de prazo"), marca
+  `decurso_certificado` e avisa as partes. Uma vez por comunicação.
+- **Cumprimento sozinho:** quando ninguém mais pode responder, a ação de
+  espera fica cumprida com a resposta, com registro interno. `marcarAcao`
+  aceita registrar a resposta à mão (peça chegada por outro meio); com parte
+  ainda no prazo, só `Apresentada`.
+- **Andamento automático:** cumprida a espera, a fase com `avanco: 'auto'`
+  segue pelo contexto do sistema (`contextoDoSistema`: as unidades ativas do
+  órgão, autor "Sistema (regra do rito)"). Se a fase reserva `concluir` a
+  alguém, o sistema não conclui. Na fase de espera, a espera continua na fase
+  de origem (`faseQueEspera`), sem avançar.
+- **Rodada:** ao sair da fase (exceto para uma fase de espera), as
+  comunicações da rodada ganham `rodada_fim` e `aguarda_resposta` vira
+  `false`; ao voltar, a ação comunica de novo.
+- **Editor:** "O que pede" ganhou "Comunicar as partes" (espécie, polos,
+  prazo de resposta, texto proposto) e "Esperar a resposta das partes" (de
+  qual comunicação). Reordenar as ações leva `resposta.de` junto; se a
+  comunicação sair, a espera fica sem alvo e o editor aponta.
+- **Tela do processo:** a ação de comunicação mostra "Comunicadas X de Y" e o
+  botão **Expedir**, que abre o formulário preenchido só com as partes que
+  faltam; a de espera mostra quem respondeu e até quando os demais podem.
+- **Limite conhecido:** a rotina lê até 1000 processos com
+  `aguarda_resposta` por dia.
+- Testes: `functions-v2/test/comunicacaoRito.test.js` e
+  `src/lib/comunicacaoRito.test.js`. Guia do rito, parte 15.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
@@ -1423,7 +1472,10 @@ Intimação, notificação, citação, ciência e comunicação. Lógica pura em
   o seguinte) com o calendário do órgão. Por outro meio, a ciência vale na
   data informada.
 - **Eventos nos autos:** Certidão de comunicação, Termo de ciência, Certidão
-  de ciência por decurso e Certidão de comunicação sem efeito, todos com folha.
+  de ciência por decurso, Certidão de comunicação sem efeito e Certidão de
+  decurso de prazo (quando o rito espera a resposta), todos com folha.
+- **Pelo rito:** a comunicação pode ser expedida por uma ação da fase
+  (`acao_idx`); ver "Comunicação e resposta das partes como ações do rito".
 - **Telas:** `Comunicacoes.jsx` (cartão e formulário de expedição) e
   `ComunicacoesPendentes.jsx` (aviso ao entrar, montado no `Layout` para quem
   tem `portal_partes` e na página do Portal).

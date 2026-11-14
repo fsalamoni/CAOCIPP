@@ -7,7 +7,7 @@ import {
 } from '../shared/secretaria';
 import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
-import { COL, Contexto, REGION, calendarioDasAcoes, exigirAuth, registrarInternos, registrarMovimento } from './context';
+import { COL, Contexto, REGION, calendarioDasAcoes, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
 import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
@@ -16,7 +16,10 @@ import { extrasDoEvento, visivelParaPartes } from '../shared/autos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comunicacoes';
-import { configComunicacoes, registrarCiencia } from './comunicacoes';
+import { acertarAcoesDoRito, configComunicacoes, registrarCiencia } from './comunicacoes';
+import { ComunicacaoLigada, faseQueEspera, respondidasPela } from '../shared/comunicacaoRito';
+import { avancarSozinho } from './processos';
+import { contextoDoSistema } from './context';
 import { situacaoDaParte } from '../shared/meusProcessos';
 import { informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
 import { CampoValor } from '../shared/camposProcesso';
@@ -517,13 +520,31 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             tx.set(db.collection(COL.verificacao).doc(codigo),
                 registroVerificacao(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
             const pzA = camposDosPrazosDasAcoes(proc, exig, fase, `${parte.assina} (parte)`, pendencias, calendario);
-            const mi = registrarInternos(tx, c, procRef, { ...proc, ...mov }, pzA.notas);
-            tx.update(procRef, { ...mov, ...mi, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]),
-                ...pzA.campos });
-            return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id, internos: pzA.notas.length ? 1 : 0 };
+            // Manifestação no prazo de comunicação que o rito espera: a espera daquela parte termina.
+            const partesDoc = (proc.partes || []) as ParteDoc[];
+            const parteIdx = partesDoc.findIndex((x) => x.uid === uid || (x.representantes || []).some((rp) => rp.uid === uid));
+            const responde = new Set(respondidasPela(faseQueEspera<Fase>(proc), parteIdx, proc.comunicacoes, hoje));
+            const coms = responde.size
+                ? ((proc.comunicacoes || []) as ComunicacaoLigada[]).map((x) => (responde.has(x.id) ? { ...x, respondida_em: agora, resposta_ordem: ordem } : x))
+                : null;
+            const notaResp = responde.size ? [`A petição nº ${ordem} de ${parte.rotulo} responde, no prazo, à comunicação que o rito espera.`] : [];
+            const depois = { ...proc, ...mov, ...exig, pendencias, ...pzA.campos, ...(coms ? { comunicacoes: coms } : {}) };
+            const ac = acertarAcoesDoRito(tx, c, procRef, depois, [...pzA.notas, ...notaResp]);
+            tx.update(procRef, { ...mov, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]),
+                ...pzA.campos, ...(coms ? { comunicacoes: coms } : {}), ...ac.campos });
+            const faseEspera = faseQueEspera<Fase>(proc);
+            return {
+                ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id, internos: ac.internos,
+                avancar: ac.cumpridas && faseEspera?.avanco === 'auto' && faseEspera.id === proc.fase_atual ? String(proc.organization_id) : '',
+            };
         });
-        const { internos, ...protocolado } = r;
+        const { internos, avancar, ...protocolado } = r;
         void avisarPartesDoMovimento(db, procRef.id, uid, 1 + internos);
+        // A espera que o rito tinha terminou com esta manifestação: a fase que segue sozinha confere se pode seguir.
+        if (avancar) {
+            const sis = await contextoDoSistema(db, avancar).catch(() => null);
+            if (sis) await avancarSozinho(sis, procRef.id);
+        }
         void avisarPeticao(db, procAntes, procRef.id, String(parteDoUsuario(procAntes, uid)?.assina || 'A parte'), titulo, tipoPeticao);
         return { success: true, ...protocolado };
     }

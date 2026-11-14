@@ -15,7 +15,7 @@ import { visivelParaPartes } from '../shared/autos';
  * "prazos" (só prazos, decisões e situação) ou "nenhum".
  */
 
-const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso'];
+const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso', 'decurso_prazo'];
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso: string) => iso.split('-').reverse().join('/');
 
@@ -78,7 +78,7 @@ async function avisarDoMovimento(db: admin.firestore.Firestore, procId: string, 
 function rotulo(tipo: string): string {
     return ({
         juntada: 'novo documento nos autos', peticao: 'petição protocolada', fase: 'o processo mudou de fase', situacao: 'a situação do processo mudou',
-        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', comunicacao: 'comunicação expedida, aguardando ciência', ciencia_decurso: 'ciência registrada por decurso', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
+        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', comunicacao: 'comunicação expedida, aguardando ciência', ciencia_decurso: 'ciência registrada por decurso', decurso_prazo: 'prazo encerrado sem manifestação', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
     } as Record<string, string>)[tipo] || 'novo andamento';
 }
 

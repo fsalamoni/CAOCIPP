@@ -12,10 +12,11 @@ import {
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
     QUEM, VE, podeReservar, podeIrParaFolha, alternativasPossiveis, chaveDaCondicao, condicaoIncompleta, fontesDaCondicao, juntarPartes, MAX_CONDICOES_E, opcoesDaParte, parteDaFonte, partesDaCondicao,
-    problemaDaCondicao, remapearCondicoes, soOrienta,
+    problemaDaCondicao, remapearCondicoes, soOrienta, daPartes,
 } from '@/lib/exigencias';
+import { ESPECIES } from '@/lib/comunicacaoRito';
 import { NativeSelect } from './comum';
-import { MODULOS } from '@/lib/camposProcesso';
+import { MODULOS, POLOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
 import AjudaTermo from './AjudaTermo';
 import { CampoAtribuicao } from './PermissoesDaFase';
@@ -216,9 +217,11 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 </>
             )}
             {!soOrienta(r) && <>
-            <EscolhaDestino id={`${id}-dest`} valor={dest} onChange={setDestino} acao={acao} fase={fase}
-                documento={pede === 'documento'} opcoes={pede === 'documento' ? DESTINOS_DOCUMENTO : Object.entries(DESTINO_INFO).map(([d, x]) => [d, x.rotulo])} />
-            {pede !== 'confirmar' && pede !== 'documento' && (
+            {daPartes(r) ? <ConfigDasPartes id={id} r={r} f={f} i={i} onChange={onChange} /> : (
+                <EscolhaDestino id={`${id}-dest`} valor={dest} onChange={setDestino} acao={acao} fase={fase}
+                    documento={pede === 'documento'} opcoes={pede === 'documento' ? DESTINOS_DOCUMENTO : Object.entries(DESTINO_INFO).map(([d, x]) => [d, x.rotulo])} />
+            )}
+            {pede !== 'confirmar' && pede !== 'documento' && !daPartes(r) && (
                 <div className="grid sm:grid-cols-2 gap-2">
                     <div>
                         <Label htmlFor={`${id}-rot`}>Nome do dado</Label>
@@ -248,7 +251,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     onChange={(e) => onChange(regraAjuda(r, e.target.value))} />
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1">
-                {pede !== 'documento' && (
+                {pede !== 'documento' && !daPartes(r) && (
                     <div className="text-sm">
                         <label className={`flex items-center gap-2 ${semPartes ? 'text-slate-500 dark:text-slate-500' : ''}`}>
                             <Checkbox checked={partesVeem(r)} disabled={!!semPartes} onCheckedChange={(c) => set({ partes: c === true ? true : undefined, ...(r?.autos ? { autos: undefined, destino: 'autos' } : {}) })} />
@@ -280,7 +283,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     <CondicaoPorResposta id={`${id}-se`} f={f} limite={i} valor={r?.se} rotulo="Quando vale" vazio="Sempre" onChange={(se) => set({ se })} />
                     {r?.se && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Só aparece e só é cobrada quando a resposta for uma das marcadas.</p>}
                 </div>
-                {pede !== 'documento' && (
+                {pede !== 'documento' && pede !== 'resposta' && (
                     <div>
                         <NativeSelect id={`${id}-quem`} label="Quem pode cumprir" value={r?.quem || ''} onChange={(v) => set({ quem: v || undefined, atribuicao: v === 'atribuicao' ? r?.atribuicao || '' : undefined })} options={QUEM} />
                         {r?.quem === 'atribuicao' && <CampoAtribuicao id={`${id}-atr`} value={r.atribuicao} onChange={(v) => set({ atribuicao: v })} />}
@@ -295,8 +298,8 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                         </p>
                     </div>
                 )}
-                <div>
-                    <Label htmlFor={`${id}-pz`}>Prazo próprio da ação (dias)</Label>
+                {pede !== 'resposta' && <div>
+                    <Label htmlFor={`${id}-pz`}>{pede === 'comunicacao' ? 'Prazo para expedir (dias)' : 'Prazo próprio da ação (dias)'}</Label>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                         <Input id={`${id}-pz`} type="number" min={1} max={3650} placeholder="Sem prazo" className="h-9 w-28" value={r?.prazo_dias || ''}
                             onChange={(e) => { const n = Number(e.target.value); set({ prazo_dias: Number.isInteger(n) && n > 0 ? n : undefined, ...(Number.isInteger(n) && n > 0 ? {} : { prazo_contagem: undefined }) }); }} />
@@ -313,7 +316,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                             ? 'Abre sozinho quando a ação passa a valer na fase e encerra quando ela é cumprida. É prazo interno: as partes não veem. O alerta e o que acontece no vencimento ficam em "Prazo, nome para as partes e ao entrar".'
                             : 'Vazio: a ação segue só o prazo da fase, se houver.'}
                     </p>
-                </div>
+                </div>}
                 {pede !== 'documento' && (alternativas.length > 0 || Number.isInteger(r?.ou)) && (
                     <div>
                         <NativeSelect id={`${id}-ou`} label="Alternativa a" value={Number.isInteger(r?.ou) ? String(r.ou) : ''}
@@ -326,6 +329,88 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 )}
             </div>
             </>}
+        </div>
+    );
+}
+
+/**
+ * Comunicar as partes e esperar a resposta (processos com partes): a espécie,
+ * a quem, o prazo e o texto da comunicação; e de qual comunicação a espera
+ * depende. Igual ao servidor (shared/comunicacaoRito.ts).
+ */
+function ConfigDasPartes({ id, r, f, i, onChange }) {
+    if (r?.pede === 'resposta') {
+        const comunicam = (f?.acoes || []).map((a, k) => [k, a]).filter(([k]) => k < i && f.acoes_regras?.[k]?.pede === 'comunicacao' && f.acoes_regras[k].comunicacao?.dias > 0);
+        const de = r.resposta?.de;
+        const valida = comunicam.some(([k]) => k === de);
+        return (
+            <div className="space-y-1 sm:max-w-md">
+                {comunicam.length ? (
+                    <NativeSelect id={`${id}-de`} label="Espera a resposta de" value={valida ? String(de) : ''} onChange={(v) => onChange({ ...r, resposta: { de: v === '' ? -1 : Number(v) } })}
+                        options={[['', 'Escolha a comunicação…'], ...comunicam.map(([k, a]) => [String(k), `"${a.trim()}"`])]} />
+                ) : (
+                    <p role="alert" className="text-xs text-amber-800 dark:text-amber-200">Antes desta ação, ponha na fase uma ação que comunique as partes com prazo de resposta.</p>
+                )}
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Cumpre-se sozinha: quando cada parte comunicada se manifestar pelo portal dentro do prazo, ou quando o prazo dela acabar sem manifestação (o sistema certifica o decurso nos autos).
+                    A resposta fica &quot;Apresentada&quot;, &quot;Parcial&quot; ou &quot;Sem manifestação&quot; e pode guiar as condições e as saídas da fase.
+                </p>
+            </div>
+        );
+    }
+    const c = r?.comunicacao || { especie: 'intimacao', dias: 0 };
+    const setC = (patch) => {
+        const n = { ...c, ...patch };
+        Object.keys(n).forEach((k) => n[k] === undefined && delete n[k]);
+        onChange({ ...r, comunicacao: n });
+    };
+    const polos = c.polos || [];
+    const marcarPolo = (p, sim) => {
+        const l = sim ? [...polos, p] : polos.filter((x) => x !== p);
+        setC({ polos: l.length && l.length < POLOS.length ? l : undefined });
+    };
+    return (
+        <div className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3">
+                <NativeSelect id={`${id}-esp`} label="Espécie" value={c.especie} options={ESPECIES.map(([e, nome]) => [e, nome])}
+                    onChange={(v) => setC({ especie: v, ...(v === 'ciencia' ? { dias: 0, contagem: undefined } : {}) })} />
+                <div>
+                    <Label htmlFor={`${id}-cd`}>Prazo de resposta (dias)</Label>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Input id={`${id}-cd`} type="number" min={0} max={3650} placeholder="Sem prazo" className="h-9 w-28" value={c.dias || ''} disabled={c.especie === 'ciencia'}
+                            onChange={(e) => { const n = Number(e.target.value); setC(Number.isInteger(n) && n > 0 ? { dias: n } : { dias: 0, contagem: undefined }); }} />
+                        {c.dias > 0 && (
+                            <select aria-label="Contagem do prazo de resposta" value={c.contagem || ''} onChange={(e) => setC({ contagem: e.target.value || undefined })}
+                                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                                <option value="">dias úteis</option>
+                                <option value="corridos">dias corridos</option>
+                            </select>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <fieldset>
+                <legend className="text-sm font-medium">A quem comunica</legend>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                    {POLOS.map(([p, nome]) => (
+                        <label key={p} className="flex items-center gap-2 text-sm">
+                            <Checkbox checked={!polos.length || polos.includes(p)} onCheckedChange={(v) => marcarPolo(p, v === true)}
+                                disabled={!!polos.length && polos.length === 1 && polos[0] === p} />
+                            {nome}
+                        </label>
+                    ))}
+                </div>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Todos marcados: todas as partes do processo. As partes retiradas nunca são comunicadas.</p>
+            </fieldset>
+            <div>
+                <Label htmlFor={`${id}-ct`}>Texto proposto</Label>
+                <Textarea id={`${id}-ct`} className="mt-1" rows={3} maxLength={2000} value={c.texto || ''} placeholder="Ex.: Fica Vossa Senhoria citada para apresentar defesa escrita no prazo indicado."
+                    onChange={(e) => setC({ texto: e.target.value || undefined })} />
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+                Na tela do processo, a ação ganha o botão &quot;Expedir&quot;, que abre a comunicação já preenchida (quem expede ajusta). Ela se cumpre quando todas as partes previstas forem comunicadas,
+                e volta a ficar por cumprir se uma comunicação for tornada sem efeito. Cada comunicação vira certidão nos autos e aviso no portal; o prazo conta da ciência.
+            </p>
         </div>
     );
 }

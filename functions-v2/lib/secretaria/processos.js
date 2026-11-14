@@ -24,6 +24,7 @@ const exigencias_1 = require("../shared/exigencias");
 const permissoesFase_1 = require("../shared/permissoesFase");
 const efeitosFase_1 = require("../shared/efeitosFase");
 const prazosFase_1 = require("../shared/prazosFase");
+const comunicacaoRito_1 = require("../shared/comunicacaoRito");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const numeracao_1 = require("../shared/numeracao");
@@ -95,6 +96,12 @@ function efeitosDaMudanca(proc, deId, para, calendario, quem, opts = {}) {
         interno.push(`Prazo interno da fase aberto: ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'}, vence em ${vence.split('-').reverse().join('/')}.`);
     }
     const campos = {};
+    // Saída da fase (salvo para a espera, que volta a ela como estava): as comunicações da rodada deixam de contar.
+    const comSaida = (para === null || para === void 0 ? void 0 : para.espera) ? null : (0, comunicacaoRito_1.encerrarComunicacoesDaFase)(proc.comunicacoes, deId);
+    if (comSaida)
+        campos.comunicacoes = comSaida;
+    if (deId && !(para === null || para === void 0 ? void 0 : para.espera) && !opts.retomada && proc.aguarda_resposta === true)
+        campos.aguarda_resposta = false;
     const ae = para === null || para === void 0 ? void 0 : para.ao_entrar;
     if (para && (ae === null || ae === void 0 ? void 0 : ae.urgente) && proc.urgente !== true) {
         campos.urgente = true;
@@ -391,7 +398,7 @@ const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fas
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
 async function valorDaAcao(c, regra, acao, bruto) {
     const pede = (0, exigencias_1.pedidoDaAcao)(regra);
-    if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao')
+    if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao')
         return null;
     const rotulo = (regra === null || regra === void 0 ? void 0 : regra.rotulo) || acao;
     if (pede === 'formulario') {
@@ -423,10 +430,10 @@ async function valorDaAcao(c, regra, acao, bruto) {
         // Página própria é interna: a informação nunca vai às partes.
         return { rotulo, tipo: 'registro', valor: ref.numero, valor_texto: ref.numero, ref, refs: [ref], restrito: ref.restrito === true || (0, modulos_1.ehInterno)(ref) };
     }
-    const tipo = pede;
+    const tipo = (pede === 'resposta' ? 'lista' : pede);
     let valor = null;
     try {
-        valor = (0, camposProcesso_1.valorDe)({ rotulo, tipo, opcoes: (regra === null || regra === void 0 ? void 0 : regra.opcoes) || [] }, bruto);
+        valor = (0, camposProcesso_1.valorDe)({ rotulo, tipo, opcoes: pede === 'resposta' ? [...comunicacaoRito_1.RESPOSTAS] : (regra === null || regra === void 0 ? void 0 : regra.opcoes) || [] }, bruto);
     }
     catch (e) {
         (0, context_1.erroUsuario)(e);
@@ -907,7 +914,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
  * de uma saída, o processo mudou), nada acontece e o botão continua na tela.
  */
 async function avancarSozinho(c, id) {
-    var _a;
+    var _a, _b;
     try {
         const d = (await c.db.collection(context_1.COL.processos).doc(id).get()).data();
         if (!d)
@@ -916,12 +923,16 @@ async function avancarSozinho(c, id) {
         const form = tipo && tipo.organization_id === c.orgId ? (0, camposProcesso_1.formularioDe)(tipo) : null;
         if (exigenciasAbertas(d, form).length)
             return null;
+        // O sistema (regra do rito, sem ninguém no ato) não conclui fase cuja conclusão o rito reservou a alguém.
+        const atualF = (d.fases || []).find((f) => f.id === d.fase_atual);
+        if (c.ctx.uid === 'sistema' && ((_a = atualF === null || atualF === void 0 ? void 0 : atualF.permissoes) === null || _a === void 0 ? void 0 : _a.concluir))
+            return null;
         const saida = (0, secretaria_1.saidaAutomatica)(d, c.unidades.filter((u) => u.ativa !== false).map((u) => String(u.id)));
         if (!saida)
             return null;
         const r = await movimentar(c, Object.assign({ organizationId: c.orgId, id, version: d.version, fase_id: saida.fase_id }, (saida.unidade_destino ? { action: 'tramitar', unidade_destino: saida.unidade_destino } : { action: 'avancarFase' })), { automatico: true });
         const fase = (d.fases || []).find((f) => f.id === saida.fase_id);
-        return Object.assign(Object.assign({}, r), { avancou: { fase: (fase === null || fase === void 0 ? void 0 : fase.nome) || '', unidade: saida.unidade_destino ? (0, context_1.nomeUnidade)(c, saida.unidade_destino) : '', arquivado: ((_a = fase === null || fase === void 0 ? void 0 : fase.ao_entrar) === null || _a === void 0 ? void 0 : _a.arquivar) === true } });
+        return Object.assign(Object.assign({}, r), { avancou: { fase: (fase === null || fase === void 0 ? void 0 : fase.nome) || '', unidade: saida.unidade_destino ? (0, context_1.nomeUnidade)(c, saida.unidade_destino) : '', arquivado: ((_b = fase === null || fase === void 0 ? void 0 : fase.ao_entrar) === null || _b === void 0 ? void 0 : _b.arquivar) === true } });
     }
     catch (e) {
         console.warn('[secretaria] avanço automático não aplicado', id, e === null || e === void 0 ? void 0 : e.message);
@@ -1176,6 +1187,9 @@ async function movimentar(c, p, opcoes = {}) {
             const regra = (_h = fase.acoes_regras) === null || _h === void 0 ? void 0 : _h[idx];
             if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'orientacao')
                 throw new https_1.HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
+            if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'comunicacao') {
+                throw new https_1.HttpsError('failed-precondition', `"${acao}" se cumpre expedindo a comunicação pela própria ação, a todas as partes que ela alcança.`);
+            }
             // Fase que segue sozinha: cumprida uma ação obrigatória, o servidor confere, depois deste ato, se era a última.
             tentarAuto = fase.avanco === 'auto' && p.feita !== false && (regra === null || regra === void 0 ? void 0 : regra.obrigatoria) === true && !opcoes.automatico;
             const respostas = (0, exigencias_1.respostasDaFase)(data);
@@ -1203,6 +1217,12 @@ async function movimentar(c, p, opcoes = {}) {
                 throw new https_1.HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
             const dado = feita ? await valorDaAcao(c, regra, acao, p.valor) : null;
+            // Resposta registrada à mão (manifestação por outro meio): "sem manifestação" ou "parcial" só depois de
+            // decorrido o prazo de quem foi comunicado. Contraditório: ninguém perde a vez antes da hora.
+            if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'resposta' && dado && dado.valor !== 'Apresentada'
+                && (0, comunicacaoRito_1.situacaoDaResposta)(fase, idx, data.comunicacoes, (0, secretaria_1.hojeBrasil)()).pendentes.length) {
+                throw new https_1.HttpsError('failed-precondition', `Ainda corre o prazo de resposta de parte comunicada: só "Apresentada" pode ser registrada antes do fim do prazo.`);
+            }
             // Dado reservado: só quem gere a unidade (e quem registra, e a administração) o vê.
             // Fica fora da descrição do movimento, que vai às listas, ao extrato e aos autos.
             const reservado = !!dado && (regra === null || regra === void 0 ? void 0 : regra.ve) === 'gestor';
@@ -1365,8 +1385,13 @@ async function movimentar(c, p, opcoes = {}) {
             if (data.status !== 'em_tramitacao')
                 throw new https_1.HttpsError('failed-precondition', 'O processo não está em tramitação');
             const lista = (_o = p.comunicacao) === null || _o === void 0 ? void 0 : _o.partes_idx;
-            expedidas = Array.isArray(lista) ? new Set(lista).size || 1 : 1;
-            return (0, comunicacoes_1.expedir)(tx, c, ref, data, p.comunicacao, cfgCom);
+            const saida = { internos: 0, cumpridas: false };
+            const r = await (0, comunicacoes_1.expedir)(tx, c, ref, data, p.comunicacao, cfgCom, saida);
+            expedidas = (Array.isArray(lista) ? new Set(lista).size || 1 : 1) + saida.internos;
+            // Comunicação que cumpre ação do rito numa fase que segue sozinha: confere, depois, se era o que faltava.
+            const faseCom = (data.fases || []).find((f) => f.id === data.fase_atual);
+            tentarAuto = saida.cumpridas && (faseCom === null || faseCom === void 0 ? void 0 : faseCom.avanco) === 'auto' && !opcoes.automatico;
+            return r;
         }
         if (p.action === 'tornarSemEfeito')
             return (0, comunicacoes_1.tornarSemEfeito)(tx, c, ref, data, p.comunicacao_id, motivo);

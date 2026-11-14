@@ -10,6 +10,7 @@
 import { MODULOS, Modulo } from './modulos';
 import { CampoDef, paginaDe, sanitizeCampos } from './camposProcesso';
 import { QUEM, Quem, sanitizeQuem } from './permissoesFase';
+import { ComunicacaoDaAcao, RESPOSTAS, RespostaDaAcao, sanitizeComunicacaoDaAcao, sanitizeRespostaDaAcao } from './comunicacaoRito';
 
 export { QUEM, Quem };
 
@@ -94,7 +95,7 @@ export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
@@ -196,6 +197,10 @@ export interface RegraAcao {
     prazo_dias?: number;
     /** Contagem do prazo da ação. Ausente = dias úteis. */
     prazo_contagem?: 'corridos';
+    /** Pede 'comunicacao': espécie, polos, prazo e texto (ver shared/comunicacaoRito.ts). */
+    comunicacao?: ComunicacaoDaAcao;
+    /** Pede 'resposta': a ação de comunicação cuja resposta se espera. */
+    resposta?: RespostaDaAcao;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -273,6 +278,15 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     if (ajuda) out.ajuda = ajuda;
     // Só orientação: não se marca, não gera registro, não é cobrada.
     if (pedeBruto === 'orientacao') return { ...out, pede: 'orientacao' };
+    // Comunicar as partes: cumpre-se expedindo pela ação; o registro são as próprias comunicações (nos autos).
+    if (pedeBruto === 'comunicacao') {
+        Object.assign(out, sanitizeQuem(r.quem, r.atribuicao, `A ação "${acao}"`));
+        return { ...out, pede: 'comunicacao', comunicacao: sanitizeComunicacaoDaAcao(r.comunicacao, acao), ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
+    }
+    // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
+    if (pedeBruto === 'resposta') {
+        return { ...out, pede: 'resposta', resposta: { de: -1 }, ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
+    }
     if (pedeBruto !== 'confirmar') {
         out.pede = pedeBruto;
         const rotulo = texto(r.rotulo, 80);
@@ -344,6 +358,7 @@ export function opcoesDaResposta(r: RegraAcao | null | undefined, campo?: string
     }
     if (r.pede === 'lista') return r.opcoes || [];
     if (r.pede === 'sim_nao') return ['sim', 'nao'];
+    if (r.pede === 'resposta') return [...RESPOSTAS];
     return null;
 }
 
@@ -617,9 +632,10 @@ export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[], map
         if (se) regras[i] = { ...(r || {}), se };
         const ou = sanitizeOu(b?.ou, regras, acoes, i, mapa);
         if (ou !== undefined) regras[i] = { ...(regras[i] || {}), ou };
+        if (regras[i]?.pede === 'resposta') regras[i] = { ...regras[i], resposta: sanitizeRespostaDaAcao((b as Record<string, unknown> | undefined)?.resposta, regras, acoes, i, mapa) };
         // Prazo próprio: qualquer ação que se cumpre (a que é só orientação não tem o que cumprir).
         const prazo = Number(b?.prazo_dias);
-        if (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 && regras[i]?.pede !== 'orientacao') {
+        if (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 && !['orientacao', 'resposta'].includes(String(regras[i]?.pede))) {
             regras[i] = { ...(regras[i] || {}), prazo_dias: prazo, ...(b?.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' as const } : {}) };
         }
     });

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.COL = exports.REGION = void 0;
 exports.exigirAuth = exigirAuth;
 exports.carregarContexto = carregarContexto;
+exports.contextoDoSistema = contextoDoSistema;
 exports.administraOrgao = administraOrgao;
 exports.exigirAdminDoOrgao = exigirAdminDoOrgao;
 exports.exigirAdmin = exigirAdmin;
@@ -90,6 +91,27 @@ async function carregarContexto(auth, orgId, opts = {}) {
         unidades,
         gestorDe,
         adminOrgaos,
+    };
+}
+/**
+ * Quem age quando a regra do rito move o processo sem ninguém da equipe no ato
+ * (manifestação da parte, decurso do prazo): o sistema, com as unidades
+ * ativas do órgão. Só o avanço automático usa, e ele segue a única saída que o
+ * rito indica; com quem conclui reservado pelo rito, o sistema não conclui.
+ */
+async function contextoDoSistema(db, orgId) {
+    var _a, _b;
+    const [orgSnap, unSnap] = await Promise.all([
+        db.collection('organizations').doc(orgId).get(),
+        db.collection(exports.COL.unidades).where('organization_id', '==', orgId).get(),
+    ]);
+    const org = orgSnap.data() || {};
+    if (((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== true || ((_b = org.secretariaConfig) === null || _b === void 0 ? void 0 : _b.suspensa_plataforma) === true)
+        return null;
+    const unidades = unSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())));
+    return {
+        db, orgId, org, ctx: { uid: 'sistema', isAdmin: true, unidadeIds: unidades.filter((u) => u.ativa !== false).map((u) => u.id) },
+        papel: 'sistema', userName: 'Sistema (regra do rito)', unidades, gestorDe: [], adminOrgaos: [],
     };
 }
 /** Admin da entidade ou admin delegado do órgão interno `orgaoId`. */

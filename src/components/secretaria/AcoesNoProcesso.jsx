@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Circle, Undo2 } from 'lucide-react';
+import { CheckCircle2, Circle, Send, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,9 @@ import { dataHora } from './comum';
 import SeletorRegistro from './SeletorRegistro';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
 import { faltando } from '@/lib/camposProcesso';
+import { RESPOSTAS } from '@/lib/comunicacaoRito';
+
+const br = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('/');
 
 // Ações da fase na tela do processo (aba Andamento): cada uma do jeito que o
 // rito pediu (caixa de marcar, um dado ou um documento), dizendo onde o
@@ -37,7 +40,7 @@ export function SelosAcao({ r }) {
  * Uma ação da fase. `info`: a informação registrada nesta rodada da fase (se a ação pede um dado).
  * `onMarcar(feita, valor)` chama o servidor.
  */
-export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer }) {
+export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer, partes = [], comunicacao, espera, onExpedir }) {
     const pede = pedidoDaAcao(r);
     // Reservada pelo rito a outra pessoa: quem tem o processo vê por quê não pode cumprir.
     // `nota`: recado sobre a ação pendente (ex.: a alternativa já foi cumprida).
@@ -57,7 +60,38 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
             </label>
         );
     }
+    // Comunicar as partes: cumpre-se expedindo, pela própria ação, a todas as partes que ela alcança.
+    if (pede === 'comunicacao') {
+        const nomes = (l) => l.map((x) => partes[x]?.nome).filter(Boolean).join(', ');
+        const { alvos = [], faltam = [] } = comunicacao || {};
+        return (
+            <div className="flex flex-wrap items-start gap-2 text-sm">
+                {feita
+                    ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden />
+                    : <Circle className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" aria-hidden />}
+                <span className="flex-1 min-w-[10rem]">
+                    <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
+                    {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
+                    {aviso}
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                        {!alvos.length ? 'Nenhuma parte do processo está no polo que esta ação comunica.'
+                            : `Comunicadas ${alvos.length - faltam.length} de ${alvos.length}${faltam.length ? `; falta: ${nomes(faltam)}` : ''}.`}
+                    </span>
+                </span>
+                {podeMexer && faltam.length > 0 && <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={onExpedir}><Send className="w-4 h-4" aria-hidden /> Expedir</Button>}
+            </div>
+        );
+    }
     // Pede um dado: registra num diálogo; feita mostra o valor e permite desfazer.
+    // Esperar a resposta: diz quem ainda pode responder e até quando.
+    const situacaoEspera = pede === 'resposta' && !feita && espera && (
+        <span className="block text-xs text-slate-600 dark:text-slate-400">
+            {!espera.comunicacoes.length ? 'Aguarda a comunicação às partes.'
+                : `${espera.apresentadas.length} de ${espera.comunicacoes.length} ${espera.comunicacoes.length > 1 ? 'responderam' : 'respondeu'}`
+                + `${espera.pendentes.length ? `; no prazo: ${espera.pendentes.map((c) => `${c.parte_nome} (${c.vence_em ? `até ${br(c.vence_em)}` : 'aguarda ciência'})`).join(', ')}` : ''}.`
+                + ' Cumpre-se sozinha com a manifestação pelo portal ou com o fim do prazo.'}
+        </span>
+    );
     return (
         <div className="flex flex-wrap items-start gap-2 text-sm">
             {feita
@@ -66,7 +100,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
             <span className="flex-1 min-w-[10rem]">
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
-                {aviso}
+                {aviso}{situacaoEspera}
                 {feita && info?.oculta ? (
                     <span className="block text-slate-800 dark:text-slate-200">
                         {info.rotulo}: <i className="text-slate-600 dark:text-slate-400">reservado a quem gere a unidade</i>
@@ -106,7 +140,9 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const algum = Object.values(valores).some((x) => (Array.isArray(x) ? x.length : x && typeof x === 'object' ? true : String(x ?? '').trim()));
     const vazio = form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
     const fechar = () => { setValor(''); setTentou(false); onFechar(); };
-    const onde = dest === 'autos'
+    const onde = pede === 'resposta'
+        ? 'Registre só quando a manifestação chegou por outro meio (a equipe junta a peça). Com parte ainda no prazo, só "Apresentada" é aceita; o resto o sistema registra sozinho.'
+        : dest === 'autos'
         ? 'Vira certidão nos autos, com folha, e sai na impressão.'
         : dest === 'evento'
             ? 'Fica nas informações do processo e como evento no extrato ao fim da impressão, sem folha.'
@@ -122,8 +158,8 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     else if (pede === 'numero') campo = <Input id="acao-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 12345" autoFocus />;
     else if (pede === 'data') campo = <Input id="acao-valor" type="date" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'registro') campo = <SeletorRegistro id="acao-valor" aria-describedby={r?.ajuda ? 'acao-ajuda' : undefined} modulo={r.modulo} pagina={r.pagina} value={valor} onChange={setValor} autoFocus />;
-    else if (pede === 'lista' || pede === 'sim_nao') {
-        const opcoes = pede === 'lista' ? (r.opcoes || []).map((o) => [o, o]) : [['sim', 'Sim'], ['nao', 'Não']];
+    else if (pede === 'lista' || pede === 'sim_nao' || pede === 'resposta') {
+        const opcoes = pede === 'lista' ? (r.opcoes || []).map((o) => [o, o]) : pede === 'resposta' ? RESPOSTAS.map((o) => [o, o]) : [['sim', 'Sim'], ['nao', 'Não']];
         campo = (
             <select id="acao-valor" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus
                 className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
