@@ -1519,6 +1519,21 @@ Nenhum modelo é penal. O catálogo completo, com descrição, quando usar, base
 - **Conferência automática:** em `src/lib/bibliotecaRitos.test.js` e `functions-v2/test/bibliotecaRitos.test.js`. Cobre o fluxo, as condições, as esperas, o diagrama, a aceitação pelo servidor sem perda de configuração, os metadados, a ausência de conteúdo penal e o tipo de cada modelo. O e2e abre cada modelo na tela e confere que nenhum chega com pendência que impeça implantar.
 - **Guia do rito:** nova parte "16. Começar de um modelo da biblioteca".
 
+### Guia de implantação (14/11/2026)
+
+O botão **Guia de implantação** fica em Painel Administrativo > Processo Eletrônico, ao lado de "Ver como a equipe e a parte", e só aparece para quem administra. O componente é `GuiaImplantacao.jsx`. O texto é o mesmo de [GUIA_IMPLANTACAO.md](GUIA_IMPLANTACAO.md) e cobre:
+- como mapear o processo real;
+- a escolha do modelo, com uma tabela gerada da biblioteca;
+- a ordem de configuração (`PASSOS_IMPLANTACAO`), em que o botão **Abrir** leva à aba de cada passo;
+- as garantias do contraditório e da ampla defesa, e como o rito garante cada uma;
+- os cuidados do processo sancionador;
+- o processo interno, sem partes;
+- o teste antes de pôr em uso;
+- as versões;
+- a lista final antes de ativar.
+
+O passo "Ter um rito ativo" dos Primeiros passos agora aponta a biblioteca e o guia.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

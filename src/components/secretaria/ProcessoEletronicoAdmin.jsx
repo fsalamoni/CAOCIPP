@@ -11,6 +11,7 @@ import { secConfig } from '@/services/secretariaService';
 import ConfiguracaoProcessoEletronico from './ConfiguracaoProcessoEletronico';
 import PrimeirosPassos from './PrimeirosPassos';
 import PreviaRito from './PreviaRito';
+import GuiaImplantacao from './GuiaImplantacao';
 import { MODULOS, integracoesLigadas } from '@/lib/camposProcesso';
 import { ABAS_CONFIG, abaInicial } from '@/lib/passosConfiguracao';
 import { ProvedorRegistros } from './SeletorRegistro';
@@ -85,6 +86,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
                                 <Link to={`${createPageUrl('ProcessoEletronico')}?org=${orgId}`}>Abrir o Processo Eletrônico <ExternalLink className="w-4 h-4" aria-hidden /></Link>
                             </Button>
                             {estado?.isAdmin && <PreviaRito estado={estado} />}
+                            {estado?.isAdmin && <GuiaImplantacao onIr={setAba} />}
                         </div>
                     )}
                 </CardContent>

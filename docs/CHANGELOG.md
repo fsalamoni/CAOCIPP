@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Guia de implantação
+- Novo botão **Guia de implantação** em Painel Administrativo > Processo
+  Eletrônico: como mapear o processo real, escolher o modelo da biblioteca,
+  a ordem de configuração (com atalho para cada aba), as garantias do
+  contraditório e da ampla defesa e como o rito garante cada uma, cuidados
+  do processo sancionador, processo interno sem partes, teste antes de usar,
+  versões e a lista final antes de ativar.
+- Mesmo texto em docs/GUIA_IMPLANTACAO.md.
+
 ### 14/11/2026 — Biblioteca de modelos de processo
 - Em **Novo rito**, uma biblioteca de processos completos, com base na lei de
   cada área: administrativo geral, disciplinar (sindicância, PAD ordinário e
