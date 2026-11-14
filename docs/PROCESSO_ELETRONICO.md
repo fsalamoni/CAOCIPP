@@ -788,9 +788,45 @@ passa a decidir o resto da fase:
   sem regra seguem livres. A condição escrita (texto) continua valendo como
   orientação.
 - **Quem pode cumprir** (ações que não são documento): qualquer pessoa da
-  equipe (padrão), só o **responsável designado** ou só **quem gere a
-  unidade**. A administração do órgão sempre pode. Para os demais, a ação
-  mostra o aviso e o servidor recusa (`permission-denied`).
+  equipe (padrão), só o **responsável designado**, só **quem gere a
+  unidade** ou só **quem tem certa atribuição** (`quem: 'atribuicao'` com
+  `atribuicao: 'Promotor'`, nov/2026). A atribuição é a da lotação da
+  pessoa na unidade que tem o processo (Unidades, coluna Atribuição) e é
+  comparada sem contar acento, caixa e espaços a mais; gerir a unidade não
+  dá a atribuição de outra pessoa. A administração do órgão sempre pode.
+  Para os demais, a ação mostra o aviso e o servidor recusa
+  (`permission-denied`).
+- **Quem pode nesta fase** (`fases[].permissoes`, nov/2026): a fase reserva
+  os atos que mudam o andamento. Ausente, vale o de sempre (quem tem o
+  processo, com motivo quando o ato pede).
+  - `concluir` (`'responsavel'`, `'gestor'` ou `'atribuicao'` com
+    `concluir_atribuicao`): quem leva o processo a outra fase, por
+    `avancarFase` ou por `tramitar` com fase. Ir para uma fase de espera
+    não conclui e continua livre; sair da espera é concluir a fase de
+    espera.
+  - `dispensar` (`'gestor'` ou `'admin'`): quem dispensa o que a fase exige
+    e ficou em aberto (ação ou documento obrigatório, campo exigido), ao
+    sair da fase ou ao arquivar. Os demais precisam cumprir tudo.
+  - `desviar` (`'gestor'` ou `'admin'`): quem segue por fase fora do fluxo
+    ou por saída sem a resposta que a regra dela pede.
+  - `situacao` (`'gestor'` ou `'admin'`): quem arquiva, sobresta ou reativa
+    enquanto o processo está na fase. O arquivamento automático
+    (`ao_entrar.arquivar`) não passa por aqui.
+
+  `'gestor'` é quem gere a unidade que tem o processo; `'admin'`, só a
+  administração do Processo Eletrônico, que sempre pode tudo. O servidor
+  confere em `exigirSaida`, `exigirDispensa` e `alterarStatus`
+  (`functions-v2/src/secretaria/processos.ts`) e recusa com
+  `permission-denied`, dizendo a quem o ato cabe. A lógica pura está em
+  `functions-v2/src/shared/permissoesFase.ts` (espelho da tela em
+  `src/lib/permissoesFase.js`). Com **Seguir sozinha**, a fase só segue
+  sozinha quando quem cumpre o último item pode concluí-la; senão o botão
+  fica para quem pode. Na tela do processo, o cartão da fase diz o que está
+  reservado, e o diálogo de mudar a fase, enviar ou alterar a situação
+  mostra o motivo e não deixa confirmar. No editor, a seção **Quem pode
+  nesta fase** tem "Aplicar a todas as fases"; reserva por atribuição sem
+  dizer qual é pendência grave, e atribuição que ninguém da unidade da fase
+  tem é avisada (só a administração poderia).
 - **Quem vê o dado na equipe** (`acoes_regras[i].ve`, nov/2026): toda a
   equipe do processo (padrão) ou só **quem gere a unidade** (`'gestor'`).
   Reservado, o dado só chega a quem gere a unidade onde foi registrado

@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ROTULO_DESTINO, ROTULO_QUEM, destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
+import { ROTULO_DESTINO, destinoDaAcao, partesVeem, pedidoDaAcao } from '@/lib/exigencias';
+import { rotuloQuem, textoQuem } from '@/lib/permissoesFase';
 import { dataHora } from './comum';
 import SeletorRegistro from './SeletorRegistro';
 import { CamposProcesso, DadosCampos } from './CamposProcesso';
@@ -25,7 +26,7 @@ export function SelosAcao({ r }) {
         ...(pede !== 'documento' && dest !== 'evento' ? [ONDE[dest]] : []),
         ...(pede !== 'documento' && partesVeem(r) ? ['partes veem'] : []),
         ...(r?.obrigatoria ? ['obrigatória'] : r?.recomendada ? ['recomendada'] : []),
-        ...(r?.quem ? [ROTULO_QUEM[r.quem]] : []),
+        ...(r?.quem ? [rotuloQuem(r.quem, r.atribuicao)] : []),
         ...(r?.ve === 'gestor' ? ['dado só para quem gere a unidade'] : []),
     ];
     if (!selos.length) return null;
@@ -42,7 +43,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
     // `nota`: recado sobre a ação pendente (ex.: a alternativa já foi cumprida).
     const aviso = !feita && (reservada || nota) && (
         <span className="block text-xs text-slate-600 dark:text-slate-400">
-            {reservada && (r?.quem === 'responsavel' ? 'Só o responsável designado cumpre esta ação (use "Atribuir" se for o caso).' : 'Só quem gere a unidade cumpre esta ação.')}
+            {reservada && (r?.quem === 'responsavel' ? 'Só o responsável designado cumpre esta ação (use "Atribuir" se for o caso).' : `Só ${textoQuem(r?.quem, r?.atribuicao)} cumpre esta ação.`)}
             {reservada && nota ? ' ' : ''}{nota}
         </span>
     );

@@ -17,6 +17,7 @@ import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
 import AjudaTermo from './AjudaTermo';
+import { CampoAtribuicao } from './PermissoesDaFase';
 import { EditorCampos, EscolhaPagina } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 
@@ -237,7 +238,8 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 </div>
                 {pede !== 'documento' && (
                     <div>
-                        <NativeSelect id={`${id}-quem`} label="Quem pode cumprir" value={r?.quem || ''} onChange={(v) => set({ quem: v || undefined })} options={QUEM} />
+                        <NativeSelect id={`${id}-quem`} label="Quem pode cumprir" value={r?.quem || ''} onChange={(v) => set({ quem: v || undefined, atribuicao: v === 'atribuicao' ? r?.atribuicao || '' : undefined })} options={QUEM} />
+                        {r?.quem === 'atribuicao' && <CampoAtribuicao id={`${id}-atr`} value={r.atribuicao} onChange={(v) => set({ atribuicao: v })} />}
                         {r?.quem && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">A administração do órgão também pode.</p>}
                     </div>
                 )}

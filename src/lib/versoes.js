@@ -40,10 +40,11 @@ const FASE = [['nome', 'nome'], ['nome_publico', 'nome para as partes'], ['prazo
     ['unidade_id', 'unidade'], ['agente', 'quem faz'], ['orientacao', 'orientação'], ['proximas', 'próximas fases'], ['final', 'fase final'], ['condicoes', 'condições das saídas'],
     ['condicoes_regra', 'saída pela resposta'], ['modelos', 'modelos sugeridos'], ['documentos', 'documentos exigidos'], ['registro_atos', 'registro nos autos'],
     ['registro', 'registro nos autos'], ['certidao', 'certidão'], ['ao_entrar', 'ao entrar na fase'],
-    ['avanco', 'seguir sozinha'], ['situacao_registro', 'situação do registro ligado'], ['espera', 'fase de espera'], ['juntada_conjunta', 'botão Finalizar']];
+    ['avanco', 'seguir sozinha'], ['situacao_registro', 'situação do registro ligado'], ['espera', 'fase de espera'], ['juntada_conjunta', 'botão Finalizar'],
+    ['permissoes', 'quem pode na fase']];
 const REGRA = [['pede', 'o que pede'], ['rotulo', 'nome do dado'], ['ajuda', 'ajuda'], ['opcoes', 'opções'], ['modulo', 'módulo'], ['campos', 'campos do formulário'],
     ['destino', 'onde fica'], ['autos', 'onde fica'], ['documento', 'documento'], ['partes', 'quem vê'], ['obrigatoria', 'obrigatória'], ['recomendada', 'recomendada'],
-    ['se', 'condição'], ['quem', 'quem pode cumprir']];
+    ['se', 'condição'], ['quem', 'quem pode cumprir'], ['atribuicao', 'quem pode cumprir']];
 // Ação repetida na fase: a 2ª "Certificar" casa com a 2ª.
 const acoesDe = (f) => {
     const n = {};

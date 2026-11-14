@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { CertidaoFase, Condicao, Exigencia, RegraAcao, Registro, RegistroAtos, condicaoAtendida, respostasDaFase, sanitizeCondicao, sanitizeRegras } from './exigencias';
 import { SituacaoRegistro, sanitizeSituacaoRegistro } from './situacaoRegistro';
+import { PermissoesFase, sanitizePermissoes } from './permissoesFase';
 
 // ============================================================================
 // Processo Eletrônico (antiga Secretaria Processual; os nomes internos
@@ -44,6 +45,8 @@ export interface Fase {
     avanco?: 'auto';
     /** Situação do registro ligado (consulta ou expediente) ao entrar na fase e quando alguém assume o processo. */
     situacao_registro?: SituacaoRegistro;
+    /** Quem conclui a fase, dispensa o que ela exige, segue fora do fluxo e muda a situação (ver shared/permissoesFase.ts). */
+    permissoes?: PermissoesFase;
     /** Orientação para quem trabalha na fase. */
     orientacao?: string;
     /** Fases para onde o processo pode seguir. Ausente = a próxima da lista. */
@@ -242,6 +245,7 @@ export function sanitizeRito(input: unknown): Rito {
             ...(ae.arquivar === true ? { arquivar: true as const } : {}),
         };
         const situacaoRegistro = sanitizeSituacaoRegistro(fo.situacao_registro);
+        const permissoes = sanitizePermissoes(fo.permissoes, nomeFase);
         const orientacao = texto(fo.orientacao, MAX_TEXTO_LONGO);
         const final = fo.final === true;
         const proximas = !final && !espera && Array.isArray(fo.proximas)
@@ -304,6 +308,7 @@ export function sanitizeRito(input: unknown): Rito {
             ...(Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {}),
             ...(fo.avanco === 'auto' && !final ? { avanco: 'auto' as const } : {}),
             ...(situacaoRegistro ? { situacao_registro: situacaoRegistro } : {}),
+            ...(permissoes ? { permissoes } : {}),
             ...(orientacao ? { orientacao } : {}),
             ...(proximas.length ? { proximas } : {}),
             ...(final ? { final: true } : {}),

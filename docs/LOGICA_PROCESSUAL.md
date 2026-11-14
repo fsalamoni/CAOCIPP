@@ -226,6 +226,14 @@ informado.
   internos, pendências, orientações ou minutas.
 - Quem é parte num processo não é o órgão nele (impedimento), ainda que
   seja admin ou lotado na unidade.
+- Competência para o ato: ter o processo na unidade não basta para todo
+  ato. O rito pode reservar, por fase, quem conclui (o responsável, quem
+  gere a unidade ou quem tem certa atribuição, como o relator ou a
+  autoridade julgadora), quem dispensa o que a fase exige, quem segue por
+  caminho fora do previsto e quem arquiva, sobresta ou reativa. Sem
+  reserva, vale quem tem o processo, com motivo registrado. A
+  administração do Processo Eletrônico sempre pode, para o processo nunca
+  ficar preso.
 
 ## 10. Integridade
 
@@ -258,6 +266,7 @@ informado.
 | Fase de espera | `fase.espera` no rito e `secProcessos.espera` (`{ fase, unidade, responsavel_uid, desde }`); `saidasDoProcesso` em `functions-v2/src/shared/secretaria.ts`; a volta não zera o estado da fase de origem (`ehRetomada` em `processos.ts`) |
 | Impulso automático | `fase.avanco: 'auto'` (`saidaAutomatica`; dispara ao cumprir ação obrigatória e ao juntar ou guardar documento em fase que exige algo, `exigeAlgo`), `fase.ao_entrar.arquivar` e `fase.situacao_registro` (coluna da consulta ou do expediente ligado, ou fase do registro de uma página própria, pelas regras de transição da página; `functions-v2/src/shared/situacaoRegistro.ts`), aplicados em `functions-v2/src/secretaria/processos.ts` |
 | Impedimento de parte | `ehParte` em `functions-v2/src/shared/secretaria.ts` |
+| Competência para o ato | `fase.permissoes` (concluir, dispensar, desviar, situacao) e `acoes_regras[i].quem` com `atribuicao`; `functions-v2/src/shared/permissoesFase.ts`, conferido em `exigirSaida`, `exigirDispensa`, `marcarAcao` e `alterarStatus` (`processos.ts`) |
 
 ## 12. Antes de mexer no Processo Eletrônico
 

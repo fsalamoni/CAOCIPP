@@ -168,7 +168,7 @@ export default function ProcessoEletronico() {
     const aba = abasValidas.includes(abaUrl) ? abaUrl : abaPadrao;
 
     return (
-        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)}>
+        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado.unidades}>
         {barra}
         <div className="space-y-5">
             <div className={`${procId ? 'hidden sm:flex' : 'flex'} flex-wrap items-center justify-between gap-3`}>

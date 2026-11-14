@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    hojeBrasil, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
+    hojeBrasil, lotacoesDe, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
@@ -13,6 +13,7 @@ import {
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
     tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, rotuloDaCondicao, Condicao,
 } from '../shared/exigencias';
+import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { sendEmail } from '../shared/email';
 import {
     CampoExigido, CampoValor, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
@@ -354,12 +355,54 @@ function foraDaCondicao(proc: admin.firestore.DocumentData, alvoId: string): str
     return textoCondicao(fase, cond);
 }
 
-function dispensarExigencias(proc: admin.firestore.DocumentData, motivo: string, form?: Formulario | null): string[] {
+function dispensarExigencias(c: Ctx, proc: admin.firestore.DocumentData, motivo: string, form?: Formulario | null): string[] {
     const abertas = exigenciasAbertas(proc, form).map((e) => e.descricao);
+    exigirDispensa(c, proc, abertas);
     if (abertas.length && !motivo) {
         throw new HttpsError('failed-precondition', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta ou informe o motivo da dispensa.`);
     }
     return abertas;
+}
+
+/**
+ * Quem pratica o ato, como o rito o enxerga na unidade que tem o processo:
+ * administração, gestão da unidade, responsável designado e a atribuição que a
+ * pessoa tem na lotação (shared/permissoesFase.ts).
+ */
+function atorDe(c: Ctx, proc: admin.firestore.DocumentData): Ator {
+    const un = c.unidades.find((u) => u.id === proc.unidade_atual);
+    return {
+        isAdmin: c.ctx.isAdmin, gestor: c.gestorDe.includes(String(proc.unidade_atual)), responsavel: !!proc.responsavel_uid && proc.responsavel_uid === c.ctx.uid,
+        atribuicao: un ? lotacoesDe(un).find((l) => l.uid === c.ctx.uid)?.atribuicao || '' : '',
+    };
+}
+
+const faseDoProcesso = (proc: admin.firestore.DocumentData): Fase | undefined => ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
+
+/** O rito pode reservar a dispensa do que a fase exige a quem gere a unidade ou à administração. Lança HttpsError. */
+function exigirDispensa(c: Ctx, proc: admin.firestore.DocumentData, abertas: string[]): void {
+    const fase = faseDoProcesso(proc);
+    const r = fase?.permissoes?.dispensar;
+    if (abertas.length && r && !podeReserva(r, atorDe(c, proc))) {
+        throw new HttpsError('permission-denied', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta: na fase ${fase!.nome}, só ${textoReserva(r)} pode dispensar.`);
+    }
+}
+
+/**
+ * Reservas do rito para sair da fase: quem a conclui (ir para a fase de espera
+ * não conclui) e quem segue por caminho diferente do previsto (fase fora do
+ * fluxo, ou saída sem a resposta que o rito pede). Lança HttpsError.
+ */
+function exigirSaida(c: Ctx, proc: admin.firestore.DocumentData, faseSai: Fase | undefined, alvo: Fase, desvio: boolean): void {
+    const pm = faseSai?.permissoes;
+    if (!pm) return;
+    const a = atorDe(c, proc);
+    if (pm.concluir && !alvo.espera && !podeQuem(pm.concluir, pm.concluir_atribuicao, a)) {
+        throw new HttpsError('permission-denied', `Pelo rito, só ${textoQuem(pm.concluir, pm.concluir_atribuicao)} conclui a fase ${faseSai!.nome}.`);
+    }
+    if (desvio && pm.desviar && !podeReserva(pm.desviar, a)) {
+        throw new HttpsError('permission-denied', `${alvo.nome} não é o caminho que o rito prevê agora. Na fase ${faseSai!.nome}, só ${textoReserva(pm.desviar)} segue por outro caminho.`);
+    }
 }
 type Emissao = { mov: Record<string, unknown>; proc: admin.firestore.DocumentData };
 
@@ -993,6 +1036,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             // De volta à unidade em que estava: quem respondia pelo processo volta a responder, se ainda estiver lotado nela.
             const esp = data.espera as Espera | undefined;
             const responsavelDeVolta = retomada && esp?.responsavel_uid && destino.id === esp.unidade && (destino.membros_uids || []).includes(esp.responsavel_uid) ? esp.responsavel_uid : null;
+            if (novaFase) exigirSaida(c, data, faseSai, novaFase, foraDoFluxo || !!foraDaCondicao(data, novaFase.id));
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${novaFase!.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = novaFase && !foraDoFluxo ? foraDaCondicao(data, novaFase.id) : null;
             if (contraCondicao && !motivo) throw new HttpsError('invalid-argument', `O rito leva a ${novaFase!.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
@@ -1014,7 +1058,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 }
             }
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
-            const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(data, motivo, formAtual) : [];
+            const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(c, data, motivo, formAtual) : [];
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, novaFase?.id);
@@ -1175,13 +1219,10 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 throw new HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra!.se!)}`);
             }
             // Quem pode cumprir: o rito pode reservar ao responsável designado ou a quem gere a unidade.
-            if (regra?.quem && !c.ctx.isAdmin) {
-                const pode = regra.quem === 'responsavel' ? data.responsavel_uid === c.ctx.uid : c.gestorDe.includes(String(data.unidade_atual));
-                if (!pode) {
-                    throw new HttpsError('permission-denied', regra.quem === 'responsavel'
-                        ? `"${acao}" é do responsável pelo processo. Peça a atribuição ou a quem está designado.`
-                        : `"${acao}" é de quem gere a unidade.`);
-                }
+            if (regra?.quem && !podeQuem(regra.quem, regra.atribuicao, atorDe(c, data))) {
+                throw new HttpsError('permission-denied', regra.quem === 'responsavel'
+                    ? `"${acao}" é do responsável pelo processo. Peça a atribuição ou a quem está designado.`
+                    : `"${acao}" é de ${textoQuem(regra.quem, regra.atribuicao)}.`);
             }
             // Ação que o rito liga a um documento se cumpre na juntada (ou guardando o documento), não aqui.
             if (regra?.documento) {
@@ -1304,12 +1345,13 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const foraDoFluxo = !saidasDoProcesso(data).some((f) => f.id === alvo.id);
             const faseSai = fases.find((f) => f.id === data.fase_atual);
             const retomada = ehRetomada(data, faseSai, alvo);
+            exigirSaida(c, data, faseSai, alvo, foraDoFluxo || !!foraDaCondicao(data, alvo.id));
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = foraDoFluxo ? null : foraDaCondicao(data, alvo.id);
             if (contraCondicao && !motivo) throw new HttpsError('invalid-argument', `O rito leva a ${alvo.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
-            const dispensadas = alvo.espera ? [] : dispensarExigencias(data, motivo, formAtual);
+            const dispensadas = alvo.espera ? [] : dispensarExigencias(c, data, motivo, formAtual);
             const destinoMov = dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
@@ -1367,10 +1409,17 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 throw new HttpsError('invalid-argument', 'Situação inválida');
             }
             if (status === data.status) throw new HttpsError('invalid-argument', 'O processo já está nessa situação');
+            // O rito pode reservar a mudança de situação, na fase, a quem gere a unidade ou à administração.
+            const faseSit = faseDoProcesso(data);
+            const reservaSit = faseSit?.permissoes?.situacao;
+            if (reservaSit && !podeReserva(reservaSit, atorDe(c, data))) {
+                throw new HttpsError('permission-denied', `Pelo rito, na fase ${faseSit!.nome} só ${textoReserva(reservaSit)} arquiva, sobresta ou reativa o processo.`);
+            }
             if (!motivo) throw new HttpsError('invalid-argument', 'Informe o motivo');
             const rotulo = { em_tramitacao: 'Reativado', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[status];
             // Arquivar com documento exigido em aberto: o motivo vale como dispensa, e fica dito.
             const dispensadas = status === 'arquivado' ? exigenciasAbertas(data, formAtual).map((e) => e.descricao) : [];
+            exigirDispensa(c, data, dispensadas);
             // Arquivar encerra a certidão conjunta pendente (sobrestar, não: o processo volta à mesma fase).
             const em = emitirSe(status === 'arquivado', tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;

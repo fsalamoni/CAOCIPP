@@ -9,6 +9,9 @@
 
 import { MODULOS, Modulo } from './modulos';
 import { CampoDef, paginaDe, sanitizeCampos } from './camposProcesso';
+import { QUEM, Quem, sanitizeQuem } from './permissoesFase';
+
+export { QUEM, Quem };
 
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
@@ -105,9 +108,6 @@ export const MAX_CAMPOS_ACAO = 10;
  * formulário que a ação pede.
  */
 export interface Condicao { acao: number; campo?: string; valores: string[] }
-/** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
-export const QUEM = ['responsavel', 'gestor'] as const;
-export type Quem = typeof QUEM[number];
 /**
  * Quem da equipe vê o dado da ação. Ausente = toda a equipe que vê o processo.
  * 'gestor': só quem gere a unidade onde foi registrado, quem o registrou e a
@@ -145,8 +145,10 @@ export interface RegraAcao {
     se?: Condicao;
     /** Alternativa a uma ação anterior da fase: cumprida uma do grupo, as outras deixam de ser cobradas. */
     ou?: number;
-    /** Quem pode cumprir. Ausente = quem tem o processo. */
+    /** Quem pode cumprir (ver shared/permissoesFase.ts). Ausente = quem tem o processo. */
     quem?: Quem;
+    /** Com `quem: 'atribuicao'`: a atribuição da lotação de quem pode (ex.: "Promotor"). */
+    atribuicao?: string;
     /** Quem da equipe vê o dado. Ausente = toda a equipe. */
     ve?: Ve;
     /** O dado entra na folha de dados do processo (a folha do evento 1, no PDF), seja qual for o destino. */
@@ -263,7 +265,7 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     if (partes) out.partes = true;
     if (r.obrigatoria === true) out.obrigatoria = true;
     else if (r.recomendada === true) out.recomendada = true;
-    if (QUEM.includes(r.quem as Quem)) out.quem = r.quem as Quem;
+    Object.assign(out, sanitizeQuem(r.quem, r.atribuicao, `A ação "${acao}"`));
     // Folha de dados: só ação que pede um dado (a confirmação simples não tem o que mostrar).
     if (r.folha_dados === true && out.pede) out.folha_dados = true;
     if (VE.includes(r.ve as Ve)) {

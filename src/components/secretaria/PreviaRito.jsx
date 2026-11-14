@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ehEspera, etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import { resumoAndamento } from '@/lib/andamentoFase';
+import { resumoPermissoes } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
@@ -136,6 +137,9 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     )}
                                     {resumoAndamento(fase).length > 0 && (
                                         <p className="text-xs text-slate-600 dark:text-slate-300">Andamento automático: {resumoAndamento(fase, paginas).join('; ')}.</p>
+                                    )}
+                                    {resumoPermissoes(fase.permissoes).length > 0 && (
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">Reservado pelo rito: {resumoPermissoes(fase.permissoes).join('; ')}.</p>
                                     )}
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
                                     {acoes.length > 0 && (

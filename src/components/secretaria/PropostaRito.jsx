@@ -33,6 +33,8 @@ import GuiaRito from './GuiaRito';
 import AndamentoDaFase from './AndamentoDaFase';
 import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento } from '@/lib/andamentoFase';
 import { RegistroContexto } from './SeletorRegistro';
+import PermissoesDaFase from './PermissoesDaFase';
+import { alguemTem, resumoPermissoes } from '@/lib/permissoesFase';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -65,8 +67,9 @@ export async function baixarPlanilha(fases, nome) {
  * Pendências que travam ou enfraquecem a implantação, com a fase para ir até ela.
  * `ligadas`: integrações com outros módulos (sem ela, não se confere a ação "registro").
  * `paginas`: páginas próprias do órgão, para conferir a que a fase conduz (`null`: ainda não se sabe).
+ * `unidades`: as do órgão com as lotações, para conferir se alguém tem a atribuição que o rito reserva.
  */
-export function pendenciasDaProposta(p, ligadas = null, paginas = null) {
+export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades = null) {
     const out = [];
     const ids = new Set(p.fases.map((f) => f.id));
     const fluxo = problemasDoFluxo(p.fases);
@@ -77,8 +80,18 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null) {
     p.fases.forEach((f, i) => {
         const rot = f.nome.trim() || `Fase ${i + 1}`;
         if (!f.nome.trim()) out.push({ fase: f.id, grave: true, texto: `${rot} está sem nome.` });
+        // Reserva por atribuição: precisa dizer qual; e avisa se ninguém da unidade da fase a tem (só a administração poderia).
+        const reservaPorAtribuicao = (quem, atribuicao, oque, onde) => {
+            if (quem !== 'atribuicao') return;
+            if (!String(atribuicao || '').trim()) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, ${oque} está reservado a uma atribuição: diga qual em ${onde}.` });
+            else if (alguemTem(unidades, f.unidade_ref, atribuicao) === false) {
+                out.push({ fase: f.id, texto: `Em ${rot}, ${oque} está reservado a quem tem a atribuição "${atribuicao.trim()}", e ninguém lotado na unidade da fase tem essa atribuição: só a administração poderá. Confira o nome em Unidades.` });
+            }
+        };
+        reservaPorAtribuicao(f.permissoes?.concluir, f.permissoes?.concluir_atribuicao, 'concluir a fase', '"Quem pode nesta fase"');
         (f.acoes || []).forEach((a, k) => {
             const r = f.acoes_regras?.[k];
+            if (a.trim()) reservaPorAtribuicao(r?.quem, r?.atribuicao, `cumprir "${a.trim()}"`, '"Quem pode cumprir"');
             if (a.trim() && r?.pede === 'lista' && (r.opcoes || []).filter((o) => o.trim()).length < 2) {
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede uma escolha: informe ao menos duas opções.` });
             }
@@ -508,6 +521,8 @@ function Revisao({
     };
     // "Aplicar a todas as fases": o mesmo registro dos outros atos em todo o rito.
     const outrosEmTodas = (outros) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => ({ ...f, registro_atos: registroComOutros(f, outros), registro: undefined })) }); };
+    // "Aplicar a todas as fases": as mesmas reservas (quem conclui, dispensa, desvia e muda a situação) em todo o rito.
+    const permissoesEmTodas = (permissoes) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => ({ ...f, permissoes })) }); };
     const remover = (id) => {
         const i = p.fases.findIndex((f) => f.id === id);
         setConfirmar(false);
@@ -551,7 +566,7 @@ function Revisao({
     const modNovos = p.modelos.filter((m) => usadosMod.has(m.ref));
     const ligadas = useMemo(() => integracoesLigadas(estado), [estado]);
     const { paginas, paginasProntas } = useContext(RegistroContexto);
-    const pendencias = useMemo(() => pendenciasDaProposta(p, ligadas, paginasProntas ? paginas : null), [p, ligadas, paginas, paginasProntas]);
+    const pendencias = useMemo(() => pendenciasDaProposta(p, ligadas, paginasProntas ? paginas : null, estado.unidades), [p, ligadas, paginas, paginasProntas, estado.unidades]);
     const graves = pendencias.filter((x) => x.grave);
     const fluxoComProblema = useMemo(() => { const r = problemasDoFluxo(p.fases); return new Set([...r.soltas, ...r.presas]); }, [p.fases]);
     const outrosRitos = (estado.ritos || []).filter((r) => r.id !== p.id && (r.fases || []).length);
@@ -694,7 +709,7 @@ function Revisao({
                                     mover={(d) => { mover(i, d); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${i + d + 1} de ${p.fases.length}.`); }}
                                     moverPara={(para) => { moverPara(i, para); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${para + 1} de ${p.fases.length}.`); }} remover={() => remover(f.id)}
                                     inserirAbaixo={() => inserirAbaixo(i)} duplicar={() => duplicar(i)}
-                                    novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} outrosEmTodas={outrosEmTodas} />
+                                    novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} outrosEmTodas={outrosEmTodas} permissoesEmTodas={permissoesEmTodas} />
                             ))}
                         </ListaOrdenavel>
                         <div className="flex flex-wrap gap-2">
@@ -956,7 +971,7 @@ function Secao({ titulo, resumo, abertaDe = false, children }) {
 
 function CartaoFase({
     f, i, total, fases, existentes, unidadesNovas, nomeModelo, modelos, mudar, mover, moverPara, remover, inserirAbaixo, duplicar, novaUnidade, addModelo,
-    aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas, ligadas,
+    aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas, permissoesEmTodas, ligadas,
 }) {
     const [novoModelo, setNovoModelo] = useState('');
     const { paginas: paginasDoOrgao } = useContext(RegistroContexto);
@@ -1056,6 +1071,9 @@ function CartaoFase({
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
             <Secao titulo="Andamento automático" resumo={resumoAndamento(f, paginasDoOrgao).join('; ') || 'a fase só anda pelo botão'}>
                 <AndamentoDaFase f={f} mudar={mudar} ligadas={ligadas} />
+            </Secao>
+            <Secao titulo="Quem pode nesta fase" resumo={resumoPermissoes(f.permissoes).join('; ') || 'quem tem o processo conclui, dispensa e arquiva, com motivo'}>
+                <PermissoesDaFase f={f} mudar={mudar} aplicarATodas={total > 1 ? permissoesEmTodas : null} />
             </Secao>
             <Secao titulo="Registros, certidão conjunta e documentos" resumo={nDocs ? plural(nDocs, 'documento pedido', 'documentos pedidos') : 'onde fica cada ato da fase'}>
                 <RegistroEDocumentos f={f} fases={fases} modelos={modelos} mudar={mudar} aplicarATodas={outrosEmTodas} />
