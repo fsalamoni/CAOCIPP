@@ -6,7 +6,7 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
-import { Cumpridas, Destino, camposDoCumprimento, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
+import { Cumpridas, camposDoCumprimento, destinoDaGuarda, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { lotacoesDe } from '../shared/secretaria';
@@ -402,8 +402,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 let cumpre: string[] = [];
                 try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id, controle: true }, p.atende); } catch (e) { erroUsuario(e); }
                 const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
-                // Só no sistema quando tudo o que ele cumpre o rito quer só no sistema; senão, evento no extrato.
-                const destino: Destino = cumpridas.length && cumpridas.every((e) => e.destino === 'informacao') ? 'informacao' : 'evento';
+                // Só no sistema quando o rito pede (pela exigência cumprida ou pela fase); senão, evento no extrato.
+                const destino = destinoDaGuarda(fase, cumpridas);
                 const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
                 const mov = registrarMovimento(tx, c, pr, atual, 'guarda',
                     `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`

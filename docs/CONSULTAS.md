@@ -75,7 +75,9 @@ A fase de espera do rito (diligências externas) usa "Aguarda retorno de
 terceiros" e, na volta, devolve a consulta à situação da fase de origem.
 O mesmo vale para Expedientes. Detalhes em
 [PROCESSO_ELETRONICO.md](PROCESSO_ELETRONICO.md), "Andamento automático da
-fase".
+fase". O modelo pronto "Rito Consultas CAOCIPP" (14/11/2026) já vem com
+essas regras em cada fase; o processo não cria a consulta, que precisa
+existir e estar ligada a ele.
 
 ---
 

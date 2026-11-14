@@ -2,27 +2,22 @@ import React, { useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DESTINO_INFO, NIVEIS, PEDIDOS } from '@/lib/exigencias';
+import { resumoAndamento } from '@/lib/andamentoFase';
+import { DESTINO_INFO, NIVEIS, PEDIDOS, resumoDaAcao, textoCondicao } from '@/lib/exigencias';
+import { ritoConsultas } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
 
 // Guia prático do editor de rito: o que é cada peça, como montar e o que cada
 // opção faz. Os nomes das opções vêm das mesmas listas do editor
 // (lib/exigencias), para o guia nunca falar de um rótulo que a tela não tem.
 
-/** Fase de exemplo, desenhada pelo mesmo componente do editor. */
+// O exemplo do guia é o modelo pronto "Rito Consultas CAOCIPP": o que o guia
+// mostra é o que o editor cria ao escolher o modelo.
+const CONSULTAS = ritoConsultas();
+
+/** Fase de exemplo (a Recebimento do modelo), desenhada pelo mesmo componente do editor. */
 export const EXEMPLO_GUIA = [
-    {
-        id: 'g1', nome: 'Recebimento', raia: 'Secretaria', prazo_dias: 2, proximas: ['g2'],
-        acoes: ['Registrar os dados básicos', 'Registrar no SIM e converter em PGEA', 'Informar o solicitante', 'Conferir se há consulta anterior do mesmo órgão', 'Análise superficial'],
-        acoes_regras: [
-            { pede: 'formulario', obrigatoria: true, destino: 'informacao', folha_dados: true, campos: [{ id: 'orgao', rotulo: 'Órgão solicitante', tipo: 'texto' }, { id: 'assunto', rotulo: 'Assunto', tipo: 'texto' },
-                { id: 'sistema', rotulo: 'Sistema utilizado', tipo: 'lista', opcoes: ['SIM', 'SPU', 'E-mail', 'Whatsapp', 'Outros'] }] },
-            { pede: 'texto', rotulo: 'Número do PGEA', obrigatoria: true, destino: 'informacao', folha_dados: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
-            { pede: 'formulario', campos: [{ id: 'data', rotulo: 'Data', tipo: 'data' }, { id: 'meio', rotulo: 'Meio', tipo: 'texto' }], obrigatoria: true, destino: 'informacao', folha_dados: true, se: { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] } },
-            { pede: 'orientacao' },
-            { pede: 'texto_longo', rotulo: 'Observações', destino: 'nenhum' },
-        ],
-    },
+    { ...CONSULTAS.fases[0], id: 'g1', raia: 'Secretaria', proximas: ['g2'] },
     { id: 'g2', nome: 'Análise', raia: 'Assessoria', proximas: ['g3', 'g4'], condicoes: { g3: 'minuta pronta', g4: 'falta informação' }, acoes: ['Redigir a minuta'], acoes_regras: [{ obrigatoria: true }] },
     { id: 'g3', nome: 'Revisão', raia: 'Gabinete', proximas: [], final: true },
     { id: 'g4', nome: 'Devolução', raia: 'Secretaria', proximas: [], final: true },
@@ -79,7 +74,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2">
                                 <FluxoRito acoes legenda fases={EXEMPLO_GUIA} alturaMaxima="none" />
                             </div>
-                            <p>No exemplo, registrar no SIM e informar o solicitante só valem quando a consulta não chegou pelo SIM. Quem veio pelo SIM segue pelo caminho do "não" e pula as duas.</p>
+                            <p>No exemplo, registrar no SIM, informar o solicitante e juntar a cópia da comunicação só valem quando a consulta não chegou pelo SIM. Quem veio pelo SIM segue pelo caminho do "não" e pula as três.</p>
                         </Parte>
                         <Parte titulo="2. Montar um rito, passo a passo">
                             <ol className="list-decimal space-y-1.5 pl-5">
@@ -146,6 +141,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                     <tr><td>Revisão</td><td>Em revisão</td><td></td></tr>
                                     <tr><td>Devolução</td><td>Revisadas</td><td>Segue sozinha</td></tr>
                                     <tr><td>Arquivamento</td><td>Na pasta</td><td>Arquiva ao entrar</td></tr>
+                                    <tr><td>Diligências externas</td><td>Aguarda retorno de terceiros</td><td>Fase de espera; volta sozinha</td></tr>
                                 </tbody>
                             </table>
                         </Parte>
@@ -186,18 +182,37 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             </ul>
                             <p>Por isso, uma fase só de trabalho interno (ex.: Análise, Diligências externas) pode ficar inteira como informação: nada dela entra nos autos, e ainda assim pode ser impressa para uso interno, por seleção.</p>
                         </Parte>
-                        <Parte titulo="12. Exemplo: a fase Recebimento de uma consulta">
-                            <table className={tabela}>
-                                <thead><tr><th>Ação</th><th>O que pede</th><th>Quando vale</th></tr></thead>
-                                <tbody>
-                                    <tr><td>Registrar os dados básicos</td><td>Um formulário: órgão solicitante, data de chegada, assunto, local dos fatos e sistema utilizado (lista: SIM, SPU, E-mail, Whatsapp, Outros). Só no sistema, na folha de dados</td><td>Sempre</td></tr>
-                                    <tr><td>Registrar no SIM e converter em PGEA</td><td>Um texto curto: número do PGEA. Só no sistema, na folha de dados</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
-                                    <tr><td>Informar o solicitante</td><td>Um formulário: data e meio. Só no sistema, na folha de dados</td><td>Se o campo "Sistema utilizado" não for SIM</td></tr>
-                                    <tr><td>Conferir se há consulta anterior do mesmo órgão</td><td>Nada: só orienta</td><td>Sempre</td></tr>
-                                    <tr><td>Análise superficial</td><td>Um texto longo, sem evento, opcional</td><td>Sempre</td></tr>
-                                </tbody>
-                            </table>
-                            <p>É a fase desenhada na parte 1. Use como ponto de partida e troque os nomes pelos do seu órgão.</p>
+                        <Parte titulo="12. Exemplo completo: o Rito Consultas CAOCIPP">
+                            <p>O modelo <strong>{CONSULTAS.nome}</strong> está em <strong>Novo rito</strong>, em "Começar sem arquivo". Ele vem com as seis fases configuradas e usa o que este guia explica. Escolha o modelo, confira as unidades, ajuste o que for diferente no seu órgão e implante.</p>
+                            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2">
+                                <FluxoRito acoes fases={CONSULTAS.fases} alturaMaxima="none" />
+                            </div>
+                            <p className="font-semibold text-slate-900 dark:text-white">Antes de usar</p>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Integração com Consultas">Precisa estar ligada em "Integrações com outros módulos". Sem ela, o editor aponta a pendência e não deixa implantar.</Termo>
+                                <Termo nome="Consulta ligada ao processo">O rito conduz a situação da consulta, mas não cria a consulta: o processo precisa nascer de uma consulta ou ter uma ligada a ele.</Termo>
+                                <Termo nome="Unidades">Secretaria, Assessoria e Gabinete são casadas pelo nome com as unidades do órgão. A que não existir é proposta para criação. Com outros nomes, troque a unidade em cada fase.</Termo>
+                                <Termo nome="Tipo de documento Parecer">É por ele que a Revisão reconhece o parecer juntado. Ele já vem no sistema; a minuta precisa ser criada com esse tipo.</Termo>
+                                <Termo nome="Duas fases terminam pelo botão">Na Análise, quem envia escolhe as minutas e os anexos que seguem com o processo. Na Revisão, o envio vem depois do Finalizar. As outras seguem sozinhas.</Termo>
+                            </ul>
+                            {CONSULTAS.fases.map((f) => (
+                                <section key={f.id} className="space-y-1.5 border-t border-slate-200 dark:border-slate-700 pt-2">
+                                    <h4 className="font-semibold text-slate-900 dark:text-white">{f.nome} ({f.unidade || 'na unidade em que o processo estiver'})</h4>
+                                    <p>{f.orientacao}</p>
+                                    {resumoAndamento(f).length > 0 && <p><strong>Andamento automático:</strong> {resumoAndamento(f).join('; ')}.</p>}
+                                    {f.registro_atos && <p><strong>Registros:</strong> entrada, saída, remessas e demais atos da fase ficam só no sistema.</p>}
+                                    {f.acoes && (
+                                        <table className={tabela}>
+                                            <thead><tr><th>Ação</th><th>O que faz</th><th>Quando vale</th></tr></thead>
+                                            <tbody>
+                                                {f.acoes.map((a, i) => (
+                                                    <tr key={a}><td>{a}</td><td>{resumoDaAcao(f.acoes_regras[i])}</td><td>{f.acoes_regras[i].se ? `Se ${textoCondicao(f, f.acoes_regras[i].se)}` : 'Sempre'}</td></tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </section>
+                            ))}
                         </Parte>
                     </div>
                 </DialogContent>

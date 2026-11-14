@@ -355,6 +355,110 @@ const modelo = (nome, descricao, itens) => {
     };
 };
 
+/**
+ * Rito Consultas CAOCIPP: exemplo completo de rito em fases, ações e desvios,
+ * com o que o editor oferece: formulário na folha de dados, ação que só vale
+ * em alguns casos, fase que segue sozinha, situação da consulta ligada, fase
+ * de espera, botão Finalizar e arquivamento ao entrar. `unidade` é o NOME da
+ * unidade: a tela casa com as do órgão ou propõe criar (`vincularProposta`).
+ * O servidor aceita o modelo inteiro (functions-v2/test/modeloConsultas.test.js).
+ */
+export function ritoConsultas() {
+    const [rec, ana, rev, dev, arq, dil] = Array.from({ length: 6 }, () => novoIdFase());
+    // Fase só de trabalho interno: nada dela vira termo nos autos (sai na impressão interna, por seleção).
+    const interno = { fase: 'informacao', remessas: 'informacao', outros: { prazo: 'informacao', pendencia: 'informacao', urgencia: 'informacao', dados: 'informacao', atribuicao: 'informacao' } };
+    const foraDoSim = { acao: 0, campo: 'sistema', valores: ['SPU', 'E-mail', 'Whatsapp', 'Outros'] };
+    const consulta = (ao_entrar, ao_assumir) => ({ modulo: 'consultas', ao_entrar, ...(ao_assumir ? { ao_assumir } : {}) });
+    // Dado obrigatório que fica só no sistema; com `folha_dados`, completa a folha do evento 1 no PDF.
+    const dado = { obrigatoria: true, destino: 'informacao' };
+    const texto = (id, rotulo, obrigatorio = true) => ({ id, rotulo, tipo: 'texto', obrigatorio });
+    const data = (id, rotulo) => ({ id, rotulo, tipo: 'data', obrigatorio: true });
+    return {
+        nome: 'Rito Consultas CAOCIPP',
+        descricao: 'Consulta recebida pela Secretaria, analisada pela Assessoria, revisada pelo Gabinete, devolvida e arquivada, com espera por diligências externas.',
+        fases: [
+            {
+                id: rec, nome: 'Recebimento', unidade: 'Secretaria', avanco: 'auto',
+                orientacao: 'Registrar a consulta que chegou. Os dados básicos, o número do PGEA e a comunicação ao solicitante completam a folha de dados (evento 1). Salvas as observações, o processo segue sozinho para a Análise.',
+                acoes: [
+                    'Registrar os dados básicos da consulta',
+                    'Registrar a solicitação administrativa no SIM e converter em PGEA',
+                    'Registrar o número do PGEA',
+                    'Informar ao solicitante que a resposta virá pelo PGEA',
+                    'Juntar cópia da comunicação ao solicitante',
+                    'Fazer a análise superficial da consulta',
+                    'Registrar as observações da análise superficial',
+                ],
+                acoes_regras: [
+                    { ...dado, pede: 'formulario', folha_dados: true, campos: [
+                        texto('orgao', 'Órgão solicitante'), data('chegada', 'Data de chegada no CAOCIPP'), texto('assunto', 'Assunto da consulta'), texto('local', 'Local dos fatos', false),
+                        { id: 'sistema', rotulo: 'Sistema utilizado pelo solicitante', tipo: 'lista', obrigatorio: true, opcoes: ['SIM', 'SPU', 'E-mail', 'Whatsapp', 'Outros'] },
+                    ] },
+                    { obrigatoria: true, destino: 'nenhum', se: foraDoSim, ajuda: 'Feito no SIM. Aqui é só marcar: não gera evento.' },
+                    { ...dado, pede: 'texto', rotulo: 'Número do PGEA', folha_dados: true, ajuda: 'O que veio pelo SIM ou o que foi gerado na conversão.' },
+                    { ...dado, pede: 'formulario', folha_dados: true, se: foraDoSim, campos: [data('data', 'Data da comunicação'), texto('meio', 'Meio utilizado')] },
+                    { documento: { forma: 'qualquer', nivel: 'opcional' }, se: foraDoSim, ajuda: 'Se quiser guardar a cópia nos autos, junte antes de salvar as observações.' },
+                    { pede: 'orientacao', ajuda: 'Ver se há questão técnico-jurídica, se a pergunta é genérica, se traz a íntegra de procedimentos ou se a matéria é de outro órgão.' },
+                    { pede: 'texto_longo', rotulo: 'Observações', obrigatoria: true, destino: 'nenhum', ajuda: 'Só a equipe vê; não gera evento. Sem nada a observar, escreva "Sem observações".' },
+                ],
+            },
+            {
+                id: ana, nome: 'Análise', unidade: 'Assessoria', proximas: [rev, dil],
+                condicoes: { [rev]: 'minuta pronta', [dil]: 'depende de terceiros' },
+                situacao_registro: consulta('Pendente', 'Em elaboração'), registro_atos: interno,
+                orientacao: 'A consulta fica Pendente até um assessor assumir o processo. Nada desta fase entra nos autos: minutas, anexos e registros ficam com a equipe e saem na impressão interna, por seleção.',
+                acoes: ['Assumir o processo', 'Redigir ou anexar a minuta do parecer', 'Anexar outros documentos, se houver', 'Encaminhar ao Gabinete'],
+                acoes_regras: [
+                    { pede: 'orientacao', ajuda: 'Pelo botão Assumir. Quem assumiu e quando ficam só no sistema, e a consulta passa a Em elaboração.' },
+                    { ...dado, ajuda: 'Crie a minuta com o tipo Parecer e deixe como minuta: quem junta aos autos é o Gabinete, na revisão.' },
+                    { pede: 'orientacao', ajuda: 'Também como minuta. O Gabinete decide na revisão o que entra nos autos.' },
+                    { pede: 'orientacao', ajuda: 'Em Concluir e seguir, marque as minutas e os anexos que vão com o processo.' },
+                ],
+            },
+            {
+                id: rev, nome: 'Revisão', unidade: 'Gabinete', proximas: [dev, dil], juntada_conjunta: true,
+                condicoes: { [dev]: 'parecer assinado', [dil]: 'depende de terceiros' },
+                situacao_registro: consulta('Em revisão'),
+                orientacao: 'O Gabinete edita a minuta (a redação da Assessoria fica guardada em Versões) e termina pelo botão Finalizar Revisão: assina, escolhe e ordena os anexos e junta tudo aos autos. Depois, conclui e envia para a Secretaria.',
+                acoes: ['Revisar e editar a minuta', 'Juntar o parecer assinado', 'Decidir os anexos e a ordem'],
+                acoes_regras: [
+                    { pede: 'orientacao', ajuda: 'A redação original da Assessoria continua em Versões, só para a equipe.' },
+                    { documento: { forma: 'qualquer', tipo: 'Parecer' }, ajuda: 'Pelo botão Finalizar Revisão, que abre a assinatura e junta o parecer e os anexos de uma vez.' },
+                    { pede: 'orientacao', ajuda: 'No Finalizar Revisão: marque o que entra nos autos, anexe o que faltar e ponha na ordem. O que não for marcado continua como minuta, só para a equipe.' },
+                ],
+            },
+            {
+                id: dev, nome: 'Devolução', unidade: 'Secretaria', avanco: 'auto', situacao_registro: consulta('Revisadas'),
+                orientacao: 'Devolver a consulta com o parecer ao solicitante e registrar a data e o meio, que ficam nos autos. Cumpridas as ações obrigatórias, o processo segue sozinho para o Arquivamento.',
+                acoes: ['Devolver a consulta ao solicitante', 'Fazer os registros de acervo', 'Registrar a devolução'],
+                acoes_regras: [
+                    { pede: 'orientacao', ajuda: 'Remessa interna, se o solicitante usa o sistema, ou PDF dos autos inserido no PGEA do SIM.' },
+                    { ...dado, ajuda: 'Faça antes de registrar a devolução: ao chegar no Arquivamento o processo é arquivado.' },
+                    { pede: 'formulario', obrigatoria: true, destino: 'autos', campos: [
+                        data('data', 'Data da remessa'),
+                        { id: 'meio', rotulo: 'Meio utilizado', tipo: 'lista', obrigatorio: true, opcoes: ['Remessa interna', 'PGEA no SIM', 'E-mail', 'Outro'] },
+                    ] },
+                ],
+            },
+            {
+                id: arq, nome: 'Arquivamento', unidade: 'Secretaria', final: true, ao_entrar: { arquivar: true }, situacao_registro: consulta('Na pasta'),
+                orientacao: 'O processo é arquivado ao chegar aqui. O registro do arquivamento traz o nome de quem concluiu a devolução e a data, e sai no extrato do PDF.',
+            },
+            {
+                id: dil, nome: 'Diligências externas', espera: true, avanco: 'auto',
+                situacao_registro: consulta('Aguarda retorno de terceiros'), registro_atos: interno,
+                orientacao: 'Espera por esclarecimento do solicitante ou de terceiros, pedida fora do sistema (e-mail ou protocolo próprio). O processo não sai da unidade. Registrado o retorno, ele volta sozinho para a fase em que estava.',
+                acoes: ['Registrar a remessa da diligência', 'Guardar o que foi recebido', 'Registrar o retorno'],
+                acoes_regras: [
+                    { ...dado, pede: 'formulario', campos: [data('data', 'Data da remessa'), texto('destinatario', 'Destinatário'), texto('meio', 'Meio utilizado')] },
+                    { documento: { forma: 'juntar', destino: 'informacao', nivel: 'opcional' }, ajuda: 'Fica guardado fora dos autos, à vista da equipe.' },
+                    { ...dado, pede: 'formulario', campos: [data('data', 'Data do retorno'), { id: 'resumo', rotulo: 'Resumo do que voltou', tipo: 'texto_longo', obrigatorio: false }] },
+                ],
+            },
+        ],
+    };
+}
+
 /** Gera os modelos com ids novos a cada chamada. */
 export function modelosDeRito() {
     return [
@@ -389,5 +493,6 @@ export function modelosDeRito() {
             ['Resposta', 5],
             ['Encerramento', null],
         ]),
+        ritoConsultas(),
     ];
 }

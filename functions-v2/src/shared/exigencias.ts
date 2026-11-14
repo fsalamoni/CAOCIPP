@@ -467,6 +467,17 @@ export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[], map
     };
 }
 
+/**
+ * Onde fica o registro de um documento guardado fora dos autos. Cumprindo
+ * exigência do rito, vale o que ela pede (só no sistema, se todas pedem). Sem
+ * exigência, segue a fase: a que o rito deixa fora da impressão (só no
+ * sistema ou sem evento) não põe a guarda no extrato impresso.
+ */
+export function destinoDaGuarda(f: FaseRegras | undefined, cumpridas: Exigencia[]): Destino {
+    if (cumpridas.length) return cumpridas.every((e) => e.destino === 'informacao') ? 'informacao' : 'evento';
+    return ['informacao', 'nenhum'].includes(niveisDaFase(f).fase) ? 'informacao' : 'evento';
+}
+
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
 export function exigenciasDaFase(f: FaseRegras | undefined, resp?: Record<string, string>): Array<Exigencia & { chave: string; acao_idx?: number }> {
     if (!f) return [];

@@ -251,6 +251,8 @@ informado.
 | Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |
 | Minuta | Trabalho interno da unidade (`minutaAcessivel`); segue com o processo quando marcada na remessa (`unidades_acesso`), sem constar do termo |
 | Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a secretaria expede, sempre nos autos |
+| Guarda fora dos autos | Registro no extrato impresso, salvo quando a exigência cumprida ou a fase pedem só no sistema (`destinoDaGuarda` em `functions-v2/src/shared/exigencias.ts`) |
+| Exemplo completo | Modelo pronto "Rito Consultas CAOCIPP" (`ritoConsultas` em `src/lib/secretariaRito.js`), conferido contra as regras do servidor em `functions-v2/test/modeloConsultas.test.js`; é o exemplo do Guia do rito |
 | Impressão interna | O que fica fora dos autos sai, por seleção, num PDF de uso da equipe (`montarPdfInterno` em `functions-v2/src/secretaria/exportar.ts`; `registroInterno` e `documentoInterno` em `shared/autos.ts`); nunca vai às partes nem leva folhas dos autos |
 | Revisão | Redações anteriores em `documentos/{doc}/versoes` (`versaoAnterior` em `functions-v2/src/shared/secretaria.ts`, gravada por `editarMinuta`); botão Finalizar da fase (`fase.juntada_conjunta`): juntadas comuns em sequência, na ordem escolhida (`src/lib/juntadaConjunta.js`) |
 | Fase de espera | `fase.espera` no rito e `secProcessos.espera` (`{ fase, unidade, responsavel_uid, desde }`); `saidasDoProcesso` em `functions-v2/src/shared/secretaria.ts`; a volta não zera o estado da fase de origem (`ehRetomada` em `processos.ts`) |
