@@ -10,6 +10,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FIELD_TYPES = void 0;
 exports.sanitizeEntityTypeDefinition = sanitizeEntityTypeDefinition;
+exports.initialPhase = initialPhase;
+exports.phasesReachedUpTo = phasesReachedUpTo;
 exports.validateRecordValues = validateRecordValues;
 exports.FIELD_TYPES = [
     'text', 'textarea', 'number', 'currency', 'date', 'boolean',
@@ -278,6 +280,19 @@ function isEmptyValue(v) {
  * Valida e normaliza um conjunto de valores contra os campos definidos.
  * Retorna { ok, errors, normalized }.
  */
+function initialPhase(def) {
+    const init = (def.phases || []).find((p) => p.is_initial) || (def.phases || [])[0];
+    return (init === null || init === void 0 ? void 0 : init.key) || '';
+}
+/** Conjunto de fases já alcançadas até `phaseKey` (por ordem). Usado para só
+ *  exigir colunas obrigatórias das fases que o registro já atingiu. */
+function phasesReachedUpTo(def, phaseKey) {
+    var _a;
+    const phases = (def.phases || []).slice().sort((a, b) => { var _a, _b; return ((_a = a.order) !== null && _a !== void 0 ? _a : 0) - ((_b = b.order) !== null && _b !== void 0 ? _b : 0); });
+    const cur = phases.find((p) => p.key === phaseKey);
+    const curOrder = (_a = cur === null || cur === void 0 ? void 0 : cur.order) !== null && _a !== void 0 ? _a : 0;
+    return new Set(phases.filter((p) => { var _a; return ((_a = p.order) !== null && _a !== void 0 ? _a : 0) <= curOrder; }).map((p) => p.key));
+}
 function validateRecordValues(fields, values, opts = {}) {
     var _a, _b, _c, _d, _e;
     const errors = {};

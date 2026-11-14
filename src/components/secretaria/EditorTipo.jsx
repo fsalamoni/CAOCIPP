@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useContext, useRef, useState } from 'react';
 import { Eye, Loader2, PencilLine, Shapes, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -14,6 +14,8 @@ import { DadosCampos, EditorFormulario } from './CamposProcesso';
 import FormularioAutuacao from './FormularioAutuacao';
 import EditorNumeracao from './EditorNumeracao';
 import VersoesDialog from './VersoesDialog';
+import { RegistroContexto } from './SeletorRegistro';
+import { comFonte, faseInicial, fontesDoTipo, problemasCriaRegistro } from '@/lib/registroCriado';
 
 // ============================================================================
 // Editor do tipo de processo em tela cheia: abas Dados, Formulário e
@@ -90,10 +92,79 @@ function NascerDe({ tipo, set, ligadas }) {
 }
 
 /**
+ * "Criar registro na autuação": ao autuar, o tipo cria um registro numa página
+ * própria do órgão e diz de onde vem o valor de cada campo dela.
+ */
+function CriarRegistro({ tipo, set, ligadas }) {
+    const { paginas } = useContext(RegistroContexto);
+    const cfg = tipo.cria_registro || null;
+    const pagina = cfg ? paginas.find((x) => x.id === cfg.pagina) : null;
+    const disponivel = ligadas.paginas && paginas.length > 0;
+    const fontes = fontesDoTipo(tipo.formulario);
+    const mudar = (c) => set({ cria_registro: c });
+    const ligar = (sim) => mudar(sim ? { pagina: paginas[0]?.id || '', valores: [] } : null);
+    return (
+        <fieldset className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
+            <legend className="text-sm font-medium px-1">Criar registro na autuação</legend>
+            <label className={`flex items-start gap-2 text-sm ${!disponivel && !cfg ? 'text-slate-400 dark:text-slate-500' : ''}`}>
+                <Checkbox id="tp-cr" className="mt-0.5" checked={!!cfg} disabled={!disponivel && !cfg} onCheckedChange={(c) => ligar(c === true)} />
+                <span>
+                    <span className="font-medium">Ao autuar, criar um registro numa página própria</span>
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                        {disponivel
+                            ? 'O registro nasce com os dados do processo, fica ligado a ele e é o que o rito conduz se uma fase tiver regra para essa página. Se o processo já nasce de um registro dessa página, nada é criado.'
+                            : 'Precisa de uma página própria ativa e da integração com Páginas próprias ligada em "Integrações com outros módulos".'}
+                    </span>
+                </span>
+            </label>
+            {cfg && (
+                <>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                        <NativeSelect id="tp-cr-pagina" label="Página" value={cfg.pagina} onChange={(v) => mudar({ pagina: v, valores: [] })}
+                            options={[...(pagina || !cfg.pagina ? [] : [[cfg.pagina, 'Página que não existe mais']]), ...paginas.map((x) => [x.id, x.plural])]} />
+                        {pagina && (
+                            <NativeSelect id="tp-cr-fase" label="Fase em que o registro nasce" value={cfg.fase || ''} onChange={(v) => mudar({ ...cfg, fase: v || undefined })}
+                                options={[['', `A inicial (${pagina.fases.find((f) => f.key === faseInicial({}, pagina))?.label || 'primeira'})`], ...pagina.fases.map((f) => [f.key, f.label])]} />
+                        )}
+                    </div>
+                    {pagina && (
+                        <div className="space-y-2">
+                            <p className="text-xs text-slate-600 dark:text-slate-400">De onde vem cada campo do registro. O que ficar vazio nasce em branco; o obrigatório da fase em que o registro nasce precisa de uma fonte.</p>
+                            {pagina.campos.filter((f) => f.type !== 'user_ref').map((f) => {
+                                const v = (cfg.valores || []).find((x) => x.campo === f.key);
+                                const opcoes = f.type === 'select' || f.type === 'multiselect' ? f.options : null;
+                                return (
+                                    <div key={f.key} className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 items-end">
+                                        <NativeSelect id={`tp-cr-${f.key}`} label={`${f.label}${f.required ? ' (obrigatório)' : ''}`} value={v?.de || ''}
+                                            onChange={(de) => mudar(comFonte(cfg, f.key, de))} options={[['', 'Deixar vazio'], ...fontes]} />
+                                        {v?.de === 'fixo' && (opcoes
+                                            ? <NativeSelect id={`tp-cr-${f.key}-v`} label="Valor" value={v.valor || ''} onChange={(x) => mudar(comFonte(cfg, f.key, 'fixo', x))}
+                                                options={[['', 'Escolha'], ...opcoes.map((o) => [o.value, o.label || o.value])]} />
+                                            : (
+                                                <div>
+                                                    <Label htmlFor={`tp-cr-${f.key}-v`}>Valor</Label>
+                                                    <Input id={`tp-cr-${f.key}-v`} className="mt-1" type={f.type === 'date' ? 'date' : f.type === 'number' || f.type === 'currency' ? 'number' : 'text'}
+                                                        value={v.valor || ''} onChange={(e) => mudar(comFonte(cfg, f.key, 'fixo', e.target.value))} />
+                                                </div>
+                                            ))}
+                                    </div>
+                                );
+                            })}
+                            {pagina.campos.some((f) => f.type === 'user_ref') && <p className="text-xs text-slate-600 dark:text-slate-400">Campos de pessoa da equipe não recebem valor do processo: preencha-os na página.</p>}
+                        </div>
+                    )}
+                </>
+            )}
+        </fieldset>
+    );
+}
+
+/**
  * `tipo` em edição (null = fechado). `onSalvar()` grava; `onExcluir()` abre a exclusão.
  * `exemplo(numeracao, tipo)` e `numeracaoOrgao` vêm da tela de tipos.
  */
 export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, onExcluir, exemplo, numeracaoOrgao, orgId, onAbrirVersao }) {
+    const { paginas, paginasProntas } = useContext(RegistroContexto);
     const [aba, setAba] = useState('dados');
     const [verPrevia, setVerPrevia] = useState(false);
     // O editor monta a cada tipo aberto (key): o que havia ao abrir, para avisar antes de descartar.
@@ -105,7 +176,9 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
     const numTipo = tipo.numeracao || { modo: 'orgao' };
     const probForm = problemasFormulario(tipo.formulario, fases.map((f) => f.id));
     const probNum = numTipo.modo === 'propria' ? problemasNumeracao(numTipo) : [];
-    const probDados = [!tipo.nome?.trim() && 'Dê um nome ao tipo', !tipo.rito_id && 'Escolha o rito'].filter(Boolean);
+    // A página só é conferida depois de lida (antes disso, toda página pareceria apagada).
+    const probRegistro = tipo.cria_registro && paginasProntas && integracoesLigadas(estado).paginas ? problemasCriaRegistro(tipo.cria_registro, paginas.find((x) => x.id === tipo.cria_registro.pagina), tipo.formulario) : [];
+    const probDados = [!tipo.nome?.trim() && 'Dê um nome ao tipo', !tipo.rito_id && 'Escolha o rito', ...probRegistro].filter(Boolean);
     const pendencias = { dados: probDados, formulario: probForm, numeracao: probNum };
     const total = probDados.length + probForm.length + probNum.length;
     const set = (patch) => setTipo({ ...tipo, ...patch });
@@ -172,6 +245,7 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
                                         <span><span className="font-medium">Todo processo deste tipo é urgente</span><span className="block text-xs text-slate-600 dark:text-slate-400">Já nasce com o selo de urgência e aparece primeiro nas listas.</span></span>
                                     </label>
                                     <NascerDe tipo={tipo} set={set} ligadas={integracoesLigadas(estado)} />
+                                    <CriarRegistro tipo={tipo} set={set} ligadas={integracoesLigadas(estado)} />
                                     {tipo.id && <label className="flex items-center gap-2 text-sm"><Checkbox checked={tipo.ativo} onCheckedChange={(c) => set({ ativo: c === true })} /> Disponível para novas autuações</label>}
                                     {rito && (
                                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">

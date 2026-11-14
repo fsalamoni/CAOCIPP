@@ -25,9 +25,11 @@ import {
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
-import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refDe, refDePagina, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
+import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, TipoPagina, refDe, refDePagina, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
 import { ModuloSituacao, chaveDoRegistro, mudancasDaPagina, mudancasDaParceria, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
+import { phasesReachedUpTo, validateRecordValues } from '../customEntities/schema';
 import type { EntityTypeDef } from '../customEntities/schema';
+import { CriaRegistro, DadosDaAutuacao, PaginaDef, faseDoRegistro, sanitizeCriaRegistro, valoresDoRegistro } from '../shared/registroCriado';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 import { fireOrgWebhook } from '../shared/webhooks';
@@ -317,8 +319,10 @@ async function lerPaginasDoRito(
         return;
     }
     const origem = proc.origem?.ref?.modulo === 'paginas' ? String(proc.origem.ref.id || '') : '';
+    // O registro que a autuação criou vale logo depois da origem, mesmo com outros da página ligados.
+    const criado = proc.registro_criado?.modulo === 'paginas' ? String(proc.registro_criado.id || '') : '';
     // ponytail: lê até 20 registros de páginas ligados ao processo; além disso a regra não acha o registro e avisa.
-    const ids = [...new Set([origem, ...(Array.isArray(proc.vinculos) ? proc.vinculos : []).map(String).filter((v) => v.startsWith('paginas:')).map((v) => v.slice(8))])]
+    const ids = [...new Set([origem, criado, ...(Array.isArray(proc.vinculos) ? proc.vinculos : []).map(String).filter((v) => v.startsWith('paginas:')).map((v) => v.slice(8))])]
         .filter((id) => /^[A-Za-z0-9_-]{1,128}$/.test(id)).slice(0, 20);
     const docs: Array<{ ref: admin.firestore.DocumentReference; d: admin.firestore.DocumentData }> = [];
     for (const id of ids) {
@@ -332,13 +336,51 @@ async function lerPaginasDoRito(
         if (!tipo || tipo.organization_id !== c.orgId) { lidos.set(chave, { falta: 'a página própria não existe mais' }); continue; }
         const plural = String(tipo.label_plural || tipo.label_singular || nome);
         const daPagina = docs.filter((x) => x.d.entity_type_id === p);
-        const alvo = daPagina.find((x) => x.ref.id === origem) || (daPagina.length === 1 ? daPagina[0] : null);
+        const alvo = daPagina.find((x) => x.ref.id === origem) || daPagina.find((x) => x.ref.id === criado) || (daPagina.length === 1 ? daPagina[0] : null);
         if (!alvo) lidos.set(chave, { falta: daPagina.length ? `o processo tem mais de um registro de ${plural} ligado e não nasceu de nenhum deles` : `o processo não tem registro de ${plural} ligado` });
         else lidos.set(chave, { ref: alvo.ref, doc: alvo.d, modulo: 'paginas', numero: refDePagina(alvo.ref.id, alvo.d, tipo).numero, tipo, rotulo: String(tipo.label_singular || 'Registro') });
     }
 }
 
 type Arquivado = { modulo: ModuloSituacao; id: string; numero: string };
+
+/** Página onde o tipo cria o registro na autuação, lida antes da transação. Null: o tipo não cria, ou o processo já nasce de um registro dela. */
+type PaginaNova = { cfg: CriaRegistro; def: admin.firestore.DocumentData; ref: admin.firestore.DocumentReference };
+async function paginaDoTipo(c: Ctx, tipo: admin.firestore.DocumentData | null, origem: { ref?: { modulo: string; pagina?: string } } | null): Promise<PaginaNova | null> {
+    const cfg = sanitizeCriaRegistro(tipo?.cria_registro);
+    if (!tipo || !cfg || (origem?.ref?.modulo === 'paginas' && origem.ref.pagina === cfg.pagina)) return null;
+    if (!integracoesDe(c.org, await lerFlags(c.db)).paginas) {
+        throw new HttpsError('failed-precondition', `O tipo ${tipo.nome} cria um registro numa página própria, mas a integração com Páginas próprias está desligada. Peça ao administrador para ligá-la em "Integrações com outros módulos".`);
+    }
+    const def = (await c.db.collection('entityTypes').doc(cfg.pagina).get()).data();
+    if (!def || def.organization_id !== c.orgId || def.enabled === false) {
+        throw new HttpsError('failed-precondition', `O tipo ${tipo.nome} cria um registro numa página própria que não existe mais ou está desativada. Peça ao administrador para ajustar o tipo.`);
+    }
+    return { cfg, def, ref: c.db.collection(COLECAO.paginas).doc() };
+}
+
+/** Grava, na transação da autuação, o registro novo da página (mesmo formato de createRecord, validado pelas regras da página). */
+function criarRegistroDaAutuacao(tx: admin.firestore.Transaction, c: Ctx, pg: PaginaNova, dados: DadosDaAutuacao): { ref: Ref; doc: admin.firestore.DocumentData } {
+    const def = pg.def as PaginaDef & { key?: string };
+    const nome = String(def.label_singular || 'Registro');
+    const fase = faseDoRegistro(pg.cfg, def);
+    const { ok, errors, normalized } = validateRecordValues(def.fields || [], valoresDoRegistro(pg.cfg, def, dados), { requiredPhases: phasesReachedUpTo(def, fase) });
+    if (!ok) throw new HttpsError('invalid-argument', `Não foi possível criar o registro em ${nome}: ${Object.values(errors)[0]} Preencha o que falta ou peça ao administrador para ajustar o tipo.`);
+    const agora = new Date();
+    const entrada = { date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName, action: `${nome} criado pelo processo eletrônico ${dados.numero}`, timestamp: agora.toISOString() };
+    const doc = {
+        id: pg.ref.id, organization_id: c.orgId, entity_type_id: pg.cfg.pagina, entity_key: def.key || null, values: normalized, phase: fase, record_type: null,
+        created_by: c.ctx.uid, created_at: FieldValue.serverTimestamp(), updated_by: c.ctx.uid, updated_at: FieldValue.serverTimestamp(), activity_log: [entrada],
+    };
+    tx.set(pg.ref, doc);
+    tx.set(pg.ref.collection('history').doc(historyEntryId(entrada)), { ...entrada, created_at: FieldValue.serverTimestamp() });
+    tx.set(c.db.collection('organizations').doc(c.orgId), { stats: { custom_records: { [pg.cfg.pagina]: FieldValue.increment(1) } } }, { merge: true });
+    tx.set(c.db.collection('auditLogs').doc(), {
+        organization_id: c.orgId, user_id: c.ctx.uid, user_name: c.userName, action: 'CREATE_RECORD',
+        details: { entity_type_id: pg.cfg.pagina, record_id: pg.ref.id, processo: dados.numero }, timestamp: FieldValue.serverTimestamp(),
+    });
+    return { ref: refDePagina(pg.ref.id, doc, def as TipoPagina), doc };
+}
 
 /** Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro. */
 function avisarArquivado(orgId: string, ra: Arquivado | null): void {
@@ -892,6 +934,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 // Em fase de espera: a fase e a unidade para onde o processo volta.
                 espera: data.espera ? { fase: String(data.espera.fase || ''), unidade: String(data.espera.unidade || ''), desde: String(data.espera.desde || '') } : null,
                 campos_exigidos: data.campos_exigidos || {},
+                registro_criado: data.registro_criado || null,
             },
             hoje: hojeBrasil(),
             movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
@@ -974,6 +1017,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const contadorRef = numeracao ? db.collection(COL.contadores).doc(chaveContador(orgId, numeracao, ctxNumero)) : null;
         // A primeira fase pode designar o responsável e avisar a equipe já na autuação.
         const designacaoInicial = await designadoPelaFase(c, fase1, unidade);
+        // O tipo pode criar um registro numa página própria (a página é lida antes; o registro, gravado na transação).
+        const paginaNova = await paginaDoTipo(c, tipo, origem);
         let autuado: { proc: admin.firestore.DocumentData; pendencia?: string } | null = null;
         let registroArquivado: Arquivado | null = null;
         const numero = await db.runTransaction(async (tx) => {
@@ -995,6 +1040,14 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 }
                 tx.set(contadorRef, { organization_id: orgId, chave: contadorRef.id, seq, atualizado_em: new Date().toISOString() }, { merge: true });
             }
+            const criado = paginaNova ? criarRegistroDaAutuacao(tx, c, paginaNova, {
+                numero, assunto, descricao, hoje: hojeBrasil(), unidade: unidade.nome, tipo: tipo?.nome || '', partes: partes.map((x) => x.nome), campos,
+            }) : null;
+            const chaveCriado = criado ? `paginas:${criado.ref.id}` : '';
+            // A regra da primeira fase que vale na autuação conduz o registro recém-criado.
+            if (criado && registros.has(`paginas:${paginaNova!.cfg.pagina}`)) {
+                registros.set(`paginas:${paginaNova!.cfg.pagina}`, { ref: paginaNova!.ref, doc: criado.doc, modulo: 'paginas', numero: criado.ref.numero, tipo: paginaNova!.def, rotulo: String(paginaNova!.def.label_singular || 'Registro') });
+            }
             const fases = rito.fases as Fase[];
             // Campos que o tipo exige para sair de cada fase (cópia: mudar o tipo depois não muda este processo).
             const exigidos = camposExigidos(form, fases.map((f) => f.id));
@@ -1009,8 +1062,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 ...(Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {}),
                 sigilo,
                 ...(origem ? { origem } : {}),
-                // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
-                vinculos: vinculosDe(origem, campos),
+                // Registros e processos ligados (origem, campos e o registro criado), para "Processos eletrônicos" no outro módulo.
+                vinculos: vinculosDe(origem, campos, criado ? [chaveCriado] : []),
+                // O registro criado fica nos vínculos mesmo quando se editam os dados (como os das ações).
+                ...(criado ? { registro_criado: criado.ref, vinculos_acoes: [chaveCriado] } : {}),
                 ...(urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {}),
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {}),
                 // Nomes dos polos do tipo, como na autuação (o tipo pode mudar depois).
@@ -1041,7 +1096,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 : aplicarSituacao(tx, c, registros, fases[0], designacaoInicial?.uid && fase1.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', base,
                     designacaoInicial?.uid ? { uid: designacaoInicial.uid, nome: designacaoInicial.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
-            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
+            const notaCriado = criado ? [`${String(paginaNova!.def.label_singular || 'Registro')} ${criado.ref.numero} criado em ${String(paginaNova!.def.label_plural || paginaNova!.def.label_singular || 'Páginas próprias')} com os dados da autuação.`] : [];
+            const ef = { ...efFase, interno: [...efFase.interno, ...notaCriado, ...sit.notas] };
             autuado = { proc: { ...base, ...ef.campos }, ...(ef.pendencia ? { pendencia: ef.pendencia } : {}) };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
                 `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}${ef.texto}`,

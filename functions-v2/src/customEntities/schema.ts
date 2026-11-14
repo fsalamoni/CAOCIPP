@@ -454,6 +454,20 @@ function isEmptyValue(v: unknown): boolean {
  * Valida e normaliza um conjunto de valores contra os campos definidos.
  * Retorna { ok, errors, normalized }.
  */
+export function initialPhase(def: { phases?: PhaseDef[] }): string {
+    const init = (def.phases || []).find((p) => p.is_initial) || (def.phases || [])[0];
+    return init?.key || '';
+}
+
+/** Conjunto de fases já alcançadas até `phaseKey` (por ordem). Usado para só
+ *  exigir colunas obrigatórias das fases que o registro já atingiu. */
+export function phasesReachedUpTo(def: { phases?: PhaseDef[] }, phaseKey: string): Set<string> {
+    const phases = (def.phases || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const cur = phases.find((p) => p.key === phaseKey);
+    const curOrder = cur?.order ?? 0;
+    return new Set(phases.filter((p) => (p.order ?? 0) <= curOrder).map((p) => p.key));
+}
+
 export function validateRecordValues(
     fields: FieldDef[],
     values: Record<string, unknown>,

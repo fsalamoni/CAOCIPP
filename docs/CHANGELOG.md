@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Tipo de processo que cria o registro
+- O tipo de processo pode **criar um registro numa página própria** ao autuar
+  (aba Dados, "Criar registro na autuação"): escolhe a página, a fase em que
+  o registro nasce e de onde vem cada campo (número, assunto, descrição, data
+  da autuação, unidade, tipo, partes, campo do formulário ou valor fixo).
+- O registro nasce na mesma transação da autuação, validado pelas regras da
+  página, ligado ao processo ("Criado na autuação" em Registros ligados) e é
+  o que o rito conduz para essa página. Nada disso chega às partes.
+- Tipo antigo segue igual. Guia do rito, parte 19.
+
 ### 14/11/2026 — Parcerias pelo rito e regra na autuação
 - A fase do rito pode **conduzir a parceria ligada** pelo quadro de Parcerias
   (Pendente a Parcerias), com as regras do módulo: datas automáticas,

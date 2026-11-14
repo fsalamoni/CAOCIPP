@@ -57,7 +57,8 @@ Cada passo corresponde a uma aba da configuração. No guia dentro do SIGO, o bo
    - a numeração;
    - o sigilo padrão;
    - a unidade de entrada;
-   - de onde o processo pode nascer.
+   - de onde o processo pode nascer;
+   - o registro que a autuação cria numa página própria, se a equipe acompanha o processo num quadro (contratos, atendimentos, procedimentos disciplinares).
 
    Um rito pode servir a vários tipos.
 5. **Documentos e modelos.** Configure o papel timbrado e crie um modelo de texto para cada peça que o rito manda redigir (portaria, despacho, decisão, ata, relatório). Use o mesmo tipo de documento que a ação pede: assim a equipe já começa do texto do órgão.

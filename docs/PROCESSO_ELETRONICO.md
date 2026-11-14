@@ -1102,6 +1102,30 @@ opcionais; rito sem elas funciona como antes.
   `ao_assumir` se a fase designa o responsável e tem essa regra, senão
   `ao_entrar`. O que não deu certo vai ao registro interno da autuação.
   Sem a marca, como antes: a autuação não muda o registro.
+- **Registro criado na autuação** (14/11/2026; tipo de processo,
+  `cria_registro: { pagina, fase?, valores: [{ campo, de, valor? }] }`,
+  `shared/registroCriado.ts`). Fontes (`de`): `numero`, `assunto`,
+  `descricao`, `autuacao` (data), `unidade`, `tipo`, `partes` (nomes),
+  `fixo` (com `valor`) e `campo:<id>` do formulário. `salvarTipo` confere
+  com `errosCriaRegistro`: página do órgão e ativa, fase existente, campos
+  existentes, campo de pessoa (`user_ref`) recusado, valor fixo válido e uma
+  fonte para cada obrigatório das fases alcançadas na fase em que o
+  registro nasce (`phasesReachedUpTo`); a página entra em `modulosDoTipo`
+  (pede a integração ligada). Em `autuar`, `paginaDoTipo` lê a página antes
+  da transação; dentro dela, depois do número, `criarRegistroDaAutuacao`
+  monta os valores (`valoresDoRegistro`, convertidos por `paraCampo`),
+  valida com `validateRecordValues` (erro para a autuação com o motivo) e
+  grava o `customRecords` como `createRecord` (histórico, contador e
+  `CREATE_RECORD` no auditLogs). O processo guarda `registro_criado` (Ref)
+  e a chave em `vinculos` e `vinculos_acoes` (fica ao editar dados). Com a
+  regra da página na primeira fase e "Valer já na autuação", o registro novo
+  é o conduzido; nas outras fases, `lerPaginasDoRito` prefere a origem,
+  depois o criado. Processo que nasce de registro da mesma página não cria
+  outro. A nota vai ao registro interno; a capa mostra "Criado na
+  autuação". Consultas, Expedientes e Parcerias não são criados pela
+  autuação: a ficha deles pede dados do domínio (consulente, promotor,
+  PGEA) que o processo não tem. Testes: `functions-v2/test/registroCriado.test.js`
+  e `src/lib/registroCriado.test.js`.
 - **Assumir.** Na tela do processo, quem está lotado na unidade que tem o
   processo vê o botão **Assumir** enquanto ele não tem responsável (é a ação
   `atribuir` para si mesmo; o destino do registro continua sendo o da linha
