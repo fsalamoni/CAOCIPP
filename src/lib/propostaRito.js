@@ -1017,7 +1017,7 @@ export function montarPayload(p, tipo) {
             fases: p.fases.map((f) => ({
                 id: f.id, nome: f.nome, prazo_dias: f.prazo_dias, orientacao: f.orientacao, final: f.final === true,
                 prazo_auto: f.prazo_auto, prazo_contagem: f.prazo_contagem, nome_publico: f.nome_publico, ao_entrar: f.ao_entrar,
-                avanco: f.avanco, situacao_registro: f.situacao_registro, espera: f.espera,
+                avanco: f.avanco, situacao_registro: f.situacao_registro, espera: f.espera, juntada_conjunta: f.juntada_conjunta,
                 proximas: f.final ? [] : (f.proximas || []).filter((id) => id !== f.id && p.fases.some((x) => x.id === id)),
                 condicoes: f.condicoes, condicoes_regra: f.condicoes_regra, agente: f.agente, acoes: f.acoes, acoes_regras: f.acoes_regras,
                 registro_atos: f.registro_atos, registro: f.registro, documentos: f.documentos, certidao: f.certidao,

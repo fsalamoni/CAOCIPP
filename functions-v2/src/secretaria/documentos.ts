@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, minutaAcessivel, sha256, texto,
+    MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, minutaAcessivel, sha256, texto, versaoAnterior,
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
@@ -28,6 +28,10 @@ import { renderizarDocumento } from './pdfDocumento';
  * rito pede um documento que não vai à impressão): fica no processo, visível
  * à equipe, sem número de ordem nem folha, e também não se edita nem se apaga.
  *
+ * Minuta que muda de mãos (ex.: a assessoria redige, o gabinete revisa) guarda
+ * a redação anterior em documentos/{id}/versoes. As versões ficam com a equipe
+ * (quem vê o documento), nunca com as partes, e continuam lá depois da juntada.
+ *
  * Arquivos ficam no Cloud Storage em secretaria/{órgão}/{processo}/{doc}; o
  * navegador nunca acessa o bucket direto (storage.rules nega tudo): envio e
  * download passam por aqui, que confere a permissão.
@@ -36,8 +40,10 @@ import { renderizarDocumento } from './pdfDocumento';
 interface DocRequest {
     organizationId: string;
     processoId: string;
-    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura';
+    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura' | 'versoes';
     docId?: string;
+    /** baixar/pdf: uma redação anterior do documento (id em `versoes`). */
+    versaoId?: string;
     /** pedirAssinatura: quem deve assinar (lotado na unidade da minuta). */
     uid?: string;
     /** Juntada: assinar antes, no mesmo ato. */
@@ -93,10 +99,33 @@ export const secretariaDocumento = onCall<DocRequest>(
             }
         };
 
-        if (p.action === 'baixar') {
-            const { doc } = await lerDoc();
+        // Redação anterior: mesma regra de quem vê o documento.
+        const lerVersao = async (ref: admin.firestore.DocumentReference) => {
+            const s = await ref.collection('versoes').doc(String(p.versaoId)).get();
+            if (!s.exists) throw new HttpsError('not-found', 'Versão não encontrada');
+            return s.data() as admin.firestore.DocumentData;
+        };
+        const exigirLeitura = (doc: admin.firestore.DocumentData) => {
             if (doc.status !== 'juntado' && doc.status !== 'controle' && !minutaAcessivel(doc, c.ctx.unidadeIds)) {
                 throw new HttpsError('not-found', 'Documento não encontrado');
+            }
+        };
+
+        if (p.action === 'versoes') {
+            const { ref, doc } = await lerDoc();
+            exigirLeitura(doc);
+            const s = await ref.collection('versoes').select('autor_nome', 'de', 'titulo', 'substituida_em', 'substituida_por').get();
+            const versoes = s.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string; substituida_em?: string }))
+                .sort((a, b) => String(a.substituida_em).localeCompare(String(b.substituida_em)));
+            return { versoes };
+        }
+
+        if (p.action === 'baixar') {
+            const { ref, doc } = await lerDoc();
+            exigirLeitura(doc);
+            if (p.versaoId) {
+                const v = await lerVersao(ref);
+                return { origem: 'editor', titulo: v.titulo, tipo: v.tipo, conteudo: v.conteudo };
             }
             if (doc.origem === 'editor') return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: conteudoDoDocumento(doc) };
             const [buf] = await admin.storage().bucket().file(doc.storage_path).download();
@@ -106,8 +135,14 @@ export const secretariaDocumento = onCall<DocRequest>(
         // PDF do documento: juntado, como está nos autos (com folhas e carimbo);
         // minuta da minha unidade, como prévia com marca d'água.
         if (p.action === 'pdf') {
-            const { doc } = await lerDoc();
+            const { ref, doc } = await lerDoc();
             const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.pdf`;
+            if (p.versaoId) {
+                exigirLeitura(doc);
+                const v = await lerVersao(ref);
+                const r = await renderizarDocumento(v.conteudo, await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
+                return { base64: r.buffer.toString('base64'), nome: `versao-anterior-${nome}`, paginas: r.paginas };
+            }
             if (doc.status === 'juntado') return { base64: await pdfCarimbado(c.db, c.orgId, procRef.id, String(proc.numero), p.docId!, doc), nome };
             const controle = doc.status === 'controle';
             if (!controle && !minutaAcessivel(doc, c.ctx.unidadeIds)) throw new HttpsError('not-found', 'Documento não encontrado');
@@ -164,17 +199,26 @@ export const secretariaDocumento = onCall<DocRequest>(
 
         if (p.action === 'editarMinuta') {
             exigirPosse(c, proc);
-            const { ref, doc } = await lerDoc();
-            exigirMinutaDaMinhaUnidade(doc);
-            if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Arquivo enviado não se edita; exclua a minuta e envie outro');
-            if ((doc.assinaturas || []).length) throw new HttpsError('failed-precondition', 'Minuta já assinada não se edita');
-            let conteudo;
+            let conteudo: unknown;
             try { conteudo = sanitizeDoc(p.conteudo); } catch (e) { erroUsuario(e); }
-            await ref.update({
-                conteudo, sha256: sha256(jsonCanonico(conteudo)), delta: FieldValue.delete(),
-                ...(texto(p.titulo) ? { titulo: texto(p.titulo) } : {}),
-                ...(texto(p.tipo, 60) ? { tipo: texto(p.tipo, 60) } : {}),
-                editado_em: agoraIso,
+            const novoSha = sha256(jsonCanonico(conteudo));
+            // Lido e gravado juntos: dois revisores ao mesmo tempo não perdem a redação anterior.
+            await c.db.runTransaction(async (tx) => {
+                const { ref, doc } = await lerDoc(tx);
+                exigirMinutaDaMinhaUnidade(doc);
+                if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Arquivo enviado não se edita; exclua a minuta e envie outro');
+                if ((doc.assinaturas || []).length) throw new HttpsError('failed-precondition', 'Minuta já assinada não se edita');
+                const anterior = versaoAnterior(doc, auth.uid, novoSha);
+                if (anterior) {
+                    tx.set(ref.collection('versoes').doc(), { ...anterior, conteudo: conteudoDoDocumento(doc), substituida_em: agoraIso, substituida_por: c.userName });
+                }
+                tx.update(ref, {
+                    conteudo, sha256: novoSha, delta: FieldValue.delete(),
+                    ...(texto(p.titulo) ? { titulo: texto(p.titulo) } : {}),
+                    ...(texto(p.tipo, 60) ? { tipo: texto(p.tipo, 60) } : {}),
+                    editado_em: agoraIso, editado_por: auth.uid, editado_por_nome: c.userName,
+                    ...(anterior ? { versoes_qtd: FieldValue.increment(1) } : {}),
+                });
             });
             return { success: true };
         }
@@ -188,7 +232,7 @@ export const secretariaDocumento = onCall<DocRequest>(
             if (Array.isArray(doc.unidades_acesso) && doc.unidades_acesso.length && !c.ctx.unidadeIds.includes(proc.unidade_atual)) {
                 throw new HttpsError('failed-precondition', 'Esta minuta seguiu com o processo para outra unidade. Ela só pode ser excluída quando o processo voltar à sua unidade.');
             }
-            await ref.delete();
+            await c.db.recursiveDelete(ref); // com as redações anteriores
             if (((proc.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id)) {
                 await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
             }

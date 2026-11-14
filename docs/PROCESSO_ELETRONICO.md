@@ -1005,6 +1005,52 @@ informação pedida a terceiros). A fase marcada como **Fase de espera**
 - Testes: `functions-v2/test/faseEspera.test.js` e
   `src/lib/faseEspera.test.js`. Guia do rito, parte 9.
 
+### Revisão: redação original guardada e botão Finalizar (13/11/2026)
+
+Para o trabalho em que uma unidade redige e outra revisa (a assessoria
+escreve a minuta, o gabinete corrige, assina e escolhe os anexos).
+
+- **Redações anteriores da minuta.** Em `editarMinuta`, quando quem salva
+  não é quem escreveu a redação atual e o texto mudou (`versaoAnterior`, em
+  `shared/secretaria.ts`), a redação anterior é gravada em
+  `secProcessos/{id}/documentos/{doc}/versoes/{v}`
+  (`{ autor_uid, autor_nome, de, sha256, titulo, tipo, conteudo,
+  substituida_em, substituida_por }`), na mesma transação da edição. O
+  documento passa a ter `editado_por`, `editado_por_nome` e `versoes_qtd`.
+  Quem corrige o próprio texto não gera versão. Não há o que configurar.
+- **Quem vê.** A mesma regra do documento: enquanto minuta, as unidades que
+  a veem (`minutaAcessivel`); depois de juntado ou guardado, a equipe com
+  acesso ao processo. **As partes nunca**: o portal não lê `versoes`, e as
+  regras do Firestore negam a leitura direta. As versões continuam depois
+  da juntada.
+- **Ações do servidor** (`secretariaDocumento`): `versoes` lista (sem o
+  conteúdo); `baixar` e `pdf` aceitam `versaoId` (o PDF sai com a marca
+  "VERSÃO ANTERIOR"). `excluirMinuta` apaga a minuta com as versões.
+- **Na tela.** Ao lado do documento (minuta, peça dos autos ou guardado),
+  o botão **Versões (n)** abre as redações anteriores, só para leitura.
+- **Botão Finalizar** (`fase.juntada_conjunta`, em Andamento automático do
+  rito). Na fase marcada, a tela do processo mostra "Finalizar (nome da
+  fase)", ex.: **Finalizar revisão**. O diálogo lista as minutas e os
+  anexos que estão com a unidade; quem tem o processo escolhe quais entram
+  nos autos, a ordem, anexa o que faltar, assina e junta tudo. O que não
+  foi escolhido continua como minuta ou, se marcado, é guardado fora dos
+  autos. Depois, a tela abre o passo seguinte da fase (o botão principal).
+  Sem a marca, o mesmo diálogo aparece como **Juntar em conjunto** quando
+  há duas ou mais minutas.
+- **Como grava.** A juntada em conjunto é uma sequência de juntadas comuns
+  (`juntar`, com `assinar`), uma por documento, na ordem escolhida: cada
+  uma tem número de ordem, folhas e termo nos autos, e cumpre o que o rito
+  exige pelo tipo ou modelo do documento. Juntas, formam o evento da fase
+  na impressão.
+- **Limites.** Não é uma transação só: se uma juntada falha, as anteriores
+  já valem e a tela diz onde parou (basta repetir com o que restou). No
+  conjunto não se abre pendência ao decisor nem se decide pendência; para
+  isso, use a juntada de um documento. Arquivo enviado não se edita, logo
+  não tem versões. Finalizar não muda a fase: quem confirma o passo
+  seguinte é a pessoa.
+- Testes: `functions-v2/test/revisaoMinuta.test.js` e
+  `src/lib/juntadaConjunta.test.js`. Guia do rito, parte 10.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

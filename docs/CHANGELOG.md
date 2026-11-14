@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 13/11/2026 — Revisão: redação original guardada e botão Finalizar
+- Quando outra pessoa altera uma minuta (ex.: o gabinete revisa a minuta
+  da assessoria), a **redação de quem escreveu antes fica guardada**. O
+  botão **Versões** ao lado do documento abre as redações anteriores, só
+  para leitura. Só a equipe vê; nunca as partes.
+- No rito, a fase pode ter o **botão Finalizar** (ex.: Finalizar revisão):
+  escolher quais minutas e anexos entram nos autos, pôr em ordem, anexar o
+  que faltar, assinar e juntar tudo de uma vez. O que fica de fora continua
+  como minuta ou é guardado fora dos autos.
+- Com duas ou mais minutas, qualquer fase oferece **Juntar em conjunto**.
+- Guia do rito, parte 10.
+
 ### 13/11/2026 — Fase de espera (diligências externas)
 - No rito, uma fase pode ser marcada como **Fase de espera**: o processo
   entra nela vindo de outra fase, aguarda e **volta para a fase de onde

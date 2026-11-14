@@ -42,10 +42,32 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             throw new https_1.HttpsError('permission-denied', 'A minuta pertence a outra unidade');
         }
     };
-    if (p.action === 'baixar') {
-        const { doc } = await lerDoc();
+    // Redação anterior: mesma regra de quem vê o documento.
+    const lerVersao = async (ref) => {
+        const s = await ref.collection('versoes').doc(String(p.versaoId)).get();
+        if (!s.exists)
+            throw new https_1.HttpsError('not-found', 'Versão não encontrada');
+        return s.data();
+    };
+    const exigirLeitura = (doc) => {
         if (doc.status !== 'juntado' && doc.status !== 'controle' && !(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds)) {
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
+        }
+    };
+    if (p.action === 'versoes') {
+        const { ref, doc } = await lerDoc();
+        exigirLeitura(doc);
+        const s = await ref.collection('versoes').select('autor_nome', 'de', 'titulo', 'substituida_em', 'substituida_por').get();
+        const versoes = s.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
+            .sort((a, b) => String(a.substituida_em).localeCompare(String(b.substituida_em)));
+        return { versoes };
+    }
+    if (p.action === 'baixar') {
+        const { ref, doc } = await lerDoc();
+        exigirLeitura(doc);
+        if (p.versaoId) {
+            const v = await lerVersao(ref);
+            return { origem: 'editor', titulo: v.titulo, tipo: v.tipo, conteudo: v.conteudo };
         }
         if (doc.origem === 'editor')
             return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: (0, autos_1.conteudoDoDocumento)(doc) };
@@ -55,8 +77,14 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
     // PDF do documento: juntado, como está nos autos (com folhas e carimbo);
     // minuta da minha unidade, como prévia com marca d'água.
     if (p.action === 'pdf') {
-        const { doc } = await lerDoc();
+        const { ref, doc } = await lerDoc();
         const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.pdf`;
+        if (p.versaoId) {
+            exigirLeitura(doc);
+            const v = await lerVersao(ref);
+            const r = await (0, pdfDocumento_1.renderizarDocumento)(v.conteudo, await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, doc.unidade_origem), { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
+            return { base64: r.buffer.toString('base64'), nome: `versao-anterior-${nome}`, paginas: r.paginas };
+        }
         if (doc.status === 'juntado')
             return { base64: await (0, autos_1.pdfCarimbado)(c.db, c.orgId, procRef.id, String(proc.numero), p.docId, doc), nome };
         const controle = doc.status === 'controle';
@@ -111,12 +139,6 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
     }
     if (p.action === 'editarMinuta') {
         (0, context_1.exigirPosse)(c, proc);
-        const { ref, doc } = await lerDoc();
-        exigirMinutaDaMinhaUnidade(doc);
-        if (doc.origem !== 'editor')
-            throw new https_1.HttpsError('failed-precondition', 'Arquivo enviado não se edita; exclua a minuta e envie outro');
-        if ((doc.assinaturas || []).length)
-            throw new https_1.HttpsError('failed-precondition', 'Minuta já assinada não se edita');
         let conteudo;
         try {
             conteudo = (0, documento_1.sanitizeDoc)(p.conteudo);
@@ -124,7 +146,21 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         catch (e) {
             (0, context_1.erroUsuario)(e);
         }
-        await ref.update(Object.assign(Object.assign(Object.assign({ conteudo, sha256: (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudo)), delta: firestore_1.FieldValue.delete() }, ((0, secretaria_1.texto)(p.titulo) ? { titulo: (0, secretaria_1.texto)(p.titulo) } : {})), ((0, secretaria_1.texto)(p.tipo, 60) ? { tipo: (0, secretaria_1.texto)(p.tipo, 60) } : {})), { editado_em: agoraIso }));
+        const novoSha = (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudo));
+        // Lido e gravado juntos: dois revisores ao mesmo tempo não perdem a redação anterior.
+        await c.db.runTransaction(async (tx) => {
+            const { ref, doc } = await lerDoc(tx);
+            exigirMinutaDaMinhaUnidade(doc);
+            if (doc.origem !== 'editor')
+                throw new https_1.HttpsError('failed-precondition', 'Arquivo enviado não se edita; exclua a minuta e envie outro');
+            if ((doc.assinaturas || []).length)
+                throw new https_1.HttpsError('failed-precondition', 'Minuta já assinada não se edita');
+            const anterior = (0, secretaria_1.versaoAnterior)(doc, auth.uid, novoSha);
+            if (anterior) {
+                tx.set(ref.collection('versoes').doc(), Object.assign(Object.assign({}, anterior), { conteudo: (0, autos_1.conteudoDoDocumento)(doc), substituida_em: agoraIso, substituida_por: c.userName }));
+            }
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({ conteudo, sha256: novoSha, delta: firestore_1.FieldValue.delete() }, ((0, secretaria_1.texto)(p.titulo) ? { titulo: (0, secretaria_1.texto)(p.titulo) } : {})), ((0, secretaria_1.texto)(p.tipo, 60) ? { tipo: (0, secretaria_1.texto)(p.tipo, 60) } : {})), { editado_em: agoraIso, editado_por: auth.uid, editado_por_nome: c.userName }), (anterior ? { versoes_qtd: firestore_1.FieldValue.increment(1) } : {})));
+        });
         return { success: true };
     }
     if (p.action === 'excluirMinuta') {
@@ -137,7 +173,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         if (Array.isArray(doc.unidades_acesso) && doc.unidades_acesso.length && !c.ctx.unidadeIds.includes(proc.unidade_atual)) {
             throw new https_1.HttpsError('failed-precondition', 'Esta minuta seguiu com o processo para outra unidade. Ela só pode ser excluída quando o processo voltar à sua unidade.');
         }
-        await ref.delete();
+        await c.db.recursiveDelete(ref); // com as redações anteriores
         if ((proc.assinaturas_pendentes || []).some((x) => x.docId === ref.id)) {
             await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
         }

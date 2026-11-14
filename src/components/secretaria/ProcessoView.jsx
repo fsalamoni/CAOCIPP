@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
     AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
-    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive, Hourglass,
+    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive, Hourglass, History, ListChecks,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +41,9 @@ import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
+import JuntadaConjunta from './JuntadaConjunta';
+import VersoesMinuta from './VersoesMinuta';
+import { rotuloFinalizar } from '@/lib/juntadaConjunta';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const MAX_MB = 5;
@@ -58,6 +61,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [editor, setEditor] = useState(null); // {docId?, titulo, tipo, conteudo, somenteLeitura, modeloId?}
     const [pdf, setPdf] = useState(null); // {base64, nome, titulo}
     const [novoDoc, setNovoDoc] = useState(false);
+    const [conjunta, setConjunta] = useState(false); // juntada em conjunto (botão Finalizar da fase)
+    const [versoesDe, setVersoesDe] = useState(null); // documento cujas redações anteriores estão abertas
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
     const [confirmar, setConfirmar] = useState(null); // {titulo, texto, rotulo, fn}: ato que não se desfaz
     const [vista, setVista] = useState(null); // capa | andamento | autos | eventos (null = padrão do perfil)
@@ -154,6 +159,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const verNosAutos = (d) => executar(async () => {
         const r = await secDocumento(orgId, procId, 'pdf', { docId: d.id });
         setPdf({ ...r, titulo: `Doc. nº ${d.ordem} · ${d.titulo}` });
+    });
+
+    /** Redação anterior de um documento, só para ler (e gerar o PDF com a marca "versão anterior"). */
+    const lerVersao = (d, v) => executar(async () => {
+        const r = await secDocumento(orgId, procId, 'baixar', { docId: d.id, versaoId: v.id });
+        setVersoesDe(null);
+        setEditor({ docId: d.id, versaoId: v.id, titulo: `${r.titulo} (redação anterior, de ${v.autor_nome || 'autor não identificado'})`, tipo: r.tipo, conteudo: r.conteudo, somenteLeitura: true });
     });
 
     const abrirMinuta = (d) => executar(async () => {
@@ -272,6 +284,38 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             principal = { rotulo: 'Fase final: arquivar', icone: CheckCircle2, acao: () => setAcao({ tipo: 'situacao', status: 'arquivado' }) };
         }
     }
+
+    /**
+     * Juntada em conjunto: um documento por vez, na ordem escolhida (cada juntada é um ato nos autos, validado
+     * pelo servidor). Se um falhar, os anteriores já estão juntados e a tela mostra onde parou.
+     */
+    const juntarEmConjunto = async (plano, { visivel, depois }) => {
+        const juntados = plano.filter((x) => x.acao === 'juntar').length;
+        const ok = await executar(async () => {
+            let version = p.version;
+            let feitos = 0;
+            for (const passo of plano) {
+                try {
+                    const r = passo.acao === 'juntar'
+                        ? await secDocumento(orgId, procId, 'juntar', { docId: passo.docId, version, pendencia: 'nao', visivel_partes: visivel, assinar: passo.assinar })
+                        : await secDocumento(orgId, procId, 'guardar', { docId: passo.docId, version });
+                    version = r.version;
+                    feitos += 1;
+                } catch (e) {
+                    atualizar();
+                    throw new Error(`${feitos ? `${feitos} de ${plano.length} concluído(s). ` : ''}Parou em "${passo.titulo}": ${e?.message || 'não foi possível concluir'}`);
+                }
+            }
+        }, `${juntados} ${juntados === 1 ? 'documento juntado' : 'documentos juntados'} aos autos`);
+        if (!ok) return;
+        setConjunta(false);
+        if (depois && principal) {
+            // Com o processo já atualizado: o que faltava na fase pode ter sido cumprido pela juntada.
+            await qc.refetchQueries({ queryKey: ['sec-proc', orgId, procId] });
+            principal.acao();
+        }
+    };
+    const finalizaComDocumentos = faseAtual?.juntada_conjunta === true;
 
     const ultimoDoc = autos[autos.length - 1];
     const diasTramitando = diasDesde(p.autuado_em);
@@ -554,11 +598,22 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 <div className="lg:col-span-3 space-y-5">
                     {posse && (
                         <Card>
-                            <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                            <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                                 <CardTitle className="text-base" title="Rascunhos da unidade: só entram nos autos quando alguém os junta">Minutas da unidade</CardTitle>
-                                <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setNovoDoc(true)}><Plus className="w-4 h-4" /> Novo documento</Button>
+                                <div className="flex flex-wrap gap-2">
+                                    {(finalizaComDocumentos ? minutas.length >= 1 : minutas.length >= 2) && (
+                                        <Button size="sm" variant={finalizaComDocumentos ? 'default' : 'outline'} className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setConjunta(true)}
+                                            title="Escolher, ordenar, assinar e juntar os documentos de uma vez">
+                                            <ListChecks className="w-4 h-4" /> {finalizaComDocumentos ? rotuloFinalizar(faseAtual) : 'Juntar em conjunto'}
+                                        </Button>
+                                    )}
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setNovoDoc(true)}><Plus className="w-4 h-4" /> Novo documento</Button>
+                                </div>
                             </CardHeader>
                             <CardContent className="space-y-2">
+                                {finalizaComDocumentos && minutas.length === 0 && podeMexer && (
+                                    <p className="text-sm text-slate-700 dark:text-slate-300">Esta fase termina com o botão {rotuloFinalizar(faseAtual)}: redija ou anexe os documentos; depois escolha quais entram nos autos e em que ordem.</p>
+                                )}
                                 {minutas.length === 0 && <p className="text-sm text-slate-600">Minutas ficam visíveis só para a sua unidade até a juntada, salvo as que seguem com o processo numa remessa.</p>}
                                 {minutas.map((d) => {
                                     const assinei = d.assinaturas.some((a) => a.uid === estado.uid);
@@ -578,6 +633,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             {d.origem === 'editor'
                                                 ? <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => abrirMinuta(d)}>{d.assinaturas.length ? 'Ler' : 'Editar'}</Button>
                                                 : <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label="Baixar"><Download className="w-4 h-4" /></Button>}
+                                            {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
                                             <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
                                             {membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
                                             <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>
@@ -728,6 +784,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 </div>
                                 {d.peticao && <Badge variant="secondary">Petição da parte{d.peticao_tipo ? `: ${d.peticao_tipo}` : ''}</Badge>}
                                 {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}
+                                {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
                                 <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => verNosAutos(d)} aria-label={`Ver ${d.titulo} nos autos`} title="Ver nos autos (PDF com folhas)"><Eye className="w-4 h-4" /></Button>
                                 {d.origem === 'upload' && <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo original de ${d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
                             </div>
@@ -751,6 +808,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                         <p className="font-medium break-words">{d.titulo}</p>
                                         <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, d.guardado_em && `guardado em ${dataHora(d.guardado_em)}`, d.guardado_por, d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : ''].filter(Boolean).join(' · ')}</p>
                                     </div>
+                                    {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
                                     {d.origem === 'editor'
                                         ? <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => abrirMinuta(d)} aria-label={`Ler ${d.titulo}`}><Eye className="w-4 h-4" /></Button>
                                         : <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar ${d.titulo}`}><Download className="w-4 h-4" /></Button>}
@@ -819,9 +877,21 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     atualizar();
                     return r.id;
                 }}
-                onPdf={(docId) => secDocumento(orgId, procId, 'pdf', { docId })}
+                onPdf={(docId) => secDocumento(orgId, procId, 'pdf', { docId, ...(editor?.versaoId ? { versaoId: editor.versaoId } : {}) })}
                 onFechar={() => setEditor(null)}
             />
+            <JuntadaConjunta
+                aberto={conjunta}
+                titulo={finalizaComDocumentos ? rotuloFinalizar(faseAtual) : 'Juntar em conjunto'}
+                minutas={minutas}
+                uid={estado.uid}
+                ocupado={ocupado}
+                seguir={finalizaComDocumentos && principal ? principal.rotulo : null}
+                onAnexar={enviarArquivo}
+                onConfirmar={juntarEmConjunto}
+                onFechar={() => setConjunta(false)}
+            />
+            <VersoesMinuta orgId={orgId} procId={procId} documento={versoesDe} ocupado={ocupado} onLer={(v) => lerVersao(versoesDe, v)} onFechar={() => setVersoesDe(null)} />
             <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
                 <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                     <DialogHeader><DialogTitle>{confirmar?.titulo}</DialogTitle><DialogDescription>{confirmar?.texto}</DialogDescription></DialogHeader>

@@ -213,7 +213,9 @@ informado.
 
 - Normal: a equipe do órgão vê; restrito: só quem por ele passou e o admin;
   minuta: só a unidade que a redigiu e as unidades a quem ela a enviou com
-  o processo (a assessoria que minuta para o gabinete assinar).
+  o processo (a assessoria que minuta para o gabinete assinar). A redação
+  de quem escreveu antes de outra pessoa revisar fica guardada (versões),
+  com o mesmo acesso do documento e nunca para as partes.
 - A parte vê pelo portal só o que lhe diz respeito: documentos marcados
   como visíveis, atos dos autos, comunicações a ela. Nunca registros
   internos, pendências, orientações ou minutas.
@@ -244,6 +246,7 @@ informado.
 | Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |
 | Minuta | Trabalho interno da unidade (`minutaAcessivel`); segue com o processo quando marcada na remessa (`unidades_acesso`), sem constar do termo |
 | Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a secretaria expede, sempre nos autos |
+| Revisão | Redações anteriores em `documentos/{doc}/versoes` (`versaoAnterior` em `functions-v2/src/shared/secretaria.ts`, gravada por `editarMinuta`); botão Finalizar da fase (`fase.juntada_conjunta`): juntadas comuns em sequência, na ordem escolhida (`src/lib/juntadaConjunta.js`) |
 | Fase de espera | `fase.espera` no rito e `secProcessos.espera` (`{ fase, unidade, responsavel_uid, desde }`); `saidasDoProcesso` em `functions-v2/src/shared/secretaria.ts`; a volta não zera o estado da fase de origem (`ehRetomada` em `processos.ts`) |
 | Impulso automático | `fase.avanco: 'auto'` (`saidaAutomatica`), `fase.ao_entrar.arquivar` e `fase.situacao_registro` (coluna da consulta ou do expediente ligado, `functions-v2/src/shared/situacaoRegistro.ts`), aplicados em `functions-v2/src/secretaria/processos.ts` |
 | Impedimento de parte | `ehParte` em `functions-v2/src/shared/secretaria.ts` |
