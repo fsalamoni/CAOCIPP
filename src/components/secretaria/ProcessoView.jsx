@@ -722,8 +722,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             <p>{x.descricao}{x.destinatario ? ` · ${x.destinatario}` : ''}</p>
                                             <p className={`text-xs ${vencido ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
                                                 {x.dias} dias {x.contagem === 'uteis' ? 'úteis' : 'corridos'} · {vencido ? 'venceu' : 'vence'} em {x.vence_em.split('-').reverse().join('/')}
+                                                {x.ajustes?.length ? ` · ${x.ajustes.map((a) => `${a.tipo === 'prorrogacao' ? 'prorrogado' : 'devolvido'} por ${a.dias}`).join(', ')}` : ''}
                                             </p>
                                         </div>
+                                        {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'ajustarPrazo', prazo: x, modo: vencido ? 'devolverPrazo' : 'prorrogarPrazo' })}>{vencido ? 'Devolver' : 'Prorrogar'}</Button>}
                                         {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'encerrarPrazo', prazo: x })}>Encerrar</Button>}
                                     </div>
                                 );
@@ -1166,6 +1168,25 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             </div>
         );
         enviar = () => mov('abrirPrazo', { descricao: motivo, dias: Number(dias), contagem, destinatario }, 'Prazo aberto');
+    } else if (tipo === 'ajustarPrazo') {
+        const devolve = acao.modo === 'devolverPrazo';
+        titulo = devolve ? 'Devolver prazo' : 'Prorrogar prazo';
+        exigeTexto = true;
+        rotuloTexto = devolve ? 'Motivo (ex.: o sistema ficou indisponível; a parte não teve acesso aos autos)' : 'Motivo (ex.: deferido o pedido da parte, petição nº 3)';
+        const pz = acao.prazo;
+        campo = (
+            <>
+                <p className="text-sm text-slate-700 dark:text-slate-300">
+                    {pz.descricao}{pz.destinatario ? ` · ${pz.destinatario}` : ''} · {devolve ? 'venceu' : 'vence'} em {pz.vence_em.split('-').reverse().join('/')}.{' '}
+                    {devolve
+                        ? 'O prazo corre de novo, pelos dias abaixo, a contar de hoje. Se a parte ainda não respondeu, o decurso deixa de valer e a espera do rito reabre.'
+                        : 'Os dias se somam ao vencimento atual, na mesma contagem.'}{' '}
+                    Vira certidão nos autos{pz.destinatario ? ', e a parte vê o novo vencimento no portal' : ''}.
+                </p>
+                <div className="w-32"><Label htmlFor="prazo-dias">Dias {pz.contagem === 'corridos' ? 'corridos' : 'úteis'}</Label><Input id="prazo-dias" type="number" inputMode="numeric" min={1} max={3650} value={dias} onChange={(e) => setDias(e.target.value)} /></div>
+            </>
+        );
+        enviar = () => mov(acao.modo, { prazo_id: pz.id, dias: Number(dias), motivo }, devolve ? 'Prazo devolvido' : 'Prazo prorrogado');
     } else if (tipo === 'encerrarPrazo') {
         titulo = 'Encerrar prazo';
         exigeValor = true;
@@ -1393,7 +1414,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         enviar = () => mov('urgencia', { urgente: !p.urgente, motivo }, p.urgente ? 'Urgência retirada' : 'Processo marcado como urgente');
     }
     if (tipo === 'situacao' || tipo === 'urgencia') { exigeTexto = true; rotuloTexto = 'Motivo'; }
-    const diasInvalidos = tipo === 'prazo' && !(Number(dias) >= 1);
+    const diasInvalidos = (tipo === 'prazo' || tipo === 'ajustarPrazo') && !(Number(dias) >= 1);
     const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'guardar' || tipo === 'convidar' || tipo === 'pedirAssinatura';
     const glossa = tipo === 'juntar' ? 'juntada' : tipo === 'tramitar' || tipo === 'devolver' ? 'remessa' : null;
 

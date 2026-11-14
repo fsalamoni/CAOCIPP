@@ -16,7 +16,8 @@ import {
 import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { responsavelPelaFase } from '../shared/efeitosFase';
 import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
-import { RESPOSTAS, encerrarComunicacoesDaFase, situacaoDaResposta } from '../shared/comunicacaoRito';
+import { RESPOSTAS, encerrarComunicacoesDaFase, faseQueEspera, situacaoDaResposta } from '../shared/comunicacaoRito';
+import { ajustarComunicacao, ajustarPrazo } from '../shared/ajustePrazo';
 import { Audiencia, ESPECIES_AUDIENCIA, aplicarAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
 import { sendEmail } from '../shared/email';
 import {
@@ -34,7 +35,7 @@ import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
-import { configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
+import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
     COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarInternos, registrarMovimento,
@@ -49,7 +50,7 @@ import {
 interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
-        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'convidarParte' | 'revogarParte'
+        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'prorrogarPrazo' | 'devolverPrazo' | 'convidarParte' | 'revogarParte'
         | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia' | 'expedirComunicacao' | 'tornarSemEfeito'
         | 'excluir' | 'restaurar' | 'excluidos' | 'emitirCertidao' | 'vinculados' | 'indice';
     /** Comunicação a expedir (espécie, texto, destinatários, prazo, meio). */
@@ -1074,7 +1075,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = texto(p.motivo, MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
-    const calendario: CalendarioOrgao | undefined = ['abrirPrazo', 'tramitar', 'avancarFase', 'marcarAcao'].includes(String(p.action))
+    const calendario: CalendarioOrgao | undefined = ['abrirPrazo', 'prorrogarPrazo', 'devolverPrazo', 'tramitar', 'avancarFase', 'marcarAcao'].includes(String(p.action))
         ? sanitizeCalendario((await db.collection(COL.config).doc(orgId).get()).data()?.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await configComunicacoes(db, orgId) : null;
@@ -1646,6 +1647,30 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, { prazo_id: alvo.id, resultado: res, ...(alvo.automatico === true ? marcasDoDestino('informacao') : marcasNaFase(data, 'prazo')) });
             tx.update(ref, { ...mov, prazos: lista, ...derivados(pendencias, lista) });
             return mov;
+        }
+
+        // Prorrogar (o prazo corre) ou devolver (já venceu): certidão nos autos e, se é
+        // o prazo de resposta de uma comunicação, ela acompanha; a devolução reabre a espera.
+        if (p.action === 'prorrogarPrazo' || p.action === 'devolverPrazo') {
+            const tipo = p.action === 'prorrogarPrazo' ? 'prorrogacao' : 'devolucao';
+            const alvo = prazos.find((x) => x.id === p.prazo_id);
+            if (!alvo) throw new HttpsError('not-found', 'Prazo não encontrado');
+            let aj!: ReturnType<typeof ajustarPrazo>;
+            try { aj = ajustarPrazo(alvo, tipo, p.dias, motivo, hojeBrasil(), calendario, { em: agora, por: c.userName }); } catch (e) { throw new HttpsError('invalid-argument', (e as Error).message); }
+            const lista = prazos.map((x) => (x.id === alvo.id ? aj.prazo : x));
+            const com = ajustarComunicacao(data, alvo.id, aj.prazo.vence_em, tipo, faseQueEspera<Fase>(data));
+            // Prazo da parte (de comunicação) é ato público; o interno da fase fica nas informações.
+            const marcas = com ? {} : alvo.automatico === true ? marcasDoDestino('informacao') : marcasNaFase(data, 'prazo');
+            const mov = registrarMovimento(tx, c, ref, data, tipo === 'prorrogacao' ? 'prazo_prorrogado' : 'prazo_devolvido', aj.texto,
+                { prazo_id: alvo.id, vence_em: aj.prazo.vence_em, ...marcas });
+            const comCampos = com ? {
+                comunicacoes: com.comunicacoes,
+                ...(com.acoes_feitas ? { acoes_feitas: com.acoes_feitas, acoes_respostas: com.acoes_respostas } : {}),
+            } : {};
+            const notas = com?.reabertas.length ? [`Com a devolução do prazo, a espera da resposta volta a correr (${com.reabertas.length === 1 ? 'uma ação' : `${com.reabertas.length} ações`} do rito).`] : [];
+            const ac = com ? acertarAcoesDoRito(tx, c, ref, { ...data, ...mov, ...comCampos }, notas) : { campos: {} };
+            tx.update(ref, { ...mov, prazos: lista, ...derivados(pendencias, lista), ...comCampos, ...ac.campos });
+            return { ...mov, ...ac.campos };
         }
 
         if (p.action === 'convidarParte' || p.action === 'revogarParte') {

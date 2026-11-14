@@ -254,6 +254,12 @@ informado.
   participantes), intimar (comunicação com `{audiencia}`), registrar se
   houve a audiência e juntar a ata. Testemunha e perito não são partes:
   participam pelo nome na certidão.
+- **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
+  força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
+  e 223), a autoridade pode dilatar o prazo antes do vencimento
+  (prorrogação) e restituí-lo a quem provou justa causa depois dele
+  (devolução). Os dois são motivados e certificados nos autos; a devolução
+  desfaz o efeito do decurso para a parte que não respondeu.
 - **Uma rodada por passagem na fase**: se o processo volta à fase, a
   comunicação é nova, com prazo novo. A diligência em fase de espera não
   suspende o prazo da parte.

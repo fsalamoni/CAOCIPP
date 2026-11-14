@@ -17,7 +17,7 @@ const autos_2 = require("../shared/autos");
  * Preferência por conta (secPortalAcessos/{uid}.avisos): "tudo" (padrão),
  * "prazos" (só prazos, decisões e situação) ou "nenhum".
  */
-const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso', 'decurso_prazo'];
+const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'prazo_prorrogado', 'prazo_devolvido', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso', 'decurso_prazo'];
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso) => iso.split('-').reverse().join('/');
 async function destinatarios(db, proc, filtro) {
@@ -91,7 +91,7 @@ async function avisarDoMovimento(db, procId, proc, seq, autorUid) {
 function rotulo(tipo) {
     return {
         juntada: 'novo documento nos autos', peticao: 'petição protocolada', fase: 'o processo mudou de fase', situacao: 'a situação do processo mudou',
-        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', comunicacao: 'comunicação expedida, aguardando ciência', ciencia_decurso: 'ciência registrada por decurso', decurso_prazo: 'prazo encerrado sem manifestação', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
+        prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', prazo_prorrogado: 'prazo prorrogado', prazo_devolvido: 'prazo devolvido', comunicacao: 'comunicação expedida, aguardando ciência', ciencia_decurso: 'ciência registrada por decurso', decurso_prazo: 'prazo encerrado sem manifestação', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
     }[tipo] || 'novo andamento';
 }
 /**

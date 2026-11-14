@@ -54,6 +54,8 @@ const TITULOS: Record<string, string> = {
     pendencia_resolvida: 'Certidão de apreciação',
     prazo: 'Certidão de abertura de prazo',
     prazo_encerrado: 'Certidão de encerramento de prazo',
+    prazo_prorrogado: 'Certidão de prorrogação de prazo',
+    prazo_devolvido: 'Certidão de devolução de prazo',
     habilitacao: 'Termo de habilitação',
     acesso_revogado: 'Certidão de revogação de acesso',
     dados: 'Certidão de alteração de dados',
