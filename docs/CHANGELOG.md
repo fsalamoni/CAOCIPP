@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Documentos e textos do rito
+- Documento exigido (da fase ou da ação) com **assinaturas exigidas** (1 a 5)
+  e, se quiser, **uma assinatura de quem tem certa atribuição** (ex.:
+  Promotor). Sem elas, o documento não cumpre a exigência; quem a marca na
+  juntada recebe o aviso do que falta. "Assinar antes de juntar" conta.
+- Documento exigido que **fica fora do portal das partes**: juntado para
+  cumprir a exigência, não aparece às partes, mesmo que quem junta escolha
+  "Visível às partes". Só esconde, nunca mostra.
+- **Frase de abertura da certidão conjunta**, no lugar de "Certifico que
+  foram cumpridos os seguintes atos:".
+- **Nome do botão que conclui a fase** (ex.: "Enviar ao relator") e
+  **explicação para as partes**, que aparece no portal sob o nome da fase.
+- Rito e processo antigos seguem como estavam. Guia do rito, parte 17.
+
 ### 14/11/2026 — Guia de implantação
 - Novo botão **Guia de implantação** em Painel Administrativo > Processo
   Eletrônico: como mapear o processo real, escolher o modelo da biblioteca,

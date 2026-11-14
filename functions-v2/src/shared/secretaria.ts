@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import {
-    CertidaoFase, Condicao, Exigencia, FaseDaCondicao, RegraAcao, Registro, RegistroAtos, condicaoAmpla, condicaoAtendida, respostasDaFase, sanitizeCondicao,
+    ABERTURA_CERTIDAO, CertidaoFase, MAX_ABERTURA_CERTIDAO, Condicao, Exigencia, FaseDaCondicao, RegraAcao, Registro, RegistroAtos, condicaoAmpla, condicaoAtendida, respostasDaFase, sanitizeCondicao,
     sanitizeCondicaoAmpla, sanitizeRegras,
 } from './exigencias';
 import { SituacaoRegistro, sanitizeSituacaoRegistro } from './situacaoRegistro';
@@ -43,6 +43,10 @@ export interface Fase {
     prazo_contagem?: 'corridos';
     /** Nome que as partes veem no portal. Ausente = o nome da fase. Os termos nos autos usam o nome oficial. */
     nome_publico?: string;
+    /** Explicação que as partes leem no portal, sob o nome da fase (o que acontece nela e o que se espera delas). */
+    explicacao_publica?: string;
+    /** Nome do botão que conclui a fase e segue (ex.: "Enviar ao relator"). Ausente = "Concluir e seguir para...". */
+    rotulo_concluir?: string;
     /** O que acontece ao entrar na fase: urgência, sigilo, responsável, pendência ao decisor e arquivamento (ver shared/efeitosFase.ts). */
     ao_entrar?: AoEntrar;
     /** Quem é avisado quando o processo entra na fase, e com que mensagem. Ausente = a unidade, quando ele chega por remessa. */
@@ -167,6 +171,8 @@ export const MAX_ACOES = 20;
 /** Campos de formulário somados em todas as ações do rito (o documento do rito tem limite de tamanho). */
 export const MAX_CAMPOS_RITO = 200;
 export const MAX_MODELOS_FASE = 10;
+export const MAX_EXPLICACAO_PUBLICA = 400;
+export const MAX_ROTULO_CONCLUIR = 40;
 
 export const TIPOS_ARQUIVO_PERMITIDOS: Record<string, string> = {
     'application/pdf': 'pdf',
@@ -252,6 +258,8 @@ export function sanitizeRito(input: unknown): Rito {
         const prazo = Number(fo.prazo_dias);
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
+        const explicacaoPublica = texto(fo.explicacao_publica, MAX_EXPLICACAO_PUBLICA);
+        const rotuloConcluir = texto(fo.rotulo_concluir, MAX_ROTULO_CONCLUIR);
         const aoEntrar = sanitizeAoEntrar(fo.ao_entrar, nomeFase);
         const aviso = sanitizeAviso(fo.aviso);
         const situacaoRegistro = sanitizeSituacaoRegistro(fo.situacao_registro);
@@ -316,9 +324,11 @@ export function sanitizeRito(input: unknown): Rito {
         const grupoBruto = texto(cf.grupo, 40);
         const grupo = grupoBruto ? (ids.get(grupoBruto) ?? (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
         const titulo = texto(cf.titulo, 120);
+        const abertura = texto(cf.abertura, MAX_ABERTURA_CERTIDAO).replace(/\s+/g, ' ');
         const certidao: CertidaoFase = {
             ...(grupo && grupo !== id ? { grupo } : {}),
             ...(titulo ? { titulo } : {}),
+            ...(abertura && abertura !== ABERTURA_CERTIDAO ? { abertura } : {}),
             ...(cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}),
         };
         return {
@@ -328,6 +338,8 @@ export function sanitizeRito(input: unknown): Rito {
             ...(prazoOk ? { prazo_dias: prazo } : {}),
             ...(prazoOk && fo.prazo_auto === true ? { prazo_auto: true, ...(fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' as const } : {}) } : {}),
             ...(nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {}),
+            ...(explicacaoPublica ? { explicacao_publica: explicacaoPublica } : {}),
+            ...(rotuloConcluir && !final ? { rotulo_concluir: rotuloConcluir } : {}),
             ...(Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {}),
             ...(aviso ? { aviso } : {}),
             ...prazosDaFase,

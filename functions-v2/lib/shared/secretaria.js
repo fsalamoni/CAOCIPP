@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HISTORICO_CONFIG = exports.unidadeExpede = exports.unidadeDecide = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.HISTORICO_CONFIG = exports.unidadeExpede = exports.unidadeDecide = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_ROTULO_CONCLUIR = exports.MAX_EXPLICACAO_PUBLICA = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
 exports.minutaAcessivel = minutaAcessivel;
 exports.versaoAnterior = versaoAnterior;
@@ -100,6 +100,8 @@ exports.MAX_ACOES = 20;
 /** Campos de formulário somados em todas as ações do rito (o documento do rito tem limite de tamanho). */
 exports.MAX_CAMPOS_RITO = 200;
 exports.MAX_MODELOS_FASE = 10;
+exports.MAX_EXPLICACAO_PUBLICA = 400;
+exports.MAX_ROTULO_CONCLUIR = 40;
 exports.TIPOS_ARQUIVO_PERMITIDOS = {
     'application/pdf': 'pdf',
     'image/png': 'png',
@@ -184,6 +186,8 @@ function sanitizeRito(input) {
         const prazo = Number(fo.prazo_dias);
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
+        const explicacaoPublica = texto(fo.explicacao_publica, exports.MAX_EXPLICACAO_PUBLICA);
+        const rotuloConcluir = texto(fo.rotulo_concluir, exports.MAX_ROTULO_CONCLUIR);
         const aoEntrar = (0, efeitosFase_1.sanitizeAoEntrar)(fo.ao_entrar, nomeFase);
         const aviso = (0, efeitosFase_1.sanitizeAviso)(fo.aviso);
         const situacaoRegistro = (0, situacaoRegistro_1.sanitizeSituacaoRegistro)(fo.situacao_registro);
@@ -257,8 +261,9 @@ function sanitizeRito(input) {
         const grupoBruto = texto(cf.grupo, 40);
         const grupo = grupoBruto ? ((_e = ids.get(grupoBruto)) !== null && _e !== void 0 ? _e : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
         const titulo = texto(cf.titulo, 120);
-        const certidao = Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (aviso ? { aviso } : {})), prazosDaFase), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), (saidaPadrao ? { saida_padrao: saidaPadrao } : {})), regras);
+        const abertura = texto(cf.abertura, exigencias_1.MAX_ABERTURA_CERTIDAO).replace(/\s+/g, ' ');
+        const certidao = Object.assign(Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (abertura && abertura !== exigencias_1.ABERTURA_CERTIDAO ? { abertura } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (explicacaoPublica ? { explicacao_publica: explicacaoPublica } : {})), (rotuloConcluir && !final ? { rotulo_concluir: rotuloConcluir } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (aviso ? { aviso } : {})), prazosDaFase), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), (saidaPadrao ? { saida_padrao: saidaPadrao } : {})), regras);
     });
     // 2ª passada das condições: as que leem outra fase, dado do processo ou várias coisas ao mesmo tempo.
     const daCondicao = (k) => ({ id: fases[k].id, nome: fases[k].nome, acoes: fases[k].acoes || [], regras: fases[k].acoes_regras || [], mapa: apoio[k].mapa });

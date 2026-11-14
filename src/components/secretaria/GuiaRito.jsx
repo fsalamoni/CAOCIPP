@@ -319,6 +319,21 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <li>Implante. Depois, o rito e o tipo se editam como qualquer outro.</li>
                             </ol>
                         </Parte>
+                        <Parte titulo="17. Documentos e textos do rito">
+                            <p>O rito também define como o documento exigido precisa estar para valer, e os textos que a equipe e as partes leem.</p>
+                            <table className={tabela}>
+                                <thead><tr><th>Opção</th><th>Onde</th><th>O que faz</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Assinaturas exigidas</td><td>Documento exigido (da fase ou da ação)</td><td>O documento só cumpre a exigência com esse número de assinaturas (1 a 5). Ex.: decisão de comissão com 3 membros. "Assinar antes de juntar" conta. Não vale para documento recebido de fora.</td></tr>
+                                    <tr><td>Uma das assinaturas é de quem tem a atribuição</td><td>Documento exigido</td><td>Ao menos um signatário tem essa atribuição na lotação, em qualquer unidade do órgão. Ex.: o parecer só vale assinado pelo Promotor. Sem ela, quem marcar a exigência na juntada recebe o aviso do que falta.</td></tr>
+                                    <tr><td>Fica fora do portal das partes</td><td>Documento exigido que vai aos autos</td><td>O documento juntado para cumprir a exigência não aparece no portal, mesmo que quem junta escolha "Visível às partes". Só esconde: nunca mostra o que quem juntou deixou só para a equipe. Ex.: relatório preliminar da comissão.</td></tr>
+                                    <tr><td>Frase de abertura</td><td>Certidão conjunta, na fase que reúne o grupo</td><td>Troca "Certifico que foram cumpridos os seguintes atos:" por outra frase. Os itens vêm logo depois, numerados. Ex.: "Certifico, para os devidos fins, que foram praticados os seguintes atos:".</td></tr>
+                                    <tr><td>Nome do botão que conclui a fase</td><td>Fase, junto do nome para as partes</td><td>O botão principal passa a dizer o que o ato é, em vez de "Concluir e seguir para…". Ex.: "Enviar ao relator", "Publicar o edital". Para onde vai continua o mesmo: o rótulo não muda o caminho.</td></tr>
+                                    <tr><td>Explicação para as partes no portal</td><td>Fase</td><td>Até 400 caracteres, sob o nome da fase no portal. Diga o que acontece na etapa e o que a parte pode fazer. É texto público: nada interno.</td></tr>
+                                </tbody>
+                            </table>
+                            <p>Processos antigos seguem como estavam: sem essas opções, nada muda.</p>
+                        </Parte>
                     </div>
                 </DialogContent>
             </Dialog>

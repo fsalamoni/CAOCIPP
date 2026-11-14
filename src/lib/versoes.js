@@ -36,7 +36,7 @@ function casar(versao, atual, chave) {
     };
 }
 
-const FASE = [['nome', 'nome'], ['nome_publico', 'nome para as partes'], ['prazo_dias', 'prazo'], ['prazo_auto', 'prazo automático'], ['prazo_contagem', 'contagem do prazo'],
+const FASE = [['nome', 'nome'], ['nome_publico', 'nome para as partes'], ['explicacao_publica', 'explicação para as partes'], ['rotulo_concluir', 'nome do botão de concluir'], ['prazo_dias', 'prazo'], ['prazo_auto', 'prazo automático'], ['prazo_contagem', 'contagem do prazo'],
     ['unidade_id', 'unidade'], ['agente', 'quem faz'], ['orientacao', 'orientação'], ['proximas', 'próximas fases'], ['final', 'fase final'], ['condicoes', 'condições das saídas'],
     ['condicoes_regra', 'regra das saídas'], ['saida_padrao', 'saída padrão'], ['modelos', 'modelos sugeridos'], ['documentos', 'documentos exigidos'], ['registro_atos', 'registro nos autos'],
     ['registro', 'registro nos autos'], ['certidao', 'certidão'], ['ao_entrar', 'ao entrar na fase'], ['aviso', 'quem é avisado'],

@@ -198,6 +198,12 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         await bucket.file((0, autos_1.caminhoPdf)(caminhoArquivo(c.orgId, procRef.id, p.docId))).delete({ ignoreNotFound: true });
         return { success: true };
     }
+    // O documento como o rito o confere: tipo, modelo, assinaturas e as atribuições de quem assinou.
+    const docJuntado = (doc) => {
+        const uids = new Set((doc.assinaturas || []).map((a) => a.uid));
+        const atribuicoes = c.unidades.flatMap((u) => (0, secretaria_2.lotacoesDe)(u)).filter((l) => uids.has(l.uid)).map((l) => l.atribuicao).filter((a) => !!a);
+        return { origem: String(doc.origem || ''), tipo: doc.tipo, modelo_id: doc.modelo_id, assinaturas: uids.size, atribuicoes };
+    };
     const assinarMinuta = () => c.db.runTransaction(async (tx) => {
         const { ref, doc } = await lerDoc(tx);
         const atual = (await tx.get(procRef)).data() || {}; // leituras antes de qualquer escrita
@@ -309,8 +315,6 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             }
             const folha = (await (0, autos_1.folhasDoProcesso)(tx, pr, atual)) + 1;
             const ordem = (Number(atual.doc_seq) || 0) + 1;
-            // Documento interno (ex.: informação da secretaria) pode ficar fora do portal das partes.
-            const visivel = p.visivel_partes !== false;
             const assin = (doc.assinaturas || []).map((a) => a.nome).join(', ');
             // Opcional: a juntada já deixa o documento marcado para o
             // decisor apreciar (ex.: petição recebida por outro meio).
@@ -327,12 +331,15 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas, (0, exigencias_1.respostasDaFase)(atual));
             let cumpre = [];
             try {
-                cumpre = (0, exigencias_1.reconhecer)(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id }, p.atende);
+                cumpre = (0, exigencias_1.reconhecer)(pendentes, Object.assign(Object.assign({}, docJuntado(doc)), { origem: doc.origem }), p.atende);
             }
             catch (e) {
                 (0, context_1.erroUsuario)(e);
             }
             const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
+            // Documento interno (ex.: informação da secretaria) pode ficar fora do portal das partes;
+            // o rito também pode pedir isso para o documento exigido (só esconde, nunca mostra).
+            const visivel = p.visivel_partes !== false && !cumpridas.some((e) => e.partes === false);
             const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, ordem) : {};
@@ -373,7 +380,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas, (0, exigencias_1.respostasDaFase)(atual));
             let cumpre = [];
             try {
-                cumpre = (0, exigencias_1.reconhecer)(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id, controle: true }, p.atende);
+                cumpre = (0, exigencias_1.reconhecer)(pendentes, Object.assign(Object.assign({}, docJuntado(doc)), { controle: true }), p.atende);
             }
             catch (e) {
                 (0, context_1.erroUsuario)(e);

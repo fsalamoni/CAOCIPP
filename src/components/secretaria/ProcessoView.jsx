@@ -39,7 +39,7 @@ import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { notaDoPrazo, prazoAbertoDaAcao } from '@/lib/efeitosFase';
 import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
-import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
 import { audienciasFuturas, nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
@@ -260,6 +260,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     // Botão único da fase: o que o rito espera agora.
     let principal = null;
+    // Nome que o rito deu ao botão de concluir a fase (ex.: "Enviar ao relator").
+    const rotuloConcluir = faseAtual?.rotulo_concluir;
     if (podeMexer) {
         if (unidadeDaFase) {
             principal = { rotulo: `Enviar para ${unidadeDaFase.nome}`, icone: Send, acao: () => setAcao({ tipo: 'tramitar', destino: unidadeDaFase.id }) };
@@ -279,17 +281,17 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             const f = proximas[0];
             const un = f.unidade_id && f.unidade_id !== p.unidade_atual ? estado.unidades.find((u) => u.id === f.unidade_id && u.ativa) : null;
             principal = un
-                ? { rotulo: `Concluir e enviar para ${un.nome}`, icone: Send, acao: () => setAcao({ tipo: 'tramitar', destino: un.id, fase_id: f.id }) }
-                : { rotulo: `Concluir e seguir para ${f.nome}`, icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase', fase_id: f.id }) };
+                ? { rotulo: rotuloConcluir || `Concluir e enviar para ${un.nome}`, icone: Send, acao: () => setAcao({ tipo: 'tramitar', destino: un.id, fase_id: f.id }) }
+                : { rotulo: rotuloConcluir || `Concluir e seguir para ${f.nome}`, icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase', fase_id: f.id }) };
         } else if (proximas.length > 1 && indicadas.length === 1) {
             // A resposta registrada indica uma das saídas: o botão já leva a ela (o diálogo deixa trocar).
             const f = indicadas[0].fase;
             const un = f.unidade_id && f.unidade_id !== p.unidade_atual ? estado.unidades.find((u) => u.id === f.unidade_id && u.ativa) : null;
             principal = un
-                ? { rotulo: `Concluir e enviar para ${un.nome}`, icone: Send, acao: () => setAcao({ tipo: 'tramitar', destino: un.id, fase_id: f.id }) }
-                : { rotulo: `Concluir e seguir para ${f.nome}`, icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase', fase_id: f.id }) };
+                ? { rotulo: rotuloConcluir || `Concluir e enviar para ${un.nome}`, icone: Send, acao: () => setAcao({ tipo: 'tramitar', destino: un.id, fase_id: f.id }) }
+                : { rotulo: rotuloConcluir || `Concluir e seguir para ${f.nome}`, icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase', fase_id: f.id }) };
         } else if (proximas.length > 1) {
-            principal = { rotulo: 'Seguir para a próxima fase…', icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase' }) };
+            principal = { rotulo: rotuloConcluir ? `${rotuloConcluir}…` : 'Seguir para a próxima fase…', icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase' }) };
         } else if (noGabinete && pendenciasAbertas.length) {
             principal = { rotulo: 'Apreciar a pendência', icone: AlertCircle, acao: () => setAcao({ tipo: 'resolver', pendencia: pendenciasAbertas[0] }) };
         } else {
@@ -1201,7 +1203,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         titulo = `Juntar aos autos: ${acao.documento.titulo}`;
         const decideAlguma = noGabinete && pendenciasAbertas.length > 0;
         const exigAutos = exigDocs.filter((e) => !e.destino);
-        const marcadas = atende ?? sugeridas(exigAutos, acao.documento);
+        // A assinatura de "Assinar antes de juntar" conta para o que o rito pede.
+        const marcadas = atende ?? sugeridas(exigAutos, { ...acao.documento, n_assinaturas: (acao.documento.assinaturas || []).length + (!acao.assinei && assinar ? 1 : 0) });
         campo = (
             <>
                 {exigAutos.length > 0 && (
@@ -1211,7 +1214,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                             <label key={e.chave} className="flex items-start gap-2 text-sm">
                                 <input type="checkbox" className="mt-1" checked={marcadas.includes(e.chave)}
                                     onChange={(ev) => setAtende(ev.target.checked ? [...marcadas, e.chave] : marcadas.filter((k) => k !== e.chave))} />
-                                <span>{e.descricao}{e.tipo ? ` (${e.tipo})` : ''}</span>
+                                <span>{e.descricao}{e.tipo ? ` (${e.tipo})` : ''}{exigeDoDocumento(e) ? <span className="block text-xs text-slate-600 dark:text-slate-400">{exigeDoDocumento(e)}</span> : null}</span>
                             </label>
                         ))}
                     </fieldset>
@@ -1224,7 +1227,9 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                         options={[['', 'Não'], ...pendenciasAbertas.map((x) => [x.id, x.descricao.slice(0, 80)])]} />
                 )}
                 {!resolve && <NativeSelect label="Pendência para o decisor" value={valor} onChange={setValor} options={[['', 'Não abrir'], ['sim', 'Abrir pendência, a fase segue'], ['interrompe', 'Abrir pendência e interromper a fase']]} />}
-                <NativeSelect label="Portal das partes" value={visivel} onChange={setVisivel} options={[['sim', 'Visível às partes'], ['nao', 'Só para a equipe']]} />
+                {exigAutos.some((e) => e.partes === false && marcadas.includes(e.chave))
+                    ? <p className="text-sm">Portal das partes: <b>só para a equipe</b>, como o rito pede para este documento.</p>
+                    : <NativeSelect label="Portal das partes" value={visivel} onChange={setVisivel} options={[['sim', 'Visível às partes'], ['nao', 'Só para a equipe']]} />}
             </>
         );
         enviar = () => doc('juntar', {

@@ -114,8 +114,9 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     // O que a parte vê desta fase, tirado das regras do rito.
     const acoesPartes = acoes.filter((x) => partesVeem(x.r));
     const camposPartes = (tipo?.formulario?.campos || []).filter((c) => c.visivel_partes);
-    const docsAutos = [...(fase?.documentos || []).filter((d) => !d.destino).map((d) => d.descricao),
-        ...acoes.filter((x) => pedidoDaAcao(x.r) === 'documento' && destinoDaAcao(x.r) === 'autos').map((x) => x.a)];
+    // O documento exigido que o rito deixa fora do portal não conta para as partes.
+    const docsAutos = [...(fase?.documentos || []).filter((d) => !d.destino && d.partes !== false).map((d) => d.descricao),
+        ...acoes.filter((x) => pedidoDaAcao(x.r) === 'documento' && destinoDaAcao(x.r) === 'autos' && x.r?.documento?.partes !== false).map((x) => x.a)];
     const entradaAutos = primeira || anteriores.some((x) => entrada(x) === 'autos');
     const remessasAutos = niveis.remessas === 'autos';
     const nadaParaParte = !acoesPartes.length && !docsAutos.length && !entradaAutos && !remessasAutos;
@@ -245,6 +246,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm">000001/{new Date().getFullYear()}</span> <Badge>{fase.nome_publico || fase.nome}</Badge> <Badge variant="secondary">Em tramitação</Badge></div>
                                     <p className="text-sm text-slate-700 dark:text-slate-200">Você fez o pedido (requerente) · em: {fase.nome_publico || fase.nome}</p>
                                     <p className="text-sm font-medium">{faltam === 0 ? 'Esta é a última etapa.' : faltam != null ? `Faltam ${faltam} etapa${faltam > 1 ? 's' : ''} até o fim.` : 'Em andamento.'}</p>
+                                    {fase.explicacao_publica && <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">{fase.explicacao_publica}</p>}
                                 </div>
                                 <div className="rounded-lg border p-3 space-y-1.5 text-sm">
                                     <p className="font-semibold">O que a parte vê desta fase</p>

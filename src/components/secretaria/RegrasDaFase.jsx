@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
     DESTINO_INFO, DESTINOS_DOCUMENTO, MAX_CAMPOS_ACAO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
-    pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
+    pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao, aberturaCertidao, ABERTURA_CERTIDAO, MAX_ABERTURA_CERTIDAO, MAX_ASSINATURAS_EXIGIDAS,
     QUEM, VE, podeReservar, podeIrParaFolha, alternativasPossiveis, chaveDaCondicao, condicaoIncompleta, fontesDaCondicao, juntarPartes, MAX_CONDICOES_E, opcoesDaParte, parteDaFonte, partesDaCondicao,
     problemaDaCondicao, remapearCondicoes, soOrienta, daPartes,
 } from '@/lib/exigencias';
@@ -43,17 +43,43 @@ const FRASE_NIVEL = {
 /** Move o item `de` para a posição `para` (as duas listas juntas). */
 const mudarDeLugar = (lista, de, para) => { const l = [...lista]; const [x] = l.splice(de, 1); l.splice(para, 0, x); return l; };
 
-/** Campos de um documento exigido: forma, tipo e modelo (a descrição fica com quem chama). */
+const ASSINATURAS_EXIGIDAS = [['', 'Não exige'], ...Array.from({ length: MAX_ASSINATURAS_EXIGIDAS }, (_, i) => [String(i + 1), i ? `${i + 1} assinaturas` : '1 assinatura'])];
+
+/** Campos de um documento exigido: forma, tipo, modelo, assinaturas e portal (a descrição fica com quem chama). */
 function CamposExigencia({ id, e, modelos, onChange }) {
+    // Documento recebido de fora não se assina aqui: as assinaturas valem para o que o órgão redige.
+    const assina = e.forma !== 'juntar';
+    const { atribuicoes = [] } = useContext(RegistroContexto);
+    const mudarForma = (v) => onChange(v === 'juntar' ? { ...e, forma: v, assinaturas: undefined, assinatura_atribuicao: undefined } : { ...e, forma: v });
     return (
+        <div className="space-y-2">
         <div className="grid sm:grid-cols-3 gap-2">
-            <NativeSelect id={`${id}-forma`} label="Como" value={e.forma || 'qualquer'} onChange={(v) => onChange({ ...e, forma: v })} options={FORMAS} />
+            <NativeSelect id={`${id}-forma`} label="Como" value={e.forma || 'qualquer'} onChange={mudarForma} options={FORMAS} />
             <div>
                 <Label htmlFor={`${id}-tipo`}>Tipo de documento</Label>
                 <Input id={`${id}-tipo`} className="mt-1" value={e.tipo || ''} maxLength={60} onChange={(ev) => onChange({ ...e, tipo: ev.target.value })} placeholder="Ex.: Parecer (opcional)" />
             </div>
             <NativeSelect id={`${id}-modelo`} label="Modelo indicado" value={e.modelo_id || ''} onChange={(v) => onChange({ ...e, modelo_id: v || undefined })}
                 options={[['', 'Nenhum'], ...modelos.map((m) => [m.id, m.nome])]} />
+        </div>
+        {assina && (
+            <div className="grid sm:grid-cols-3 gap-2">
+                <NativeSelect id={`${id}-ass`} label="Assinaturas exigidas" value={e.assinaturas ? String(e.assinaturas) : ''}
+                    onChange={(v) => onChange({ ...e, assinaturas: v ? Number(v) : undefined })} options={ASSINATURAS_EXIGIDAS} />
+                <div className="sm:col-span-2">
+                    <Label htmlFor={`${id}-assat`}>Uma das assinaturas é de quem tem a atribuição</Label>
+                    <Input id={`${id}-assat`} className="mt-1" list={`${id}-assat-lista`} value={e.assinatura_atribuicao || ''} maxLength={80} placeholder="Ex.: Promotor (opcional)"
+                        onChange={(ev) => onChange({ ...e, assinatura_atribuicao: ev.target.value || undefined })} />
+                    <datalist id={`${id}-assat-lista`}>{atribuicoes.map((a) => <option key={a} value={a} />)}</datalist>
+                </div>
+            </div>
+        )}
+        {!e.destino && (
+            <label className="flex items-start gap-2 text-sm">
+                <input id={`${id}-fp`} type="checkbox" className="mt-1" checked={e.partes === false} onChange={(ev) => onChange({ ...e, partes: ev.target.checked ? false : undefined })} />
+                <span>Fica fora do portal das partes</span>
+            </label>
+        )}
         </div>
     );
 }
@@ -576,7 +602,7 @@ function CertidaoConjunta({ f, fases, mudar, id }) {
     const reunir = (v) => {
         const alvo = v ? grupoDe(fases, fases.find((x) => x.id === v)) : '';
         // Ao entrar noutro grupo, vale o título dele: o desta fase sai.
-        set({ grupo: alvo && alvo !== f.id ? alvo : undefined, ...(alvo && alvo !== f.id ? { titulo: undefined } : {}) });
+        set({ grupo: alvo && alvo !== f.id ? alvo : undefined, ...(alvo && alvo !== f.id ? { titulo: undefined, abertura: undefined } : {}) });
     };
     const raiz = fases.find((x) => x.id === grupo);
     const reunidaCom = f.certidao?.grupo && grupo !== f.id ? grupo : '';
@@ -603,6 +629,14 @@ function CertidaoConjunta({ f, fases, mudar, id }) {
                 <NativeSelect id={`${id}-cgr`} label="Dividir a certidão com" value={reunidaCom} onChange={reunir}
                     options={[['', reunidaCom ? 'Só esta fase (sai do grupo)' : membros.length ? 'Esta fase reúne as outras' : 'Só esta fase'], ...comNome.filter((x) => x.id !== f.id).map((x) => [x.id, x.nome])]} />
             </div>
+            {grupo === f.id ? (
+                <div>
+                    <Label htmlFor={`${id}-cab`} className="inline-flex items-center gap-1">Frase de abertura</Label>
+                    <Input id={`${id}-cab`} className="mt-1" value={f.certidao?.abertura || ''} maxLength={MAX_ABERTURA_CERTIDAO} placeholder={ABERTURA_CERTIDAO}
+                        onChange={(e) => set({ abertura: e.target.value || undefined })} />
+                    <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">Os itens vêm logo depois, numerados: "{aberturaCertidao(fases, grupo)} 1) …; 2) …".</span>
+                </div>
+            ) : aberturaCertidao(fases, grupo) !== ABERTURA_CERTIDAO && <p className="text-xs text-slate-600 dark:text-slate-400">Abre com: "{aberturaCertidao(fases, grupo)}"</p>}
             {membros.length > 0 && <p className="text-xs text-slate-700 dark:text-slate-300">Dividem esta certidão: <b>{[f, ...membros].map((x) => x.nome || 'esta fase').join(', ')}</b>.</p>}
             {membros.length > 0 && (
                 <label className="flex items-start gap-2 text-sm">

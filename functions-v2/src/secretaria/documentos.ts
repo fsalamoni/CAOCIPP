@@ -249,6 +249,13 @@ export const secretariaDocumento = onCall<DocRequest>(
             return { success: true };
         }
 
+        // O documento como o rito o confere: tipo, modelo, assinaturas e as atribuições de quem assinou.
+        const docJuntado = (doc: admin.firestore.DocumentData) => {
+            const uids = new Set(((doc.assinaturas || []) as Array<{ uid: string }>).map((a) => a.uid));
+            const atribuicoes = c.unidades.flatMap((u) => lotacoesDe(u)).filter((l) => uids.has(l.uid)).map((l) => l.atribuicao).filter((a): a is string => !!a);
+            return { origem: String(doc.origem || ''), tipo: doc.tipo, modelo_id: doc.modelo_id, assinaturas: uids.size, atribuicoes };
+        };
+
         const assinarMinuta = () => c.db.runTransaction(async (tx) => {
             const { ref, doc } = await lerDoc(tx);
             const atual = (await tx.get(procRef)).data() || {}; // leituras antes de qualquer escrita
@@ -352,8 +359,6 @@ export const secretariaDocumento = onCall<DocRequest>(
                 }
                 const folha = (await folhasDoProcesso(tx, pr, atual)) + 1;
                 const ordem = (Number(atual.doc_seq) || 0) + 1;
-                // Documento interno (ex.: informação da secretaria) pode ficar fora do portal das partes.
-                const visivel = p.visivel_partes !== false;
                 const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
                 // Opcional: a juntada já deixa o documento marcado para o
                 // decisor apreciar (ex.: petição recebida por outro meio).
@@ -368,8 +373,11 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const fase = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual);
                 const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined, respostasDaFase(atual));
                 let cumpre: string[] = [];
-                try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id }, p.atende); } catch (e) { erroUsuario(e); }
+                try { cumpre = reconhecer(pendentes, { ...docJuntado(doc), origem: doc.origem }, p.atende); } catch (e) { erroUsuario(e); }
                 const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
+                // Documento interno (ex.: informação da secretaria) pode ficar fora do portal das partes;
+                // o rito também pode pedir isso para o documento exigido (só esconde, nunca mostra).
+                const visivel = p.visivel_partes !== false && !cumpridas.some((e) => e.partes === false);
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
                     `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
@@ -421,7 +429,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const fase = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual);
                 const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined, respostasDaFase(atual));
                 let cumpre: string[] = [];
-                try { cumpre = reconhecer(pendentes, { origem: doc.origem, tipo: doc.tipo, modelo_id: doc.modelo_id, controle: true }, p.atende); } catch (e) { erroUsuario(e); }
+                try { cumpre = reconhecer(pendentes, { ...docJuntado(doc), controle: true }, p.atende); } catch (e) { erroUsuario(e); }
                 const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
                 // Só no sistema quando o rito pede (pela exigência cumprida ou pela fase); senão, evento no extrato.
                 const destino = destinoDaGuarda(fase, cumpridas);

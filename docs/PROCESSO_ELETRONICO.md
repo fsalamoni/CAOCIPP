@@ -1534,6 +1534,26 @@ O botão **Guia de implantação** fica em Painel Administrativo > Processo Elet
 
 O passo "Ter um rito ativo" dos Primeiros passos agora aponta a biblioteca e o guia.
 
+### Documentos e textos do rito (14/11/2026)
+
+Opções novas, todas com padrão igual ao de antes (campo ausente = como era):
+
+| Campo | Onde | Regra |
+|---|---|---|
+| `assinaturas` (1 a 5) | `Exigencia` (documento da fase ou da ação) | `faltaAssinatura` (shared/exigencias.ts): o documento só cumpre com esse número de assinaturas. Some quando a forma é `juntar` (documento de fora). |
+| `assinatura_atribuicao` | `Exigencia` | Uma das assinaturas é de quem tem essa atribuição numa lotação de qualquer unidade do órgão (`mesmaAtribuicao`, sem acento e caixa). |
+| `partes: false` | `Exigencia` que vai aos autos | Na juntada (documentos.ts), `visivel_partes` fica falso se o documento cumpre uma exigência assim. Só esconde. A petição da parte (portal) não muda. |
+| `certidao.abertura` (até 200) | Fase que reúne o grupo da certidão | `aberturaCertidao` escolhe a da fase raiz; `textoCertidao` e `cabeNaCertidao` a usam, então a frase conta no limite da folha. |
+| `rotulo_concluir` (até 40) | Fase que não é final | Rótulo do botão principal em ProcessoView quando ele conclui a fase (uma saída, saída indicada ou escolha). Não muda o caminho. |
+| `explicacao_publica` (até 400) | Fase | `portal.ts` devolve `fase_explicacao` da fase atual; o Portal mostra sob "Em que ponto está". A prévia do rito também. |
+
+Reconhecimento na juntada: sem escolha de quem junta, a exigência que pede
+assinaturas só é reconhecida quando elas existem; com escolha, a juntada para
+com a mensagem do que falta (`failed-precondition`). A tela sugere a
+exigência contando a assinatura de "Assinar antes de juntar" e mostra, sob
+cada exigência, o que ela pede do documento (`exigeDoDocumento`). A
+atribuição só o servidor confere, porque ele lê as lotações.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

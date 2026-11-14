@@ -928,6 +928,8 @@ function CopiarFasesDeRito({ aberto, ritos, onFechar, onCopiar }) {
 const resumoEntrada = (f) => [
     f.prazo_auto && f.prazo_dias ? `abre prazo de ${f.prazo_dias} dias` : null,
     f.nome_publico?.trim() ? `partes veem "${f.nome_publico.trim()}"` : null,
+    f.explicacao_publica?.trim() ? 'explicação no portal' : null,
+    f.rotulo_concluir?.trim() && !f.final ? `botão "${f.rotulo_concluir.trim()}"` : null,
     ...efeitosAoEntrar(f),
     textoDoAviso(f),
     ...textosDosPrazos(f),
@@ -987,6 +989,20 @@ function AoEntrarNaFase({ f, i, mudar }) {
                     placeholder={f.nome || `Fase ${i + 1}`} className="h-9" />
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Vazio: o nome da fase. Os termos nos autos usam sempre o nome oficial.</p>
             </div>
+            <div>
+                <Label htmlFor={`ep-${f.id}`} className="text-xs">Explicação para as partes no portal</Label>
+                <Textarea id={`ep-${f.id}`} rows={2} value={f.explicacao_publica || ''} maxLength={400} onChange={(e) => mudar({ explicacao_publica: e.target.value || undefined })}
+                    placeholder="Ex.: Nesta etapa, você pode apresentar defesa escrita e indicar provas no prazo informado." />
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Aparece às partes sob o nome da fase. Escreva só o que elas podem ler: é texto público.</p>
+            </div>
+            {!f.final && (
+                <div className="sm:max-w-md">
+                    <Label htmlFor={`rc-${f.id}`} className="text-xs">Nome do botão que conclui a fase</Label>
+                    <Input id={`rc-${f.id}`} value={f.rotulo_concluir || ''} maxLength={40} onChange={(e) => mudar({ rotulo_concluir: e.target.value || undefined })}
+                        placeholder="Concluir e seguir para…" className="h-9" />
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Ex.: "Enviar ao relator", "Publicar o edital". Vazio: o sistema diz para onde segue.</p>
+                </div>
+            )}
             <fieldset className="space-y-1">
                 <legend className="text-xs font-medium mb-1">Ao entrar na fase</legend>
                 <label className={caixa}><Checkbox className="mt-0.5" checked={!!ae.urgente} onCheckedChange={(c) => setAe('urgente', c === true)} />

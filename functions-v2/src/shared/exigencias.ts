@@ -9,7 +9,7 @@
 
 import { MODULOS, Modulo } from './modulos';
 import { CampoDef, paginaDe, sanitizeCampos } from './camposProcesso';
-import { QUEM, Quem, sanitizeQuem } from './permissoesFase';
+import { MAX_ATRIBUICAO, QUEM, Quem, mesmaAtribuicao, sanitizeQuem } from './permissoesFase';
 import { ComunicacaoDaAcao, RESPOSTAS, RespostaDaAcao, sanitizeComunicacaoDaAcao, sanitizeRespostaDaAcao } from './comunicacaoRito';
 import { AudienciaDaAcao, sanitizeAudienciaDaAcao } from './audiencias';
 
@@ -90,7 +90,15 @@ export interface Exigencia {
     destino?: Exclude<Destino, 'autos'>;
     /** Ausente = obrigatório (a fase só segue com ele ou com dispensa). Recomendado avisa; opcional só lembra. */
     nivel?: NivelExigencia;
+    /** false = o documento que cumpre fica fora do portal das partes. Só esconde: nunca mostra o que quem junta escondeu. */
+    partes?: false;
+    /** Quantas assinaturas o documento precisa ter para cumprir (1 a 5). Só para documento redigido ou de qualquer forma. */
+    assinaturas?: number;
+    /** Uma das assinaturas é de quem tem esta atribuição na lotação (ex.: Promotor). */
+    assinatura_atribuicao?: string;
 }
+
+export const MAX_ASSINATURAS_EXIGIDAS = 5;
 
 export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
@@ -212,7 +220,7 @@ export interface RegraAcao {
 export const MAX_DOCUMENTOS_FASE = 5;
 
 /** Certidão conjunta: fases com o mesmo `grupo` dividem uma só certidão. */
-export interface CertidaoFase { grupo?: string; titulo?: string; incluir_mudancas?: true }
+export interface CertidaoFase { grupo?: string; titulo?: string; incluir_mudancas?: true; /** Frase que abre a certidão (substitui a padrão). */ abertura?: string }
 
 export interface FaseRegras {
     id: string;
@@ -260,9 +268,16 @@ export function sanitizeExigencia(raw: unknown, descricaoPadrao = ''): Exigencia
     const modelo = texto(o.modelo_id, 40);
     const dest = destino(o.destino, 'autos');
     const nivel = NIVEIS.includes(o.nivel as NivelExigencia) ? (o.nivel as NivelExigencia) : null;
+    // Assinatura vale para o que o órgão produz: documento recebido de fora não se assina aqui.
+    const assina = forma !== 'juntar';
+    const nAss = assina ? Math.min(MAX_ASSINATURAS_EXIGIDAS, Math.max(0, Math.trunc(Number(o.assinaturas) || 0))) : 0;
+    const atrib = assina ? texto(o.assinatura_atribuicao, MAX_ATRIBUICAO) : '';
     return {
         descricao, forma, ...(tipo ? { tipo } : {}), ...(modelo ? { modelo_id: modelo } : {}), ...(dest !== 'autos' ? { destino: dest } : {}),
         ...(nivel ? { nivel } : {}),
+        // Fora dos autos já não vai às partes.
+        ...(o.partes === false && dest === 'autos' ? { partes: false as const } : {}),
+        ...(nAss ? { assinaturas: nAss } : {}), ...(atrib ? { assinatura_atribuicao: atrib } : {}),
     };
 }
 
@@ -713,7 +728,21 @@ export function acoesObrigatoriasPendentes(f: FaseRegras | undefined, feitas: nu
     });
 }
 
-export interface DocJuntado { origem: string; tipo?: string; modelo_id?: string; peticao?: boolean; /** Guardado fora dos autos. */ controle?: boolean }
+export interface DocJuntado {
+    origem: string; tipo?: string; modelo_id?: string; peticao?: boolean; /** Guardado fora dos autos. */ controle?: boolean;
+    /** Quantas assinaturas o documento tem e as atribuições de quem assinou (na lotação das unidades). */
+    assinaturas?: number; atribuicoes?: string[];
+}
+
+/** O que falta de assinatura para o documento cumprir a exigência (null = nada). */
+export function faltaAssinatura(e: Exigencia, d: DocJuntado): string | null {
+    const n = e.assinaturas || 0;
+    if (n && (d.assinaturas || 0) < n) return `"${e.descricao}" pede ${n === 1 ? 'o documento assinado' : `${n} assinaturas no documento`} antes de juntar`;
+    if (e.assinatura_atribuicao && !(d.atribuicoes || []).some((a) => mesmaAtribuicao(a, e.assinatura_atribuicao))) {
+        return `"${e.descricao}" pede a assinatura de quem tem a atribuição ${e.assinatura_atribuicao}`;
+    }
+    return null;
+}
 
 /** Redigir = produzido pelo órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
 export function atende(e: Exigencia, d: DocJuntado): boolean {
@@ -742,11 +771,13 @@ export function reconhecer(pendentes: Array<Exigencia & { chave: string }>, d: D
                 throw new Error(e.destino ? `"${e.descricao}" pede documento guardado fora dos autos: use "Guardar fora dos autos"` : `"${e.descricao}" pede documento juntado aos autos`);
             }
             if (!atende(e, d)) throw new Error(`"${e.descricao}" pede documento ${e.forma === 'redigir' ? 'redigido pelo órgão' : 'recebido de fora (arquivo enviado)'}`);
+            const falta = faltaAssinatura(e, d);
+            if (falta) throw new Error(falta);
         }
         return chaves;
     }
     return pendentes
-        .filter((e) => atende(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
+        .filter((e) => atende(e, d) && !faltaAssinatura(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
         .map((e) => e.chave);
 }
 
@@ -850,18 +881,27 @@ const quando = (iso: string) => {
     return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
+export const ABERTURA_CERTIDAO = 'Certifico que foram cumpridos os seguintes atos:';
+export const MAX_ABERTURA_CERTIDAO = 200;
+
+/** Frase de abertura da certidão do grupo: a da fase raiz, a de outra fase do grupo, ou a padrão. */
+export function aberturaCertidao(fases: FaseRegras[], grupo: string): string {
+    const membros = fases.filter((f) => grupoDe(f) === grupo);
+    return membros.find((f) => f.id === grupo)?.certidao?.abertura || membros.find((f) => f.certidao?.abertura)?.certidao?.abertura || ABERTURA_CERTIDAO;
+}
+
 /** Texto da certidão conjunta (o título vai no evento): um item por ato, com quem fez e quando. */
-export function textoCertidao(itens: ItemCertidao[]): string {
+export function textoCertidao(itens: ItemCertidao[], abertura = ABERTURA_CERTIDAO): string {
     const linhas = itens.map((i, k) => `${k + 1}) ${i.texto}${i.autor ? ` (${i.autor}${i.em ? `, ${quando(i.em)}` : ''})` : ''}`);
-    return `Certifico que foram cumpridos os seguintes atos: ${linhas.join('; ')}.`;
+    return `${abertura} ${linhas.join('; ')}.`;
 }
 
 export const textoDoItem = (t: string): string =>
     (t.length > MAX_ITEM_CERTIDAO ? `${t.slice(0, MAX_ITEM_CERTIDAO - 40).trimEnd()}… (íntegra no registro do ato)` : t);
 
 /** O item ainda cabe na folha da certidão pendente? */
-export const cabeNaCertidao = (itens: ItemCertidao[], item: ItemCertidao): boolean =>
-    textoCertidao([...itens, item]).length <= MAX_TEXTO_CERTIDAO;
+export const cabeNaCertidao = (itens: ItemCertidao[], item: ItemCertidao, abertura?: string): boolean =>
+    textoCertidao([...itens, item], abertura).length <= MAX_TEXTO_CERTIDAO;
 
 /** As partes veem a certidão só se puderem ver todos os itens. */
 export const visivelCertidao = (itens: ItemCertidao[]): boolean => itens.length > 0 && itens.every((i) => i.partes);
