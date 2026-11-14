@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { ehParte, lotacoesDe } from '../shared/secretaria';
+import { ehParte, lotacoesDe, unidadeDecide } from '../shared/secretaria';
 import { sendEmail } from '../shared/email';
 import { APP_URL } from './autos';
 import { COL, Contexto } from './context';
@@ -124,7 +124,7 @@ export async function avisarPedidoAssinatura(c: Contexto, uid: string, proc: adm
 /** Pendência aberta num processo que está com o gabinete: avisa quem decide. */
 export async function avisarPendencia(c: Contexto, proc: admin.firestore.DocumentData, procId: string, descricao: string): Promise<void> {
     const unidade = c.unidades.find((u) => u.id === proc.unidade_atual);
-    if (!unidade || unidade.tipo !== 'gabinete') return;
+    if (!unidade || !unidadeDecide(unidade)) return;
     await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidade.id, unidade)), {
         subtipo: 'pendencia', procId,
         titulo: `Pendência para decidir no processo ${proc.numero}`,

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { secProcesso } from '@/services/secretariaService';
 import { STATUS_ROTULO, SeloUrgente } from './comum';
 import { unidadeComOrgao } from '@/lib/orgaos';
+import { unidadeDecide } from '@/lib/permissoesFase';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somarDias = (iso, n) => new Date(new Date(`${iso}T12:00:00`).getTime() + n * 86400000).toLocaleDateString('en-CA');
@@ -111,7 +112,7 @@ export function MesaDecisao({ orgId, estado, onAbrir }) {
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'caixa'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }) });
     if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <ErroQuery q={q} />;
-    const gabinetes = new Set(estado.unidades.filter((u) => u.tipo === 'gabinete' && estado.minhasUnidades.includes(u.id)).map((u) => u.id));
+    const gabinetes = new Set(estado.unidades.filter((u) => unidadeDecide(u) && estado.minhasUnidades.includes(u.id)).map((u) => u.id));
     const lista = (q.data?.processos || [])
         // Arquivado com pendência aberta (ex.: a parte peticionou depois) também aparece: alguém precisa ver.
         .filter((p) => gabinetes.has(p.unidade_atual) && p.pendencias_abertas > 0)

@@ -683,6 +683,28 @@ export function tipoUnidade(v: unknown): TipoUnidade {
     return TIPOS_UNIDADE.includes(v as TipoUnidade) ? (v as TipoUnidade) : 'secretaria';
 }
 
+/**
+ * O que a unidade faz no processo além do que o tipo dela define. `decide`:
+ * recebe a conclusão e aprecia pendências (padrão: gabinete). `expede`: expede
+ * comunicações às partes (padrão: secretaria). Ausente = o padrão do tipo.
+ */
+export interface PapeisUnidade { decide?: boolean; expede?: boolean }
+type ComPapeis = { [campo: string]: unknown } | null | undefined;
+const papelProprio = (u: ComPapeis, qual: keyof PapeisUnidade): boolean | undefined => {
+    const v = (u?.papeis as PapeisUnidade | null | undefined)?.[qual];
+    return typeof v === 'boolean' ? v : undefined;
+};
+export const unidadeDecide = (u: ComPapeis): boolean => papelProprio(u, 'decide') ?? u?.tipo === 'gabinete';
+export const unidadeExpede = (u: ComPapeis): boolean => papelProprio(u, 'expede') ?? u?.tipo === 'secretaria';
+/** Papéis saneados: só fica o que difere do padrão do tipo (trocar o tipo depois não carrega escolha antiga igual ao padrão). */
+export function sanitizePapeis(raw: unknown, tipo: TipoUnidade): PapeisUnidade | null {
+    const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const out: PapeisUnidade = {};
+    if (typeof o.decide === 'boolean' && o.decide !== (tipo === 'gabinete')) out.decide = o.decide;
+    if (typeof o.expede === 'boolean' && o.expede !== (tipo === 'secretaria')) out.expede = o.expede;
+    return Object.keys(out).length ? out : null;
+}
+
 /** Lotações saneadas (sem repetição de pessoa). */
 export function sanitizeLotacoes(input: unknown): Lotacao[] {
     const vistos = new Set<string>();

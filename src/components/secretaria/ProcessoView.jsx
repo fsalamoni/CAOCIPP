@@ -36,7 +36,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { saidasDoProcesso } from '@/lib/secretariaRito';
 import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
-import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva } from '@/lib/permissoesFase';
+import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
@@ -116,8 +116,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     const { movimentos, documentos, cadeiaQuebradaEm, hoje, informacoes = [] } = q.data;
     const unidadeAtual = estado.unidades.find((u) => u.id === p.unidade_atual);
-    const noGabinete = unidadeAtual?.tipo === 'gabinete';
-    const naSecretaria = (unidadeAtual?.tipo || 'secretaria') === 'secretaria';
+    // Papéis da unidade (escolha dela ou o padrão do tipo): quem decide e quem expede.
+    const noGabinete = unidadeDecide(unidadeAtual);
+    const naSecretaria = unidadeExpede(unidadeAtual);
     const nomeUnidade = (id) => unidadeComOrgao(estado, id, id);
     const atualizar = () => {
         qc.invalidateQueries({ queryKey: ['sec-proc', orgId, procId] });
@@ -1250,7 +1251,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         const opcoes = estado.unidades.filter((u) => u.ativa && u.id !== p.unidade_atual);
         const passou = p.unidades_historico || [];
         // Devolver: a unidade que remeteu ao gabinete, ou a primeira secretaria.
-        const origem = devolver ? ([...passou].reverse().find((id) => id !== p.unidade_atual && estado.unidades.find((u) => u.id === id)?.tipo !== 'gabinete') || opcoes.find((u) => u.tipo === 'secretaria')?.id || '') : '';
+        const origem = devolver ? ([...passou].reverse().find((id) => id !== p.unidade_atual && !unidadeDecide(estado.unidades.find((u) => u.id === id))) || opcoes.find((u) => unidadeExpede(u))?.id || '') : '';
         const destino = valor || acao.destino || origem || '';
         const uDest = estado.unidades.find((u) => u.id === destino);
         const recebem = uDest ? estado.membros.filter((m) => uDest.membros_uids.includes(m.uid)) : [];

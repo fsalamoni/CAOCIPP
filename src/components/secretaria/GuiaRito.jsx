@@ -131,6 +131,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <Termo nome="Quem arquiva, sobresta ou reativa">Enquanto o processo estiver na fase. O arquivamento que o rito faz sozinho ao entrar numa fase não depende disto.</Termo>
                             </ul>
                             <p>A administração do Processo Eletrônico sempre pode. Na tela do processo, a fase mostra o que está reservado, e quem não pode vê a quem o ato cabe antes de tentar. <strong>Aplicar a todas as fases</strong> copia as escolhas para o rito inteiro.</p>
+                            <p>Dois atos não dependem do rito, e sim da <strong>unidade</strong> que está com o processo. Receber a conclusão e apreciar pendências e petições cabe à unidade que <strong>decide</strong>. Intimar, notificar e citar as partes cabe à unidade que <strong>expede</strong>. Por padrão, o gabinete decide e a secretaria expede. Para uma comissão processante, um pregoeiro ou um fiscal de contrato fazerem as duas coisas, marque as caixas <strong>Decide</strong> e <strong>Expede</strong> em Unidades, nos Dados da unidade, sob "Papel no processo".</p>
                         </Parte>
                         <Parte titulo="8. Andamento automático da fase">
                             <p>Em <strong>Andamento automático</strong>, a fase pode andar sem que ninguém precise lembrar do passo seguinte.</p>
@@ -239,6 +240,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                     <tr><td>Fase de espera que volta para a fase de origem (diligências externas)</td><td>Em <strong>Encaminhamentos</strong>: "Fase de espera". Nas fases que podem aguardar, indique a espera como uma das saídas</td></tr>
                                     <tr><td>Ato que só uma pessoa pode praticar (ex.: só o Promotor conclui a Revisão; só quem gere a unidade dispensa)</td><td>Na ação: <strong>Quem pode cumprir</strong>. Na fase: <strong>Quem pode nesta fase</strong></td></tr>
                                     <tr><td>Fases em unidades diferentes (Secretaria, Assessoria, Gabinete)</td><td>No cabeçalho de cada fase, a unidade. Ao seguir, o processo é enviado para a unidade da fase seguinte</td></tr>
+                                    <tr><td>Unidade que intima e também decide (comissão processante, pregoeiro, fiscal de contrato)</td><td>Fora do rito: em Unidades, nos <strong>Dados da unidade</strong>, as caixas <strong>Decide</strong> e <strong>Expede</strong></td></tr>
                                     <tr><td>Capa simples, botão Assumir, redação original guardada em Versões, Impressão interna</td><td>Não precisam de configuração: valem para todo processo</td></tr>
                                 </tbody>
                             </table>

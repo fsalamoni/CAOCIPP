@@ -30,7 +30,6 @@ function caminhoArquivo(orgId, procId, docId) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
 exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
-    var _a;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -270,8 +269,8 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             ? (proc.pendencias || []).find((x) => x.id === p.resolve_pendencia_id && x.status === 'aberta') : null;
         if (p.resolve_pendencia_id && !pendenciaAlvo)
             throw new https_1.HttpsError('not-found', 'Pendência aberta não encontrada');
-        if (pendenciaAlvo && ((_a = c.unidades.find((u) => u.id === proc.unidade_atual)) === null || _a === void 0 ? void 0 : _a.tipo) !== 'gabinete') {
-            throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete');
+        if (pendenciaAlvo && !(0, secretaria_2.unidadeDecide)(c.unidades.find((u) => u.id === proc.unidade_atual))) {
+            throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete ou por outra unidade que decida');
         }
         // Antes da transação: o PDF do documento (do editor) e quantas folhas
         // ele ocupa. A transação confere que nada mudou desde então.

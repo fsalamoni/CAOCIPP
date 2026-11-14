@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    hojeBrasil, lotacoesDe, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, verificarCadeia,
+    hojeBrasil, lotacoesDe, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, unidadeDecide, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
 import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
@@ -1021,8 +1021,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const destino = c.unidades.find((u) => u.id === p.unidade_destino && u.ativa !== false);
             if (!destino) throw new HttpsError('invalid-argument', 'Unidade de destino inválida');
             if (destino.id === data.unidade_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa unidade');
-            // Remessa a gabinete é conclusão: o processo vai para quem decide.
-            const conclusao = destino.tipo === 'gabinete';
+            // Remessa a quem decide (o gabinete, por padrão) é conclusão.
+            const conclusao = unidadeDecide(destino);
             // Opcional, num só ato: mudar a fase (quando a próxima corre em outra unidade)
             // e deixar uma orientação para a unidade que recebe (devolução do gabinete).
             const fases = (data.fases || []) as Fase[];
@@ -1463,9 +1463,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
         }
 
         if (p.action === 'resolverPendencia') {
-            // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (c.unidades.find((u) => u.id === data.unidade_atual)?.tipo !== 'gabinete') {
-                throw new HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
+            // Apreciar é ato de decisão: só a unidade que decide (o gabinete, por padrão) e tem o processo.
+            if (!unidadeDecide(c.unidades.find((u) => u.id === data.unidade_atual))) {
+                throw new HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete ou por outra unidade que decida. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
             if (!alvo) throw new HttpsError('not-found', 'Pendência aberta não encontrada');

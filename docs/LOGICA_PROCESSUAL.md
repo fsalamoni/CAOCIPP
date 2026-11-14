@@ -258,7 +258,8 @@ informado.
 | O que vai aos autos | `fase.registro` no rito (`remessas_fora` ou `interno`) e `acoes_regras[i].autos` (certidão de cumprimento); `movimentoInterno` em `functions-v2/src/shared/exigencias.ts` |
 | Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |
 | Minuta | Trabalho interno da unidade (`minutaAcessivel`); segue com o processo quando marcada na remessa (`unidades_acesso`), sem constar do termo |
-| Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a secretaria expede, sempre nos autos |
+| Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a unidade que expede (a secretaria, por padrão; `unidadeExpede`) expede, sempre nos autos |
+| Papéis da unidade | Quem decide (recebe conclusão, aprecia pendência) e quem expede comunicação: `papeis` da unidade, com o tipo como padrão; `unidadeDecide` e `unidadeExpede` em `functions-v2/src/shared/secretaria.ts` |
 | Guarda fora dos autos | Registro no extrato impresso, salvo quando a exigência cumprida ou a fase pedem só no sistema (`destinoDaGuarda` em `functions-v2/src/shared/exigencias.ts`) |
 | Exemplo completo | Modelo pronto "Rito Consultas CAOCIPP" (`ritoConsultas` em `src/lib/secretariaRito.js`), conferido contra as regras do servidor em `functions-v2/test/modeloConsultas.test.js`; é o exemplo do Guia do rito |
 | Impressão interna | O que fica fora dos autos sai, por seleção, num PDF de uso da equipe (`montarPdfInterno` em `functions-v2/src/secretaria/exportar.ts`; `registroInterno` e `documentoInterno` em `shared/autos.ts`); nunca vai às partes nem leva folhas dos autos |

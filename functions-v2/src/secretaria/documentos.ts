@@ -10,7 +10,7 @@ import { Cumpridas, camposDoCumprimento, destinoDaGuarda, exigeAlgo, marcasDoDes
 import { avancarSozinho } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
-import { lotacoesDe } from '../shared/secretaria';
+import { lotacoesDe, unidadeDecide } from '../shared/secretaria';
 import {
     COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarMovimento,
 } from './context';
@@ -315,8 +315,8 @@ export const secretariaDocumento = onCall<DocRequest>(
             const pendenciaAlvo = p.resolve_pendencia_id
                 ? ((proc.pendencias || []) as Pendencia[]).find((x) => x.id === p.resolve_pendencia_id && x.status === 'aberta') : null;
             if (p.resolve_pendencia_id && !pendenciaAlvo) throw new HttpsError('not-found', 'Pendência aberta não encontrada');
-            if (pendenciaAlvo && c.unidades.find((u) => u.id === proc.unidade_atual)?.tipo !== 'gabinete') {
-                throw new HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete');
+            if (pendenciaAlvo && !unidadeDecide(c.unidades.find((u) => u.id === proc.unidade_atual))) {
+                throw new HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete ou por outra unidade que decida');
             }
             // Antes da transação: o PDF do documento (do editor) e quantas folhas
             // ele ocupa. A transação confere que nada mudou desde então.

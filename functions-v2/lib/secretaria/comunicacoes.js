@@ -32,9 +32,8 @@ function gravar(lista, prazos, proc) {
  * data informada e o prazo abre na hora. Roda dentro da transação.
  */
 async function expedir(tx, c, ref, data, raw, cfg) {
-    var _a;
-    if (((_a = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _a === void 0 ? void 0 : _a.tipo) !== 'secretaria') {
-        throw new https_1.HttpsError('permission-denied', 'Comunicações às partes são expedidas pela secretaria. Remeta o processo à secretaria para cumprir.');
+    if (!(0, secretaria_1.unidadeExpede)(c.unidades.find((u) => u.id === data.unidade_atual))) {
+        throw new https_1.HttpsError('permission-denied', 'Esta unidade não expede comunicações às partes. Remeta o processo à secretaria (ou a outra unidade que expeça) para cumprir.');
     }
     const hoje = (0, secretaria_1.hojeBrasil)();
     let ped;

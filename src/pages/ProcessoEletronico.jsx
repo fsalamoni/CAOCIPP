@@ -28,6 +28,7 @@ import { ROTULO_REF, camposDaOrigem, faltando, formularioDe, integracoesLigadas 
 import { buscarRegistro } from '@/lib/registrosModulos';
 import { ProvedorRegistros } from '@/components/secretaria/SeletorRegistro';
 import { unidadeComOrgao } from '@/lib/orgaos';
+import { unidadeDecide } from '@/lib/permissoesFase';
 import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
 import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
@@ -160,7 +161,7 @@ export default function ProcessoEletronico() {
         .reduce((n, u) => n + (u.pedidos || []).length, 0);
     const caixa = caixaQ.data?.processos || [];
     const meuTrabalho = gruposDeTrabalho(caixa, estado).total;
-    const gabinetes = estado.unidades.filter((u) => u.tipo === 'gabinete' && estado.minhasUnidades.includes(u.id)).map((u) => u.id);
+    const gabinetes = estado.unidades.filter((u) => unidadeDecide(u) && estado.minhasUnidades.includes(u.id)).map((u) => u.id);
     const paraDecidir = gabinetes.length ? caixa.filter((p) => gabinetes.includes(p.unidade_atual)).reduce((n, p) => n + (p.pendencias_abertas || 0), 0) : 0;
 
     const abaPadrao = estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : 'unidades';

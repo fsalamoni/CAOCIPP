@@ -6,6 +6,16 @@
 
 const sem = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 /** A mesma atribuição, sem contar acento, caixa e espaços a mais. */
+/**
+ * Papéis da unidade no processo: quem recebe a conclusão e aprecia pendências
+ * (`decide`) e quem expede comunicação às partes (`expede`). O servidor manda
+ * resolvido; sem o campo (tela de edição, dado antigo), vale o padrão do tipo.
+ */
+export const unidadeDecide = (u) => (typeof u?.decide === 'boolean' ? u.decide : u?.tipo === 'gabinete');
+export const unidadeExpede = (u) => (typeof u?.expede === 'boolean' ? u.expede : (u?.tipo || 'secretaria') === 'secretaria');
+/** O que vai ao servidor ao salvar a unidade (ele guarda só o que difere do padrão do tipo). */
+export const papeisDaUnidade = (u) => ({ decide: unidadeDecide(u), expede: unidadeExpede(u) });
+
 export const mesmaAtribuicao = (a, b) => { const x = sem(a); return !!x && x === sem(b); };
 
 /** A pessoa atende à reserva? `a`: { isAdmin, gestor, responsavel, atribuicao } (ver atorNoProcesso). */

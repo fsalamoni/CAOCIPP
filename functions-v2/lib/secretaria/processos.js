@@ -906,7 +906,7 @@ async function movimentar(c, p, opcoes = {}) {
     let recebeu = null;
     let pendenciaAberta = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _s;
+        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -925,8 +925,8 @@ async function movimentar(c, p, opcoes = {}) {
                 throw new https_1.HttpsError('invalid-argument', 'Unidade de destino inválida');
             if (destino.id === data.unidade_atual)
                 throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa unidade');
-            // Remessa a gabinete é conclusão: o processo vai para quem decide.
-            const conclusao = destino.tipo === 'gabinete';
+            // Remessa a quem decide (o gabinete, por padrão) é conclusão.
+            const conclusao = (0, secretaria_1.unidadeDecide)(destino);
             // Opcional, num só ato: mudar a fase (quando a próxima corre em outra unidade)
             // e deixar uma orientação para a unidade que recebe (devolução do gabinete).
             const fases = (data.fases || []);
@@ -1059,7 +1059,7 @@ async function movimentar(c, p, opcoes = {}) {
                 const convites = db.collection(context_1.COL.convites);
                 for (const i of ret.retiradas) {
                     // Quem sai perde o portal: convites revogados e contas desligadas, também dos representantes.
-                    const _v = ret.partes[i], { uid: _u, convite_hash: hash } = _v, resto = __rest(_v, ["uid", "convite_hash"]);
+                    const _s = ret.partes[i], { uid: _u, convite_hash: hash } = _s, resto = __rest(_s, ["uid", "convite_hash"]);
                     if (hash)
                         tx.set(convites.doc(hash), { revogado: true }, { merge: true });
                     const reps = (resto.representantes || []).map((_a) => {
@@ -1361,9 +1361,9 @@ async function movimentar(c, p, opcoes = {}) {
             return mov;
         }
         if (p.action === 'resolverPendencia') {
-            // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (((_s = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _s === void 0 ? void 0 : _s.tipo) !== 'gabinete') {
-                throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
+            // Apreciar é ato de decisão: só a unidade que decide (o gabinete, por padrão) e tem o processo.
+            if (!(0, secretaria_1.unidadeDecide)(c.unidades.find((u) => u.id === data.unidade_atual))) {
+                throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete ou por outra unidade que decida. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');
             if (!alvo)

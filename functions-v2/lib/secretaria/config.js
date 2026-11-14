@@ -252,7 +252,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             unidades: c.unidades.filter((u) => !u.excluida).map((u) => {
                 const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
                 const lotacoes = (0, secretaria_1.lotacoesDe)(u);
-                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '', orgao_id: u.orgao_id || null, competencias: (0, orgaos_1.sanitizeCompetencias)(u.competencias), ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes }, (gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {})), { pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x) => x.uid === auth.uid), criada_por_mim: u.created_by === auth.uid });
+                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '', 
+                    // O que a unidade faz no processo, já resolvido (escolha da unidade ou padrão do tipo).
+                    decide: (0, secretaria_1.unidadeDecide)(u), expede: (0, secretaria_1.unidadeExpede)(u), orgao_id: u.orgao_id || null, competencias: (0, orgaos_1.sanitizeCompetencias)(u.competencias), ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes }, (gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {})), { pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x) => x.uid === auth.uid), criada_por_mim: u.created_by === auth.uid });
             }).sort((a, b) => String(a.nome).localeCompare(String(b.nome))),
             convitesEquipe: convites,
             ritos: ritosSnap.docs.filter((d) => d.data().excluido !== true).map((d) => {
