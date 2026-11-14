@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Prorrogação e devolução de prazo
+- Cada prazo aberto ganha **Prorrogar** (enquanto corre: soma dias ao
+  vencimento) e **Devolver** (depois de vencido: corre de novo a contar de
+  hoje), sempre com motivo e certidão nos autos.
+- Prazo de resposta de comunicação: a parte vê o novo vencimento no portal;
+  na devolução, o decurso deixa de valer e a espera do rito reabre.
+- Guia do rito, parte 15.
+
 ### 14/11/2026 — Audiência como ação do rito
 - **Designar audiência ou sessão** passa a ser uma ação do rito: na tela do
   processo, o botão Designar pede data, hora, modo (presencial, por

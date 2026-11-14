@@ -60,7 +60,7 @@ export function frasePolo(polo) {
 }
 
 const ICONE_MOV = {
-    juntada: FileText, peticao: Send, fase: GitBranch, situacao: Flag, prazo: CalendarClock, prazo_encerrado: CalendarCheck,
+    juntada: FileText, peticao: Send, fase: GitBranch, situacao: Flag, prazo: CalendarClock, prazo_encerrado: CalendarCheck, prazo_prorrogado: CalendarClock, prazo_devolvido: CalendarClock,
     pendencia_resolvida: Gavel, autuacao: FilePlus, habilitacao: UserCheck, convite: Mail,
     comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck, decurso_prazo: CalendarCheck,
 };

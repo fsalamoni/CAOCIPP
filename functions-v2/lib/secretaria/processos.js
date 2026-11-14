@@ -25,6 +25,7 @@ const permissoesFase_1 = require("../shared/permissoesFase");
 const efeitosFase_1 = require("../shared/efeitosFase");
 const prazosFase_1 = require("../shared/prazosFase");
 const comunicacaoRito_1 = require("../shared/comunicacaoRito");
+const ajustePrazo_1 = require("../shared/ajustePrazo");
 const audiencias_1 = require("../shared/audiencias");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
@@ -966,7 +967,7 @@ async function movimentar(c, p, opcoes = {}) {
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = (0, secretaria_1.texto)(p.motivo, secretaria_1.MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
-    const calendario = ['abrirPrazo', 'tramitar', 'avancarFase', 'marcarAcao'].includes(String(p.action))
+    const calendario = ['abrirPrazo', 'prorrogarPrazo', 'devolverPrazo', 'tramitar', 'avancarFase', 'marcarAcao'].includes(String(p.action))
         ? (0, secretaria_1.sanitizeCalendario)((_a = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _a === void 0 ? void 0 : _a.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await (0, comunicacoes_1.configComunicacoes)(db, orgId) : null;
@@ -1533,6 +1534,31 @@ async function movimentar(c, p, opcoes = {}) {
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo_encerrado', `Prazo ${res}${quando}: ${alvo.descricao}.${motivo ? ` ${motivo}` : ''}`, Object.assign({ prazo_id: alvo.id, resultado: res }, (alvo.automatico === true ? (0, exigencias_1.marcasDoDestino)('informacao') : (0, exigencias_1.marcasNaFase)(data, 'prazo'))));
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
             return mov;
+        }
+        // Prorrogar (o prazo corre) ou devolver (já venceu): certidão nos autos e, se é
+        // o prazo de resposta de uma comunicação, ela acompanha; a devolução reabre a espera.
+        if (p.action === 'prorrogarPrazo' || p.action === 'devolverPrazo') {
+            const tipo = p.action === 'prorrogarPrazo' ? 'prorrogacao' : 'devolucao';
+            const alvo = prazos.find((x) => x.id === p.prazo_id);
+            if (!alvo)
+                throw new https_1.HttpsError('not-found', 'Prazo não encontrado');
+            let aj;
+            try {
+                aj = (0, ajustePrazo_1.ajustarPrazo)(alvo, tipo, p.dias, motivo, (0, secretaria_1.hojeBrasil)(), calendario, { em: agora, por: c.userName });
+            }
+            catch (e) {
+                throw new https_1.HttpsError('invalid-argument', e.message);
+            }
+            const lista = prazos.map((x) => (x.id === alvo.id ? aj.prazo : x));
+            const com = (0, ajustePrazo_1.ajustarComunicacao)(data, alvo.id, aj.prazo.vence_em, tipo, (0, comunicacaoRito_1.faseQueEspera)(data));
+            // Prazo da parte (de comunicação) é ato público; o interno da fase fica nas informações.
+            const marcas = com ? {} : alvo.automatico === true ? (0, exigencias_1.marcasDoDestino)('informacao') : (0, exigencias_1.marcasNaFase)(data, 'prazo');
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, tipo === 'prorrogacao' ? 'prazo_prorrogado' : 'prazo_devolvido', aj.texto, Object.assign({ prazo_id: alvo.id, vence_em: aj.prazo.vence_em }, marcas));
+            const comCampos = com ? Object.assign({ comunicacoes: com.comunicacoes }, (com.acoes_feitas ? { acoes_feitas: com.acoes_feitas, acoes_respostas: com.acoes_respostas } : {})) : {};
+            const notas = (com === null || com === void 0 ? void 0 : com.reabertas.length) ? [`Com a devolução do prazo, a espera da resposta volta a correr (${com.reabertas.length === 1 ? 'uma ação' : `${com.reabertas.length} ações`} do rito).`] : [];
+            const ac = com ? (0, comunicacoes_1.acertarAcoesDoRito)(tx, c, ref, Object.assign(Object.assign(Object.assign({}, data), mov), comCampos), notas) : { campos: {} };
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)), comCampos), ac.campos));
+            return Object.assign(Object.assign({}, mov), ac.campos);
         }
         if (p.action === 'convidarParte' || p.action === 'revogarParte') {
             const idx = Number(p.parte_idx);

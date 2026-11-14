@@ -1451,6 +1451,30 @@ conciliacao, oitiva, sessao, reuniao, inspecao). Lógica pura em
 - Testes: `functions-v2/test/audiencias.test.js` e
   `src/lib/audiencias.test.js`. Guia do rito, parte 15.
 
+### Prorrogação e devolução de prazo (14/11/2026)
+
+Ações `prorrogarPrazo` e `devolverPrazo` (`prazo_id`, `dias`, `motivo`
+obrigatório), com quem tem o processo. Lógica pura em
+`shared/ajustePrazo.ts`.
+
+- **Prorrogar:** só prazo aberto que ainda não venceu; o novo vencimento é
+  o atual somado dos dias, na contagem do prazo (e no calendário do órgão).
+- **Devolver:** só prazo aberto já vencido; corre de novo pelos dias, a
+  contar de hoje.
+- O prazo guarda `ajustes[]` (`tipo, dias, de, para, motivo, em, por`), até
+  10. Movimento `prazo_prorrogado` ou `prazo_devolvido`, com certidão nos
+  autos quando é prazo de resposta de comunicação; prazo interno automático
+  vai às informações; os demais seguem o registro de atos da fase.
+- **Comunicação ligada** (`comunicacoes[].prazo_id`): acompanha o novo
+  `vence_em`. Na devolução, se ainda sem resposta, perde o
+  `decurso_certificado` e, sendo da rodada atual, a ação de resposta que o
+  rito dera por cumprida volta a esperar (`acoes_feitas`/`acoes_respostas`);
+  a rotina diária certifica de novo se o prazo devolvido também decorrer.
+  Se a fase já saiu, só o prazo muda: voltar a fase é decisão da equipe.
+- Tela: botões Prorrogar (antes do vencimento) e Devolver (depois) em cada
+  prazo aberto. Portal: avisos e ícones dos dois movimentos.
+- Testes: `functions-v2/test/ajustePrazo.test.js`.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
