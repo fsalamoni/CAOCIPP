@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HISTORICO_CONFIG = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.HISTORICO_CONFIG = exports.unidadeExpede = exports.unidadeDecide = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
 exports.minutaAcessivel = minutaAcessivel;
 exports.versaoAnterior = versaoAnterior;
@@ -43,6 +43,7 @@ exports.somarDias = somarDias;
 exports.hojeBrasil = hojeBrasil;
 exports.derivados = derivados;
 exports.tipoUnidade = tipoUnidade;
+exports.sanitizePapeis = sanitizePapeis;
 exports.sanitizeLotacoes = sanitizeLotacoes;
 exports.lotacoesDe = lotacoesDe;
 exports.documentoEfetivo = documentoEfetivo;
@@ -553,6 +554,25 @@ function derivados(pendencias, prazos) {
 }
 function tipoUnidade(v) {
     return exports.TIPOS_UNIDADE.includes(v) ? v : 'secretaria';
+}
+const papelProprio = (u, qual) => {
+    var _a;
+    const v = (_a = u === null || u === void 0 ? void 0 : u.papeis) === null || _a === void 0 ? void 0 : _a[qual];
+    return typeof v === 'boolean' ? v : undefined;
+};
+const unidadeDecide = (u) => { var _a; return (_a = papelProprio(u, 'decide')) !== null && _a !== void 0 ? _a : (u === null || u === void 0 ? void 0 : u.tipo) === 'gabinete'; };
+exports.unidadeDecide = unidadeDecide;
+const unidadeExpede = (u) => { var _a; return (_a = papelProprio(u, 'expede')) !== null && _a !== void 0 ? _a : (u === null || u === void 0 ? void 0 : u.tipo) === 'secretaria'; };
+exports.unidadeExpede = unidadeExpede;
+/** Papéis saneados: só fica o que difere do padrão do tipo (trocar o tipo depois não carrega escolha antiga igual ao padrão). */
+function sanitizePapeis(raw, tipo) {
+    const o = (raw && typeof raw === 'object' ? raw : {});
+    const out = {};
+    if (typeof o.decide === 'boolean' && o.decide !== (tipo === 'gabinete'))
+        out.decide = o.decide;
+    if (typeof o.expede === 'boolean' && o.expede !== (tipo === 'secretaria'))
+        out.expede = o.expede;
+    return Object.keys(out).length ? out : null;
 }
 /** Lotações saneadas (sem repetição de pessoa). */
 function sanitizeLotacoes(input) {

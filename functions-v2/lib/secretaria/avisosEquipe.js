@@ -121,7 +121,7 @@ async function avisarPedidoAssinatura(c, uid, proc, procId, titulo) {
 /** Pendência aberta num processo que está com o gabinete: avisa quem decide. */
 async function avisarPendencia(c, proc, procId, descricao) {
     const unidade = c.unidades.find((u) => u.id === proc.unidade_atual);
-    if (!unidade || unidade.tipo !== 'gabinete')
+    if (!unidade || !(0, secretaria_1.unidadeDecide)(unidade))
         return;
     await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidade.id, unidade)), {
         subtipo: 'pendencia', procId,

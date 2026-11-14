@@ -1,7 +1,19 @@
 // Rodar: npm run test:lib
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alguemTem, atorNoProcesso, atribuicoesDoOrgao, comPermissao, podeQuem, podeReserva, resumoPermissoes, rotuloQuem } from './permissoesFase.js';
+import { alguemTem, atorNoProcesso, atribuicoesDoOrgao, comPermissao, papeisDaUnidade, podeQuem, podeReserva, resumoPermissoes, rotuloQuem, unidadeDecide, unidadeExpede } from './permissoesFase.js';
+
+test('papéis da unidade: o servidor manda resolvido; sem o campo, vale o tipo', () => {
+    assert.deepEqual(papeisDaUnidade({ tipo: 'gabinete' }), { decide: true, expede: false });
+    assert.deepEqual(papeisDaUnidade({ tipo: 'secretaria' }), { decide: false, expede: true });
+    assert.deepEqual(papeisDaUnidade({}), { decide: false, expede: true }, 'unidade antiga sem tipo é secretaria, como na lista');
+    assert.deepEqual(papeisDaUnidade({ tipo: 'outra' }), { decide: false, expede: false });
+    assert.deepEqual(papeisDaUnidade({ tipo: 'outra', decide: true, expede: true }), { decide: true, expede: true });
+    assert.equal(unidadeExpede({ tipo: 'secretaria', expede: false }), false);
+    // Ao trocar o tipo na tela, a escolha é desfeita (undefined): volta o padrão do novo tipo.
+    assert.equal(unidadeDecide({ tipo: 'gabinete', decide: undefined }), true);
+    assert.equal(unidadeDecide(undefined), false);
+});
 
 const unidades = [
     { id: 'gab', lotacoes: [{ uid: 'ana', atribuicao: 'Promotor de Justiça', gestor: true }, { uid: 'bob', atribuicao: 'Assessor' }] },

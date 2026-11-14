@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Cada unidade diz se decide e se expede comunicação
+- Em **Dados** da unidade, sob "Papel no processo", duas caixas novas:
+  **Decide** (recebe a conclusão, aprecia pendências e petições, tem a Mesa
+  de decisão) e **Expede** (intima, notifica e cita as partes).
+- O tipo continua dando o padrão: o gabinete decide e a secretaria expede.
+  Agora uma comissão processante, um pregoeiro ou um fiscal de contrato
+  podem fazer as duas coisas sem serem criados como gabinete ou secretaria.
+- O servidor confere o papel em cada ato (comunicação, apreciação de
+  pendência, decisão por despacho, conclusão e avisos).
+- Nada muda para unidade que não mexer nas caixas.
+- Guia do rito explica quando mudar.
+
 ### 14/11/2026 — O rito diz quem pode fazer o quê
 - Nova seção **Quem pode nesta fase**, em cada fase do rito: quem conclui
   a fase (quem tem o processo, o responsável, quem gere a unidade ou quem

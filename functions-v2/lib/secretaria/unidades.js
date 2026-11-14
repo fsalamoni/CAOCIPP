@@ -67,7 +67,7 @@ async function salvarUnidade(c, p, uid, auditar) {
         if (estrutura && !c.ctx.isAdmin && 'orgao_id' in u)
             (0, context_1.exigirAdminDoOrgao)(c, orgaoId || null);
         const dados = estrutura
-            ? Object.assign({ nome: (0, secretaria_1.texto)(u.nome) || atual.nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), ativa: u.ativa !== false }, ('orgao_id' in u ? { orgao_id: orgaoId || null } : {})) : {};
+            ? Object.assign(Object.assign({ nome: (0, secretaria_1.texto)(u.nome) || atual.nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), ativa: u.ativa !== false }, ('orgao_id' in u ? { orgao_id: orgaoId || null } : {})), ('papeis' in u ? { papeis: (0, secretaria_1.sanitizePapeis)(u.papeis, (0, secretaria_1.tipoUnidade)(u.tipo)) } : {})) : {};
         if (estrutura && !(0, secretaria_1.texto)(u.nome))
             throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
         // Unidade inativa não movimenta: desativar com processo em andamento deixaria o processo preso.
@@ -106,7 +106,7 @@ async function salvarUnidade(c, p, uid, auditar) {
         throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
     if (c.unidades.filter((x) => !x.excluida).length >= MAX_UNIDADES)
         throw new https_1.HttpsError('resource-exhausted', 'Limite de unidades atingido');
-    const ref = await c.db.collection(context_1.COL.unidades).add(Object.assign(Object.assign({ organization_id: c.orgId, nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), descricao: (0, secretaria_1.texto)(u.descricao, 500), orgao_id: orgaoId || null, competencias, ativa: u.ativa !== false }, camposLotacao(lotacoes)), { pedidos: [], created_at: agora, created_by: uid }));
+    const ref = await c.db.collection(context_1.COL.unidades).add(Object.assign(Object.assign({ organization_id: c.orgId, nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), descricao: (0, secretaria_1.texto)(u.descricao, 500), papeis: (0, secretaria_1.sanitizePapeis)(u.papeis, (0, secretaria_1.tipoUnidade)(u.tipo)), orgao_id: orgaoId || null, competencias, ativa: u.ativa !== false }, camposLotacao(lotacoes)), { pedidos: [], created_at: agora, created_by: uid }));
     await auditar('SECRETARIA_UNIDADE_SALVA', { unidade_id: ref.id, nome, lotacoes: lotacoes.length });
     return { success: true, id: ref.id };
 }

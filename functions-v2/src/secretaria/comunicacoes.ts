@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { CalendarioOrgao, MAX_TEXTO_LONGO, Pendencia, Prazo, derivados, hojeBrasil, sanitizeCalendario, texto } from '../shared/secretaria';
+import { CalendarioOrgao, MAX_TEXTO_LONGO, Pendencia, Prazo, derivados, hojeBrasil, sanitizeCalendario, texto, unidadeExpede } from '../shared/secretaria';
 import {
     Comunicacao, ESPECIES, MAX_COMUNICACOES, PedidoComunicacao, aplicarCiencia, cienciaDias, derivadosComunicacoes, limiteCiencia, sanitizePedido, textoPrazo,
 } from '../shared/comunicacoes';
@@ -39,8 +39,8 @@ export async function expedir(
     tx: admin.firestore.Transaction, c: Contexto, ref: admin.firestore.DocumentReference,
     data: admin.firestore.DocumentData, raw: unknown, cfg: ConfigComunicacoes,
 ): Promise<Record<string, unknown>> {
-    if (c.unidades.find((u) => u.id === data.unidade_atual)?.tipo !== 'secretaria') {
-        throw new HttpsError('permission-denied', 'Comunicações às partes são expedidas pela secretaria. Remeta o processo à secretaria para cumprir.');
+    if (!unidadeExpede(c.unidades.find((u) => u.id === data.unidade_atual))) {
+        throw new HttpsError('permission-denied', 'Esta unidade não expede comunicações às partes. Remeta o processo à secretaria (ou a outra unidade que expeça) para cumprir.');
     }
     const hoje = hojeBrasil();
     let ped!: PedidoComunicacao;

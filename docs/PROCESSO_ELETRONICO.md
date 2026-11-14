@@ -59,7 +59,7 @@ organizados assim.
 | Organização | Admin do órgão (`configure_secretaria` ou criador) | Ativa, cria e edita unidades, define ritos, tipos de processo, timbrado e modelos do órgão, consulta todos os processos |
 | Gestor da unidade | Lotado com a marca de gestor | Monta a equipe da unidade (insere membros, convida por e-mail, admite pedidos, define atribuições e outros gestores), escolhe o timbrado, os tipos de documento e os modelos da unidade |
 | Secretaria | Lotado em unidade do tipo `secretaria` | Autua, junta, tramita, muda fase, atribui, sobrestá e arquiva quando tem o processo |
-| Decisão | Lotado em unidade do tipo `gabinete` | Os mesmos atos quando o processo está no gabinete (ex.: minuta de decisão, assinatura, juntada, devolução) |
+| Decisão | Lotado em unidade que decide (o tipo `gabinete`, por padrão; ver Papéis da unidade) | Os mesmos atos quando o processo está no gabinete (ex.: minuta de decisão, assinatura, juntada, devolução) |
 | Assessoria e outras | Lotado em unidade do tipo `assessoria` ou `outra` | Os mesmos atos de movimentação quando tem o processo (ex.: estudo e minuta) |
 | Partes e representantes | Qualquer conta (externa **ou de membro do órgão**), habilitada por convite; o vínculo é por processo, nunca por `userOrganizations` | Pelo portal (`/Portal`): acompanham os processos em que foram habilitadas e peticionam a qualquer tempo. Um representante (advogado, procurador, preposto) tem a própria conta e fala pela parte. Quem é parte num processo **não é o órgão nele**: veja "Parte e membro: dois papéis" |
 
@@ -83,6 +83,28 @@ O poder de movimentar vem da **posse**: o processo está sempre com uma unidade
 Cada unidade tem tipo (`secretaria`, `gabinete`, `assessoria`, `outra`), nome,
 sigla, descrição e uma **equipe**: cada pessoa lotada tem uma atribuição (texto
 livre, ex.: "Chefe de secretaria") e pode ser **gestora** da unidade.
+
+**Papéis da unidade** (`papeis`, nov/2026): além do tipo, cada unidade diz o
+que faz no processo.
+
+- **Decide** (`papeis.decide`): recebe a conclusão (a remessa a ela grava o
+  movimento `conclusao`), aprecia pendências e petições, decide por despacho
+  ligado à pendência, tem a Mesa de decisão e recebe os avisos de pendência.
+- **Expede** (`papeis.expede`): intima, notifica e cita as partes
+  (`expedirComunicacao`); na tela, é também quem torna sem efeito a
+  comunicação que ainda aguarda ciência.
+
+O tipo dá o padrão: o gabinete decide e a secretaria expede, como sempre
+foi. A unidade muda o padrão em **Dados** (só quem cuida da estrutura), nas
+duas caixas sob "Papel no processo": uma comissão processante que intima e
+decide, um pregoeiro, um fiscal de contrato, uma secretaria que não expede.
+O servidor guarda só o que difere do padrão do tipo (`sanitizePapeis`), de
+modo que trocar o tipo volta ao padrão do novo tipo, e resolve o papel com
+`unidadeDecide` e `unidadeExpede` (`functions-v2/src/shared/secretaria.ts`;
+espelho da tela em `src/lib/permissoesFase.js`). O estado devolve `decide` e
+`expede` já resolvidos em cada unidade. Unidade sem escolha própria e
+processo já autuado não mudam. A lista de unidades mostra "Decide" e
+"Expede" quando o papel vai além do tipo.
 
 - **Onde se gerencia:** o admin, no Painel Administrativo (aba Unidades e
   equipes); o gestor, na aba **Unidades** da página do Processo Eletrônico.
@@ -279,7 +301,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 
 | Coleção | Conteúdo |
 |---|---|
-| `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
+| `secUnidades/{id}` | `organization_id, nome, sigla, tipo (secretaria\|gabinete\|assessoria\|outra), papeis{decide?, expede?} (só o que difere do padrão do tipo), descricao, lotacoes[{uid, atribuicao, gestor}], membros_uids[]` (espelho de `lotacoes`), `pedidos[{uid, nome, email, mensagem, em}], ativa` |
 | `secUnidadeConfig/{unidadeId}` | `organization_id, timbrado_proprio, documento` (mesmo formato do timbrado do órgão), `tipos_documento[]` |
 | `secConvitesEquipe/{sha256 do token}` | `organization_id, unidade_id, email, atribuicao, criado_por, criado_por_nome, expira_em, usado_por, revogado` |
 | `secRitos/{id}` | `organization_id, nome, descricao, fases[{id, nome, prazo_dias?, orientacao?, proximas?[], final?, unidade_id?, agente?, acoes?[] (até 20), modelos?[] (até 10), condicoes?{fase_id: texto}, registro_atos?{fase?, remessas?, outros?{prazo?, pendencia?, urgencia?, dados?, atribuicao?}} (evento \| informacao \| nenhum; ausente = autos, atribuição = evento; o antigo registro? remessas_fora \| interno ainda é lido), certidao?{grupo?, titulo?, incluir_mudancas?}, acoes_regras?[{pede?, rotulo?, ajuda?, opcoes?[], modulo? (pede registro: consultas \| expedientes \| parcerias \| juri), destino? (autos \| informacao \| nenhum \| consolidar; ausente = evento), partes?, obrigatoria?, documento?} \| null] (alinhadas a acoes), documentos?[{descricao, forma (redigir \| juntar \| qualquer), tipo?, modelo_id?, destino? (evento \| informacao = guardado fora dos autos)}] (até 5)}], versao, ativo, origem? ('importacao'), excluido?, excluido_em?, excluido_por?` |
@@ -1494,13 +1516,14 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
 
 ## Conclusão, pendências e prazos (fase 2)
 
-- **Conclusão:** tramitar para uma unidade do tipo gabinete grava o movimento
-  `conclusao` ("Conclusos a ..."). Devolver à secretaria é tramitação comum.
+- **Conclusão:** tramitar para uma unidade que decide (o gabinete, por
+  padrão; ver Papéis da unidade) grava o movimento `conclusao` ("Conclusos
+  a ..."). Devolver à secretaria é tramitação comum.
 - **Pendências** (`processo.pendencias[]`): o que o decisor precisa apreciar.
   Abrem-se à mão (`abrirPendencia`) ou na juntada de um documento
   (`juntar` com `pendencia: 'sim' | 'interrompe'`). Cada uma pode **interromper
   a fase**: enquanto houver pendência aberta que interrompe, `avancarFase` é
-  recusado. Só o **gabinete** que tem o processo aprecia (`resolverPendencia`,
+  recusado. Só a **unidade que decide** e tem o processo aprecia (`resolverPendencia`,
   com a decisão por escrito); apreciada a última que interrompia, a fase volta
   a correr. A fase 3 usa o mesmo mecanismo para a petição da parte.
 - **Prazos** (`processo.prazos[]`): `abrirPrazo` com dias, contagem (úteis ou

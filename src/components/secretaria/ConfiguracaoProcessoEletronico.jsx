@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { secConfig, secProcesso } from '@/services/secretariaService';
 import { SeloUrgente, TIPOS_UNIDADE } from './comum';
+import { unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import PropostaRito from './PropostaRito';
 import EditorTipo from './EditorTipo';
 import { formularioDe, formularioPadrao } from '@/lib/camposProcesso';
@@ -120,6 +121,9 @@ export function CartaoUnidade({ u, estado, onAbrir, carga }) {
                 <span className="font-medium">{u.nome}</span>
                 {u.sigla && <span className="text-xs text-slate-600">{u.sigla}</span>}
                 <Badge variant="outline">{TIPOS_UNIDADE[u.tipo]?.rotulo || 'Secretaria'}</Badge>
+                {/* Papel que a unidade tem além do que o tipo dela já dá. */}
+                {unidadeDecide(u) && u.tipo !== 'gabinete' && <Badge variant="outline">Decide</Badge>}
+                {unidadeExpede(u) && (u.tipo || 'secretaria') !== 'secretaria' && <Badge variant="outline">Expede</Badge>}
                 {!u.ativa && <Badge variant="secondary">Inativa</Badge>}
                 {(u.pedidos || []).length > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{u.pedidos.length} pedido{u.pedidos.length > 1 ? 's' : ''} de lotação</Badge>}
             </div>

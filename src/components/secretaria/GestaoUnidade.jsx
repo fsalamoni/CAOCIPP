@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
 import { ListaTextos, NativeSelect, TIPOS_UNIDADE, copiarTexto, dataHora } from './comum';
+import { papeisDaUnidade, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { DocumentosDaUnidade, ListaModelos } from './ConfiguracaoDocumentos';
 import { orgaosDoDelegado } from '@/lib/orgaos';
 
@@ -34,10 +35,15 @@ function DadosUnidade({ u, setU, idPrefixo, orgaos = [], semEntidade = false }) 
                 <div className="grid sm:grid-cols-2 gap-2">
                     {Object.entries(TIPOS_UNIDADE).map(([k, t]) => (
                         <label key={k} className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer ${u.tipo === k ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950' : 'border-slate-200 dark:border-slate-700'}`}>
-                            <input type="radio" name={`${idPrefixo}-tipo`} className="mt-1" checked={u.tipo === k} onChange={() => setU({ ...u, tipo: k })} />
+                            <input type="radio" name={`${idPrefixo}-tipo`} className="mt-1" checked={u.tipo === k} onChange={() => setU({ ...u, tipo: k, decide: undefined, expede: undefined })} />
                             <span><span className="font-medium block">{t.rotulo}</span><span className="text-slate-600 dark:text-slate-400">{t.descricao}</span></span>
                         </label>
                     ))}
+                </div>
+                <div className="mt-3 space-y-2">
+                    <label className="flex items-start gap-2 text-sm"><Checkbox id={`${idPrefixo}-decide`} className="mt-0.5" checked={unidadeDecide(u)} onCheckedChange={(c) => setU({ ...u, decide: c === true })} /> <span>Decide: recebe a conclusão e aprecia pendências e petições</span></label>
+                    <label className="flex items-start gap-2 text-sm"><Checkbox id={`${idPrefixo}-expede`} className="mt-0.5" checked={unidadeExpede(u)} onCheckedChange={(c) => setU({ ...u, expede: c === true })} /> <span>Expede: intima, notifica e cita as partes</span></label>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Vêm do papel escolhido acima (o gabinete decide, a secretaria expede). Mude quando a unidade faz as duas coisas ou nenhuma: uma comissão processante que intima e decide, um pregoeiro, um fiscal de contrato.</p>
                 </div>
             </fieldset>
             <div><Label htmlFor={`${idPrefixo}-desc`}>Descrição (opcional)</Label><Textarea id={`${idPrefixo}-desc`} rows={2} maxLength={500} value={u.descricao || ''} onChange={(e) => setU({ ...u, descricao: e.target.value })} placeholder="O que a unidade faz, horário, contato…" /></div>
@@ -58,7 +64,7 @@ export function NovaUnidade({ orgId, aberto, onFechar, onCriada, orgaos = [], or
     const salvar = async () => {
         setSalvando(true);
         try {
-            const r = await secConfig(orgId, 'salvarUnidade', { unidade: { ...u, lotacoes: [] } });
+            const r = await secConfig(orgId, 'salvarUnidade', { unidade: { ...u, papeis: papeisDaUnidade(u), lotacoes: [] } });
             toast.success('Unidade criada. Agora monte a equipe.');
             await qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
             onCriada(r.id);
@@ -215,7 +221,7 @@ function EditarDados({ orgId, unidade, orgaos, semEntidade }) {
     const salvar = async () => {
         setSalvando(true);
         try {
-            await secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: u, lotacoes_base: u.lotacoes || [] });
+            await secConfig(orgId, 'salvarUnidade', { id: unidade.id, unidade: { ...u, papeis: papeisDaUnidade(u) }, lotacoes_base: u.lotacoes || [] });
             toast.success('Unidade salva');
             qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
         } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }

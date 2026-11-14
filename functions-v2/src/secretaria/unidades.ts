@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import { createHash, randomBytes } from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { Lotacao, lotacoesDe, mesclarLotacoes, minutaAcessivel, sanitizeLotacoes, texto, tipoUnidade, trocarUnidadeDasFases } from '../shared/secretaria';
+import { Lotacao, lotacoesDe, mesclarLotacoes, minutaAcessivel, sanitizeLotacoes, sanitizePapeis, texto, tipoUnidade, trocarUnidadeDasFases } from '../shared/secretaria';
 import { formatPersonName } from '../shared/normalization';
 import { sendEmail } from '../shared/email';
 import { COL, Contexto, administraOrgao, erroUsuario, exigirAdminDoOrgao, exigirGestor, registrarMovimento } from './context';
@@ -57,7 +57,9 @@ export async function salvarUnidade(c: Contexto, p: Payload, uid: string, audita
         // Delegado só leva a unidade para outro órgão que administra (nunca direto à entidade).
         if (estrutura && !c.ctx.isAdmin && 'orgao_id' in u) exigirAdminDoOrgao(c, orgaoId || null);
         const dados: Record<string, unknown> = estrutura
-            ? { nome: texto(u.nome) || atual.nome, sigla: texto(u.sigla, 20), tipo: tipoUnidade(u.tipo), ativa: u.ativa !== false, ...('orgao_id' in u ? { orgao_id: orgaoId || null } : {}) }
+            ? { nome: texto(u.nome) || atual.nome, sigla: texto(u.sigla, 20), tipo: tipoUnidade(u.tipo), ativa: u.ativa !== false, ...('orgao_id' in u ? { orgao_id: orgaoId || null } : {}),
+                // Papéis: só quem cuida da estrutura muda; quem não manda o campo (tela antiga) deixa como está.
+                ...('papeis' in u ? { papeis: sanitizePapeis(u.papeis, tipoUnidade(u.tipo)) } : {}) }
             : {};
         if (estrutura && !texto(u.nome)) throw new HttpsError('invalid-argument', 'A unidade precisa de um nome');
         // Unidade inativa não movimenta: desativar com processo em andamento deixaria o processo preso.
@@ -98,6 +100,7 @@ export async function salvarUnidade(c: Contexto, p: Payload, uid: string, audita
     if (c.unidades.filter((x) => !x.excluida).length >= MAX_UNIDADES) throw new HttpsError('resource-exhausted', 'Limite de unidades atingido');
     const ref = await c.db.collection(COL.unidades).add({
         organization_id: c.orgId, nome, sigla: texto(u.sigla, 20), tipo: tipoUnidade(u.tipo), descricao: texto(u.descricao, 500),
+        papeis: sanitizePapeis(u.papeis, tipoUnidade(u.tipo)),
         orgao_id: orgaoId || null, competencias, ativa: u.ativa !== false, ...camposLotacao(lotacoes), pedidos: [], created_at: agora, created_by: uid,
     });
     await auditar('SECRETARIA_UNIDADE_SALVA', { unidade_id: ref.id, nome, lotacoes: lotacoes.length });

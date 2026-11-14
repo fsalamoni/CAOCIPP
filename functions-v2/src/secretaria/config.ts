@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { HISTORICO_CONFIG, MAX_TEXTO_LONGO, Rito, acoesHistorico, assuntoHistorico, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade } from '../shared/secretaria';
+import { HISTORICO_CONFIG, MAX_TEXTO_LONGO, Rito, acoesHistorico, assuntoHistorico, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade, unidadeDecide, unidadeExpede } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { numeracaoDe, numeracaoTipoDe, sanitizeNumeracao, sanitizeNumeracaoTipo } from '../shared/numeracao';
@@ -276,6 +276,8 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 const lotacoes = lotacoesDe(u);
                 return {
                     id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '',
+                    // O que a unidade faz no processo, já resolvido (escolha da unidade ou padrão do tipo).
+                    decide: unidadeDecide(u), expede: unidadeExpede(u),
                     orgao_id: u.orgao_id || null, competencias: sanitizeCompetencias(u.competencias),
                     ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes,
                     ...(gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {}),

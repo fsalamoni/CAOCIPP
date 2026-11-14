@@ -56,7 +56,7 @@ export function CartaoComunicacoes({ p, posse, podeMexer, naSecretaria, ocupado,
                 {posse && <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || !naSecretaria || ocupado} onClick={onNova}><Megaphone className="w-4 h-4" aria-hidden /> Intimar ou comunicar</Button>}
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-                {posse && !naSecretaria && <p className="text-slate-600 dark:text-slate-300">Intimações e demais comunicações são expedidas pela secretaria. Envie o processo para a secretaria cumprir.</p>}
+                {posse && !naSecretaria && <p className="text-slate-600 dark:text-slate-300">Esta unidade não expede comunicações às partes. Envie o processo para a secretaria (ou outra unidade que expeça) cumprir.</p>}
                 {lista.length === 0 && naSecretaria && <p className="text-slate-600 dark:text-slate-300">Nenhuma comunicação expedida. Use o botão acima para intimar, notificar, citar ou dar ciência a uma parte.</p>}
                 {lista.map((c) => (
                     <div key={c.id} className="py-2 border-b last:border-0 border-slate-100 dark:border-slate-800 space-y-1">
