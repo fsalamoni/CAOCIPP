@@ -754,13 +754,19 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             if (naoExcluidos(await db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS) {
                 throw new https_1.HttpsError('resource-exhausted', 'Limite de tipos atingido. Implante sem criar o tipo, ou exclua um tipo antes.');
             }
+            // Modelo da biblioteca: o tipo nasce com os polos e os nomes que o processo usa.
+            let formulario;
+            if (tp.formulario) {
+                try {
+                    formulario = (0, camposProcesso_1.sanitizeFormulario)(tp.formulario);
+                }
+                catch (e) {
+                    (0, context_1.erroUsuario)(e);
+                }
+            }
             const ref = db.collection(context_1.COL.tipos).doc();
             tipoId = ref.id;
-            batch.set(ref, {
-                nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id,
-                sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_m = rito.fases[0]) === null || _m === void 0 ? void 0 : _m.unidade_id) || null,
-                ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
-            });
+            batch.set(ref, Object.assign(Object.assign({}, (formulario ? { formulario } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_m = rito.fases[0]) === null || _m === void 0 ? void 0 : _m.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
         }
         await batch.commit();
         await audit(editarId ? 'SECRETARIA_RITO_SALVO' : 'SECRETARIA_RITO_IMPLANTADO', {

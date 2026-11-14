@@ -1493,6 +1493,32 @@ obrigatório), com quem tem o processo. Lógica pura em
   prazo aberto. Portal: avisos e ícones dos dois movimentos.
 - Testes: `functions-v2/test/ajustePrazo.test.js`.
 
+### Biblioteca de modelos de processo (14/11/2026)
+
+Em **Novo rito**, a seção **Biblioteca de modelos de processo** traz processos completos, organizados por área e porte (curto, médio ou longo) e montados a partir da lei de cada área. As áreas são:
+
+- administrativo geral;
+- correcional e disciplinar;
+- ética e conselhos profissionais;
+- sancionador e fiscalização;
+- contratações e contratos;
+- atendimento, ouvidoria e transparência;
+- gestão de pessoas;
+- controle e contas;
+- Ministério Público (extrajudicial, não penal).
+
+Nenhum modelo é penal. O catálogo completo, com descrição, quando usar, base legal, partes e fases de cada modelo, está em [MODELOS_DE_RITO.md](MODELOS_DE_RITO.md).
+
+- **Filtros:** área, porte e busca por palavra ou lei. A busca ignora acentos.
+- **Usar este modelo:** abre a revisão de sempre. As unidades do modelo têm nomes genéricos e são casadas pelo nome com as do órgão, ou a revisão propõe criá-las. Nada é criado antes de implantar.
+- **Tipo de processo:** se o modelo tem partes, a revisão propõe criar o tipo já com os polos, os nomes deles e a descrição do modelo. O servidor confere esse formulário com a mesma regra do cadastro de tipo (`sanitizeFormulario`) e grava o tipo com ele. Desmarcar cria só o rito.
+- **Código:**
+  - Os modelos ficam em `src/lib/modelos/<área>.js`, escritos com `src/lib/modelos/dsl.js`. Nessa linguagem, fases e ações se citam pelo nome, e `montar` troca os nomes por ids e índices.
+  - `src/lib/bibliotecaRitos.js` junta os modelos.
+  - A tela é `BibliotecaModelos.jsx`.
+- **Conferência automática:** em `src/lib/bibliotecaRitos.test.js` e `functions-v2/test/bibliotecaRitos.test.js`. Cobre o fluxo, as condições, as esperas, o diagrama, a aceitação pelo servidor sem perda de configuração, os metadados, a ausência de conteúdo penal e o tipo de cada modelo. O e2e abre cada modelo na tela e confere que nenhum chega com pendência que impeça implantar.
+- **Guia do rito:** nova parte "16. Começar de um modelo da biblioteca".
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
