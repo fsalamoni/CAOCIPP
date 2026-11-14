@@ -863,13 +863,14 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
 });
 
 /**
- * Avanço automático da fase (`avanco: 'auto'`): cumprida a última ação
- * obrigatória, o processo segue para a saída do rito, com a remessa à unidade
+ * Avanço automático da fase (`avanco: 'auto'`): cumprido o último item
+ * obrigatório (ação marcada, documento juntado ou guardado), o processo segue
+ * para a saída do rito, com a remessa à unidade
  * da fase de destino quando ela é outra. É o mesmo ato do botão "Concluir e
  * seguir", com as mesmas conferências; se ele não couber (algo em aberto, mais
  * de uma saída, o processo mudou), nada acontece e o botão continua na tela.
  */
-async function avancarSozinho(c: Ctx, id: string): Promise<Record<string, unknown> | null> {
+export async function avancarSozinho(c: Ctx, id: string): Promise<Record<string, unknown> | null> {
     try {
         const d = (await c.db.collection(COL.processos).doc(id).get()).data();
         if (!d) return null;
@@ -896,7 +897,7 @@ async function avancarSozinho(c: Ctx, id: string): Promise<Record<string, unknow
  */
 async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean } = {}): Promise<Record<string, unknown>> {
     const { db, orgId } = c;
-    const textoAuto = opcoes.automatico ? ' Avanço automático: as ações obrigatórias da fase foram cumpridas.' : '';
+    const textoAuto = opcoes.automatico ? ' Avanço automático: o que a fase exigia foi cumprido.' : '';
     let tentarAuto = false;
     let registroArquivado: Arquivado | null = null;
     // ---- Movimentações sobre um processo existente --------------------------

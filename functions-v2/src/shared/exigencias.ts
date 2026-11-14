@@ -488,6 +488,15 @@ export function exigenciasDaFase(f: FaseRegras | undefined, resp?: Record<string
     ];
 }
 
+/**
+ * A fase tem algum item obrigatório que vale agora (documento exigido ou ação
+ * obrigatória)? Sem nenhum, ela não segue sozinha por juntada: não haveria o
+ * que cumprir, e qualquer documento a encerraria.
+ */
+export const exigeAlgo = (f: FaseRegras | undefined, resp?: Record<string, string>): boolean =>
+    exigenciasDaFase(f, resp).some((e) => !e.nivel)
+    || (f?.acoes_regras || []).some((r, i) => r?.obrigatoria === true && !!f?.acoes?.[i] && acaoAtiva(f, i, resp));
+
 export type Cumpridas = Record<string, Record<string, { documento_id: string; ordem?: number | null }>>;
 
 /** Documentos exigidos ainda não cumpridos na fase. */

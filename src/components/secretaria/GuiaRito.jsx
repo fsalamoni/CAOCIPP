@@ -127,7 +127,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                         <Parte titulo="8. Andamento automático da fase">
                             <p>Em <strong>Andamento automático</strong>, a fase pode andar sem que ninguém precise lembrar do passo seguinte.</p>
                             <ul className="space-y-1.5">
-                                <Termo nome="Seguir sozinha">Cumprida a última ação obrigatória, o processo vai para a próxima fase. Se ela corre em outra unidade, ele é enviado para lá no mesmo ato. Com mais de uma saída, a fase segue quando a resposta de uma ação indicar uma só. Se ainda faltar documento ou dado exigido, nada acontece e o botão Concluir continua na tela.</Termo>
+                                <Termo nome="Seguir sozinha">Cumprido o último item obrigatório da fase (uma ação marcada, um documento juntado ou guardado), o processo vai para a próxima fase. Se ela corre em outra unidade, ele é enviado para lá no mesmo ato. Com o botão Finalizar, segue depois do último documento. Com mais de uma saída, a fase segue quando a resposta de uma ação indicar uma só. Minutas não seguem junto: se quem envia precisa escolher as que acompanham o processo, deixe a fase terminar pelo botão. Se ainda faltar algo exigido, nada acontece e o botão Concluir continua na tela.</Termo>
                                 <Termo nome="Arquivar ao entrar">Para a última fase do rito. O processo é arquivado assim que chega nela, com quem fez e a data nos autos.</Termo>
                                 <Termo nome="Consulta ou expediente ligado">A fase diz em que coluna do quadro de Consultas (ou de Expedientes) o registro fica quando o processo entra nela e quando alguém assume o processo. Vale para o registro de onde o processo nasceu, ou para o único ligado a ele.</Termo>
                                 <Termo nome="Assumir">Na tela do processo, quem é da unidade vê o botão <strong>Assumir</strong> enquanto o processo não tem responsável. Onde esse registro fica, você escolhe em Registros, na linha "Atribuir a uma pessoa".</Termo>
@@ -157,7 +157,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <Termo nome="Nada se perde">Ir para a espera não conclui a fase: o que falta nela não precisa de dispensa, e o que já foi cumprido continua cumprido na volta. Quem respondia pelo processo continua respondendo.</Termo>
                                 <Termo nome="Onde fica o registro">A ida e a volta seguem a regra de <strong>Registros</strong> das duas fases. Para não gerar evento impresso, deixe a entrada e a saída da fase de espera como informação.</Termo>
                                 <Termo nome="Consulta ligada">Em Andamento automático, a fase de espera pode pôr a consulta em <em>Aguarda retorno de terceiros</em>. Na volta, vale a situação da fase de origem (a de quem assumiu, se o processo tem responsável).</Termo>
-                                <Termo nome="Voltar sozinha">Com <strong>Seguir sozinha</strong> marcada, a espera termina quando a última ação obrigatória (ex.: Registrar o retorno) é cumprida.</Termo>
+                                <Termo nome="Voltar sozinha">Com <strong>Seguir sozinha</strong> marcada, a espera termina quando o último item obrigatório (ex.: Registrar o retorno) é cumprido.</Termo>
                             </ul>
                             <p>A fase de espera não pode ser a primeira nem a final. O prazo automático da fase de origem é encerrado na ida e reaberto inteiro na volta.</p>
                         </Parte>
@@ -193,7 +193,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <Termo nome="Consulta ligada ao processo">O rito conduz a situação da consulta, mas não cria a consulta: o processo precisa nascer de uma consulta ou ter uma ligada a ele.</Termo>
                                 <Termo nome="Unidades">Secretaria, Assessoria e Gabinete são casadas pelo nome com as unidades do órgão. A que não existir é proposta para criação. Com outros nomes, troque a unidade em cada fase.</Termo>
                                 <Termo nome="Tipo de documento Parecer">É por ele que a Revisão reconhece o parecer juntado. Ele já vem no sistema; a minuta precisa ser criada com esse tipo.</Termo>
-                                <Termo nome="Duas fases terminam pelo botão">Na Análise, quem envia escolhe as minutas e os anexos que seguem com o processo. Na Revisão, o envio vem depois do Finalizar. As outras seguem sozinhas.</Termo>
+                                <Termo nome="A Análise termina pelo botão">Quem envia escolhe as minutas e os anexos que seguem com o processo para o Gabinete. As outras fases seguem sozinhas: a Revisão, quando o Finalizar junta o parecer.</Termo>
                             </ul>
                             {CONSULTAS.fases.map((f) => (
                                 <section key={f.id} className="space-y-1.5 border-t border-slate-200 dark:border-slate-700 pt-2">
@@ -213,6 +213,25 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                     )}
                                 </section>
                             ))}
+                        </Parte>
+                        <Parte titulo="13. Use tudo isso no seu rito">
+                            <p>Nada do exemplo é exclusivo dele. Cada recurso é uma opção do editor e vale para qualquer rito, de qualquer procedimento. Para aproveitar o que já está pronto, há três caminhos: em <strong>Novo rito</strong>, partir do modelo Rito Consultas CAOCIPP e trocar nomes, unidades e ações; no menu de um rito já implantado, <strong>Duplicar</strong>; ou, dentro de um rito, <strong>Copiar fases de outro rito</strong>.</p>
+                            <table className={tabela}>
+                                <thead><tr><th>O que o exemplo faz</th><th>Onde ligar no seu rito</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Formulário cujos dados formam a folha de dados (evento 1 do PDF)</td><td>Na ação: <strong>O que pede</strong>, "Um formulário (vários campos)", e marque <strong>Entra na folha de dados do processo</strong>. Vale também para um dado só (texto, número, data, lista)</td></tr>
+                                    <tr><td>Ação que só vale conforme uma resposta (ex.: só se não veio pelo SIM)</td><td>Na ação: <strong>Quando vale</strong>. A resposta pode ser de uma ação de escolha ou de um campo de lista ou sim/não de um formulário</td></tr>
+                                    <tr><td>Passo que só orienta, sem marcar</td><td>Na ação: <strong>O que pede</strong>, "Nada: só orienta (não se marca)"</td></tr>
+                                    <tr><td>Anotação da equipe que não gera evento</td><td>Na ação: <strong>Onde fica o cumprimento</strong>, "Sem evento (registro oculto)" ou "Só no sistema (não imprime)"</td></tr>
+                                    <tr><td>Fase inteira fora dos autos (análise, diligências)</td><td>Em <strong>Registros, certidão conjunta e documentos</strong>: "Entrar e sair da fase", "Remessas entre unidades durante a fase" e "Outros atos durante a fase" em "Só no sistema"</td></tr>
+                                    <tr><td>Documento exigido, reconhecido pelo tipo (ex.: Parecer)</td><td>Na ação: <strong>O que pede</strong>, um documento, com o <strong>Tipo de documento</strong>; ou em "Documentos da fase". "Para a fase seguir" diz se é obrigatório, recomendado ou opcional</td></tr>
+                                    <tr><td>Seguir sozinha, arquivar ao entrar, botão Finalizar, conduzir a consulta ou o expediente ligado</td><td>Em <strong>Andamento automático</strong>, uma caixa para cada um</td></tr>
+                                    <tr><td>Fase de espera que volta para a fase de origem (diligências externas)</td><td>Em <strong>Encaminhamentos</strong>: "Fase de espera". Nas fases que podem aguardar, indique a espera como uma das saídas</td></tr>
+                                    <tr><td>Fases em unidades diferentes (Secretaria, Assessoria, Gabinete)</td><td>No cabeçalho de cada fase, a unidade. Ao seguir, o processo é enviado para a unidade da fase seguinte</td></tr>
+                                    <tr><td>Capa simples, botão Assumir, redação original guardada em Versões, Impressão interna</td><td>Não precisam de configuração: valem para todo processo</td></tr>
+                                </tbody>
+                            </table>
+                            <p>O que o rito não faz sozinho: criar a consulta ou o expediente (o processo nasce de um registro ou é ligado a ele) e preencher o que os outros módulos pedem a mais nas suas fichas.</p>
                         </Parte>
                     </div>
                 </DialogContent>

@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Recursos do Rito Consultas em qualquer rito
+- **Seguir sozinha** passa a valer também quando o que faltava era um
+  documento: juntado (ou guardado) o último documento exigido, a fase
+  segue. Com o botão Finalizar, segue depois do último documento. Fase que
+  não exige nada continua seguindo só pelo botão.
+- No modelo Rito Consultas CAOCIPP, a Revisão agora segue sozinha para a
+  Secretaria quando o parecer é juntado.
+- Guia do rito, parte 13: onde ligar, em qualquer rito, cada recurso que o
+  exemplo usa.
+- O aviso do editor sobre fase que "segue sozinha" sem nada exigido passou
+  a considerar os documentos obrigatórios.
+
 ### 14/11/2026 — Modelo pronto: Rito Consultas CAOCIPP
 - Em **Novo rito**, o modelo **Rito Consultas CAOCIPP** cria as seis fases
   já configuradas: Recebimento, Análise, Revisão, Devolução, Arquivamento e

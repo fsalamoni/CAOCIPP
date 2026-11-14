@@ -8,8 +8,8 @@ const caixa = 'flex min-h-[2.75rem] sm:min-h-0 items-start gap-2 text-sm';
 const dica = 'block text-xs text-slate-600 dark:text-slate-400';
 
 /**
- * O que a fase faz sozinha no andamento: seguir quando as ações obrigatórias
- * são cumpridas, arquivar ao entrar e conduzir a consulta ou o expediente
+ * O que a fase faz sozinha no andamento: seguir quando o que ela exige (ação
+ * ou documento obrigatório) é cumprido, arquivar ao entrar e conduzir a consulta ou o expediente
  * ligado ao processo. `ligadas`: integrações com outros módulos.
  */
 export default function AndamentoDaFase({ f, mudar, ligadas }) {
@@ -29,18 +29,18 @@ export default function AndamentoDaFase({ f, mudar, ligadas }) {
             <label className={caixa}>
                 <Checkbox className="mt-0.5" checked={f.avanco === 'auto' && !f.final} disabled={!!f.final}
                     onCheckedChange={(c) => mudar({ avanco: c === true ? 'auto' : undefined })} />
-                <span>Seguir sozinha quando as ações obrigatórias forem cumpridas
+                <span>Seguir sozinha quando o que a fase exige for cumprido
                     <span className={dica}>
                         {f.final
                             ? 'Fase final não tem para onde seguir.'
-                            : 'Cumprida a última ação obrigatória, o processo vai para a próxima fase e, se ela corre em outra unidade, é enviado para lá. Com mais de uma saída, segue quando a resposta de uma ação indicar uma só. Se faltar documento ou dado exigido, fica o botão Concluir.'}
+                            : 'Cumprido o último item obrigatório (ação marcada, documento juntado ou guardado), o processo vai para a próxima fase e, se ela corre em outra unidade, é enviado para lá. Com o botão Finalizar, segue depois do último documento. Com mais de uma saída, segue quando a resposta de uma ação indicar uma só. Minutas não seguem junto: para escolher as que acompanham o processo, deixe a fase terminar pelo botão. Se algo exigido ficar em aberto, fica o botão Concluir.'}
                     </span>
                 </span>
             </label>
             <label className={caixa}>
                 <Checkbox className="mt-0.5" checked={!!ae.arquivar} onCheckedChange={(c) => setArquivar(c === true)} />
                 <span>Arquivar o processo ao entrar nesta fase
-                    <span className={dica}>O arquivamento fica nos autos, com quem fez e a data. Use na última fase do rito.</span>
+                    <span className={dica}>O arquivamento fica registrado com quem fez e a data, e sai no extrato do PDF. Use na última fase do rito.</span>
                 </span>
             </label>
             <label className={caixa}>

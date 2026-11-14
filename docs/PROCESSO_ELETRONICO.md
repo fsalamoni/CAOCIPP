@@ -893,8 +893,9 @@ No cartão da fase, a seção **Andamento automático** guarda o que a fase faz
 sem que alguém precise lembrar do passo seguinte. São três regras, todas
 opcionais; rito sem elas funciona como antes.
 
-- **Seguir sozinha** (`fase.avanco: 'auto'`). Marcada a última ação
-  **obrigatória**, o servidor confere, depois de gravar a ação, se nada
+- **Seguir sozinha** (`fase.avanco: 'auto'`). Cumprido o último item
+  **obrigatório** (ação marcada ou, desde 14/11/2026, documento juntado ou
+  guardado), o servidor confere, depois de gravar o ato, se nada
   exigido ficou em aberto (`exigenciasAbertas`) e se o rito indica uma única
   saída (`saidaAutomatica`, em `shared/secretaria.ts`): uma só fase seguinte,
   ou várias com exatamente uma indicada pela resposta de uma ação
@@ -902,13 +903,19 @@ opcionais; rito sem elas funciona como antes.
   permissões de quem marcou: `tramitar` com `fase_id` quando a fase seguinte
   corre em outra unidade ativa, `avancarFase` quando corre na mesma. O
   movimento leva `dados.automatico: true` e o texto termina com "Avanço
-  automático: as ações obrigatórias da fase foram cumpridas." Se faltar
+  automático: o que a fase exigia foi cumprido." Se faltar
   documento ou dado, se houver mais de uma saída possível ou se o ato for
   recusado, nada acontece e o botão continua na tela. A resposta de
-  `marcarAcao` traz `avancou: { fase, unidade, arquivado }` e a tela avisa
-  para onde o processo foi. Só o cumprimento de ação obrigatória dispara a
-  conferência; juntar o documento que faltava não dispara (use o botão).
-  Fase final e fase sem ação obrigatória não seguem sozinhas.
+  `marcarAcao`, `juntar` e `guardar` traz `avancou: { fase, unidade,
+  arquivado }` e a tela avisa para onde o processo foi. Disparam a
+  conferência: marcar ação obrigatória, e juntar ou guardar documento numa
+  fase que exige algo (`exigeAlgo` em `shared/exigencias.ts`; `avancarSozinho`
+  em `secretaria/processos.ts`). Na juntada em conjunto (botão Finalizar), a
+  tela manda `aguardar: true` em todos os documentos menos o último, e só
+  esse conclui a fase. Petição protocolada pelo portal não dispara o avanço:
+  ela abre pendência para o decisor. Minutas não seguem com o avanço automático: fase em
+  que quem envia escolhe as minutas termina pelo botão. Fase final e fase
+  sem nada obrigatório não seguem sozinhas.
 - **Arquivar ao entrar** (`fase.ao_entrar.arquivar`). Ao entrar na fase, o
   processo é arquivado na mesma transação, em ato próprio logo depois da
   mudança de fase: movimento `situacao`, "Arquivado pela regra da fase X.",
@@ -1098,7 +1105,7 @@ parte 12 (`ritoConsultas` em `src/lib/secretariaRito.js`).
 |---|---|---|---|
 | Recebimento | Secretaria | Dados básicos (formulário), número do PGEA, comunicação ao solicitante (só se a consulta não veio pelo SIM), observações. Segue sozinha | Folha de dados (evento 1); observações sem evento |
 | Análise | Assessoria | Consulta Pendente; ao assumir, Em elaboração. Minuta e anexos ficam como minuta. Termina pelo botão: quem envia escolhe o que segue | Só no sistema |
-| Revisão | Gabinete | Consulta Em revisão. Edita a minuta e usa Finalizar Revisão. Termina pelo botão | Parecer e anexos escolhidos nos autos |
+| Revisão | Gabinete | Consulta Em revisão. Edita a minuta e usa Finalizar Revisão. Juntado o parecer, segue sozinha | Parecer e anexos escolhidos nos autos |
 | Devolução | Secretaria | Consulta Revisadas. Registros de acervo, data e meio da devolução. Segue sozinha | Devolução nos autos |
 | Arquivamento | Secretaria | Arquiva ao entrar. Consulta Na pasta | Extrato do PDF, com quem fez e a data |
 | Diligências externas | onde o processo estiver | Fase de espera da Análise e da Revisão. Consulta Aguarda retorno de terceiros. Registrado o retorno, volta sozinha | Só no sistema |
@@ -1111,11 +1118,16 @@ parte 12 (`ritoConsultas` em `src/lib/secretariaRito.js`).
   nascer de uma consulta ou ter uma ligada: o rito conduz a situação dela,
   mas não cria a consulta. O tipo de documento Parecer precisa existir (é o
   padrão): por ele a Revisão reconhece o parecer juntado.
-- **Por que Análise e Revisão não seguem sozinhas.** Na Análise, o envio ao
-  Gabinete pede a escolha das minutas que seguem com o processo. Na
-  Revisão, o que libera a fase é a juntada do parecer, e o avanço
-  automático só dispara ao marcar uma ação obrigatória. Nas duas, a tela
-  abre o passo seguinte.
+- **Por que a Análise não segue sozinha.** O envio ao Gabinete pede a
+  escolha das minutas que seguem com o processo, e o avanço automático não
+  leva minutas. A Revisão segue sozinha desde 14/11/2026: o Finalizar
+  Revisão junta o parecer e os anexos, e o último documento conclui a fase.
+  Rito já implantado a partir do modelo continua como foi gravado; para ter
+  o mesmo, marque "Seguir sozinha" na Revisão.
+- **Nada é exclusivo do modelo.** Cada recurso que ele usa é uma opção do
+  editor de rito e vale para qualquer procedimento. O Guia do rito, parte
+  13, diz onde ligar cada um. Conferido criando outro rito pela tela e pela
+  API no cenário de ponta a ponta.
 - **Registros de acervo.** Ficam na Devolução, como ação obrigatória: o
   processo é arquivado no instante em que chega ao Arquivamento.
 - Fase de espera sem unidade deixou de ser apontada como pendência no

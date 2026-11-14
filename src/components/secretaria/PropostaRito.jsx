@@ -100,8 +100,11 @@ export function pendenciasDaProposta(p, ligadas = null) {
             out.push({ fase: f.id, grave: true, texto: `${rot} muda a situação em ${MODULOS_SITUACAO.find(([m]) => m === sit.modulo)?.[1] || sit.modulo}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou tire a regra em "Andamento automático".` });
         }
         if (sit?.modulo && !sit.ao_entrar && !sit.ao_assumir) out.push({ fase: f.id, texto: `${rot} escolheu um registro para conduzir, mas não disse a situação: a regra é descartada ao salvar.` });
-        if (f.avanco === 'auto' && !f.final && !(f.acoes_regras || []).some((r, k) => r?.obrigatoria && (f.acoes || [])[k]?.trim())) {
-            out.push({ fase: f.id, texto: `${rot} segue sozinha, mas não tem ação obrigatória: ela só segue pelo botão.` });
+        // Segue sozinha ao cumprir o último item obrigatório: ação obrigatória ou documento exigido (da fase ou de uma ação).
+        const exige = (f.acoes_regras || []).some((r, k) => (f.acoes || [])[k]?.trim() && (r?.obrigatoria || (r?.documento && !r.documento.nivel)))
+            || (f.documentos || []).some((d) => (d.descricao || '').trim() && !d.nivel);
+        if (f.avanco === 'auto' && !f.final && !exige) {
+            out.push({ fase: f.id, texto: `${rot} segue sozinha, mas não exige nada (ação obrigatória ou documento obrigatório): ela só segue pelo botão.` });
         }
         const semTexto = (f.acoes || []).filter((a) => !a.trim()).length;
         if (semTexto) out.push({ fase: f.id, texto: `${rot} tem ${plural(semTexto, 'ação sem texto, que é descartada', 'ações sem texto, que são descartadas')} ao salvar.` });

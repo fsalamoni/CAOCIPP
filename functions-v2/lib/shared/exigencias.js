@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.marcasNaFase = exports.respostasDaFase = exports.respondeNaRodada = exports.respostaDaAcao = exports.chaveDaCondicao = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.exigeAlgo = exports.marcasNaFase = exports.respostasDaFase = exports.respondeNaRodada = exports.respostaDaAcao = exports.chaveDaCondicao = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -445,6 +445,14 @@ function exigenciasDaFase(f, resp) {
         ...(f.acoes_regras || []).flatMap((r, i) => { var _b; return ((r === null || r === void 0 ? void 0 : r.documento) && ((_b = f.acoes) === null || _b === void 0 ? void 0 : _b[i]) && acaoAtiva(f, i, resp) ? [Object.assign(Object.assign({}, r.documento), { chave: `a${i}`, acao_idx: i })] : []); }),
     ];
 }
+/**
+ * A fase tem algum item obrigatório que vale agora (documento exigido ou ação
+ * obrigatória)? Sem nenhum, ela não segue sozinha por juntada: não haveria o
+ * que cumprir, e qualquer documento a encerraria.
+ */
+const exigeAlgo = (f, resp) => exigenciasDaFase(f, resp).some((e) => !e.nivel)
+    || ((f === null || f === void 0 ? void 0 : f.acoes_regras) || []).some((r, i) => { var _b; return (r === null || r === void 0 ? void 0 : r.obrigatoria) === true && !!((_b = f === null || f === void 0 ? void 0 : f.acoes) === null || _b === void 0 ? void 0 : _b[i]) && acaoAtiva(f, i, resp); });
+exports.exigeAlgo = exigeAlgo;
 /** Documentos exigidos ainda não cumpridos na fase. */
 function pendentesDaFase(f, cumpridas, resp) {
     const feitas = (f && (cumpridas === null || cumpridas === void 0 ? void 0 : cumpridas[f.id])) || {};

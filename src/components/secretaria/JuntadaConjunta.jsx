@@ -14,8 +14,9 @@ const dica = 'block text-xs text-slate-600 dark:text-slate-400';
  * anexos entram nos autos, em que ordem, assinar e juntar de uma vez. O que
  * não for escolhido continua como minuta ou é guardado fora dos autos.
  * `seguir`: rótulo do botão principal da fase, aberto depois da juntada.
+ * `sozinha`: a fase segue sozinha quando o que ela exige é cumprido.
  */
-export default function JuntadaConjunta({ aberto, titulo, minutas, uid, ocupado, seguir, onAnexar, onConfirmar, onFechar }) {
+export default function JuntadaConjunta({ aberto, titulo, minutas, uid, ocupado, seguir, sozinha, onAnexar, onConfirmar, onFechar }) {
     const [itens, setItens] = useState([]);
     const [visivel, setVisivel] = useState('sim');
     const [guardarResto, setGuardarResto] = useState(false);
@@ -88,10 +89,11 @@ export default function JuntadaConjunta({ aberto, titulo, minutas, uid, ocupado,
                         </span>
                     </label>
                 )}
+                {sozinha && <p className="text-sm">Esta fase segue sozinha: juntado o último documento, se nada exigido ficar em aberto, o processo vai para a próxima fase.</p>}
                 {seguir && (
                     <label className={caixa}>
                         <Checkbox className="mt-0.5" checked={depois} onCheckedChange={(c) => setDepois(c === true)} />
-                        <span>Depois de juntar, abrir: {seguir}</span>
+                        <span>{sozinha ? 'Se a fase não seguir sozinha, abrir' : 'Depois de juntar, abrir'}: {seguir}</span>
                     </label>
                 )}
                 <p className={dica}>

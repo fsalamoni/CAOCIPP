@@ -6,7 +6,7 @@ test('andamento da fase: resumo, regra do registro ligado e aviso de avanço', (
     assert.deepEqual(resumoAndamento({}), []);
     assert.deepEqual(resumoAndamento({ avanco: 'auto', final: true }), [], 'fase final não segue');
     assert.deepEqual(resumoAndamento({ avanco: 'auto', ao_entrar: { arquivar: true }, situacao_registro: { modulo: 'consultas', ao_entrar: 'Pendente', ao_assumir: 'Em elaboração' } }), [
-        'segue sozinha ao cumprir as ações obrigatórias', 'arquiva o processo ao entrar',
+        'segue sozinha ao cumprir o que a fase exige', 'arquiva o processo ao entrar',
         'a consulta fica "Pendente" ao entrar', 'a consulta fica "Em elaboração" quando alguém assume',
     ]);
     assert.deepEqual(resumoAndamento({ situacao_registro: { modulo: 'expedientes', ao_entrar: 'Na pasta' } }), ['o expediente fica "Na pasta" ao entrar']);

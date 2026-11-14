@@ -6,7 +6,8 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
-import { Cumpridas, camposDoCumprimento, destinoDaGuarda, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
+import { Cumpridas, camposDoCumprimento, destinoDaGuarda, exigeAlgo, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
+import { avancarSozinho } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { lotacoesDe } from '../shared/secretaria';
@@ -41,6 +42,8 @@ interface DocRequest {
     organizationId: string;
     processoId: string;
     action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura' | 'versoes';
+    /** juntar e guardar: há mais documentos a caminho (juntada em conjunto); a fase que segue sozinha espera o último. */
+    aguardar?: boolean;
     docId?: string;
     /** baixar/pdf: uma redação anterior do documento (id em `versoes`). */
     versaoId?: string;
@@ -295,6 +298,16 @@ export const secretariaDocumento = onCall<DocRequest>(
             return { success: true };
         }
 
+        // Fase que segue sozinha: o documento que faltava também conclui a fase, como a última
+        // ação obrigatória. Na juntada em conjunto, só o último pedido tenta (o exigido pode ter
+        // sido um dos anteriores); `avancarSozinho` confere se nada obrigatório ficou em aberto.
+        const podeSeguir = (fase: Fase | undefined, atual: admin.firestore.DocumentData) =>
+            fase?.avanco === 'auto' && p.aguardar !== true && exigeAlgo(fase, respostasDaFase(atual));
+        const comAvanco = async (r: Record<string, unknown>, tentar: boolean) => {
+            const auto = tentar ? await avancarSozinho(c, procRef.id) : null;
+            return { success: true, ...r, ...(auto ? { version: auto.version, avancou: auto.avancou } : {}) };
+        };
+
         if (p.action === 'juntar') {
             // "Assinar e juntar": a assinatura entra antes de renderizar o PDF.
             if (p.assinar) await assinarMinuta().catch((e) => { if (e?.code !== 'already-exists') throw e; });
@@ -381,11 +394,12 @@ export const secretariaDocumento = onCall<DocRequest>(
                     ...(mexeuPendencias ? { pendencias, ...derivados(pendencias, (atual.prazos || []) as Prazo[]) } : {}),
                     ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
                 });
-                return { ordem, version: mov.version, folha_inicial: folha, paginas };
+                return { ordem, version: mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual) };
             });
             void avisarPartesDoMovimento(c.db, procRef.id);
             if (p.pendencia === 'sim' || p.pendencia === 'interrompe') void avisarPendencia(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
-            return { success: true, ...r };
+            const { tentar, ...feito } = r;
+            return comAvanco(feito, tentar);
         }
 
         if (p.action === 'guardar') {
@@ -416,9 +430,10 @@ export const secretariaDocumento = onCall<DocRequest>(
                     ...mov, ...exig,
                     ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
                 });
-                return { version: mov.version };
+                return { version: mov.version, tentar: podeSeguir(fase, atual) };
             });
-            return { success: true, ...r };
+            const { tentar, ...feito } = r;
+            return comAvanco(feito, tentar);
         }
 
         throw new HttpsError('invalid-argument', 'Ação desconhecida');

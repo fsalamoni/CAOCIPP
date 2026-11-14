@@ -124,7 +124,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         setOcupado(true);
         try {
             const r = await fn();
-            // A fase pode seguir sozinha ao cumprir a última ação obrigatória: o servidor diz para onde foi.
+            // A fase pode seguir sozinha ao cumprir o último item obrigatório (ação ou documento): o servidor diz para onde foi.
             if (r?.avancou) toast.success(textoAvanco(r.avancou));
             else if (okMsg) toast.success(okMsg);
             setAcao(null);
@@ -293,14 +293,18 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
      */
     const juntarEmConjunto = async (plano, { visivel, depois }) => {
         const juntados = plano.filter((x) => x.acao === 'juntar').length;
+        let seguiu = false;
         const ok = await executar(async () => {
             let version = p.version;
             let feitos = 0;
+            let r;
             for (const passo of plano) {
+                // Fase que segue sozinha: só o último pedido deixa o servidor concluir a fase.
+                const aguardar = feitos < plano.length - 1;
                 try {
-                    const r = passo.acao === 'juntar'
-                        ? await secDocumento(orgId, procId, 'juntar', { docId: passo.docId, version, pendencia: 'nao', visivel_partes: visivel, assinar: passo.assinar })
-                        : await secDocumento(orgId, procId, 'guardar', { docId: passo.docId, version });
+                    r = passo.acao === 'juntar'
+                        ? await secDocumento(orgId, procId, 'juntar', { docId: passo.docId, version, pendencia: 'nao', visivel_partes: visivel, assinar: passo.assinar, aguardar })
+                        : await secDocumento(orgId, procId, 'guardar', { docId: passo.docId, version, aguardar });
                     version = r.version;
                     feitos += 1;
                 } catch (e) {
@@ -308,10 +312,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     throw new Error(`${feitos ? `${feitos} de ${plano.length} concluído(s). ` : ''}Parou em "${passo.titulo}": ${e?.message || 'não foi possível concluir'}`);
                 }
             }
+            seguiu = !!r?.avancou;
+            return r;
         }, `${juntados} ${juntados === 1 ? 'documento juntado' : 'documentos juntados'} aos autos`);
         if (!ok) return;
         setConjunta(false);
-        if (depois && principal) {
+        if (depois && principal && !seguiu) {
             // Com o processo já atualizado: o que faltava na fase pode ter sido cumprido pela juntada.
             await qc.refetchQueries({ queryKey: ['sec-proc', orgId, procId] });
             principal.acao();
@@ -891,6 +897,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 uid={estado.uid}
                 ocupado={ocupado}
                 seguir={finalizaComDocumentos && principal ? principal.rotulo : null}
+                sozinha={faseAtual?.avanco === 'auto' && !faseAtual?.final}
                 onAnexar={enviarArquivo}
                 onConfirmar={juntarEmConjunto}
                 onFechar={() => setConjunta(false)}
