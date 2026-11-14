@@ -26,7 +26,7 @@ import {
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
 import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refDe, refDePagina, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
-import { ModuloSituacao, chaveDoRegistro, mudancasDaPagina, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
+import { ModuloSituacao, chaveDoRegistro, mudancasDaPagina, mudancasDaParceria, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
 import type { EntityTypeDef } from '../customEntities/schema';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
@@ -340,6 +340,14 @@ async function lerPaginasDoRito(
 
 type Arquivado = { modulo: ModuloSituacao; id: string; numero: string };
 
+/** Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro. */
+function avisarArquivado(orgId: string, ra: Arquivado | null): void {
+    if (!ra) return;
+    void fireOrgWebhook(orgId, 'archived', ra.modulo === 'consultas'
+        ? { entity_type: 'process', entity_id: ra.id, process_number: ra.numero }
+        : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
+}
+
 /** Entrada do histórico do registro conduzido (mesmo formato dos módulos). */
 function gravarNoRegistro(tx: admin.firestore.Transaction, c: Ctx, r: RegistroAchado, campos: Record<string, unknown>, action: string): void {
     const agora = new Date();
@@ -365,6 +373,14 @@ function aplicarSituacao(
     const nome = ROTULO_MODULO[cfg.modulo];
     const r = registros.get(chaveDoRegistro(cfg));
     if (!r || 'falta' in r) return { notas: [`Situação em ${nome} não alterada: ${r ? r.falta : 'o registro ligado não foi lido'}.`], arquivou: null };
+    if (cfg.modulo === 'parcerias') {
+        // Mesmas regras do quadro de Parcerias: campos exigidos da fase e datas automáticas.
+        const pc = mudancasDaParceria(r.doc, alvo, hojeBrasil(), quem);
+        if (!pc) return { notas: [], arquivou: null };
+        if ('motivo' in pc) return { notas: [`Parceria ${r.numero}: a situação não mudou para "${alvo}". ${pc.motivo}`], arquivou: null };
+        gravarNoRegistro(tx, c, r, pc.campos, `Status alterado de "${r.doc.status || 'Pendente'}" para "${alvo}" (pelo processo eletrônico ${proc.numero}, fase ${fase.nome})`);
+        return { notas: [`Parceria ${r.numero}: situação "${alvo}" pela regra da fase.`], arquivou: null };
+    }
     if (cfg.modulo === 'paginas') {
         // A mudança passa pelas regras de transição da página, com quem pratica o ato no processo.
         const pg = mudancasDaPagina(r.tipo as EntityTypeDef, r.doc, alvo, { userId: c.ctx.uid, userRole: c.papel || 'member' }, hojeBrasil());
@@ -959,7 +975,11 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         // A primeira fase pode designar o responsável e avisar a equipe já na autuação.
         const designacaoInicial = await designadoPelaFase(c, fase1, unidade);
         let autuado: { proc: admin.firestore.DocumentData; pendencia?: string } | null = null;
+        let registroArquivado: Arquivado | null = null;
         const numero = await db.runTransaction(async (tx) => {
+            // Regra da primeira fase sobre o registro ligado que vale já na autuação: lido antes de qualquer escrita.
+            const registros = fase1?.situacao_registro?.na_autuacao
+                ? await lerRegistrosDoRito(tx, c, { fases: [fase1], origem, vinculos: vinculosDe(origem, campos) }) : SEM_REGISTROS;
             let numero = identificadorSemNumero(procRef.id);
             if (numeracao && contadorRef) {
                 const cont = await tx.get(contadorRef);
@@ -1016,7 +1036,12 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 prazos: [],
                 ...derivados([], []),
             };
-            const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName, { designacao: designacaoInicial });
+            const efFase = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName, { designacao: designacaoInicial });
+            const sit = registros === SEM_REGISTROS ? { notas: [], arquivou: null }
+                : aplicarSituacao(tx, c, registros, fases[0], designacaoInicial?.uid && fase1.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', base,
+                    designacaoInicial?.uid ? { uid: designacaoInicial.uid, nome: designacaoInicial.nome || '' } : undefined);
+            registroArquivado = sit.arquivou;
+            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
             autuado = { proc: { ...base, ...ef.campos }, ...(ef.pendencia ? { pendencia: ef.pendencia } : {}) };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
                 `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}${ef.texto}`,
@@ -1029,6 +1054,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const au = autuado as { proc: admin.firestore.DocumentData; pendencia?: string } | null;
         if (au && fase1?.aviso?.para) void avisarEntradaNaFase(c, fase1, unidadeId, au.proc, procRef.id, false, '');
         if (au?.pendencia) void avisarPendencia(c, au.proc, procRef.id, au.pendencia);
+        avisarArquivado(orgId, registroArquivado);
         return { success: true, id: procRef.id, numero };
     }
 
@@ -1750,12 +1776,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
     void avisarPartesDoMovimento(db, String(p.id), undefined, expedidas);
     // Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro.
-    const ra = registroArquivado as Arquivado | null;
-    if (ra) {
-        void fireOrgWebhook(orgId, 'archived', ra.modulo === 'consultas'
-            ? { entity_type: 'process', entity_id: ra.id, process_number: ra.numero }
-            : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
-    }
+    avisarArquivado(orgId, registroArquivado);
     const r = recebeu as { unidadeId: string; proc: admin.firestore.DocumentData } | null;
     const en = entrou as { fase: Fase; unidadeId: string; proc: admin.firestore.DocumentData; remessa: boolean } | null;
     const recado = motivo || texto(p.orientacao, MAX_TEXTO_LONGO);

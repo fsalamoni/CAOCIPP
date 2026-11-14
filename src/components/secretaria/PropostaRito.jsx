@@ -1172,7 +1172,7 @@ function CartaoFase({
             </Secao>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
             <Secao titulo="Andamento automático" resumo={resumoAndamento(f, paginasDoOrgao).join('; ') || 'a fase só anda pelo botão'}>
-                <AndamentoDaFase f={f} mudar={mudar} ligadas={ligadas} />
+                <AndamentoDaFase f={f} mudar={mudar} ligadas={ligadas} primeira={i === 0} />
             </Secao>
             <Secao titulo="Quem pode nesta fase" resumo={resumoPermissoes(f.permissoes).join('; ') || 'quem tem o processo conclui, dispensa e arquiva, com motivo'}>
                 <PermissoesDaFase f={f} mudar={mudar} aplicarATodas={total > 1 ? permissoesEmTodas : null} />

@@ -1,11 +1,13 @@
 // Andamento automático da fase e situação do registro ligado (Consultas,
-// Expedientes e páginas próprias). Espelho de
+// Expedientes, Parcerias e páginas próprias). Espelho de
 // functions-v2/src/shared/situacaoRegistro.ts: o servidor é quem valida e
 // aplica; aqui é só o que a tela mostra.
 
 export const SITUACOES = ['Pendente', 'Em elaboração', 'Aguarda retorno de terceiros', 'Em revisão', 'Revisadas', 'Na pasta'];
+/** Situações de Parcerias que o rito dá ("Extintos" tem procedimento próprio no módulo). */
+export const SITUACOES_PARCERIA = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros', 'Parcerias'];
 /** [id, nome do módulo, como chamar um registro dele numa frase]. As páginas próprias vêm do órgão (`paginas`). */
-export const MODULOS_SITUACAO = [['consultas', 'Consultas', 'a consulta'], ['expedientes', 'Expedientes', 'o expediente']];
+export const MODULOS_SITUACAO = [['consultas', 'Consultas', 'a consulta'], ['expedientes', 'Expedientes', 'o expediente'], ['parcerias', 'Parcerias', 'a parceria']];
 
 const paginaDe = (s, paginas) => (paginas || []).find((x) => x.id === s?.pagina);
 /** Nome do módulo da regra, para avisos. `paginas`: [{ id, nome, plural, fases: [{ key, label }] }]. */
@@ -19,7 +21,7 @@ export const nomeDoRegistro = (s, paginas) => (s?.modulo === 'paginas'
 /** Situações que o registro pode ter: as do quadro ou, em página própria, as fases dela. [valor, rótulo]. */
 export const situacoesDaRegra = (s, paginas) => (s?.modulo === 'paginas'
     ? (paginaDe(s, paginas)?.fases || []).map((x) => [x.key, x.label])
-    : SITUACOES.map((x) => [x, x]));
+    : (s?.modulo === 'parcerias' ? SITUACOES_PARCERIA : SITUACOES).map((x) => [x, x]));
 const rotuloDoAlvo = (s, alvo, paginas) => situacoesDaRegra(s, paginas).find(([k]) => k === alvo)?.[1] || alvo;
 
 /** O que a fase faz sozinha no andamento, em frases curtas (resumo do editor, prévia e tela do processo). */
@@ -32,6 +34,7 @@ export function resumoAndamento(f, paginas) {
         f?.juntada_conjunta ? 'tem o botão Finalizar: escolher, ordenar, assinar e juntar os documentos de uma vez' : null,
         s?.modulo && s.ao_entrar ? `${nomeDoRegistro(s, paginas)} fica "${rotuloDoAlvo(s, s.ao_entrar, paginas)}" ao entrar` : null,
         s?.modulo && s.ao_assumir ? `${nomeDoRegistro(s, paginas)} fica "${rotuloDoAlvo(s, s.ao_assumir, paginas)}" quando alguém assume` : null,
+        s?.modulo && s.na_autuacao && (s.ao_entrar || s.ao_assumir) ? 'a regra do registro vale já na autuação' : null,
     ].filter(Boolean);
 }
 
@@ -49,7 +52,8 @@ export const valorDaRegra = (s) => (s?.modulo === 'paginas' ? `paginas:${s.pagin
 export function comRegistroConduzido(f, valor) {
     const [modulo, pagina] = valor.startsWith('paginas:') ? ['paginas', valor.slice(8)] : [valor, ''];
     const antes = f?.situacao_registro;
-    const mesmoQuadro = modulo !== 'paginas' && antes?.modulo !== 'paginas';
+    // Consultas e Expedientes têm as mesmas situações; Parcerias e cada página, as suas.
+    const mesmoQuadro = modulo !== 'paginas' && antes?.modulo !== 'paginas' && (modulo === 'parcerias') === (antes?.modulo === 'parcerias');
     return comSituacao(f, { modulo, pagina, ...(mesmoQuadro ? {} : { ao_entrar: '', ao_assumir: '' }) });
 }
 

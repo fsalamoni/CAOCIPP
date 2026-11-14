@@ -11,13 +11,13 @@ const rito = (fases) => s.sanitizeRito({ nome: 'R', fases }).fases;
 test('rito: guarda o avanço automático, o arquivar ao entrar e a situação do registro; descarta o que não vale', () => {
     const [a, b, c] = rito([
         { nome: 'Recebimento', avanco: 'auto', situacao_registro: { modulo: 'consultas', ao_entrar: 'Pendente', ao_assumir: 'Em elaboração' } },
-        { nome: 'Análise', avanco: 'sempre', situacao_registro: { modulo: 'parcerias', ao_entrar: 'Em revisão' } },
+        { nome: 'Análise', avanco: 'sempre', situacao_registro: { modulo: 'juri', ao_entrar: 'Em revisão' } },
         { nome: 'Arquivamento', final: true, avanco: 'auto', ao_entrar: { arquivar: true }, situacao_registro: { modulo: 'expedientes', ao_entrar: 'Na pasta', ao_assumir: 'xpto' } },
     ]);
     assert.equal(a.avanco, 'auto');
     assert.deepEqual(a.situacao_registro, { modulo: 'consultas', ao_entrar: 'Pendente', ao_assumir: 'Em elaboração' });
     assert.equal(b.avanco, undefined, 'valor desconhecido não entra');
-    assert.equal(b.situacao_registro, undefined, 'só Consultas e Expedientes têm essas situações');
+    assert.equal(b.situacao_registro, undefined, 'o Júri não é conduzido pelo rito');
     assert.equal(c.avanco, undefined, 'fase final não tem para onde seguir');
     assert.deepEqual(c.ao_entrar, { arquivar: true });
     assert.deepEqual(c.situacao_registro, { modulo: 'expedientes', ao_entrar: 'Na pasta' });

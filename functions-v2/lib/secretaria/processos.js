@@ -250,6 +250,14 @@ async function lerPaginasDoRito(tx, c, proc, paginas, ligada, lidos) {
             lidos.set(chave, { ref: alvo.ref, doc: alvo.d, modulo: 'paginas', numero: (0, modulos_1.refDePagina)(alvo.ref.id, alvo.d, tipo).numero, tipo, rotulo: String(tipo.label_singular || 'Registro') });
     }
 }
+/** Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro. */
+function avisarArquivado(orgId, ra) {
+    if (!ra)
+        return;
+    void (0, webhooks_1.fireOrgWebhook)(orgId, 'archived', ra.modulo === 'consultas'
+        ? { entity_type: 'process', entity_id: ra.id, process_number: ra.numero }
+        : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
+}
 /** Entrada do histórico do registro conduzido (mesmo formato dos módulos). */
 function gravarNoRegistro(tx, c, r, campos, action) {
     const agora = new Date();
@@ -273,6 +281,16 @@ function aplicarSituacao(tx, c, registros, fase, gatilho, proc, quem) {
     const r = registros.get((0, situacaoRegistro_1.chaveDoRegistro)(cfg));
     if (!r || 'falta' in r)
         return { notas: [`Situação em ${nome} não alterada: ${r ? r.falta : 'o registro ligado não foi lido'}.`], arquivou: null };
+    if (cfg.modulo === 'parcerias') {
+        // Mesmas regras do quadro de Parcerias: campos exigidos da fase e datas automáticas.
+        const pc = (0, situacaoRegistro_1.mudancasDaParceria)(r.doc, alvo, (0, secretaria_1.hojeBrasil)(), quem);
+        if (!pc)
+            return { notas: [], arquivou: null };
+        if ('motivo' in pc)
+            return { notas: [`Parceria ${r.numero}: a situação não mudou para "${alvo}". ${pc.motivo}`], arquivou: null };
+        gravarNoRegistro(tx, c, r, pc.campos, `Status alterado de "${r.doc.status || 'Pendente'}" para "${alvo}" (pelo processo eletrônico ${proc.numero}, fase ${fase.nome})`);
+        return { notas: [`Parceria ${r.numero}: situação "${alvo}" pela regra da fase.`], arquivou: null };
+    }
     if (cfg.modulo === 'paginas') {
         // A mudança passa pelas regras de transição da página, com quem pratica o ato no processo.
         const pg = (0, situacaoRegistro_1.mudancasDaPagina)(r.tipo, r.doc, alvo, { userId: c.ctx.uid, userRole: c.papel || 'member' }, (0, secretaria_1.hojeBrasil)());
@@ -875,12 +893,16 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         // A primeira fase pode designar o responsável e avisar a equipe já na autuação.
         const designacaoInicial = await designadoPelaFase(c, fase1, unidade);
         let autuado = null;
+        let registroArquivado = null;
         const numero = await db.runTransaction(async (tx) => {
-            var _a;
+            var _a, _b, _d;
+            // Regra da primeira fase sobre o registro ligado que vale já na autuação: lido antes de qualquer escrita.
+            const registros = ((_a = fase1 === null || fase1 === void 0 ? void 0 : fase1.situacao_registro) === null || _a === void 0 ? void 0 : _a.na_autuacao)
+                ? await lerRegistrosDoRito(tx, c, { fases: [fase1], origem, vinculos: (0, modulos_1.vinculosDe)(origem, campos) }) : SEM_REGISTROS;
             let numero = (0, numeracao_1.identificadorSemNumero)(procRef.id);
             if (numeracao && contadorRef) {
                 const cont = await tx.get(contadorRef);
-                let seq = (Number((_a = cont.data()) === null || _a === void 0 ? void 0 : _a.seq) || 0) + 1;
+                let seq = (Number((_b = cont.data()) === null || _b === void 0 ? void 0 : _b.seq) || 0) + 1;
                 // O número nunca se repete: se uma mudança de numeração fizer a
                 // contagem cair num número já usado, pula para o próximo livre.
                 // ponytail: até MAX_PULOS consultas; acima disso, pede ajuste da numeração.
@@ -903,7 +925,11 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), { 
                 // Registros e processos ligados (origem e campos), para "Processos eletrônicos" no outro módulo.
                 vinculos: (0, modulos_1.vinculosDe)(origem, campos) }), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {})), (tipo && Object.keys((0, camposProcesso_1.formularioDe)(tipo).nomes_polos).length ? { nomes_polos: (0, camposProcesso_1.formularioDe)(tipo).nomes_polos } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
-            const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName, { designacao: designacaoInicial });
+            const efFase = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName, { designacao: designacaoInicial });
+            const sit = registros === SEM_REGISTROS ? { notas: [], arquivou: null }
+                : aplicarSituacao(tx, c, registros, fases[0], (designacaoInicial === null || designacaoInicial === void 0 ? void 0 : designacaoInicial.uid) && ((_d = fase1.situacao_registro) === null || _d === void 0 ? void 0 : _d.ao_assumir) ? 'ao_assumir' : 'ao_entrar', base, (designacaoInicial === null || designacaoInicial === void 0 ? void 0 : designacaoInicial.uid) ? { uid: designacaoInicial.uid, nome: designacaoInicial.nome || '' } : undefined);
+            registroArquivado = sit.arquivou;
+            const ef = Object.assign(Object.assign({}, efFase), { interno: [...efFase.interno, ...sit.notas] });
             autuado = Object.assign({ proc: Object.assign(Object.assign({}, base), ef.campos) }, (ef.pendencia ? { pendencia: ef.pendencia } : {}));
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, base, 'autuacao', `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign({ assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId }, (urgente ? { urgente: true } : {})), (origem ? { origem } : {})), (campos.length ? { campos: Object.fromEntries(campos.map((x) => [x.rotulo, (0, camposProcesso_1.valorTexto)(x)])) } : {})));
             const mi = (0, context_1.registrarInternos)(tx, c, procRef, Object.assign(Object.assign({}, base), mov), ef.interno);
@@ -915,6 +941,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             void (0, avisosEquipe_1.avisarEntradaNaFase)(c, fase1, unidadeId, au.proc, procRef.id, false, '');
         if (au === null || au === void 0 ? void 0 : au.pendencia)
             void (0, avisosEquipe_1.avisarPendencia)(c, au.proc, procRef.id, au.pendencia);
+        avisarArquivado(orgId, registroArquivado);
         return { success: true, id: procRef.id, numero };
     }
     return movimentar(c, p);
@@ -1640,12 +1667,7 @@ async function movimentar(c, p, opcoes = {}) {
     // Partes habilitadas recebem e-mail dos movimentos públicos (fora da transação, sem travar o ato).
     void (0, portalAvisos_1.avisarPartesDoMovimento)(db, String(p.id), undefined, expedidas);
     // Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro.
-    const ra = registroArquivado;
-    if (ra) {
-        void (0, webhooks_1.fireOrgWebhook)(orgId, 'archived', ra.modulo === 'consultas'
-            ? { entity_type: 'process', entity_id: ra.id, process_number: ra.numero }
-            : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
-    }
+    avisarArquivado(orgId, registroArquivado);
     const r = recebeu;
     const en = entrou;
     const recado = motivo || (0, secretaria_1.texto)(p.orientacao, secretaria_1.MAX_TEXTO_LONGO);

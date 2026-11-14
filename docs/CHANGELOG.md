@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Parcerias pelo rito e regra na autuação
+- A fase do rito pode **conduzir a parceria ligada** pelo quadro de Parcerias
+  (Pendente a Parcerias), com as regras do módulo: datas automáticas,
+  responsável em "Em análise" e campos exigidos de cada fase. Se faltar algo,
+  a parceria fica onde está e a equipe vê o motivo no processo. Parceria
+  formalizada não volta pelo rito; a extinção continua no módulo.
+- Na primeira fase, **Valer já na autuação**: a consulta, o expediente, a
+  parceria ou o registro da página mudam de situação no momento da autuação.
+- Rito antigo segue igual. Guia do rito, parte 8.
+
 ### 14/11/2026 — Listas do órgão
 - Nova aba **Listas do órgão** na configuração: espécies de comunicação
   (edital, notificação extrajudicial), espécies de audiência (sessão de
