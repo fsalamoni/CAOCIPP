@@ -384,15 +384,16 @@ function emitirSe(cond, tx, c, ref, data) {
     const cons = data.consolidacao;
     if (!cond || !((_a = cons === null || cons === void 0 ? void 0 : cons.itens) === null || _a === void 0 ? void 0 : _a.length))
         return { mov: {}, proc: data };
-    const titulo = (0, exigencias_1.tituloCertidao)((data.fases || []), cons.grupo);
-    const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'certidao_fase', (0, exigencias_1.textoCertidao)(cons.itens), { grupo: cons.grupo, itens: cons.itens.map((i) => i.seq), titulo, visivel_partes: (0, exigencias_1.visivelCertidao)(cons.itens) });
+    const fases = (data.fases || []);
+    const titulo = (0, exigencias_1.tituloCertidao)(fases, cons.grupo);
+    const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'certidao_fase', (0, exigencias_1.textoCertidao)(cons.itens, (0, exigencias_1.aberturaCertidao)(fases, cons.grupo)), { grupo: cons.grupo, itens: cons.itens.map((i) => i.seq), titulo, visivel_partes: (0, exigencias_1.visivelCertidao)(cons.itens) });
     return { mov: Object.assign(Object.assign({}, mov), { consolidacao: firestore_1.FieldValue.delete() }), proc: Object.assign(Object.assign(Object.assign({}, data), mov), { consolidacao: null }) };
 }
 /** A pendente é de outro grupo ou não comporta o item na sua folha: emite antes de juntar. */
 const antesDeJuntar = (data, grupo, item) => {
     var _a;
     const cons = data.consolidacao;
-    return !!((_a = cons === null || cons === void 0 ? void 0 : cons.itens) === null || _a === void 0 ? void 0 : _a.length) && (cons.grupo !== grupo || !(0, exigencias_1.cabeNaCertidao)(cons.itens, item));
+    return !!((_a = cons === null || cons === void 0 ? void 0 : cons.itens) === null || _a === void 0 ? void 0 : _a.length) && (cons.grupo !== grupo || !(0, exigencias_1.cabeNaCertidao)(cons.itens, item, (0, exigencias_1.aberturaCertidao)((data.fases || []), grupo)));
 };
 /** Itens da certidão do grupo depois do ato (a emissão, se houve, zerou a pendente). */
 const itensDepois = (proc, grupo, item) => { var _a; return ({ grupo, itens: [...(((_a = proc.consolidacao) === null || _a === void 0 ? void 0 : _a.itens) || []), item] }); };

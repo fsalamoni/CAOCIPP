@@ -11,7 +11,7 @@ import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
-    tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
+    aberturaCertidao, tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
 } from '../shared/exigencias';
 import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { responsavelPelaFase } from '../shared/efeitosFase';
@@ -477,8 +477,9 @@ function emitirSe(cond: boolean, tx: admin.firestore.Transaction, c: Parameters<
     ref: admin.firestore.DocumentReference, data: admin.firestore.DocumentData): Emissao {
     const cons = data.consolidacao as Consolidacao | undefined;
     if (!cond || !cons?.itens?.length) return { mov: {}, proc: data };
-    const titulo = tituloCertidao((data.fases || []) as Fase[], cons.grupo);
-    const mov = registrarMovimento(tx, c, ref, data, 'certidao_fase', textoCertidao(cons.itens),
+    const fases = (data.fases || []) as Fase[];
+    const titulo = tituloCertidao(fases, cons.grupo);
+    const mov = registrarMovimento(tx, c, ref, data, 'certidao_fase', textoCertidao(cons.itens, aberturaCertidao(fases, cons.grupo)),
         { grupo: cons.grupo, itens: cons.itens.map((i) => i.seq), titulo, visivel_partes: visivelCertidao(cons.itens) });
     return { mov: { ...mov, consolidacao: FieldValue.delete() }, proc: { ...data, ...mov, consolidacao: null } };
 }
@@ -486,7 +487,7 @@ function emitirSe(cond: boolean, tx: admin.firestore.Transaction, c: Parameters<
 /** A pendente é de outro grupo ou não comporta o item na sua folha: emite antes de juntar. */
 const antesDeJuntar = (data: admin.firestore.DocumentData, grupo: string, item: ItemCertidao) => {
     const cons = data.consolidacao as Consolidacao | undefined;
-    return !!cons?.itens?.length && (cons.grupo !== grupo || !cabeNaCertidao(cons.itens, item));
+    return !!cons?.itens?.length && (cons.grupo !== grupo || !cabeNaCertidao(cons.itens, item, aberturaCertidao((data.fases || []) as Fase[], grupo)));
 };
 
 /** Itens da certidão do grupo depois do ato (a emissão, se houve, zerou a pendente). */

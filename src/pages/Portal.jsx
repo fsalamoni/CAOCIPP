@@ -491,6 +491,7 @@ function ProcessoParte({ id, onVoltar }) {
                     </summary>
                     {p.fases?.length > 1 && <div className="px-4 pb-4"><FluxoRito fases={p.fases} atual={p.fase_atual} /></div>}
                 </details>
+                {p.fase_explicacao && <p className="px-4 pb-3 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">{p.fase_explicacao}</p>}
             </section>
 
             <div className="grid lg:grid-cols-5 gap-5">

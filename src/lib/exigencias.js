@@ -189,6 +189,15 @@ export function tituloCertidao(fases, grupo) {
     return nomes.length > 1 ? `Certidão das fases ${nomes.join(', ')}` : `Certidão da fase ${nomes[0] || ''}`;
 }
 
+export const ABERTURA_CERTIDAO = 'Certifico que foram cumpridos os seguintes atos:';
+export const MAX_ABERTURA_CERTIDAO = 200;
+
+/** Frase que abre a certidão do grupo (igual ao do servidor): a da fase raiz, a de outra do grupo, ou a padrão. */
+export function aberturaCertidao(fases, grupo) {
+    const membros = fases.filter((f) => grupoDe(fases, f) === grupo);
+    return membros.find((f) => f.id === grupo)?.certidao?.abertura || membros.find((f) => f.certidao?.abertura)?.certidao?.abertura || ABERTURA_CERTIDAO;
+}
+
 /** A mudança entre as duas fases entra na certidão conjunta (mesmo grupo e uma delas pede)? */
 export const mudancaNaCertidao = (fases, de, para) => !!de && !!para && grupoDe(fases, de) === grupoDe(fases, para)
     && (de.certidao?.incluir_mudancas === true || para.certidao?.incluir_mudancas === true);
@@ -702,10 +711,27 @@ export function atende(e, d) {
 
 const igual = (a, b) => !!a && !!b && a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }) === 0;
 
-/** O que o servidor reconheceria sozinho: mesmo modelo ou mesmo tipo. */
+/**
+ * O que o servidor reconheceria sozinho: mesmo modelo ou mesmo tipo, com as
+ * assinaturas que a exigência pede. `d.n_assinaturas` conta a que entra ao juntar.
+ * A atribuição de quem assina só o servidor confere (ele vê as lotações).
+ */
 export const sugeridas = (pendentes, d) => pendentes
-    .filter((e) => atende(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
+    .filter((e) => atende(e, d) && (e.assinaturas || 0) <= (d.n_assinaturas ?? (d.assinaturas?.length || 0))
+        && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
     .map((e) => e.chave);
+
+export const MAX_ASSINATURAS_EXIGIDAS = 5;
+
+/** O que a exigência pede do próprio documento, em uma linha (ou ''): assinaturas e portal. */
+export function exigeDoDocumento(e) {
+    const n = e?.assinaturas || 0;
+    return [
+        n ? (n === 1 ? 'assinado' : `${n} assinaturas`) : '',
+        e?.assinatura_atribuicao ? `uma assinatura de ${e.assinatura_atribuicao}` : '',
+        e?.partes === false ? 'fica fora do portal das partes' : '',
+    ].filter(Boolean).join(' · ').replace(/^./, (c) => c.toUpperCase());
+}
 
 /**
  * Quando a lista de ações muda, cada regra acompanha o texto da sua ação:

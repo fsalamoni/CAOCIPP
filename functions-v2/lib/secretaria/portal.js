@@ -140,7 +140,7 @@ function parteDoUsuario(proc, uid) {
     return undefined;
 }
 exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const db = admin.firestore();
@@ -304,27 +304,17 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const aberta = (r) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         return {
             orgao: org.name || '',
-            processo: {
-                id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true,
+            processo: Object.assign(Object.assign({ id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true, 
                 // Só os campos que o órgão marcou para as partes verem.
-                campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => (Object.assign({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor }, (x.formato ? { formato: x.formato } : {})))),
-                fase_nome: nomeParaPartes(data, data.fase_atual),
-                fase_atual: data.fase_atual,
-                fases: fasesPublicas(data),
-                partes: (data.partes || []).filter((x) => !x.retirada).map((x) => ({ nome: x.nome, polo: x.polo })),
-                nomes_polos: data.nomes_polos || {},
-                prazos: prazosPublicos(data)
-                    .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
-                minha_parte: parte,
-                comunicacoes: comunicacoesDaConta(data, uid),
+                campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => (Object.assign({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor }, (x.formato ? { formato: x.formato } : {})))), fase_nome: nomeParaPartes(data, data.fase_atual) }, (((_d = (data.fases || []).find((x) => x.id === data.fase_atual)) === null || _d === void 0 ? void 0 : _d.explicacao_publica)
+                ? { fase_explicacao: data.fases.find((x) => x.id === data.fase_atual).explicacao_publica } : {})), { fase_atual: data.fase_atual, fases: fasesPublicas(data), partes: (data.partes || []).filter((x) => !x.retirada).map((x) => ({ nome: x.nome, polo: x.polo })), nomes_polos: data.nomes_polos || {}, prazos: prazosPublicos(data)
+                    .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })), minha_parte: parte, comunicacoes: comunicacoesDaConta(data, uid), 
                 // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
                 audiencias: (0, audiencias_1.audienciasFuturas)(data.audiencias, (0, secretaria_1.hojeBrasil)())
-                    .map((a) => ({ especie: a.especie, data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })),
-                autuado_em: data.autuado_em || null,
+                    .map((a) => ({ especie: a.especie, data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })), autuado_em: data.autuado_em || null, 
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))
-                    .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
-            },
+                    .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })) }),
             movimentos: todos.filter((m) => (0, autos_2.visivelParaPartes)(m))
                 .map((m) => (Object.assign({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm }, (0, autos_2.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
@@ -352,7 +342,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const aberta = (r) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         const bytes = await (0, exportar_1.montarPdfAutos)({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
-            geradoPor: `${((_d = parteDoUsuario(proc, uid)) === null || _d === void 0 ? void 0 : _d.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
+            geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
             campos: camposPartes.filter((x) => aberta(x.ref)),
             informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta)),
         });
@@ -519,7 +509,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             if (sis)
                 await (0, processos_1.avancarSozinho)(sis, procRef.id);
         }
-        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_e = parteDoUsuario(procAntes, uid)) === null || _e === void 0 ? void 0 : _e.assina) || 'A parte'), titulo, tipoPeticao);
+        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_f = parteDoUsuario(procAntes, uid)) === null || _f === void 0 ? void 0 : _f.assina) || 'A parte'), titulo, tipoPeticao);
         return Object.assign({ success: true }, protocolado);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

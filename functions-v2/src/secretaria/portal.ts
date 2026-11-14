@@ -333,6 +333,9 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 // Só os campos que o órgão marcou para as partes verem.
                 campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => ({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor, ...(x.formato ? { formato: x.formato } : {}) })),
                 fase_nome: nomeParaPartes(data, data.fase_atual),
+                // Explicação que o rito escreveu para as partes (texto público por definição).
+                ...(((data.fases || []) as Array<{ id: string; explicacao_publica?: string }>).find((x) => x.id === data.fase_atual)?.explicacao_publica
+                    ? { fase_explicacao: (data.fases as Array<{ id: string; explicacao_publica?: string }>).find((x) => x.id === data.fase_atual)!.explicacao_publica } : {}),
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
                 partes: (data.partes || []).filter((x: { retirada?: unknown }) => !x.retirada).map((x: { nome: string; polo: string }) => ({ nome: x.nome, polo: x.polo })),

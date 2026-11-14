@@ -163,6 +163,18 @@ A forma do documento importa: **redigir** (ato próprio do órgão: despacho,
 decisão, certidão, ofício), **juntar** (documento recebido de fora:
 comprovante, laudo, ofício respondido) ou **qualquer um**.
 
+**Quem assina faz parte do ato.** Uma decisão colegiada só existe com a
+assinatura dos membros; um parecer, com a de quem tem a atribuição para
+emiti-lo. Por isso o rito pode pedir, no documento que ele redige, um número
+de assinaturas e que uma delas seja de certa atribuição: sem isso, o
+documento está nos autos, mas não cumpre o que a fase exige. Documento
+recebido de fora não se assina na plataforma; a regra não vale para ele.
+
+**O que é só da equipe continua só da equipe.** O rito pode marcar o
+documento exigido como fora do portal das partes (um relatório preliminar,
+uma nota técnica interna). A marca só esconde: nada que quem junta deixou
+para a equipe passa a ser visto pelas partes por causa do rito.
+
 **Documento que não é peça do processo.** Às vezes a ação pede um documento
 só para controle (uma planilha de conferência, um print de outro sistema).
 Ele não passa no teste dos autos, mas precisa ser guardado. O rito marca esse

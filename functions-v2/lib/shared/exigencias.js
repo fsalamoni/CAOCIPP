@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.exigeAlgo = exports.marcasNaFase = exports.respondeNaRodada = exports.respostaDaAcao = exports.chaveDaCondicao = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.DADOS_CONDICAO = exports.MAX_CONDICOES_E = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = exports.QUEM = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.MAX_ABERTURA_CERTIDAO = exports.ABERTURA_CERTIDAO = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.exigeAlgo = exports.marcasNaFase = exports.respondeNaRodada = exports.respostaDaAcao = exports.chaveDaCondicao = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.DADOS_CONDICAO = exports.MAX_CONDICOES_E = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.MAX_ASSINATURAS_EXIGIDAS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = exports.QUEM = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -42,6 +42,7 @@ exports.destinoDaGuarda = destinoDaGuarda;
 exports.exigenciasDaFase = exigenciasDaFase;
 exports.pendentesDaFase = pendentesDaFase;
 exports.acoesObrigatoriasPendentes = acoesObrigatoriasPendentes;
+exports.faltaAssinatura = faltaAssinatura;
 exports.atende = atende;
 exports.reconhecer = reconhecer;
 exports.camposDoCumprimento = camposDoCumprimento;
@@ -49,6 +50,7 @@ exports.camposAoEntrarNaFase = camposAoEntrarNaFase;
 exports.destinoDoMovimento = destinoDoMovimento;
 exports.tituloCertidao = tituloCertidao;
 exports.deveEmitir = deveEmitir;
+exports.aberturaCertidao = aberturaCertidao;
 exports.textoCertidao = textoCertidao;
 exports.marcasDoDestino = marcasDoDestino;
 const modulos_1 = require("./modulos");
@@ -104,6 +106,7 @@ exports.PADRAO_OUTRO = { prazo: 'autos', pendencia: 'autos', urgencia: 'autos', 
 /** Atribuição é sempre registro de controle: não vira termo nos autos. */
 const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhum'] : exports.DESTINOS_ATO);
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
+exports.MAX_ASSINATURAS_EXIGIDAS = 5;
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
 exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia'];
@@ -182,7 +185,11 @@ function sanitizeExigencia(raw, descricaoPadrao = '') {
     const modelo = texto(o.modelo_id, 40);
     const dest = destino(o.destino, 'autos');
     const nivel = exports.NIVEIS.includes(o.nivel) ? o.nivel : null;
-    return Object.assign(Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {})), (nivel ? { nivel } : {}));
+    // Assinatura vale para o que o órgão produz: documento recebido de fora não se assina aqui.
+    const assina = forma !== 'juntar';
+    const nAss = assina ? Math.min(exports.MAX_ASSINATURAS_EXIGIDAS, Math.max(0, Math.trunc(Number(o.assinaturas) || 0))) : 0;
+    const atrib = assina ? texto(o.assinatura_atribuicao, permissoesFase_1.MAX_ATRIBUICAO) : '';
+    return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {})), (nivel ? { nivel } : {})), (o.partes === false && dest === 'autos' ? { partes: false } : {})), (nAss ? { assinaturas: nAss } : {})), (atrib ? { assinatura_atribuicao: atrib } : {}));
 }
 function sanitizeRegra(raw, acao) {
     var _b;
@@ -641,6 +648,16 @@ function acoesObrigatoriasPendentes(f, feitas, resp) {
         return grupo.find(cobrada) === i ? [{ descricao: grupo.map((k) => (f.acoes || [])[k]).join(' ou '), acao_idx: i }] : [];
     });
 }
+/** O que falta de assinatura para o documento cumprir a exigência (null = nada). */
+function faltaAssinatura(e, d) {
+    const n = e.assinaturas || 0;
+    if (n && (d.assinaturas || 0) < n)
+        return `"${e.descricao}" pede ${n === 1 ? 'o documento assinado' : `${n} assinaturas no documento`} antes de juntar`;
+    if (e.assinatura_atribuicao && !(d.atribuicoes || []).some((a) => (0, permissoesFase_1.mesmaAtribuicao)(a, e.assinatura_atribuicao))) {
+        return `"${e.descricao}" pede a assinatura de quem tem a atribuição ${e.assinatura_atribuicao}`;
+    }
+    return null;
+}
 /** Redigir = produzido pelo órgão (editor ou modelo); juntar = recebido de fora (arquivo ou petição da parte). */
 function atende(e, d) {
     // Exigência para os autos só se cumpre com juntada; a de controle, só guardando fora dos autos.
@@ -671,11 +688,14 @@ function reconhecer(pendentes, d, escolhidas) {
             }
             if (!atende(e, d))
                 throw new Error(`"${e.descricao}" pede documento ${e.forma === 'redigir' ? 'redigido pelo órgão' : 'recebido de fora (arquivo enviado)'}`);
+            const falta = faltaAssinatura(e, d);
+            if (falta)
+                throw new Error(falta);
         }
         return chaves;
     }
     return pendentes
-        .filter((e) => atende(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
+        .filter((e) => atende(e, d) && !faltaAssinatura(e, d) && ((e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo)))
         .map((e) => e.chave);
 }
 /**
@@ -781,15 +801,23 @@ const quando = (iso) => {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
+exports.ABERTURA_CERTIDAO = 'Certifico que foram cumpridos os seguintes atos:';
+exports.MAX_ABERTURA_CERTIDAO = 200;
+/** Frase de abertura da certidão do grupo: a da fase raiz, a de outra fase do grupo, ou a padrão. */
+function aberturaCertidao(fases, grupo) {
+    var _b, _c, _d, _e;
+    const membros = fases.filter((f) => (0, exports.grupoDe)(f) === grupo);
+    return ((_c = (_b = membros.find((f) => f.id === grupo)) === null || _b === void 0 ? void 0 : _b.certidao) === null || _c === void 0 ? void 0 : _c.abertura) || ((_e = (_d = membros.find((f) => { var _b; return (_b = f.certidao) === null || _b === void 0 ? void 0 : _b.abertura; })) === null || _d === void 0 ? void 0 : _d.certidao) === null || _e === void 0 ? void 0 : _e.abertura) || exports.ABERTURA_CERTIDAO;
+}
 /** Texto da certidão conjunta (o título vai no evento): um item por ato, com quem fez e quando. */
-function textoCertidao(itens) {
+function textoCertidao(itens, abertura = exports.ABERTURA_CERTIDAO) {
     const linhas = itens.map((i, k) => `${k + 1}) ${i.texto}${i.autor ? ` (${i.autor}${i.em ? `, ${quando(i.em)}` : ''})` : ''}`);
-    return `Certifico que foram cumpridos os seguintes atos: ${linhas.join('; ')}.`;
+    return `${abertura} ${linhas.join('; ')}.`;
 }
 const textoDoItem = (t) => (t.length > exports.MAX_ITEM_CERTIDAO ? `${t.slice(0, exports.MAX_ITEM_CERTIDAO - 40).trimEnd()}… (íntegra no registro do ato)` : t);
 exports.textoDoItem = textoDoItem;
 /** O item ainda cabe na folha da certidão pendente? */
-const cabeNaCertidao = (itens, item) => textoCertidao([...itens, item]).length <= exports.MAX_TEXTO_CERTIDAO;
+const cabeNaCertidao = (itens, item, abertura) => textoCertidao([...itens, item], abertura).length <= exports.MAX_TEXTO_CERTIDAO;
 exports.cabeNaCertidao = cabeNaCertidao;
 /** As partes veem a certidão só se puderem ver todos os itens. */
 const visivelCertidao = (itens) => itens.length > 0 && itens.every((i) => i.partes);
