@@ -10,14 +10,18 @@ import { useEntityTypes } from '@/hooks/useCustomEntities';
  * Órgão, integrações que valem e páginas próprias do órgão ([{ id, nome,
  * plural }]), para os seletores de registro (Processo Eletrônico e Configuração).
  */
-export const RegistroContexto = createContext({ orgId: null, ligadas: {}, paginas: [] });
+export const RegistroContexto = createContext({ orgId: null, ligadas: {}, paginas: [], paginasProntas: false });
 
 /** Provê o RegistroContexto; as páginas próprias só são lidas com a integração ligada. */
 export function ProvedorRegistros({ orgId, ligadas, children }) {
-    const { entityTypes } = useEntityTypes(ligadas?.paginas ? orgId : null);
+    const { entityTypes, isLoading } = useEntityTypes(ligadas?.paginas ? orgId : null);
+    // `fases`: as colunas do quadro da página, para o rito dizer em qual o registro fica.
     const paginas = (entityTypes || []).filter((t) => t.enabled !== false)
-        .map((t) => ({ id: t.id, nome: t.label_singular || 'Página', plural: t.label_plural || t.label_singular || 'Página' }));
-    return <RegistroContexto.Provider value={{ orgId, ligadas, paginas }}>{children}</RegistroContexto.Provider>;
+        .map((t) => ({
+            id: t.id, nome: t.label_singular || 'Página', plural: t.label_plural || t.label_singular || 'Página',
+            fases: (t.phases || []).map((x) => ({ key: x.key, label: x.label || x.key })),
+        }));
+    return <RegistroContexto.Provider value={{ orgId, ligadas, paginas, paginasProntas: !isLoading }}>{children}</RegistroContexto.Provider>;
 }
 
 /** Nome do módulo (ou da página própria) para os textos do seletor. */

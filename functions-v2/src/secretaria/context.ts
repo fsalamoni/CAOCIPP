@@ -36,6 +36,8 @@ export interface Contexto {
     orgId: string;
     org: admin.firestore.DocumentData;
     ctx: ContextoUsuario;
+    /** Papel no órgão (creator, admin, member): as páginas próprias usam nas regras de aprovação. */
+    papel?: string;
     userName: string;
     unidades: Array<{ id: string } & admin.firestore.DocumentData>;
     /**
@@ -97,6 +99,7 @@ export async function carregarContexto(
         orgId,
         org,
         ctx: { uid: auth.uid, isAdmin, unidadeIds },
+        papel: String(mem.role || 'member'),
         userName: String(auth.token.name || mem.user_name || mem.user_email || 'Usuário'),
         unidades,
         gestorDe,

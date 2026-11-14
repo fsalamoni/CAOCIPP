@@ -80,6 +80,7 @@ async function carregarContexto(auth, orgId, opts = {}) {
         orgId,
         org,
         ctx: { uid: auth.uid, isAdmin, unidadeIds },
+        papel: String(mem.role || 'member'),
         userName: String(auth.token.name || mem.user_name || mem.user_email || 'Usuário'),
         unidades,
         gestorDe,

@@ -28,6 +28,7 @@ const documentoConfig_1 = require("./documentoConfig");
 const importarModelo_1 = require("./importarModelo");
 const conversao_1 = require("./conversao");
 const modulos_1 = require("../shared/modulos");
+const situacaoRegistro_1 = require("../shared/situacaoRegistro");
 const unidades_1 = require("./unidades");
 const migrarRito_1 = require("./migrarRito");
 var documentoConfig_2 = require("./documentoConfig");
@@ -144,6 +145,21 @@ const modulosDoRito = (r) => new Set((Array.isArray(r === null || r === void 0 ?
         ...(f.acoes_regras || []).flatMap((x) => ((x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo ? [String(x.modulo)] : (x === null || x === void 0 ? void 0 : x.pede) === 'formulario' ? [...modulosDoForm(x)] : [])),
     ];
 }));
+/** Rito que conduz registros de páginas próprias: a página e as fases que ele cita têm de existir. */
+async function exigirPaginas(c, rito) {
+    const fases = (Array.isArray(rito === null || rito === void 0 ? void 0 : rito.fases) ? rito.fases : []);
+    const ids = [...new Set(fases.filter((f) => { var _a; return ((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) === 'paginas'; }).map((f) => String(f.situacao_registro.pagina)))];
+    if (!ids.length)
+        return;
+    const tipos = {};
+    for (const id of ids) {
+        const d = (await c.db.collection('entityTypes').doc(id).get()).data();
+        tipos[id] = d && d.organization_id === c.orgId ? d : null;
+    }
+    const erros = (0, situacaoRegistro_1.fasesDePaginaInvalidas)(fases, tipos);
+    if (erros.length)
+        throw new https_1.HttpsError('failed-precondition', erros[0]);
+}
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v) => [...new Set(Array.isArray(v) ? v.filter(modulos_1.ehModuloOrigem) : [])];
 /** Módulos que o tipo usa: os dos campos e os de onde pode nascer. */
@@ -703,6 +719,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         }
         rito = filtrarRefsRito(rito, unidadesValidas, modelosValidos);
         await exigirIntegracoes(c, modulosDoRito(rito), modulosDoRito(ritoAtual));
+        await exigirPaginas(c, rito);
         const batch = db.batch();
         const origem = `Criada ao implantar o rito "${rito.nome}".`;
         for (const u of novasUnidades) {
@@ -759,6 +776,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         }
         const modelosOrg = await db.collection(context_1.COL.modelos).where('organization_id', '==', orgId).select('excluido').get();
         rito = filtrarRefsRito(rito, new Set(c.unidades.filter((u) => !u.excluida).map((u) => u.id)), new Set(naoExcluidos(modelosOrg).map((d) => d.id)));
+        await exigirPaginas(c, rito);
         const col = db.collection(context_1.COL.ritos);
         if (p.id) {
             const ref = col.doc(p.id);

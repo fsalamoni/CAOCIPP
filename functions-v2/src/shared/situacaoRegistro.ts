@@ -1,29 +1,88 @@
-// Situação do registro ligado ao processo (Consultas e Expedientes), conduzida
-// pelo rito: a fase diz em que coluna do quadro o registro fica quando o
-// processo entra nela ou quando alguém o assume.
+// Situação do registro ligado ao processo (Consultas, Expedientes e páginas
+// próprias), conduzida pelo rito: a fase diz em que coluna do quadro o
+// registro fica quando o processo entra nela ou quando alguém o assume.
 //
-// Nos dois módulos a situação é derivada das datas preenchidas
+// Em Consultas e Expedientes a situação é derivada das datas preenchidas
 // (`calculateStatus`). Mudar a situação é preencher a data da fase de destino
 // e, na volta, apagar as datas das fases seguintes: a mesma regra do quadro
 // (`handleDialogConfirm` e `rollbackByStatus` em KanbanBoard.jsx).
+//
+// Numa página própria a situação é a fase do registro (`phase`), e a mudança
+// passa pelas regras de transição do tipo (`evaluatePhaseTransition`), como no
+// quadro da página (`updateRecord`).
+import { evaluatePhaseTransition, TransitionContext } from '../customEntities/transitions';
+import type { EntityTypeDef } from '../customEntities/schema';
 import { FIELD_ALIASES, getSmartField } from './fields';
 
 export const SITUACOES = ['Pendente', 'Em elaboração', 'Aguarda retorno de terceiros', 'Em revisão', 'Revisadas', 'Na pasta'] as const;
 export type Situacao = typeof SITUACOES[number];
-export const MODULOS_SITUACAO = ['consultas', 'expedientes'] as const;
+export const MODULOS_SITUACAO = ['consultas', 'expedientes', 'paginas'] as const;
 export type ModuloSituacao = typeof MODULOS_SITUACAO[number];
 
-/** O que a fase faz com o registro ligado: ao entrar nela e quando alguém assume o processo nela. */
-export interface SituacaoRegistro { modulo: ModuloSituacao; ao_entrar?: Situacao; ao_assumir?: Situacao }
+/**
+ * O que a fase faz com o registro ligado: ao entrar nela e quando alguém assume
+ * o processo nela. Em Consultas e Expedientes o alvo é uma das `SITUACOES`. Em
+ * `paginas`, `pagina` é o id do tipo e o alvo é a chave de uma fase dele.
+ */
+export interface SituacaoRegistro { modulo: ModuloSituacao; pagina?: string; ao_entrar?: string; ao_assumir?: string }
+
+const ID_PAGINA = /^[A-Za-z0-9_-]{1,128}$/;
+const CHAVE_FASE = /^[a-z][a-z0-9_]{0,39}$/; // mesma regra das fases do tipo (SLUG_RE em customEntities/schema.ts)
 
 export function sanitizeSituacaoRegistro(raw: unknown): SituacaoRegistro | null {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const modulo = MODULOS_SITUACAO.find((m) => m === r.modulo);
-    const de = (v: unknown) => SITUACOES.find((s) => s === v);
+    if (!modulo) return null;
+    const pagina = modulo === 'paginas' && typeof r.pagina === 'string' && ID_PAGINA.test(r.pagina) ? r.pagina : '';
+    if (modulo === 'paginas' && !pagina) return null;
+    const de = (v: unknown): string | undefined => (modulo === 'paginas'
+        ? (typeof v === 'string' && CHAVE_FASE.test(v) ? v : undefined)
+        : SITUACOES.find((s) => s === v));
     const entrar = de(r.ao_entrar);
     const assumir = de(r.ao_assumir);
-    if (!modulo || (!entrar && !assumir)) return null;
-    return { modulo, ...(entrar ? { ao_entrar: entrar } : {}), ...(assumir ? { ao_assumir: assumir } : {}) };
+    if (!entrar && !assumir) return null;
+    return { modulo, ...(pagina ? { pagina } : {}), ...(entrar ? { ao_entrar: entrar } : {}), ...(assumir ? { ao_assumir: assumir } : {}) };
+}
+
+/** Chave do registro conduzido: uma por módulo e, nas páginas próprias, uma por página. */
+export const chaveDoRegistro = (s: { modulo: string; pagina?: string }): string => (s.modulo === 'paginas' ? `paginas:${s.pagina || ''}` : s.modulo);
+
+/** Fases de páginas próprias que o rito cita e o tipo não tem (ou a página não existe). `tipos`: id -> tipo da página. */
+export function fasesDePaginaInvalidas(
+    fases: Array<{ nome?: string; situacao_registro?: SituacaoRegistro }>, tipos: Record<string, { phases?: Array<{ key?: string }> } | null | undefined>,
+): string[] {
+    const erros: string[] = [];
+    for (const f of fases) {
+        const s = f.situacao_registro;
+        if (s?.modulo !== 'paginas') continue;
+        const tipo = tipos[String(s.pagina)];
+        if (!tipo) { erros.push(`A fase "${f.nome || ''}" conduz o registro de uma página própria que não existe mais.`); continue; }
+        const chaves = new Set((tipo.phases || []).map((p) => p.key));
+        for (const alvo of [s.ao_entrar, s.ao_assumir]) {
+            if (alvo && !chaves.has(alvo)) erros.push(`A fase "${f.nome || ''}" manda o registro da página para a fase "${alvo}", que a página não tem.`);
+        }
+    }
+    return erros;
+}
+
+/**
+ * Página própria: o que gravar no registro para ele ir à fase `alvo`, pelas
+ * regras de transição do tipo, com quem pratica o ato no processo. `motivo`: a
+ * regra do tipo não deixa (campo faltando, aprovação de outra pessoa). `null`:
+ * já está na fase.
+ */
+export function mudancasDaPagina(
+    tipo: EntityTypeDef, doc: Record<string, unknown>, alvo: string, quem: TransitionContext, hoje: string,
+): { campos: Record<string, unknown>; de: string; para: string } | { motivo: string; para: string } | null {
+    const atual = String(doc.phase || '');
+    if (atual === alvo) return null;
+    const rotulo = (k: string) => (tipo.phases || []).find((p) => p.key === k)?.label || k || 'sem fase';
+    const valores = { ...((doc.values && typeof doc.values === 'object' ? doc.values : {}) as Record<string, unknown>) };
+    const r = evaluatePhaseTransition(tipo, atual, alvo, valores, quem);
+    if (!r.allowed) return { motivo: r.reason || 'A regra da página não permite a mudança.', para: rotulo(alvo) };
+    const fixos = r.rule?.on_success?.set_fields || [];
+    for (const sf of fixos) valores[sf.field] = sf.value === 'now' ? hoje : sf.value;
+    return { campos: { phase: alvo, ...(fixos.length ? { values: valores } : {}) }, de: rotulo(atual), para: rotulo(alvo) };
 }
 
 /** Data que põe o registro em cada situação ("Pendente" é a falta de todas). */
@@ -61,8 +120,10 @@ function chavesCom(doc: Record<string, unknown>, campo: string): string[] {
  * elaboração. Datas já preenchidas ficam como estão. `null`: nada muda.
  */
 export function mudancasDaSituacao(
-    doc: Record<string, unknown>, alvo: Situacao, hoje: string, quem?: { uid: string; nome: string } | null,
+    doc: Record<string, unknown>, alvoPedido: string, hoje: string, quem?: { uid: string; nome: string } | null,
 ): Record<string, unknown> | null {
+    const alvo = SITUACOES.find((s) => s === alvoPedido);
+    if (!alvo) return null;
     const m: Record<string, unknown> = {};
     for (const campo of DEPOIS[alvo]) for (const k of chavesCom(doc, campo)) m[k] = null;
     const falta = (campo: string) => !getSmartField(doc, campo);
