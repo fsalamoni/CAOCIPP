@@ -30,6 +30,7 @@ import { NativeSelect, TIPOS_UNIDADE, copiarTexto } from './comum';
 import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
 import GuiaRito from './GuiaRito';
+import BibliotecaModelos from './BibliotecaModelos';
 import AndamentoDaFase from './AndamentoDaFase';
 import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento } from '@/lib/andamentoFase';
 import { RegistroContexto } from './SeletorRegistro';
@@ -281,7 +282,8 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
         const base = r.fases.some((f) => f.unidade) ? { exigir_tipo: false, ...vincularProposta(r, estado) } : deRito(r);
         if (trocar) { editarP({ ...base, ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
         setP(base);
-        setTipo({ criar: criarTipo && semTipos, nome: r.nome || '', sigla: '' });
+        // Modelo da biblioteca com partes: propõe o tipo já com os polos e os nomes que o processo usa.
+        setTipo({ criar: (criarTipo && semTipos) || !!r.tipo, nome: r.nome || '', sigla: '', ...(r.tipo ? { formulario: r.tipo, descricao: r.descricao } : {}) });
         setConfirmar(false);
     };
     const carregar = (r, nomePadrao) => {
@@ -363,6 +365,7 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
                                     ))}
                                 </div>
                             </section>
+                            <BibliotecaModelos onEscolher={(m) => comecar(m)} />
                             <h3 className="text-sm font-semibold">Ou a partir de um arquivo</h3>
                             <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center cursor-pointer border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-400 ${lendo ? 'opacity-60 pointer-events-none' : ''}`}>
                                 {lendo ? <Loader2 className="w-7 h-7 animate-spin text-indigo-600" aria-hidden /> : <FileUp className="w-7 h-7 text-indigo-600" aria-hidden />}
@@ -809,6 +812,9 @@ function Revisao({
                                 </div>
                             )}
                             {tipo.criar && <p className="text-xs text-slate-600">Começa na unidade da primeira fase{p.fases[0]?.unidade_ref ? ` (${nomeUnidade(p.fases[0].unidade_ref)})` : ''}.</p>}
+                            {tipo.criar && tipo.formulario?.polos?.length > 0 && (
+                                <p className="text-xs text-slate-600">Já com as partes do modelo: {tipo.formulario.polos.map((x) => tipo.formulario.nomes_polos?.[x] || x).join(', ')}. Os nomes e os demais campos se ajustam depois, no próprio tipo.</p>
+                            )}
                         </section>
                     </aside>
                 </div>

@@ -308,6 +308,17 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 </tbody>
                             </table>
                         </Parte>
+                        <Parte titulo="16. Começar de um modelo da biblioteca">
+                            <p>Em <strong>Novo rito</strong>, a <strong>Biblioteca de modelos de processo</strong> traz processos completos, montados a partir da lei de cada área: administrativo geral, disciplinar, ético, sancionador e fiscalização, contratações e contratos, ouvidoria e acesso à informação, gestão de pessoas, contas e procedimentos extrajudiciais do Ministério Público. Nenhum é penal. Filtre por <strong>área</strong> e <strong>porte</strong> (curto, médio, longo) ou busque por palavra ou número de lei. Em cada modelo, <strong>Quando usar, base legal e fases</strong> mostra para que ele serve e de onde vêm os prazos.</p>
+                            <ol className="list-decimal space-y-1.5 pl-5">
+                                <li>Escolha o modelo mais próximo do seu processo e clique em <strong>Usar este modelo</strong>. Nada é criado ainda.</li>
+                                <li>As unidades do modelo têm nomes genéricos (Secretaria, Gabinete, Comissão processante). A revisão casa cada uma com as do órgão pelo nome ou propõe criar. Troque pela unidade certa em cada fase.</li>
+                                <li>Confira prazos e contagem (úteis ou corridos) com a norma que vale para o seu órgão. Regimentos locais costumam mudar prazos.</li>
+                                <li>Ajuste ações, documentos e saídas: tire o que não se aplica, acrescente o que o seu órgão exige.</li>
+                                <li>Se o modelo tem partes, o tipo de processo é proposto já com os polos e os nomes (Denunciante, Acusado, Licitante). Desmarque se quiser ligar o rito a um tipo que já existe.</li>
+                                <li>Implante. Depois, o rito e o tipo se editam como qualquer outro.</li>
+                            </ol>
+                        </Parte>
                     </div>
                 </DialogContent>
             </Dialog>

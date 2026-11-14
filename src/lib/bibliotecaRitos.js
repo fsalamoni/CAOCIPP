@@ -1,0 +1,22 @@
+/**
+ * Biblioteca de modelos de rito: processos completos, por área e porte, com
+ * descrição explicativa, quando usar e base normativa. A forma de escrever um
+ * modelo está em ./modelos/dsl.js; cada área tem o seu arquivo.
+ */
+import { modelos as geral } from './modelos/geral.js';
+import { modelos as correcional } from './modelos/correcional.js';
+import { modelos as etica } from './modelos/etica.js';
+import { modelos as sancionador } from './modelos/sancionador.js';
+import { modelos as contratacoes } from './modelos/contratacoes.js';
+import { modelos as contratos } from './modelos/contratos.js';
+import { modelos as atendimento } from './modelos/atendimento.js';
+import { modelos as ministerio_publico } from './modelos/ministerio_publico.js';
+
+export { A, AREAS, PORTES, montar, nomeArea, nomePorte, quando } from './modelos/dsl.js';
+
+/** Funções dos modelos, na ordem em que aparecem (cada chamada gera ids novos). */
+export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...contratos, ...atendimento, ...ministerio_publico];
+
+export function bibliotecaDeModelos() {
+    return MODELOS.map((m) => m());
+}

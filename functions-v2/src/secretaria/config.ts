@@ -725,9 +725,13 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             if (naoExcluidos(await db.collection(COL.tipos).where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_TIPOS) {
                 throw new HttpsError('resource-exhausted', 'Limite de tipos atingido. Implante sem criar o tipo, ou exclua um tipo antes.');
             }
+            // Modelo da biblioteca: o tipo nasce com os polos e os nomes que o processo usa.
+            let formulario;
+            if (tp.formulario) { try { formulario = sanitizeFormulario(tp.formulario); } catch (e) { erroUsuario(e); } }
             const ref = db.collection(COL.tipos).doc();
             tipoId = ref.id;
             batch.set(ref, {
+                ...(formulario ? { formulario } : {}),
                 nome: texto(tp.nome), sigla: texto(tp.sigla, 12), descricao: texto(tp.descricao, MAX_TEXTO_LONGO), rito_id: ritoRef.id,
                 sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: rito.fases[0]?.unidade_id || null,
                 ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,

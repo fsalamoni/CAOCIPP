@@ -5,6 +5,22 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Biblioteca de modelos de processo
+- Em **Novo rito**, uma biblioteca de processos completos, com base na lei de
+  cada área: administrativo geral, disciplinar (sindicância, PAD ordinário e
+  sumário, TAC), ético (conselho profissional, entidade de classe, comissão de
+  ética pública), sancionador (PAR, sanção a fornecedor, auto de infração,
+  processo fiscal, multa de trânsito), contratações (licitação, contratação
+  direta, compra privada), contratos (gestão e fiscalização, recebimento e
+  pagamento, parceria com OSC), ouvidoria, acesso à informação, tomada de
+  contas especial, consulta interna, benefício a servidor e procedimentos
+  extrajudiciais do Ministério Público. Nenhum é penal.
+- Cada modelo tem descrição explicativa, quando usar, base legal, partes e
+  fases. Filtro por área e porte (curto, médio, longo) e busca.
+- Usar um modelo abre a revisão de sempre; se ele tem partes, o tipo de
+  processo nasce com os polos e os nomes (Denunciante, Acusado, Licitante).
+- Catálogo em docs/MODELOS_DE_RITO.md; guia do rito ganha a parte 16.
+
 ### 14/11/2026 — Nomes dos polos por tipo de processo
 - No formulário do tipo de processo, cada polo das partes pode ter um nome
   próprio: Denunciante e Acusado, Licitante, Contratante e Contratada,

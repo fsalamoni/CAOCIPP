@@ -1028,6 +1028,8 @@ export function montarPayload(p, tipo) {
         ...(p.id ? { rito_id: p.id, ativo: p.ativo !== false } : {}),
         unidades: p.unidades.filter((u) => usadosUn.has(u.ref)),
         modelos,
-        tipo_processo: tipo.criar && (tipo.nome || p.nome || '').trim() ? { nome: (tipo.nome || p.nome).trim(), sigla: tipo.sigla.trim() } : null,
+        tipo_processo: tipo.criar && (tipo.nome || p.nome || '').trim()
+            ? { nome: (tipo.nome || p.nome).trim(), sigla: tipo.sigla.trim(), ...(tipo.formulario ? { formulario: tipo.formulario } : {}), ...(tipo.descricao ? { descricao: tipo.descricao } : {}) }
+            : null,
     };
 }
