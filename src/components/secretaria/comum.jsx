@@ -41,7 +41,8 @@ export const ORIGENS = [
     ['outro_processo', 'Derivado de outro processo'],
     ['outro', 'Outra'],
 ];
-export const rotuloOrigem = (tipo) => ORIGENS.find(([v]) => v === tipo)?.[1] || 'Outra';
+/** Rótulo da origem: a da lista do órgão leva o `nome` junto. */
+export const rotuloOrigem = (tipo, nome) => nome || ORIGENS.find(([v]) => v === tipo)?.[1] || 'Outra';
 
 /** Polos das partes, na ordem em que a capa os mostra. */
 export const POLOS = { requerente: 'Requerente', requerido: 'Requerido', interessado: 'Interessado', terceiro: 'Terceiro' };

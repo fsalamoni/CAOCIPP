@@ -11,7 +11,7 @@
  *
  * Lógica pura; o servidor grava e registra. Ver docs/PROCESSO_ELETRONICO.md.
  */
-import { ESPECIES } from './comunicacoes';
+import { especieValida } from './comunicacoes';
 import type { Comunicacao } from './comunicacoes';
 import { POLOS } from './camposProcesso';
 import { MAX_PRAZO_DIAS, texto } from './secretaria';
@@ -22,6 +22,9 @@ export const MAX_TEXTO_COMUNICACAO = 2000;
 
 export interface ComunicacaoDaAcao {
     especie: string;
+    /** Espécie da lista do órgão: o nome e o gênero ficam no rito. */
+    especie_nome?: string;
+    especie_m?: true;
     /** Polos alcançados. Ausente = todas as partes do processo. */
     polos?: string[];
     /** Prazo de resposta em dias, contado da ciência; 0 = sem prazo. */
@@ -44,15 +47,14 @@ export type ComunicacaoLigada = Comunicacao & { fase_id?: string; acao_idx?: num
 /** Valida o que o rito pede ao comunicar. Lança com mensagem. */
 export function sanitizeComunicacaoDaAcao(raw: unknown, acao: string): ComunicacaoDaAcao {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-    const especie = String(r.especie || '');
-    if (!ESPECIES[especie]) throw new Error(`A ação "${acao}" comunica as partes: escolha a espécie (intimação, notificação, citação...)`);
+    const esp = especieValida(r.especie, r.especie_nome, r.especie_m, `A ação "${acao}" comunica as partes: escolha a espécie (intimação, notificação, citação...)`);
     const polos = [...new Set((Array.isArray(r.polos) ? r.polos : []).map(String))];
     if (polos.some((p) => !(POLOS as readonly string[]).includes(p))) throw new Error(`A ação "${acao}": polo desconhecido`);
     const dias = r.dias === undefined || r.dias === null || r.dias === '' ? 0 : Number(r.dias);
     if (!Number.isInteger(dias) || dias < 0 || dias > MAX_PRAZO_DIAS) throw new Error(`A ação "${acao}": o prazo de resposta vai de 0 (sem prazo) a ${MAX_PRAZO_DIAS} dias`);
     const txt = texto(r.texto, MAX_TEXTO_COMUNICACAO);
     return {
-        especie, dias,
+        ...esp, dias,
         ...(polos.length && polos.length < POLOS.length ? { polos } : {}),
         ...(dias && r.contagem === 'corridos' ? { contagem: 'corridos' as const } : {}),
         ...(txt ? { texto: txt } : {}),

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MARCA_AUDIENCIA = exports.MAX_PARTICIPANTES = exports.QUALIDADES = exports.MODOS_AUDIENCIA = exports.ESPECIES_AUDIENCIA = void 0;
+exports.artigos = exports.designadaDe = exports.nomeDaAudiencia = exports.MARCA_AUDIENCIA = exports.MAX_PARTICIPANTES = exports.QUALIDADES = exports.MODOS_AUDIENCIA = exports.ESPECIES_AUDIENCIA = void 0;
 exports.sanitizeAudienciaDaAcao = sanitizeAudienciaDaAcao;
 exports.dadosDaAudiencia = dadosDaAudiencia;
 exports.textoDaAudiencia = textoDaAudiencia;
@@ -17,6 +17,8 @@ exports.aplicarAudiencia = aplicarAudiencia;
  * Lógica pura; o servidor grava. Ver docs/PROCESSO_ELETRONICO.md.
  */
 const secretaria_1 = require("./secretaria");
+const listasOrgao_1 = require("./listasOrgao");
+Object.defineProperty(exports, "artigos", { enumerable: true, get: function () { return listasOrgao_1.artigos; } });
 exports.ESPECIES_AUDIENCIA = {
     audiencia: 'Audiência', instrucao: 'Audiência de instrução', conciliacao: 'Audiência de conciliação', oitiva: 'Oitiva',
     sessao: 'Sessão de julgamento', reuniao: 'Reunião', inspecao: 'Inspeção ou vistoria',
@@ -26,13 +28,22 @@ exports.QUALIDADES = { testemunha: 'testemunha', perito: 'perito', informante: '
 exports.MAX_PARTICIPANTES = 20;
 /** Marca que a comunicação troca pela audiência designada. */
 exports.MARCA_AUDIENCIA = '{audiencia}';
+/** Nome da espécie da audiência (do sistema ou do órgão). */
+const nomeDaAudiencia = (a) => (a === null || a === void 0 ? void 0 : a.especie_nome) || exports.ESPECIES_AUDIENCIA[(a === null || a === void 0 ? void 0 : a.especie) || 'audiencia'] || 'Audiência';
+exports.nomeDaAudiencia = nomeDaAudiencia;
+/** "designada" ou "designado", conforme o gênero do nome. */
+const designadaDe = (a) => ((a === null || a === void 0 ? void 0 : a.especie_m) ? 'designado' : 'designada');
+exports.designadaDe = designadaDe;
 /** Valida o que o rito diz da audiência. Lança com mensagem. */
 function sanitizeAudienciaDaAcao(raw, acao) {
     const r = (raw && typeof raw === 'object' ? raw : {});
     const especie = String(r.especie || 'audiencia');
-    if (!exports.ESPECIES_AUDIENCIA[especie])
+    if (exports.ESPECIES_AUDIENCIA[especie])
+        return { especie };
+    const item = (0, listasOrgao_1.itemDoRegistro)(especie, r.especie_nome, r.especie_m, `A ação "${acao}" designa audiência`);
+    if (!item)
         throw new Error(`A ação "${acao}" designa audiência: espécie desconhecida`);
-    return { especie };
+    return Object.assign({ especie: item.id, especie_nome: item.nome }, (item.m ? { especie_m: true } : {}));
 }
 /** Confere o que a equipe informa ao designar. `hoje` em AAAA-MM-DD. Lança com mensagem. */
 function dadosDaAudiencia(bruto, hoje) {

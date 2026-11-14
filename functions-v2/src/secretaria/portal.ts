@@ -15,7 +15,7 @@ import { montarPdfAutos, selecaoOuErro } from './exportar';
 import { extrasDoEvento, visivelParaPartes } from '../shared/autos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPeticao } from './avisosEquipe';
-import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comunicacoes';
+import { Comunicacao, destinatario, nomeDaEspecie, textoPrazo } from '../shared/comunicacoes';
 import { acertarAcoesDoRito, configComunicacoes, registrarCiencia } from './comunicacoes';
 import { ComunicacaoLigada, faseQueEspera, respondidasPela } from '../shared/comunicacaoRito';
 import { Audiencia, audienciasFuturas } from '../shared/audiencias';
@@ -93,7 +93,7 @@ const MAX_PETICOES_DIA = 20;
 /** Comunicações dirigidas a esta conta (à parte dela), como o portal mostra. */
 function comunicacoesDaConta(proc: admin.firestore.DocumentData, uid: string) {
     return ((proc.comunicacoes || []) as Comunicacao[]).filter((x) => x.status !== 'sem_efeito' && destinatario(x, proc.partes || [], uid)).map((x) => ({
-        id: x.id, especie: x.especie, especie_nome: ESPECIES[x.especie] || 'Comunicação', texto: x.texto, parte_nome: x.parte_nome,
+        id: x.id, especie: x.especie, especie_nome: nomeDaEspecie(x), ...(x.especie_m ? { especie_m: true } : {}), texto: x.texto, parte_nome: x.parte_nome,
         documento_id: x.documento_id || null, documento_titulo: x.documento_titulo || null,
         prazo: textoPrazo(x), expedida_em: x.expedida_em, limite_ciencia: x.limite_ciencia, status: x.status,
         ciencia_em: x.ciencia_em || null, ciencia_meio: x.ciencia_meio || null, vence_em: x.vence_em || null,
@@ -346,7 +346,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 comunicacoes: comunicacoesDaConta(data, uid),
                 // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
                 audiencias: audienciasFuturas(data.audiencias as Audiencia[] | undefined, hojeBrasil())
-                    .map((a) => ({ especie: a.especie, data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })),
+                    .map((a) => ({ especie: a.especie, ...(a.especie_nome ? { especie_nome: a.especie_nome } : {}), data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })),
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))

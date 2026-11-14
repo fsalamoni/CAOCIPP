@@ -93,7 +93,9 @@ async function expedir(tx, c, ref, data, raw, cfg, saida = { internos: 0, cumpri
         docTitulo = `Doc. nº ${d.ordem}: ${d.titulo}`;
     }
     const agora = new Date().toISOString();
-    const nomeEspecie = comunicacoes_1.ESPECIES[ped.especie];
+    const nomeEspecie = (0, comunicacoes_1.nomeDaEspecie)(ped);
+    // Espécie do órgão de nome masculino ("Edital"): "expedido", "realizado".
+    const fim = ped.especie_m ? 'o' : 'a';
     let atual = data;
     let campos = {};
     for (const idx of ped.partes_idx) {
@@ -106,7 +108,7 @@ async function expedir(tx, c, ref, data, raw, cfg, saida = { internos: 0, cumpri
         if (!ped.outro_meio && !temConta) {
             throw new https_1.HttpsError('failed-precondition', `${parte.nome} ainda não tem conta habilitada no portal. Convide a parte (ou um representante) ou registre a comunicação feita por outro meio.`);
         }
-        let com = Object.assign(Object.assign(Object.assign({ id: ref.collection('_').doc().id, especie: ped.especie, texto: ped.texto, parte_idx: idx, parte_nome: parte.nome }, (ped.documento_id ? { documento_id: ped.documento_id, documento_titulo: docTitulo } : {})), { dias: ped.dias, contagem: ped.contagem, expedida_em: agora, expedida_por: c.userName, unidade_id: String(data.unidade_atual), limite_ciencia: ped.outro_meio ? null : (0, comunicacoes_1.limiteCiencia)(hoje, cfg.dias), status: 'aguardando' }), (ligacao || {}));
+        let com = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id: ref.collection('_').doc().id, especie: ped.especie }, (ped.especie_nome ? { especie_nome: ped.especie_nome } : {})), (ped.especie_m ? { especie_m: true } : {})), { texto: ped.texto, parte_idx: idx, parte_nome: parte.nome }), (ped.documento_id ? { documento_id: ped.documento_id, documento_titulo: docTitulo } : {})), { dias: ped.dias, contagem: ped.contagem, expedida_em: agora, expedida_por: c.userName, unidade_id: String(data.unidade_atual), limite_ciencia: ped.outro_meio ? null : (0, comunicacoes_1.limiteCiencia)(hoje, cfg.dias), status: 'aguardando' }), (ligacao || {}));
         const prazoTxt = com.dias ? `Prazo de ${(0, comunicacoes_1.textoPrazo)(com)}` : 'Sem prazo de resposta';
         let descricao;
         if (ped.outro_meio) {
@@ -114,10 +116,10 @@ async function expedir(tx, c, ref, data, raw, cfg, saida = { internos: 0, cumpri
             com = r.comunicacao;
             if (r.prazo)
                 prazos = [...prazos, r.prazo];
-            descricao = `${nomeEspecie} de ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(data.nomes_polos, parte.polo)}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
+            descricao = `${nomeEspecie} de ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(data.nomes_polos, parte.polo)}) realizad${fim} por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
         }
         else {
-            descricao = `${nomeEspecie} expedida a ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(data.nomes_polos, parte.polo)}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
+            descricao = `${nomeEspecie} expedid${fim} a ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(data.nomes_polos, parte.polo)}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
         }
         lista = [...lista, com];
         const mov = (0, context_1.registrarMovimento)(tx, c, ref, atual, 'comunicacao', descricao.slice(0, secretaria_1.MAX_TEXTO_LONGO), { comunicacao_id: com.id, especie: com.especie, parte_idx: idx });
@@ -146,10 +148,12 @@ function registrarCiencia(tx, c, ref, proc, comId, meio, cfg, rotulo) {
     const r = (0, comunicacoes_1.aplicarCiencia)(alvo, (0, secretaria_1.hojeBrasil)(), agora, c.userName, meio, ref.collection('_').doc().id, cfg.calendario);
     const nova = lista.map((x) => (x.id === comId ? r.comunicacao : x));
     const prazos = r.prazo ? [...(proc.prazos || []), r.prazo] : (proc.prazos || []);
-    const esp = comunicacoes_1.ESPECIES[alvo.especie].toLowerCase();
+    const esp = (0, comunicacoes_1.nomeDaEspecie)(alvo).toLowerCase();
+    const art = (0, comunicacoes_1.artigosDaEspecie)(alvo);
+    const fim = alvo.especie_m ? 'o' : 'a';
     const cabeca = meio === 'decurso'
-        ? `Ciência por decurso: ${alvo.parte_nome} não acessou a ${esp} expedida em ${br(alvo.expedida_em)} até ${br(String(alvo.limite_ciencia))}.`
-        : `${rotulo} deu ciência da ${esp} expedida em ${br(alvo.expedida_em)}.`;
+        ? `Ciência por decurso: ${alvo.parte_nome} não acessou ${art.o} ${esp} expedid${fim} em ${br(alvo.expedida_em)} até ${br(String(alvo.limite_ciencia))}.`
+        : `${rotulo} deu ciência ${art.de} ${esp} expedid${fim} em ${br(alvo.expedida_em)}.`;
     const mov = (0, context_1.registrarMovimento)(tx, c, ref, proc, meio === 'decurso' ? 'ciencia_decurso' : 'ciencia', `${cabeca}${r.prazo ? ` Prazo de ${(0, comunicacoes_1.textoPrazo)(alvo)} aberto, vence em ${br(r.prazo.vence_em)}.` : ''}`, Object.assign({ comunicacao_id: comId }, (r.prazo ? { prazo_id: r.prazo.id, vence_em: r.prazo.vence_em } : {})));
     const campos = Object.assign(Object.assign({}, mov), gravar(nova, prazos, proc));
     tx.update(ref, campos);
@@ -166,7 +170,7 @@ function tornarSemEfeito(tx, c, ref, data, comId, motivo) {
     if (!motivo)
         throw new https_1.HttpsError('invalid-argument', 'Informe o motivo');
     const nova = lista.map((x) => (x.id === alvo.id ? Object.assign(Object.assign({}, x), { status: 'sem_efeito', sem_efeito_motivo: (0, secretaria_1.texto)(motivo, 500), limite_ciencia: null }) : x));
-    const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'comunicacao_sem_efeito', `${comunicacoes_1.ESPECIES[alvo.especie]} a ${alvo.parte_nome}, expedida em ${br(alvo.expedida_em)}, tornada sem efeito. Motivo: ${motivo}`, { comunicacao_id: alvo.id });
+    const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'comunicacao_sem_efeito', `${(0, comunicacoes_1.nomeDaEspecie)(alvo)} a ${alvo.parte_nome}, expedid${alvo.especie_m ? 'o' : 'a'} em ${br(alvo.expedida_em)}, tornad${alvo.especie_m ? 'o' : 'a'} sem efeito. Motivo: ${motivo}`, { comunicacao_id: alvo.id });
     const ac = acertarAcoesDoRito(tx, c, ref, Object.assign(Object.assign(Object.assign({}, data), mov), { comunicacoes: nova }));
     tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({}, mov), { comunicacoes: nova }), (0, comunicacoes_1.derivadosComunicacoes)(nova)), ac.campos));
     return Object.assign(Object.assign({}, mov), ac.campos);
@@ -188,8 +192,9 @@ async function certificarDecursos(db, ref, hoje) {
         let atual = proc;
         let campos = {};
         for (const x of vencidas) {
-            const esp = comunicacoes_1.ESPECIES[x.especie].toLowerCase();
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, atual, 'decurso_prazo', `Certifico que o prazo de ${(0, comunicacoes_1.textoPrazo)(x)} de ${x.parte_nome} para responder à ${esp} expedida em ${br(x.expedida_em)}, encerrado em ${br(String(x.vence_em))}, decorreu sem manifestação.`, { comunicacao_id: x.id, parte_idx: x.parte_idx });
+            const esp = (0, comunicacoes_1.nomeDaEspecie)(x).toLowerCase();
+            const art = (0, comunicacoes_1.artigosDaEspecie)(x);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, atual, 'decurso_prazo', `Certifico que o prazo de ${(0, comunicacoes_1.textoPrazo)(x)} de ${x.parte_nome} para responder ${art.a} ${esp} expedid${x.especie_m ? 'o' : 'a'} em ${br(x.expedida_em)}, encerrado em ${br(String(x.vence_em))}, decorreu sem manifestação.`, { comunicacao_id: x.id, parte_idx: x.parte_idx });
             campos = Object.assign(Object.assign({}, campos), mov);
             atual = Object.assign(Object.assign({}, atual), mov);
         }

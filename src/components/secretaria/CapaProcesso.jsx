@@ -134,7 +134,7 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
 
                 <Bloco titulo="Origem e quem solicitou">
                     <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
-                        <Item rotulo="Origem">{p.origem ? rotuloOrigem(p.origem.tipo) : null}</Item>
+                        <Item rotulo="Origem">{p.origem ? rotuloOrigem(p.origem.tipo, p.origem.nome) : null}</Item>
                         <Item rotulo="Unidade de autuação">{unidadeAutuacao}</Item>
                         {p.origem?.ref && <Item rotulo="Nasceu de" largo><RefOrigem r={p.origem.ref} /></Item>}
                         {p.origem?.descricao && <Item rotulo="Referência" largo>{p.origem.descricao}</Item>}

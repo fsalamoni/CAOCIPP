@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Listas do órgão
+- Nova aba **Listas do órgão** na configuração: espécies de comunicação
+  (edital, notificação extrajudicial), espécies de audiência (sessão de
+  mediação) e origens do processo (ouvidoria, corregedoria) a mais, além das
+  do sistema.
+- Elas aparecem ao expedir comunicação, nos textos prontos, nas ações do rito
+  que pedem comunicação ou audiência, na autuação, na retificação, na capa,
+  no portal e nas condições do rito ("Origem é Ouvidoria").
+- **Nome masculino**: os textos saem certos ("Responder ao edital", "ciência
+  do edital", "edital expedido").
+- Cada registro guarda o nome do item: renomear ou tirar um item não muda o
+  que já foi feito. Guia do rito, parte 18; guia de implantação, passo 6.
+
 ### 14/11/2026 — Documentos e textos do rito
 - Documento exigido (da fase ou da ação) com **assinaturas exigidas** (1 a 5)
   e, se quiser, **uma assinatura de quem tem certa atribuição** (ex.:

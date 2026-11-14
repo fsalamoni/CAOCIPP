@@ -334,6 +334,26 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             </table>
                             <p>Processos antigos seguem como estavam: sem essas opções, nada muda.</p>
                         </Parte>
+                        <Parte titulo="18. Listas do órgão: espécies e origens a mais">
+                            <p>
+                                Quando o órgão usa um ato que o sistema não traz, cadastre-o em Configuração, aba Listas do órgão. Ele passa a aparecer ao lado
+                                dos do sistema, no editor de rito e nas telas da equipe.
+                            </p>
+                            <table className={tabela}>
+                                <thead><tr><th>Lista</th><th>Onde aparece</th><th>Exemplos</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Espécies de comunicação</td><td>Expedir comunicação, ação do rito que pede comunicação às partes, textos prontos, portal</td><td>Edital, notificação extrajudicial, convocação</td></tr>
+                                    <tr><td>Espécies de audiência</td><td>Ação do rito que designa audiência, aviso na capa, portal das partes</td><td>Sessão de mediação, reunião de conciliação, audiência pública</td></tr>
+                                    <tr><td>Origens do processo</td><td>Autuação, retificação, capa, PDF da equipe, condições do rito (dado Origem)</td><td>Ouvidoria, corregedoria, auditoria interna</td></tr>
+                                </tbody>
+                            </table>
+                            <ul className="list-disc pl-5 space-y-1">
+                                <li>Marque "Nome masculino" nas espécies como edital ou ofício: os textos saem "ao edital", "ciência do edital", "edital expedido".</li>
+                                <li>Uma espécie do órgão funciona como as do sistema: com prazo, a parte responde no prazo; sem prazo, fica só a ciência.</li>
+                                <li>O processo, a comunicação, a audiência e o rito guardam o nome do item. Renomear ou tirar um item da lista não muda nada do que já foi feito.</li>
+                                <li>Na condição "Origem é…", as origens do órgão aparecem junto das do sistema, e a regra vale para os processos autuados com elas.</li>
+                            </ul>
+                        </Parte>
                     </div>
                 </DialogContent>
             </Dialog>

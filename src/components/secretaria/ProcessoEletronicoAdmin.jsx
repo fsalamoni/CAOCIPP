@@ -52,7 +52,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
     };
 
     return (
-        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado?.unidades}>
+        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado?.unidades} listas={estado?.listas}>
         <div className="space-y-5">
             <Card>
                 <CardHeader>

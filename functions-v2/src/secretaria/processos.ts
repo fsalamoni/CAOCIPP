@@ -18,7 +18,7 @@ import { responsavelPelaFase } from '../shared/efeitosFase';
 import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
 import { RESPOSTAS, encerrarComunicacoesDaFase, faseQueEspera, situacaoDaResposta } from '../shared/comunicacaoRito';
 import { ajustarComunicacao, ajustarPrazo } from '../shared/ajustePrazo';
-import { Audiencia, ESPECIES_AUDIENCIA, aplicarAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
+import { Audiencia, aplicarAudiencia, designadaDe, nomeDaAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
 import { sendEmail } from '../shared/email';
 import {
     CampoExigido, CampoValor, nomeDoPolo, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
@@ -505,7 +505,7 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
         let d: ReturnType<typeof dadosDaAudiencia> | null = null;
         try { d = dadosDaAudiencia(bruto, hojeBrasil()); } catch (e) { erroUsuario(e); }
         const t = textoDaAudiencia(d!);
-        const nome = `${ESPECIES_AUDIENCIA[regra?.audiencia?.especie || 'audiencia'] || 'Audiência'} designada`;
+        const nome = `${nomeDaAudiencia(regra?.audiencia)} ${designadaDe(regra?.audiencia)}`;
         return { rotulo: regra?.rotulo || nome, tipo: 'texto' as TipoCampo, valor: t, valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false, audiencia: d! };
     }
     if (pede === 'formulario') {
@@ -933,7 +933,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const refOrigem = await refDaOrigem(c, p.origem?.ref);
         const origemInformada = form.origem === 'oculto' ? null : sanitizeOrigem(p.origem);
         const origem: Origem | null = refOrigem
-            ? { tipo: origemInformada?.tipo || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro'), descricao: origemInformada?.descricao || '', ref: refOrigem }
+            ? { tipo: origemInformada?.tipo || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro'), ...(origemInformada?.nome ? { nome: origemInformada.nome } : {}), descricao: origemInformada?.descricao || '', ref: refOrigem }
             : origemInformada;
         let campos: CampoValor[] = [];
         try {
@@ -1212,7 +1212,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (vem('origem')) {
                 const o = sanitizeOrigem(p.origem);
                 // A ligação com o registro de origem nunca vem do cliente nem sai.
-                origem = origemAntes?.ref ? { tipo: o?.tipo || origemAntes.tipo, descricao: o?.descricao || '', ref: origemAntes.ref } : o;
+                const nome = o ? o.nome : origemAntes?.nome;
+                origem = origemAntes?.ref ? { tipo: o?.tipo || origemAntes.tipo, ...(nome ? { nome } : {}), descricao: o?.descricao || '', ref: origemAntes.ref } : o;
             }
             const sigilo = vem('sigilo') ? (p.sigilo === 'restrito' ? 'restrito' : 'normal') : data.sigilo;
             const partesAntes = (data.partes || []) as ParteGravada[];
@@ -1368,7 +1369,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 const ad = dado && 'audiencia' in dado ? dado.audiencia : null;
                 const antes = (data.audiencias || []) as Audiencia[];
                 const nova: Audiencia | null = feita && ad ? {
-                    id: randomBytes(8).toString('hex'), fase_id: fase.id, acao_idx: idx, especie: regra.audiencia?.especie || 'audiencia', ...ad,
+                    id: randomBytes(8).toString('hex'), fase_id: fase.id, acao_idx: idx, especie: regra.audiencia?.especie || 'audiencia',
+                    ...(regra.audiencia?.especie_nome ? { especie_nome: regra.audiencia.especie_nome } : {}), ...(regra.audiencia?.especie_m ? { especie_m: true as const } : {}), ...ad,
                     designada_em: new Date().toISOString(), designada_por: c.userName, status: 'designada',
                 } : null;
                 const lista = aplicarAudiencia(antes, fase.id, idx, nova);

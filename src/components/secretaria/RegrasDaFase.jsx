@@ -14,8 +14,8 @@ import {
     QUEM, VE, podeReservar, podeIrParaFolha, alternativasPossiveis, chaveDaCondicao, condicaoIncompleta, fontesDaCondicao, juntarPartes, MAX_CONDICOES_E, opcoesDaParte, parteDaFonte, partesDaCondicao,
     problemaDaCondicao, remapearCondicoes, soOrienta, daPartes,
 } from '@/lib/exigencias';
-import { ESPECIES } from '@/lib/comunicacaoRito';
-import { ESPECIES_AUDIENCIA } from '@/lib/audiencias';
+import { camposDaEspecie, especiesParaEscolher } from '@/lib/comunicacaoRito';
+import { audienciasParaEscolher, camposDaAudiencia } from '@/lib/audiencias';
 import { NativeSelect } from './comum';
 import { MODULOS, POLOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
@@ -366,11 +366,14 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
  * depende. Igual ao servidor (shared/comunicacaoRito.ts).
  */
 function ConfigDasPartes({ id, r, f, i, onChange }) {
+    // Listas do órgão: espécies a mais, além das do sistema.
+    const { listas = {} } = useContext(RegistroContexto);
     if (r?.pede === 'audiencia') {
+        const opcoesAud = audienciasParaEscolher(listas.audiencia, r.audiencia);
         return (
             <div className="space-y-1 sm:max-w-md">
-                <NativeSelect id={`${id}-aud`} label="Espécie" value={r.audiencia?.especie || 'audiencia'} options={ESPECIES_AUDIENCIA}
-                    onChange={(v) => onChange({ ...r, audiencia: { especie: v } })} />
+                <NativeSelect id={`${id}-aud`} label="Espécie" value={r.audiencia?.especie || 'audiencia'} options={opcoesAud.map(([v, l]) => [v, l])}
+                    onChange={(v) => onChange({ ...r, audiencia: camposDaAudiencia(v, opcoesAud) })} />
                 <p className="text-xs text-slate-600 dark:text-slate-400">
                     Na tela do processo, o botão &quot;Designar&quot; pede a data, a hora, o modo (presencial, por videoconferência ou híbrido), o local ou o link e quem participa além das partes (testemunha, perito...).
                     A designação vira certidão nos autos e as partes a veem no portal. Para intimar, ponha depois uma ação &quot;Comunicar as partes&quot; com {'{audiencia}'} no texto: ele é trocado pela data e pelo local.
@@ -399,6 +402,7 @@ function ConfigDasPartes({ id, r, f, i, onChange }) {
         );
     }
     const c = r?.comunicacao || { especie: 'intimacao', dias: 0 };
+    const opcoesEsp = especiesParaEscolher(listas.comunicacao, c);
     const setC = (patch) => {
         const n = { ...c, ...patch };
         Object.keys(n).forEach((k) => n[k] === undefined && delete n[k]);
@@ -412,8 +416,8 @@ function ConfigDasPartes({ id, r, f, i, onChange }) {
     return (
         <div className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
-                <NativeSelect id={`${id}-esp`} label="Espécie" value={c.especie} options={ESPECIES.map(([e, nome]) => [e, nome])}
-                    onChange={(v) => setC({ especie: v, ...(v === 'ciencia' ? { dias: 0, contagem: undefined } : {}) })} />
+                <NativeSelect id={`${id}-esp`} label="Espécie" value={c.especie} options={opcoesEsp.map(([e, nome]) => [e, nome])}
+                    onChange={(v) => setC({ especie_nome: undefined, especie_m: undefined, ...camposDaEspecie(v, opcoesEsp), ...(v === 'ciencia' ? { dias: 0, contagem: undefined } : {}) })} />
                 <div>
                     <Label htmlFor={`${id}-cd`}>Prazo de resposta (dias)</Label>
                     <div className="mt-1 flex flex-wrap items-center gap-2">

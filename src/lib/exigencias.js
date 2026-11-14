@@ -350,7 +350,13 @@ export function fontesDaCondicao(f, limite = Infinity, { fases = [], tipos = [] 
 }
 
 /** Respostas possíveis de uma parte da condição ([[valor, rótulo]]), ou null se o que ela lê não existe (mais). */
-export function opcoesDaParte(f, c, { fases = [], tipos = [] } = {}) {
+export function opcoesDaParte(f, c, { fases = [], tipos = [], origens = [] } = {}) {
+    if (c.dado === 'origem') {
+        // As do sistema, as da lista do órgão e as já escolhidas que saíram da lista (os processos guardam o nome).
+        const base = [...DADOS_CONDICAO.find(([d]) => d === 'origem')[2], ...origens.map((o) => [o.id, o.nome])];
+        const fora = c.valores.map((v, i) => [v, c.nomes?.[i] || v]).filter(([v]) => v.startsWith('o_') && !base.some(([b]) => b === v));
+        return [...base, ...fora];
+    }
     if (c.dado) {
         if (c.dado === 'tipo') return tipos.map((t) => [t.id, t.nome || 'tipo']);
         if (c.dado.startsWith('campo:')) {
@@ -369,12 +375,13 @@ export function opcoesDaParte(f, c, { fases = [], tipos = [] } = {}) {
  * valor vão junto, para as mensagens do processo.
  */
 export function parteDaFonte(fonte, valores = [], opcoes = []) {
-    const livre = fonte.dado === 'tipo' || fonte.dado?.startsWith('campo:');
+    // Origem da lista do órgão também leva o nome junto (ela pode sair da lista depois).
+    const livre = fonte.dado === 'tipo' || fonte.dado?.startsWith('campo:') || (fonte.dado === 'origem' && valores.some((v) => v.startsWith('o_')));
     const nome = Object.fromEntries(opcoes);
     return {
         acao: fonte.acao, ...(fonte.campo ? { campo: fonte.campo } : {}), ...(fonte.fase ? { fase: fonte.fase } : {}), ...(fonte.dado ? { dado: fonte.dado } : {}),
         valores,
-        ...(livre && fonte.nome ? { rotulo: fonte.nome } : {}),
+        ...(livre && fonte.nome && fonte.dado !== 'origem' ? { rotulo: fonte.nome } : {}),
         ...(livre && valores.length ? { nomes: valores.map((v) => nome[v] || v) } : {}),
     };
 }

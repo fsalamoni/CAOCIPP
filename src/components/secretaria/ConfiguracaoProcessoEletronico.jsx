@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, GitBranch, Hash, History, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, FileText, GitBranch, Hash, History, ListPlus, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import EditorNumeracao from './EditorNumeracao';
 import { nomeOrgao } from '@/lib/orgaos';
 import ConfiguracaoDocumentos from './ConfiguracaoDocumentos';
 import ConfiguracaoCalendario from './ConfiguracaoCalendario';
+import ListasOrgao from './ListasOrgao';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
 import HistoricoConfiguracao from './HistoricoConfiguracao';
 import VersoesDialog from './VersoesDialog';
@@ -66,6 +67,7 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
                 <TabsTrigger value="tipos" className="gap-2"><Shapes className="w-4 h-4" /> Tipos de processo</TabsTrigger>
                 <TabsTrigger value="ritos" className="gap-2"><GitBranch className="w-4 h-4" /> Ritos</TabsTrigger>
                 <TabsTrigger value="documentos" className="gap-2"><FileText className="w-4 h-4" /> Documentos e modelos</TabsTrigger>
+                <TabsTrigger value="listas" className="gap-2"><ListPlus className="w-4 h-4" aria-hidden /> Listas do órgão</TabsTrigger>
                 <TabsTrigger value="calendario" className="gap-2"><CalendarDays className="w-4 h-4" /> Calendário</TabsTrigger>
                 {integracoes && <TabsTrigger value="integracoes" className="gap-2"><Plug className="w-4 h-4" aria-hidden /> Integrações</TabsTrigger>}
                 {preferencias && <TabsTrigger value="preferencias" className="gap-2"><SlidersHorizontal className="w-4 h-4" aria-hidden /> Preferências</TabsTrigger>}
@@ -77,6 +79,7 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
             <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} pedido={pedidoDe('tipos')} onPedidoAtendido={atendido} /></TabsContent>
             <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} onAbrirTipo={abrirTipo} pedido={pedidoDe('ritos')} onPedidoAtendido={atendido} /></TabsContent>
             <TabsContent value="documentos" className="space-y-4"><ConfiguracaoDocumentos orgId={orgId} estado={estado} pedido={pedidoDe('documentos')} onPedidoAtendido={atendido} /><TextosProntos orgId={orgId} estado={estado} /></TabsContent>
+            <TabsContent value="listas"><ListasOrgao orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="calendario"><ConfiguracaoCalendario orgId={orgId} estado={estado} /></TabsContent>
             {integracoes && <TabsContent value="integracoes">{integracoes}</TabsContent>}
             {preferencias && <TabsContent value="preferencias">{preferencias}</TabsContent>}

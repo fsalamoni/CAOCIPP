@@ -34,9 +34,7 @@ exports.MAX_TEXTO_COMUNICACAO = 2000;
 /** Valida o que o rito pede ao comunicar. Lança com mensagem. */
 function sanitizeComunicacaoDaAcao(raw, acao) {
     const r = (raw && typeof raw === 'object' ? raw : {});
-    const especie = String(r.especie || '');
-    if (!comunicacoes_1.ESPECIES[especie])
-        throw new Error(`A ação "${acao}" comunica as partes: escolha a espécie (intimação, notificação, citação...)`);
+    const esp = (0, comunicacoes_1.especieValida)(r.especie, r.especie_nome, r.especie_m, `A ação "${acao}" comunica as partes: escolha a espécie (intimação, notificação, citação...)`);
     const polos = [...new Set((Array.isArray(r.polos) ? r.polos : []).map(String))];
     if (polos.some((p) => !camposProcesso_1.POLOS.includes(p)))
         throw new Error(`A ação "${acao}": polo desconhecido`);
@@ -44,7 +42,7 @@ function sanitizeComunicacaoDaAcao(raw, acao) {
     if (!Number.isInteger(dias) || dias < 0 || dias > secretaria_1.MAX_PRAZO_DIAS)
         throw new Error(`A ação "${acao}": o prazo de resposta vai de 0 (sem prazo) a ${secretaria_1.MAX_PRAZO_DIAS} dias`);
     const txt = (0, secretaria_1.texto)(r.texto, exports.MAX_TEXTO_COMUNICACAO);
-    return Object.assign(Object.assign(Object.assign({ especie, dias }, (polos.length && polos.length < camposProcesso_1.POLOS.length ? { polos } : {})), (dias && r.contagem === 'corridos' ? { contagem: 'corridos' } : {})), (txt ? { texto: txt } : {}));
+    return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, esp), { dias }), (polos.length && polos.length < camposProcesso_1.POLOS.length ? { polos } : {})), (dias && r.contagem === 'corridos' ? { contagem: 'corridos' } : {})), (txt ? { texto: txt } : {}));
 }
 /** Valida a espera: aponta para uma comunicação anterior da fase que abre prazo. */
 function sanitizeRespostaDaAcao(raw, regras, acoes, i, mapa) {

@@ -500,7 +500,7 @@ function ProcessoParte({ id, onVoltar }) {
                         <Card className="border-indigo-300 dark:border-indigo-800">
                             <CardHeader className="pb-2"><CardTitle className="text-base">Audiências designadas</CardTitle></CardHeader>
                             <CardContent className="space-y-1 text-sm">
-                                {p.audiencias.map((a) => <p key={`${a.data}${a.hora}`}><b>{nomeAudiencia(a.especie)}:</b> {textoDaAudiencia(a)}.</p>)}
+                                {p.audiencias.map((a) => <p key={`${a.data}${a.hora}`}><b>{nomeAudiencia(a.especie, a.especie_nome)}:</b> {textoDaAudiencia(a)}.</p>)}
                             </CardContent>
                         </Card>
                     )}

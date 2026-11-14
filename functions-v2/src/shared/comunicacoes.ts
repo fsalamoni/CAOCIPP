@@ -4,6 +4,7 @@
  * por decurso) e o prazo de resposta abre a partir da ciência. Lógica pura.
  */
 import { CalendarioOrgao, Contagem, MAX_PRAZO_DIAS, Prazo, calcularVencimento, somarDias, texto } from './secretaria';
+import { artigos, ehDoOrgao, itemDoRegistro } from './listasOrgao';
 
 export const ESPECIES: Record<string, string> = {
     intimacao: 'Intimação',
@@ -12,6 +13,19 @@ export const ESPECIES: Record<string, string> = {
     ciencia: 'Ciência',
     comunicacao: 'Comunicação',
 };
+
+/** Espécie de comunicação: a do sistema ou uma da lista do órgão, que vem com o nome (e o gênero). */
+export type ComEspecie = { especie: string; especie_nome?: string; especie_m?: true };
+export const nomeDaEspecie = (c: ComEspecie): string => c.especie_nome || ESPECIES[c.especie] || 'Comunicação';
+/** "à intimação", "ao edital": o artigo certo para a espécie. */
+export const artigosDaEspecie = (c: ComEspecie) => artigos(c.especie_m === true);
+/** Espécie saneada: do sistema, ou do órgão com o nome. Lança Error com mensagem. */
+export function especieValida(especie: unknown, nome: unknown, m: unknown, erro: string): ComEspecie {
+    if (typeof especie === 'string' && ESPECIES[especie]) return { especie };
+    const item = itemDoRegistro(especie, nome, m, erro);
+    if (!item) throw new Error(erro);
+    return { especie: item.id, especie_nome: item.nome, ...(item.m ? { especie_m: true as const } : {}) };
+}
 /** Dias corridos, da expedição, até a ciência se dar por decurso. 0 desliga. */
 export const CIENCIA_DIAS_PADRAO = 10;
 export const MAX_CIENCIA_DIAS = 90;
@@ -20,6 +34,9 @@ export const MAX_COMUNICACOES = 200;
 export interface Comunicacao {
     id: string;
     especie: string;
+    /** Espécie da lista do órgão: o nome e o gênero ficam na comunicação. */
+    especie_nome?: string;
+    especie_m?: true;
     texto: string;
     parte_idx: number;
     parte_nome: string;
@@ -49,6 +66,8 @@ export const cienciaDias = (v: unknown): number => {
 
 export interface PedidoComunicacao {
     especie: string;
+    especie_nome?: string;
+    especie_m?: true;
     texto: string;
     partes_idx: number[];
     documento_id: string;
@@ -62,8 +81,7 @@ export interface PedidoComunicacao {
 /** Valida o que a secretaria informou ao expedir. `hoje`: AAAA-MM-DD. */
 export function sanitizePedido(raw: unknown, hoje: string): PedidoComunicacao {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-    const especie = String(r.especie || '');
-    if (!ESPECIES[especie]) throw new Error('Escolha a espécie da comunicação');
+    const esp = especieValida(r.especie, r.especie_nome, r.especie_m, 'Escolha a espécie da comunicação');
     const txt = texto(r.texto, 4000);
     if (!txt) throw new Error('Escreva o que está sendo comunicado');
     // A marca da audiência é trocada pela data na tela; se sobrou, não há audiência designada.
@@ -81,7 +99,7 @@ export function sanitizePedido(raw: unknown, hoje: string): PedidoComunicacao {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(ciencia_data) || ciencia_data > hoje) throw new Error('Informe a data em que a parte tomou ciência (até hoje)');
     }
     return {
-        especie, texto: txt, partes_idx, documento_id: typeof r.documento_id === 'string' ? r.documento_id : '',
+        ...esp, texto: txt, partes_idx, documento_id: typeof r.documento_id === 'string' ? r.documento_id : '',
         dias, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis', outro_meio, ciencia_data: outro_meio ? ciencia_data : '',
     };
 }
@@ -100,7 +118,7 @@ export function aplicarCiencia(
 ): { comunicacao: Comunicacao; prazo: Prazo | null } {
     if (c.status !== 'aguardando') throw new Error('Esta comunicação não está mais aguardando ciência');
     const prazo: Prazo | null = c.dias ? {
-        id: prazoId, descricao: `Responder à ${ESPECIES[c.especie].toLowerCase()}`, destinatario: c.parte_nome, dias: c.dias, contagem: c.contagem,
+        id: prazoId, descricao: `Responder ${artigosDaEspecie(c).a} ${nomeDaEspecie(c).toLowerCase()}`, destinatario: c.parte_nome, dias: c.dias, contagem: c.contagem,
         inicio: dataCiencia, vence_em: calcularVencimento(dataCiencia, c.dias, c.contagem, cal), status: 'aberto',
         aberto_em: quando, aberto_por: por, comunicacao_id: c.id,
     } : null;
@@ -146,7 +164,7 @@ export function sanitizeTextosProntos(raw: unknown): TextoPronto[] {
         ids.add(id);
         const dias = Number(t.dias);
         return {
-            id, nome, texto: corpo, especie: ESPECIES[String(t.especie)] ? String(t.especie) : '',
+            id, nome, texto: corpo, especie: ESPECIES[String(t.especie)] || ehDoOrgao(t.especie) ? String(t.especie) : '',
             dias: Number.isInteger(dias) && dias > 0 && dias <= MAX_PRAZO_DIAS ? dias : 0,
             contagem: t.contagem === 'corridos' ? 'corridos' : 'uteis',
         };
