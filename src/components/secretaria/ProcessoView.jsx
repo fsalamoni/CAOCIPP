@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
     AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
-    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive, Hourglass, History, ListChecks,
+    PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive, Hourglass, History, ListChecks, Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { secConfig, secDocumento, secExportarPdf, secProcesso, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
+import { secConfig, secDocumento, secExportarInterno, secExportarPdf, secProcesso, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { DadosCampos } from './CamposProcesso';
@@ -43,6 +43,7 @@ import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
 import JuntadaConjunta from './JuntadaConjunta';
 import VersoesMinuta from './VersoesMinuta';
+import ImpressaoInterna from './ImpressaoInterna';
 import { rotuloFinalizar } from '@/lib/juntadaConjunta';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -63,6 +64,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [novoDoc, setNovoDoc] = useState(false);
     const [conjunta, setConjunta] = useState(false); // juntada em conjunto (botão Finalizar da fase)
     const [versoesDe, setVersoesDe] = useState(null); // documento cujas redações anteriores estão abertas
+    const [interna, setInterna] = useState(false); // impressão interna (o que fica fora dos autos)
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
     const [confirmar, setConfirmar] = useState(null); // {titulo, texto, rotulo, fn}: ato que não se desfaz
     const [vista, setVista] = useState(null); // capa | andamento | autos | eventos (null = padrão do perfil)
@@ -399,6 +401,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             )}
                             <DropdownMenuItem disabled={!autos.length} onSelect={() => setLeitura(autos[0]?.id)}>Ler os autos em sequência</DropdownMenuItem>
                             <DropdownMenuItem onSelect={exportar}>Exportar PDF dos autos</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setInterna(true)}>Impressão interna (fora dos autos)</DropdownMenuItem>
                             {q.data?.pode_excluir && (
                                 <>
                                     <DropdownMenuSeparator />
@@ -766,6 +769,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <div className="flex flex-wrap gap-2">
                             {autos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(autos[0].id)}><BookOpen className="w-4 h-4" /> Ler em sequência</Button>}
                             <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={exportar}><Download className="w-4 h-4" /> PDF dos autos</Button>
+                            <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={() => setInterna(true)} title="PDF de uso da equipe com registros internos, minutas e documentos fora dos autos"><Printer className="w-4 h-4" /> Impressão interna</Button>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-2">
@@ -891,6 +895,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onConfirmar={juntarEmConjunto}
                 onFechar={() => setConjunta(false)}
             />
+            <ImpressaoInterna aberto={interna} movimentos={movimentos} documentos={documentos} gerar={(sel) => secExportarInterno(orgId, procId, sel)} onFechar={() => setInterna(false)} />
             <VersoesMinuta orgId={orgId} procId={procId} documento={versoesDe} ocupado={ocupado} onLer={(v) => lerVersao(versoesDe, v)} onFechar={() => setVersoesDe(null)} />
             <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
                 <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">

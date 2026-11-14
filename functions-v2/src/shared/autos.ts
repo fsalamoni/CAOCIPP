@@ -135,6 +135,37 @@ export function sanitizeSelecao(raw: unknown): Selecao {
 }
 
 /**
+ * Impressão interna: o que a equipe marca para um PDF de uso interno, fora dos
+ * autos. `registros`: eventos que não são peça dos autos (seq); `documentos`:
+ * minutas e documentos guardados fora dos autos; `versoes`: documentos cujas
+ * redações anteriores entram.
+ */
+export interface SelecaoInterna { registros: number[]; documentos: string[]; versoes: string[] }
+export const MAX_DOCS_INTERNOS = 60;
+
+export function sanitizeSelecaoInterna(raw: unknown): SelecaoInterna {
+    const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const ids = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && /^[\w-]{1,60}$/.test(x)))].slice(0, MAX_DOCS_INTERNOS);
+    const s: SelecaoInterna = {
+        registros: Array.isArray(r.registros) ? [...new Set(r.registros.filter((n): n is number => Number.isInteger(n) && n > 0))].slice(0, MAX_EVENTOS) : [],
+        documentos: ids(r.documentos), versoes: ids(r.versoes),
+    };
+    if (!s.registros.length && !s.documentos.length && !s.versoes.length) throw new Error('Marque ao menos um registro ou documento para a impressão interna');
+    return s;
+}
+
+/**
+ * Registro que pode sair na impressão interna: tudo o que não é peça dos autos
+ * (registro interno, de controle ou do sistema). O que o rito marcou "sem
+ * evento" (`oculto`) não sai em impressão nenhuma.
+ */
+export const registroInterno = (m: Evento): boolean => origemEvento(m) !== 'usuario' && m.dados?.oculto !== true;
+
+/** Documento que pode sair na impressão interna: minuta que a pessoa vê ou documento guardado fora dos autos. */
+export const documentoInterno = (d: { status?: unknown }, minutaVisivel: boolean): boolean =>
+    d.status === 'controle' || (d.status === 'minuta' && minutaVisivel);
+
+/**
  * Eventos que entram no PDF. No intervalo de folhas, só os que têm folha
  * dentro dele; `recorte` devolve as folhas a manter de cada evento.
  */

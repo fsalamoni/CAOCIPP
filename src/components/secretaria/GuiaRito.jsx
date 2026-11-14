@@ -176,7 +176,17 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             </ul>
                             <p>Arquivo enviado (PDF, Word) não se edita no sistema, então não tem versões: o original é o próprio arquivo. Minuta já assinada também não se edita.</p>
                         </Parte>
-                        <Parte titulo="11. Exemplo: a fase Recebimento de uma consulta">
+                        <Parte titulo="11. Impressão interna (o que fica fora dos autos)">
+                            <p>Nem tudo o que o rito registra vai para os autos: a remessa que ficou só no sistema, o dado guardado como informação, a minuta, o documento guardado fora dos autos. Isso não sai no PDF dos autos, mas a equipe pode imprimir quando precisar, pela <strong>Impressão interna</strong>.</p>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Onde fica">Na tela do processo, no menu de três pontos e na aba Autos, ao lado de PDF dos autos.</Termo>
+                                <Termo nome="O que pode sair">Registros internos e do sistema (um a um), minutas que a sua unidade vê, documentos guardados fora dos autos e as redações anteriores de qualquer documento. Só sai o que for marcado.</Termo>
+                                <Termo nome="Como sai">Um PDF de uso da equipe, sem folhas dos autos, com a marca de uso interno em toda página. Não é cópia do processo e não deve ser entregue às partes.</Termo>
+                                <Termo nome="O que nunca sai">O que o rito marcou como <strong>sem evento</strong> não sai em impressão nenhuma. Dado reservado a quem gere a unidade continua sem o valor.</Termo>
+                            </ul>
+                            <p>Por isso, uma fase só de trabalho interno (ex.: Análise, Diligências externas) pode ficar inteira como informação: nada dela entra nos autos, e ainda assim pode ser impressa para uso interno, por seleção.</p>
+                        </Parte>
+                        <Parte titulo="12. Exemplo: a fase Recebimento de uma consulta">
                             <table className={tabela}>
                                 <thead><tr><th>Ação</th><th>O que pede</th><th>Quando vale</th></tr></thead>
                                 <tbody>

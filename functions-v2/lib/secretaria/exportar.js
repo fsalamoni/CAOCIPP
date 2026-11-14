@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaExportarPdf = void 0;
 exports.selecaoOuErro = selecaoOuErro;
 exports.montarPdfAutos = montarPdfAutos;
+exports.montarPdfInterno = montarPdfInterno;
 const numeracao_1 = require("../shared/numeracao");
 const https_1 = require("firebase-functions/v2/https");
 const pdf_lib_1 = require("pdf-lib");
@@ -10,9 +11,12 @@ const secretaria_1 = require("../shared/secretaria");
 const informacoes_1 = require("../shared/informacoes");
 const folhaDados_1 = require("../shared/folhaDados");
 const autos_1 = require("../shared/autos");
+const secretaria_2 = require("../shared/secretaria");
+const autos_2 = require("./autos");
+const pdfDocumento_1 = require("./pdfDocumento");
 const context_1 = require("./context");
 const config_1 = require("./config");
-const autos_2 = require("./autos");
+const autos_3 = require("./autos");
 /**
  * Exporta os autos em um PDF único: capa (só órgão, número, data da autuação e
  * se está ativo ou arquivado), a folha de dados do processo (a folha do evento
@@ -23,7 +27,8 @@ const autos_2 = require("./autos");
  * hash) ou, sem documento, um termo de uma folha. Os registros do sistema
  * saem reunidos num extrato ao fim. `selecao` gera o PDF integral ou parcial
  * (apenas os eventos marcados, todos exceto eles, ou um intervalo de folhas).
- * Minutas nunca entram: só o que está nos autos.
+ * Minutas nunca entram: só o que está nos autos. O que fica fora dos autos
+ * tem a sua impressão, a interna (`montarPdfInterno`, pedido com `interno`).
  */
 // ponytail: o PDF volta inteiro na resposta (limite ~32 MB do Cloud Run).
 // Acima disso os anexos viram folha de referência; gravar no Storage e
@@ -165,7 +170,7 @@ async function montarPdfAutos(o) {
         throw new https_1.HttpsError('failed-precondition', 'Nenhum evento dos autos corresponde à seleção');
     const folhasTxt = (m) => {
         const f = recorte.get(m.seq) || (0, autos_1.folhasDoEvento)(m, docsPorId);
-        return f ? (0, autos_2.textoFolhas)(f[0], f[1] - f[0] + 1) : '';
+        return f ? (0, autos_3.textoFolhas)(f[0], f[1] - f[0] + 1) : '';
     };
     const integridade = quebra === null
         ? `Integridade: cadeia de ${movimentos.length} eventos conferida (SHA-256).`
@@ -182,7 +187,7 @@ async function montarPdfAutos(o) {
         w.texto(`Situação: ${(0, folhaDados_1.situacaoDaCapa)(proc.status)}`, { size: 12, espaco: 24 });
         if (parcial) {
             w.texto(sel.modo === 'intervalo'
-                ? `CÓPIA PARCIAL DOS AUTOS: ${(0, autos_2.textoFolhas)(sel.folha_de, sel.folha_a - sel.folha_de + 1)}.`
+                ? `CÓPIA PARCIAL DOS AUTOS: ${(0, autos_3.textoFolhas)(sel.folha_de, sel.folha_a - sel.folha_de + 1)}.`
                 : `CÓPIA PARCIAL DOS AUTOS: ${escolhidos.length} de ${movimentos.length} eventos.`, { bold: true, cor: [0.7, 0.35, 0], espaco: 10 });
         }
         // Cadeia que não confere é aviso de capa; conferida, a frase vai na folha de dados.
@@ -192,26 +197,26 @@ async function montarPdfAutos(o) {
     // Peças: o documento juntado ou o termo do ato.
     const cfgs = new Map();
     const cfgDe = (u) => { if (!cfgs.has(u))
-        cfgs.set(u, (0, autos_2.lerConfigDocumento)(o.db, o.orgId, u)); return cfgs.get(u); };
+        cfgs.set(u, (0, autos_3.lerConfigDocumento)(o.db, o.orgId, u)); return cfgs.get(u); };
     let bytesAnexos = 0;
     let folhaLegado = 1; // processos anteriores às folhas gravadas
     const anexarDocumento = async (d, corte) => {
         let bytes;
         if (d.origem === 'upload' && bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
-            bytes = await (0, autos_2.folhaSimples)(String(d.titulo), [
+            bytes = await (0, autos_3.folhaSimples)(String(d.titulo), [
                 'Arquivo não incorporado: o PDF único dos autos passou do limite de tamanho.',
                 'Baixe o documento avulso ou gere o PDF em partes; o hash abaixo permite conferir o original.',
                 `SHA-256 ${d.sha256}`,
             ]);
         }
         else {
-            bytes = await (0, autos_2.pdfDoDocumento)(d, await cfgDe(String(d.unidade_origem || '')));
+            bytes = await (0, autos_3.pdfDoDocumento)(d, await cfgDe(String(d.unidade_origem || '')));
             bytesAnexos += d.origem === 'upload' ? (d.tamanho || 0) : bytes.length;
         }
         const gravada = typeof d.folha_inicial === 'number';
         const folha = gravada ? d.folha_inicial : folhaLegado;
-        const codigo = d.codigo_verificacao || await (0, autos_2.garantirCodigo)(o.db, o.orgId, o.ref.id, String(proc.numero), d.id);
-        const qtd = await (0, autos_2.anexarCarimbado)(pdf, bytes, Object.assign({ processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo), juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo }, (corte ? { paginas: [corte[0] - folha, corte[1] - folha] } : {})));
+        const codigo = d.codigo_verificacao || await (0, autos_3.garantirCodigo)(o.db, o.orgId, o.ref.id, String(proc.numero), d.id);
+        const qtd = await (0, autos_3.anexarCarimbado)(pdf, bytes, Object.assign({ processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo), juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo }, (corte ? { paginas: [corte[0] - folha, corte[1] - folha] } : {})));
         if (!gravada)
             folhaLegado += qtd;
     };
@@ -229,9 +234,9 @@ async function montarPdfAutos(o) {
         const info = { processo: String(proc.numero), folha: typeof m.folha === 'number' ? m.folha : null, titulo: (0, autos_1.tituloEvento)(m) };
         // A autuação é a folha de dados do processo; os demais atos sem documento, um termo de uma folha.
         if (m.tipo === 'autuacao')
-            await (0, autos_2.anexarCarimbado)(pdf, await folhaDadosPdf(o, m, geradoEm, integridade), Object.assign(Object.assign({}, info), { mesmaFolha: true }));
+            await (0, autos_3.anexarCarimbado)(pdf, await folhaDadosPdf(o, m, geradoEm, integridade), Object.assign(Object.assign({}, info), { mesmaFolha: true }));
         else
-            await (0, autos_2.anexarCarimbado)(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || ''))), info);
+            await (0, autos_3.anexarCarimbado)(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || ''))), info);
     };
     // A folha de dados (evento 1) vem logo depois da capa: é a segunda folha do processo impresso.
     const autuacao = ((_a = atos[0]) === null || _a === void 0 ? void 0 : _a.tipo) === 'autuacao' ? atos[0] : null;
@@ -272,12 +277,125 @@ async function montarPdfAutos(o) {
         throw new https_1.HttpsError('failed-precondition', 'A seleção não tem nenhuma folha para gerar');
     return pdf.save();
 }
+const rotuloInterno = (d) => (d.status === 'controle' ? 'Documento guardado fora dos autos' : d.status === 'juntado' ? 'Documento dos autos' : 'Minuta');
+/**
+ * PDF de uso interno da equipe: registros que não são peça dos autos,
+ * minutas, documentos guardados fora dos autos e redações anteriores, só o
+ * que foi marcado. Não tem folhas nem carimbo dos autos, e toda página diz
+ * que é de uso interno. Nunca é servido às partes.
+ */
+async function montarPdfInterno(o) {
+    const pdf = await pdf_lib_1.PDFDocument.create();
+    pdf.setTitle(`Processo ${o.proc.numero} (uso interno)`);
+    pdf.setCreator('SIGO — Processo Eletrônico');
+    const font = await pdf.embedFont(pdf_lib_1.StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(pdf_lib_1.StandardFonts.HelveticaBold);
+    const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const rodape = `USO INTERNO · Processo ${o.proc.numero} · gerado em ${geradoEm} por ${o.geradoPor} · não integra os autos`;
+    const ALERTA = [0.7, 0.35, 0];
+    const w = new Escritor(pdf, font, bold, rodape);
+    w.y -= 120;
+    w.texto(String(o.orgNome || 'Órgão'), { size: 14, bold: true });
+    w.texto('Processo Eletrônico', { size: 10, cor: CINZA, espaco: 30 });
+    w.texto(`Processo nº ${o.proc.numero}`, { size: 22, bold: true, espaco: 14 });
+    w.texto('IMPRESSÃO INTERNA', { size: 14, bold: true, cor: ALERTA, espaco: 6 });
+    w.texto('Uso interno da equipe. Este PDF não integra os autos, não tem numeração de folhas e não deve ser entregue às partes. Traz só o que foi marcado: registros internos, minutas, documentos guardados fora dos autos e redações anteriores.', { size: 10, espaco: 18 });
+    w.texto('Conteúdo', { size: 11, bold: true, espaco: 4 });
+    if (o.registros.length)
+        w.texto(`Registros internos: ${o.registros.length}`, { size: 10, espaco: 2 });
+    for (const d of o.documentos)
+        w.texto(`${rotuloInterno(d)}: ${d.titulo} (${d.tipo})`, { size: 10, espaco: 2 });
+    for (const x of o.versoes)
+        w.texto(`Redações anteriores de ${x.doc.titulo}: ${x.versoes.length}`, { size: 10, espaco: 2 });
+    if (o.registros.length) {
+        const r = new Escritor(pdf, font, bold, rodape);
+        r.texto('Registros internos', { size: 14, bold: true, espaco: 4 });
+        r.texto('Registros do andamento que não são peça dos autos, em ordem cronológica.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
+        for (const m of o.registros) {
+            const un = o.nomeUnidade(String(m.unidade_id || ''));
+            r.texto(`Evento ${m.seq} · ${(0, autos_1.tituloEvento)(m)}`, { bold: true, size: 10, espaco: 0 });
+            r.texto(`${quandoBR(m.em)} · ${m.autor_nome}${un ? ` (${un})` : ''}`, { size: 8, cor: CINZA, espaco: 2 });
+            r.texto(String(m.descricao), { size: 10, espaco: 10 });
+        }
+    }
+    const cfgs = new Map();
+    const cfgDe = (u) => { if (!cfgs.has(u))
+        cfgs.set(u, (0, autos_3.lerConfigDocumento)(o.db, o.orgId, u)); return cfgs.get(u); };
+    let bytesAnexos = 0;
+    /** Copia as páginas e marca cada uma no alto: o que é, e que é de uso interno. */
+    const anexar = async (bytes, faixa) => {
+        const origem = await pdf_lib_1.PDFDocument.load(bytes, { ignoreEncryption: true });
+        for (const pg of await pdf.copyPages(origem, origem.getPageIndices())) {
+            pdf.addPage(pg);
+            pg.drawText(seguro(faixa).slice(0, 130), { x: 24, y: pg.getHeight() - 16, size: 7, font, color: (0, pdf_lib_1.rgb)(...ALERTA) });
+        }
+    };
+    for (const d of o.documentos) {
+        const faixa = `USO INTERNO · ${rotuloInterno(d)}: ${d.titulo} · não integra os autos`;
+        if (d.origem === 'upload' && bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
+            await anexar(await (0, autos_3.folhaSimples)(String(d.titulo), ['Arquivo não incorporado: o PDF passou do limite de tamanho.', 'Baixe o documento avulso no Processo Eletrônico.', `SHA-256 ${d.sha256}`]), faixa);
+            continue;
+        }
+        const cfg = await cfgDe(String(d.unidade_origem || ''));
+        const bytes = d.origem === 'editor'
+            ? (await (0, pdfDocumento_1.renderizarDocumento)((0, autos_2.conteudoDoDocumento)(d), cfg, { assinaturas: d.assinaturas || [], sha256: d.sha256, marcaDagua: d.status === 'controle' ? 'FORA DOS AUTOS' : 'MINUTA' })).buffer
+            : await (0, autos_3.pdfDoDocumento)(d, cfg);
+        bytesAnexos += d.origem === 'upload' ? (d.tamanho || 0) : bytes.length;
+        await anexar(bytes, faixa);
+    }
+    for (const x of o.versoes) {
+        const cfg = await cfgDe(String(x.doc.unidade_origem || ''));
+        for (const [i, v] of x.versoes.entries()) {
+            const r = await (0, pdfDocumento_1.renderizarDocumento)(v.conteudo, cfg, { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
+            await anexar(r.buffer, `USO INTERNO · ${i === 0 ? 'Redação original' : `${i + 1}ª redação`} de ${x.doc.titulo}, por ${v.autor_nome || 'autor não identificado'} · revista em ${quandoBR(v.substituida_em)}`);
+        }
+    }
+    return pdf.save();
+}
 exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, memory: '1GiB', timeoutSeconds: 120 }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const auth = (0, context_1.exigirAuth)(request);
     const c = await (0, context_1.carregarContexto)(auth, (_a = request.data) === null || _a === void 0 ? void 0 : _a.organizationId);
     const { ref, data: proc } = await (0, context_1.lerProcesso)(c, (_b = request.data) === null || _b === void 0 ? void 0 : _b.processoId);
-    const selecao = selecaoOuErro((_c = request.data) === null || _c === void 0 ? void 0 : _c.selecao);
+    // Impressão interna: só o que a pessoa marcou e pode ver. As partes não chegam aqui (o portal tem a sua função).
+    if ((_c = request.data) === null || _c === void 0 ? void 0 : _c.interno) {
+        let si;
+        try {
+            si = (0, autos_1.sanitizeSelecaoInterna)(request.data.interno);
+        }
+        catch (e) {
+            throw new https_1.HttpsError('invalid-argument', e instanceof Error ? e.message : 'Seleção inválida');
+        }
+        const lerDocs = async (ids) => (await Promise.all(ids.map((id) => ref.collection('documentos').doc(id).get())))
+            .filter((s) => s.exists).map((s) => (Object.assign({ id: s.id }, s.data())));
+        const minha = (d) => (0, secretaria_2.minutaAcessivel)(d, c.ctx.unidadeIds);
+        const marcados = new Set(si.registros);
+        const [movSnap, docsLidos, docsVersoes] = await Promise.all([
+            si.registros.length ? ref.collection('movimentos').orderBy('seq').get() : null,
+            lerDocs(si.documentos), lerDocs(si.versoes),
+        ]);
+        const registros = ((movSnap === null || movSnap === void 0 ? void 0 : movSnap.docs) || []).map((d) => d.data()).filter((m) => marcados.has(m.seq) && (0, autos_1.registroInterno)(m));
+        const documentos = docsLidos.filter((d) => (0, autos_1.documentoInterno)(d, minha(d)))
+            .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
+        // Redações anteriores: a mesma regra de quem vê o documento.
+        const versoes = (await Promise.all(docsVersoes
+            .filter((d) => d.status === 'juntado' || d.status === 'controle' || minha(d))
+            .map(async (d) => ({
+            doc: d,
+            versoes: (await ref.collection('documentos').doc(String(d.id)).collection('versoes').get()).docs.map((v) => v.data())
+                .sort((a, b) => String(a.substituida_em).localeCompare(String(b.substituida_em))),
+        })))).filter((x) => x.versoes.length);
+        if (!registros.length && !documentos.length && !versoes.length)
+            throw new https_1.HttpsError('failed-precondition', 'Nada do que foi marcado pode sair na impressão interna');
+        const bytes = await montarPdfInterno({
+            db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), proc, registros, documentos, versoes, geradoPor: c.userName, nomeUnidade: (id) => (0, context_1.nomeUnidade)(c, id),
+        });
+        await (0, config_1.auditar)(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_INTERNO_EXPORTADO', {
+            processo_id: ref.id, numero: proc.numero, registros: registros.length, documentos: documentos.length, versoes: versoes.reduce((n, x) => n + x.versoes.length, 0),
+        });
+        return { base64: Buffer.from(bytes).toString('base64'), nome: `interno-processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
+    }
+    const selecao = selecaoOuErro((_d = request.data) === null || _d === void 0 ? void 0 : _d.selecao);
     const [movSnap, docSnap] = await Promise.all([
         ref.collection('movimentos').orderBy('seq').get(),
         ref.collection('documentos').where('status', '==', 'juntado').get(),
