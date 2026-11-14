@@ -15,7 +15,7 @@ const dica = 'block text-xs text-slate-600 dark:text-slate-400';
  * ligado ao processo (consulta, expediente ou registro de uma página própria).
  * `ligadas`: integrações com outros módulos.
  */
-export default function AndamentoDaFase({ f, mudar, ligadas }) {
+export default function AndamentoDaFase({ f, mudar, ligadas, primeira = false }) {
     const { paginas } = useContext(RegistroContexto);
     const ae = f.ao_entrar || {};
     const s = f.situacao_registro || {};
@@ -66,9 +66,9 @@ export default function AndamentoDaFase({ f, mudar, ligadas }) {
                 </span>
             </label>
             <fieldset className="space-y-2">
-                <legend className="text-xs font-medium">Registro ligado ao processo (consulta, expediente ou página própria)</legend>
+                <legend className="text-xs font-medium">Registro ligado ao processo (consulta, expediente, parceria ou página própria)</legend>
                 {modulos.length === 0 && dasPaginas.length === 0 && !orfa ? (
-                    <p className={dica}>Para a fase mudar a situação de uma consulta, de um expediente ou do registro de uma página própria, ligue a integração com o módulo em Integrações com outros módulos.</p>
+                    <p className={dica}>Para a fase mudar a situação de uma consulta, de um expediente, de uma parceria ou do registro de uma página própria, ligue a integração com o módulo em Integrações com outros módulos.</p>
                 ) : (
                     <div className="grid sm:grid-cols-3 gap-3">
                         <div>
@@ -94,11 +94,21 @@ export default function AndamentoDaFase({ f, mudar, ligadas }) {
                         )}
                     </div>
                 )}
+                {s.modulo && primeira && (
+                    <label className={caixa}>
+                        <Checkbox id={`sn-${f.id}`} className="mt-0.5" checked={s.na_autuacao === true} onCheckedChange={(c) => setSit({ na_autuacao: c === true })} />
+                        <span>Valer já na autuação
+                            <span className={dica}>O processo nasce nesta fase: ao autuar, {nomeDoRegistro(s, paginas)} já vai para a situação escolhida (ou a de quem assume, se a fase designa o responsável). Sem marcar, o registro fica como está até alguém assumir ou o processo voltar a esta fase.</span>
+                        </span>
+                    </label>
+                )}
                 <p className={dica}>
                     {s.modulo === 'paginas'
                         ? 'Vale para o registro da página de onde o processo nasceu (ou o único dela ligado a ele). O registro muda de coluna no quadro da página e a mudança fica no histórico dele. As regras da página continuam valendo: se ela exige um campo preenchido ou a aprovação de outra pessoa, o registro fica onde está e a equipe é avisada no processo.'
-                        : 'Vale para a consulta ou o expediente de onde o processo nasceu (ou o único ligado a ele). A mudança aparece no quadro do módulo, com a data do dia, e fica no histórico do registro. Na pasta é o arquivamento. Quem assume vira o responsável quando a situação é Em elaboração.'}
-                    {' '}Na autuação o registro fica como está: a regra da primeira fase vale quando alguém assume ou quando o processo volta para ela.
+                        : s.modulo === 'parcerias'
+                            ? 'Vale para a parceria de onde o processo nasceu (ou a única ligada a ele), com as regras do quadro de Parcerias: as datas da fase se preenchem sozinhas e quem assume vira o responsável em Em análise; se faltar um campo que a fase exige (pasta na rede, remetido para, dados da formalização), a parceria fica onde está e a equipe é avisada no processo. Parceria formalizada não volta pelo rito, e a extinção continua sendo feita no módulo.'
+                            : 'Vale para a consulta ou o expediente de onde o processo nasceu (ou o único ligado a ele). A mudança aparece no quadro do módulo, com a data do dia, e fica no histórico do registro. Na pasta é o arquivamento. Quem assume vira o responsável quando a situação é Em elaboração.'}
+                    {' '}Sem "Valer já na autuação", na autuação o registro fica como está: a regra da primeira fase vale quando alguém assume ou quando o processo volta para ela.
                 </p>
             </fieldset>
         </div>

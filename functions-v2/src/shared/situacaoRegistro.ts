@@ -1,4 +1,4 @@
-// Situação do registro ligado ao processo (Consultas, Expedientes e páginas
+// Situação do registro ligado ao processo (Consultas, Expedientes, Parcerias e páginas
 // próprias), conduzida pelo rito: a fase diz em que coluna do quadro o
 // registro fica quando o processo entra nela ou quando alguém o assume.
 //
@@ -10,21 +10,36 @@
 // Numa página própria a situação é a fase do registro (`phase`), e a mudança
 // passa pelas regras de transição do tipo (`evaluatePhaseTransition`), como no
 // quadro da página (`updateRecord`).
+//
+// Em Parcerias a situação é o `status`, e a mudança passa pelas mesmas regras
+// do quadro de Parcerias: campos exigidos de cada fase
+// (`validateParceriaPhaseTransition`) e datas automáticas (`applyAutoDateForPhase`).
 import { evaluatePhaseTransition, TransitionContext } from '../customEntities/transitions';
 import type { EntityTypeDef } from '../customEntities/schema';
 import { FIELD_ALIASES, getSmartField } from './fields';
+import { applyAutoDateForPhase } from './phaseDates';
+import { calculateParceriaStatus } from './status';
+import { validateParceriaPhaseTransition } from './validators';
 
 export const SITUACOES = ['Pendente', 'Em elaboração', 'Aguarda retorno de terceiros', 'Em revisão', 'Revisadas', 'Na pasta'] as const;
 export type Situacao = typeof SITUACOES[number];
-export const MODULOS_SITUACAO = ['consultas', 'expedientes', 'paginas'] as const;
+export const MODULOS_SITUACAO = ['consultas', 'expedientes', 'parcerias', 'paginas'] as const;
 export type ModuloSituacao = typeof MODULOS_SITUACAO[number];
+/**
+ * Situações de Parcerias que o rito pode dar. "Extintos" fica de fora: a
+ * extinção tem procedimento próprio no módulo (confirmação e motivo).
+ */
+export const SITUACOES_PARCERIA = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros', 'Parcerias'] as const;
 
 /**
  * O que a fase faz com o registro ligado: ao entrar nela e quando alguém assume
- * o processo nela. Em Consultas e Expedientes o alvo é uma das `SITUACOES`. Em
- * `paginas`, `pagina` é o id do tipo e o alvo é a chave de uma fase dele.
+ * o processo nela. Em Consultas e Expedientes o alvo é uma das `SITUACOES`; em
+ * Parcerias, uma das `SITUACOES_PARCERIA`. Em `paginas`, `pagina` é o id do
+ * tipo e o alvo é a chave de uma fase dele. `na_autuacao`: na primeira fase, a
+ * regra vale já na autuação (o processo nasce nela); ausente, só ao entrar
+ * depois, como sempre foi.
  */
-export interface SituacaoRegistro { modulo: ModuloSituacao; pagina?: string; ao_entrar?: string; ao_assumir?: string }
+export interface SituacaoRegistro { modulo: ModuloSituacao; pagina?: string; ao_entrar?: string; ao_assumir?: string; na_autuacao?: true }
 
 const ID_PAGINA = /^[A-Za-z0-9_-]{1,128}$/;
 const CHAVE_FASE = /^[a-z][a-z0-9_]{0,39}$/; // mesma regra das fases do tipo (SLUG_RE em customEntities/schema.ts)
@@ -35,13 +50,17 @@ export function sanitizeSituacaoRegistro(raw: unknown): SituacaoRegistro | null 
     if (!modulo) return null;
     const pagina = modulo === 'paginas' && typeof r.pagina === 'string' && ID_PAGINA.test(r.pagina) ? r.pagina : '';
     if (modulo === 'paginas' && !pagina) return null;
+    const lista: readonly string[] = modulo === 'parcerias' ? SITUACOES_PARCERIA : SITUACOES;
     const de = (v: unknown): string | undefined => (modulo === 'paginas'
         ? (typeof v === 'string' && CHAVE_FASE.test(v) ? v : undefined)
-        : SITUACOES.find((s) => s === v));
+        : lista.find((s) => s === v));
     const entrar = de(r.ao_entrar);
     const assumir = de(r.ao_assumir);
     if (!entrar && !assumir) return null;
-    return { modulo, ...(pagina ? { pagina } : {}), ...(entrar ? { ao_entrar: entrar } : {}), ...(assumir ? { ao_assumir: assumir } : {}) };
+    return {
+        modulo, ...(pagina ? { pagina } : {}), ...(entrar ? { ao_entrar: entrar } : {}), ...(assumir ? { ao_assumir: assumir } : {}),
+        ...(r.na_autuacao === true ? { na_autuacao: true as const } : {}),
+    };
 }
 
 /** Chave do registro conduzido: uma por módulo e, nas páginas próprias, uma por página. */
@@ -83,6 +102,52 @@ export function mudancasDaPagina(
     const fixos = r.rule?.on_success?.set_fields || [];
     for (const sf of fixos) valores[sf.field] = sf.value === 'now' ? hoje : sf.value;
     return { campos: { phase: alvo, ...(fixos.length ? { values: valores } : {}) }, de: rotulo(atual), para: rotulo(alvo) };
+}
+
+/** Marcadores de cada fase da parceria, apagados quando ela volta (como no quadro de Parcerias). */
+const MARCADORES_PARCERIA: Record<string, Record<string, unknown>> = {
+    'Em análise': { responsible_user_id: null, responsible_user_name: null, responsibility_date: null, distribution_date: null },
+    'Em revisão': { review_start_date: null, network_folder: '' },
+    'Revisadas': { reviewed_date: null, review_conclusion_date: null },
+    'Aguarda Terceiros': { third_party_referral_date: null, third_party: null },
+};
+
+/**
+ * Parceria: o que gravar para ela ir à situação `alvo`, pelas regras do quadro
+ * de Parcerias. Para frente, preenche as datas automáticas da fase e, em
+ * "Em análise", a pessoa que assumiu; os demais campos exigidos precisam
+ * estar no registro. Para trás, apaga os marcadores das fases seguintes, como
+ * o quadro faz. Parceria formalizada ou extinta não volta pelo rito: o quadro
+ * apagaria os dados da formalização. `motivo`: a regra não deixa. `null`: já está.
+ */
+export function mudancasDaParceria(
+    doc: Record<string, unknown>, alvoPedido: string, hoje: string, quem?: { uid: string; nome: string } | null,
+): { campos: Record<string, unknown> } | { motivo: string } | null {
+    const alvo = SITUACOES_PARCERIA.find((s) => s === alvoPedido);
+    if (!alvo) return null;
+    const atual = String(doc.status || calculateParceriaStatus(doc as never) || 'Pendente');
+    if (atual === alvo) return null;
+    if (doc.extinguished === true || atual === 'Extintos') return { motivo: 'A parceria está extinta: só o quadro de Parcerias a reativa.' };
+    const ordem: readonly string[] = SITUACOES_PARCERIA;
+    const para = ordem.indexOf(alvo);
+    const de = ordem.indexOf(atual);
+    const m: Record<string, unknown> = { status: alvo };
+    if (de > para) {
+        if (atual === 'Parcerias') return { motivo: 'A parceria já está formalizada: voltar apagaria os dados da formalização. Se for o caso, volte pelo quadro de Parcerias.' };
+        ordem.forEach((f, i) => { if (i > para && MARCADORES_PARCERIA[f]) Object.assign(m, MARCADORES_PARCERIA[f]); });
+    } else {
+        if (alvo === 'Em análise') {
+            if (quem && !getSmartField(doc, 'responsible_user_id')) { m.responsible_user_id = quem.uid; m.responsible_user_name = quem.nome; }
+            if (!getSmartField(doc, 'responsibility_date')) m.responsibility_date = hoje;
+        }
+        applyAutoDateForPhase(m, doc, hoje);
+    }
+    try {
+        validateParceriaPhaseTransition({ ...doc, ...m }, alvo);
+    } catch (e) {
+        return { motivo: e instanceof Error ? e.message : 'A regra de Parcerias não permite a mudança.' };
+    }
+    return { campos: m };
 }
 
 /** Data que põe o registro em cada situação ("Pendente" é a falta de todas). */

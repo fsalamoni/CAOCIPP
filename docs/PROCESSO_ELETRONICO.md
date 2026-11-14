@@ -1081,15 +1081,33 @@ opcionais; rito sem elas funciona como antes.
   `situacoesDaRegra`); página ou fase que deixou de existir vira pendência
   grave (`problemaDaPagina`). Nada disso chega às partes. Testes:
   `functions-v2/test/situacaoPagina.test.js` e `src/lib/andamentoFase.test.js`.
-  **Parcerias e Júri não são conduzidos pelo rito**: as fases de Parcerias
-  exigem dados do negócio a cada entrada (`PARCERIA_PHASE_REQUIREMENTS`) e têm
-  aditivos, e o Júri não tem quadro de fases.
+- **Parceria ligada** (14/11/2026; `situacao_registro: { modulo:
+  'parcerias', ao_entrar?, ao_assumir? }`). Alvos: `SITUACOES_PARCERIA`
+  (Pendente, Em análise, Em revisão, Revisadas, Aguarda Terceiros, Parcerias);
+  "Extintos" fica no módulo (`extinguish`, com confirmação). `mudancasDaParceria`
+  aplica as regras do quadro: para frente, as datas de `applyAutoDateForPhase`
+  e, em "Em análise", o responsável (quem assume) e `responsibility_date`;
+  para trás, apaga os marcadores das fases seguintes como o quadro
+  (`handleBackwardMove`). Depois confere `validateParceriaPhaseTransition`: se
+  faltar campo exigido (pasta na rede, remetido para, formalização), a parceria
+  fica onde está e o registro interno diz o motivo. Parceria formalizada
+  ("Parcerias") ou extinta não volta pelo rito, porque voltar apagaria a
+  formalização. Grava `status` e "Status alterado de A para B (pelo processo
+  eletrônico N, fase F)" em `activity_log` e `history`. Aditivos não são
+  conduzidos. O Júri não é conduzido (não tem quadro de fases).
+- **Valer já na autuação** (14/11/2026; `situacao_registro.na_autuacao:
+  true`, só no editor da primeira fase). Na autuação, `autuar` lê o registro
+  (`lerRegistrosDoRito` com a origem e os vínculos do processo novo, antes de
+  qualquer escrita) e aplica a regra da primeira fase (`aplicarSituacao`):
+  `ao_assumir` se a fase designa o responsável e tem essa regra, senão
+  `ao_entrar`. O que não deu certo vai ao registro interno da autuação.
+  Sem a marca, como antes: a autuação não muda o registro.
 - **Assumir.** Na tela do processo, quem está lotado na unidade que tem o
   processo vê o botão **Assumir** enquanto ele não tem responsável (é a ação
   `atribuir` para si mesmo; o destino do registro continua sendo o da linha
   "atribuição" em Registros).
-- **Limites.** A situação não é aplicada na autuação (a primeira fase não
-  muda o registro). A consulta precisa existir e estar ligada ao processo; o
+- **Limites.** Sem "Valer já na autuação", a situação não é aplicada na
+  autuação. A consulta precisa existir e estar ligada ao processo; o
   processo não cria a consulta. O rito grava só as datas e o responsável: o
   que o diálogo do quadro pede a mais (pasta na rede, destinatário da
   remessa) continua sendo preenchido na ficha do registro. Mover o cartão

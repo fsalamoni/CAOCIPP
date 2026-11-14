@@ -1,12 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.chaveDoRegistro = exports.MODULOS_SITUACAO = exports.SITUACOES = void 0;
+exports.chaveDoRegistro = exports.SITUACOES_PARCERIA = exports.MODULOS_SITUACAO = exports.SITUACOES = void 0;
 exports.sanitizeSituacaoRegistro = sanitizeSituacaoRegistro;
 exports.fasesDePaginaInvalidas = fasesDePaginaInvalidas;
 exports.mudancasDaPagina = mudancasDaPagina;
+exports.mudancasDaParceria = mudancasDaParceria;
 exports.mudancasDaSituacao = mudancasDaSituacao;
 exports.registroDoProcesso = registroDoProcesso;
-// Situação do registro ligado ao processo (Consultas, Expedientes e páginas
+// Situação do registro ligado ao processo (Consultas, Expedientes, Parcerias e páginas
 // próprias), conduzida pelo rito: a fase diz em que coluna do quadro o
 // registro fica quando o processo entra nela ou quando alguém o assume.
 //
@@ -18,10 +19,22 @@ exports.registroDoProcesso = registroDoProcesso;
 // Numa página própria a situação é a fase do registro (`phase`), e a mudança
 // passa pelas regras de transição do tipo (`evaluatePhaseTransition`), como no
 // quadro da página (`updateRecord`).
+//
+// Em Parcerias a situação é o `status`, e a mudança passa pelas mesmas regras
+// do quadro de Parcerias: campos exigidos de cada fase
+// (`validateParceriaPhaseTransition`) e datas automáticas (`applyAutoDateForPhase`).
 const transitions_1 = require("../customEntities/transitions");
 const fields_1 = require("./fields");
+const phaseDates_1 = require("./phaseDates");
+const status_1 = require("./status");
+const validators_1 = require("./validators");
 exports.SITUACOES = ['Pendente', 'Em elaboração', 'Aguarda retorno de terceiros', 'Em revisão', 'Revisadas', 'Na pasta'];
-exports.MODULOS_SITUACAO = ['consultas', 'expedientes', 'paginas'];
+exports.MODULOS_SITUACAO = ['consultas', 'expedientes', 'parcerias', 'paginas'];
+/**
+ * Situações de Parcerias que o rito pode dar. "Extintos" fica de fora: a
+ * extinção tem procedimento próprio no módulo (confirmação e motivo).
+ */
+exports.SITUACOES_PARCERIA = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros', 'Parcerias'];
 const ID_PAGINA = /^[A-Za-z0-9_-]{1,128}$/;
 const CHAVE_FASE = /^[a-z][a-z0-9_]{0,39}$/; // mesma regra das fases do tipo (SLUG_RE em customEntities/schema.ts)
 function sanitizeSituacaoRegistro(raw) {
@@ -32,14 +45,15 @@ function sanitizeSituacaoRegistro(raw) {
     const pagina = modulo === 'paginas' && typeof r.pagina === 'string' && ID_PAGINA.test(r.pagina) ? r.pagina : '';
     if (modulo === 'paginas' && !pagina)
         return null;
+    const lista = modulo === 'parcerias' ? exports.SITUACOES_PARCERIA : exports.SITUACOES;
     const de = (v) => (modulo === 'paginas'
         ? (typeof v === 'string' && CHAVE_FASE.test(v) ? v : undefined)
-        : exports.SITUACOES.find((s) => s === v));
+        : lista.find((s) => s === v));
     const entrar = de(r.ao_entrar);
     const assumir = de(r.ao_assumir);
     if (!entrar && !assumir)
         return null;
-    return Object.assign(Object.assign(Object.assign({ modulo }, (pagina ? { pagina } : {})), (entrar ? { ao_entrar: entrar } : {})), (assumir ? { ao_assumir: assumir } : {}));
+    return Object.assign(Object.assign(Object.assign(Object.assign({ modulo }, (pagina ? { pagina } : {})), (entrar ? { ao_entrar: entrar } : {})), (assumir ? { ao_assumir: assumir } : {})), (r.na_autuacao === true ? { na_autuacao: true } : {}));
 }
 /** Chave do registro conduzido: uma por módulo e, nas páginas próprias, uma por página. */
 const chaveDoRegistro = (s) => (s.modulo === 'paginas' ? `paginas:${s.pagina || ''}` : s.modulo);
@@ -84,6 +98,59 @@ function mudancasDaPagina(tipo, doc, alvo, quem, hoje) {
     for (const sf of fixos)
         valores[sf.field] = sf.value === 'now' ? hoje : sf.value;
     return { campos: Object.assign({ phase: alvo }, (fixos.length ? { values: valores } : {})), de: rotulo(atual), para: rotulo(alvo) };
+}
+/** Marcadores de cada fase da parceria, apagados quando ela volta (como no quadro de Parcerias). */
+const MARCADORES_PARCERIA = {
+    'Em análise': { responsible_user_id: null, responsible_user_name: null, responsibility_date: null, distribution_date: null },
+    'Em revisão': { review_start_date: null, network_folder: '' },
+    'Revisadas': { reviewed_date: null, review_conclusion_date: null },
+    'Aguarda Terceiros': { third_party_referral_date: null, third_party: null },
+};
+/**
+ * Parceria: o que gravar para ela ir à situação `alvo`, pelas regras do quadro
+ * de Parcerias. Para frente, preenche as datas automáticas da fase e, em
+ * "Em análise", a pessoa que assumiu; os demais campos exigidos precisam
+ * estar no registro. Para trás, apaga os marcadores das fases seguintes, como
+ * o quadro faz. Parceria formalizada ou extinta não volta pelo rito: o quadro
+ * apagaria os dados da formalização. `motivo`: a regra não deixa. `null`: já está.
+ */
+function mudancasDaParceria(doc, alvoPedido, hoje, quem) {
+    const alvo = exports.SITUACOES_PARCERIA.find((s) => s === alvoPedido);
+    if (!alvo)
+        return null;
+    const atual = String(doc.status || (0, status_1.calculateParceriaStatus)(doc) || 'Pendente');
+    if (atual === alvo)
+        return null;
+    if (doc.extinguished === true || atual === 'Extintos')
+        return { motivo: 'A parceria está extinta: só o quadro de Parcerias a reativa.' };
+    const ordem = exports.SITUACOES_PARCERIA;
+    const para = ordem.indexOf(alvo);
+    const de = ordem.indexOf(atual);
+    const m = { status: alvo };
+    if (de > para) {
+        if (atual === 'Parcerias')
+            return { motivo: 'A parceria já está formalizada: voltar apagaria os dados da formalização. Se for o caso, volte pelo quadro de Parcerias.' };
+        ordem.forEach((f, i) => { if (i > para && MARCADORES_PARCERIA[f])
+            Object.assign(m, MARCADORES_PARCERIA[f]); });
+    }
+    else {
+        if (alvo === 'Em análise') {
+            if (quem && !(0, fields_1.getSmartField)(doc, 'responsible_user_id')) {
+                m.responsible_user_id = quem.uid;
+                m.responsible_user_name = quem.nome;
+            }
+            if (!(0, fields_1.getSmartField)(doc, 'responsibility_date'))
+                m.responsibility_date = hoje;
+        }
+        (0, phaseDates_1.applyAutoDateForPhase)(m, doc, hoje);
+    }
+    try {
+        (0, validators_1.validateParceriaPhaseTransition)(Object.assign(Object.assign({}, doc), m), alvo);
+    }
+    catch (e) {
+        return { motivo: e instanceof Error ? e.message : 'A regra de Parcerias não permite a mudança.' };
+    }
+    return { campos: m };
 }
 /** Data que põe o registro em cada situação ("Pendente" é a falta de todas). */
 const MARCADOR = {
