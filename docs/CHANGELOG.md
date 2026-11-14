@@ -5,6 +5,22 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Comunicação às partes e espera da resposta no rito
+- **Comunicar as partes** passa a ser uma ação do rito: espécie (intimação,
+  notificação, citação, ciência ou comunicação), a quem (os polos), prazo de
+  resposta e texto proposto. Na tela do processo, o botão **Expedir** abre a
+  comunicação já preenchida, só com as partes que faltam. A ação se cumpre
+  quando todas foram comunicadas.
+- **Esperar a resposta das partes**: a ação se cumpre sozinha quando cada
+  parte se manifesta no prazo pelo portal, ou quando o prazo acaba. A
+  resposta (Apresentada, Parcial, Sem manifestação) guia condições e saídas.
+- **Certidão de decurso de prazo** nos autos, pública, no dia seguinte ao
+  fim do prazo sem manifestação; a parte é avisada.
+- A fase com andamento automático segue sozinha quando a espera termina,
+  salvo se o rito reservou a conclusão a alguém.
+- Guia do rito, parte 15, com exemplo de processo disciplinar.
+- Ritos já gravados não mudam.
+
 ### 14/11/2026 — O que a fase faz ao entrar, quem ela avisa e prazo por ação
 - **Ao entrar na fase**, além de marcar urgente e tirar o responsável, o
   rito agora pode: tirar a urgência, mudar o sigilo (restrito ou normal),

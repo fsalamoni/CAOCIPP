@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaAlertaPrazos = exports.DIAS_ALERTA = exports.secretariaConferir = exports.CONFERENCIAS_POR_HORA = void 0;
 exports.tratarVencidos = tratarVencidos;
+exports.respostasPorDecurso = respostasPorDecurso;
 const admin = require("firebase-admin");
 const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
@@ -17,6 +18,9 @@ const context_1 = require("./context");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
+const processos_1 = require("./processos");
+const context_2 = require("./context");
+const portalAvisos_2 = require("./portalAvisos");
 exports.CONFERENCIAS_POR_HORA = 60;
 /**
  * Chamada pública: no máximo `limite` por hora por endereço de rede (guardado
@@ -86,6 +90,33 @@ async function tratarVencidos(db, ref, hoje) {
     });
 }
 /**
+ * O prazo de resposta que o rito espera decorreu sem manifestação: certidão de
+ * decurso (as partes são avisadas), ações do rito acertadas e, se a fase segue
+ * sozinha, o avanço pela regra do rito.
+ */
+async function respostasPorDecurso(db, hoje = (0, secretaria_1.hojeBrasil)()) {
+    // ponytail: até 1000 por dia (os que esperam resposta são poucos); paginar se passar disso.
+    const snap = await db.collection(context_1.COL.processos).where('aguarda_resposta', '==', true).limit(1000).get();
+    const sistemas = new Map();
+    let certidoes = 0;
+    for (const d of snap.docs) {
+        const r = await (0, comunicacoes_1.certificarDecursos)(db, d.ref, hoje).catch((e) => { console.warn('[comunicacoes] decurso não certificado', d.id, e); return null; });
+        if (!r)
+            continue;
+        certidoes += 1;
+        if (r.movimentos)
+            await (0, portalAvisos_2.avisarPartesDoMovimento)(db, d.id, undefined, r.movimentos).catch(() => undefined);
+        if (!r.avancar)
+            continue;
+        if (!sistemas.has(r.orgId))
+            sistemas.set(r.orgId, (0, context_2.contextoDoSistema)(db, r.orgId));
+        const c = await sistemas.get(r.orgId);
+        if (c)
+            await (0, processos_1.avancarSozinho)(c, d.id);
+    }
+    return certidoes;
+}
+/**
  * Todo dia às 7h: para os órgãos que ligaram o alerta, avisa por e-mail os
  * lotados na unidade que tem o processo sobre prazos vencidos ou que vencem
  * em até 2 dias. Um e-mail por pessoa, com a lista.
@@ -95,6 +126,7 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
     const db = admin.firestore();
     // Antes dos alertas: a ciência por decurso abre prazos que entram neles.
     await (0, comunicacoes_1.cienciaPorDecurso)(db).catch((e) => console.warn('[comunicacoes] ciência por decurso falhou', e));
+    await respostasPorDecurso(db).catch((e) => console.warn('[comunicacoes] decurso do prazo de resposta falhou', e));
     const hoje = (0, secretaria_1.hojeBrasil)();
     const limite = (0, secretaria_1.somarDias)(hoje, exports.DIAS_ALERTA);
     // Só campo único em faixa: dispensa índice composto.

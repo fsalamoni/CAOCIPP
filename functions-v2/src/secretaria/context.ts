@@ -110,6 +110,26 @@ export async function carregarContexto(
     };
 }
 
+/**
+ * Quem age quando a regra do rito move o processo sem ninguém da equipe no ato
+ * (manifestação da parte, decurso do prazo): o sistema, com as unidades
+ * ativas do órgão. Só o avanço automático usa, e ele segue a única saída que o
+ * rito indica; com quem conclui reservado pelo rito, o sistema não conclui.
+ */
+export async function contextoDoSistema(db: admin.firestore.Firestore, orgId: string): Promise<Contexto | null> {
+    const [orgSnap, unSnap] = await Promise.all([
+        db.collection('organizations').doc(orgId).get(),
+        db.collection(COL.unidades).where('organization_id', '==', orgId).get(),
+    ]);
+    const org = orgSnap.data() || {};
+    if (org.secretariaConfig?.enabled !== true || org.secretariaConfig?.suspensa_plataforma === true) return null;
+    const unidades = unSnap.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string } & admin.firestore.DocumentData));
+    return {
+        db, orgId, org, ctx: { uid: 'sistema', isAdmin: true, unidadeIds: unidades.filter((u) => u.ativa !== false).map((u) => u.id) },
+        papel: 'sistema', userName: 'Sistema (regra do rito)', unidades, gestorDe: [], adminOrgaos: [],
+    };
+}
+
 /** Admin da entidade ou admin delegado do órgão interno `orgaoId`. */
 export function administraOrgao(c: Contexto, orgaoId: unknown): boolean {
     return c.ctx.isAdmin || (!!orgaoId && (c.adminOrgaos || []).includes(String(orgaoId)));

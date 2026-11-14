@@ -236,6 +236,20 @@ informado.
   condição mudou) e volta, o prazo recomeça no dia em que voltou. Se o
   cumprimento foi desfeito, vale o vencimento de antes, porque o prazo nunca
   deixou de correr.
+- **Contraditório conduzido pelo rito** (CF, art. 5º, LV; Lei 9.784/1999,
+  arts. 3º, 26 a 28 e 44): a ação "Comunicar as partes" é a intimação ou
+  citação; "Esperar a resposta" é a oportunidade de defesa. O prazo da parte
+  é **próprio**: conta da ciência, e o fim dele sem manifestação gera a
+  **certidão de decurso**, ato público que a parte vê. O decurso não presume
+  a verdade dos fatos (Lei 9.784/1999, art. 27) nem dispensa a decisão: só registra que a
+  oportunidade foi dada e não usada (preclusão), e o rito escolhe o caminho
+  (ex.: defensor dativo no disciplinar).
+- **Manifestação intempestiva** é juntada (direito de petição), mas não
+  conta como resposta no prazo nem desfaz a certidão. Quem decide pode
+  apreciá-la, como qualquer petição.
+- **Uma rodada por passagem na fase**: se o processo volta à fase, a
+  comunicação é nova, com prazo novo. A diligência em fase de espera não
+  suspende o prazo da parte.
 
 ## 9. Acesso, sigilo e papéis
 

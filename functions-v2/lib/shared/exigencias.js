@@ -55,6 +55,7 @@ const modulos_1 = require("./modulos");
 const camposProcesso_1 = require("./camposProcesso");
 const permissoesFase_1 = require("./permissoesFase");
 Object.defineProperty(exports, "QUEM", { enumerable: true, get: function () { return permissoesFase_1.QUEM; } });
+const comunicacaoRito_1 = require("./comunicacaoRito");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -104,7 +105,7 @@ const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhu
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -201,6 +202,15 @@ function sanitizeRegra(raw, acao) {
     // Só orientação: não se marca, não gera registro, não é cobrada.
     if (pedeBruto === 'orientacao')
         return Object.assign(Object.assign({}, out), { pede: 'orientacao' });
+    // Comunicar as partes: cumpre-se expedindo pela ação; o registro são as próprias comunicações (nos autos).
+    if (pedeBruto === 'comunicacao') {
+        Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
+        return Object.assign(Object.assign(Object.assign({}, out), { pede: 'comunicacao', comunicacao: (0, comunicacaoRito_1.sanitizeComunicacaoDaAcao)(r.comunicacao, acao) }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
+    }
+    // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
+    if (pedeBruto === 'resposta') {
+        return Object.assign(Object.assign(Object.assign({}, out), { pede: 'resposta', resposta: { de: -1 } }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
+    }
     if (pedeBruto !== 'confirmar') {
         out.pede = pedeBruto;
         const rotulo = texto(r.rotulo, 80);
@@ -287,6 +297,8 @@ function opcoesDaResposta(r, campo) {
         return r.opcoes || [];
     if (r.pede === 'sim_nao')
         return ['sim', 'nao'];
+    if (r.pede === 'resposta')
+        return [...comunicacaoRito_1.RESPOSTAS];
     return null;
 }
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */
@@ -547,7 +559,7 @@ function sanitizeRegras(fo, acoes, mapa) {
     const regras = acoes.map((a, i) => sanitizeRegra(brutas[i], a));
     // "Só vale se": depende de uma ação de escolha anterior (nunca dela mesma nem de uma posterior).
     regras.forEach((r, i) => {
-        var _b;
+        var _b, _c;
         const b = brutas[i];
         // A que lê outra fase, dado do processo ou várias coisas fica para o fim do rito (sanitizeRito), com todas as fases prontas.
         const se = condicaoAmpla(b === null || b === void 0 ? void 0 : b.se) ? undefined : sanitizeCondicao(b === null || b === void 0 ? void 0 : b.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
@@ -556,9 +568,11 @@ function sanitizeRegras(fo, acoes, mapa) {
         const ou = sanitizeOu(b === null || b === void 0 ? void 0 : b.ou, regras, acoes, i, mapa);
         if (ou !== undefined)
             regras[i] = Object.assign(Object.assign({}, (regras[i] || {})), { ou });
+        if (((_b = regras[i]) === null || _b === void 0 ? void 0 : _b.pede) === 'resposta')
+            regras[i] = Object.assign(Object.assign({}, regras[i]), { resposta: (0, comunicacaoRito_1.sanitizeRespostaDaAcao)(b === null || b === void 0 ? void 0 : b.resposta, regras, acoes, i, mapa) });
         // Prazo próprio: qualquer ação que se cumpre (a que é só orientação não tem o que cumprir).
         const prazo = Number(b === null || b === void 0 ? void 0 : b.prazo_dias);
-        if (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 && ((_b = regras[i]) === null || _b === void 0 ? void 0 : _b.pede) !== 'orientacao') {
+        if (Number.isInteger(prazo) && prazo > 0 && prazo <= 3650 && !['orientacao', 'resposta'].includes(String((_c = regras[i]) === null || _c === void 0 ? void 0 : _c.pede))) {
             regras[i] = Object.assign(Object.assign(Object.assign({}, (regras[i] || {})), { prazo_dias: prazo }), ((b === null || b === void 0 ? void 0 : b.prazo_contagem) === 'corridos' ? { prazo_contagem: 'corridos' } : {}));
         }
     });

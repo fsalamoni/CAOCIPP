@@ -2,6 +2,7 @@ import { chaveCampo, novoCampo } from './camposProcesso.js';
 import { seguintes } from './secretariaRito.js';
 import { QUEM, rotuloQuem } from './permissoesFase.js';
 import { textoPrazoDaAcao } from './efeitosFase.js';
+import { RESPOSTAS, nomeEspecie, textoDosPolos } from './comunicacaoRito.js';
 // ============================================================================
 // Espelho, para a tela, das regras do rito (functions-v2/src/shared/
 // exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
@@ -84,8 +85,13 @@ export const PEDIDOS = [
     ['registro', 'Um registro de outro módulo'],
     ['formulario', 'Um formulário (vários campos)'],
     ['documento', 'Um documento'],
+    ['comunicacao', 'Comunicar as partes (intimação, citação…)'],
+    ['resposta', 'Esperar a resposta das partes'],
     ['orientacao', 'Nada: só orienta (não se marca)'],
 ];
+/** Ações que o rito conduz com as partes: cumprem-se pela comunicação expedida e pela manifestação (ou decurso). */
+export const PEDIDOS_DAS_PARTES = ['comunicacao', 'resposta'];
+export const daPartes = (r) => PEDIDOS_DAS_PARTES.includes(r?.pede);
 /** Campos de uma ação que pede um formulário (igual ao servidor). */
 export const MAX_CAMPOS_ACAO = 10;
 export const ROTULO_PEDIDO = Object.fromEntries(PEDIDOS);
@@ -117,7 +123,7 @@ export const pedidoDaAcao = (r) => (r?.documento ? 'documento' : r?.pede || 'con
 export const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
     && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
     && (pedidoDaAcao(r) !== 'confirmar' || ['autos', 'consolidar'].includes(destinoDaAcao(r)));
-export const pedeDado = (r) => !['confirmar', 'documento', 'orientacao'].includes(pedidoDaAcao(r));
+export const pedeDado = (r) => !['confirmar', 'documento', 'orientacao', ...PEDIDOS_DAS_PARTES].includes(pedidoDaAcao(r));
 /** O dado da ação pode ir para a folha de dados do processo (evento 1 do PDF)? Reservado, nunca: a folha é de toda a equipe. */
 export const podeIrParaFolha = (r) => pedeDado(r) && !r?.ve;
 /** Ação que não se marca: só orienta quem está na fase. */
@@ -254,6 +260,7 @@ export function opcoesDaResposta(r, campo) {
     }
     if (r.pede === 'lista') return opcoesEmPares(r.opcoes);
     if (r.pede === 'sim_nao') return SIM_NAO;
+    if (r.pede === 'resposta') return opcoesEmPares(RESPOSTAS);
     return null;
 }
 
@@ -489,6 +496,7 @@ export function remapearCondicoes(f, origem, regras) {
             if (novo.has(n.ou) && novo.get(n.ou) < j) n = { ...n, ou: novo.get(n.ou) };
             else { const { ou: _o, ...resto } = n; n = resto; }
         }
+        if (n.pede === 'resposta') n = { ...n, resposta: { de: novo.has(n.resposta?.de) && novo.get(n.resposta.de) < j ? novo.get(n.resposta.de) : -1 } };
         return Object.keys(n).length ? n : null;
     });
     const cr = Object.fromEntries(Object.entries(f.condicoes_regra || {}).map(([k, c]) => [k, mapa(c)]).filter(([, c]) => c));
@@ -560,12 +568,12 @@ function regraComPedidoSemNivel(r, pede, acao) {
     // Só orientação: fica a condição, mais nada (não se marca, não se cobra, não tem alternativa).
     if (pede === 'orientacao') return { ...nova, ...(r?.se ? { se: r.se } : {}) };
     // A condição ("só vale se") e quem cumpre acompanham a ação (documento: quem cumpre é quem junta).
-    const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem, ...(r.quem === 'atribuicao' ? { atribuicao: r.atribuicao || '' } : {}) } : {}),
+    const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && !['documento', 'resposta'].includes(pede) ? { quem: r.quem, ...(r.quem === 'atribuicao' ? { atribuicao: r.atribuicao || '' } : {}) } : {}),
         ...(Number.isInteger(r?.ou) && pede !== 'documento' ? { ou: r.ou } : {}),
         // O prazo próprio acompanha a ação, seja o que for que ela peça.
-        ...(r?.prazo_dias > 0 && pede !== 'orientacao' ? { prazo_dias: r.prazo_dias, ...(r.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {}) } : {}),
+        ...(r?.prazo_dias > 0 && !['orientacao', 'resposta'].includes(pede) ? { prazo_dias: r.prazo_dias, ...(r.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {}) } : {}),
         // A folha de dados segue enquanto a ação pedir um dado.
-        ...(r?.folha_dados && !['confirmar', 'documento'].includes(pede) ? { folha_dados: true } : {}),
+        ...(r?.folha_dados && !['confirmar', 'documento', ...PEDIDOS_DAS_PARTES].includes(pede) ? { folha_dados: true } : {}),
         // Dado reservado segue se o pedido novo ainda puder ser reservado.
         ...(r?.ve && PEDIDOS_RESERVAVEIS.includes(pede) ? { ve: r.ve } : {}) };
     return Object.keys(extra).length ? { ...(nova || {}), ...extra } : nova;
@@ -582,6 +590,15 @@ function regraComPedidoBase(r, pede, acao) {
         };
     }
     if (pede === 'orientacao') return { pede, ...(r?.ajuda ? { ajuda: r.ajuda } : {}) };
+    // Comunicar e esperar: o registro são as próprias comunicações e manifestações (nos autos), sem destino nem partes na regra.
+    if (PEDIDOS_DAS_PARTES.includes(pede)) {
+        return {
+            pede,
+            ...(pede === 'comunicacao' ? { comunicacao: r?.comunicacao || { especie: 'intimacao', dias: 0 } } : { resposta: r?.resposta || { de: -1 } }),
+            ...(r?.obrigatoria ? { obrigatoria: true } : r?.recomendada ? { recomendada: true } : {}),
+            ...(r?.ajuda ? { ajuda: r.ajuda } : {}),
+        };
+    }
     const base = {
         ...(pede !== 'confirmar' ? { pede } : {}),
         ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),
@@ -601,6 +618,13 @@ export function resumoDaAcao(r) {
     const pede = pedidoDaAcao(r);
     if (pede === 'orientacao') return `só orientação, não se marca${r?.se ? '; condicional' : ''}`;
     const dest = destinoDaAcao(r);
+    const sufixo = `${{ '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)]}${r?.se ? '; condicional' : ''}`;
+    if (pede === 'comunicacao') {
+        const c = r?.comunicacao || {};
+        const prazo = c.dias > 0 ? `, prazo de resposta de ${textoPrazoDaAcao({ prazo_dias: c.dias, prazo_contagem: c.contagem })}` : ', sem prazo de resposta';
+        return `comunica ${textoDosPolos(c)} (${nomeEspecie(c.especie).toLowerCase()}${prazo}); certidão nos autos${sufixo}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}${r?.prazo_dias > 0 ? `; expedir em ${textoPrazoDaAcao(r)}` : ''}`;
+    }
+    if (pede === 'resposta') return `espera a resposta das partes ou o fim do prazo; cumpre-se sozinha${sufixo}`;
     if (pede === 'documento') {
         return dest === 'autos' ? 'documento juntado aos autos' : `documento guardado fora dos autos (${dest === 'evento' ? 'evento no extrato' : 'só no sistema'})`;
     }

@@ -99,6 +99,12 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
             if (a.trim() && r?.pede === 'lista' && (r.opcoes || []).filter((o) => o.trim()).length < 2) {
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede uma escolha: informe ao menos duas opções.` });
             }
+            if (a.trim() && r?.pede === 'resposta') {
+                const alvo = f.acoes_regras?.[r.resposta?.de];
+                if (!(r.resposta?.de >= 0 && r.resposta.de < k && alvo?.pede === 'comunicacao' && alvo.comunicacao?.dias > 0)) {
+                    out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" espera a resposta das partes: escolha antes dela uma ação que comunique com prazo de resposta.` });
+                }
+            }
             const prob = a.trim() && r?.se ? problemaDaCondicao(f, r.se, k, ctxCond) || (condicaoIncompleta(r.se) ? 'está sem resposta marcada' : null) : null;
             if (prob) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a condição de "${a.trim()}" ${prob}. Ajuste em "Quando vale".` });
             if (a.trim() && r?.pede === 'formulario') {

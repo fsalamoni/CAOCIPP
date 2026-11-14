@@ -41,6 +41,7 @@ import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, tex
 import { RegistroContexto } from './SeletorRegistro';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
+import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
@@ -537,9 +538,16 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     rotulo: 'Desfazer',
                                     fn: () => mov('marcarAcao', { acao_idx: i, feita: false }, 'Ação desfeita'),
                                 });
+                                // Comunicar as partes pela ação: quem ela alcança e quem falta (na rodada da fase).
+                                const alvos = r?.pede === 'comunicacao' ? alvosDaComunicacao(r.comunicacao, p.partes) : [];
+                                const comunicadas = new Set(comunicacoesDaAcao(p.comunicacoes, faseAtual.id, i).map((c) => c.parte_idx));
+                                const faltam = alvos.filter((x) => !comunicadas.has(x));
                                 return (
                                     <li key={i}>
-                                        <AcaoDaFase acao={a} r={r} feita={feitas.has(i)} info={infoDaAcao(i)} podeMexer={podeMexer && podeCumprir(r)} reservada={podeMexer && !podeCumprir(r)} ocupado={ocupado}
+                                        <AcaoDaFase acao={a} r={r} feita={feitas.has(i)} info={infoDaAcao(i)} podeMexer={podeMexer && podeCumprir(r) && (r?.pede !== 'comunicacao' || (naSecretaria && p.status === 'em_tramitacao'))} reservada={podeMexer && !podeCumprir(r)} ocupado={ocupado}
+                                            partes={p.partes || []} comunicacao={r?.pede === 'comunicacao' ? { alvos, faltam } : null}
+                                            espera={r?.pede === 'resposta' ? situacaoDaResposta(faseAtual, i, p.comunicacoes, hoje) : null}
+                                            onExpedir={() => setAcao({ tipo: 'comunicar', daAcao: { idx: i, nome: a, cfg: r.comunicacao, alvos, faltam } })}
                                             nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
                                             onRegistrar={() => setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version })}
@@ -858,7 +866,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     onSalvar={(dados) => mov('alterarDados', dados, 'Dados do processo alterados')} />
             )}
 
-            <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} textosProntos={estado.textos_comunicacao || []} ocupado={ocupado}
+            <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} daAcao={acao?.tipo === 'comunicar' ? acao.daAcao || null : null} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} textosProntos={estado.textos_comunicacao || []} ocupado={ocupado}
                 onFechar={() => setAcao(null)} onExpedir={(comunicacao) => mov('expedirComunicacao', { comunicacao }, comunicacao.meio === 'outro' ? 'Ciência registrada nos autos' : 'Comunicação expedida')} />
 
             {acao?.tipo === 'excluir' && (

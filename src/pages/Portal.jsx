@@ -61,7 +61,7 @@ export function frasePolo(polo) {
 const ICONE_MOV = {
     juntada: FileText, peticao: Send, fase: GitBranch, situacao: Flag, prazo: CalendarClock, prazo_encerrado: CalendarCheck,
     pendencia_resolvida: Gavel, autuacao: FilePlus, habilitacao: UserCheck, convite: Mail,
-    comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck,
+    comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck, decurso_prazo: CalendarCheck,
 };
 
 export default function Portal() {

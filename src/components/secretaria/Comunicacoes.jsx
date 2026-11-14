@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { CartaoComMenu } from './Lixeira';
 import { reinserir } from '@/lib/textosProntos';
 import AjudaTermo from './AjudaTermo';
+import { ESPECIES, nomeEspecie } from '@/lib/comunicacaoRito';
 
 /**
  * Comunicações às partes, do lado da equipe: o cartão no processo e o
@@ -19,14 +20,7 @@ import AjudaTermo from './AjudaTermo';
  * quando a parte dá ciência (ou quando a ciência se dá por decurso).
  */
 
-export const ESPECIES = [
-    ['intimacao', 'Intimação', 'Chama a parte a fazer ou responder algo'],
-    ['notificacao', 'Notificação', 'Dá conhecimento de um ato ou de uma data'],
-    ['citacao', 'Citação', 'Chama a parte ao processo para se defender'],
-    ['ciencia', 'Ciência', 'Só registra que a parte tomou conhecimento'],
-    ['comunicacao', 'Comunicação', 'Outro aviso formal'],
-];
-export const nomeEspecie = (id) => ESPECIES.find((e) => e[0] === id)?.[1] || 'Comunicação';
+export { ESPECIES, nomeEspecie } from '@/lib/comunicacaoRito';
 export const brData = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('/');
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somarDias = (iso, n) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
@@ -90,7 +84,12 @@ const temConta = (x) => x.portal === 'ativo' || (x.representantes || []).some((r
  * Formulário de expedição. O prazo vem sugerido da fase do rito quando ela
  * tem um; se não tem, quem expede precisa dizer os dias ou marcar "sem prazo".
  */
-export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, textosProntos = [], ocupado, onFechar, onExpedir }) {
+/**
+ * `daAcao` ({ idx, nome, cfg, alvos, faltam }): expedida pela ação do rito que
+ * comunica. Vem preenchida com a espécie, o prazo, o texto e as partes que
+ * faltam; só elas aparecem (comunicar de novo quem já foi é pelo botão geral).
+ */
+export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, textosProntos = [], ocupado, onFechar, onExpedir, daAcao = null }) {
     const [especie, setEspecie] = useState('intimacao');
     const [partes, setPartes] = useState([]);
     const [texto, setTexto] = useState('');
@@ -110,6 +109,11 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
         // Parte retirada não recebe comunicação; o índice continua o da lista inteira.
         const ativas = p.partes.map((x, i) => [x, i]).filter(([x]) => !x.retirada);
         setPartes(ativas.length === 1 ? [ativas[0][1]] : []);
+        if (daAcao) {
+            const c = daAcao.cfg || {};
+            setEspecie(c.especie || 'intimacao'); setTexto(c.texto || ''); setPartes(daAcao.faltam);
+            if (c.dias > 0) { setModoPrazo('dias'); setDias(String(c.dias)); setContagem(c.contagem === 'corridos' ? 'corridos' : 'uteis'); } else setModoPrazo('sem');
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aberto]);
 
@@ -138,7 +142,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
         : `A ciência de ${nomes} fica registrada em ${brData(dataCiencia)}${outroMeio.trim() ? `, por ${outroMeio.trim()}` : ''}. ${prazoTxt ? `O prazo de ${prazoTxt} é aberto agora, contado dessa data.` : 'Não abre prazo de resposta.'}`;
 
     const expedir = () => onExpedir({
-        especie, texto: texto.trim(), partes_idx: partes, documento_id: documento || undefined,
+        especie, texto: texto.trim(), partes_idx: partes, documento_id: documento || undefined, ...(daAcao ? { acao_idx: daAcao.idx } : {}),
         ...(modoPrazo === 'sem' ? { sem_prazo: true } : { dias: n, contagem }),
         ...(meio === 'outro' ? { meio: 'outro', outro_meio: outroMeio.trim(), ciencia_data: dataCiencia } : {}),
     });
@@ -150,8 +154,10 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
         <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
             <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
-                    <DialogTitle>Intimar ou comunicar uma parte</DialogTitle>
-                    <DialogDescription>A comunicação fica certificada nos autos. O prazo de resposta só começa a contar quando a parte toma ciência.</DialogDescription>
+                    <DialogTitle>{daAcao ? daAcao.nome : 'Intimar ou comunicar uma parte'}</DialogTitle>
+                    <DialogDescription>
+                        {daAcao ? 'Ação do rito: vem preenchida com o que o rito propõe; ajuste se preciso. ' : ''}A comunicação fica certificada nos autos. O prazo de resposta só começa a contar quando a parte toma ciência.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-5">
                     <fieldset>
@@ -170,7 +176,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
                         <legend className="text-sm font-medium mb-1">2. A quem</legend>
                         {!p.partes.some((x) => !x.retirada) && <p className="text-sm text-slate-600">O processo não tem partes cadastradas. Inclua as partes em Mais › Corrigir dados ou retificar a autuação.</p>}
                         <div className="space-y-1">
-                            {p.partes.map((x, i) => [x, i]).filter(([x]) => !x.retirada).map(([x, i]) => (
+                            {p.partes.map((x, i) => [x, i]).filter(([x, i]) => !x.retirada && (!daAcao || daAcao.faltam.includes(i))).map(([x, i]) => (
                                 <label key={i} className={`${radio} items-center ${partes.includes(i) ? ativo : inativo}`}>
                                     <input type="checkbox" checked={partes.includes(i)} onChange={() => marcar(i)} />
                                     <span className="flex-1">{x.nome} <span className="text-slate-600 dark:text-slate-400">({x.polo})</span></span>
@@ -225,7 +231,8 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
                             </label>
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                            {sugerido ? `Sugestão do rito para a fase ${faseAtual.nome}: ${sugerido} dias. Mude se a decisão fixou outro prazo.`
+                            {daAcao ? (daAcao.cfg?.dias > 0 ? `Prazo que o rito fixa para "${daAcao.nome}": ${textoPrazo({ dias: daAcao.cfg.dias, contagem: daAcao.cfg.contagem === 'corridos' ? 'corridos' : 'uteis' })}. A espera da resposta conta o prazo de cada comunicação.` : 'O rito não fixa prazo de resposta para esta ação.')
+                                : sugerido ? `Sugestão do rito para a fase ${faseAtual.nome}: ${sugerido} dias. Mude se a decisão fixou outro prazo.`
                                 : 'O rito não fixa prazo para esta fase. Informe o prazo da decisão que mandou comunicar.'}
                         </p>
                     </fieldset>

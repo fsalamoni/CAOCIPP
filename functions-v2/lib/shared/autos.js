@@ -64,6 +64,7 @@ const TITULOS = {
     comunicacao: 'Certidão de comunicação',
     ciencia: 'Termo de ciência',
     ciencia_decurso: 'Certidão de ciência por decurso',
+    decurso_prazo: 'Certidão de decurso de prazo',
     comunicacao_sem_efeito: 'Certidão de comunicação sem efeito',
     juntada: 'Juntada de documento',
     peticao: 'Petição',

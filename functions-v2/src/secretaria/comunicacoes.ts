@@ -4,7 +4,9 @@ import { CalendarioOrgao, MAX_TEXTO_LONGO, Pendencia, Prazo, derivados, hojeBras
 import {
     Comunicacao, ESPECIES, MAX_COMUNICACOES, PedidoComunicacao, aplicarCiencia, cienciaDias, derivadosComunicacoes, limiteCiencia, sanitizePedido, textoPrazo,
 } from '../shared/comunicacoes';
-import { COL, Contexto, erroUsuario, registrarMovimento } from './context';
+import { COL, Contexto, erroUsuario, registrarInternos, registrarMovimento } from './context';
+import { ComunicacaoLigada, aguardaResposta, alvosDaComunicacao, decursosACertificar, faseQueEspera, sincronizarComunicacoes } from '../shared/comunicacaoRito';
+import type { Fase } from '../shared/secretaria';
 
 /**
  * Comunicações processuais no Firestore: ficam em `processo.comunicacoes[]`,
@@ -25,6 +27,30 @@ export async function configComunicacoes(db: admin.firestore.Firestore, orgId: s
     return { calendario: sanitizeCalendario(d.calendario), dias: cienciaDias(d.ciencia_dias) };
 }
 
+/**
+ * Depois de mexer nas comunicações: acerta as ações de comunicação e de
+ * resposta da fase que espera (ver shared/comunicacaoRito.ts) e registra, em
+ * movimento interno, o que a regra fez. `proc`: o processo como vai ficar.
+ * Devolve os campos a gravar, quantos movimentos internos entraram e as
+ * ações que o rito deu por cumpridas.
+ */
+export function acertarAcoesDoRito(
+    tx: admin.firestore.Transaction, c: Contexto, ref: admin.firestore.DocumentReference, proc: admin.firestore.DocumentData, extra: string[] = [],
+): { campos: Record<string, unknown>; internos: number; cumpridas: boolean } {
+    const fase = faseQueEspera<Fase>(proc);
+    const s = sincronizarComunicacoes(proc, fase, hojeBrasil());
+    const depois = s ? { ...proc, acoes_feitas: s.acoes_feitas, acoes_respostas: s.acoes_respostas } : proc;
+    const espera = aguardaResposta(depois, fase);
+    const notas = [...extra, ...(s?.notas || [])];
+    const mi = registrarInternos(tx, c, ref, proc, notas);
+    const campos = {
+        ...mi,
+        ...(s ? { acoes_feitas: s.acoes_feitas, acoes_respostas: s.acoes_respostas } : {}),
+        ...((proc.aguarda_resposta === true) !== espera ? { aguarda_resposta: espera } : {}),
+    };
+    return { campos, internos: notas.length ? 1 : 0, cumpridas: !!s?.novas.length };
+}
+
 /** Campos do processo depois de mexer em comunicações e prazos. */
 function gravar(lista: Comunicacao[], prazos: Prazo[], proc: admin.firestore.DocumentData) {
     return { comunicacoes: lista, ...derivadosComunicacoes(lista), prazos, ...derivados((proc.pendencias || []) as Pendencia[], prazos) };
@@ -37,7 +63,7 @@ function gravar(lista: Comunicacao[], prazos: Prazo[], proc: admin.firestore.Doc
  */
 export async function expedir(
     tx: admin.firestore.Transaction, c: Contexto, ref: admin.firestore.DocumentReference,
-    data: admin.firestore.DocumentData, raw: unknown, cfg: ConfigComunicacoes,
+    data: admin.firestore.DocumentData, raw: unknown, cfg: ConfigComunicacoes, saida: { internos: number; cumpridas: boolean } = { internos: 0, cumpridas: false },
 ): Promise<Record<string, unknown>> {
     if (!unidadeExpede(c.unidades.find((u) => u.id === data.unidade_atual))) {
         throw new HttpsError('permission-denied', 'Esta unidade não expede comunicações às partes. Remeta o processo à secretaria (ou a outra unidade que expeça) para cumprir.');
@@ -49,6 +75,19 @@ export async function expedir(
     let lista = [...((data.comunicacoes || []) as Comunicacao[])];
     let prazos = [...((data.prazos || []) as Prazo[])];
     if (lista.length + ped.partes_idx.length > MAX_COMUNICACOES) throw new HttpsError('resource-exhausted', 'Limite de comunicações do processo');
+    // Expedida pela ação do rito: só às partes que ela alcança, e fica ligada à ação (na rodada da fase).
+    const bruto = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    let ligacao: { fase_id: string; acao_idx: number } | null = null;
+    if (bruto.acao_idx !== undefined && bruto.acao_idx !== null) {
+        const fase = ((data.fases || []) as Fase[]).find((f) => f.id === data.fase_atual);
+        const i = Number(bruto.acao_idx);
+        const regra = fase?.acoes_regras?.[i];
+        if (!fase || regra?.pede !== 'comunicacao') throw new HttpsError('invalid-argument', 'Esta ação da fase não comunica as partes');
+        const alvos = alvosDaComunicacao(regra.comunicacao, partes);
+        const fora = ped.partes_idx.filter((x) => !alvos.includes(x));
+        if (fora.length) throw new HttpsError('invalid-argument', `"${fase.acoes?.[i]}" comunica só ${alvos.map((x) => partes[x]?.nome).join(', ') || 'partes de outro polo'}`);
+        ligacao = { fase_id: fase.id, acao_idx: i };
+    }
     let docTitulo = '';
     if (ped.documento_id) {
         const d = (await tx.get(ref.collection('documentos').doc(ped.documento_id))).data();
@@ -72,6 +111,7 @@ export async function expedir(
             ...(ped.documento_id ? { documento_id: ped.documento_id, documento_titulo: docTitulo } : {}),
             dias: ped.dias, contagem: ped.contagem, expedida_em: agora, expedida_por: c.userName, unidade_id: String(data.unidade_atual),
             limite_ciencia: ped.outro_meio ? null : limiteCiencia(hoje, cfg.dias), status: 'aguardando',
+            ...(ligacao || {}),
         };
         const prazoTxt = com.dias ? `Prazo de ${textoPrazo(com)}` : 'Sem prazo de resposta';
         let descricao: string;
@@ -88,8 +128,12 @@ export async function expedir(
         campos = { ...campos, ...mov };
         atual = { ...atual, ...mov };
     }
-    tx.update(ref, { ...campos, ...gravar(lista, prazos, data) });
-    return campos;
+    const gravado = gravar(lista, prazos, data);
+    const ac = acertarAcoesDoRito(tx, c, ref, { ...atual, ...gravado });
+    saida.internos = ac.internos;
+    saida.cumpridas = ac.cumpridas;
+    tx.update(ref, { ...campos, ...gravado, ...ac.campos });
+    return { ...campos, ...ac.campos };
 }
 
 /**
@@ -133,8 +177,41 @@ export function tornarSemEfeito(
     const nova = lista.map((x) => (x.id === alvo.id ? { ...x, status: 'sem_efeito' as const, sem_efeito_motivo: texto(motivo, 500), limite_ciencia: null } : x));
     const mov = registrarMovimento(tx, c, ref, data, 'comunicacao_sem_efeito',
         `${ESPECIES[alvo.especie]} a ${alvo.parte_nome}, expedida em ${br(alvo.expedida_em)}, tornada sem efeito. Motivo: ${motivo}`, { comunicacao_id: alvo.id });
-    tx.update(ref, { ...mov, comunicacoes: nova, ...derivadosComunicacoes(nova) });
-    return mov;
+    const ac = acertarAcoesDoRito(tx, c, ref, { ...data, ...mov, comunicacoes: nova });
+    tx.update(ref, { ...mov, comunicacoes: nova, ...derivadosComunicacoes(nova), ...ac.campos });
+    return { ...mov, ...ac.campos };
+}
+
+/**
+ * Rotina diária, processo a processo: o prazo de resposta que o rito espera
+ * decorreu sem manifestação. Certifica o decurso nos autos (ato público, a
+ * parte é avisada) e acerta as ações do rito. Devolve se a fase, que segue
+ * sozinha, pode ter ficado pronta para seguir.
+ */
+export async function certificarDecursos(db: admin.firestore.Firestore, ref: admin.firestore.DocumentReference, hoje: string): Promise<{ orgId: string; avancar: boolean; movimentos: number } | null> {
+    return db.runTransaction(async (tx) => {
+        const proc = (await tx.get(ref)).data();
+        if (!proc || proc.status !== 'em_tramitacao') return null;
+        const fase = faseQueEspera<Fase>(proc);
+        const vencidas = decursosACertificar(fase, proc.comunicacoes, hoje);
+        const c: Contexto = { db, orgId: String(proc.organization_id), org: {}, ctx: { uid: 'sistema', isAdmin: false, unidadeIds: [] }, userName: 'Sistema', unidades: [], gestorDe: [] };
+        let atual = proc;
+        let campos: Record<string, unknown> = {};
+        for (const x of vencidas) {
+            const esp = ESPECIES[x.especie].toLowerCase();
+            const mov = registrarMovimento(tx, c, ref, atual, 'decurso_prazo',
+                `Certifico que o prazo de ${textoPrazo(x)} de ${x.parte_nome} para responder à ${esp} expedida em ${br(x.expedida_em)}, encerrado em ${br(String(x.vence_em))}, decorreu sem manifestação.`,
+                { comunicacao_id: x.id, parte_idx: x.parte_idx });
+            campos = { ...campos, ...mov };
+            atual = { ...atual, ...mov };
+        }
+        const ids = new Set(vencidas.map((x) => x.id));
+        const nova = ((proc.comunicacoes || []) as ComunicacaoLigada[]).map((x) => (ids.has(x.id) ? { ...x, decurso_certificado: hoje } : x));
+        const ac = acertarAcoesDoRito(tx, c, ref, { ...atual, comunicacoes: nova });
+        if (!vencidas.length && !Object.keys(ac.campos).length) return null;
+        tx.update(ref, { ...campos, ...(vencidas.length ? { comunicacoes: nova } : {}), ...ac.campos });
+        return { orgId: c.orgId, avancar: ac.cumpridas && fase?.avanco === 'auto' && fase.id === proc.fase_atual, movimentos: vencidas.length + ac.internos };
+    });
 }
 
 /** Rotina diária: comunicações sem ciência além do limite têm a ciência registrada por decurso. */

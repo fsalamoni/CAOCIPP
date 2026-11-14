@@ -30,6 +30,9 @@ const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("../shared/comunicacoes");
 const comunicacoes_2 = require("./comunicacoes");
+const comunicacaoRito_1 = require("../shared/comunicacaoRito");
+const processos_1 = require("./processos");
+const context_2 = require("./context");
 const meusProcessos_1 = require("../shared/meusProcessos");
 const informacoes_1 = require("../shared/informacoes");
 const modulos_1 = require("../shared/modulos");
@@ -484,12 +487,31 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
             const pzA = (0, prazosFase_1.camposDosPrazosDasAcoes)(proc, exig, fase, `${parte.assina} (parte)`, pendencias, calendario);
-            const mi = (0, context_1.registrarInternos)(tx, c, procRef, Object.assign(Object.assign({}, proc), mov), pzA.notas);
-            tx.update(procRef, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))), pzA.campos));
-            return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id, internos: pzA.notas.length ? 1 : 0 };
+            // Manifestação no prazo de comunicação que o rito espera: a espera daquela parte termina.
+            const partesDoc = (proc.partes || []);
+            const parteIdx = partesDoc.findIndex((x) => x.uid === uid || (x.representantes || []).some((rp) => rp.uid === uid));
+            const responde = new Set((0, comunicacaoRito_1.respondidasPela)((0, comunicacaoRito_1.faseQueEspera)(proc), parteIdx, proc.comunicacoes, hoje));
+            const coms = responde.size
+                ? (proc.comunicacoes || []).map((x) => (responde.has(x.id) ? Object.assign(Object.assign({}, x), { respondida_em: agora, resposta_ordem: ordem }) : x))
+                : null;
+            const notaResp = responde.size ? [`A petição nº ${ordem} de ${parte.rotulo} responde, no prazo, à comunicação que o rito espera.`] : [];
+            const depois = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, proc), mov), exig), { pendencias }), pzA.campos), (coms ? { comunicacoes: coms } : {}));
+            const ac = (0, comunicacoes_2.acertarAcoesDoRito)(tx, c, procRef, depois, [...pzA.notas, ...notaResp]);
+            tx.update(procRef, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias }), (0, secretaria_1.derivados)(pendencias, (proc.prazos || []))), pzA.campos), (coms ? { comunicacoes: coms } : {})), ac.campos));
+            const faseEspera = (0, comunicacaoRito_1.faseQueEspera)(proc);
+            return {
+                ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id, internos: ac.internos,
+                avancar: ac.cumpridas && (faseEspera === null || faseEspera === void 0 ? void 0 : faseEspera.avanco) === 'auto' && faseEspera.id === proc.fase_atual ? String(proc.organization_id) : '',
+            };
         });
-        const { internos } = r, protocolado = __rest(r, ["internos"]);
+        const { internos, avancar } = r, protocolado = __rest(r, ["internos", "avancar"]);
         void (0, portalAvisos_1.avisarPartesDoMovimento)(db, procRef.id, uid, 1 + internos);
+        // A espera que o rito tinha terminou com esta manifestação: a fase que segue sozinha confere se pode seguir.
+        if (avancar) {
+            const sis = await (0, context_2.contextoDoSistema)(db, avancar).catch(() => null);
+            if (sis)
+                await (0, processos_1.avancarSozinho)(sis, procRef.id);
+        }
         void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_e = parteDoUsuario(procAntes, uid)) === null || _e === void 0 ? void 0 : _e.assina) || 'A parte'), titulo, tipoPeticao);
         return Object.assign({ success: true }, protocolado);
     }
