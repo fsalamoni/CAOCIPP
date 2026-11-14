@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Nomes dos polos por tipo de processo
+- No formulário do tipo de processo, cada polo das partes pode ter um nome
+  próprio: Denunciante e Acusado, Licitante, Contratante e Contratada,
+  Reclamante e Reclamado.
+- O nome aparece na autuação, na tela e na capa do processo, nas certidões,
+  nas comunicações e no portal ("Você participa como Acusado").
+- O processo guarda os nomes da autuação. Tipos já gravados não mudam.
+
 ### 14/11/2026 — Prorrogação e devolução de prazo
 - Cada prazo aberto ganha **Prorrogar** (enquanto corre: soma dias ao
   vencimento) e **Devolver** (depois de vencido: corre de novo a contar de

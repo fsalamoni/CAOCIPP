@@ -84,8 +84,9 @@ export function diffTipo(versao, atual) {
     const c = casar(fv.campos || [], fa.campos || [], (x) => x.id);
     const formulario = PADROES.filter((p) => !igual(fv[p.id], fa[p.id]) || !igual(fv.rotulos?.[p.id], fa.rotulos?.[p.id]) || !igual(fv.ajudas?.[p.id], fa.ajudas?.[p.id])).map((p) => p.rotulo);
     if (!igual(fv.polos, fa.polos)) formulario.push('polos das partes');
+    if (!igual(fv.nomes_polos || {}, fa.nomes_polos || {})) formulario.push('nomes dos polos');
     if (c.ordemMudou) formulario.push('ordem dos campos');
-    const conhecidas = new Set([...PADROES.map((p) => p.id), 'rotulos', 'ajudas', 'polos', 'campos']);
+    const conhecidas = new Set([...PADROES.map((p) => p.id), 'rotulos', 'ajudas', 'polos', 'nomes_polos', 'campos']);
     if ([...new Set([...Object.keys(fv), ...Object.keys(fa)])].some((k) => !conhecidas.has(k) && !igual(fv[k], fa[k]))) formulario.push('outros ajustes do formulário');
     const so = (x) => ({ id: x.id, rotulo: x.rotulo });
     const campos = {

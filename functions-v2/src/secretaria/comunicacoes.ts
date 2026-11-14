@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { nomeDoPolo } from '../shared/camposProcesso';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { CalendarioOrgao, MAX_TEXTO_LONGO, Pendencia, Prazo, derivados, hojeBrasil, sanitizeCalendario, texto, unidadeExpede } from '../shared/secretaria';
 import {
@@ -119,9 +120,9 @@ export async function expedir(
             const r = aplicarCiencia(com, ped.ciencia_data, agora, c.userName, ped.outro_meio, ref.collection('_').doc().id, cfg.calendario);
             com = r.comunicacao;
             if (r.prazo) prazos = [...prazos, r.prazo];
-            descricao = `${nomeEspecie} de ${parte.nome} (${parte.polo}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
+            descricao = `${nomeEspecie} de ${parte.nome} (${nomeDoPolo(data.nomes_polos, parte.polo)}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
         } else {
-            descricao = `${nomeEspecie} expedida a ${parte.nome} (${parte.polo}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
+            descricao = `${nomeEspecie} expedida a ${parte.nome} (${nomeDoPolo(data.nomes_polos, parte.polo)}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
         }
         lista = [...lista, com];
         const mov = registrarMovimento(tx, c, ref, atual, 'comunicacao', descricao.slice(0, MAX_TEXTO_LONGO), { comunicacao_id: com.id, especie: com.especie, parte_idx: idx });

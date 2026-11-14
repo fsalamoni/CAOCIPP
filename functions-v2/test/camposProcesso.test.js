@@ -23,7 +23,7 @@ test('formulário: saneia tipos, opções repetidas e usos; tipo antigo recebe o
     assert.equal(f.campos[0].visivel_partes, false);
     assert.deepEqual(c.formularioDe({}), {
         assunto: 'obrigatorio', descricao: 'opcional', partes: 'opcional', origem: 'opcional', sigilo: 'opcional', urgencia: 'opcional', unidade: 'opcional',
-        rotulos: {}, ajudas: {}, polos: ['requerente', 'requerido', 'interessado', 'terceiro'], campos: [],
+        rotulos: {}, ajudas: {}, polos: ['requerente', 'requerido', 'interessado', 'terceiro'], nomes_polos: {}, campos: [],
     });
     assert.deepEqual(c.formularioDe(null).campos, []);
     assert.equal(c.sanitizeFormulario({ descricao: 'xx' }).descricao, 'opcional');

@@ -79,6 +79,8 @@ export interface Formulario {
     ajudas: Partial<Record<Padrao, string>>;
     /** Polos que as partes podem ter neste tipo. */
     polos: string[];
+    /** Nome de cada polo neste tipo (vazio = o de sempre): Denunciante, Acusado, Licitante... */
+    nomes_polos: Partial<Record<string, string>>;
     campos: CampoDef[];
 }
 export type Valor = string | number | boolean | string[];
@@ -107,10 +109,20 @@ const polosDe = (v: unknown): string[] => {
     const l = POLOS.filter((p) => Array.isArray(v) && v.includes(p));
     return l.length ? l : [...POLOS];
 };
+// Só dos polos que o tipo usa: nome de polo desmarcado não fica guardado.
+const nomesPolosDe = (v: unknown, polos: string[]): Partial<Record<string, string>> => {
+    const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    return Object.fromEntries(polos.map((p) => [p, texto(o[p], 40)]).filter(([, s]) => s));
+};
+/** Nome do polo no processo (o do tipo, gravado na autuação) ou o de sempre. */
+export const nomeDoPolo = (nomes: unknown, polo: string): string => {
+    const n = nomes && typeof nomes === 'object' ? (nomes as Record<string, unknown>)[polo] : '';
+    return typeof n === 'string' && n ? n : polo;
+};
 const padroesDe = (f: Record<string, unknown>) => ({
     assunto: usoDe('assunto', f.assunto), descricao: usoDe('descricao', f.descricao), partes: usoDe('partes', f.partes),
     origem: usoDe('origem', f.origem), sigilo: usoDe('sigilo', f.sigilo), urgencia: usoDe('urgencia', f.urgencia), unidade: usoDe('unidade', f.unidade),
-    rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos),
+    rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos), nomes_polos: nomesPolosDe(f.nomes_polos, polosDe(f.polos)),
 });
 
 /** Nome do campo padrão neste formulário. */
@@ -201,6 +213,9 @@ export function sanitizeFormulario(input: unknown): Formulario {
     if (lista.length > MAX_CAMPOS) throw new Error(`O tipo aceita até ${MAX_CAMPOS} campos próprios`);
     const campos = sanitizeCampos(lista);
     const padroes = padroesDe(src);
+    const nomes = padroes.polos.map((p) => nomeDoPolo(padroes.nomes_polos, p));
+    const repetido = nomes.find((n, i) => nomes.findIndex((m) => igual(m, n)) !== i);
+    if (repetido) throw new Error(`Dois polos com o mesmo nome ("${repetido}"): dê nomes diferentes`);
     const reservados = [...Object.values(padroes.rotulos) as string[], 'assunto', 'descrição', 'descricao', 'partes'];
     campos.forEach((c) => {
         if (reservados.some((r) => igual(r, c.rotulo))) throw new Error(`"${c.rotulo}" já é um campo padrão do processo`);
@@ -488,7 +503,8 @@ export interface ParteGravada {
  * cliente vêm só nome, documento, e-mail, polo e o pedido de retirada; conta,
  * convites e representantes ficam como estavam. Lança Error com texto ao usuário.
  */
-export function retificarPartes(antes: ParteGravada[], entrada: unknown, polos: readonly string[], max: number, quem: { em: string; por: string }) {
+export function retificarPartes(antes: ParteGravada[], entrada: unknown, polos: readonly string[], max: number, quem: { em: string; por: string }, nomes?: unknown) {
+    const np = (p: string) => nomeDoPolo(nomes, p);
     if (!Array.isArray(entrada)) throw new Error('Lista de partes inválida');
     if (entrada.length < antes.length) throw new Error('Nenhuma parte pode ser apagada: use "Retirar" para tirá-la do processo');
     const reserva = polos.includes('interessado') ? 'interessado' : polos[0];
@@ -504,7 +520,7 @@ export function retificarPartes(antes: ParteGravada[], entrada: unknown, polos: 
         if (a && o.retirada === true) {
             partes.push({ ...a, retirada: quem });
             retiradas.push(i);
-            mudou.push(`Parte retirada: ${a.nome} (${a.polo})`);
+            mudou.push(`Parte retirada: ${a.nome} (${np(a.polo)})`);
             return;
         }
         const nome = texto(o.nome);
@@ -515,13 +531,13 @@ export function retificarPartes(antes: ParteGravada[], entrada: unknown, polos: 
         if (!a) {
             if (!nome) return; // linha nova em branco
             partes.push(dados);
-            mudou.push(`Parte incluída: ${nome} (${polo})`);
+            mudou.push(`Parte incluída: ${nome} (${np(polo)})`);
             return;
         }
         if (!nome) throw new Error(`Informe o nome da ${i + 1}ª parte. Para tirá-la do processo, use "Retirar".`);
         const nova: ParteGravada = { ...a, ...dados };
         if (nome !== a.nome || dados.documento !== (a.documento || '') || dados.email !== (a.email || '') || polo !== a.polo) {
-            mudou.push(`Parte corrigida: ${nome !== a.nome ? `${a.nome} → ${nome}` : nome} (${polo !== a.polo ? `${a.polo} → ${polo}` : polo})`);
+            mudou.push(`Parte corrigida: ${nome !== a.nome ? `${a.nome} → ${nome}` : nome} (${polo !== a.polo ? `${np(a.polo)} → ${np(polo)}` : np(polo)})`);
         }
         if (nome !== a.nome) renomeadas.push(i);
         partes.push(nova);

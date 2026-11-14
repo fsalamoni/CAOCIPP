@@ -21,7 +21,7 @@ import { ajustarComunicacao, ajustarPrazo } from '../shared/ajustePrazo';
 import { Audiencia, ESPECIES_AUDIENCIA, aplicarAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
 import { sendEmail } from '../shared/email';
 import {
-    CampoExigido, CampoValor, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
+    CampoExigido, CampoValor, nomeDoPolo, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
@@ -866,6 +866,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 prazos: data.prazos || [],
                 comunicacoes: data.comunicacoes || [],
                 audiencias: data.audiencias || [],
+                nomes_polos: data.nomes_polos || {},
                 acoes_feitas: data.acoes_feitas || {},
                 acoes_respostas: data.acoes_respostas || {},
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
@@ -991,6 +992,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 vinculos: vinculosDe(origem, campos),
                 ...(urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {}),
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {}),
+                // Nomes dos polos do tipo, como na autuação (o tipo pode mudar depois).
+                ...(tipo && Object.keys(formularioDe(tipo).nomes_polos).length ? { nomes_polos: formularioDe(tipo).nomes_polos } : {}),
                 status: 'em_tramitacao',
                 rito_id: ritoSnap.id,
                 rito_nome: rito.nome,
@@ -1215,7 +1218,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             let ret = { partes: partesAntes, mudou: [] as string[], retiradas: [] as number[], renomeadas: [] as number[] };
             let campos: CampoValor[] = [];
             try {
-                if (vem('partes')) ret = retificarPartes(partesAntes, p.partes, form.polos, MAX_PARTES, { em: new Date().toISOString(), por: c.userName });
+                if (vem('partes')) ret = retificarPartes(partesAntes, p.partes, form.polos, MAX_PARTES, { em: new Date().toISOString(), por: c.userName }, data.nomes_polos);
                 validarPadrao({ ...form, ...(vem('assunto') ? {} : { assunto: 'opcional' }), ...(vem('partes') ? {} : { partes: 'opcional' }), ...(vem('origem') ? {} : { origem: 'opcional' }) },
                     { assunto: assuntoInformado, descricao, partes: ret.partes.filter((x) => !x.retirada), origem });
                 campos = 'campos' in p ? validarCampos(form, p.campos, antes, await refsDoFormulario(db, orgId, c.org, form, p.campos, antes)) : antes;
@@ -1695,7 +1698,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             }
             const alvo: Rep = ridx >= 0 ? reps[ridx] : parte;
             if (!alvo) throw new HttpsError('invalid-argument', 'Representante inválido');
-            const rotulo = ridx >= 0 ? `${alvo.nome}, representante de ${parte.nome} (${parte.polo})` : `${parte.nome} (${parte.polo})`;
+            const np = nomeDoPolo(data.nomes_polos, parte.polo);
+            const rotulo = ridx >= 0 ? `${alvo.nome}, representante de ${parte.nome} (${np})` : `${parte.nome} (${np})`;
             const dadosMov = { parte_idx: idx, ...(ridx >= 0 ? { representante: alvo.nome } : {}) };
             // Convite anterior ainda não usado deixa de valer em qualquer dos dois casos.
             if (alvo.convite_hash) tx.set(db.collection(COL.convites).doc(alvo.convite_hash), { revogado: true }, { merge: true });

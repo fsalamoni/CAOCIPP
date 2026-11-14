@@ -46,7 +46,7 @@ function Quando({ p, hoje }) {
     );
 }
 
-const posicao = (p) => (p.como === 'representante' ? `Representante de ${p.parte_nome} (${p.polo})` : `${p.parte_nome || 'Parte'} (${p.polo})`);
+const posicao = (p) => (p.como === 'representante' ? `Representante de ${p.parte_nome} (${p.nome_polo || p.polo})` : `${p.parte_nome || 'Parte'} (${p.nome_polo || p.polo})`);
 
 export default function MeusProcessosEletronicos() {
     const q = useQuery({ queryKey: ['portal-processos'], queryFn: () => secPortal('meusProcessos') });

@@ -14,6 +14,7 @@ import { reinserir } from '@/lib/textosProntos';
 import AjudaTermo from './AjudaTermo';
 import { ESPECIES, nomeEspecie } from '@/lib/comunicacaoRito';
 import { MARCA_AUDIENCIA, comAudiencia } from '@/lib/audiencias';
+import { nomePolo } from '@/lib/camposProcesso';
 
 /**
  * Comunicações às partes, do lado da equipe: o cartão no processo e o
@@ -181,7 +182,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
                             {p.partes.map((x, i) => [x, i]).filter(([x, i]) => !x.retirada && (!daAcao || daAcao.faltam.includes(i))).map(([x, i]) => (
                                 <label key={i} className={`${radio} items-center ${partes.includes(i) ? ativo : inativo}`}>
                                     <input type="checkbox" checked={partes.includes(i)} onChange={() => marcar(i)} />
-                                    <span className="flex-1">{x.nome} <span className="text-slate-600 dark:text-slate-400">({x.polo})</span></span>
+                                    <span className="flex-1">{x.nome} <span className="text-slate-600 dark:text-slate-400">({nomePolo(p.nomes_polos, x.polo)})</span></span>
                                     {temConta(x) ? <Badge variant="secondary">Tem conta no portal</Badge> : <Badge variant="outline">Sem conta no portal</Badge>}
                                 </label>
                             ))}

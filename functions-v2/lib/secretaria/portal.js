@@ -36,6 +36,7 @@ const processos_1 = require("./processos");
 const context_2 = require("./context");
 const meusProcessos_1 = require("../shared/meusProcessos");
 const informacoes_1 = require("../shared/informacoes");
+const camposProcesso_1 = require("../shared/camposProcesso");
 const modulos_1 = require("../shared/modulos");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -128,12 +129,13 @@ async function lerComoParte(db, uid, id, tx) {
 function parteDoUsuario(proc, uid) {
     const partes = (proc.partes || []);
     const propria = partes.find((p) => p.uid === uid);
+    const np = (p) => (0, camposProcesso_1.nomeDoPolo)(proc.nomes_polos, p);
     if (propria)
-        return { nome: propria.nome, polo: propria.polo, como: 'parte', assina: propria.nome, rotulo: `${propria.nome} (${propria.polo})` };
+        return { nome: propria.nome, polo: propria.polo, nome_polo: np(propria.polo), como: 'parte', assina: propria.nome, rotulo: `${propria.nome} (${np(propria.polo)})` };
     for (const p of partes) {
         const r = (p.representantes || []).find((x) => x.uid === uid);
         if (r)
-            return { nome: p.nome, polo: p.polo, como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${p.polo})` };
+            return { nome: p.nome, polo: p.polo, nome_polo: np(p.polo), como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${np(p.polo)})` };
     }
     return undefined;
 }
@@ -171,7 +173,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             if (!parte || parte.nome !== conv.parte_nome || parte.retirada)
                 throw new https_1.HttpsError('failed-precondition', 'A parte do convite não existe mais no processo');
             const ridx = typeof conv.representante_idx === 'number' ? conv.representante_idx : -1;
-            let rotulo = `${parte.nome} (${parte.polo})`;
+            let rotulo = `${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(proc.nomes_polos, parte.polo)})`;
             let assina = parte.nome;
             if (ridx >= 0) {
                 // Convite a um representante: a conta fica no representante, não na parte.
@@ -183,7 +185,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                     throw new https_1.HttpsError('failed-precondition', 'Este representante já está vinculado a outra conta');
                 reps[ridx] = Object.assign(Object.assign({}, rep), { uid, habilitada_em: new Date().toISOString(), conta: nomeConta });
                 partes[conv.parte_idx] = Object.assign(Object.assign({}, parte), { representantes: reps });
-                rotulo = `${rep.nome}, representante de ${parte.nome} (${parte.polo}),`;
+                rotulo = `${rep.nome}, representante de ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(proc.nomes_polos, parte.polo)}),`;
                 assina = `${rep.nome}, representante de ${parte.nome}`;
             }
             else {
@@ -270,7 +272,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             }
             if (novidades)
                 paraVoce.push({ tipo: 'novidade', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: ultimo.descricao, em: ultimo.em });
-            return Object.assign({ id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: (_a = ativo.get(x.organization_id)) === null || _a === void 0 ? void 0 : _a.nome, fase_nome: nomeParaPartes(x, x.fase_atual), polo: parte === null || parte === void 0 ? void 0 : parte.polo, parte_nome: (parte === null || parte === void 0 ? void 0 : parte.nome) || null, como: (parte === null || parte === void 0 ? void 0 : parte.como) || 'parte', representante: (parte === null || parte === void 0 ? void 0 : parte.representante) || null, ultimo_movimento: ultimo, novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length, 
+            return Object.assign({ id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: (_a = ativo.get(x.organization_id)) === null || _a === void 0 ? void 0 : _a.nome, fase_nome: nomeParaPartes(x, x.fase_atual), polo: parte === null || parte === void 0 ? void 0 : parte.polo, nome_polo: parte ? (0, camposProcesso_1.nomeDoPolo)(x.nomes_polos, parte.polo) : null, parte_nome: (parte === null || parte === void 0 ? void 0 : parte.nome) || null, como: (parte === null || parte === void 0 ? void 0 : parte.como) || 'parte', representante: (parte === null || parte === void 0 ? void 0 : parte.representante) || null, ultimo_movimento: ultimo, novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length, 
                 // Planilha "Meus Processos Eletrônicos": o que fazer, prazos abertos e por abrir.
                 tipo_nome: x.tipo_nome || null, autuado_em: x.autuado_em || null, prazos: meusPrazos.map((q) => ({ id: q.id, descricao: q.descricao, vence_em: q.vence_em })).sort((a, b) => a.vence_em.localeCompare(b.vence_em)), peticoes_aguardando: minhasPeticoes.length }, (0, meusProcessos_1.situacaoDaParte)({ status: x.status, prazos: meusPrazos.map((q) => ({ descricao: q.descricao, vence_em: q.vence_em })), aguardando, peticoes: minhasPeticoes.length }, hoje));
         });
@@ -310,6 +312,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
                 partes: (data.partes || []).filter((x) => !x.retirada).map((x) => ({ nome: x.nome, polo: x.polo })),
+                nomes_polos: data.nomes_polos || {},
                 prazos: prazosPublicos(data)
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
@@ -369,7 +372,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             `Processo nº ${proc.numero}`, `Assunto: ${proc.assunto}`, '',
             `Situação: ${situacao}. Fase atual: ${fase}.`,
             `Autuado em ${proc.autuado_em ? brDataHora(proc.autuado_em) : '—'}.`,
-            `Partes: ${(proc.partes || []).filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join('; ')}.`, '',
+            `Partes: ${(proc.partes || []).filter((x) => !x.retirada).map((x) => `${x.nome} (${(0, camposProcesso_1.nomeDoPolo)(proc.nomes_polos, x.polo)})`).join('; ')}.`, '',
             `Prazos em aberto: ${prazosPublicos(proc).map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
             'Últimos movimentos:',
             ...movs.map((m) => `${brDataHora(m.em)} — ${m.descricao}`), '',

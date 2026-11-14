@@ -6,7 +6,7 @@
 // cadeia de eventos não muda. Lógica pura, testada em test/folhaDados.test.js.
 // ============================================================================
 
-import { CampoValor, valorTexto } from './camposProcesso';
+import { CampoValor, nomeDoPolo, valorTexto } from './camposProcesso';
 import { InformacaoAndamento, linhasDaInformacao } from './informacoes';
 import { textoOrigem } from './secretaria';
 
@@ -52,7 +52,7 @@ export function secoesDaFolha(d: DadosFolha): SecaoFolha[] {
     add('Descrição', [p.descricao ? { texto: String(p.descricao) } : null]);
     const partes = ((p.partes || []) as Array<{ nome: string; polo: string; documento?: string; retirada?: unknown }>).filter((x) => d.equipe || !x.retirada);
     // CPF/CNPJ só na cópia da equipe: no portal, uma parte não vê o documento da outra.
-    add('Partes', partes.map((x) => ({ texto: `${x.polo}: ${x.nome}${d.equipe && x.documento ? ` (${x.documento})` : ''}${x.retirada ? ' (retirada)' : ''}` })));
+    add('Partes', partes.map((x) => ({ texto: `${nomeDoPolo(p.nomes_polos, x.polo)}: ${x.nome}${d.equipe && x.documento ? ` (${x.documento})` : ''}${x.retirada ? ' (retirada)' : ''}` })));
     // Registro de outro módulo: para as partes, só o número (o título pode não ser delas).
     add('Dados do processo', d.campos.map((c) => ({ texto: `${c.rotulo}: ${c.tipo === 'registro' && !d.equipe ? c.valor : valorTexto(c)}` })));
     add('Dados registrados no andamento', d.informacoes.flatMap((i) => {

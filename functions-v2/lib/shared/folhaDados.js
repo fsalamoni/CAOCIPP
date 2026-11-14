@@ -39,7 +39,7 @@ function secoesDaFolha(d) {
     add('Descrição', [p.descricao ? { texto: String(p.descricao) } : null]);
     const partes = (p.partes || []).filter((x) => d.equipe || !x.retirada);
     // CPF/CNPJ só na cópia da equipe: no portal, uma parte não vê o documento da outra.
-    add('Partes', partes.map((x) => ({ texto: `${x.polo}: ${x.nome}${d.equipe && x.documento ? ` (${x.documento})` : ''}${x.retirada ? ' (retirada)' : ''}` })));
+    add('Partes', partes.map((x) => ({ texto: `${(0, camposProcesso_1.nomeDoPolo)(p.nomes_polos, x.polo)}: ${x.nome}${d.equipe && x.documento ? ` (${x.documento})` : ''}${x.retirada ? ' (retirada)' : ''}` })));
     // Registro de outro módulo: para as partes, só o número (o título pode não ser delas).
     add('Dados do processo', d.campos.map((c) => ({ texto: `${c.rotulo}: ${c.tipo === 'registro' && !d.equipe ? c.valor : (0, camposProcesso_1.valorTexto)(c)}` })));
     add('Dados registrados no andamento', d.informacoes.flatMap((i) => {

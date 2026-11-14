@@ -116,14 +116,17 @@ export const POLOS = [['requerente', 'Requerente'], ['requerido', 'Requerido'], 
 
 export const formularioPadrao = () => ({
     assunto: 'obrigatorio', descricao: 'opcional', partes: 'opcional', origem: 'opcional', sigilo: 'opcional', urgencia: 'opcional', unidade: 'opcional',
-    rotulos: {}, ajudas: {}, polos: POLOS.map(([id]) => id), campos: [],
+    rotulos: {}, ajudas: {}, polos: POLOS.map(([id]) => id), nomes_polos: {}, campos: [],
 });
+
+/** Nome do polo no processo (o do tipo, gravado na autuação); sem nome próprio, `padrao`. */
+export const nomePolo = (nomes, polo, padrao = polo) => (nomes && typeof nomes[polo] === 'string' && nomes[polo]) || padrao;
 
 /** Formulário do tipo, com os padrões para o que faltar. */
 export function formularioDe(tipo) {
     const f = tipo?.formulario || {};
     const p = formularioPadrao();
-    return { ...p, ...f, rotulos: f.rotulos || {}, ajudas: f.ajudas || {}, polos: f.polos?.length ? f.polos : p.polos, campos: Array.isArray(f.campos) ? f.campos : [] };
+    return { ...p, ...f, rotulos: f.rotulos || {}, ajudas: f.ajudas || {}, polos: f.polos?.length ? f.polos : p.polos, nomes_polos: f.nomes_polos || {}, campos: Array.isArray(f.campos) ? f.campos : [] };
 }
 
 /** Nome do campo padrão neste formulário. */
@@ -258,6 +261,11 @@ export function problemasFormulario(form, faseIds = null) {
         out.push('O formulário ficaria sem nada para identificar o processo: use ao menos o assunto, a descrição, as partes ou um campo próprio');
     }
     if (form.polos && !form.polos.length) out.push('Escolha ao menos um polo para as partes');
+    if (form.polos) {
+        const nomes = form.polos.map((p) => String(nomePolo(form.nomes_polos, p)).trim().toLowerCase());
+        const rep = nomes.find((n, i) => nomes.indexOf(n) !== i);
+        if (rep) out.push(`Dois polos com o mesmo nome ("${rep}"): dê nomes diferentes`);
+    }
     form.campos.forEach((c, i) => {
         const nome = String(c.rotulo || '').trim().toLowerCase();
         if (!nome) out.push(`Dê um nome ao campo ${i + 1}`);

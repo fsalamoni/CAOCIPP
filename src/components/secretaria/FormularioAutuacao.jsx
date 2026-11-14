@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { POLOS, ROTULO_REF, importarDados, rotuloDe } from '@/lib/camposProcesso';
+import { POLOS, ROTULO_REF, importarDados, nomePolo, rotuloDe } from '@/lib/camposProcesso';
 import { CamposProcesso } from './CamposProcesso';
 import { ORIGENS, NativeSelect } from './comum';
 
@@ -34,7 +34,7 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
     };
     const desc = (k, padrao) => (form.ajudas?.[k] || padrao ? id(`${k}-ajuda`) : undefined);
     const req = (uso) => (uso === 'obrigatorio' ? <Obrigatorio /> : null);
-    const polos = POLOS.filter(([p]) => form.polos.includes(p));
+    const polos = POLOS.filter(([p]) => form.polos.includes(p)).map(([p, l]) => [p, nomePolo(form.nomes_polos, p, l)]);
     const poloNovo = form.polos.includes('requerente') ? 'requerente' : form.polos[0];
     const nomeUnidade = unidades.find(([u]) => u === f.unidade_id)?.[1];
     // O que o tipo fixa e quem autua não escolhe, numa linha só.
