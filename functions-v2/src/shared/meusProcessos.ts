@@ -10,7 +10,7 @@ export interface EntradaSituacao {
     /** Vencimentos (AAAA-MM-DD) dos prazos abertos dirigidos à parte. */
     prazos: Array<{ descricao: string; vence_em: string }>;
     /** Comunicações aguardando a ciência desta conta: o prazo ainda vai abrir. */
-    aguardando: Array<{ especie_nome: string; prazo: string; limite_ciencia: string | null }>;
+    aguardando: Array<{ especie_nome: string; /** Nome masculino (espécie do órgão, ex.: "Edital"). */ especie_m?: boolean; prazo: string; limite_ciencia: string | null }>;
     /** Manifestações desta parte ainda não apreciadas. */
     peticoes: number;
 }
@@ -37,7 +37,7 @@ export function situacaoDaParte(e: EntradaSituacao, hoje: string): ResultadoSitu
     if (c && !prazos.length) {
         return {
             situacao: 'ciencia', prioridade: 1, data: c.limite_ciencia,
-            frase: `Dê ciência da ${c.especie_nome.toLowerCase()}${c.prazo ? `: abre prazo de ${c.prazo}` : ''}${c.limite_ciencia ? ` (vale por decurso em ${br(c.limite_ciencia)})` : ''}.`,
+            frase: `Dê ciência ${c.especie_m ? 'do' : 'da'} ${c.especie_nome.toLowerCase()}${c.prazo ? `: abre prazo de ${c.prazo}` : ''}${c.limite_ciencia ? ` (vale por decurso em ${br(c.limite_ciencia)})` : ''}.`,
         };
     }
     if (prazos.length) {

@@ -4,6 +4,7 @@ import {
     sanitizeCondicaoAmpla, sanitizeRegras,
 } from './exigencias';
 import { SituacaoRegistro, sanitizeSituacaoRegistro } from './situacaoRegistro';
+import { itemDoRegistro } from './listasOrgao';
 import { PermissoesFase, sanitizePermissoes } from './permissoesFase';
 import { ALERTA_PADRAO, AoEntrar, AvisoFase, PrazoVencido, sanitizeAoEntrar, sanitizeAviso, sanitizePrazosDaFase } from './efeitosFase';
 
@@ -198,7 +199,8 @@ export const ORIGENS = ['requerimento', 'representacao', 'oficio', 'de_oficio', 
 export type TipoOrigem = typeof ORIGENS[number];
 /** Registro de outro módulo ou outro processo ('pe') de onde o processo nasceu; o servidor relê. */
 export interface RefOrigem { modulo: string; id: string; numero: string; titulo?: string; pagina?: string }
-export interface Origem { tipo: TipoOrigem; descricao: string; ref?: RefOrigem }
+/** `tipo`: um de ORIGENS ou uma origem da lista do órgão ("o_..."), que guarda o `nome`. */
+export interface Origem { tipo: TipoOrigem | string; descricao: string; nome?: string; ref?: RefOrigem }
 const ROTULO_REF: Record<string, string> = { pe: 'Processo', consultas: 'Consulta', expedientes: 'Expediente', parcerias: 'Parceria', juri: 'Júri' };
 export const ROTULO_ORIGEM: Record<TipoOrigem, string> = {
     requerimento: 'Requerimento do interessado',
@@ -209,12 +211,15 @@ export const ROTULO_ORIGEM: Record<TipoOrigem, string> = {
     outro: 'Outra',
 };
 export const textoOrigem = (o: Origem | null | undefined): string =>
-    (o ? [ROTULO_ORIGEM[o.tipo] || ROTULO_ORIGEM.outro, [o.ref ? `${ROTULO_REF[o.ref.modulo] || 'Registro'} ${o.ref.numero}` : '', o.descricao].filter(Boolean).join('; ')].filter(Boolean).join(': ') : '');
+    (o ? [o.nome || ROTULO_ORIGEM[o.tipo as TipoOrigem] || ROTULO_ORIGEM.outro, [o.ref ? `${ROTULO_REF[o.ref.modulo] || 'Registro'} ${o.ref.numero}` : '', o.descricao].filter(Boolean).join('; ')].filter(Boolean).join(': ') : '');
 
 /** Origem saneada, ou null quando nada foi informado. */
 export function sanitizeOrigem(input: unknown): Origem | null {
     const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     const descricao = texto(o.descricao, MAX_TEXTO_CURTO);
+    // Origem da lista do órgão: vem com o nome, que fica no processo.
+    const doOrgao = itemDoRegistro(o.tipo, o.nome, false, 'Origem');
+    if (doOrgao) return { tipo: doOrgao.id, nome: doOrgao.nome, descricao };
     const tipo = ORIGENS.includes(o.tipo as TipoOrigem) ? (o.tipo as TipoOrigem) : null;
     if (!tipo && !descricao) return null;
     return { tipo: tipo || 'outro', descricao };
@@ -860,6 +865,7 @@ export const HISTORICO_CONFIG: Record<string, string> = {
     SECRETARIA_DOCUMENTO_CONFIG: 'documentos', SECRETARIA_MODELO_SALVO: 'documentos', SECRETARIA_MODELO_EXCLUIDO: 'documentos',
     SECRETARIA_MODELO_RESTAURADO: 'documentos', SECRETARIA_TEXTOS_COMUNICACAO: 'documentos',
     SECRETARIA_CALENDARIO: 'calendario',
+    SECRETARIA_LISTAS: 'listas',
     SECRETARIA_VERSAO_RESTAURADA: 'versao', // rito ou modelo, por details.colecao
 };
 

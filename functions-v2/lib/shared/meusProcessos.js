@@ -17,7 +17,7 @@ function situacaoDaParte(e, hoje) {
     if (c && !prazos.length) {
         return {
             situacao: 'ciencia', prioridade: 1, data: c.limite_ciencia,
-            frase: `Dê ciência da ${c.especie_nome.toLowerCase()}${c.prazo ? `: abre prazo de ${c.prazo}` : ''}${c.limite_ciencia ? ` (vale por decurso em ${br(c.limite_ciencia)})` : ''}.`,
+            frase: `Dê ciência ${c.especie_m ? 'do' : 'da'} ${c.especie_nome.toLowerCase()}${c.prazo ? `: abre prazo de ${c.prazo}` : ''}${c.limite_ciencia ? ` (vale por decurso em ${br(c.limite_ciencia)})` : ''}.`,
         };
     }
     if (prazos.length) {

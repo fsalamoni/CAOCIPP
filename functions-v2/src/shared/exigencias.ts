@@ -12,6 +12,7 @@ import { CampoDef, paginaDe, sanitizeCampos } from './camposProcesso';
 import { MAX_ATRIBUICAO, QUEM, Quem, mesmaAtribuicao, sanitizeQuem } from './permissoesFase';
 import { ComunicacaoDaAcao, RESPOSTAS, RespostaDaAcao, sanitizeComunicacaoDaAcao, sanitizeRespostaDaAcao } from './comunicacaoRito';
 import { AudienciaDaAcao, sanitizeAudienciaDaAcao } from './audiencias';
+import { ehDoOrgao } from './listasOrgao';
 
 export { QUEM, Quem };
 
@@ -445,14 +446,16 @@ function sanitizeDado(o: Record<string, unknown>, quem: string): Condicao {
     const brutos = (Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80));
     // Com valor livre (tipo, campo do tipo), o nome de cada valor acompanha o valor.
     const nomesBrutos = Array.isArray(o.nomes) ? o.nomes : [];
+    // Origem: além das do sistema, as da lista do órgão (id "o_..."), com o nome.
+    const aceita = (v: string) => !opcoes || opcoes.includes(v) || (dado === 'origem' && ehDoOrgao(v));
     const pares = brutos.map((v, i) => [v, texto(nomesBrutos[i], 80)] as const)
-        .filter(([v], i) => v && brutos.indexOf(v) === i && (!opcoes || opcoes.includes(v))).slice(0, MAX_OPCOES_ACAO);
+        .filter(([v], i) => v && brutos.indexOf(v) === i && aceita(v)).slice(0, MAX_OPCOES_ACAO);
     const rotulo = opcoes ? '' : texto(o.rotulo, 80);
     if (!pares.length) throw new Error(`${quem}: escolha ao menos um valor de "${rotulo || ROTULO_DADO[dado] || 'dado do processo'}"`);
     return {
         acao: -1, dado, valores: pares.map(([v]) => v),
         ...(rotulo ? { rotulo } : {}),
-        ...(!opcoes && pares.some(([v, n]) => n && n !== v) ? { nomes: pares.map(([v, n]) => n || v) } : {}),
+        ...((!opcoes || dado === 'origem') && pares.some(([v, n]) => n && n !== v && !(opcoes || []).includes(v)) ? { nomes: pares.map(([v, n]) => n || v) } : {}),
     };
 }
 
@@ -515,7 +518,7 @@ export function textoDaCondicao(f: FaseRegras | undefined, c: Condicao, fases?: 
         const r = x.dado ? undefined : dona?.acoes_regras?.[x.acao];
         const simNao = !x.dado && (x.campo ? r?.campos?.find((y) => y.id === x.campo)?.tipo : r?.pede) === 'sim_nao';
         const fixo = !!x.dado && !!DADOS_CONDICAO[x.dado];
-        const rot = (v: string, i: number) => (simNao || fixo ? ROTULO_VALOR[v] || v : x.nomes?.[i] || v);
+        const rot = (v: string, i: number) => (simNao || fixo ? ROTULO_VALOR[v] || x.nomes?.[i] || v : x.nomes?.[i] || v);
         return `"${rotuloDaCondicao(f, x, fases)}" for ${x.valores.map(rot).join(' ou ')}`;
     };
     return [c, ...(c.e || [])].map(uma).join(' e ');

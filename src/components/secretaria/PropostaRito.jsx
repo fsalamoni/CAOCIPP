@@ -485,7 +485,7 @@ function Revisao({
     const [excluir, setExcluir] = useState(false);
     const [copiarDe, setCopiarDe] = useState(false);
     const tiposDoRito = useMemo(() => (editando ? (estado.tipos || []).filter((t) => t.rito_id === p.id) : []), [editando, estado.tipos, p.id]);
-    const ctxCond = useMemo(() => ({ fases: p.fases, tipos: tiposDoRito }), [p.fases, tiposDoRito]);
+    const ctxCond = useMemo(() => ({ fases: p.fases, tipos: tiposDoRito, origens: estado.listas?.origem || [] }), [p.fases, tiposDoRito, estado.listas]);
     const existentes = estado.unidades.filter((u) => u.ativa !== false);
     const nomeUnidade = (ref) => existentes.find((u) => u.id === ref)?.nome || p.unidades.find((u) => u.ref === ref)?.nome || '';
     const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || 'Modelo excluído (sai ao salvar)';

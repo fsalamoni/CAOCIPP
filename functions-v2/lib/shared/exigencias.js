@@ -59,6 +59,7 @@ const permissoesFase_1 = require("./permissoesFase");
 Object.defineProperty(exports, "QUEM", { enumerable: true, get: function () { return permissoesFase_1.QUEM; } });
 const comunicacaoRito_1 = require("./comunicacaoRito");
 const audiencias_1 = require("./audiencias");
+const listasOrgao_1 = require("./listasOrgao");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -376,12 +377,14 @@ function sanitizeDado(o, quem) {
     const brutos = (Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80));
     // Com valor livre (tipo, campo do tipo), o nome de cada valor acompanha o valor.
     const nomesBrutos = Array.isArray(o.nomes) ? o.nomes : [];
+    // Origem: além das do sistema, as da lista do órgão (id "o_..."), com o nome.
+    const aceita = (v) => !opcoes || opcoes.includes(v) || (dado === 'origem' && (0, listasOrgao_1.ehDoOrgao)(v));
     const pares = brutos.map((v, i) => [v, texto(nomesBrutos[i], 80)])
-        .filter(([v], i) => v && brutos.indexOf(v) === i && (!opcoes || opcoes.includes(v))).slice(0, exports.MAX_OPCOES_ACAO);
+        .filter(([v], i) => v && brutos.indexOf(v) === i && aceita(v)).slice(0, exports.MAX_OPCOES_ACAO);
     const rotulo = opcoes ? '' : texto(o.rotulo, 80);
     if (!pares.length)
         throw new Error(`${quem}: escolha ao menos um valor de "${rotulo || ROTULO_DADO[dado] || 'dado do processo'}"`);
-    return Object.assign(Object.assign({ acao: -1, dado, valores: pares.map(([v]) => v) }, (rotulo ? { rotulo } : {})), (!opcoes && pares.some(([v, n]) => n && n !== v) ? { nomes: pares.map(([v, n]) => n || v) } : {}));
+    return Object.assign(Object.assign({ acao: -1, dado, valores: pares.map(([v]) => v) }, (rotulo ? { rotulo } : {})), ((!opcoes || dado === 'origem') && pares.some(([v, n]) => n && n !== v && !(opcoes || []).includes(v)) ? { nomes: pares.map(([v, n]) => n || v) } : {}));
 }
 /** A condição bruta lê mais do que a rodada da própria fase (outra fase, dado do processo, várias ao mesmo tempo)? */
 function condicaoAmpla(raw) {
@@ -443,7 +446,7 @@ function textoDaCondicao(f, c, fases) {
         const r = x.dado ? undefined : (_b = dona === null || dona === void 0 ? void 0 : dona.acoes_regras) === null || _b === void 0 ? void 0 : _b[x.acao];
         const simNao = !x.dado && (x.campo ? (_d = (_c = r === null || r === void 0 ? void 0 : r.campos) === null || _c === void 0 ? void 0 : _c.find((y) => y.id === x.campo)) === null || _d === void 0 ? void 0 : _d.tipo : r === null || r === void 0 ? void 0 : r.pede) === 'sim_nao';
         const fixo = !!x.dado && !!exports.DADOS_CONDICAO[x.dado];
-        const rot = (v, i) => { var _b; return (simNao || fixo ? ROTULO_VALOR[v] || v : ((_b = x.nomes) === null || _b === void 0 ? void 0 : _b[i]) || v); };
+        const rot = (v, i) => { var _b, _c; return (simNao || fixo ? ROTULO_VALOR[v] || ((_b = x.nomes) === null || _b === void 0 ? void 0 : _b[i]) || v : ((_c = x.nomes) === null || _c === void 0 ? void 0 : _c[i]) || v); };
         return `"${rotuloDaCondicao(f, x, fases)}" for ${x.valores.map(rot).join(' ou ')}`;
     };
     return [c, ...(c.e || [])].map(uma).join(' e ');

@@ -24,7 +24,7 @@ const seletor = 'h-9 rounded-md border border-input bg-transparent px-2 text-sm 
  * `retificar`: a mesma tela corrige um processo já autuado (sem unidade nem
  * urgência; a ligação com a origem fica; parte existente sai por "Retirar").
  */
-export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', unidades = [], rito = null, tipo = null, retificar = false }) {
+export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', unidades = [], rito = null, tipo = null, retificar = false, origens = [] }) {
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     const id = (k) => `${prefixo}-${k}`;
     const rot = (k) => rotuloDe(form, k);
@@ -44,6 +44,13 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
         form.urgencia === 'oculto' && (tipo?.urgente ? 'tramitação urgente' : 'tramitação comum'),
     ].filter(Boolean);
     const urgenteFixo = tipo?.urgente === true;
+    // Origens: as do sistema, as da lista do órgão e a do processo (mesmo que tenha saído da lista).
+    const opcoesOrigem = [...ORIGENS, ...origens.map((o) => [o.id, o.nome])];
+    if (f.origem?.tipo?.startsWith('o_') && !opcoesOrigem.some(([v]) => v === f.origem.tipo)) opcoesOrigem.push([f.origem.tipo, f.origem.nome || 'Origem do órgão']);
+    const escolherOrigem = (v) => {
+        const { nome: _n, ...resto } = f.origem;
+        set('origem', { ...resto, tipo: v, ...(v.startsWith('o_') ? { nome: opcoesOrigem.find(([x]) => x === v)?.[1] } : {}) });
+    };
 
     return (
         <div className="space-y-4">
@@ -88,10 +95,10 @@ export default function FormularioAutuacao({ form, f, setF, prefixo = 'sec', uni
                 <div className="grid sm:grid-cols-3 gap-3">
                     <div>
                         <Label htmlFor={id('origem')}>{rot('origem')}{req(form.origem)}</Label>
-                        <select id={id('origem')} className={`mt-1 w-full ${seletor}`} value={f.origem.tipo} onChange={(e) => set('origem', { ...f.origem, tipo: e.target.value })}
+                        <select id={id('origem')} className={`mt-1 w-full ${seletor}`} value={f.origem.tipo} onChange={(e) => escolherOrigem(e.target.value)}
                             aria-required={form.origem === 'obrigatorio' || undefined}>
                             <option value="">{form.origem === 'obrigatorio' ? 'Escolha…' : 'Não informar'}</option>
-                            {ORIGENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                            {opcoesOrigem.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                         </select>
                     </div>
                     <div className="sm:col-span-2">

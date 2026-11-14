@@ -1554,6 +1554,35 @@ exigência contando a assinatura de "Assinar antes de juntar" e mostra, sob
 cada exigência, o que ela pede do documento (`exigeDoDocumento`). A
 atribuição só o servidor confere, porque ele lê as lotações.
 
+### Listas do órgão (14/11/2026)
+
+Espécies de comunicação, espécies de audiência e origens do processo a mais,
+além das do sistema. Lógica pura em `functions-v2/src/shared/listasOrgao.ts`.
+
+- **Dados:** `secConfig.listas` = `{ comunicacao?, audiencia?, origem? }`,
+  cada item `{ id, nome, m? }`. Id sempre `o_…` (`ehDoOrgao`), gerado do nome
+  e mantido ao renomear. Até 30 itens por lista, nome até 40 caracteres, sem
+  repetir nome (nem os do sistema). `m: true` = nome masculino (só nas
+  espécies). Ação `salvarListas` (gestor do módulo), auditoria
+  `SECRETARIA_LISTAS` (assunto "listas" no histórico); `estado` devolve
+  `listas` saneadas (`listasDe`).
+- **Registro guarda o nome:** a comunicação grava `especie_nome` e
+  `especie_m`; a audiência, `especie_nome` e `especie_m`; a origem,
+  `{ tipo: 'o_…', nome, descricao }`; a ação do rito (`comunicacao` e
+  `audiencia`), o mesmo. O servidor aceita qualquer `o_…` bem formado com nome
+  (`itemDoRegistro`, `especieValida`): a lista é sugestão das telas, e tirar
+  um item não invalida rito, processo nem texto pronto.
+- **Gênero:** `artigos(m)` dá "a/o", "da/do", "à/ao". Os textos gerados
+  (movimentos, prazo "Responder ao edital", Meus processos "Dê ciência do
+  edital", rótulo "Edital designado/expedido") concordam com a espécie.
+- **Condições:** o dado `origem` aceita valores `o_…`; a condição guarda os
+  nomes (`nomes`) para o texto ("Origem é Ouvidoria") mesmo que o item saia
+  da lista.
+- **Telas:** aba Listas do órgão (ListasOrgao.jsx); `ProvedorRegistros` leva
+  `listas` ao editor de rito (RegrasDaFase); ExpedirComunicacao, textos
+  prontos, FormularioAutuacao (autuação e retificação), capa e portal mostram
+  o nome guardado.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

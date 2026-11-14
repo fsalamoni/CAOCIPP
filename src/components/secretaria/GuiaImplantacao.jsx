@@ -26,6 +26,7 @@ export const PASSOS_IMPLANTACAO = [
     ['ritos', 'Rito', 'Em Novo rito, comece de um modelo da biblioteca, de um arquivo (planilha, Word, PDF, Bizagi, BPMN) ou em branco. Troque as unidades genéricas pelas do órgão e confira prazos e contagem com a norma local.'],
     ['tipos', 'Tipo de processo', 'O tipo liga o rito ao "Novo processo": formulário (campos, partes e nomes dos polos), numeração, sigilo padrão, unidade de entrada e de onde o processo pode nascer. Um rito pode servir a vários tipos.'],
     ['documentos', 'Documentos e modelos', 'Papel timbrado e um modelo de texto para cada peça que o rito manda redigir (portaria, despacho, decisão, ata, relatório), com o mesmo tipo de documento que a ação pede: assim a equipe já começa do texto do órgão.'],
+    ['listas', 'Listas do órgão (se precisar)', 'Espécies de comunicação e de audiência e origens do processo que o órgão usa e o sistema não traz (edital, sessão de mediação, ouvidoria). Entram na autuação, nas ações do rito e nas condições.'],
     ['calendario', 'Calendário', 'Feriados e pontos facultativos do órgão: os prazos em dias úteis pulam esses dias.'],
     ['preferencias', 'Preferências', 'Se a petição da parte interrompe a fase e em quantos dias a comunicação não aberta é dada por ciente.'],
 ];

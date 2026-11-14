@@ -400,7 +400,6 @@ const itensDepois = (proc, grupo, item) => { var _a; return ({ grupo, itens: [..
 const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
 async function valorDaAcao(c, regra, acao, bruto) {
-    var _a;
     const pede = (0, exigencias_1.pedidoDaAcao)(regra);
     if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao')
         return null;
@@ -414,7 +413,7 @@ async function valorDaAcao(c, regra, acao, bruto) {
             (0, context_1.erroUsuario)(e);
         }
         const t = (0, audiencias_1.textoDaAudiencia)(d);
-        const nome = `${audiencias_1.ESPECIES_AUDIENCIA[((_a = regra === null || regra === void 0 ? void 0 : regra.audiencia) === null || _a === void 0 ? void 0 : _a.especie) || 'audiencia'] || 'Audiência'} designada`;
+        const nome = `${(0, audiencias_1.nomeDaAudiencia)(regra === null || regra === void 0 ? void 0 : regra.audiencia)} ${(0, audiencias_1.designadaDe)(regra === null || regra === void 0 ? void 0 : regra.audiencia)}`;
         return { rotulo: (regra === null || regra === void 0 ? void 0 : regra.rotulo) || nome, tipo: 'texto', valor: t, valor_texto: t, ref: undefined, refs: [], restrito: false, audiencia: d };
     }
     if (pede === 'formulario') {
@@ -848,8 +847,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         const refOrigem = await refDaOrigem(c, (_g = p.origem) === null || _g === void 0 ? void 0 : _g.ref);
         const origemInformada = form.origem === 'oculto' ? null : (0, secretaria_1.sanitizeOrigem)(p.origem);
         const origem = refOrigem
-            ? { tipo: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.tipo) || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro'), descricao: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.descricao) || '', ref: refOrigem }
-            : origemInformada;
+            ? Object.assign(Object.assign({ tipo: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.tipo) || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro') }, ((origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.nome) ? { nome: origemInformada.nome } : {})), { descricao: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.descricao) || '', ref: refOrigem }) : origemInformada;
         let campos = [];
         try {
             (0, camposProcesso_1.validarPadrao)(form, { assunto: assuntoInformado, descricao, partes, origem });
@@ -979,7 +977,7 @@ async function movimentar(c, p, opcoes = {}) {
     // Entrada em fase (com ou sem remessa): a fase diz quem é avisado.
     let entrou = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _s, _v;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -1097,7 +1095,8 @@ async function movimentar(c, p, opcoes = {}) {
             if (vem('origem')) {
                 const o = (0, secretaria_1.sanitizeOrigem)(p.origem);
                 // A ligação com o registro de origem nunca vem do cliente nem sai.
-                origem = (origemAntes === null || origemAntes === void 0 ? void 0 : origemAntes.ref) ? { tipo: (o === null || o === void 0 ? void 0 : o.tipo) || origemAntes.tipo, descricao: (o === null || o === void 0 ? void 0 : o.descricao) || '', ref: origemAntes.ref } : o;
+                const nome = o ? o.nome : origemAntes === null || origemAntes === void 0 ? void 0 : origemAntes.nome;
+                origem = (origemAntes === null || origemAntes === void 0 ? void 0 : origemAntes.ref) ? Object.assign(Object.assign({ tipo: (o === null || o === void 0 ? void 0 : o.tipo) || origemAntes.tipo }, (nome ? { nome } : {})), { descricao: (o === null || o === void 0 ? void 0 : o.descricao) || '', ref: origemAntes.ref }) : o;
             }
             const sigilo = vem('sigilo') ? (p.sigilo === 'restrito' ? 'restrito' : 'normal') : data.sigilo;
             const partesAntes = (data.partes || []);
@@ -1140,7 +1139,7 @@ async function movimentar(c, p, opcoes = {}) {
                 const convites = db.collection(context_1.COL.convites);
                 for (const i of ret.retiradas) {
                     // Quem sai perde o portal: convites revogados e contas desligadas, também dos representantes.
-                    const _s = ret.partes[i], { uid: _u, convite_hash: hash } = _s, resto = __rest(_s, ["uid", "convite_hash"]);
+                    const _w = ret.partes[i], { uid: _u, convite_hash: hash } = _w, resto = __rest(_w, ["uid", "convite_hash"]);
                     if (hash)
                         tx.set(convites.doc(hash), { revogado: true }, { merge: true });
                     const reps = (resto.representantes || []).map((_a) => {
@@ -1272,7 +1271,7 @@ async function movimentar(c, p, opcoes = {}) {
             if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'audiencia') {
                 const ad = dado && 'audiencia' in dado ? dado.audiencia : null;
                 const antes = (data.audiencias || []);
-                const nova = feita && ad ? Object.assign(Object.assign({ id: (0, crypto_1.randomBytes)(8).toString('hex'), fase_id: fase.id, acao_idx: idx, especie: ((_j = regra.audiencia) === null || _j === void 0 ? void 0 : _j.especie) || 'audiencia' }, ad), { designada_em: new Date().toISOString(), designada_por: c.userName, status: 'designada' }) : null;
+                const nova = feita && ad ? Object.assign(Object.assign(Object.assign(Object.assign({ id: (0, crypto_1.randomBytes)(8).toString('hex'), fase_id: fase.id, acao_idx: idx, especie: ((_j = regra.audiencia) === null || _j === void 0 ? void 0 : _j.especie) || 'audiencia' }, (((_k = regra.audiencia) === null || _k === void 0 ? void 0 : _k.especie_nome) ? { especie_nome: regra.audiencia.especie_nome } : {})), (((_l = regra.audiencia) === null || _l === void 0 ? void 0 : _l.especie_m) ? { especie_m: true } : {})), ad), { designada_em: new Date().toISOString(), designada_por: c.userName, status: 'designada' }) : null;
                 const lista = (0, audiencias_1.aplicarAudiencia)(antes, fase.id, idx, nova);
                 const sai = !feita ? antes.filter((a, k) => { var _a; return a.status === 'designada' && ((_a = lista[k]) === null || _a === void 0 ? void 0 : _a.status) === 'cancelada'; })[0] : undefined;
                 if (sai)
@@ -1327,7 +1326,7 @@ async function movimentar(c, p, opcoes = {}) {
             if (alvo && !((unidade === null || unidade === void 0 ? void 0 : unidade.membros_uids) || []).includes(alvo)) {
                 throw new https_1.HttpsError('invalid-argument', 'A pessoa precisa estar lotada na unidade que tem o processo');
             }
-            const nomeAlvo = alvo ? ((_k = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _k === void 0 ? void 0 : _k.user_name) || 'membro' : '';
+            const nomeAlvo = alvo ? ((_m = (await tx.get(db.collection('userOrganizations').doc(`${alvo}_${orgId}`))).data()) === null || _m === void 0 ? void 0 : _m.user_name) || 'membro' : '';
             // A fase pode mudar a situação do registro ligado quando alguém assume (ex.: a consulta entra em elaboração).
             const faseAtual = (data.fases || []).find((f) => f.id === data.fase_atual);
             const sit = alvo ? aplicarSituacao(tx, c, registros, faseAtual, 'ao_assumir', data, { uid: String(alvo), nome: (0, normalization_1.formatPersonName)(String(nomeAlvo)) }) : { notas: [], arquivou: null };
@@ -1359,7 +1358,7 @@ async function movimentar(c, p, opcoes = {}) {
             const contraCondicao = foraDoFluxo ? null : foraDaCondicao(data, alvo.id);
             if (contraCondicao && !motivo)
                 throw new https_1.HttpsError('invalid-argument', `O rito leva a ${alvo.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
-            const de = ((_l = fases.find((f) => f.id === data.fase_atual)) === null || _l === void 0 ? void 0 : _l.nome) || data.fase_atual;
+            const de = ((_o = fases.find((f) => f.id === data.fase_atual)) === null || _o === void 0 ? void 0 : _o.nome) || data.fase_atual;
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
             const dispensadas = alvo.espera ? [] : dispensarExigencias(c, data, motivo, formAtual);
             // A fase pode designar o responsável entre os lotados na unidade que tem o processo.
@@ -1371,7 +1370,7 @@ async function movimentar(c, p, opcoes = {}) {
             const grupo = (0, exigencias_1.grupoDe)(alvo);
             const descricao = `Fase alterada de ${de} para ${alvo.nome}${marcaEspera(retomada, alvo)}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}${textoAuto}`;
             // A fase de destino pode arquivar ao entrar: a certidão pendente sai antes e a mudança tem termo próprio.
-            const arquiva = ((_m = alvo.ao_entrar) === null || _m === void 0 ? void 0 : _m.arquivar) === true;
+            const arquiva = ((_p = alvo.ao_entrar) === null || _p === void 0 ? void 0 : _p.arquivar) === true;
             const junta = !arquiva && !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= exigencias_1.MAX_ITEM_CERTIDAO && (0, exigencias_1.mudancaNaCertidao)(fases, data.fase_atual, alvo.id);
             const item = { seq: 0, fase_id: data.fase_atual, texto: descricao.replace(/\.$/, ''), autor: c.userName, em: new Date().toISOString(), partes: destinoMov === 'autos' };
             const em = emitirSe(arquiva || (0, exigencias_1.deveEmitir)(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
@@ -1379,7 +1378,7 @@ async function movimentar(c, p, opcoes = {}) {
                 expedidas = 2;
             // Retomada: quem respondia pelo processo continua, mesmo que a fase tire ou designe o responsável ao entrar.
             const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName, { retomada, designacao });
-            const sit = aplicarSituacao(tx, c, registros, alvo, ((retomada && data.responsavel_uid) || (designacao === null || designacao === void 0 ? void 0 : designacao.uid)) && ((_o = alvo.situacao_registro) === null || _o === void 0 ? void 0 : _o.ao_assumir) ? 'ao_assumir' : 'ao_entrar', data, (designacao === null || designacao === void 0 ? void 0 : designacao.uid) ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
+            const sit = aplicarSituacao(tx, c, registros, alvo, ((retomada && data.responsavel_uid) || (designacao === null || designacao === void 0 ? void 0 : designacao.uid)) && ((_q = alvo.situacao_registro) === null || _q === void 0 ? void 0 : _q.ao_assumir) ? 'ao_assumir' : 'ao_entrar', data, (designacao === null || designacao === void 0 ? void 0 : designacao.uid) ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
             const ef = Object.assign(Object.assign({}, efFase), { interno: [...efFase.interno, ...sit.notas] });
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ de: data.fase_atual, para: alvo.id }, (opcoes.automatico ? { automatico: true } : {})), (retomada ? { retomada: true } : {})), (foraDoFluxo ? { fora_do_fluxo: true } : {})), (contraCondicao ? { fora_da_condicao: true } : {})), (dispensadas.length ? { dispensadas } : {})), (junta ? Object.assign({ consolidada: true }, (0, exigencias_1.marcasDoDestino)('nenhum')) : (0, exigencias_1.marcasDoDestino)(destinoMov))));
@@ -1414,7 +1413,7 @@ async function movimentar(c, p, opcoes = {}) {
         if (p.action === 'expedirComunicacao') {
             if (data.status !== 'em_tramitacao')
                 throw new https_1.HttpsError('failed-precondition', 'O processo não está em tramitação');
-            const lista = (_p = p.comunicacao) === null || _p === void 0 ? void 0 : _p.partes_idx;
+            const lista = (_s = p.comunicacao) === null || _s === void 0 ? void 0 : _s.partes_idx;
             const saida = { internos: 0, cumpridas: false };
             const r = await (0, comunicacoes_1.expedir)(tx, c, ref, data, p.comunicacao, cfgCom, saida);
             expedidas = (Array.isArray(lista) ? new Set(lista).size || 1 : 1) + saida.internos;
@@ -1434,7 +1433,7 @@ async function movimentar(c, p, opcoes = {}) {
                 throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa situação');
             // O rito pode reservar a mudança de situação, na fase, a quem gere a unidade ou à administração.
             const faseSit = faseDoProcesso(data);
-            const reservaSit = (_q = faseSit === null || faseSit === void 0 ? void 0 : faseSit.permissoes) === null || _q === void 0 ? void 0 : _q.situacao;
+            const reservaSit = (_v = faseSit === null || faseSit === void 0 ? void 0 : faseSit.permissoes) === null || _v === void 0 ? void 0 : _v.situacao;
             if (reservaSit && !(0, permissoesFase_1.podeReserva)(reservaSit, atorDe(c, data))) {
                 throw new https_1.HttpsError('permission-denied', `Pelo rito, na fase ${faseSit.nome} só ${(0, permissoesFase_1.textoReserva)(reservaSit)} arquiva, sobresta ou reativa o processo.`);
             }

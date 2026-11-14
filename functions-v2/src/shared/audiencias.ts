@@ -9,6 +9,7 @@
  * Lógica pura; o servidor grava. Ver docs/PROCESSO_ELETRONICO.md.
  */
 import { texto } from './secretaria';
+import { artigos, itemDoRegistro } from './listasOrgao';
 
 export const ESPECIES_AUDIENCIA: Record<string, string> = {
     audiencia: 'Audiência', instrucao: 'Audiência de instrução', conciliacao: 'Audiência de conciliação', oitiva: 'Oitiva',
@@ -20,10 +21,17 @@ export const MAX_PARTICIPANTES = 20;
 /** Marca que a comunicação troca pela audiência designada. */
 export const MARCA_AUDIENCIA = '{audiencia}';
 
-export interface AudienciaDaAcao { especie: string }
+/** Espécie da lista do órgão: o nome e o gênero vêm junto ("Leilão", masculino). */
+export interface AudienciaDaAcao { especie: string; especie_nome?: string; especie_m?: true }
+/** Nome da espécie da audiência (do sistema ou do órgão). */
+export const nomeDaAudiencia = (a: { especie?: string; especie_nome?: string } | null | undefined): string =>
+    a?.especie_nome || ESPECIES_AUDIENCIA[a?.especie || 'audiencia'] || 'Audiência';
+/** "designada" ou "designado", conforme o gênero do nome. */
+export const designadaDe = (a: { especie_m?: boolean } | null | undefined): string => (a?.especie_m ? 'designado' : 'designada');
+export { artigos };
 export interface Participante { nome: string; qualidade: string }
 export interface Audiencia {
-    id: string; fase_id: string; acao_idx: number; especie: string;
+    id: string; fase_id: string; acao_idx: number; especie: string; especie_nome?: string; especie_m?: true;
     data: string; hora: string; modo: string; local?: string; link?: string; participantes?: Participante[];
     designada_em: string; designada_por: string; status: 'designada' | 'cancelada';
 }
@@ -33,8 +41,10 @@ export type DadosAudiencia = Pick<Audiencia, 'data' | 'hora' | 'modo' | 'local' 
 export function sanitizeAudienciaDaAcao(raw: unknown, acao: string): AudienciaDaAcao {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const especie = String(r.especie || 'audiencia');
-    if (!ESPECIES_AUDIENCIA[especie]) throw new Error(`A ação "${acao}" designa audiência: espécie desconhecida`);
-    return { especie };
+    if (ESPECIES_AUDIENCIA[especie]) return { especie };
+    const item = itemDoRegistro(especie, r.especie_nome, r.especie_m, `A ação "${acao}" designa audiência`);
+    if (!item) throw new Error(`A ação "${acao}" designa audiência: espécie desconhecida`);
+    return { especie: item.id, especie_nome: item.nome, ...(item.m ? { especie_m: true as const } : {}) };
 }
 
 /** Confere o que a equipe informa ao designar. `hoje` em AAAA-MM-DD. Lança com mensagem. */

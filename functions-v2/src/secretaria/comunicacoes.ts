@@ -3,7 +3,7 @@ import { nomeDoPolo } from '../shared/camposProcesso';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { CalendarioOrgao, MAX_TEXTO_LONGO, Pendencia, Prazo, derivados, hojeBrasil, sanitizeCalendario, texto, unidadeExpede } from '../shared/secretaria';
 import {
-    Comunicacao, ESPECIES, MAX_COMUNICACOES, PedidoComunicacao, aplicarCiencia, cienciaDias, derivadosComunicacoes, limiteCiencia, sanitizePedido, textoPrazo,
+    Comunicacao, MAX_COMUNICACOES, artigosDaEspecie, nomeDaEspecie, PedidoComunicacao, aplicarCiencia, cienciaDias, derivadosComunicacoes, limiteCiencia, sanitizePedido, textoPrazo,
 } from '../shared/comunicacoes';
 import { COL, Contexto, erroUsuario, registrarInternos, registrarMovimento } from './context';
 import { ComunicacaoLigada, aguardaResposta, alvosDaComunicacao, decursosACertificar, faseQueEspera, sincronizarComunicacoes } from '../shared/comunicacaoRito';
@@ -96,7 +96,9 @@ export async function expedir(
         docTitulo = `Doc. nº ${d.ordem}: ${d.titulo}`;
     }
     const agora = new Date().toISOString();
-    const nomeEspecie = ESPECIES[ped.especie];
+    const nomeEspecie = nomeDaEspecie(ped);
+    // Espécie do órgão de nome masculino ("Edital"): "expedido", "realizado".
+    const fim = ped.especie_m ? 'o' : 'a';
     let atual = data;
     let campos: Record<string, unknown> = {};
     for (const idx of ped.partes_idx) {
@@ -108,7 +110,7 @@ export async function expedir(
             throw new HttpsError('failed-precondition', `${parte.nome} ainda não tem conta habilitada no portal. Convide a parte (ou um representante) ou registre a comunicação feita por outro meio.`);
         }
         let com: Comunicacao = {
-            id: ref.collection('_').doc().id, especie: ped.especie, texto: ped.texto, parte_idx: idx, parte_nome: parte.nome,
+            id: ref.collection('_').doc().id, especie: ped.especie, ...(ped.especie_nome ? { especie_nome: ped.especie_nome } : {}), ...(ped.especie_m ? { especie_m: true as const } : {}), texto: ped.texto, parte_idx: idx, parte_nome: parte.nome,
             ...(ped.documento_id ? { documento_id: ped.documento_id, documento_titulo: docTitulo } : {}),
             dias: ped.dias, contagem: ped.contagem, expedida_em: agora, expedida_por: c.userName, unidade_id: String(data.unidade_atual),
             limite_ciencia: ped.outro_meio ? null : limiteCiencia(hoje, cfg.dias), status: 'aguardando',
@@ -120,9 +122,9 @@ export async function expedir(
             const r = aplicarCiencia(com, ped.ciencia_data, agora, c.userName, ped.outro_meio, ref.collection('_').doc().id, cfg.calendario);
             com = r.comunicacao;
             if (r.prazo) prazos = [...prazos, r.prazo];
-            descricao = `${nomeEspecie} de ${parte.nome} (${nomeDoPolo(data.nomes_polos, parte.polo)}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
+            descricao = `${nomeEspecie} de ${parte.nome} (${nomeDoPolo(data.nomes_polos, parte.polo)}) realizad${fim} por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
         } else {
-            descricao = `${nomeEspecie} expedida a ${parte.nome} (${nomeDoPolo(data.nomes_polos, parte.polo)}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
+            descricao = `${nomeEspecie} expedid${fim} a ${parte.nome} (${nomeDoPolo(data.nomes_polos, parte.polo)}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
         }
         lista = [...lista, com];
         const mov = registrarMovimento(tx, c, ref, atual, 'comunicacao', descricao.slice(0, MAX_TEXTO_LONGO), { comunicacao_id: com.id, especie: com.especie, parte_idx: idx });
@@ -153,10 +155,12 @@ export function registrarCiencia(
     const r = aplicarCiencia(alvo, hojeBrasil(), agora, c.userName, meio, ref.collection('_').doc().id, cfg.calendario);
     const nova = lista.map((x) => (x.id === comId ? r.comunicacao : x));
     const prazos = r.prazo ? [...((proc.prazos || []) as Prazo[]), r.prazo] : ((proc.prazos || []) as Prazo[]);
-    const esp = ESPECIES[alvo.especie].toLowerCase();
+    const esp = nomeDaEspecie(alvo).toLowerCase();
+    const art = artigosDaEspecie(alvo);
+    const fim = alvo.especie_m ? 'o' : 'a';
     const cabeca = meio === 'decurso'
-        ? `Ciência por decurso: ${alvo.parte_nome} não acessou a ${esp} expedida em ${br(alvo.expedida_em)} até ${br(String(alvo.limite_ciencia))}.`
-        : `${rotulo} deu ciência da ${esp} expedida em ${br(alvo.expedida_em)}.`;
+        ? `Ciência por decurso: ${alvo.parte_nome} não acessou ${art.o} ${esp} expedid${fim} em ${br(alvo.expedida_em)} até ${br(String(alvo.limite_ciencia))}.`
+        : `${rotulo} deu ciência ${art.de} ${esp} expedid${fim} em ${br(alvo.expedida_em)}.`;
     const mov = registrarMovimento(tx, c, ref, proc, meio === 'decurso' ? 'ciencia_decurso' : 'ciencia',
         `${cabeca}${r.prazo ? ` Prazo de ${textoPrazo(alvo)} aberto, vence em ${br(r.prazo.vence_em)}.` : ''}`,
         { comunicacao_id: comId, ...(r.prazo ? { prazo_id: r.prazo.id, vence_em: r.prazo.vence_em } : {}) });
@@ -177,7 +181,7 @@ export function tornarSemEfeito(
     if (!motivo) throw new HttpsError('invalid-argument', 'Informe o motivo');
     const nova = lista.map((x) => (x.id === alvo.id ? { ...x, status: 'sem_efeito' as const, sem_efeito_motivo: texto(motivo, 500), limite_ciencia: null } : x));
     const mov = registrarMovimento(tx, c, ref, data, 'comunicacao_sem_efeito',
-        `${ESPECIES[alvo.especie]} a ${alvo.parte_nome}, expedida em ${br(alvo.expedida_em)}, tornada sem efeito. Motivo: ${motivo}`, { comunicacao_id: alvo.id });
+        `${nomeDaEspecie(alvo)} a ${alvo.parte_nome}, expedid${alvo.especie_m ? 'o' : 'a'} em ${br(alvo.expedida_em)}, tornad${alvo.especie_m ? 'o' : 'a'} sem efeito. Motivo: ${motivo}`, { comunicacao_id: alvo.id });
     const ac = acertarAcoesDoRito(tx, c, ref, { ...data, ...mov, comunicacoes: nova });
     tx.update(ref, { ...mov, comunicacoes: nova, ...derivadosComunicacoes(nova), ...ac.campos });
     return { ...mov, ...ac.campos };
@@ -199,9 +203,10 @@ export async function certificarDecursos(db: admin.firestore.Firestore, ref: adm
         let atual = proc;
         let campos: Record<string, unknown> = {};
         for (const x of vencidas) {
-            const esp = ESPECIES[x.especie].toLowerCase();
+            const esp = nomeDaEspecie(x).toLowerCase();
+            const art = artigosDaEspecie(x);
             const mov = registrarMovimento(tx, c, ref, atual, 'decurso_prazo',
-                `Certifico que o prazo de ${textoPrazo(x)} de ${x.parte_nome} para responder à ${esp} expedida em ${br(x.expedida_em)}, encerrado em ${br(String(x.vence_em))}, decorreu sem manifestação.`,
+                `Certifico que o prazo de ${textoPrazo(x)} de ${x.parte_nome} para responder ${art.a} ${esp} expedid${x.especie_m ? 'o' : 'a'} em ${br(x.expedida_em)}, encerrado em ${br(String(x.vence_em))}, decorreu sem manifestação.`,
                 { comunicacao_id: x.id, parte_idx: x.parte_idx });
             campos = { ...campos, ...mov };
             atual = { ...atual, ...mov };

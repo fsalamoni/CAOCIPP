@@ -54,6 +54,7 @@ exports.acoesHistorico = acoesHistorico;
 const crypto_1 = require("crypto");
 const exigencias_1 = require("./exigencias");
 const situacaoRegistro_1 = require("./situacaoRegistro");
+const listasOrgao_1 = require("./listasOrgao");
 const permissoesFase_1 = require("./permissoesFase");
 const efeitosFase_1 = require("./efeitosFase");
 exports.TIPOS_UNIDADE = ['secretaria', 'gabinete', 'assessoria', 'outra'];
@@ -130,12 +131,16 @@ exports.ROTULO_ORIGEM = {
     outro_processo: 'Derivado de outro processo',
     outro: 'Outra',
 };
-const textoOrigem = (o) => (o ? [exports.ROTULO_ORIGEM[o.tipo] || exports.ROTULO_ORIGEM.outro, [o.ref ? `${ROTULO_REF[o.ref.modulo] || 'Registro'} ${o.ref.numero}` : '', o.descricao].filter(Boolean).join('; ')].filter(Boolean).join(': ') : '');
+const textoOrigem = (o) => (o ? [o.nome || exports.ROTULO_ORIGEM[o.tipo] || exports.ROTULO_ORIGEM.outro, [o.ref ? `${ROTULO_REF[o.ref.modulo] || 'Registro'} ${o.ref.numero}` : '', o.descricao].filter(Boolean).join('; ')].filter(Boolean).join(': ') : '');
 exports.textoOrigem = textoOrigem;
 /** Origem saneada, ou null quando nada foi informado. */
 function sanitizeOrigem(input) {
     const o = (input && typeof input === 'object' ? input : {});
     const descricao = texto(o.descricao, exports.MAX_TEXTO_CURTO);
+    // Origem da lista do órgão: vem com o nome, que fica no processo.
+    const doOrgao = (0, listasOrgao_1.itemDoRegistro)(o.tipo, o.nome, false, 'Origem');
+    if (doOrgao)
+        return { tipo: doOrgao.id, nome: doOrgao.nome, descricao };
     const tipo = exports.ORIGENS.includes(o.tipo) ? o.tipo : null;
     if (!tipo && !descricao)
         return null;
@@ -715,6 +720,7 @@ exports.HISTORICO_CONFIG = {
     SECRETARIA_DOCUMENTO_CONFIG: 'documentos', SECRETARIA_MODELO_SALVO: 'documentos', SECRETARIA_MODELO_EXCLUIDO: 'documentos',
     SECRETARIA_MODELO_RESTAURADO: 'documentos', SECRETARIA_TEXTOS_COMUNICACAO: 'documentos',
     SECRETARIA_CALENDARIO: 'calendario',
+    SECRETARIA_LISTAS: 'listas',
     SECRETARIA_VERSAO_RESTAURADA: 'versao', // rito ou modelo, por details.colecao
 };
 function assuntoHistorico(action, d = {}) {

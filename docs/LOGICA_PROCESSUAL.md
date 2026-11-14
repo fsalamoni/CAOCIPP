@@ -81,7 +81,7 @@ decisor, à consulta e à impressão.
 | Grupo | Informação | Por que importa |
 |---|---|---|
 | Identificação | Número, tipo de processo (classe), assunto, rito, descrição | Saber do que se trata e qual procedimento se aplica |
-| Origem | Como o processo chegou (requerimento, representação ou denúncia, ofício de outro órgão, de ofício, derivado de outro processo), a referência (nº do ofício, processo de origem, meio de recebimento), data e unidade de autuação | Competência, legitimidade, prevenção e contagem de prazos dependem da origem; Lei 9.784/1999, arts. 5º e 6º |
+| Origem | Como o processo chegou (requerimento, representação ou denúncia, ofício de outro órgão, de ofício, derivado de outro processo, ou uma origem da lista do órgão, como ouvidoria), a referência (nº do ofício, processo de origem, meio de recebimento), data e unidade de autuação | Competência, legitimidade, prevenção e contagem de prazos dependem da origem; Lei 9.784/1999, arts. 5º e 6º |
 | Quem solicitou | Requerente (polo ativo) e quem o representa; "de ofício" quando é iniciativa do órgão | Define a quem se responde e quem tem legitimidade para recorrer |
 | Partes | Todas, com polo e representantes, e se acompanham pelo portal | Contraditório: a quem comunicar |
 | Tramitação | Urgência (e o motivo), sigilo, situação, fase, com quem está e desde quando, responsável | Prioridade, acesso, impulso |
@@ -315,7 +315,7 @@ informado.
 | Autos | Aba **Autos**: documentos juntados, leitura em sequência e PDF |
 | Capa e folha de dados do PDF | A capa impressa só identifica (órgão, número, autuação, ativo ou arquivado). O conteúdo da capa da seção 4 vai na **folha de dados**, a folha do evento 1, montada na impressão (`functions-v2/src/shared/folhaDados.ts`); o rito pode mandar para ela dados registrados depois (`acoes_regras[i].folha_dados`) |
 | Eventos | Aba **Eventos** (`EventosAutos.jsx`): todos os eventos, filtros por origem |
-| Origem do processo | `secProcessos.origem` (`{ tipo, descricao }`), informada na autuação; tipos em `ORIGENS` (`functions-v2/src/shared/secretaria.ts`, espelho em `src/components/secretaria/comum.jsx`) |
+| Origem do processo | `secProcessos.origem` (`{ tipo, descricao }`, e `nome` quando o tipo é da lista do órgão, `o_…`), informada na autuação; tipos em `ORIGENS` (`functions-v2/src/shared/secretaria.ts`, espelho em `src/components/secretaria/comum.jsx`) e em `secConfig.listas.origem` |
 | Origem do evento | `origemEvento` em `functions-v2/src/shared/autos.ts`: `usuario` (termo com folha), `interno` (o rito deixou fora dos autos) ou `sistema` (os dois últimos saem no extrato) |
 | O que vai aos autos | `fase.registro` no rito (`remessas_fora` ou `interno`) e `acoes_regras[i].autos` (certidão de cumprimento); `movimentoInterno` em `functions-v2/src/shared/exigencias.ts` |
 | Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |

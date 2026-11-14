@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { CartaoComMenu } from './Lixeira';
 import { reinserir } from '@/lib/textosProntos';
 import AjudaTermo from './AjudaTermo';
-import { ESPECIES, nomeEspecie } from '@/lib/comunicacaoRito';
+import { camposDaEspecie, especiesParaEscolher, nomeEspecie } from '@/lib/comunicacaoRito';
 import { MARCA_AUDIENCIA, comAudiencia } from '@/lib/audiencias';
 import { nomePolo } from '@/lib/camposProcesso';
 
@@ -57,7 +57,7 @@ export function CartaoComunicacoes({ p, posse, podeMexer, naSecretaria, ocupado,
                 {lista.map((c) => (
                     <div key={c.id} className="py-2 border-b last:border-0 border-slate-100 dark:border-slate-800 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">{nomeEspecie(c.especie)} a {c.parte_nome}</span>
+                            <span className="font-medium">{nomeEspecie(c.especie, c.especie_nome)} a {c.parte_nome}</span>
                             <SeloComunicacao status={c.status} />
                             {c.status === 'aguardando' && posse && naSecretaria && (
                                 <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={!podeMexer || ocupado} onClick={() => onSemEfeito(c)}>Tornar sem efeito</Button>
@@ -91,7 +91,9 @@ const temConta = (x) => x.portal === 'ativo' || (x.representantes || []).some((r
  * comunica. Vem preenchida com a espécie, o prazo, o texto e as partes que
  * faltam; só elas aparecem (comunicar de novo quem já foi é pelo botão geral).
  */
-export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, textosProntos = [], ocupado, onFechar, onExpedir, daAcao = null }) {
+export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, textosProntos = [], listaOrgao = [], ocupado, onFechar, onExpedir, daAcao = null }) {
+    // As do sistema, as da lista do órgão e a do rito (mesmo que tenha saído da lista).
+    const especies = especiesParaEscolher(listaOrgao, daAcao?.cfg);
     const [especie, setEspecie] = useState('intimacao');
     const [partes, setPartes] = useState([]);
     const [texto, setTexto] = useState('');
@@ -145,7 +147,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
         : `A ciência de ${nomes} fica registrada em ${brData(dataCiencia)}${outroMeio.trim() ? `, por ${outroMeio.trim()}` : ''}. ${prazoTxt ? `O prazo de ${prazoTxt} é aberto agora, contado dessa data.` : 'Não abre prazo de resposta.'}`;
 
     const expedir = () => onExpedir({
-        especie, texto: texto.trim(), partes_idx: partes, documento_id: documento || undefined, ...(daAcao ? { acao_idx: daAcao.idx } : {}),
+        ...camposDaEspecie(especie, especies), texto: texto.trim(), partes_idx: partes, documento_id: documento || undefined, ...(daAcao ? { acao_idx: daAcao.idx } : {}),
         ...(modoPrazo === 'sem' ? { sem_prazo: true } : { dias: n, contagem }),
         ...(meio === 'outro' ? { meio: 'outro', outro_meio: outroMeio.trim(), ciencia_data: dataCiencia } : {}),
     });
@@ -166,7 +168,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
                     <fieldset>
                         <legend className="text-sm font-medium mb-1">1. Espécie</legend>
                         <div className="grid sm:grid-cols-2 gap-2">
-                            {ESPECIES.map(([id, nome, dica]) => (
+                            {especies.map(([id, nome, dica]) => (
                                 <label key={id} className={`${radio} ${especie === id ? ativo : inativo}`}>
                                     <input type="radio" name="especie" className="mt-1" checked={especie === id} onChange={() => escolherEspecie(id)} />
                                     <span><span className="font-medium">{nome}</span><span className="block text-xs text-slate-600 dark:text-slate-400">{dica}</span></span>
@@ -266,7 +268,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
                     </fieldset>
 
                     {resumo && !falta && (
-                        <p className="text-sm rounded-md bg-slate-100 dark:bg-slate-800 px-3 py-2" aria-live="polite"><b>{nomeEspecie(especie)}.</b> {resumo}</p>
+                        <p className="text-sm rounded-md bg-slate-100 dark:bg-slate-800 px-3 py-2" aria-live="polite"><b>{especies.find(([x]) => x === especie)?.[1] || nomeEspecie(especie)}.</b> {resumo}</p>
                     )}
                 </div>
                 <DialogFooter className="items-center gap-2">
@@ -347,7 +349,7 @@ export function TextosComunicacao({ estado, salvando, onSalvar }) {
                         onEditar={() => setT({ ...x, dias: x.dias ? String(x.dias) : '' })}
                         onDuplicar={() => duplicar(x)}
                         onExcluir={salvando ? null : () => remover(x)}>
-                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o texto pronto </span>{x.nome}</span><Badge variant="outline">{x.especie ? nomeEspecie(x.especie) : 'Qualquer espécie'}</Badge>{x.dias > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">prazo de {textoPrazo(x)}</span>}</span>
+                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o texto pronto </span>{x.nome}</span><Badge variant="outline">{x.especie ? nomeEspecie(x.especie, (estado.listas?.comunicacao || []).find((o) => o.id === x.especie)?.nome) : 'Qualquer espécie'}</Badge>{x.dias > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">prazo de {textoPrazo(x)}</span>}</span>
                         <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{x.texto}</span>
                     </CartaoComMenu>
                 ))}
@@ -366,7 +368,7 @@ export function TextosComunicacao({ estado, salvando, onSalvar }) {
                                 <Label htmlFor="tx-especie">Espécie</Label>
                                 <select id="tx-especie" value={t.especie} onChange={(e) => set('especie', e.target.value)} className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
                                     <option value="">Qualquer espécie</option>
-                                    {ESPECIES.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+                                    {especiesParaEscolher(estado.listas?.comunicacao).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
                                 </select>
                             </div>
                             <div><Label htmlFor="tx-texto">Texto</Label><Textarea id="tx-texto" rows={5} maxLength={2000} value={t.texto} onChange={(e) => set('texto', e.target.value)} placeholder="Ex.: Fica intimado a apresentar defesa escrita sobre os fatos descritos na representação." /></div>

@@ -379,7 +379,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     )}
                     {audienciasFuturas(p.audiencias, hoje).slice(0, 1).map((a) => (
                         <p key={a.id} className="text-sm rounded-md border border-indigo-200 dark:border-indigo-800 px-3 py-1.5">
-                            <b>Próxima {nomeAudiencia(a.especie).toLowerCase()}:</b> {textoDaAudiencia(a)}.
+                            <b>Próxima {nomeAudiencia(a.especie, a.especie_nome).toLowerCase()}:</b> {textoDaAudiencia(a)}.
                         </p>
                     ))}
                 </div>
@@ -872,11 +872,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onEnviar={async (valor) => { const ok = await mov('marcarAcao', { acao_idx: registrar.idx, feita: true, valor, version: registrar.version }, 'Ação registrada'); if (ok) setRegistrar(null); return ok; }} />
 
             {acao?.tipo === 'dados' && (
-                <EditarDados p={p} foco={acao.foco} tipo={[...(estado.tipos || []), ...(estado.tipos_excluidos || [])].find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
+                <EditarDados p={p} origens={estado.listas?.origem} foco={acao.foco} tipo={[...(estado.tipos || []), ...(estado.tipos_excluidos || [])].find((t) => t.id === p.tipo_id)} ocupado={ocupado} onFechar={() => setAcao(null)}
                     onSalvar={(dados) => mov('alterarDados', dados, 'Dados do processo alterados')} />
             )}
 
-            <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} daAcao={acao?.tipo === 'comunicar' ? acao.daAcao || null : null} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} textosProntos={estado.textos_comunicacao || []} ocupado={ocupado}
+            <ExpedirComunicacao aberto={acao?.tipo === 'comunicar'} daAcao={acao?.tipo === 'comunicar' ? acao.daAcao || null : null} p={p} autos={autos} faseAtual={faseAtual} cienciaDias={estado.ciencia_dias ?? 10} listaOrgao={estado.listas?.comunicacao || []} textosProntos={estado.textos_comunicacao || []} ocupado={ocupado}
                 onFechar={() => setAcao(null)} onExpedir={(comunicacao) => mov('expedirComunicacao', { comunicacao }, comunicacao.meio === 'outro' ? 'Ciência registrada nos autos' : 'Comunicação expedida')} />
 
             {acao?.tipo === 'excluir' && (
@@ -1149,7 +1149,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         enviar = () => mov('resolverPendencia', { pendencia_id: acao.pendencia.id, resolucao: motivo }, 'Pendência apreciada');
         rodape = <Button variant="outline" className="gap-1 mr-auto" disabled={ocupado} onClick={() => onDespacho(acao.pendencia)}><FilePen className="w-4 h-4" /> Decidir por despacho</Button>;
     } else if (tipo === 'semEfeito') {
-        titulo = `Tornar sem efeito: ${nomeEspecie(acao.comunicacao.especie).toLowerCase()} a ${acao.comunicacao.parte_nome}`;
+        titulo = `Tornar sem efeito: ${nomeEspecie(acao.comunicacao.especie, acao.comunicacao.especie_nome).toLowerCase()} a ${acao.comunicacao.parte_nome}`;
         rotuloTexto = 'Motivo (fica certificado nos autos)';
         exigeTexto = true;
         campo = <p className="text-sm text-slate-700 dark:text-slate-300">A parte deixa de ver o aviso e nenhum prazo é aberto. Só é possível enquanto ela não deu ciência.</p>;
@@ -1448,7 +1448,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
 }
 
 /** Corrige a descrição e os campos próprios do tipo; o que mudou vai para o histórico. */
-function EditarDados({ p, tipo, foco, ocupado, onFechar, onSalvar }) {
+function EditarDados({ p, tipo, origens, foco, ocupado, onFechar, onSalvar }) {
     // Obrigatório criado depois da autuação não trava a correção (espelho do servidor).
     const form = formParaCorrecao(formularioDe(tipo), p.campos || [], p.descricao || '');
     // Veio de "Preencher": leva direto ao campo que falta.
@@ -1459,7 +1459,7 @@ function EditarDados({ p, tipo, foco, ocupado, onFechar, onSalvar }) {
     }, [foco]);
     const [f, setF] = useState(() => ({
         assunto: p.assunto || '', descricao: p.descricao || '', sigilo: p.sigilo || 'normal', unidade_id: '', urgente: false, motivo_urgencia: '',
-        origem: { tipo: p.origem?.tipo || '', descricao: p.origem?.descricao || '', ...(p.origem?.ref ? { ref: p.origem.ref } : {}) },
+        origem: { tipo: p.origem?.tipo || '', ...(p.origem?.nome ? { nome: p.origem.nome } : {}), descricao: p.origem?.descricao || '', ...(p.origem?.ref ? { ref: p.origem.ref } : {}) },
         partes: partesParaCorrecao(p.partes), campos: valoresDe(p.campos, form),
     }));
     const [motivo, setMotivo] = useState('');
@@ -1480,7 +1480,7 @@ function EditarDados({ p, tipo, foco, ocupado, onFechar, onSalvar }) {
                     <DialogDescription>Descrição e campos: a correção fica no histórico. Assunto, origem, sigilo e partes: é uma retificação, pede o motivo e gera termo nos autos.</DialogDescription>
                 </DialogHeader>
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
-                    <FormularioAutuacao prefixo="ed" retificar form={form} f={f} setF={setF} tipo={tipo || null} />
+                    <FormularioAutuacao prefixo="ed" retificar form={form} f={f} setF={setF} tipo={tipo || null} origens={origens} />
                     {antigos.length > 0 && (
                         <div className="rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 p-3">
                             <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Campos que este tipo de processo não usa mais (mantidos como foram gravados)</p>

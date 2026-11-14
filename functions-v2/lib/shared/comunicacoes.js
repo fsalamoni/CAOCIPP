@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_TEXTOS_PRONTOS = exports.limiteCiencia = exports.textoPrazo = exports.cienciaDias = exports.MAX_COMUNICACOES = exports.MAX_CIENCIA_DIAS = exports.CIENCIA_DIAS_PADRAO = exports.ESPECIES = void 0;
+exports.MAX_TEXTOS_PRONTOS = exports.limiteCiencia = exports.textoPrazo = exports.cienciaDias = exports.MAX_COMUNICACOES = exports.MAX_CIENCIA_DIAS = exports.CIENCIA_DIAS_PADRAO = exports.artigosDaEspecie = exports.nomeDaEspecie = exports.ESPECIES = void 0;
+exports.especieValida = especieValida;
 exports.sanitizePedido = sanitizePedido;
 exports.aplicarCiencia = aplicarCiencia;
 exports.derivadosComunicacoes = derivadosComunicacoes;
@@ -13,6 +14,7 @@ exports.textosProntosDe = textosProntosDe;
  * por decurso) e o prazo de resposta abre a partir da ciência. Lógica pura.
  */
 const secretaria_1 = require("./secretaria");
+const listasOrgao_1 = require("./listasOrgao");
 exports.ESPECIES = {
     intimacao: 'Intimação',
     notificacao: 'Notificação',
@@ -20,6 +22,20 @@ exports.ESPECIES = {
     ciencia: 'Ciência',
     comunicacao: 'Comunicação',
 };
+const nomeDaEspecie = (c) => c.especie_nome || exports.ESPECIES[c.especie] || 'Comunicação';
+exports.nomeDaEspecie = nomeDaEspecie;
+/** "à intimação", "ao edital": o artigo certo para a espécie. */
+const artigosDaEspecie = (c) => (0, listasOrgao_1.artigos)(c.especie_m === true);
+exports.artigosDaEspecie = artigosDaEspecie;
+/** Espécie saneada: do sistema, ou do órgão com o nome. Lança Error com mensagem. */
+function especieValida(especie, nome, m, erro) {
+    if (typeof especie === 'string' && exports.ESPECIES[especie])
+        return { especie };
+    const item = (0, listasOrgao_1.itemDoRegistro)(especie, nome, m, erro);
+    if (!item)
+        throw new Error(erro);
+    return Object.assign({ especie: item.id, especie_nome: item.nome }, (item.m ? { especie_m: true } : {}));
+}
 /** Dias corridos, da expedição, até a ciência se dar por decurso. 0 desliga. */
 exports.CIENCIA_DIAS_PADRAO = 10;
 exports.MAX_CIENCIA_DIAS = 90;
@@ -32,9 +48,7 @@ exports.cienciaDias = cienciaDias;
 /** Valida o que a secretaria informou ao expedir. `hoje`: AAAA-MM-DD. */
 function sanitizePedido(raw, hoje) {
     const r = (raw && typeof raw === 'object' ? raw : {});
-    const especie = String(r.especie || '');
-    if (!exports.ESPECIES[especie])
-        throw new Error('Escolha a espécie da comunicação');
+    const esp = especieValida(r.especie, r.especie_nome, r.especie_m, 'Escolha a espécie da comunicação');
     const txt = (0, secretaria_1.texto)(r.texto, 4000);
     if (!txt)
         throw new Error('Escreva o que está sendo comunicado');
@@ -57,10 +71,7 @@ function sanitizePedido(raw, hoje) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(ciencia_data) || ciencia_data > hoje)
             throw new Error('Informe a data em que a parte tomou ciência (até hoje)');
     }
-    return {
-        especie, texto: txt, partes_idx, documento_id: typeof r.documento_id === 'string' ? r.documento_id : '',
-        dias, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis', outro_meio, ciencia_data: outro_meio ? ciencia_data : '',
-    };
+    return Object.assign(Object.assign({}, esp), { texto: txt, partes_idx, documento_id: typeof r.documento_id === 'string' ? r.documento_id : '', dias, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis', outro_meio, ciencia_data: outro_meio ? ciencia_data : '' });
 }
 const textoPrazo = (c) => (c.dias ? `${c.dias} dia${c.dias > 1 ? 's' : ''} ${c.contagem === 'uteis' ? (c.dias > 1 ? 'úteis' : 'útil') : (c.dias > 1 ? 'corridos' : 'corrido')}` : '');
 exports.textoPrazo = textoPrazo;
@@ -74,7 +85,7 @@ function aplicarCiencia(c, dataCiencia, quando, por, meio, prazoId, cal) {
     if (c.status !== 'aguardando')
         throw new Error('Esta comunicação não está mais aguardando ciência');
     const prazo = c.dias ? {
-        id: prazoId, descricao: `Responder à ${exports.ESPECIES[c.especie].toLowerCase()}`, destinatario: c.parte_nome, dias: c.dias, contagem: c.contagem,
+        id: prazoId, descricao: `Responder ${(0, exports.artigosDaEspecie)(c).a} ${(0, exports.nomeDaEspecie)(c).toLowerCase()}`, destinatario: c.parte_nome, dias: c.dias, contagem: c.contagem,
         inicio: dataCiencia, vence_em: (0, secretaria_1.calcularVencimento)(dataCiencia, c.dias, c.contagem, cal), status: 'aberto',
         aberto_em: quando, aberto_por: por, comunicacao_id: c.id,
     } : null;
@@ -114,7 +125,7 @@ function sanitizeTextosProntos(raw) {
         ids.add(id);
         const dias = Number(t.dias);
         return {
-            id, nome, texto: corpo, especie: exports.ESPECIES[String(t.especie)] ? String(t.especie) : '',
+            id, nome, texto: corpo, especie: exports.ESPECIES[String(t.especie)] || (0, listasOrgao_1.ehDoOrgao)(t.especie) ? String(t.especie) : '',
             dias: Number.isInteger(dias) && dias > 0 && dias <= secretaria_1.MAX_PRAZO_DIAS ? dias : 0,
             contagem: t.contagem === 'corridos' ? 'corridos' : 'uteis',
         };

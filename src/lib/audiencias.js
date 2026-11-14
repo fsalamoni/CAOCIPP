@@ -6,7 +6,20 @@ export const ESPECIES_AUDIENCIA = [
     ['audiencia', 'Audiência'], ['instrucao', 'Audiência de instrução'], ['conciliacao', 'Audiência de conciliação'], ['oitiva', 'Oitiva'],
     ['sessao', 'Sessão de julgamento'], ['reuniao', 'Reunião'], ['inspecao', 'Inspeção ou vistoria'],
 ];
-export const nomeAudiencia = (id) => ESPECIES_AUDIENCIA.find(([k]) => k === id)?.[1] || 'Audiência';
+/** Nome da espécie: a do sistema, ou o `nome` que a espécie da lista do órgão leva junto. */
+export const nomeAudiencia = (id, nome) => nome || ESPECIES_AUDIENCIA.find(([k]) => k === id)?.[1] || 'Audiência';
+/** Espécies para escolher: as do sistema, as da lista do órgão e a do rito ([id, nome, m]). */
+export function audienciasParaEscolher(lista = [], atual = null) {
+    const out = [...ESPECIES_AUDIENCIA, ...lista.map((o) => [o.id, o.nome, o.m === true])];
+    if (atual?.especie?.startsWith('o_') && !out.some(([id]) => id === atual.especie)) out.push([atual.especie, atual.especie_nome || 'Espécie do órgão', atual.especie_m === true]);
+    return out;
+}
+/** O que o rito grava da espécie: a do órgão leva o nome e o gênero. */
+export function camposDaAudiencia(id, opcoes) {
+    if (!id?.startsWith('o_')) return { especie: id };
+    const o = opcoes.find(([x]) => x === id);
+    return { especie: id, especie_nome: o?.[1] || '', ...(o?.[2] ? { especie_m: true } : {}) };
+}
 export const MODOS_AUDIENCIA = [['presencial', 'Presencial'], ['virtual', 'Por videoconferência'], ['hibrida', 'Híbrida (presencial e por videoconferência)']];
 export const QUALIDADES = [['testemunha', 'testemunha'], ['perito', 'perito'], ['informante', 'informante'], ['assistente', 'assistente técnico'], ['interprete', 'intérprete'], ['outro', 'outro participante']];
 export const MAX_PARTICIPANTES = 20;

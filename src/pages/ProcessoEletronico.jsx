@@ -169,7 +169,7 @@ export default function ProcessoEletronico() {
     const aba = abasValidas.includes(abaUrl) ? abaUrl : abaPadrao;
 
     return (
-        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado.unidades}>
+        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado.unidades} listas={estado.listas}>
         {barra}
         <div className="space-y-5">
             <div className={`${procId ? 'hidden sm:flex' : 'flex'} flex-wrap items-center justify-between gap-3`}>
@@ -566,7 +566,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                             {tipoSel?.descricao && <p className="text-xs text-slate-600 mt-1">{tipoSel.descricao}</p>}
                         </div>
                     )}
-                    <FormularioAutuacao form={form} f={f} setF={setF} tipo={tipoSel || null}
+                    <FormularioAutuacao form={form} f={f} setF={setF} tipo={tipoSel || null} origens={estado.listas?.origem}
                         unidades={unidadesPara(tipoSel).map((id) => [id, unidadeComOrgao(estado, id)])}
                         rito={tipoSel
                             ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>

@@ -15,7 +15,23 @@ export const ESPECIES = [
     ['ciencia', 'Ciência', 'Só registra que a parte tomou conhecimento'],
     ['comunicacao', 'Comunicação', 'Outro aviso formal'],
 ];
-export const nomeEspecie = (id) => ESPECIES.find((e) => e[0] === id)?.[1] || 'Comunicação';
+/** Nome da espécie: a do sistema, ou o `nome` que a espécie da lista do órgão leva junto. */
+export const nomeEspecie = (id, nome) => nome || ESPECIES.find((e) => e[0] === id)?.[1] || 'Comunicação';
+/**
+ * Espécies para escolher: as do sistema e as da lista do órgão ([id, nome, dica, m]).
+ * `atual` ({ especie, especie_nome, especie_m }): a do rito ou da comunicação, que entra mesmo fora da lista.
+ */
+export function especiesParaEscolher(lista = [], atual = null) {
+    const out = [...ESPECIES, ...lista.map((o) => [o.id, o.nome, 'Da lista do órgão', o.m === true])];
+    if (atual?.especie?.startsWith('o_') && !out.some(([id]) => id === atual.especie)) out.push([atual.especie, atual.especie_nome || 'Espécie do órgão', 'Do rito', atual.especie_m === true]);
+    return out;
+}
+/** Campos da espécie para mandar ao servidor: a do órgão leva o nome e o gênero. */
+export function camposDaEspecie(id, opcoes) {
+    if (!id?.startsWith('o_')) return { especie: id };
+    const o = opcoes.find(([x]) => x === id);
+    return { especie: id, especie_nome: o?.[1] || '', ...(o?.[3] ? { especie_m: true } : {}) };
+}
 
 /** Partes (índices) que a comunicação da ação alcança: as do polo pedido, sem as retiradas. */
 export function alvosDaComunicacao(cfg, partes) {

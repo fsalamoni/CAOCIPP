@@ -11,7 +11,7 @@ export function passosConfiguracao(estado) {
     ];
 }
 
-export const ABAS_CONFIG = ['estrutura', 'unidades', 'tipos', 'ritos', 'documentos', 'calendario', 'integracoes', 'preferencias', 'lixeira', 'historico'];
+export const ABAS_CONFIG = ['estrutura', 'unidades', 'tipos', 'ritos', 'documentos', 'listas', 'calendario', 'integracoes', 'preferencias', 'lixeira', 'historico'];
 
 /** `?aba=` válido vence; senão o primeiro passo pendente; tudo feito: Ritos. */
 export function abaInicial(estado, pedida) {

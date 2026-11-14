@@ -1,12 +1,17 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { HISTORICO_CONFIG, MAX_TEXTO_LONGO, Rito, acoesHistorico, assuntoHistorico, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade, unidadeDecide, unidadeExpede } from '../shared/secretaria';
+import { HISTORICO_CONFIG, MAX_TEXTO_LONGO, ROTULO_ORIGEM, Rito, acoesHistorico, assuntoHistorico, documentoEfetivo, lotacoesDe, sanitizeCalendario, sanitizeRito, texto, tipoUnidade, unidadeDecide, unidadeExpede } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
 import { numeracaoDe, numeracaoTipoDe, sanitizeNumeracao, sanitizeNumeracaoTipo } from '../shared/numeracao';
 import { COL, REGION, administraOrgao, carregarContexto, erroUsuario, exigirAdmin, exigirAdminDoOrgao, exigirAuth, exigirGestor } from './context';
-import { cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
+import { ESPECIES, cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
+import { ESPECIES_AUDIENCIA } from '../shared/audiencias';
+import { listasDe, sanitizeListas } from '../shared/listasOrgao';
+
+/** Nomes que o sistema já tem em cada lista do órgão (não se repetem). */
+const SISTEMA_LISTAS = { comunicacao: Object.values(ESPECIES), audiencia: Object.values(ESPECIES_AUDIENCIA), origem: Object.values(ROTULO_ORIGEM) };
 import { emArvore, orgaosDe, sanitizeCompetencias } from '../shared/orgaos';
 import { criarEstrutura, lerOrgaos, removerOrgao, salvarOrgao } from './orgaos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
@@ -128,7 +133,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
-    | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'excluirUnidade' | 'migrarRito'
+    | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'salvarListas' | 'excluirUnidade' | 'migrarRito'
     | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes' | 'historico';
 
 interface ConfigRequest extends Record<string, unknown> {
@@ -309,6 +314,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             alerta_prazos: cfgSnap.data()?.alerta_prazos === true,
             ciencia_dias: cienciaDias(cfgSnap.data()?.ciencia_dias),
             textos_comunicacao: textosProntosDe(cfgSnap.data()?.textos_comunicacao),
+            listas: listasDe(cfgSnap.data()?.listas, SISTEMA_LISTAS),
             modelos: naoExcluidos(modelosSnap).map((d) => {
                 const m = d.data();
                 return {
@@ -618,6 +624,15 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         try { textos = sanitizeTextosProntos(p.textos); } catch (e) { erroUsuario(e); }
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, textos_comunicacao: textos, updated_at: agora, updated_by: auth.uid }, { merge: true });
         await audit('SECRETARIA_TEXTOS_COMUNICACAO', { textos: textos!.length });
+        return { success: true };
+    }
+
+    if (p.action === 'salvarListas') {
+        // Listas do órgão: espécies de comunicação e de audiência e origens a mais. O que já foi feito guarda o nome.
+        let listas;
+        try { listas = sanitizeListas(p.listas, SISTEMA_LISTAS); } catch (e) { erroUsuario(e); }
+        await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
+        await audit('SECRETARIA_LISTAS', { comunicacao: listas!.comunicacao?.length || 0, audiencia: listas!.audiencia?.length || 0, origem: listas!.origem?.length || 0 });
         return { success: true };
     }
 
