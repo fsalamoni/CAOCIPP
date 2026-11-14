@@ -136,6 +136,11 @@ fase, um destes:
 | Evento no extrato | não | sim, no extrato ao fim do PDF | não | controle que vale ver junto com os autos (distribuição, conferência) |
 | Só no sistema | não | não | só se o rito disser | dados de gestão (número em outro sistema, origem da demanda, checklist) |
 
+"Sai na impressão" fala do PDF dos autos. O que fica só no sistema, as
+minutas e os documentos guardados fora dos autos podem sair, por seleção, na
+**impressão interna**: um PDF de uso da equipe, sem folhas dos autos e
+marcado como uso interno, que não é cópia do processo.
+
 Os três ficam na cadeia de hash, com autor e hora. Um dado informado numa
 ação (texto, número, data, escolha) aparece nas informações do processo,
 com a fase em que foi registrado; se for nos autos, também na certidão.
@@ -246,6 +251,7 @@ informado.
 | Documento exigido | `fase.documentos` e `acoes_regras[i].documento` no rito; a juntada cumpre (`reconhecer`), sair da fase sem ele pede motivo de dispensa; `exigencias_cumpridas` no processo |
 | Minuta | Trabalho interno da unidade (`minutaAcessivel`); segue com o processo quando marcada na remessa (`unidades_acesso`), sem constar do termo |
 | Comunicações | `functions-v2/src/shared/comunicacoes.ts`; só a secretaria expede, sempre nos autos |
+| Impressão interna | O que fica fora dos autos sai, por seleção, num PDF de uso da equipe (`montarPdfInterno` em `functions-v2/src/secretaria/exportar.ts`; `registroInterno` e `documentoInterno` em `shared/autos.ts`); nunca vai às partes nem leva folhas dos autos |
 | Revisão | Redações anteriores em `documentos/{doc}/versoes` (`versaoAnterior` em `functions-v2/src/shared/secretaria.ts`, gravada por `editarMinuta`); botão Finalizar da fase (`fase.juntada_conjunta`): juntadas comuns em sequência, na ordem escolhida (`src/lib/juntadaConjunta.js`) |
 | Fase de espera | `fase.espera` no rito e `secProcessos.espera` (`{ fase, unidade, responsavel_uid, desde }`); `saidasDoProcesso` em `functions-v2/src/shared/secretaria.ts`; a volta não zera o estado da fase de origem (`ehRetomada` em `processos.ts`) |
 | Impulso automático | `fase.avanco: 'auto'` (`saidaAutomatica`), `fase.ao_entrar.arquivar` e `fase.situacao_registro` (coluna da consulta ou do expediente ligado, `functions-v2/src/shared/situacaoRegistro.ts`), aplicados em `functions-v2/src/secretaria/processos.ts` |

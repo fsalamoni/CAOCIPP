@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Impressão interna (o que fica fora dos autos)
+- Na tela do processo, **Impressão interna** gera um PDF de uso da equipe
+  com o que for marcado: registros internos e do sistema, minutas,
+  documentos guardados fora dos autos e redações anteriores.
+- O PDF não tem folhas dos autos e leva a marca de uso interno em toda
+  página. Não é cópia do processo e não vai às partes.
+- O que o rito marcou "sem evento" continua fora de qualquer impressão.
+- Guia do rito, parte 11.
+
 ### 13/11/2026 — Revisão: redação original guardada e botão Finalizar
 - Quando outra pessoa altera uma minuta (ex.: o gabinete revisa a minuta
   da assessoria), a **redação de quem escreveu antes fica guardada**. O

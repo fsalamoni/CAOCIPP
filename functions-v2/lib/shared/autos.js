@@ -5,13 +5,14 @@
  * de partes dos autos para o PDF. Lógica pura, sem Firebase.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MODOS_SELECAO = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
+exports.documentoInterno = exports.registroInterno = exports.MAX_DOCS_INTERNOS = exports.MODOS_SELECAO = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
 exports.origemEvento = origemEvento;
 exports.tituloEvento = tituloEvento;
 exports.folhasDoEvento = folhasDoEvento;
 exports.extrasDoEvento = extrasDoEvento;
 exports.urgentesPrimeiro = urgentesPrimeiro;
 exports.sanitizeSelecao = sanitizeSelecao;
+exports.sanitizeSelecaoInterna = sanitizeSelecaoInterna;
 exports.selecionar = selecionar;
 /** Registros de controle interno ou automáticos: não geram termo próprio. */
 exports.TIPOS_SISTEMA = ['atribuicao', 'acao_fase', 'orientacao_concluida', 'convite'];
@@ -127,6 +128,28 @@ function sanitizeSelecao(raw) {
     }
     return s;
 }
+exports.MAX_DOCS_INTERNOS = 60;
+function sanitizeSelecaoInterna(raw) {
+    const r = (raw && typeof raw === 'object' ? raw : {});
+    const ids = (v) => [...new Set((Array.isArray(v) ? v : []).filter((x) => typeof x === 'string' && /^[\w-]{1,60}$/.test(x)))].slice(0, exports.MAX_DOCS_INTERNOS);
+    const s = {
+        registros: Array.isArray(r.registros) ? [...new Set(r.registros.filter((n) => Number.isInteger(n) && n > 0))].slice(0, MAX_EVENTOS) : [],
+        documentos: ids(r.documentos), versoes: ids(r.versoes),
+    };
+    if (!s.registros.length && !s.documentos.length && !s.versoes.length)
+        throw new Error('Marque ao menos um registro ou documento para a impressão interna');
+    return s;
+}
+/**
+ * Registro que pode sair na impressão interna: tudo o que não é peça dos autos
+ * (registro interno, de controle ou do sistema). O que o rito marcou "sem
+ * evento" (`oculto`) não sai em impressão nenhuma.
+ */
+const registroInterno = (m) => { var _a; return origemEvento(m) !== 'usuario' && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.oculto) !== true; };
+exports.registroInterno = registroInterno;
+/** Documento que pode sair na impressão interna: minuta que a pessoa vê ou documento guardado fora dos autos. */
+const documentoInterno = (d, minutaVisivel) => d.status === 'controle' || (d.status === 'minuta' && minutaVisivel);
+exports.documentoInterno = documentoInterno;
 /**
  * Eventos que entram no PDF. No intervalo de folhas, só os que têm folha
  * dentro dele; `recorte` devolve as folhas a manter de cada evento.

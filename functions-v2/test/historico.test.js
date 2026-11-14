@@ -15,7 +15,7 @@ test('histórico: todas as ações de configuração emitidas pelo código têm 
     });
     andar(dir);
     const emitidas = new Set(arquivos.flatMap((f) => fs.readFileSync(f, 'utf8').match(/'SECRETARIA_[A-Z_]+'/g) || []).map((x) => x.slice(1, -1)));
-    const fora = new Set(['SECRETARIA_PROCESSO_EXCLUIDO', 'SECRETARIA_PROCESSO_RESTAURADO', 'SECRETARIA_PDF_EXPORTADO']);
+    const fora = new Set(['SECRETARIA_PROCESSO_EXCLUIDO', 'SECRETARIA_PROCESSO_RESTAURADO', 'SECRETARIA_PDF_EXPORTADO', 'SECRETARIA_PDF_INTERNO_EXPORTADO']);
     for (const a of emitidas) {
         if (fora.has(a)) assert.equal(s.HISTORICO_CONFIG[a], undefined, a);
         else assert.ok(s.HISTORICO_CONFIG[a], `sem assunto: ${a}`);

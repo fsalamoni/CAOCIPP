@@ -6,7 +6,12 @@ import { verificarCadeia } from '../shared/secretaria';
 import { CampoValor } from '../shared/camposProcesso';
 import { InformacaoAndamento, informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
 import { secoesDaFolha, situacaoDaCapa } from '../shared/folhaDados';
-import { Selecao, documentoDoEvento, folhasDoEvento, origemEvento, sanitizeSelecao, selecionar, tituloEvento } from '../shared/autos';
+import {
+    Selecao, documentoDoEvento, documentoInterno, folhasDoEvento, origemEvento, registroInterno, sanitizeSelecao, sanitizeSelecaoInterna, selecionar, tituloEvento,
+} from '../shared/autos';
+import { minutaAcessivel } from '../shared/secretaria';
+import { conteudoDoDocumento } from './autos';
+import { renderizarDocumento } from './pdfDocumento';
 import { REGION, carregarContexto, exigirAuth, lerProcesso, nomeUnidade } from './context';
 import { auditar } from './config';
 import { anexarCarimbado, folhaSimples, garantirCodigo, lerConfigDocumento, pdfDoDocumento, textoFolhas } from './autos';
@@ -21,7 +26,8 @@ import { anexarCarimbado, folhaSimples, garantirCodigo, lerConfigDocumento, pdfD
  * hash) ou, sem documento, um termo de uma folha. Os registros do sistema
  * saem reunidos num extrato ao fim. `selecao` gera o PDF integral ou parcial
  * (apenas os eventos marcados, todos exceto eles, ou um intervalo de folhas).
- * Minutas nunca entram: só o que está nos autos.
+ * Minutas nunca entram: só o que está nos autos. O que fica fora dos autos
+ * tem a sua impressão, a interna (`montarPdfInterno`, pedido com `interno`).
  */
 
 // ponytail: o PDF volta inteiro na resposta (limite ~32 MB do Cloud Run).
@@ -279,12 +285,136 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
     return pdf.save();
 }
 
-export const secretariaExportarPdf = onCall<{ organizationId: string; processoId: string; selecao?: unknown }>(
+/** Uma redação anterior de um documento (documentos/{doc}/versoes). */
+type Versao = { autor_nome?: string; substituida_em?: string; sha256?: string; conteudo?: unknown };
+
+export interface OpcoesInterno {
+    db: admin.firestore.Firestore;
+    orgId: string;
+    orgNome: string;
+    proc: admin.firestore.DocumentData;
+    registros: admin.firestore.DocumentData[];
+    documentos: admin.firestore.DocumentData[];
+    /** Documentos com as redações anteriores a imprimir. */
+    versoes: Array<{ doc: admin.firestore.DocumentData; versoes: Versao[] }>;
+    geradoPor: string;
+    nomeUnidade: (id: string) => string;
+}
+
+const rotuloInterno = (d: admin.firestore.DocumentData) => (d.status === 'controle' ? 'Documento guardado fora dos autos' : d.status === 'juntado' ? 'Documento dos autos' : 'Minuta');
+
+/**
+ * PDF de uso interno da equipe: registros que não são peça dos autos,
+ * minutas, documentos guardados fora dos autos e redações anteriores, só o
+ * que foi marcado. Não tem folhas nem carimbo dos autos, e toda página diz
+ * que é de uso interno. Nunca é servido às partes.
+ */
+export async function montarPdfInterno(o: OpcoesInterno): Promise<Uint8Array> {
+    const pdf = await PDFDocument.create();
+    pdf.setTitle(`Processo ${o.proc.numero} (uso interno)`);
+    pdf.setCreator('SIGO — Processo Eletrônico');
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const rodape = `USO INTERNO · Processo ${o.proc.numero} · gerado em ${geradoEm} por ${o.geradoPor} · não integra os autos`;
+    const ALERTA: [number, number, number] = [0.7, 0.35, 0];
+
+    const w = new Escritor(pdf, font, bold, rodape);
+    w.y -= 120;
+    w.texto(String(o.orgNome || 'Órgão'), { size: 14, bold: true });
+    w.texto('Processo Eletrônico', { size: 10, cor: CINZA, espaco: 30 });
+    w.texto(`Processo nº ${o.proc.numero}`, { size: 22, bold: true, espaco: 14 });
+    w.texto('IMPRESSÃO INTERNA', { size: 14, bold: true, cor: ALERTA, espaco: 6 });
+    w.texto('Uso interno da equipe. Este PDF não integra os autos, não tem numeração de folhas e não deve ser entregue às partes. Traz só o que foi marcado: registros internos, minutas, documentos guardados fora dos autos e redações anteriores.', { size: 10, espaco: 18 });
+    w.texto('Conteúdo', { size: 11, bold: true, espaco: 4 });
+    if (o.registros.length) w.texto(`Registros internos: ${o.registros.length}`, { size: 10, espaco: 2 });
+    for (const d of o.documentos) w.texto(`${rotuloInterno(d)}: ${d.titulo} (${d.tipo})`, { size: 10, espaco: 2 });
+    for (const x of o.versoes) w.texto(`Redações anteriores de ${x.doc.titulo}: ${x.versoes.length}`, { size: 10, espaco: 2 });
+
+    if (o.registros.length) {
+        const r = new Escritor(pdf, font, bold, rodape);
+        r.texto('Registros internos', { size: 14, bold: true, espaco: 4 });
+        r.texto('Registros do andamento que não são peça dos autos, em ordem cronológica.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
+        for (const m of o.registros) {
+            const un = o.nomeUnidade(String(m.unidade_id || ''));
+            r.texto(`Evento ${m.seq} · ${tituloEvento(m as never)}`, { bold: true, size: 10, espaco: 0 });
+            r.texto(`${quandoBR(m.em)} · ${m.autor_nome}${un ? ` (${un})` : ''}`, { size: 8, cor: CINZA, espaco: 2 });
+            r.texto(String(m.descricao), { size: 10, espaco: 10 });
+        }
+    }
+
+    const cfgs = new Map<string, ReturnType<typeof lerConfigDocumento>>();
+    const cfgDe = (u: string) => { if (!cfgs.has(u)) cfgs.set(u, lerConfigDocumento(o.db, o.orgId, u)); return cfgs.get(u)!; };
+    let bytesAnexos = 0;
+    /** Copia as páginas e marca cada uma no alto: o que é, e que é de uso interno. */
+    const anexar = async (bytes: Uint8Array, faixa: string) => {
+        const origem = await PDFDocument.load(bytes, { ignoreEncryption: true });
+        for (const pg of await pdf.copyPages(origem, origem.getPageIndices())) {
+            pdf.addPage(pg);
+            pg.drawText(seguro(faixa).slice(0, 130), { x: 24, y: pg.getHeight() - 16, size: 7, font, color: rgb(...ALERTA) });
+        }
+    };
+    for (const d of o.documentos) {
+        const faixa = `USO INTERNO · ${rotuloInterno(d)}: ${d.titulo} · não integra os autos`;
+        if (d.origem === 'upload' && bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
+            await anexar(await folhaSimples(String(d.titulo), ['Arquivo não incorporado: o PDF passou do limite de tamanho.', 'Baixe o documento avulso no Processo Eletrônico.', `SHA-256 ${d.sha256}`]), faixa);
+            continue;
+        }
+        const cfg = await cfgDe(String(d.unidade_origem || ''));
+        const bytes = d.origem === 'editor'
+            ? (await renderizarDocumento(conteudoDoDocumento(d), cfg, { assinaturas: d.assinaturas || [], sha256: d.sha256, marcaDagua: d.status === 'controle' ? 'FORA DOS AUTOS' : 'MINUTA' })).buffer
+            : await pdfDoDocumento(d, cfg);
+        bytesAnexos += d.origem === 'upload' ? (d.tamanho || 0) : bytes.length;
+        await anexar(bytes, faixa);
+    }
+    for (const x of o.versoes) {
+        const cfg = await cfgDe(String(x.doc.unidade_origem || ''));
+        for (const [i, v] of x.versoes.entries()) {
+            const r = await renderizarDocumento(v.conteudo as never, cfg, { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
+            await anexar(r.buffer, `USO INTERNO · ${i === 0 ? 'Redação original' : `${i + 1}ª redação`} de ${x.doc.titulo}, por ${v.autor_nome || 'autor não identificado'} · revista em ${quandoBR(v.substituida_em)}`);
+        }
+    }
+    return pdf.save();
+}
+
+export const secretariaExportarPdf = onCall<{ organizationId: string; processoId: string; selecao?: unknown; interno?: unknown }>(
     { region: REGION, memory: '1GiB', timeoutSeconds: 120 },
     async (request) => {
         const auth = exigirAuth(request);
         const c = await carregarContexto(auth, request.data?.organizationId);
         const { ref, data: proc } = await lerProcesso(c, request.data?.processoId);
+        // Impressão interna: só o que a pessoa marcou e pode ver. As partes não chegam aqui (o portal tem a sua função).
+        if (request.data?.interno) {
+            let si;
+            try { si = sanitizeSelecaoInterna(request.data.interno); } catch (e) { throw new HttpsError('invalid-argument', e instanceof Error ? e.message : 'Seleção inválida'); }
+            const lerDocs = async (ids: string[]) => (await Promise.all(ids.map((id) => ref.collection('documentos').doc(id).get())))
+                .filter((s) => s.exists).map((s) => ({ id: s.id, ...s.data() } as admin.firestore.DocumentData));
+            const minha = (d: admin.firestore.DocumentData) => minutaAcessivel(d, c.ctx.unidadeIds);
+            const marcados = new Set(si.registros);
+            const [movSnap, docsLidos, docsVersoes] = await Promise.all([
+                si.registros.length ? ref.collection('movimentos').orderBy('seq').get() : null,
+                lerDocs(si.documentos), lerDocs(si.versoes),
+            ]);
+            const registros = (movSnap?.docs || []).map((d) => d.data()).filter((m) => marcados.has(m.seq) && registroInterno(m as never));
+            const documentos = docsLidos.filter((d) => documentoInterno(d, minha(d)))
+                .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
+            // Redações anteriores: a mesma regra de quem vê o documento.
+            const versoes = (await Promise.all(docsVersoes
+                .filter((d) => d.status === 'juntado' || d.status === 'controle' || minha(d))
+                .map(async (d) => ({
+                    doc: d,
+                    versoes: (await ref.collection('documentos').doc(String(d.id)).collection('versoes').get()).docs.map((v) => v.data() as Versao)
+                        .sort((a, b) => String(a.substituida_em).localeCompare(String(b.substituida_em))),
+                })))).filter((x) => x.versoes.length);
+            if (!registros.length && !documentos.length && !versoes.length) throw new HttpsError('failed-precondition', 'Nada do que foi marcado pode sair na impressão interna');
+            const bytes = await montarPdfInterno({
+                db: c.db, orgId: c.orgId, orgNome: String(c.org.name || ''), proc, registros, documentos, versoes, geradoPor: c.userName, nomeUnidade: (id) => nomeUnidade(c, id),
+            });
+            await auditar(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_INTERNO_EXPORTADO', {
+                processo_id: ref.id, numero: proc.numero, registros: registros.length, documentos: documentos.length, versoes: versoes.reduce((n, x) => n + x.versoes.length, 0),
+            });
+            return { base64: Buffer.from(bytes).toString('base64'), nome: `interno-processo-${numeroArquivo(proc.numero)}.pdf` };
+        }
         const selecao = selecaoOuErro(request.data?.selecao);
         const [movSnap, docSnap] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),

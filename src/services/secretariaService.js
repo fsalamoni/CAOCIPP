@@ -33,6 +33,10 @@ export const secDocumento = (organizationId, processoId, action, extra = {}) =>
 export const secExportarPdf = (organizationId, processoId, selecao) =>
     call('secretariaExportarPdf', { organizationId, processoId, ...(selecao ? { selecao } : {}) }, { timeout: 180000 });
 
+/** Impressão interna (uso da equipe, fora dos autos). `interno`: `{ registros: [seq], documentos: [id], versoes: [id] }`. */
+export const secExportarInterno = (organizationId, processoId, interno) =>
+    call('secretariaExportarPdf', { organizationId, processoId, interno }, { timeout: 180000 });
+
 /** Portal das partes: sem organizationId; o servidor confere a habilitação. */
 export const secPortal = (action, extra = {}) =>
     call('secretariaPortal', { action, ...extra }, { timeout: 120000 });

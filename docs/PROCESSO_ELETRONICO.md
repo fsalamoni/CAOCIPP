@@ -1051,6 +1051,42 @@ escreve a minuta, o gabinete corrige, assina e escolhe os anexos).
 - Testes: `functions-v2/test/revisaoMinuta.test.js` e
   `src/lib/juntadaConjunta.test.js`. Guia do rito, parte 10.
 
+### Impressão interna (14/11/2026)
+
+PDF de uso da equipe com o que fica **fora dos autos**. Serve às fases de
+trabalho interno (análise, diligências externas), que o rito deixa como
+informação: nada delas entra nos autos, mas a equipe pode imprimir, por
+seleção.
+
+- **Onde.** Tela do processo: menu de três pontos e aba Autos, botão
+  **Impressão interna**. O diálogo lista o que pode ser marcado.
+- **O que pode sair** (`functions-v2/src/shared/autos.ts`):
+  - registros que não são peça dos autos (`registroInterno`): internos, de
+    controle e do sistema, inclusive os que o rito deixou "só no sistema"
+    (`fora_impressao`), que não saem no PDF dos autos;
+  - minutas que a pessoa vê e documentos guardados fora dos autos
+    (`documentoInterno`);
+  - redações anteriores de qualquer documento que a pessoa vê (inclusive de
+    peça já juntada).
+- **O que nunca sai.** Registro que o rito marcou "sem evento" (`oculto`).
+  Dado reservado a quem gere a unidade segue sem o valor (o texto do
+  registro nunca o traz). Peça dos autos não entra: tem o PDF dos autos.
+- **Como sai** (`montarPdfInterno`, em `exportar.ts`). Capa "IMPRESSÃO
+  INTERNA" com o conteúdo, a lista dos registros e os documentos em
+  sequência. Não há folhas nem carimbo dos autos; toda página leva "USO
+  INTERNO" (rodapé nas páginas de texto, faixa no alto das páginas dos
+  documentos) e as minutas e versões levam marca d'água.
+- **Servidor.** A mesma função do PDF dos autos (`secretariaExportarPdf`),
+  com `interno: { registros: [seq], documentos: [id], versoes: [id] }`. O
+  servidor confere de novo, item a item, o que quem pede pode ver, e grava
+  a auditoria `SECRETARIA_PDF_INTERNO_EXPORTADO`. O portal das partes tem a
+  sua própria função e não chega a esta.
+- **Limites.** Até 60 documentos por impressão; arquivos enviados somam
+  até 18 MB (acima disso, entra uma folha de referência). A ordem é fixa:
+  registros, documentos (pela data de criação) e redações anteriores.
+- Testes: `functions-v2/test/impressaoInterna.test.js` e
+  `src/lib/impressaoInterna.test.js`. Guia do rito, parte 11.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
