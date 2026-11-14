@@ -868,7 +868,9 @@ passa a decidir o resto da fase:
   escolha de formulário em `[idx.campo]`, ver "Ações com mais opções"), são
   apagadas ao desfazer a ação e ao reentrar na fase. Regras em
   `acoes_regras[i].se = { acao, valores }`, `acoes_regras[i].quem` e
-  `fases[].condicoes_regra[faseDestino] = { acao, valores }`.
+  `fases[].condicoes_regra[faseDestino] = { acao, valores }`. Desde
+  14/11/2026 a condição também aceita `fase`, `dado` e `e` (ver "Condições
+  amplas e saída padrão").
 - **Editor**: mover, inserir ou remover ações leva as condições junto; a que
   dependia de ação removida sai. Pendências graves: condição sem resposta
   marcada, que depende de ação que não é mais de escolha ou que não vem antes.
@@ -878,6 +880,61 @@ passa a decidir o resto da fase:
   indicada; "Ir para …" anda a simulação para a fase seguinte. O fluxograma
   e a lista do fluxo mostram "quando …" nas setas com regra. A parte nunca vê
   condições.
+
+### Condições amplas e saída padrão (14/11/2026)
+
+A condição de uma ação ("Quando vale") e a de uma saída ("Regra desta saída")
+deixaram de ler só a rodada da própria fase. Sem os campos novos, a condição
+é a de sempre: nenhum rito gravado muda.
+
+- **Resposta de outra fase** (`fase`): `{ fase: 'adm', acao: 0, valores }` lê
+  a resposta da ação 0 da fase `adm`, como ficou quando o processo passou por
+  lá (a rodada de uma fase só recomeça quando o processo volta a ela). Se o
+  processo ainda não passou pela fase, a condição não vale. Na ação
+  condicional, a regra "só ação anterior" vale para as partes que leem a
+  própria fase; a que lê outra fase pode apontar para qualquer ação dela.
+- **Dado do processo** (`dado`, com `acao: -1`): `urgente` (`sim`/`nao`),
+  `sigilo` (`normal`/`restrito`), `partes` (`sim` quando há parte não
+  retirada), `origem` (as de `ORIGENS`), `tipo` (id do tipo de processo) e
+  `campo:<id>` (campo de lista ou sim/não do formulário do tipo). Nos dois
+  últimos, o valor vem do cadastro: a condição guarda também `rotulo` (nome
+  do campo) e `nomes` (nome de cada valor), para as mensagens do processo.
+- **Várias ao mesmo tempo** (`e`): até 3 condições a mais
+  (`MAX_CONDICOES_E`), sem aninhar. Todas precisam valer. "Ou" continua
+  sendo marcar mais de uma resposta na mesma condição.
+- **Saída padrão** (`fases[].saida_padrao`): o "senão" do desvio. Vale em
+  fase com mais de um caminho (as saídas que não são fase de espera) e só
+  para saída sem regra própria. No processo, quando nenhuma regra indica
+  outra saída, ela é a indicada (botão principal, diálogo de fase e lista de
+  saídas dizem "saída padrão do rito"). Com **Seguir sozinha**,
+  `saidaAutomatica` vai por ela nesse caso; sem saída padrão, a fase com
+  várias saídas e nenhuma indicada continua esperando o botão. Seguir por
+  outra saída sem regra continua livre.
+- **Onde se lê**: `respostasDaFase(proc)` (`shared/exigencias.ts`) monta uma
+  só tabela para tudo o que uma condição lê: a rodada da fase atual (`'2'`,
+  `'2.sistema'`), as respostas das outras fases (`'adm/0'`) e os dados do
+  processo (`'@urgente'`, `'@tipo'`, `'@campo:gravidade'`). O que se grava em
+  `acoes_respostas` não muda. O espelho da tela é `respostasDoProcesso(p)`
+  (`src/lib/exigencias.js`).
+- **Validação ao salvar o rito** (`sanitizeCondicaoAmpla`): as condições
+  amplas são saneadas numa segunda passada, com todas as fases prontas. A
+  parte cuja fase ou ação saiu do rito sai com ela; dado que não existe,
+  ação que não é de escolha e condição sem resposta marcada são recusados
+  com mensagem. A referência à própria fase em `fase` vira condição comum.
+- **Editor**: a lista de onde a condição lê traz as respostas desta fase, as
+  de cada outra fase ("na fase …") e os dados do processo; "Tipo de
+  processo" só aparece quando mais de um tipo usa o rito, e os campos do
+  tipo, depois que algum tipo usa o rito. "E também" soma condições. Em
+  Encaminhamentos, "Se nenhuma regra indicar outra saída" escolhe a saída
+  padrão. Mover ou remover ações leva junto as condições das **outras**
+  fases que leem as respostas dela (`remapearDeOutraFase`); copiar fases
+  leva as condições entre as copiadas e tira a que lê fase que ficou de
+  fora. Pendências graves novas: condição que lê fase, ação de outra fase ou
+  dado que não existe mais.
+- **Prévia**: as respostas dadas numa fase seguem valendo ao andar para a
+  seguinte, e os dados do processo que o rito lê aparecem para trocar.
+- **Sigilo**: a condição lê só escolhas (nunca dado reservado a quem gere a
+  unidade) e o texto dela só aparece à equipe. A parte nunca vê condições.
 
 ### Ação que pede um formulário (13/11/2026)
 
@@ -957,7 +1014,8 @@ opcionais; rito sem elas funciona como antes.
   exigido ficou em aberto (`exigenciasAbertas`) e se o rito indica uma única
   saída (`saidaAutomatica`, em `shared/secretaria.ts`): uma só fase seguinte,
   ou várias com exatamente uma indicada pela resposta de uma ação
-  (`condicoes_regra`). Se sim, faz o mesmo ato do botão, com as mesmas
+  (`condicoes_regra`) ou, sem nenhuma indicada, a saída padrão do rito
+  (`saida_padrao`, 14/11/2026). Se sim, faz o mesmo ato do botão, com as mesmas
   permissões de quem marcou: `tramitar` com `fase_id` quando a fase seguinte
   corre em outra unidade ativa, `avancarFase` quando corre na mesma. O
   movimento leva `dados.automatico: true` e o texto termina com "Avanço

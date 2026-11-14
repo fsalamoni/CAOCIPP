@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Desvios que leem outra fase e dados do processo; saída padrão
+- A condição de uma ação (**Quando vale**) e a de uma saída (**Regra desta
+  saída**) agora também leem a resposta dada em **outra fase** e **dados do
+  processo**: urgente, sigilo, se tem partes, origem, tipo de processo e os
+  campos de lista ou sim/não do formulário do tipo.
+- **E também** soma até três condições à primeira; todas precisam valer.
+- **Saída padrão**: em Encaminhamentos, "Se nenhuma regra indicar outra
+  saída" diz por onde seguir nesse caso. No processo ela aparece como a
+  indicada, e a fase que segue sozinha vai por ela.
+- A prévia do rito simula as respostas de fases anteriores e os dados do
+  processo. Mover ações leva junto as condições das outras fases que leem
+  as respostas delas.
+- Ritos já gravados não mudam: sem as opções novas, tudo vale como antes.
+
 ### 14/11/2026 — Cada unidade diz se decide e se expede comunicação
 - Em **Dados** da unidade, sob "Papel no processo", duas caixas novas:
   **Decide** (recebe a conclusão, aprecia pendências e petições, tem a Mesa

@@ -10,10 +10,11 @@
 // ============================================================================
 
 import { niveisDoFluxo, seguintes } from './secretariaRito.js';
-import { chaveDaCondicao, nivelDaAcao, resumoDaAcao, soOrienta, textoCondicao } from './exigencias.js';
+import { chaveDaCondicao, nivelDaAcao, partesDaCondicao, resumoDaAcao, soOrienta, textoCondicao } from './exigencias.js';
 
 /** Rótulo da seta: a condição escrita e, se houver, a regra pela resposta. */
-const rotuloSaida = (f, alvo) => (f.espera && !f.final ? 'volta' : null) || [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo])}` : '']
+const rotuloSaida = (f, alvo, fases) => (f.espera && !f.final ? 'volta' : null) || [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo], fases)}` : '',
+    f.saida_padrao === alvo && !f.condicoes_regra?.[alvo] ? 'senão' : '']
     .filter(Boolean).join('; ');
 
 export const TW = 128; // fase (sem as ações)
@@ -82,14 +83,14 @@ export function caminho(pts, r = 6) {
  * O que a fase tem dentro, na ordem do rito: as ações e, antes de cada grupo
  * de ações com o mesmo "só se", o desvio que decide se elas valem.
  */
-export function itensDaFase(f) {
+export function itensDaFase(f, fases) {
     const itens = [];
     let aberto = null;
     (f?.acoes || []).forEach((nome, i) => {
         if (!String(nome || '').trim()) return;
         const r = f.acoes_regras?.[i];
-        const chave = r?.se ? `${chaveDaCondicao(r.se)}:${(r.se.valores || []).join('|')}` : null;
-        if (chave && chave !== aberto) itens.push({ tipo: 'desvio', chave, texto: `Se ${textoCondicao(f, r.se)}` });
+        const chave = r?.se ? partesDaCondicao(r.se).map((x) => `${chaveDaCondicao(x)}:${(x.valores || []).join('|')}`).join('&') : null;
+        if (chave && chave !== aberto) itens.push({ tipo: 'desvio', chave, texto: `Se ${textoCondicao(f, r.se, fases)}` });
         aberto = chave;
         // `ou`: alternativa a uma ação anterior. `orienta`: lembrete, não se marca.
         itens.push({ tipo: 'acao', indice: i, nome: String(nome).trim(), chave, nivel: nivelDaAcao(r), resumo: resumoDaAcao(r),
@@ -151,7 +152,7 @@ function dentroDaFase(itens, x, y0, w) {
  */
 export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opcoes = {}) {
     if (!fases?.length) return { largura: 0, altura: 0, faixas: 0, raias: [], inicio: null, tarefas: [], desvios: [], fins: [], setas: [], comAcoes: false };
-    const itens = fases.map((f) => (opcoes.acoes ? itensDaFase(f) : []));
+    const itens = fases.map((f) => (opcoes.acoes ? itensDaFase(f, fases) : []));
     const comAcoes = itens.some((l) => l.length > 0);
     const W = comAcoes ? TWA : TW;
     const alt = itens.map((l) => TH + dentroDaFase(l, 0, 0, W).altura);
@@ -199,7 +200,7 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
         const c = nivel.get(f.id);
         if (saidas[i].length !== 1) extra[c] = true;
         for (const alvo of saidas[i]) {
-            const rot = rotuloSaida(f, alvo);
+            const rot = rotuloSaida(f, alvo, fases);
             if (!rot) continue;
             const ct = nivel.get(alvo);
             const precisa = VAO + Math.min(rot.length, MAX_ROTULO) * 5.4;
@@ -276,7 +277,7 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
             const pts = b.col === t.col + 1 && !primeira(b.col)
                 ? [[sx, t.cy], [gx1, t.cy], [gx1, ey], [b.x - 1, ey]]
                 : [[sx, t.cy], [gx1, t.cy], [gx1, t.pe + 8 + p * 6], [gx2, t.pe + 8 + p * 6], [gx2, ey], [b.x - 1, ey]];
-            const rot = rotuloSaida(fases[i], alvo);
+            const rot = rotuloSaida(fases[i], alvo, fases);
             setas.push({
                 de: t.id, para: alvo, d: caminho(pts), tipo: volta ? 'volta' : 'fluxo',
                 // A condição fica acima da seta; na última de várias entradas, abaixo, para não cair sobre a seta vizinha.

@@ -210,8 +210,8 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
             <ol className="sr-only">
                 {fases.map((f, i) => {
                     const s = seguintes(fases, i);
-                    const dentro = acoes ? itensDaFase(f).map((it) => (it.tipo === 'desvio' ? `${it.texto}:` : `${it.ou ? 'ou ' : ''}${it.nome}${it.orienta ? ' (orientação)' : ''}`)).join('; ') : '';
-                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}{dentro ? `. Ações: ${dentro}` : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] || f.condicoes_regra?.[id] ? ` (${[f.condicoes?.[id], f.condicoes_regra?.[id] ? `quando ${textoCondicao(f, f.condicoes_regra[id])}` : null].filter(Boolean).join('; ')})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
+                    const dentro = acoes ? itensDaFase(f, fases).map((it) => (it.tipo === 'desvio' ? `${it.texto}:` : `${it.ou ? 'ou ' : ''}${it.nome}${it.orienta ? ' (orientação)' : ''}`)).join('; ') : '';
+                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}{dentro ? `. Ações: ${dentro}` : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] || f.condicoes_regra?.[id] || f.saida_padrao === id ? ` (${[f.condicoes?.[id], f.condicoes_regra?.[id] ? `quando ${textoCondicao(f, f.condicoes_regra[id], fases)}` : f.saida_padrao === id ? 'senão' : null].filter(Boolean).join('; ')})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
                 })}
             </ol>
         </div>

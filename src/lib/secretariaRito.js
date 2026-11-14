@@ -114,6 +114,12 @@ export function copiarFases(fases, validos = new Set(), origem = null) {
     const mapa = new Map(fases.map((f) => [f.id, novoIdFase()]));
     const novo = (id) => mapa.get(id) || (validos.has(id) ? id : null);
     const ids = origem ? new Set(origem.map((f) => f.id)) : null;
+    // A parte da condição que lê a resposta de outra fase acompanha a cópia dela, ou sai com a fase que ficou de fora.
+    const condicao = (cond) => {
+        const { e, ...primeira } = cond;
+        const partes = [primeira, ...(e || [])].map((x) => (!x.fase ? x : novo(x.fase) ? { ...x, fase: novo(x.fase) } : null)).filter(Boolean);
+        return partes.length ? { ...partes[0], ...(partes.length > 1 ? { e: partes.slice(1) } : {}) } : null;
+    };
     return fases.map((f) => {
         const c = JSON.parse(JSON.stringify(f));
         c.id = mapa.get(f.id);
@@ -126,8 +132,21 @@ export function copiarFases(fases, validos = new Set(), origem = null) {
         if (!c.final && antes.length && !c.proximas.length) { c.final = true; c.sem_saida = true; }
         if (c.condicoes) c.condicoes = Object.fromEntries(Object.entries(c.condicoes).map(([k, v]) => [novo(k), v]).filter(([k]) => k));
         if (c.condicoes_regra) {
-            c.condicoes_regra = Object.fromEntries(Object.entries(c.condicoes_regra).map(([k, v]) => [novo(k), v]).filter(([k]) => k && c.proximas?.includes(k)));
+            c.condicoes_regra = Object.fromEntries(Object.entries(c.condicoes_regra).map(([k, v]) => [novo(k), condicao(v)]).filter(([k, v]) => k && v && c.proximas?.includes(k)));
             if (!Object.keys(c.condicoes_regra).length) delete c.condicoes_regra;
+        }
+        if (c.saida_padrao) {
+            c.saida_padrao = novo(c.saida_padrao);
+            if (!c.saida_padrao || !c.proximas?.includes(c.saida_padrao)) delete c.saida_padrao;
+        }
+        if (Array.isArray(c.acoes_regras)) {
+            c.acoes_regras = c.acoes_regras.map((r) => {
+                if (!r?.se) return r;
+                const { se: _s, ...resto } = r;
+                const se = condicao(r.se);
+                const n = se ? { ...resto, se } : resto;
+                return Object.keys(n).length ? n : null;
+            });
         }
         if (c.certidao?.grupo) {
             const { grupo, ...resto } = c.certidao;

@@ -11,7 +11,7 @@ import { resumoPermissoes } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
-import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao, acaoAtiva, camposDeEscolha, opcoesDaResposta, saidasComCondicao, soOrienta, textoCondicao } from '@/lib/exigencias';
+import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao, acaoAtiva, camposDeEscolha, chaveDaCondicao, opcoesDaParte, opcoesDaResposta, partesDaCondicao, saidasComCondicao, soOrienta, textoCondicao } from '@/lib/exigencias';
 
 /** Rascunho do editor de rito (unidade_ref, modelos_ref) no formato do rito gravado. */
 const doRascunho = (r) => ({
@@ -56,11 +56,30 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     const [sim, setSim] = useState({});
     // De que fase a simulação entrou na fase de espera: é para ela que a espera volta.
     const [veioDe, setVeioDe] = useState('');
-    const setFaseId = (v) => { setFaseIdBruto(v); setSim({}); };
+    // O que a simulação já sabe fora da rodada: as respostas dadas nas fases por onde passou ('fase/2') e os dados do processo de exemplo ('@urgente').
+    const [fora, setFora] = useState({});
     const rito = ritos.find((r) => r.id === ritoId) || ritos[0];
     const fases = rito?.fases || [];
     const i = Math.max(0, fases.findIndex((f) => f.id === faseId));
     const fase = fases[i];
+    const setFaseId = (v) => {
+        // As respostas da fase que fica para trás seguem valendo para as condições das outras (como no processo); a rodada da fase em que se entra recomeça.
+        if (fase) {
+            setFora((x) => ({
+                ...Object.fromEntries(Object.entries(x).filter(([k]) => !k.startsWith(`${fase.id}/`) && !k.startsWith(`${v}/`))),
+                ...Object.fromEntries(Object.entries(sim).map(([k, val]) => [`${fase.id}/${k}`, val])),
+            }));
+        }
+        setFaseIdBruto(v); setSim({});
+    };
+    const tiposDoRito = (estado.tipos || []).filter((t) => t.rito_id === rito?.id);
+    // Dados do processo que alguma condição do rito lê: a simulação deixa escolher o valor de cada um.
+    const dadosLidos = [...new Map(fases.flatMap((f) => [...(f.acoes_regras || []).map((r) => r?.se), ...Object.values(f.condicoes_regra || {})])
+        .flatMap((c) => partesDaCondicao(c)).filter((x) => x.dado)
+        .map((x) => [x.dado, { chave: chaveDaCondicao(x), rotulo: x.rotulo || { urgente: 'Urgente', sigilo: 'Sigilo', partes: 'Tem partes', origem: 'Origem', tipo: 'Tipo de processo' }[x.dado] || 'Dado do processo',
+            ops: opcoesDaParte(null, x, { tipos: tiposDoRito })?.length ? opcoesDaParte(null, x, { tipos: tiposDoRito }) : x.valores.map((v, k) => [v, x.nomes?.[k] || v]) }])).values()];
+    // O processo de exemplo nasce sem urgência, sem sigilo e sem partes, do primeiro tipo que usa o rito.
+    const resp = { '@urgente': 'nao', '@sigilo': 'normal', '@partes': 'nao', ...(tiposDoRito[0] ? { '@tipo': tiposDoRito[0].id } : {}), ...fora, ...sim };
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || rascunho?.unidades?.find((u) => u.ref === id)?.nome || '';
     const nomeModelo = (id) => (estado.modelos || []).find((m) => m.id === id)?.nome || rascunho?.modelos?.find((m) => m.ref === id)?.nome || 'modelo excluído';
     const todas = fase ? seguintes(fases, i).map((id) => fases.find((f) => f.id === id)).filter(Boolean) : [];
@@ -68,8 +87,8 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     // Fases de espera a que esta leva: desvio eventual, fora do caminho do rito.
     const esperas = deEspera ? [] : todas.filter((f) => ehEspera(fases, fases.indexOf(f)));
     const prox = deEspera ? (todas.some((f) => f.id === veioDe) ? todas.filter((f) => f.id === veioDe) : todas) : todas.filter((f) => !esperas.includes(f));
-    const saidas = fase && prox.length ? saidasComCondicao(fases, fase, sim).filter((s) => prox.some((p) => p.id === s.fase.id)) : [];
-    const indicadas = saidas.filter((s) => s.indicada);
+    const saidas = fase && prox.length ? saidasComCondicao(fases, fase, resp).filter((s) => prox.some((p) => p.id === s.fase.id)) : [];
+    const indicadas = saidas.filter((s) => s.indicada || s.padrao);
     let principal = null;
     if (fase) {
         if (deEspera) principal = { rotulo: prox.length === 1 ? `Encerrar a espera e voltar para ${prox[0].nome}` : 'Encerrar a espera e voltar para a fase de onde veio', icone: CheckCircle2 };
@@ -79,11 +98,11 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
             // Saída única com regra pela resposta: sem a resposta, o processo pede motivo para seguir.
             const motivo = saidas[0]?.contra ? ' (sem a resposta indicada: pede motivo)' : '';
             principal = outra ? { rotulo: `Concluir e enviar para ${nomeUnidade(prox[0].unidade_id)}${motivo}`, icone: Send } : { rotulo: `Concluir e seguir para ${prox[0].nome}${motivo}`, icone: CheckCircle2 };
-        } else if (indicadas.length === 1) principal = { rotulo: `Concluir e seguir para ${indicadas[0].fase.nome} (indicada pela resposta)`, icone: CheckCircle2 };
+        } else if (indicadas.length === 1) principal = { rotulo: `Concluir e seguir para ${indicadas[0].fase.nome} (${indicadas[0].padrao ? 'saída padrão do rito' : 'indicada pela resposta'})`, icone: CheckCircle2 };
         else principal = { rotulo: 'Seguir para a próxima fase…', icone: CheckCircle2 };
     }
     const faltam = fase ? etapasAteOFim(fases, fase.id) : null;
-    const tipo = (estado.tipos || []).find((t) => t.rito_id === rito?.id);
+    const tipo = tiposDoRito[0];
     const niveis = niveisDaFase(fase);
     // De onde o processo chega a esta fase: as fases que seguem para ela (a primeira também recebe a autuação).
     const primeira = fase?.id === fases[0]?.id;
@@ -115,7 +134,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid sm:grid-cols-2 gap-3">
-                        {!rascunho && <NativeSelect id="pv-rito" label="Rito" value={rito?.id || ''} onChange={(v) => { setRitoId(v); setFaseId(''); }} options={ritos.map((r) => [r.id, r.nome])} />}
+                        {!rascunho && <NativeSelect id="pv-rito" label="Rito" value={rito?.id || ''} onChange={(v) => { setRitoId(v); setFaseIdBruto(''); setSim({}); setFora({}); }} options={ritos.map((r) => [r.id, r.nome])} />}
                         <NativeSelect id="pv-fase" label="Fase" value={fase?.id || ''} onChange={setFaseId} options={fases.map((f) => [f.id, f.nome])} />
                     </div>
                     {fase && (
@@ -142,9 +161,23 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                         <p className="text-xs text-slate-600 dark:text-slate-300">Reservado pelo rito: {resumoPermissoes(fase.permissoes).join('; ')}.</p>
                                     )}
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
+                                    {dadosLidos.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-dashed border-indigo-300 dark:border-indigo-800 p-2">
+                                            <span className="text-xs text-slate-700 dark:text-slate-300">Dados do processo de exemplo (as condições do rito leem):</span>
+                                            {dadosLidos.map((d) => (
+                                                <label key={d.chave} className="flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">{d.rotulo}:
+                                                    <select value={resp[d.chave] ?? ''} onChange={(e) => setFora((x) => { const n = { ...x }; if (e.target.value) n[d.chave] = e.target.value; else delete n[d.chave]; return n; })}
+                                                        className="h-11 sm:h-8 w-full sm:w-auto max-w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                                                        <option value="">(sem valor)</option>
+                                                        {d.ops.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                                    </select>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
                                     {acoes.length > 0 && (
                                         <ul className="space-y-1.5">{acoes.map(({ a, k, r }) => {
-                                            const ativa = acaoAtiva(fase, k, sim);
+                                            const ativa = acaoAtiva(fase, k, resp);
                                             const ops = opcoesDaResposta(r);
                                             // O que se simula: a resposta da ação, ou cada campo de escolha do formulário dela.
                                             const simulaveis = ops ? [{ chave: String(k), rotulo: 'Simular resposta', ops }]
@@ -153,7 +186,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                                 <li key={k} className={`flex items-start gap-2 text-sm ${ativa ? '' : 'text-slate-600 dark:text-slate-400'}`}>
                                                     {soOrienta(r) ? <Info className="w-4 h-4 mt-0.5 shrink-0 text-indigo-700 dark:text-indigo-300" aria-hidden /> : <Checkbox disabled aria-label={a} className="mt-0.5" />}
                                                     <div className="min-w-0 flex-1">
-                                                        <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· {soOrienta(r) ? '' : 'pede '}{resumoDaAcao(r)}{ativa ? '' : ` · vale só se ${textoCondicao(fase, r.se)}`}</span></span>
+                                                        <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· {soOrienta(r) ? '' : 'pede '}{resumoDaAcao(r)}{ativa ? '' : ` · vale só se ${textoCondicao(fase, r.se, fases)}`}</span></span>
                                                         {ativa && simulaveis.map((s) => (
                                                             <label key={s.chave} className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">{s.rotulo}:
                                                                 <select value={sim[s.chave] ?? ''} onChange={(e) => setSim((x) => { const n = { ...x }; if (e.target.value) n[s.chave] = e.target.value; else delete n[s.chave]; return n; })}
@@ -181,15 +214,15 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     {(prox.length > 1 || fase.condicoes_regra?.[prox[0]?.id]) && <p className="text-xs text-slate-600 dark:text-slate-300">{prox.length > 1 ? 'Alternativas' : 'Saída'}: {prox.map((f) => {
                                         const c = fase.condicoes_regra?.[f.id];
                                         const s = saidas.find((x) => x.fase.id === f.id);
-                                        const extra = [fase.condicoes?.[f.id], c ? `quando ${textoCondicao(fase, c)}` : null].filter(Boolean).join('; ');
-                                        return `${f.nome}${extra ? ` (${extra})` : ''}${s?.indicada ? ' [indicada]' : s?.contra ? ' [pede motivo]' : ''}`;
+                                        const extra = [fase.condicoes?.[f.id], c ? `quando ${textoCondicao(fase, c, fases)}` : null, !c && fase.saida_padrao === f.id ? 'senão' : null].filter(Boolean).join('; ');
+                                        return `${f.nome}${extra ? ` (${extra})` : ''}${s?.indicada ? ' [indicada]' : s?.padrao ? ' [indicada: saída padrão]' : s?.contra ? ' [pede motivo]' : ''}`;
                                     }).join(' · ')}</p>}
                                     {esperas.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-300">Pode aguardar em {esperas.map((x) => x.nome).join(' ou ')} e depois voltar para esta fase, retomada como estava.</p>}
                                     {prox.length + esperas.length > 0 && (
                                         <div className="flex flex-wrap items-center gap-2 border-t border-indigo-200/70 dark:border-indigo-900 pt-2">
                                             <span className="text-xs text-slate-600 dark:text-slate-300">Simular o andamento:</span>
                                             {prox.map((p) => (
-                                                <Button key={p.id} size="sm" variant={saidas.find((s) => s.fase.id === p.id)?.indicada ? 'default' : 'outline'} className="gap-1" onClick={() => setFaseId(p.id)}>
+                                                <Button key={p.id} size="sm" variant={saidas.some((s) => s.fase.id === p.id && (s.indicada || s.padrao)) ? 'default' : 'outline'} className="gap-1" onClick={() => setFaseId(p.id)}>
                                                     {deEspera ? 'Voltar para' : 'Ir para'} {p.nome} <ArrowRight className="w-3.5 h-3.5" aria-hidden />
                                                 </Button>
                                             ))}
