@@ -153,6 +153,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <Termo nome="Registro ligado ao processo">A fase diz em que coluna do quadro de Consultas, de Expedientes ou de Parcerias o registro fica quando o processo entra nela e quando alguém assume o processo. Vale para o registro de onde o processo nasceu, ou para o único ligado a ele. Na primeira fase, marque <strong>Valer já na autuação</strong> para o registro mudar no momento em que o processo é autuado; sem isso, ele fica como está até alguém assumir ou o processo voltar para ela.</Termo>
                                 <Termo nome="Parceria">A fase pode conduzir a parceria ligada pelas fases do quadro de Parcerias (Pendente, Em análise, Em revisão, Revisadas, Aguarda Terceiros, Parcerias), com as regras do módulo: as datas da fase se preenchem sozinhas, quem assume vira o responsável em Em análise e, se faltar um campo que a fase exige (pasta na rede, remetido para, dados da formalização), a parceria fica onde está e a equipe vê o motivo no processo. Parceria formalizada não volta pelo rito, e a extinção continua sendo feita no módulo.</Termo>
                                 <Termo nome="Página própria">Se o órgão tem páginas próprias (quadros criados por ele, como Contratos ou Atendimentos), a fase também pode conduzir o registro de uma delas: escolha a página em <strong>A fase conduz</strong> e as colunas dela aparecem como situações. As regras da página continuam valendo. Se ela exige um campo preenchido ou a aprovação de outra pessoa para mudar de coluna, o registro fica onde está, o processo segue e a equipe vê o motivo no processo.</Termo>
+                                <Termo nome="Registro criado na autuação">Quando o processo não nasce de um registro, o <strong>tipo de processo</strong> pode criá-lo: em Dados, marque <strong>Criar registro na autuação</strong> e escolha a página. É esse registro que a fase conduz, mesmo que outros da mesma página estejam ligados ao processo. Veja a parte 19.</Termo>
                                 <Termo nome="Assumir">Na tela do processo, quem é da unidade vê o botão <strong>Assumir</strong> enquanto o processo não tem responsável. Onde esse registro fica, você escolhe em Registros, na linha "Atribuir a uma pessoa".</Termo>
                             </ul>
                             <p>O que a fase faz sozinha fica num registro só da equipe, nos eventos do processo. Quando o processo não tem consulta ligada, o registro diz isso e nada muda no quadro. Urgência, sigilo, responsável, pendência, avisos e prazos que a fase ajusta ao entrar estão na parte 14.</p>
@@ -354,6 +355,35 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <li>O processo, a comunicação, a audiência e o rito guardam o nome do item. Renomear ou tirar um item da lista não muda nada do que já foi feito.</li>
                                 <li>Na condição "Origem é…", as origens do órgão aparecem junto das do sistema, e a regra vale para os processos autuados com elas.</li>
                             </ul>
+                        </Parte>
+                        <Parte titulo="19. Tipo de processo que cria o registro">
+                            <p>
+                                Muitos processos geram um registro que a equipe acompanha fora dos autos: a contratação gera o contrato, a ouvidoria gera o atendimento,
+                                o disciplinar gera a ficha do procedimento. Em vez de cadastrar duas vezes, o tipo de processo cria o registro na página própria no momento da autuação.
+                            </p>
+                            <ol className="list-decimal space-y-1.5 pl-5">
+                                <li>Ligue Páginas próprias em "Integrações com outros módulos" e tenha a página criada (ex.: Contratos), com as colunas e os campos dela.</li>
+                                <li>No tipo de processo, aba Dados, marque <strong>Criar registro na autuação</strong> e escolha a página.</li>
+                                <li>Em <strong>Fase em que o registro nasce</strong>, deixe a inicial da página ou escolha outra coluna.</li>
+                                <li>Para cada campo do registro, diga de onde vem o valor: o número do processo, o assunto, a descrição, a data da autuação, a unidade que autuou, o nome do tipo, os nomes das partes, um campo do formulário do tipo ou um valor fixo. O que ficar vazio nasce em branco.</li>
+                                <li>No rito, se quiser que o registro ande junto com o processo, ponha nas fases a regra da página (parte 8). Na primeira fase, marque <strong>Valer já na autuação</strong> para o registro já nascer na coluna dela.</li>
+                            </ol>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Obrigatórios da página">O campo que a página exige na fase em que o registro nasce precisa de uma fonte, ou o tipo não salva. Se a fonte for um campo opcional do formulário e ele vier vazio, a autuação para e diz o que falta: torne o campo obrigatório no formulário.</Termo>
+                                <Termo nome="Conversão">O valor vira o tipo do campo da página: data em data, número em número (R$ 1.234,56 também), sim ou não em caixa marcada, e a escolha pelo valor ou pelo nome da opção. O que não couber (uma opção que a página não tem) para a autuação com o motivo.</Termo>
+                                <Termo nome="Quando não cria">Se o processo nasce de um registro dessa mesma página ("Criar processo eletrônico" nela), nada é criado: a origem já é o registro.</Termo>
+                                <Termo nome="Onde aparece">Na capa, em Registros ligados, como "Criado na autuação", com o botão para abrir. Na página, o processo aparece em Processos eletrônicos. O registro interno da autuação diz qual foi criado. As partes não veem nada disso: página própria é interna.</Termo>
+                                <Termo nome="Campos de pessoa">Campo da página que aponta uma pessoa da equipe não recebe valor do processo; preencha-o na página.</Termo>
+                            </ul>
+                            <table className={tabela}>
+                                <thead><tr><th>Tipo de processo</th><th>Página</th><th>Campos preenchidos</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Contratação direta</td><td>Contratos</td><td>Processo (número), Objeto (assunto), Valor (campo Valor estimado), Modalidade (valor fixo Dispensa)</td></tr>
+                                    <tr><td>Manifestação de ouvidoria</td><td>Atendimentos</td><td>Protocolo (número), Assunto, Manifestante (nomes das partes), Entrada (data da autuação)</td></tr>
+                                    <tr><td>Processo ético-disciplinar</td><td>Procedimentos disciplinares</td><td>Processo (número), Fato (descrição), Unidade (unidade que autuou)</td></tr>
+                                    <tr><td>Recebimento de bens</td><td>Entregas</td><td>Processo (número), Fornecedor (campo do formulário), Nota fiscal (campo do formulário)</td></tr>
+                                </tbody>
+                            </table>
                         </Parte>
                     </div>
                 </DialogContent>

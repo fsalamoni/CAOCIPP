@@ -24,19 +24,6 @@ async function getEntityType(db, organizationId, entityTypeId) {
     }
     return Object.assign({ id: snap.id }, data);
 }
-function initialPhase(def) {
-    const init = (def.phases || []).find((p) => p.is_initial) || (def.phases || [])[0];
-    return (init === null || init === void 0 ? void 0 : init.key) || '';
-}
-/** Conjunto de fases já alcançadas até `phaseKey` (por ordem). Usado para só
- *  exigir colunas obrigatórias das fases que o registro já atingiu. */
-function phasesReachedUpTo(def, phaseKey) {
-    var _a;
-    const phases = (def.phases || []).slice().sort((a, b) => { var _a, _b; return ((_a = a.order) !== null && _a !== void 0 ? _a : 0) - ((_b = b.order) !== null && _b !== void 0 ? _b : 0); });
-    const cur = phases.find((p) => p.key === phaseKey);
-    const curOrder = (_a = cur === null || cur === void 0 ? void 0 : cur.order) !== null && _a !== void 0 ? _a : 0;
-    return new Set(phases.filter((p) => { var _a; return ((_a = p.order) !== null && _a !== void 0 ? _a : 0) <= curOrder; }).map((p) => p.key));
-}
 /** Valida um tipo de processo contra a definição. Retorna a chave válida ou null. */
 function resolveRecordType(def, value) {
     const key = String(value !== null && value !== void 0 ? value : '').trim();
@@ -72,13 +59,13 @@ exports.createRecord = (0, https_1.onCall)({ region: REGION }, async (request) =
     const db = admin.firestore();
     await getMembership(db, userId, organizationId);
     const def = await getEntityType(db, organizationId, entityTypeId);
-    let targetPhase = initialPhase(def);
+    let targetPhase = (0, schema_1.initialPhase)(def);
     if (phase && (def.phases || []).some((p) => p.key === phase)) {
         targetPhase = phase;
     }
     // Só exige colunas obrigatórias das fases já alcançadas (a fase inicial,
     // por padrão). Colunas de fases posteriores são cobradas ao avançar.
-    const requiredPhases = phasesReachedUpTo(def, targetPhase);
+    const requiredPhases = (0, schema_1.phasesReachedUpTo)(def, targetPhase);
     const { ok, errors, normalized } = (0, schema_1.validateRecordValues)(def.fields, values || {}, { requiredPhases });
     if (!ok) {
         throw new https_1.HttpsError('invalid-argument', Object.values(errors)[0] || 'Dados inválidos.', { errors });
@@ -226,7 +213,7 @@ exports.importRecords = (0, https_1.onCall)({ region: REGION, timeoutSeconds: 54
     const db = admin.firestore();
     await getMembership(db, userId, organizationId);
     const def = await getEntityType(db, organizationId, entityTypeId);
-    const fallbackPhase = initialPhase(def);
+    const fallbackPhase = (0, schema_1.initialPhase)(def);
     const phaseKeys = new Set((def.phases || []).map((p) => p.key));
     const userName = request.auth.token.name || 'Usuário desconhecido';
     const { logDate, logTime, iso } = nowParts();
@@ -235,7 +222,7 @@ exports.importRecords = (0, https_1.onCall)({ region: REGION, timeoutSeconds: 54
     const errorDetails = [];
     rows.forEach((row, i) => {
         const phase = (row === null || row === void 0 ? void 0 : row.phase) && phaseKeys.has(row.phase) ? row.phase : fallbackPhase;
-        const requiredPhases = phasesReachedUpTo(def, phase);
+        const requiredPhases = (0, schema_1.phasesReachedUpTo)(def, phase);
         const { ok, errors, normalized } = (0, schema_1.validateRecordValues)(def.fields, (row === null || row === void 0 ? void 0 : row.values) || {}, { requiredPhases });
         if (!ok) {
             errorDetails.push({ row: i + 1, error: Object.values(errors)[0] || 'Dados inválidos.' });

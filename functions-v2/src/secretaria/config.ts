@@ -19,6 +19,7 @@ import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preen
 import { MIME_DOCX } from './conversao';
 import { MODULOS, ROTULO_MODULO, ehModuloOrigem, integracoesDe, integracoesGravadas, lerFlags, modulosAtivos } from '../shared/modulos';
 import { SituacaoRegistro, fasesDePaginaInvalidas } from '../shared/situacaoRegistro';
+import { PaginaDef, errosCriaRegistro, sanitizeCriaRegistro } from '../shared/registroCriado';
 import type { Contexto } from './context';
 import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
@@ -113,7 +114,7 @@ async function guardarVersao(ref: admin.firestore.DocumentReference, atual: admi
 }
 const CAMPOS_RITO = ['nome', 'descricao', 'fases', 'exigir_tipo'];
 /** Tipo de processo: o que o editor do tipo grava (a versão é aberta no editor, não restaurada direto). */
-const CAMPOS_TIPO = ['nome', 'sigla', 'descricao', 'rito_id', 'formulario', 'numeracao', 'pode_nascer_de', 'sigilo_padrao', 'urgente', 'unidade_inicial', 'orgao_id'];
+const CAMPOS_TIPO = ['nome', 'sigla', 'descricao', 'rito_id', 'formulario', 'numeracao', 'pode_nascer_de', 'sigilo_padrao', 'urgente', 'unidade_inicial', 'orgao_id', 'cria_registro'];
 const CAMPOS_MODELO = ['nome', 'tipo_documento', 'descricao', 'conteudo'];
 
 const RITO_PADRAO = {
@@ -190,9 +191,9 @@ async function exigirPaginas(c: Contexto, rito: { fases?: unknown } | null | und
 
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v: unknown): string[] => [...new Set(Array.isArray(v) ? v.filter(ehModuloOrigem) : [])];
-/** Módulos que o tipo usa: os dos campos e os de onde pode nascer. */
-const modulosDoTipo = (t: { formulario?: unknown; pode_nascer_de?: unknown } | null | undefined) =>
-    new Set([...modulosDoForm(t?.formulario as never), ...nascerDe(t?.pode_nascer_de).filter((m) => m !== 'pe')]);
+/** Módulos que o tipo usa: os dos campos, os de onde pode nascer e a página onde cria o registro. */
+const modulosDoTipo = (t: { formulario?: unknown; pode_nascer_de?: unknown; cria_registro?: unknown } | null | undefined) =>
+    new Set([...modulosDoForm(t?.formulario as never), ...nascerDe(t?.pode_nascer_de).filter((m) => m !== 'pe'), ...(sanitizeCriaRegistro(t?.cria_registro) ? ['paginas'] : [])]);
 
 /** Módulo novo no tipo ou no rito precisa da integração ligada (o que já estava gravado segue valendo). */
 async function exigirIntegracoes(c: Contexto, usados: Set<string>, antes: Set<string>) {
@@ -301,7 +302,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                     orgao_id: t.orgao_id || null, formulario: formularioDe(t), numeracao: numeracaoTipoDe(t.numeracao), pode_nascer_de: nascerDe(t.pode_nascer_de),
-                    versao: Number(t.versao) || 1,
+                    cria_registro: sanitizeCriaRegistro(t.cria_registro), versao: Number(t.versao) || 1,
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             // Processos já autuados com um tipo excluído seguem com o formulário dele (Editar dados, filtro da lista).
@@ -500,7 +501,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 tipo: {
                     nome: v.nome || '', sigla: v.sigla || '', descricao: v.descricao || '', rito_id: v.rito_id || '', formulario: formularioDe(v),
                     numeracao: numeracaoTipoDe(v.numeracao), pode_nascer_de: nascerDe(v.pode_nascer_de), sigilo_padrao: v.sigilo_padrao === 'restrito' ? 'restrito' : 'normal',
-                    urgente: v.urgente === true, unidade_inicial: v.unidade_inicial || null, orgao_id: v.orgao_id || null,
+                    urgente: v.urgente === true, unidade_inicial: v.unidade_inicial || null, orgao_id: v.orgao_id || null, cria_registro: sanitizeCriaRegistro(v.cria_registro),
                 },
             };
         }
@@ -829,10 +830,17 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             }
             return l.length ? { ...x, exigir_em: l } : x;
         });
+        // "Criar registro na autuação": página do órgão, campos que existem e fonte para o que a página exige.
+        const criaRegistro = sanitizeCriaRegistro(t.cria_registro);
+        if (criaRegistro) {
+            const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+            const erros = errosCriaRegistro(criaRegistro, pg && pg.organization_id === orgId ? (pg as PaginaDef) : null, formulario!);
+            if (erros.length) throw new HttpsError('invalid-argument', erros[0]);
+        }
         const dados = {
             nome, sigla: texto(t.sigla, 12), descricao: texto(t.descricao, MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao, pode_nascer_de: nascerDe(t.pode_nascer_de),
             sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null, ...('orgao_id' in t ? { orgao_id: orgaoId || null } : {}),
-            ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
+            cria_registro: criaRegistro, ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid,
         };
         const col = db.collection(COL.tipos);
         if (p.id) {

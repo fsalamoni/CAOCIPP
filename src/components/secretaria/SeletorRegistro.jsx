@@ -19,10 +19,12 @@ export const RegistroContexto = createContext({ orgId: null, ligadas: {}, pagina
 export function ProvedorRegistros({ orgId, ligadas, unidades, listas = {}, children }) {
     const { entityTypes, isLoading } = useEntityTypes(ligadas?.paginas ? orgId : null);
     // `fases`: as colunas do quadro da página, para o rito dizer em qual o registro fica.
+    // `campos`: as colunas do registro, para o tipo dizer o que a autuação preenche ao criar um.
     const paginas = (entityTypes || []).filter((t) => t.enabled !== false)
         .map((t) => ({
             id: t.id, nome: t.label_singular || 'Página', plural: t.label_plural || t.label_singular || 'Página',
-            fases: (t.phases || []).map((x) => ({ key: x.key, label: x.label || x.key })),
+            fases: (t.phases || []).map((x) => ({ key: x.key, label: x.label || x.key, order: x.order ?? 0, is_initial: x.is_initial === true })),
+            campos: (t.fields || []).map((x) => ({ key: x.key, label: x.label || x.key, type: x.type, required: x.required === true, phase: x.phase || '', options: x.options || [] })),
         }));
     return <RegistroContexto.Provider value={{ orgId, ligadas, paginas, paginasProntas: !isLoading, atribuicoes: atribuicoesDoOrgao(unidades), listas }}>{children}</RegistroContexto.Provider>;
 }

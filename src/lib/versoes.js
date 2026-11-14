@@ -74,7 +74,7 @@ export function diffRito(versao, atual) {
 }
 
 const TIPO = [['nome', 'nome'], ['sigla', 'sigla'], ['descricao', 'descrição'], ['rito_id', 'rito'], ['numeracao', 'numeração'], ['pode_nascer_de', 'sugerir ao criar a partir de'],
-    ['sigilo_padrao', 'sigilo padrão'], ['urgente', 'urgente'], ['unidade_inicial', 'unidade inicial'], ['orgao_id', 'órgão']];
+    ['sigilo_padrao', 'sigilo padrão'], ['urgente', 'urgente'], ['unidade_inicial', 'unidade inicial'], ['orgao_id', 'órgão'], ['cria_registro', 'criar registro na autuação']];
 const CAMPO = [['rotulo', 'nome'], ['tipo', 'tipo'], ['obrigatorio', 'obrigatório'], ['ajuda', 'ajuda'], ['opcoes', 'opções'], ['visivel_partes', 'mostrar às partes'],
     ['formato', 'formato'], ['secao', 'seção'], ['condicao', 'condição'], ['exigir_em', 'exigido nas fases'], ['modulo', 'módulo'], ['importar', 'dado importado']];
 

@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { EntityTypeDef, FieldDef, validateRecordValues } from './schema';
+import { EntityTypeDef, FieldDef, initialPhase, phasesReachedUpTo, validateRecordValues } from './schema';
 import { evaluatePhaseTransition } from './transitions';
 import { historyEntryId } from '../shared/history';
 
@@ -22,20 +22,6 @@ async function getEntityType(db: FirebaseFirestore.Firestore, organizationId: st
         throw new HttpsError('permission-denied', 'Tipo não pertence a esta organização.');
     }
     return { id: snap.id, ...data };
-}
-
-function initialPhase(def: EntityTypeDef): string {
-    const init = (def.phases || []).find((p) => p.is_initial) || (def.phases || [])[0];
-    return init?.key || '';
-}
-
-/** Conjunto de fases já alcançadas até `phaseKey` (por ordem). Usado para só
- *  exigir colunas obrigatórias das fases que o registro já atingiu. */
-function phasesReachedUpTo(def: EntityTypeDef, phaseKey: string): Set<string> {
-    const phases = (def.phases || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const cur = phases.find((p) => p.key === phaseKey);
-    const curOrder = cur?.order ?? 0;
-    return new Set(phases.filter((p) => (p.order ?? 0) <= curOrder).map((p) => p.key));
 }
 
 /** Valida um tipo de processo contra a definição. Retorna a chave válida ou null. */

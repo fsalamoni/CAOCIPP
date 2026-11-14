@@ -43,6 +43,7 @@ export function registrosLigados(p, informacoes = []) {
         out.set(k, { ...ref, de: [de] });
     };
     juntar(p.origem?.ref, 'origem');
+    juntar(p.registro_criado, 'Criado na autuação');
     for (const c of p.campos || []) juntar(c.ref, c.rotulo);
     for (const i of informacoes) [i.ref, ...(i.refs || [])].forEach((r) => juntar(r, `${i.rotulo} (${i.fase_nome})`));
     return [...out.values()];

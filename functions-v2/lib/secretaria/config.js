@@ -33,6 +33,7 @@ const importarModelo_1 = require("./importarModelo");
 const conversao_1 = require("./conversao");
 const modulos_1 = require("../shared/modulos");
 const situacaoRegistro_1 = require("../shared/situacaoRegistro");
+const registroCriado_1 = require("../shared/registroCriado");
 const unidades_1 = require("./unidades");
 const migrarRito_1 = require("./migrarRito");
 var documentoConfig_2 = require("./documentoConfig");
@@ -125,7 +126,7 @@ async function guardarVersao(ref, atual, campos) {
 }
 const CAMPOS_RITO = ['nome', 'descricao', 'fases', 'exigir_tipo'];
 /** Tipo de processo: o que o editor do tipo grava (a versão é aberta no editor, não restaurada direto). */
-const CAMPOS_TIPO = ['nome', 'sigla', 'descricao', 'rito_id', 'formulario', 'numeracao', 'pode_nascer_de', 'sigilo_padrao', 'urgente', 'unidade_inicial', 'orgao_id'];
+const CAMPOS_TIPO = ['nome', 'sigla', 'descricao', 'rito_id', 'formulario', 'numeracao', 'pode_nascer_de', 'sigilo_padrao', 'urgente', 'unidade_inicial', 'orgao_id', 'cria_registro'];
 const CAMPOS_MODELO = ['nome', 'tipo_documento', 'descricao', 'conteudo'];
 const RITO_PADRAO = {
     nome: 'Rito comum',
@@ -166,8 +167,8 @@ async function exigirPaginas(c, rito) {
 }
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v) => [...new Set(Array.isArray(v) ? v.filter(modulos_1.ehModuloOrigem) : [])];
-/** Módulos que o tipo usa: os dos campos e os de onde pode nascer. */
-const modulosDoTipo = (t) => new Set([...modulosDoForm(t === null || t === void 0 ? void 0 : t.formulario), ...nascerDe(t === null || t === void 0 ? void 0 : t.pode_nascer_de).filter((m) => m !== 'pe')]);
+/** Módulos que o tipo usa: os dos campos, os de onde pode nascer e a página onde cria o registro. */
+const modulosDoTipo = (t) => new Set([...modulosDoForm(t === null || t === void 0 ? void 0 : t.formulario), ...nascerDe(t === null || t === void 0 ? void 0 : t.pode_nascer_de).filter((m) => m !== 'pe'), ...((0, registroCriado_1.sanitizeCriaRegistro)(t === null || t === void 0 ? void 0 : t.cria_registro) ? ['paginas'] : [])]);
 /** Módulo novo no tipo ou no rito precisa da integração ligada (o que já estava gravado segue valendo). */
 async function exigirIntegracoes(c, usados, antes) {
     const novos = [...usados].filter((m) => !antes.has(m));
@@ -271,7 +272,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                     id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                     orgao_id: t.orgao_id || null, formulario: (0, camposProcesso_1.formularioDe)(t), numeracao: (0, numeracao_1.numeracaoTipoDe)(t.numeracao), pode_nascer_de: nascerDe(t.pode_nascer_de),
-                    versao: Number(t.versao) || 1,
+                    cria_registro: (0, registroCriado_1.sanitizeCriaRegistro)(t.cria_registro), versao: Number(t.versao) || 1,
                 };
             }).sort((a, b) => a.nome.localeCompare(b.nome)),
             // Processos já autuados com um tipo excluído seguem com o formulário dele (Editar dados, filtro da lista).
@@ -509,7 +510,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 tipo: {
                     nome: v.nome || '', sigla: v.sigla || '', descricao: v.descricao || '', rito_id: v.rito_id || '', formulario: (0, camposProcesso_1.formularioDe)(v),
                     numeracao: (0, numeracao_1.numeracaoTipoDe)(v.numeracao), pode_nascer_de: nascerDe(v.pode_nascer_de), sigilo_padrao: v.sigilo_padrao === 'restrito' ? 'restrito' : 'normal',
-                    urgente: v.urgente === true, unidade_inicial: v.unidade_inicial || null, orgao_id: v.orgao_id || null,
+                    urgente: v.urgente === true, unidade_inicial: v.unidade_inicial || null, orgao_id: v.orgao_id || null, cria_registro: (0, registroCriado_1.sanitizeCriaRegistro)(v.cria_registro),
                 },
             };
         }
@@ -880,7 +881,15 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             }
             return l.length ? Object.assign(Object.assign({}, x), { exigir_em: l }) : x;
         });
-        const dados = Object.assign(Object.assign({ nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao, pode_nascer_de: nascerDe(t.pode_nascer_de), sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null }, ('orgao_id' in t ? { orgao_id: orgaoId || null } : {})), { ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid });
+        // "Criar registro na autuação": página do órgão, campos que existem e fonte para o que a página exige.
+        const criaRegistro = (0, registroCriado_1.sanitizeCriaRegistro)(t.cria_registro);
+        if (criaRegistro) {
+            const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+            const erros = (0, registroCriado_1.errosCriaRegistro)(criaRegistro, pg && pg.organization_id === orgId ? pg : null, formulario);
+            if (erros.length)
+                throw new https_1.HttpsError('invalid-argument', erros[0]);
+        }
+        const dados = Object.assign(Object.assign({ nome, sigla: (0, secretaria_1.texto)(t.sigla, 12), descricao: (0, secretaria_1.texto)(t.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: String(t.rito_id), formulario, numeracao, pode_nascer_de: nascerDe(t.pode_nascer_de), sigilo_padrao: t.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', urgente: t.urgente === true, unidade_inicial: unidadeInicial || null }, ('orgao_id' in t ? { orgao_id: orgaoId || null } : {})), { cria_registro: criaRegistro, ativo: t.ativo !== false, updated_at: agora, updated_by: auth.uid });
         const col = db.collection(context_1.COL.tipos);
         if (p.id) {
             const ref = col.doc(p.id);
