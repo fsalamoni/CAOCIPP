@@ -15,6 +15,7 @@ import {
     problemaDaCondicao, remapearCondicoes, soOrienta, daPartes,
 } from '@/lib/exigencias';
 import { ESPECIES } from '@/lib/comunicacaoRito';
+import { ESPECIES_AUDIENCIA } from '@/lib/audiencias';
 import { NativeSelect } from './comum';
 import { MODULOS, POLOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
@@ -299,7 +300,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     </div>
                 )}
                 {pede !== 'resposta' && <div>
-                    <Label htmlFor={`${id}-pz`}>{pede === 'comunicacao' ? 'Prazo para expedir (dias)' : 'Prazo próprio da ação (dias)'}</Label>
+                    <Label htmlFor={`${id}-pz`}>{pede === 'comunicacao' ? 'Prazo para expedir (dias)' : pede === 'audiencia' ? 'Prazo para designar (dias)' : 'Prazo próprio da ação (dias)'}</Label>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                         <Input id={`${id}-pz`} type="number" min={1} max={3650} placeholder="Sem prazo" className="h-9 w-28" value={r?.prazo_dias || ''}
                             onChange={(e) => { const n = Number(e.target.value); set({ prazo_dias: Number.isInteger(n) && n > 0 ? n : undefined, ...(Number.isInteger(n) && n > 0 ? {} : { prazo_contagem: undefined }) }); }} />
@@ -339,6 +340,19 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
  * depende. Igual ao servidor (shared/comunicacaoRito.ts).
  */
 function ConfigDasPartes({ id, r, f, i, onChange }) {
+    if (r?.pede === 'audiencia') {
+        return (
+            <div className="space-y-1 sm:max-w-md">
+                <NativeSelect id={`${id}-aud`} label="Espécie" value={r.audiencia?.especie || 'audiencia'} options={ESPECIES_AUDIENCIA}
+                    onChange={(v) => onChange({ ...r, audiencia: { especie: v } })} />
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Na tela do processo, o botão &quot;Designar&quot; pede a data, a hora, o modo (presencial, por videoconferência ou híbrido), o local ou o link e quem participa além das partes (testemunha, perito...).
+                    A designação vira certidão nos autos e as partes a veem no portal. Para intimar, ponha depois uma ação &quot;Comunicar as partes&quot; com {'{audiencia}'} no texto: ele é trocado pela data e pelo local.
+                    Desfazer cancela a audiência, com certidão. A realização e a ata ficam com as ações seguintes (uma escolha &quot;Realizada / Não realizada&quot;, um documento da ata).
+                </p>
+            </div>
+        );
+    }
     if (r?.pede === 'resposta') {
         const comunicam = (f?.acoes || []).map((a, k) => [k, a]).filter(([k]) => k < i && f.acoes_regras?.[k]?.pede === 'comunicacao' && f.acoes_regras[k].comunicacao?.dias > 0);
         const de = r.resposta?.de;

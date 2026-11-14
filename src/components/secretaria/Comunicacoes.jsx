@@ -13,6 +13,7 @@ import { CartaoComMenu } from './Lixeira';
 import { reinserir } from '@/lib/textosProntos';
 import AjudaTermo from './AjudaTermo';
 import { ESPECIES, nomeEspecie } from '@/lib/comunicacaoRito';
+import { MARCA_AUDIENCIA, comAudiencia } from '@/lib/audiencias';
 
 /**
  * Comunicações às partes, do lado da equipe: o cartão no processo e o
@@ -111,7 +112,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
         setPartes(ativas.length === 1 ? [ativas[0][1]] : []);
         if (daAcao) {
             const c = daAcao.cfg || {};
-            setEspecie(c.especie || 'intimacao'); setTexto(c.texto || ''); setPartes(daAcao.faltam);
+            setEspecie(c.especie || 'intimacao'); setTexto(comAudiencia(c.texto || '', p.audiencias, hojeIso())); setPartes(daAcao.faltam);
             if (c.dias > 0) { setModoPrazo('dias'); setDias(String(c.dias)); setContagem(c.contagem === 'corridos' ? 'corridos' : 'uteis'); } else setModoPrazo('sem');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,7 +123,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
     const usarPronto = (id) => {
         const t = prontos.find((x) => x.id === id);
         if (!t) return;
-        setTexto(t.texto);
+        setTexto(comAudiencia(t.texto, p.audiencias, hojeIso()));
         if (t.dias > 0 && especie !== 'ciencia') { setModoPrazo('dias'); setDias(String(t.dias)); setContagem(t.contagem); }
     };
     const marcar = (i) => setPartes((l) => (l.includes(i) ? l.filter((x) => x !== i) : [...l, i]));
@@ -133,6 +134,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
     const meioOk = meio === 'plataforma' ? semConta.length === 0 : !!outroMeio.trim() && !!dataCiencia && dataCiencia <= hojeIso();
     const falta = !partes.length ? 'Escolha a quem comunicar'
         : !texto.trim() ? 'Escreva o que está sendo comunicado'
+        : texto.includes(MARCA_AUDIENCIA) ? 'O texto tem {audiencia}, mas não há audiência designada: designe antes ou escreva a data'
             : !prazoOk ? 'Diga o prazo em dias ou marque que não abre prazo'
                 : !meioOk ? (meio === 'plataforma' ? 'Há destinatário sem conta no portal' : 'Informe o meio e a data da ciência') : '';
     const nomes = partes.map((i) => p.partes[i].nome).join(', ');

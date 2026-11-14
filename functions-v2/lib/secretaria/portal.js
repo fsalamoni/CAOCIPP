@@ -31,6 +31,7 @@ const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("../shared/comunicacoes");
 const comunicacoes_2 = require("./comunicacoes");
 const comunicacaoRito_1 = require("../shared/comunicacaoRito");
+const audiencias_1 = require("../shared/audiencias");
 const processos_1 = require("./processos");
 const context_2 = require("./context");
 const meusProcessos_1 = require("../shared/meusProcessos");
@@ -313,6 +314,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
+                // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
+                audiencias: (0, audiencias_1.audienciasFuturas)(data.audiencias, (0, secretaria_1.hojeBrasil)())
+                    .map((a) => ({ especie: a.especie, data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })),
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))

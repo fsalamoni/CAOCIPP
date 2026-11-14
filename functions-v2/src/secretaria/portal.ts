@@ -18,6 +18,7 @@ import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, ESPECIES, destinatario, textoPrazo } from '../shared/comunicacoes';
 import { acertarAcoesDoRito, configComunicacoes, registrarCiencia } from './comunicacoes';
 import { ComunicacaoLigada, faseQueEspera, respondidasPela } from '../shared/comunicacaoRito';
+import { Audiencia, audienciasFuturas } from '../shared/audiencias';
 import { avancarSozinho } from './processos';
 import { contextoDoSistema } from './context';
 import { situacaoDaParte } from '../shared/meusProcessos';
@@ -336,6 +337,9 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
+                // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
+                audiencias: audienciasFuturas(data.audiencias as Audiencia[] | undefined, hojeBrasil())
+                    .map((a) => ({ especie: a.especie, data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })),
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))

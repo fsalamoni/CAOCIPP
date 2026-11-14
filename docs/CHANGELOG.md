@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Audiência como ação do rito
+- **Designar audiência ou sessão** passa a ser uma ação do rito: na tela do
+  processo, o botão Designar pede data, hora, modo (presencial, por
+  videoconferência ou híbrido), local ou link e quem participa além das
+  partes (testemunha, perito e outros).
+- A designação é certidão nos autos, as partes a veem no portal em
+  "Audiências designadas" e o processo mostra a próxima audiência.
+  Desfazer cancela, também com certidão.
+- `{audiencia}` no texto da comunicação vira a data, a hora e o local.
+- Guia do rito, parte 15, com exemplo de instrução com testemunhas.
+- Ritos já gravados não mudam.
+
 ### 14/11/2026 — Comunicação às partes e espera da resposta no rito
 - **Comunicar as partes** passa a ser uma ação do rito: espécie (intimação,
   notificação, citação, ciência ou comunicação), a quem (os polos), prazo de

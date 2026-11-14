@@ -66,6 +66,8 @@ export function sanitizePedido(raw: unknown, hoje: string): PedidoComunicacao {
     if (!ESPECIES[especie]) throw new Error('Escolha a espécie da comunicação');
     const txt = texto(r.texto, 4000);
     if (!txt) throw new Error('Escreva o que está sendo comunicado');
+    // A marca da audiência é trocada pela data na tela; se sobrou, não há audiência designada.
+    if (txt.includes('{audiencia}')) throw new Error('O texto ainda tem {audiencia}: designe a audiência antes de comunicar, ou escreva a data');
     const partes_idx = [...new Set((Array.isArray(r.partes_idx) ? r.partes_idx : []).filter((n): n is number => Number.isInteger(n) && n >= 0))];
     if (!partes_idx.length) throw new Error('Escolha ao menos um destinatário');
     // O prazo precisa ser dito: dias, ou "sem prazo" de forma explícita.

@@ -247,6 +247,13 @@ informado.
 - **Manifestação intempestiva** é juntada (direito de petição), mas não
   conta como resposta no prazo nem desfaz a certidão. Quem decide pode
   apreciá-la, como qualquer petição.
+- **Audiência** (Lei 9.784/1999, arts. 26, § 2º, e 29): a designação é ato
+  público, nos autos, e a lei pede antecedência mínima de três dias úteis
+  entre a intimação e o comparecimento (o sistema não bloqueia: quem expede
+  confere). O rito separa os passos: designar (data, local,
+  participantes), intimar (comunicação com `{audiencia}`), registrar se
+  houve a audiência e juntar a ata. Testemunha e perito não são partes:
+  participam pelo nome na certidão.
 - **Uma rodada por passagem na fase**: se o processo volta à fase, a
   comunicação é nova, com prazo novo. A diligência em fase de espera não
   suspende o prazo da parte.

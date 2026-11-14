@@ -30,6 +30,7 @@ import LeitorAutos from '@/components/secretaria/LeitorAutos';
 import EventosAutos from '@/components/secretaria/EventosAutos';
 import ComunicacoesPendentes from '@/components/secretaria/ComunicacoesPendentes';
 import { SeloComunicacao } from '@/components/secretaria/Comunicacoes';
+import { nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
 import { etapasAteOFim } from '@/lib/secretariaRito';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
@@ -492,6 +493,14 @@ function ProcessoParte({ id, onVoltar }) {
 
             <div className="grid lg:grid-cols-5 gap-5">
                 <div className="lg:col-span-3 space-y-5">
+                    {p.audiencias?.length > 0 && (
+                        <Card className="border-indigo-300 dark:border-indigo-800">
+                            <CardHeader className="pb-2"><CardTitle className="text-base">Audiências designadas</CardTitle></CardHeader>
+                            <CardContent className="space-y-1 text-sm">
+                                {p.audiencias.map((a) => <p key={`${a.data}${a.hora}`}><b>{nomeAudiencia(a.especie)}:</b> {textoDaAudiencia(a)}.</p>)}
+                            </CardContent>
+                        </Card>
+                    )}
                     {p.comunicacoes?.length > 0 && (
                         <Card className={p.comunicacoes.some((x) => x.status === 'aguardando') ? 'border-sky-300 dark:border-sky-800' : ''}>
                             <CardHeader className="pb-2"><CardTitle className="text-base">Intimações e comunicações para você</CardTitle></CardHeader>

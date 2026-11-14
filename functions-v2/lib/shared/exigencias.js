@@ -56,6 +56,7 @@ const camposProcesso_1 = require("./camposProcesso");
 const permissoesFase_1 = require("./permissoesFase");
 Object.defineProperty(exports, "QUEM", { enumerable: true, get: function () { return permissoesFase_1.QUEM; } });
 const comunicacaoRito_1 = require("./comunicacaoRito");
+const audiencias_1 = require("./audiencias");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -105,7 +106,7 @@ const opcoesDoAto = (a) => (a === 'atribuicao' ? ['evento', 'informacao', 'nenhu
 exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -206,6 +207,11 @@ function sanitizeRegra(raw, acao) {
     if (pedeBruto === 'comunicacao') {
         Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
         return Object.assign(Object.assign(Object.assign({}, out), { pede: 'comunicacao', comunicacao: (0, comunicacaoRito_1.sanitizeComunicacaoDaAcao)(r.comunicacao, acao) }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
+    }
+    // Designar audiência: ato público, sempre nos autos e visto pelas partes.
+    if (pedeBruto === 'audiencia') {
+        Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
+        return Object.assign(Object.assign(Object.assign({}, out), { pede: 'audiencia', audiencia: (0, audiencias_1.sanitizeAudienciaDaAcao)(r.audiencia, acao), destino: 'autos', partes: true }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
     }
     // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
     if (pedeBruto === 'resposta') {

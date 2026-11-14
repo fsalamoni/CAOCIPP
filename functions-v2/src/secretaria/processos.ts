@@ -17,6 +17,7 @@ import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/
 import { responsavelPelaFase } from '../shared/efeitosFase';
 import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
 import { RESPOSTAS, encerrarComunicacoesDaFase, situacaoDaResposta } from '../shared/comunicacaoRito';
+import { Audiencia, ESPECIES_AUDIENCIA, aplicarAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
 import { sendEmail } from '../shared/email';
 import {
     CampoExigido, CampoValor, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
@@ -498,6 +499,13 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
     const pede = pedidoDaAcao(regra);
     if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao') return null;
     const rotulo = regra?.rotulo || acao;
+    if (pede === 'audiencia') {
+        let d: ReturnType<typeof dadosDaAudiencia> | null = null;
+        try { d = dadosDaAudiencia(bruto, hojeBrasil()); } catch (e) { erroUsuario(e); }
+        const t = textoDaAudiencia(d!);
+        const nome = `${ESPECIES_AUDIENCIA[regra?.audiencia?.especie || 'audiencia'] || 'Audiência'} designada`;
+        return { rotulo: regra?.rotulo || nome, tipo: 'texto' as TipoCampo, valor: t, valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false, audiencia: d! };
+    }
     if (pede === 'formulario') {
         // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).
         const form = { campos: regra?.campos || [] } as Formulario;
@@ -856,6 +864,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 pendencias: data.pendencias || [],
                 prazos: data.prazos || [],
                 comunicacoes: data.comunicacoes || [],
+                audiencias: data.audiencias || [],
                 acoes_feitas: data.acoes_feitas || {},
                 acoes_respostas: data.acoes_respostas || {},
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
@@ -1347,9 +1356,25 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const comPrazos = pz ? { prazos: pz.prazos, ...derivados((data.pendencias || []) as Pendencia[], pz.prazos) } : {};
             const notasPrazo = pz?.notas || [];
             if (notasPrazo.length) expedidas += 1;
+            // Audiência: designar grava a audiência no processo; desfazer a cancela (fica na lista, para a história).
+            let comAudiencia = {};
+            let cancelada = '';
+            if (regra?.pede === 'audiencia') {
+                const ad = dado && 'audiencia' in dado ? dado.audiencia : null;
+                const antes = (data.audiencias || []) as Audiencia[];
+                const nova: Audiencia | null = feita && ad ? {
+                    id: randomBytes(8).toString('hex'), fase_id: fase.id, acao_idx: idx, especie: regra.audiencia?.especie || 'audiencia', ...ad,
+                    designada_em: new Date().toISOString(), designada_por: c.userName, status: 'designada',
+                } : null;
+                const lista = aplicarAudiencia(antes, fase.id, idx, nova);
+                const sai = !feita ? antes.filter((a, k) => a.status === 'designada' && lista[k]?.status === 'cancelada')[0] : undefined;
+                if (sai) cancelada = ` Fica cancelada a audiência designada para ${textoDaAudiencia(sai, false)}.`;
+                const prox = audienciasFuturas(lista, hojeBrasil())[0];
+                comAudiencia = { audiencias: lista, proxima_audiencia: prox ? `${prox.data}T${prox.hora}` : null };
+            }
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
-            const comDado = !dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`;
+            const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada;
             if (dest === 'consolidar') {
                 // Certidão conjunta: o ato fica oculto e entra como item da certidão do grupo.
                 const grupo = grupoDe(fase);
@@ -1405,7 +1430,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
             const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, notasPrazo);
-            tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...vinculoDaAcao(dado) });
+            tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...comAudiencia, ...vinculoDaAcao(dado) });
             return { ...mov, ...mi };
         }
 
