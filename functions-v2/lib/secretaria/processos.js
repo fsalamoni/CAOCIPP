@@ -13,6 +13,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaProcesso = void 0;
 exports.efeitosDaMudanca = efeitosDaMudanca;
+exports.avancarSozinho = avancarSozinho;
 const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -758,8 +759,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     return movimentar(c, p);
 });
 /**
- * Avanço automático da fase (`avanco: 'auto'`): cumprida a última ação
- * obrigatória, o processo segue para a saída do rito, com a remessa à unidade
+ * Avanço automático da fase (`avanco: 'auto'`): cumprido o último item
+ * obrigatório (ação marcada, documento juntado ou guardado), o processo segue
+ * para a saída do rito, com a remessa à unidade
  * da fase de destino quando ela é outra. É o mesmo ato do botão "Concluir e
  * seguir", com as mesmas conferências; se ele não couber (algo em aberto, mais
  * de uma saída, o processo mudou), nada acontece e o botão continua na tela.
@@ -793,7 +795,7 @@ async function avancarSozinho(c, id) {
 async function movimentar(c, p, opcoes = {}) {
     var _a;
     const { db, orgId } = c;
-    const textoAuto = opcoes.automatico ? ' Avanço automático: as ações obrigatórias da fase foram cumpridas.' : '';
+    const textoAuto = opcoes.automatico ? ' Avanço automático: o que a fase exigia foi cumprido.' : '';
     let tentarAuto = false;
     let registroArquivado = null;
     // ---- Movimentações sobre um processo existente --------------------------

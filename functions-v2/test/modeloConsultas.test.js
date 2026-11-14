@@ -52,9 +52,16 @@ test('modelo Consultas: o caminho que o servidor segue é o que o rito descreve'
     assert.deepEqual(s.saidaAutomatica(proc('Recebimento', { unidade_atual: 'u1' }), ativas), { fase_id: f['Análise'].id, unidade_destino: 'u2' });
     assert.deepEqual(s.saidaAutomatica(proc('Devolução', { unidade_atual: 'u1' }), ativas), { fase_id: f.Arquivamento.id });
     assert.equal(f.Arquivamento.ao_entrar.arquivar, true);
-    // Terminam pelo botão: quem envia escolhe as minutas (Análise) e a juntada vem antes (Revisão).
+    // Análise termina pelo botão: quem envia escolhe as minutas que seguem.
     assert.equal(s.saidaAutomatica(proc('Análise', { unidade_atual: 'u2' }), ativas), null);
-    assert.equal(s.saidaAutomatica(proc('Revisão', { unidade_atual: 'u3' }), ativas), null);
+    // Revisão: juntado o parecer, segue sozinha para a Secretaria (a espera não conta como saída).
+    assert.deepEqual(s.saidaAutomatica(proc('Revisão', { unidade_atual: 'u3' }), ativas), { fase_id: f['Devolução'].id, unidade_destino: 'u1' });
+    // Só a fase que exige algo segue por juntada; sem nada obrigatório, qualquer documento a encerraria.
+    assert.equal(x.exigeAlgo(f['Revisão']), true);
+    assert.equal(x.exigeAlgo(f['Análise']), true);
+    assert.equal(x.exigeAlgo(f.Arquivamento), false);
+    assert.equal(x.exigeAlgo({ id: 'z', nome: 'Z', acoes: ['Ler'], acoes_regras: [{ documento: { descricao: 'Nota', forma: 'qualquer', nivel: 'opcional' } }] }), false);
+    assert.equal(x.exigeAlgo(f.Recebimento, { '0.sistema': 'SIM' }), true);
     // A espera volta para a fase de onde o processo veio, na unidade em que ele estava.
     for (const [origem, un] of [['Análise', 'u2'], ['Revisão', 'u3']]) {
         const p = proc('Diligências externas', { unidade_atual: un, espera: { fase: f[origem].id, unidade: un } });

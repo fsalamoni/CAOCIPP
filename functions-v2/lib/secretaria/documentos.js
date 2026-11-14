@@ -1,4 +1,15 @@
 "use strict";
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaDocumento = void 0;
 exports.caminhoArquivo = caminhoArquivo;
@@ -8,6 +19,7 @@ const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
 const exigencias_1 = require("../shared/exigencias");
+const processos_1 = require("./processos");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const secretaria_2 = require("../shared/secretaria");
@@ -240,6 +252,14 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         void (0, avisosEquipe_1.avisarPedidoAssinatura)(c, uid, proc, procRef.id, String(doc.titulo));
         return { success: true };
     }
+    // Fase que segue sozinha: o documento que faltava também conclui a fase, como a última
+    // ação obrigatória. Na juntada em conjunto, só o último pedido tenta (o exigido pode ter
+    // sido um dos anteriores); `avancarSozinho` confere se nada obrigatório ficou em aberto.
+    const podeSeguir = (fase, atual) => (fase === null || fase === void 0 ? void 0 : fase.avanco) === 'auto' && p.aguardar !== true && (0, exigencias_1.exigeAlgo)(fase, (0, exigencias_1.respostasDaFase)(atual));
+    const comAvanco = async (r, tentar) => {
+        const auto = tentar ? await (0, processos_1.avancarSozinho)(c, procRef.id) : null;
+        return Object.assign(Object.assign({ success: true }, r), (auto ? { version: auto.version, avancou: auto.avancou } : {}));
+    };
     if (p.action === 'juntar') {
         // "Assinar e juntar": a assinatura entra antes de renderizar o PDF.
         if (p.assinar)
@@ -324,12 +344,13 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             ];
             const mexeuPendencias = pend.length > 0 || !!resolvida;
             tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
-            return { ordem, version: mov.version, folha_inicial: folha, paginas };
+            return { ordem, version: mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual) };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id);
         if (p.pendencia === 'sim' || p.pendencia === 'interrompe')
             void (0, avisosEquipe_1.avisarPendencia)(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
-        return Object.assign({ success: true }, r);
+        const { tentar } = r, feito = __rest(r, ["tentar"]);
+        return comAvanco(feito, tentar);
     }
     if (p.action === 'guardar') {
         // Documento de controle: fica no processo, fora dos autos e da impressão.
@@ -359,9 +380,10 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, null) : {};
             tx.update(ref, { status: 'controle', visivel_partes: false, guardado_em: agoraIso, guardado_por: auth.uid, guardado_por_nome: c.userName });
             tx.update(pr, Object.assign(Object.assign(Object.assign({}, mov), exig), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
-            return { version: mov.version };
+            return { version: mov.version, tentar: podeSeguir(fase, atual) };
         });
-        return Object.assign({ success: true }, r);
+        const { tentar } = r, feito = __rest(r, ["tentar"]);
+        return comAvanco(feito, tentar);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
 });

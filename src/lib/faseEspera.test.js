@@ -57,5 +57,5 @@ test('fase de espera: simplificar, copiar, desenho e resumo', () => {
     const voltas = d.setas.filter((x) => x.de === 'dil' && x.para !== 'dil');
     assert.deepEqual(voltas.map((x) => [x.para, x.tipo, x.rotulo]), [['anl', 'volta', 'volta'], ['rev', 'volta', 'volta']]);
     assert.ok(!d.fins.some((x) => x.id === 'dil'), 'a espera não é fim do fluxo');
-    assert.deepEqual(resumoAndamento({ espera: true, avanco: 'auto' }), ['é de espera: ao concluir, o processo volta para a fase de onde veio', 'volta sozinha ao cumprir as ações obrigatórias']);
+    assert.deepEqual(resumoAndamento({ espera: true, avanco: 'auto' }), ['é de espera: ao concluir, o processo volta para a fase de onde veio', 'volta sozinha ao cumprir o que a fase exige']);
 });

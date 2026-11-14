@@ -416,14 +416,14 @@ export function ritoConsultas() {
                 ],
             },
             {
-                id: rev, nome: 'Revisão', unidade: 'Gabinete', proximas: [dev, dil], juntada_conjunta: true,
+                id: rev, nome: 'Revisão', unidade: 'Gabinete', proximas: [dev, dil], juntada_conjunta: true, avanco: 'auto',
                 condicoes: { [dev]: 'parecer assinado', [dil]: 'depende de terceiros' },
                 situacao_registro: consulta('Em revisão'),
-                orientacao: 'O Gabinete edita a minuta (a redação da Assessoria fica guardada em Versões) e termina pelo botão Finalizar Revisão: assina, escolhe e ordena os anexos e junta tudo aos autos. Depois, conclui e envia para a Secretaria.',
+                orientacao: 'O Gabinete edita a minuta (a redação da Assessoria fica guardada em Versões) e termina pelo botão Finalizar Revisão: assina, escolhe e ordena os anexos e junta tudo aos autos. Juntado o parecer, o processo segue sozinho para a Secretaria.',
                 acoes: ['Revisar e editar a minuta', 'Juntar o parecer assinado', 'Decidir os anexos e a ordem'],
                 acoes_regras: [
                     { pede: 'orientacao', ajuda: 'A redação original da Assessoria continua em Versões, só para a equipe.' },
-                    { documento: { forma: 'qualquer', tipo: 'Parecer' }, ajuda: 'Pelo botão Finalizar Revisão, que abre a assinatura e junta o parecer e os anexos de uma vez.' },
+                    { documento: { forma: 'qualquer', tipo: 'Parecer' }, ajuda: 'Pelo botão Finalizar Revisão, que abre a assinatura e junta o parecer e os anexos de uma vez. Juntar só o parecer, pelo botão Juntar, já conclui a fase.' },
                     { pede: 'orientacao', ajuda: 'No Finalizar Revisão: marque o que entra nos autos, anexe o que faltar e ponha na ordem. O que não for marcado continua como minuta, só para a equipe.' },
                 ],
             },
