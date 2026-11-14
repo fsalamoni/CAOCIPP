@@ -36,6 +36,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { saidasDoProcesso } from '@/lib/secretariaRito';
 import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
+import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
@@ -232,9 +233,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const exigencias = situacaoDaFase(faseAtual, p.exigencias_cumpridas, respostas);
     const saidas = faseAtual ? saidasComCondicao(p.fases, faseAtual, respostas).filter((s) => proximas.includes(s.fase)) : [];
     const indicadas = saidas.filter((s) => s.indicada);
-    // Ação reservada pelo rito: ao responsável designado ou a quem gere a unidade (a administração sempre pode).
-    const podeCumprir = (r) => !r?.quem || estado.isAdmin
-        || (r.quem === 'responsavel' ? p.responsavel_uid === estado.uid : (estado.gestorDe || []).includes(p.unidade_atual));
+    // Ação reservada pelo rito: ao responsável designado, a quem gere a unidade ou a quem tem certa atribuição (a administração sempre pode).
+    const ator = atorNoProcesso(estado, p);
+    const podeCumprir = (r) => podeQuem(r?.quem, r?.atribuicao, ator);
+    const reservasDaFase = resumoPermissoes(faseAtual?.permissoes);
     const docsDaFase = exigencias.filter((e) => e.acao_idx === undefined);
     // Dados que o tipo de processo exige para sair desta fase e ainda faltam.
     const camposFalta = camposFaltandoNaFase(p, formDoTipo(estado, p));
@@ -463,6 +465,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     )}
                     {resumoAndamento(faseAtual).length > 0 && (
                         <p className="text-xs text-slate-600 dark:text-slate-300">Pelo rito, esta fase {resumoAndamento(faseAtual, paginasDoOrgao).join('; ')}.</p>
+                    )}
+                    {reservasDaFase.length > 0 && (
+                        <p className="text-xs text-slate-600 dark:text-slate-300">Reservado pelo rito nesta fase: {reservasDaFase.join('; ')}. A administração também pode.</p>
                     )}
                     {podeAssumir && (
                         <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -1053,6 +1058,14 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     const notaEspera = (id) => (paraEspera(id)
         ? <p className="text-sm text-slate-700 dark:text-slate-300">Fase de espera: <b>{p.fase_nome}</b> fica como está e é retomada quando o processo voltar.</p>
         : ehVolta(id) ? <p className="text-sm text-slate-700 dark:text-slate-300">Fim da espera: <b>{p.fases.find((f) => f.id === id)?.nome}</b> é retomada como estava.</p> : null);
+    // Reservas do rito na fase (o servidor decide; aqui quem não pode vê o porquê antes de tentar).
+    const ator = atorNoProcesso(estado, p);
+    const pm = faseDoProc?.permissoes;
+    const semConcluir = pm?.concluir && !podeQuem(pm.concluir, pm.concluir_atribuicao, ator) ? `Pelo rito, só ${textoQuem(pm.concluir, pm.concluir_atribuicao)} conclui a fase ${p.fase_nome}.` : null;
+    const semDispensa = exigPendentes.length > 0 && pm?.dispensar && !podeReserva(pm.dispensar, ator) ? `Na fase ${p.fase_nome}, só ${textoReserva(pm.dispensar)} dispensa o que o rito exige. Cumpra o que falta.` : null;
+    const semDesvio = pm?.desviar && !podeReserva(pm.desviar, ator) ? `Na fase ${p.fase_nome}, só ${textoReserva(pm.desviar)} segue por caminho fora do previsto no rito.` : null;
+    const semSituacao = pm?.situacao && !podeReserva(pm.situacao, ator) ? `Pelo rito, na fase ${p.fase_nome} só ${textoReserva(pm.situacao)} arquiva, sobresta ou reativa o processo.` : null;
+    let bloqueio = null;
     const avisoDispensa = (exigPendentes.length > 0 || recomendados.length > 0) && (
         <>
             {exigPendentes.length > 0 && (
@@ -1282,6 +1295,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             exigeTexto = true;
             rotuloTexto = `O rito leva a ${faseNova.nome} quando ${contraCondicao(faseNova.id)}. Motivo para seguir assim${exigPendentes.length ? ' e dispensar o que o rito exige' : ''}`;
         }
+        if (!devolver && faseNova) bloqueio = (!paraEspera(faseNova.id) && (semConcluir || semDispensa)) || (contraCondicao(faseNova.id) && semDesvio) || null;
         enviar = () => mov('tramitar', { unidade_destino: destino, ...(devolver ? { orientacao: motivo } : { motivo }), ...(acao.fase_id ? { fase_id: acao.fase_id } : {}),
             ...(!devolver && levarIds.length ? { minutas: levarIds } : {}) }, devolver ? 'Processo devolvido com orientação' : 'Processo remetido');
     } else if (tipo === 'fase') {
@@ -1329,6 +1343,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             rotuloTexto = `O rito leva a ${nomeFase(escolhida)} quando ${contra}. Motivo para seguir assim${exigPendentes.length ? ' e dispensar o que o rito exige' : ''}`;
         }
         exigeValor = !escolhida;
+        if (escolhida) bloqueio = (!paraEspera(escolhida) && (semConcluir || semDispensa)) || ((fora || contra) && semDesvio) || null;
         enviar = () => mov('avancarFase', { fase_id: escolhida, motivo }, 'Fase alterada');
     } else if (tipo === 'atribuir') {
         titulo = 'Atribuir a uma pessoa da unidade';
@@ -1344,6 +1359,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             </>
         );
         exigeValor = !status;
+        bloqueio = semSituacao || (status === 'arquivado' && semDispensa) || null;
         enviar = () => mov('alterarStatus', { status, motivo }, 'Situação alterada');
     }
     else if (tipo === 'urgencia') {
@@ -1365,6 +1381,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <DialogHeader><div className="flex items-start justify-center gap-1 pr-6 sm:justify-start"><DialogTitle>{titulo}</DialogTitle>{glossa && <AjudaTermo id={glossa} />}</div></DialogHeader>
                 <div className="space-y-3">
                     {campo}
+                    {bloqueio && <p role="alert" className="text-sm rounded-md border border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100 px-3 py-2">{bloqueio}</p>}
                     {!semTexto && (
                         <div><Label htmlFor="acao-motivo">{rotuloTexto}{exigeTexto ? ' (obrigatório)' : ''}</Label><Textarea id="acao-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
                     )}
@@ -1373,7 +1390,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <DialogFooter className="flex-row flex-wrap gap-2">
                     {rodape}
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
-                    <Button disabled={ocupado || diasInvalidos || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { if (await enviar() === false) return; setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); }}>
+                    <Button disabled={ocupado || diasInvalidos || !!bloqueio || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { if (await enviar() === false) return; setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); }}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {tipo === 'resolver' ? 'Registrar a decisão' : 'Confirmar'}
                     </Button>
                 </DialogFooter>

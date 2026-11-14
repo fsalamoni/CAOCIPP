@@ -51,7 +51,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
     };
 
     return (
-        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)}>
+        <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado?.unidades}>
         <div className="space-y-5">
             <Card>
                 <CardHeader>

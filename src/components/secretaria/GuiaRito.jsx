@@ -119,10 +119,18 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                         </Parte>
                         <Parte titulo="7. Quem cumpre e quem vê">
                             <ul className="space-y-1.5">
-                                <Termo nome="Quem pode cumprir">Quem tem o processo, só o responsável designado ou só quem gere a unidade.</Termo>
+                                <Termo nome="Quem pode cumprir">Quem tem o processo, só o responsável designado, só quem gere a unidade ou só quem tem certa atribuição (ex.: Promotor). A atribuição é a que a pessoa tem na lotação, em Unidades, na unidade que estiver com o processo. Não conta acento nem maiúscula, mas o nome precisa ser o mesmo.</Termo>
                                 <Termo nome="Quem vê o dado na equipe">Toda a equipe do processo ou só quem gere a unidade. Dado reservado nunca vai aos autos nem ao portal.</Termo>
                                 <Termo nome="Orientação a quem cumpre">Texto curto que aparece abaixo da ação, na tela do processo.</Termo>
                             </ul>
+                            <p>Cada fase também diz quem pratica os atos que mudam o andamento, em <strong>Quem pode nesta fase</strong>. Sem escolha, vale o de sempre: quem tem o processo, com motivo quando o ato pede.</p>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Quem conclui a fase">Quem leva o processo a outra fase: quem tem o processo, só o responsável designado, só quem gere a unidade ou só quem tem certa atribuição. Ir para uma fase de espera não conclui e continua livre. Com <strong>Seguir sozinha</strong>, a fase só segue sozinha quando quem cumpre o último item pode concluí-la; senão fica o botão para quem pode.</Termo>
+                                <Termo nome="Quem dispensa o que a fase exige">Por padrão, quem conclui a fase dispensa o que ficou em aberto, com motivo. Reservada a quem gere a unidade ou à administração, os demais precisam cumprir tudo para a fase seguir.</Termo>
+                                <Termo nome="Quem segue por caminho fora do previsto">Vale para a fase que não é saída desta e para a saída sem a resposta que a regra dela pede. Por padrão, quem conclui, com motivo.</Termo>
+                                <Termo nome="Quem arquiva, sobresta ou reativa">Enquanto o processo estiver na fase. O arquivamento que o rito faz sozinho ao entrar numa fase não depende disto.</Termo>
+                            </ul>
+                            <p>A administração do Processo Eletrônico sempre pode. Na tela do processo, a fase mostra o que está reservado, e quem não pode vê a quem o ato cabe antes de tentar. <strong>Aplicar a todas as fases</strong> copia as escolhas para o rito inteiro.</p>
                         </Parte>
                         <Parte titulo="8. Andamento automático da fase">
                             <p>Em <strong>Andamento automático</strong>, a fase pode andar sem que ninguém precise lembrar do passo seguinte.</p>
@@ -229,6 +237,7 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                     <tr><td>Seguir sozinha, arquivar ao entrar, botão Finalizar</td><td>Em <strong>Andamento automático</strong>, uma caixa para cada um</td></tr>
                                     <tr><td>Conduzir a consulta ligada (a coluna dela no quadro muda com o processo)</td><td>Em <strong>Andamento automático</strong>, "A fase conduz": Consulta, Expediente ou uma página própria do órgão, com a situação ao entrar e quando alguém assume</td></tr>
                                     <tr><td>Fase de espera que volta para a fase de origem (diligências externas)</td><td>Em <strong>Encaminhamentos</strong>: "Fase de espera". Nas fases que podem aguardar, indique a espera como uma das saídas</td></tr>
+                                    <tr><td>Ato que só uma pessoa pode praticar (ex.: só o Promotor conclui a Revisão; só quem gere a unidade dispensa)</td><td>Na ação: <strong>Quem pode cumprir</strong>. Na fase: <strong>Quem pode nesta fase</strong></td></tr>
                                     <tr><td>Fases em unidades diferentes (Secretaria, Assessoria, Gabinete)</td><td>No cabeçalho de cada fase, a unidade. Ao seguir, o processo é enviado para a unidade da fase seguinte</td></tr>
                                     <tr><td>Capa simples, botão Assumir, redação original guardada em Versões, Impressão interna</td><td>Não precisam de configuração: valem para todo processo</td></tr>
                                 </tbody>

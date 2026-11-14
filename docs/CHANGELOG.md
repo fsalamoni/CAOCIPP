@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — O rito diz quem pode fazer o quê
+- Nova seção **Quem pode nesta fase**, em cada fase do rito: quem conclui
+  a fase (quem tem o processo, o responsável, quem gere a unidade ou quem
+  tem certa atribuição), quem dispensa o que ela exige, quem segue por
+  caminho fora do previsto e quem arquiva, sobresta ou reativa.
+- A ação também pode ser reservada a quem tem certa atribuição (ex.:
+  Promotor), a que a pessoa tem na lotação da unidade que está com o
+  processo.
+- O servidor confere cada ato e diz a quem ele cabe. Na tela do processo,
+  a fase mostra o que está reservado, e quem não pode vê o motivo antes de
+  tentar. A administração do Processo Eletrônico sempre pode.
+- Nada muda para rito que não usar as opções novas.
+- Guia do rito, parte 7, explica cada opção.
+
 ### 14/11/2026 — O rito conduz registros de páginas próprias
 - Em **Andamento automático**, "A fase conduz" passa a listar também as
   páginas próprias do órgão. Escolhida a página, as situações são as fases

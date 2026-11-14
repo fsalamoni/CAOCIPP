@@ -1,5 +1,6 @@
 import { chaveCampo, novoCampo } from './camposProcesso.js';
 import { seguintes } from './secretariaRito.js';
+import { QUEM, rotuloQuem } from './permissoesFase.js';
 // ============================================================================
 // Espelho, para a tela, das regras do rito (functions-v2/src/shared/
 // exigencias.ts): o que cada ação pede, onde cada ato fica registrado e que
@@ -224,9 +225,8 @@ export function saidasDaFase(fases, f) {
 // (`regra.se`) e por qual saída o processo segue (`fase.condicoes_regra`).
 // ---------------------------------------------------------------------------
 
-/** Quem pode cumprir a ação (além da administração). */
-export const QUEM = [['', 'Quem tem o processo'], ['responsavel', 'Só o responsável designado'], ['gestor', 'Só quem gere a unidade']];
-export const ROTULO_QUEM = { responsavel: 'só o responsável', gestor: 'só quem gere a unidade' };
+/** Quem pode cumprir a ação (além da administração): as opções e os textos estão em permissoesFase.js. */
+export { QUEM };
 /**
  * Quem da equipe vê o dado da ação (espelho de VE no servidor). Reservado: só
  * quem gere a unidade onde foi registrado, quem registrou e a administração.
@@ -370,7 +370,7 @@ function regraComPedidoSemNivel(r, pede, acao) {
     // Só orientação: fica a condição, mais nada (não se marca, não se cobra, não tem alternativa).
     if (pede === 'orientacao') return { ...nova, ...(r?.se ? { se: r.se } : {}) };
     // A condição ("só vale se") e quem cumpre acompanham a ação (documento: quem cumpre é quem junta).
-    const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem } : {}),
+    const extra = { ...(r?.se ? { se: r.se } : {}), ...(r?.quem && pede !== 'documento' ? { quem: r.quem, ...(r.quem === 'atribuicao' ? { atribuicao: r.atribuicao || '' } : {}) } : {}),
         ...(Number.isInteger(r?.ou) && pede !== 'documento' ? { ou: r.ou } : {}),
         // A folha de dados segue enquanto a ação pedir um dado.
         ...(r?.folha_dados && !['confirmar', 'documento'].includes(pede) ? { folha_dados: true } : {}),
@@ -417,7 +417,7 @@ export function resumoDaAcao(r) {
             : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];
     const nivel = { '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)];
-    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${r?.folha_dados ? '; na folha de dados' : ''}${nivel}${r?.se ? '; condicional' : ''}${Number.isInteger(r?.ou) ? '; alternativa a outra' : ''}${r?.quem ? `; ${ROTULO_QUEM[r.quem]}` : ''}`;
+    return `${oque}${r?.rotulo ? ` (${r.rotulo})` : ''}; ${onde}${partesVeem(r) ? '; partes veem' : ''}${r?.folha_dados ? '; na folha de dados' : ''}${nivel}${r?.se ? '; condicional' : ''}${Number.isInteger(r?.ou) ? '; alternativa a outra' : ''}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}`;
 }
 
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */

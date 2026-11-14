@@ -21,6 +21,7 @@ const secretaria_1 = require("../shared/secretaria");
 const config_1 = require("./config");
 const autos_1 = require("../shared/autos");
 const exigencias_1 = require("../shared/exigencias");
+const permissoesFase_1 = require("../shared/permissoesFase");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const numeracao_1 = require("../shared/numeracao");
@@ -281,12 +282,53 @@ function foraDaCondicao(proc, alvoId) {
         return null;
     return textoCondicao(fase, cond);
 }
-function dispensarExigencias(proc, motivo, form) {
+function dispensarExigencias(c, proc, motivo, form) {
     const abertas = exigenciasAbertas(proc, form).map((e) => e.descricao);
+    exigirDispensa(c, proc, abertas);
     if (abertas.length && !motivo) {
         throw new https_1.HttpsError('failed-precondition', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta ou informe o motivo da dispensa.`);
     }
     return abertas;
+}
+/**
+ * Quem pratica o ato, como o rito o enxerga na unidade que tem o processo:
+ * administração, gestão da unidade, responsável designado e a atribuição que a
+ * pessoa tem na lotação (shared/permissoesFase.ts).
+ */
+function atorDe(c, proc) {
+    var _a;
+    const un = c.unidades.find((u) => u.id === proc.unidade_atual);
+    return {
+        isAdmin: c.ctx.isAdmin, gestor: c.gestorDe.includes(String(proc.unidade_atual)), responsavel: !!proc.responsavel_uid && proc.responsavel_uid === c.ctx.uid,
+        atribuicao: un ? ((_a = (0, secretaria_1.lotacoesDe)(un).find((l) => l.uid === c.ctx.uid)) === null || _a === void 0 ? void 0 : _a.atribuicao) || '' : '',
+    };
+}
+const faseDoProcesso = (proc) => (proc.fases || []).find((f) => f.id === proc.fase_atual);
+/** O rito pode reservar a dispensa do que a fase exige a quem gere a unidade ou à administração. Lança HttpsError. */
+function exigirDispensa(c, proc, abertas) {
+    var _a;
+    const fase = faseDoProcesso(proc);
+    const r = (_a = fase === null || fase === void 0 ? void 0 : fase.permissoes) === null || _a === void 0 ? void 0 : _a.dispensar;
+    if (abertas.length && r && !(0, permissoesFase_1.podeReserva)(r, atorDe(c, proc))) {
+        throw new https_1.HttpsError('permission-denied', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta: na fase ${fase.nome}, só ${(0, permissoesFase_1.textoReserva)(r)} pode dispensar.`);
+    }
+}
+/**
+ * Reservas do rito para sair da fase: quem a conclui (ir para a fase de espera
+ * não conclui) e quem segue por caminho diferente do previsto (fase fora do
+ * fluxo, ou saída sem a resposta que o rito pede). Lança HttpsError.
+ */
+function exigirSaida(c, proc, faseSai, alvo, desvio) {
+    const pm = faseSai === null || faseSai === void 0 ? void 0 : faseSai.permissoes;
+    if (!pm)
+        return;
+    const a = atorDe(c, proc);
+    if (pm.concluir && !alvo.espera && !(0, permissoesFase_1.podeQuem)(pm.concluir, pm.concluir_atribuicao, a)) {
+        throw new https_1.HttpsError('permission-denied', `Pelo rito, só ${(0, permissoesFase_1.textoQuem)(pm.concluir, pm.concluir_atribuicao)} conclui a fase ${faseSai.nome}.`);
+    }
+    if (desvio && pm.desviar && !(0, permissoesFase_1.podeReserva)(pm.desviar, a)) {
+        throw new https_1.HttpsError('permission-denied', `${alvo.nome} não é o caminho que o rito prevê agora. Na fase ${faseSai.nome}, só ${(0, permissoesFase_1.textoReserva)(pm.desviar)} segue por outro caminho.`);
+    }
 }
 /**
  * Certidão conjunta pendente vira UMA certidão nos autos, com folha, antes do
@@ -864,7 +906,7 @@ async function movimentar(c, p, opcoes = {}) {
     let recebeu = null;
     let pendenciaAberta = null;
     const resultado = await db.runTransaction(async (tx) => {
-        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+        var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _s;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
@@ -901,6 +943,8 @@ async function movimentar(c, p, opcoes = {}) {
             // De volta à unidade em que estava: quem respondia pelo processo volta a responder, se ainda estiver lotado nela.
             const esp = data.espera;
             const responsavelDeVolta = retomada && (esp === null || esp === void 0 ? void 0 : esp.responsavel_uid) && destino.id === esp.unidade && (destino.membros_uids || []).includes(esp.responsavel_uid) ? esp.responsavel_uid : null;
+            if (novaFase)
+                exigirSaida(c, data, faseSai, novaFase, foraDoFluxo || !!foraDaCondicao(data, novaFase.id));
             if (foraDoFluxo && !motivo)
                 throw new https_1.HttpsError('invalid-argument', `${novaFase.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = novaFase && !foraDoFluxo ? foraDaCondicao(data, novaFase.id) : null;
@@ -924,7 +968,7 @@ async function movimentar(c, p, opcoes = {}) {
                 }
             }
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
-            const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(data, motivo, formAtual) : [];
+            const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(c, data, motivo, formAtual) : [];
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, novaFase === null || novaFase === void 0 ? void 0 : novaFase.id);
@@ -1015,7 +1059,7 @@ async function movimentar(c, p, opcoes = {}) {
                 const convites = db.collection(context_1.COL.convites);
                 for (const i of ret.retiradas) {
                     // Quem sai perde o portal: convites revogados e contas desligadas, também dos representantes.
-                    const _s = ret.partes[i], { uid: _u, convite_hash: hash } = _s, resto = __rest(_s, ["uid", "convite_hash"]);
+                    const _v = ret.partes[i], { uid: _u, convite_hash: hash } = _v, resto = __rest(_v, ["uid", "convite_hash"]);
                     if (hash)
                         tx.set(convites.doc(hash), { revogado: true }, { merge: true });
                     const reps = (resto.representantes || []).map((_a) => {
@@ -1086,13 +1130,10 @@ async function movimentar(c, p, opcoes = {}) {
                 throw new https_1.HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra.se)}`);
             }
             // Quem pode cumprir: o rito pode reservar ao responsável designado ou a quem gere a unidade.
-            if ((regra === null || regra === void 0 ? void 0 : regra.quem) && !c.ctx.isAdmin) {
-                const pode = regra.quem === 'responsavel' ? data.responsavel_uid === c.ctx.uid : c.gestorDe.includes(String(data.unidade_atual));
-                if (!pode) {
-                    throw new https_1.HttpsError('permission-denied', regra.quem === 'responsavel'
-                        ? `"${acao}" é do responsável pelo processo. Peça a atribuição ou a quem está designado.`
-                        : `"${acao}" é de quem gere a unidade.`);
-                }
+            if ((regra === null || regra === void 0 ? void 0 : regra.quem) && !(0, permissoesFase_1.podeQuem)(regra.quem, regra.atribuicao, atorDe(c, data))) {
+                throw new https_1.HttpsError('permission-denied', regra.quem === 'responsavel'
+                    ? `"${acao}" é do responsável pelo processo. Peça a atribuição ou a quem está designado.`
+                    : `"${acao}" é de ${(0, permissoesFase_1.textoQuem)(regra.quem, regra.atribuicao)}.`);
             }
             // Ação que o rito liga a um documento se cumpre na juntada (ou guardando o documento), não aqui.
             if (regra === null || regra === void 0 ? void 0 : regra.documento) {
@@ -1199,6 +1240,7 @@ async function movimentar(c, p, opcoes = {}) {
             const foraDoFluxo = !(0, secretaria_1.saidasDoProcesso)(data).some((f) => f.id === alvo.id);
             const faseSai = fases.find((f) => f.id === data.fase_atual);
             const retomada = ehRetomada(data, faseSai, alvo);
+            exigirSaida(c, data, faseSai, alvo, foraDoFluxo || !!foraDaCondicao(data, alvo.id));
             if (foraDoFluxo && !motivo)
                 throw new https_1.HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = foraDoFluxo ? null : foraDaCondicao(data, alvo.id);
@@ -1206,7 +1248,7 @@ async function movimentar(c, p, opcoes = {}) {
                 throw new https_1.HttpsError('invalid-argument', `O rito leva a ${alvo.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
             const de = ((_k = fases.find((f) => f.id === data.fase_atual)) === null || _k === void 0 ? void 0 : _k.nome) || data.fase_atual;
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
-            const dispensadas = alvo.espera ? [] : dispensarExigencias(data, motivo, formAtual);
+            const dispensadas = alvo.espera ? [] : dispensarExigencias(c, data, motivo, formAtual);
             const destinoMov = dispensadas.length ? 'autos' : (0, exigencias_1.destinoDoMovimento)(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
@@ -1266,11 +1308,18 @@ async function movimentar(c, p, opcoes = {}) {
             }
             if (status === data.status)
                 throw new https_1.HttpsError('invalid-argument', 'O processo já está nessa situação');
+            // O rito pode reservar a mudança de situação, na fase, a quem gere a unidade ou à administração.
+            const faseSit = faseDoProcesso(data);
+            const reservaSit = (_q = faseSit === null || faseSit === void 0 ? void 0 : faseSit.permissoes) === null || _q === void 0 ? void 0 : _q.situacao;
+            if (reservaSit && !(0, permissoesFase_1.podeReserva)(reservaSit, atorDe(c, data))) {
+                throw new https_1.HttpsError('permission-denied', `Pelo rito, na fase ${faseSit.nome} só ${(0, permissoesFase_1.textoReserva)(reservaSit)} arquiva, sobresta ou reativa o processo.`);
+            }
             if (!motivo)
                 throw new https_1.HttpsError('invalid-argument', 'Informe o motivo');
             const rotulo = { em_tramitacao: 'Reativado', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[status];
             // Arquivar com documento exigido em aberto: o motivo vale como dispensa, e fica dito.
             const dispensadas = status === 'arquivado' ? exigenciasAbertas(data, formAtual).map((e) => e.descricao) : [];
+            exigirDispensa(c, data, dispensadas);
             // Arquivar encerra a certidão conjunta pendente (sobrestar, não: o processo volta à mesma fase).
             const em = emitirSe(status === 'arquivado', tx, c, ref, data);
             if (em.proc !== data)
@@ -1313,7 +1362,7 @@ async function movimentar(c, p, opcoes = {}) {
         }
         if (p.action === 'resolverPendencia') {
             // Apreciar é ato de decisão: só o gabinete que tem o processo.
-            if (((_q = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _q === void 0 ? void 0 : _q.tipo) !== 'gabinete') {
+            if (((_s = c.unidades.find((u) => u.id === data.unidade_atual)) === null || _s === void 0 ? void 0 : _s.tipo) !== 'gabinete') {
                 throw new https_1.HttpsError('permission-denied', 'Pendências são apreciadas pelo gabinete. Faça a conclusão do processo antes.');
             }
             const alvo = pendencias.find((x) => x.id === p.pendencia_id && x.status === 'aberta');

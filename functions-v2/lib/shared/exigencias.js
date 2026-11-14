@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.exigeAlgo = exports.marcasNaFase = exports.respostasDaFase = exports.respondeNaRodada = exports.respostaDaAcao = exports.chaveDaCondicao = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.QUEM = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = void 0;
+exports.visivelCertidao = exports.cabeNaCertidao = exports.textoDoItem = exports.mudancaNaCertidao = exports.grupoDe = exports.MAX_ITEM_CERTIDAO = exports.MAX_TEXTO_CERTIDAO = exports.movimentoInterno = exports.documentosQueFaltam = exports.exigeAlgo = exports.marcasNaFase = exports.respostasDaFase = exports.respondeNaRodada = exports.respostaDaAcao = exports.chaveDaCondicao = exports.chaveDaResposta = exports.partesVeem = exports.pedidoDaAcao = exports.MAX_DOCUMENTOS_FASE = exports.PEDIDOS_RESERVAVEIS = exports.VE = exports.MAX_CAMPOS_ACAO = exports.MAX_OPCOES_ACAO = exports.PEDIDOS = exports.NIVEIS = exports.FORMAS = exports.PADRAO_OUTRO = exports.OUTROS_ATOS = exports.REGISTROS = exports.destinoTransicao = exports.maisReservado = exports.DESTINOS_ACAO = exports.DESTINOS_ATO = exports.DESTINOS = exports.QUEM = void 0;
 exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
@@ -49,6 +49,8 @@ exports.textoCertidao = textoCertidao;
 exports.marcasDoDestino = marcasDoDestino;
 const modulos_1 = require("./modulos");
 const camposProcesso_1 = require("./camposProcesso");
+const permissoesFase_1 = require("./permissoesFase");
+Object.defineProperty(exports, "QUEM", { enumerable: true, get: function () { return permissoesFase_1.QUEM; } });
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -102,8 +104,6 @@ exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
-/** Quem pode cumprir a ação, além da administração: o responsável designado ou quem gere a unidade. */
-exports.QUEM = ['responsavel', 'gestor'];
 /**
  * Quem da equipe vê o dado da ação. Ausente = toda a equipe que vê o processo.
  * 'gestor': só quem gere a unidade onde foi registrado, quem o registrou e a
@@ -224,8 +224,7 @@ function sanitizeRegra(raw, acao) {
         out.obrigatoria = true;
     else if (r.recomendada === true)
         out.recomendada = true;
-    if (exports.QUEM.includes(r.quem))
-        out.quem = r.quem;
+    Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
     // Folha de dados: só ação que pede um dado (a confirmação simples não tem o que mostrar).
     if (r.folha_dados === true && out.pede)
         out.folha_dados = true;

@@ -5,15 +5,17 @@ import { Button } from '@/components/ui/button';
 import { ROTULO_MODULO } from '@/lib/camposProcesso';
 import { buscarRegistros } from '@/lib/registrosModulos';
 import { useEntityTypes } from '@/hooks/useCustomEntities';
+import { atribuicoesDoOrgao } from '@/lib/permissoesFase';
 
 /**
  * Órgão, integrações que valem e páginas próprias do órgão ([{ id, nome,
  * plural }]), para os seletores de registro (Processo Eletrônico e Configuração).
+ * `atribuicoes`: as que existem nas lotações do órgão, sugeridas no editor de rito.
  */
-export const RegistroContexto = createContext({ orgId: null, ligadas: {}, paginas: [], paginasProntas: false });
+export const RegistroContexto = createContext({ orgId: null, ligadas: {}, paginas: [], paginasProntas: false, atribuicoes: [] });
 
 /** Provê o RegistroContexto; as páginas próprias só são lidas com a integração ligada. */
-export function ProvedorRegistros({ orgId, ligadas, children }) {
+export function ProvedorRegistros({ orgId, ligadas, unidades, children }) {
     const { entityTypes, isLoading } = useEntityTypes(ligadas?.paginas ? orgId : null);
     // `fases`: as colunas do quadro da página, para o rito dizer em qual o registro fica.
     const paginas = (entityTypes || []).filter((t) => t.enabled !== false)
@@ -21,7 +23,7 @@ export function ProvedorRegistros({ orgId, ligadas, children }) {
             id: t.id, nome: t.label_singular || 'Página', plural: t.label_plural || t.label_singular || 'Página',
             fases: (t.phases || []).map((x) => ({ key: x.key, label: x.label || x.key })),
         }));
-    return <RegistroContexto.Provider value={{ orgId, ligadas, paginas, paginasProntas: !isLoading }}>{children}</RegistroContexto.Provider>;
+    return <RegistroContexto.Provider value={{ orgId, ligadas, paginas, paginasProntas: !isLoading, atribuicoes: atribuicoesDoOrgao(unidades) }}>{children}</RegistroContexto.Provider>;
 }
 
 /** Nome do módulo (ou da página própria) para os textos do seletor. */
