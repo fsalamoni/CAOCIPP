@@ -22,6 +22,7 @@ const exigencias_1 = require("../shared/exigencias");
 const processos_1 = require("./processos");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
+const prazosFase_1 = require("../shared/prazosFase");
 const secretaria_2 = require("../shared/secretaria");
 const context_1 = require("./context");
 const autos_1 = require("./autos");
@@ -34,6 +35,8 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
     const { ref: procRef, data: proc } = await (0, context_1.lerProcesso)(c, p.processoId);
+    // Feriados locais e recesso, se o ato puder abrir prazo de ação.
+    const calendario = ['juntar', 'guardar'].includes(String(p.action)) ? await (0, context_1.calendarioDasAcoes)(c.db, c.orgId, proc) : undefined;
     const docsCol = procRef.collection('documentos');
     const agoraIso = new Date().toISOString();
     const semPedidos = (lista, docId, uid) => (lista || []).filter((x) => !(x.docId === docId && (!uid || x.uid === uid)));
@@ -293,6 +296,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             paginas = await (0, autos_1.paginasDeArquivo)(buf, antes.mime);
         }
         const r = await c.db.runTransaction(async (tx) => {
+            var _a;
             const { ref: pr, data: atual } = await (0, context_1.lerProcesso)(c, p.processoId, tx);
             (0, context_1.conferirVersao)(atual, p.version);
             (0, context_1.exigirPosse)(c, atual);
@@ -329,7 +333,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                 (0, context_1.erroUsuario)(e);
             }
             const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
-            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência: ${resolvida.descricao}.` : ''}`
+            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, ordem) : {};
             const juntado = Object.assign({ status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }, (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
@@ -342,18 +346,22 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                 ...pend,
             ];
             const mexeuPendencias = pend.length > 0 || !!resolvida;
-            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
-            return { ordem, version: mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual) };
+            // Ação com prazo próprio cumprida pela juntada: o prazo dela se encerra (e o registro interno diz).
+            const pzA = (0, prazosFase_1.camposDosPrazosDasAcoes)(atual, exig, fase, c.userName, mexeuPendencias ? pendencias : undefined, calendario);
+            const mi = (0, context_1.registrarInternos)(tx, c, pr, Object.assign(Object.assign({}, atual), mov), pzA.notas);
+            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), pzA.campos), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
+            return { ordem, version: (_a = mi.version) !== null && _a !== void 0 ? _a : mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual), internos: pzA.notas.length ? 1 : 0 };
         });
-        void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id);
+        void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id, undefined, 1 + r.internos);
         if (p.pendencia === 'sim' || p.pendencia === 'interrompe')
             void (0, avisosEquipe_1.avisarPendencia)(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
-        const { tentar } = r, feito = __rest(r, ["tentar"]);
+        const { tentar, internos: _i } = r, feito = __rest(r, ["tentar", "internos"]);
         return comAvanco(feito, tentar);
     }
     if (p.action === 'guardar') {
         // Documento de controle: fica no processo, fora dos autos e da impressão.
         const r = await c.db.runTransaction(async (tx) => {
+            var _a;
             const { ref: pr, data: atual } = await (0, context_1.lerProcesso)(c, p.processoId, tx);
             (0, context_1.conferirVersao)(atual, p.version);
             (0, context_1.exigirPosse)(c, atual);
@@ -378,8 +386,10 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign({ documento_id: ref.id, titulo: doc.titulo, sha256: doc.sha256, visivel_partes: false }, (0, exigencias_1.marcasDoDestino)(destino)), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, null) : {};
             tx.update(ref, { status: 'controle', visivel_partes: false, guardado_em: agoraIso, guardado_por: auth.uid, guardado_por_nome: c.userName });
-            tx.update(pr, Object.assign(Object.assign(Object.assign({}, mov), exig), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
-            return { version: mov.version, tentar: podeSeguir(fase, atual) };
+            const pzA = (0, prazosFase_1.camposDosPrazosDasAcoes)(atual, exig, fase, c.userName, undefined, calendario);
+            const mi = (0, context_1.registrarInternos)(tx, c, pr, Object.assign(Object.assign({}, atual), mov), pzA.notas);
+            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), exig), pzA.campos), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
+            return { version: (_a = mi.version) !== null && _a !== void 0 ? _a : mov.version, tentar: podeSeguir(fase, atual) };
         });
         const { tentar } = r, feito = __rest(r, ["tentar"]);
         return comAvanco(feito, tentar);

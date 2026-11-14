@@ -14,6 +14,8 @@ import {
     tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
 } from '../shared/exigencias';
 import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
+import { responsavelPelaFase } from '../shared/efeitosFase';
+import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
 import { sendEmail } from '../shared/email';
 import {
     CampoExigido, CampoValor, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
@@ -29,11 +31,11 @@ import { fireOrgWebhook } from '../shared/webhooks';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
-import { avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
+import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
     COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
-    nomeUnidade, registrarMovimento,
+    nomeUnidade, registrarInternos, registrarMovimento,
 } from './context';
 
 /**
@@ -152,56 +154,113 @@ const textoCondicao = (f: Fase | undefined, c: Condicao, fases?: unknown): strin
 /**
  * O que o rito faz ao trocar de fase (ou na autuação, sem fase de origem):
  * encerra o prazo automático da fase que sai, abre o da fase que entra,
- * marca a urgência e tira o responsável designado. Vai no mesmo movimento da
- * mudança: `texto` completa a descrição (só o que as partes podem ler: a
- * urgência), `interno` vai num registro só da equipe logo depois (prazo
- * interno e responsável), `campos` vai para o processo.
- * `para` null: só encerra (arquivamento).
+ * muda a urgência e o sigilo, tira ou designa o responsável, abre a pendência
+ * ao decisor e os prazos das ações. Vai no mesmo movimento da mudança: `texto`
+ * completa a descrição (só o que as partes podem ler: a urgência), `interno`
+ * vai num registro só da equipe logo depois (prazos internos, responsável,
+ * sigilo, pendência), `campos` vai para o processo e `pendencia` é o texto da
+ * que foi aberta (para o aviso a quem decide). `para` null: só encerra
+ * (arquivamento).
  */
+export interface OpcoesEfeitos {
+    /** Volta da espera: a fase é retomada como estava, sem designar de novo nem reabrir a pendência dela. */
+    retomada?: boolean;
+    /** Quem a fase designa, já procurado entre os lotados na unidade que fica com o processo (ver `designadoPelaFase`). */
+    designacao?: Designacao | null;
+}
+export interface Designacao { uid?: string; nome?: string; nota: string }
+
 export function efeitosDaMudanca(
-    proc: admin.firestore.DocumentData, deId: string | null, para: Fase | null, calendario: CalendarioOrgao | undefined, quem: string,
-): { texto: string; interno: string[]; campos: Record<string, unknown> } {
+    proc: admin.firestore.DocumentData, deId: string | null, para: Fase | null, calendario: CalendarioOrgao | undefined, quem: string, opts: OpcoesEfeitos = {},
+): { texto: string; interno: string[]; campos: Record<string, unknown>; pendencia?: string } {
     const hoje = hojeBrasil();
     const agora = new Date().toISOString();
     const frases: string[] = [];
     const interno: string[] = [];
     const antes = (proc.prazos || []) as Prazo[];
-    let prazos = antes;
-    const daFase = antes.filter((x) => x.status === 'aberto' && x.fase_id && x.fase_id === deId);
-    if (daFase.length) {
-        prazos = prazos.map((x) => (daFase.includes(x) ? { ...x, status: 'cumprido' as const, encerrado_em: hoje, encerrado_por: quem } : x));
-        daFase.forEach((x) => interno.push(`Prazo interno da fase encerrado ${hoje <= x.vence_em ? 'no prazo' : 'fora do prazo'}: ${x.descricao}.`));
-    }
+    const saida = encerrarPrazosDaFase(antes, deId, hoje, quem);
+    let prazos = saida.prazos;
+    interno.push(...saida.notas);
     const dias = Number(para?.prazo_dias);
     if (para?.prazo_auto && !para.ao_entrar?.arquivar && Number.isInteger(dias) && dias > 0 && dias <= MAX_PRAZO_DIAS && prazos.length < MAX_ITENS) {
         const contagem: Contagem = para.prazo_contagem === 'corridos' ? 'corridos' : 'uteis';
         const vence = calcularVencimento(hoje, dias, contagem, calendario);
         prazos = [...prazos, {
             id: randomBytes(10).toString('hex'), descricao: `Fase ${para.nome}`, fase_id: para.id, dias, contagem, inicio: hoje, vence_em: vence,
-            status: 'aberto', aberto_em: agora, aberto_por: quem, automatico: true,
+            status: 'aberto', aberto_em: agora, aberto_por: quem, automatico: true, ...marcasDoPrazo(para),
         }];
         interno.push(`Prazo interno da fase aberto: ${dias} dias ${contagem === 'uteis' ? 'úteis' : 'corridos'}, vence em ${vence.split('-').reverse().join('/')}.`);
     }
-    const campos: Record<string, unknown> = prazos === antes ? {} : { prazos, ...derivados((proc.pendencias || []) as Pendencia[], prazos) };
-    if (para?.ao_entrar?.urgente && proc.urgente !== true) {
+    const campos: Record<string, unknown> = {};
+    const ae = para?.ao_entrar;
+    if (para && ae?.urgente && proc.urgente !== true) {
         campos.urgente = true;
         campos.urgencia = { motivo: `Regra da fase ${para.nome}`, por: quem, em: agora };
         frases.push('Tramitação urgente pela regra da fase.');
     }
-    if (para?.ao_entrar?.sem_responsavel && proc.responsavel_uid) {
-        campos.responsavel_uid = null;
-        interno.push('Responsável designado retirado pela regra da fase.');
+    // Na autuação não há urgência anterior a tirar: vale o que quem autua (ou o tipo) disse.
+    if (ae?.sem_urgencia && deId && proc.urgente === true) {
+        campos.urgente = false;
+        campos.urgencia = FieldValue.delete();
+        frases.push('Urgência retirada pela regra da fase.');
     }
-    return { texto: frases.length ? ` ${frases.join(' ')}` : '', interno, campos };
+    if (ae?.sigilo && (proc.sigilo === 'restrito' ? 'restrito' : 'normal') !== ae.sigilo) {
+        campos.sigilo = ae.sigilo;
+        interno.push(`Sigilo do processo alterado para ${ae.sigilo} pela regra da fase.`);
+    }
+    const antesPend = (proc.pendencias || []) as Pendencia[];
+    let pendencias = antesPend;
+    let pendencia: string | undefined;
+    if (para && !opts.retomada) {
+        if (ae?.sem_responsavel && proc.responsavel_uid) {
+            campos.responsavel_uid = null;
+            interno.push('Responsável designado retirado pela regra da fase.');
+        }
+        const d = opts.designacao;
+        if (d?.uid && d.uid !== proc.responsavel_uid) {
+            campos.responsavel_uid = d.uid;
+            interno.push(`Responsável designado pela regra da fase: ${d.nome || 'pessoa lotada na unidade'}.`);
+        } else if (d && !d.uid) interno.push(d.nota);
+        if (ae?.pendencia && !ae.arquivar && pendencias.length < MAX_ITENS) {
+            const interrompe = ae.pendencia_interrompe === true;
+            pendencias = [...pendencias, {
+                id: randomBytes(10).toString('hex'), tipo: 'manual', descricao: ae.pendencia, interrompe,
+                status: 'aberta', aberta_em: agora, aberta_por: `Regra da fase ${para.nome}`,
+            }];
+            pendencia = ae.pendencia;
+            interno.push(`Pendência aberta para o decisor pela regra da fase: ${ae.pendencia}${interrompe ? ' (fase interrompida)' : ''}.`);
+        }
+    }
+    // Prazos das ações da fase que entra: os que já valem (na retomada, o que foi feito continua feito).
+    if (para && !ae?.arquivar) {
+        const depois = { ...proc, ...campos, prazos, fase_atual: para.id, ...(opts.retomada ? {} : camposAoEntrarNaFase(proc, para.id)) };
+        const pa = prazosDasAcoes(depois, para, hoje, agora, calendario, quem, () => randomBytes(10).toString('hex'));
+        if (pa) {
+            prazos = pa.prazos;
+            interno.push(...pa.notas);
+        }
+    }
+    if (prazos !== antes || pendencias !== antesPend) {
+        Object.assign(campos, { ...(prazos !== antes ? { prazos } : {}), ...(pendencias !== antesPend ? { pendencias } : {}), ...derivados(pendencias, prazos) });
+    }
+    return { texto: frases.length ? ` ${frases.join(' ')}` : '', interno, campos, ...(pendencia ? { pendencia } : {}) };
+}
+
+/**
+ * Quem a fase designa como responsável ao entrar, entre os lotados na unidade
+ * que fica com o processo, com o nome (para o registro interno e para o
+ * registro ligado). Null: a fase não designa.
+ */
+async function designadoPelaFase(c: Ctx, fase: Fase | null | undefined, unidade: admin.firestore.DocumentData | undefined): Promise<Designacao | null> {
+    const d = responsavelPelaFase(fase?.ao_entrar, unidade ? lotacoesDe(unidade) : [], c.ctx.uid);
+    if (!d?.uid) return d;
+    if (d.uid === c.ctx.uid) return { ...d, nome: c.userName };
+    const m = (await c.db.collection('userOrganizations').doc(`${d.uid}_${c.orgId}`).get()).data();
+    return { ...d, nome: formatPersonName(String(m?.user_name || m?.user_email || 'pessoa lotada na unidade')) };
 }
 
 /** O que a fase fez sozinha e só interessa à equipe: registro interno, sem termo, fora do portal. */
-function registrarInternos(tx: admin.firestore.Transaction, c: Awaited<ReturnType<typeof carregarContexto>>, ref: admin.firestore.DocumentReference, proc: admin.firestore.DocumentData, interno: string[]): Record<string, unknown> {
-    if (!interno.length) return {};
-    return registrarMovimento(tx, c, ref, proc, 'efeitos_fase', interno.join(' '), marcasDoDestino('informacao'));
-}
-
-const SEM_EFEITOS = { texto: '', interno: [] as string[], campos: {} as Record<string, unknown> };
+const SEM_EFEITOS: ReturnType<typeof efeitosDaMudanca> = { texto: '', interno: [], campos: {} };
 
 type Ctx = Awaited<ReturnType<typeof carregarContexto>>;
 /** Registro de outro módulo cuja situação o rito conduz, ou por que ele não pode ser conduzido. */
@@ -876,9 +935,13 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const ctxNumero = { hoje: hojeBrasil(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
         const procRef = db.collection(COL.processos).doc();
         // Primeira fase com prazo automático: a contagem usa o calendário do órgão.
-        const calendarioAutuacao = (rito.fases as Fase[])[0]?.prazo_auto
+        const fase1 = (rito.fases as Fase[])[0];
+        const calendarioAutuacao = fase1?.prazo_auto || (fase1?.acoes_regras || []).some((r) => r?.prazo_dias)
             ? sanitizeCalendario((await db.collection(COL.config).doc(orgId).get()).data()?.calendario) : undefined;
         const contadorRef = numeracao ? db.collection(COL.contadores).doc(chaveContador(orgId, numeracao, ctxNumero)) : null;
+        // A primeira fase pode designar o responsável e avisar a equipe já na autuação.
+        const designacaoInicial = await designadoPelaFase(c, fase1, unidade);
+        let autuado: { proc: admin.firestore.DocumentData; pendencia?: string } | null = null;
         const numero = await db.runTransaction(async (tx) => {
             let numero = identificadorSemNumero(procRef.id);
             if (numeracao && contadorRef) {
@@ -934,7 +997,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 prazos: [],
                 ...derivados([], []),
             };
-            const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName);
+            const ef = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName, { designacao: designacaoInicial });
+            autuado = { proc: { ...base, ...ef.campos }, ...(ef.pendencia ? { pendencia: ef.pendencia } : {}) };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
                 `Processo${tipo ? ` (${tipo.nome})` : ''} autuado na unidade ${unidade.nome}, rito ${rito.nome} (versão ${base.rito_versao}), fase ${fases[0].nome}.${urgente ? ` Tramitação urgente: ${motivoUrgencia}` : ''}${ef.texto}`,
                 { assunto, rito_id: ritoSnap.id, rito_versao: base.rito_versao, unidade: unidadeId, ...(urgente ? { urgente: true } : {}), ...(origem ? { origem } : {}),
@@ -943,6 +1007,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             tx.set(procRef, { ...base, ...ef.campos, ...mov, ...mi });
             return numero;
         });
+        const au = autuado as { proc: admin.firestore.DocumentData; pendencia?: string } | null;
+        if (au && fase1?.aviso?.para) void avisarEntradaNaFase(c, fase1, unidadeId, au.proc, procRef.id, false, '');
+        if (au?.pendencia) void avisarPendencia(c, au.proc, procRef.id, au.pendencia);
         return { success: true, id: procRef.id, numero };
     }
 
@@ -990,7 +1057,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = texto(p.motivo, MAX_TEXTO_LONGO);
     // Feriados locais e recesso do órgão entram na contagem de prazos.
-    const calendario: CalendarioOrgao | undefined = ['abrirPrazo', 'tramitar', 'avancarFase'].includes(String(p.action))
+    const calendario: CalendarioOrgao | undefined = ['abrirPrazo', 'tramitar', 'avancarFase', 'marcarAcao'].includes(String(p.action))
         ? sanitizeCalendario((await db.collection(COL.config).doc(orgId).get()).data()?.calendario)
         : undefined;
     const cfgCom = p.action === 'expedirComunicacao' ? await configComunicacoes(db, orgId) : null;
@@ -998,6 +1065,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     const convite = { token: '', email: '', parte: '', numero: '', representaQuem: '' };
     let recebeu: { unidadeId: string; proc: admin.firestore.DocumentData } | null = null;
     let pendenciaAberta: { proc: admin.firestore.DocumentData; descricao: string } | null = null;
+    // Entrada em fase (com ou sem remessa): a fase diz quem é avisado.
+    let entrou: { fase: Fase; unidadeId: string; proc: admin.firestore.DocumentData; remessa: boolean } | null = null;
     const resultado = await db.runTransaction(async (tx) => {
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
@@ -1054,6 +1123,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             }
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
             const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(c, data, motivo, formAtual) : [];
+            // A fase pode designar o responsável entre os lotados na unidade que recebe (na retomada, volta quem respondia).
+            const designacao = novaFase && !retomada ? await designadoPelaFase(c, novaFase, destino) : null;
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, novaFase?.id);
@@ -1063,8 +1134,10 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const em = emitirSe(!!novaFase && (arquiva || deveEmitir(fases, data.consolidacao, data.fase_atual, novaFase.id)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
             // A remessa já tira o responsável: os efeitos não repetem isso.
-            const efFase = novaFase ? efeitosDaMudanca({ ...data, responsavel_uid: null }, String(data.fase_atual), novaFase, calendario, c.userName) : SEM_EFEITOS;
-            const sit = aplicarSituacao(tx, c, registros, novaFase, responsavelDeVolta && novaFase?.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data);
+            const efFase = novaFase ? efeitosDaMudanca({ ...data, responsavel_uid: null }, String(data.fase_atual), novaFase, calendario, c.userName, { retomada, designacao }) : SEM_EFEITOS;
+            // Designado pela fase: para o registro ligado, é alguém assumindo.
+            const sit = aplicarSituacao(tx, c, registros, novaFase, (responsavelDeVolta || designacao?.uid) && novaFase?.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data,
+                designacao?.uid ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
             const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
             const mov = registrarMovimento(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao',
@@ -1094,6 +1167,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     : FieldValue.delete(),
             });
             recebeu = { unidadeId: destino.id, proc: data };
+            const depois = { ...data, ...ef.campos, unidade_atual: destino.id, responsavel_uid: 'responsavel_uid' in ef.campos ? ef.campos.responsavel_uid : responsavelDeVolta };
+            if (novaFase && !retomada) entrou = { fase: novaFase, unidadeId: destino.id, proc: depois, remessa: true };
+            if (efFase.pendencia) pendenciaAberta = { proc: depois, descricao: efFase.pendencia };
             return mov;
         }
 
@@ -1249,6 +1325,11 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 todasRespostas[fase.id] = daFase;
             }
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};
+            // Prazos das ações: encerra o da cumprida, reabre o da desfeita e acompanha a ação condicional que passou a valer (ou deixou).
+            const pz = prazosDasAcoes({ ...data, acoes_feitas: feitas, ...comResposta }, fase, hojeBrasil(), new Date().toISOString(), calendario, c.userName, () => randomBytes(10).toString('hex'));
+            const comPrazos = pz ? { prazos: pz.prazos, ...derivados((data.pendencias || []) as Pendencia[], pz.prazos) } : {};
+            const notasPrazo = pz?.notas || [];
+            if (notasPrazo.length) expedidas += 1;
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
             const comDado = !dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`;
@@ -1263,8 +1344,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
                         `Certifico que foi desfeita a providência "${acao}", da fase ${fase.nome}.`,
                         { fase_id: fase.id, acao_idx: idx, feita, destino: 'autos', nos_autos: true, visivel_partes: partesVeem(regra) });
-                    tx.update(ref, { ...mov, acoes_feitas: feitas, ...comResposta });
-                    return mov;
+                    const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, notasPrazo);
+                    tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos });
+                    return { ...mov, ...mi };
                 }
                 const item: ItemCertidao = {
                     seq: 0, fase_id: fase.id, acao_idx: idx,
@@ -1272,7 +1354,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     autor: c.userName, em: new Date().toISOString(), partes: vePartes,
                 };
                 const em = emitirSe(feita && antesDeJuntar(data, grupo, item), tx, c, ref, data);
-                if (em.proc !== data) expedidas = 2;
+                if (em.proc !== data) expedidas += 1;
                 const mov = registrarMovimento(tx, c, ref, em.proc, 'acao_fase',
                     `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado} ${feita ? 'Entra na' : 'Sai da'} certidão conjunta, ainda não emitida.`,
                     {
@@ -1285,8 +1367,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 const consolidacao = feita
                     ? itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) })
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
-                tx.update(ref, { ...em.mov, ...mov, acoes_feitas: feitas, ...comResposta, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
-                return mov;
+                const mi = registrarInternos(tx, c, ref, { ...em.proc, ...mov }, notasPrazo);
+                tx.update(ref, { ...em.mov, ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
+                return { ...mov, ...mi };
             }
             const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
                 dest === 'autos'
@@ -1304,8 +1387,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     visivel_partes: vePartes,
                     ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
-            tx.update(ref, { ...mov, acoes_feitas: feitas, ...comResposta, ...vinculoDaAcao(dado) });
-            return mov;
+            const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, notasPrazo);
+            tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...vinculoDaAcao(dado) });
+            return { ...mov, ...mi };
         }
 
         if (p.action === 'atribuir') {
@@ -1347,6 +1431,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
             const dispensadas = alvo.espera ? [] : dispensarExigencias(c, data, motivo, formAtual);
+            // A fase pode designar o responsável entre os lotados na unidade que tem o processo.
+            const designacao = retomada ? null : await designadoPelaFase(c, alvo, c.unidades.find((u) => u.id === data.unidade_atual));
             const destinoMov = dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
@@ -1359,10 +1445,10 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const item: ItemCertidao = { seq: 0, fase_id: data.fase_atual, texto: descricao.replace(/\.$/, ''), autor: c.userName, em: new Date().toISOString(), partes: destinoMov === 'autos' };
             const em = emitirSe(arquiva || deveEmitir(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
-            // Retomada: quem respondia pelo processo continua, mesmo que a fase tire o responsável ao entrar.
-            const alvoEf = retomada && alvo.ao_entrar?.sem_responsavel ? { ...alvo, ao_entrar: { ...alvo.ao_entrar, sem_responsavel: undefined } } : alvo;
-            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvoEf, calendario, c.userName);
-            const sit = aplicarSituacao(tx, c, registros, alvo, retomada && data.responsavel_uid && alvo.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data);
+            // Retomada: quem respondia pelo processo continua, mesmo que a fase tire ou designe o responsável ao entrar.
+            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName, { retomada, designacao });
+            const sit = aplicarSituacao(tx, c, registros, alvo, ((retomada && data.responsavel_uid) || designacao?.uid) && alvo.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data,
+                designacao?.uid ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
             const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
             const mov = registrarMovimento(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`,
@@ -1376,6 +1462,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const ma = arquiva ? arquivarPelaFase(tx, c, ref, { ...em.proc, ...mov, ...mi }, alvo) : {};
             if (arquiva) expedidas += 1;
             tx.update(ref, { ...em.mov, ...mov, ...mi, ...ma, ...consolidacao, fase_atual: alvo.id, ...(retomada ? {} : camposAoEntrarNaFase(data, alvo.id)), ...ef.campos, ...camposDaEspera(data, faseSai, alvo) });
+            const depois = { ...data, ...ef.campos };
+            if (!retomada) entrou = { fase: alvo, unidadeId: String(data.unidade_atual), proc: depois, remessa: false };
+            if (efFase.pendencia) pendenciaAberta = { proc: depois, descricao: efFase.pendencia };
             return { ...mov, ...mi, ...ma };
         }
 
@@ -1471,7 +1560,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 : x));
             const der = derivados(lista, prazos);
             const mov = registrarMovimento(tx, c, ref, data, 'pendencia_resolvida',
-                `Pendência apreciada (${alvo.descricao}): ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`,
+                `Pendência apreciada${alvo.tipo === 'manual' ? '' : ` (${alvo.descricao})`}: ${resolucao}${alvo.interrompe && !der.fase_suspensa ? ' Fase retomada.' : ''}`,
                 { pendencia_id: alvo.id, ...marcasNaFase(data, 'pendencia') });
             tx.update(ref, { ...mov, pendencias: lista, ...der });
             return mov;
@@ -1589,7 +1678,11 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             : { entity_type: 'expediente', entity_id: ra.id, expediente_number: ra.numero }).catch(() => undefined);
     }
     const r = recebeu as { unidadeId: string; proc: admin.firestore.DocumentData } | null;
-    if (r) void avisarUnidadeRecebeu(c, r.unidadeId, r.proc, String(p.id), motivo || texto(p.orientacao, MAX_TEXTO_LONGO));
+    const en = entrou as { fase: Fase; unidadeId: string; proc: admin.firestore.DocumentData; remessa: boolean } | null;
+    const recado = motivo || texto(p.orientacao, MAX_TEXTO_LONGO);
+    // A fase que diz quem avisar decide o aviso da entrada (inclusive nenhum); sem isso, vale o de sempre: a unidade que recebe a remessa.
+    if (en?.fase.aviso?.para) void avisarEntradaNaFase(c, en.fase, en.unidadeId, en.proc, String(p.id), en.remessa, recado);
+    else if (r) void avisarUnidadeRecebeu(c, r.unidadeId, r.proc, String(p.id), recado, en?.fase.aviso?.mensagem);
     const pa = pendenciaAberta as { proc: admin.firestore.DocumentData; descricao: string } | null;
     if (pa) void avisarPendencia(c, pa.proc, String(p.id), pa.descricao);
     if (convite.token) {

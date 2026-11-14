@@ -295,6 +295,25 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                         </p>
                     </div>
                 )}
+                <div>
+                    <Label htmlFor={`${id}-pz`}>Prazo próprio da ação (dias)</Label>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Input id={`${id}-pz`} type="number" min={1} max={3650} placeholder="Sem prazo" className="h-9 w-28" value={r?.prazo_dias || ''}
+                            onChange={(e) => { const n = Number(e.target.value); set({ prazo_dias: Number.isInteger(n) && n > 0 ? n : undefined, ...(Number.isInteger(n) && n > 0 ? {} : { prazo_contagem: undefined }) }); }} />
+                        {r?.prazo_dias > 0 && (
+                            <select aria-label="Contagem do prazo da ação" value={r.prazo_contagem || ''} onChange={(e) => set({ prazo_contagem: e.target.value || undefined })}
+                                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                                <option value="">dias úteis</option>
+                                <option value="corridos">dias corridos</option>
+                            </select>
+                        )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                        {r?.prazo_dias > 0
+                            ? 'Abre sozinho quando a ação passa a valer na fase e encerra quando ela é cumprida. É prazo interno: as partes não veem. O alerta e o que acontece no vencimento ficam em "Prazo, nome para as partes e ao entrar".'
+                            : 'Vazio: a ação segue só o prazo da fase, se houver.'}
+                    </p>
+                </div>
                 {pede !== 'documento' && (alternativas.length > 0 || Number.isInteger(r?.ou)) && (
                     <div>
                         <NativeSelect id={`${id}-ou`} label="Alternativa a" value={Number.isInteger(r?.ou) ? String(r.ou) : ''}

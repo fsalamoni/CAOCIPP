@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ehEspera, etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import { resumoAndamento } from '@/lib/andamentoFase';
 import { resumoPermissoes } from '@/lib/permissoesFase';
+import { efeitosAoEntrar, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
 import { RegistroContexto } from './SeletorRegistro';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
@@ -151,8 +152,11 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                     <p className="text-xs text-slate-600 dark:text-slate-300">
                                         {fase.unidade_id ? `Corre em ${nomeUnidade(fase.unidade_id)}` : 'Corre na unidade que estiver com o processo'}{fase.agente ? ` · quem faz: ${fase.agente}` : ''}{fase.prazo_dias ? ` · prazo da fase: ${fase.prazo_dias} dias${fase.prazo_auto ? ` ${fase.prazo_contagem === 'corridos' ? 'corridos' : 'úteis'}, aberto sozinho ao entrar` : ''}` : ''}
                                     </p>
-                                    {(fase.ao_entrar?.urgente || fase.ao_entrar?.sem_responsavel) && (
-                                        <p className="text-xs text-slate-600 dark:text-slate-300">Ao entrar: {[fase.ao_entrar.urgente && 'o processo fica urgente', fase.ao_entrar.sem_responsavel && 'sai o responsável designado'].filter(Boolean).join(' e ')}.</p>
+                                    {efeitosAoEntrar(fase).length > 0 && (
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">Ao entrar, a fase {efeitosAoEntrar(fase).join('; ')}.</p>
+                                    )}
+                                    {(textoDoAviso(fase) || textosDosPrazos(fase).length > 0) && (
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">Avisos e prazos: {[textoDoAviso(fase), ...textosDosPrazos(fase)].filter(Boolean).join('; ')}.</p>
                                     )}
                                     {resumoAndamento(fase).length > 0 && (
                                         <p className="text-xs text-slate-600 dark:text-slate-300">Andamento automático: {resumoAndamento(fase, paginas).join('; ')}.</p>

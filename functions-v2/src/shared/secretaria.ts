@@ -5,6 +5,7 @@ import {
 } from './exigencias';
 import { SituacaoRegistro, sanitizeSituacaoRegistro } from './situacaoRegistro';
 import { PermissoesFase, sanitizePermissoes } from './permissoesFase';
+import { ALERTA_PADRAO, AoEntrar, AvisoFase, PrazoVencido, sanitizeAoEntrar, sanitizeAviso, sanitizePrazosDaFase } from './efeitosFase';
 
 // ============================================================================
 // Processo Eletrônico (antiga Secretaria Processual; os nomes internos
@@ -42,8 +43,14 @@ export interface Fase {
     prazo_contagem?: 'corridos';
     /** Nome que as partes veem no portal. Ausente = o nome da fase. Os termos nos autos usam o nome oficial. */
     nome_publico?: string;
-    /** O que acontece ao entrar na fase: marcar urgente, tirar o responsável designado e arquivar o processo. */
-    ao_entrar?: { urgente?: true; sem_responsavel?: true; arquivar?: true };
+    /** O que acontece ao entrar na fase: urgência, sigilo, responsável, pendência ao decisor e arquivamento (ver shared/efeitosFase.ts). */
+    ao_entrar?: AoEntrar;
+    /** Quem é avisado quando o processo entra na fase, e com que mensagem. Ausente = a unidade, quando ele chega por remessa. */
+    aviso?: AvisoFase;
+    /** Dias antes do vencimento em que o alerta diário começa, nos prazos que a fase abre. Ausente = 2. */
+    prazo_alerta_dias?: number;
+    /** O que acontece quando um prazo aberto pela fase vence: marcar urgente, avisar quem gere a unidade. */
+    prazo_vencido?: PrazoVencido;
     /** Cumprida a última ação obrigatória, a fase segue sozinha para a saída do rito (ver `saidaAutomatica`). */
     avanco?: 'auto';
     /** Situação do registro ligado (consulta ou expediente) ao entrar na fase e quando alguém assume o processo. */
@@ -245,11 +252,8 @@ export function sanitizeRito(input: unknown): Rito {
         const prazo = Number(fo.prazo_dias);
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
-        const ae = (fo.ao_entrar && typeof fo.ao_entrar === 'object' ? fo.ao_entrar : {}) as Record<string, unknown>;
-        const aoEntrar = {
-            ...(ae.urgente === true ? { urgente: true as const } : {}), ...(ae.sem_responsavel === true ? { sem_responsavel: true as const } : {}),
-            ...(ae.arquivar === true ? { arquivar: true as const } : {}),
-        };
+        const aoEntrar = sanitizeAoEntrar(fo.ao_entrar, nomeFase);
+        const aviso = sanitizeAviso(fo.aviso);
         const situacaoRegistro = sanitizeSituacaoRegistro(fo.situacao_registro);
         const permissoes = sanitizePermissoes(fo.permissoes, nomeFase);
         const orientacao = texto(fo.orientacao, MAX_TEXTO_LONGO);
@@ -272,6 +276,9 @@ export function sanitizeRito(input: unknown): Rito {
         // Índice que o cliente mandou -> índice gravado (as condições apontam para ações).
         const mapa = new Map(mantidas.map(([, i], j) => [i, j]));
         const regras = sanitizeRegras({ ...fo, acoes_regras: regrasAlinhadas }, acoes, mapa);
+        // Antecedência do alerta e regra do vencimento: só para fase que abre prazo (o dela ou o de alguma ação).
+        const abrePrazo = (prazoOk && fo.prazo_auto === true) || (regras.acoes_regras || []).some((r) => r?.prazo_dias);
+        const prazosDaFase = sanitizePrazosDaFase(fo, abrePrazo);
         const modelos = [...new Set((Array.isArray(fo.modelos) ? fo.modelos : []).map((m) => texto(m, 40)).filter(Boolean))].slice(0, MAX_MODELOS_FASE);
         // Condições só para saídas que existem (referência pelo id do cliente ou final).
         const condicoes: Record<string, string> = {};
@@ -322,6 +329,8 @@ export function sanitizeRito(input: unknown): Rito {
             ...(prazoOk && fo.prazo_auto === true ? { prazo_auto: true, ...(fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' as const } : {}) } : {}),
             ...(nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {}),
             ...(Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {}),
+            ...(aviso ? { aviso } : {}),
+            ...prazosDaFase,
             ...(fo.avanco === 'auto' && !final ? { avanco: 'auto' as const } : {}),
             ...(situacaoRegistro ? { situacao_registro: situacaoRegistro } : {}),
             ...(permissoes ? { permissoes } : {}),
@@ -714,10 +723,14 @@ export interface Prazo {
 export function derivados(pendencias: Pendencia[], prazos: Prazo[]) {
     const abertas = pendencias.filter((p) => p.status === 'aberta');
     const vencimentos = prazos.filter((p) => p.status === 'aberto').map((p) => p.vence_em).sort();
+    // Prazo com antecedência maior que a padrão: o dia em que o alerta dele começa (o alerta diário busca por este campo).
+    const alertas = prazos.filter((p) => p.status === 'aberto' && typeof p.alerta_dias === 'number' && p.alerta_dias > ALERTA_PADRAO)
+        .map((p) => somarDias(p.vence_em, -(p.alerta_dias as number))).sort();
     return {
         pendencias_abertas: abertas.length,
         fase_suspensa: abertas.some((p) => p.interrompe),
         proximo_vencimento: vencimentos[0] || null,
+        proximo_alerta: alertas[0] || null,
     };
 }
 

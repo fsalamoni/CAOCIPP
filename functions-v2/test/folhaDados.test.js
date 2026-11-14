@@ -57,8 +57,8 @@ test('folha de dados: a equipe lê tudo; a parte não lê origem, CPF, parte ret
         'Fase Recebimento · evento 2 · Ana, DATA', 'Situação: Em tramitação', 'Fase atual: Recebimento', 'Unidade atual: Secretaria']) assert.ok(te.includes(trecho), `equipe: ${trecho}`);
 
     const tp = texto(secoesDaFolha({ ...base, equipe: false, unidadeAtual: '' }));
-    for (const trecho of ['Assunto: Consulta sobre contratação', 'requerente: Maria', 'Valor: R$ 10,00', 'Consulta: C-7', 'Número do PGEA: 00123', 'Registrado em DATA', 'Fase atual: Em análise']) assert.ok(tp.includes(trecho), `parte: ${trecho}`);
-    for (const trecho of ['Ofício 12/2026', '123.456.789-00', 'João', 'Título interno', 'Ana', 'evento 2', 'Recebimento', 'Unidade atual']) assert.ok(!tp.includes(trecho), `a parte não lê: ${trecho}`);
+    for (const trecho of ['Assunto: Consulta sobre contratação', 'requerente: Maria', 'Valor: R$ 10,00', 'Consulta: C-7', 'Número do PGEA: 00123', 'Registrado em DATA', 'Fase atual: Em análise', 'Tramitação: URGENTE']) assert.ok(tp.includes(trecho), `parte: ${trecho}`);
+    for (const trecho of ['URGENTE (Prazo)', 'Ofício 12/2026', '123.456.789-00', 'João', 'Título interno', 'Ana', 'evento 2', 'Recebimento', 'Unidade atual']) assert.ok(!tp.includes(trecho), `a parte não lê: ${trecho}`);
 
     // Processo sem nada além do básico: só as seções que têm conteúdo.
     assert.deepEqual(secoesDaFolha({ ...base, proc: { assunto: 'X', status: 'arquivado', fase_atual: 'f1', fases }, campos: [], informacoes: [], equipe: true }).map((s) => s.titulo),

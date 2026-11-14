@@ -2,7 +2,8 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { COL, Contexto, exigirAdmin, registrarMovimento } from './context';
 import { marcasDoDestino } from '../shared/exigencias';
 import { gruposDaMigracao, migrarEstado } from '../shared/migrarRito';
-import type { Fase } from '../shared/secretaria';
+import { derivados, hojeBrasil } from '../shared/secretaria';
+import type { Fase, Pendencia, Prazo } from '../shared/secretaria';
 
 type Payload = Record<string, unknown>;
 type Auditar = (action: string, details: Record<string, unknown>) => Promise<void>;
@@ -59,7 +60,7 @@ export async function migrarRito(c: Contexto, p: Payload, auditar: Auditar) {
             if (!destino) return false;
             const de = Number(atual.rito_versao) || 1;
             const faseAntiga = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual)?.nome || String(atual.fase_atual || '');
-            const est = migrarEstado(atual, novas, destino);
+            const est = migrarEstado(atual, novas, destino, hojeBrasil());
             const faseNova = novas.find((f) => f.id === destino)?.nome || destino;
             const texto = `Rito ${rito.nome} atualizado da versão ${de} para a ${versao} por decisão do admin do órgão.`
                 + (est.mudou_de_fase ? ` A fase ${faseAntiga}, que deixou de existir, passou a ${faseNova}.` : '');
@@ -70,6 +71,7 @@ export async function migrarRito(c: Contexto, p: Payload, auditar: Auditar) {
             tx.update(d.ref, {
                 ...mov, rito_nome: rito.nome, rito_versao: versao, fases: est.fases, fase_atual: est.fase_atual,
                 acoes_feitas: est.acoes_feitas, acoes_respostas: est.acoes_respostas, exigencias_cumpridas: est.exigencias_cumpridas,
+                ...(est.prazos ? { prazos: est.prazos, ...derivados((atual.pendencias || []) as Pendencia[], est.prazos as Prazo[]) } : {}),
             });
             return true;
         });

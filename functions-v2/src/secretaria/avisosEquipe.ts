@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { ehParte, lotacoesDe, unidadeDecide } from '../shared/secretaria';
+import { Fase, ehParte, lotacoesDe, unidadeDecide } from '../shared/secretaria';
+import { destinatariosDoAviso } from '../shared/efeitosFase';
 import { sendEmail } from '../shared/email';
 import { APP_URL } from './autos';
 import { COL, Contexto } from './context';
@@ -100,14 +101,37 @@ export async function lotadosDaUnidade(db: admin.firestore.Firestore, unidadeId:
 /** Quem é parte no processo não é avisado como equipe (acompanha pelo portal). */
 const semPartes = (proc: admin.firestore.DocumentData, uids: string[]) => uids.filter((u) => !ehParte(proc as never, u));
 
-export async function avisarUnidadeRecebeu(c: Contexto, unidadeId: string, proc: admin.firestore.DocumentData, procId: string, motivo: string): Promise<void> {
+const citacao = (t: string) => (t ? `<blockquote style="border-left:3px solid #6366f1;margin:0;padding:4px 12px;color:#1e293b">${escapar(t)}</blockquote>` : '');
+
+/** `recadoDaFase`: a mensagem que o rito manda acompanhar o aviso da fase em que o processo entrou. */
+export async function avisarUnidadeRecebeu(c: Contexto, unidadeId: string, proc: admin.firestore.DocumentData, procId: string, motivo: string, recadoDaFase = ''): Promise<void> {
     const unidade = c.unidades.find((u) => u.id === unidadeId);
     if (!unidade) return;
     await notificarPessoas(c.db, c.orgId, semPartes(proc, await lotadosDaUnidade(c.db, unidadeId, unidade)), {
         subtipo: 'recebido', procId,
         titulo: `${proc.urgente === true ? 'URGENTE: ' : ''}Processo ${proc.numero} chegou em ${unidade.nome}`,
-        mensagem: `${c.userName} remeteu: ${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}`.slice(0, 300),
-        html: `<p>${escapar(c.userName)} remeteu o processo <b>${escapar(String(proc.numero))}</b> (${escapar(String(proc.assunto || ''))}) para <b>${escapar(String(unidade.nome))}</b>.</p>${motivo ? `<blockquote style="border-left:3px solid #6366f1;margin:0;padding:4px 12px;color:#1e293b">${escapar(motivo)}</blockquote>` : ''}`,
+        mensagem: `${c.userName} remeteu: ${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}${recadoDaFase ? ` · ${recadoDaFase}` : ''}`.slice(0, 300),
+        html: `<p>${escapar(c.userName)} remeteu o processo <b>${escapar(String(proc.numero))}</b> (${escapar(String(proc.assunto || ''))}) para <b>${escapar(String(unidade.nome))}</b>.</p>${citacao(motivo)}${recadoDaFase ? `<p>${escapar(recadoDaFase)}</p>` : ''}`,
+    }, c.ctx.uid);
+}
+
+/**
+ * O processo entrou numa fase que diz quem avisar (a unidade, quem a gere, o
+ * responsável ou ninguém), com ou sem remessa. Substitui o aviso de chegada.
+ * `proc`: o processo já com o que a fase fez ao entrar (urgência, responsável).
+ */
+export async function avisarEntradaNaFase(c: Contexto, fase: Fase, unidadeId: string, proc: admin.firestore.DocumentData, procId: string, remessa: boolean, motivo: string): Promise<void> {
+    const para = fase.aviso?.para;
+    const unidade = c.unidades.find((u) => u.id === unidadeId);
+    if (!para || para === 'ninguem' || !unidade) return;
+    const uids = destinatariosDoAviso(para, lotacoesDe(unidade), proc.responsavel_uid ? String(proc.responsavel_uid) : null);
+    const recado = fase.aviso?.mensagem || '';
+    const onde = remessa ? `chegou em ${unidade.nome}, na fase ${fase.nome}` : `entrou na fase ${fase.nome}`;
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, uids), {
+        subtipo: 'recebido', procId,
+        titulo: `${proc.urgente === true ? 'URGENTE: ' : ''}Processo ${proc.numero} ${onde}`,
+        mensagem: `${recado ? `${recado} · ` : ''}${proc.assunto || ''}${motivo ? ` · ${motivo}` : ''}`.slice(0, 300),
+        html: `<p>O processo <b>${escapar(String(proc.numero))}</b> (${escapar(String(proc.assunto || ''))}) ${escapar(onde)}, por ato de ${escapar(c.userName)}.</p>${recado ? `<p>${escapar(recado)}</p>` : ''}${citacao(motivo)}`,
     }, c.ctx.uid);
 }
 

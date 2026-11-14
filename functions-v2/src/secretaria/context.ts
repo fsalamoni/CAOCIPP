@@ -12,6 +12,9 @@ import {
 } from '../shared/secretaria';
 import { geraTermo, visivelParaPartes } from '../shared/autos';
 import { orgaosAdministrados, orgaosDe } from '../shared/orgaos';
+import { CalendarioOrgao, sanitizeCalendario } from '../shared/secretaria';
+import { marcasDoDestino } from '../shared/exigencias';
+import { faseComPrazoDeAcao } from '../shared/prazosFase';
 
 export const REGION = 'southamerica-east1';
 
@@ -215,6 +218,17 @@ export function registrarMovimento(
             ...(visivelParaPartes(base) ? { ultimo_movimento_publico: { tipo, descricao, em: base.em } } : {}),
         }),
     };
+}
+
+/** O que a regra fez sozinha (efeitos da fase, prazos das ações): um movimento interno logo depois do ato. */
+export function registrarInternos(tx: admin.firestore.Transaction, c: Contexto, ref: admin.firestore.DocumentReference, proc: admin.firestore.DocumentData, interno: string[]): Record<string, unknown> {
+    if (!interno.length) return {};
+    return registrarMovimento(tx, c, ref, proc, 'efeitos_fase', interno.join(' '), marcasDoDestino('informacao'));
+}
+
+/** Calendário do órgão para o ato por documento, lido só quando a fase atual tem prazo de ação. */
+export async function calendarioDasAcoes(db: admin.firestore.Firestore, orgId: string, proc: admin.firestore.DocumentData): Promise<CalendarioOrgao | undefined> {
+    return faseComPrazoDeAcao(proc) ? sanitizeCalendario((await db.collection(COL.config).doc(orgId).get()).data()?.calendario) : undefined;
 }
 
 export function nomeUnidade(c: Contexto, id: string): string {

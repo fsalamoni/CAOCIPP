@@ -11,6 +11,8 @@ exports.lerProcesso = lerProcesso;
 exports.exigirPosse = exigirPosse;
 exports.conferirVersao = conferirVersao;
 exports.registrarMovimento = registrarMovimento;
+exports.registrarInternos = registrarInternos;
+exports.calendarioDasAcoes = calendarioDasAcoes;
 exports.nomeUnidade = nomeUnidade;
 exports.erroUsuario = erroUsuario;
 const admin = require("firebase-admin");
@@ -19,6 +21,9 @@ const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const autos_1 = require("../shared/autos");
 const orgaos_1 = require("../shared/orgaos");
+const secretaria_2 = require("../shared/secretaria");
+const exigencias_1 = require("../shared/exigencias");
+const prazosFase_1 = require("../shared/prazosFase");
 exports.REGION = 'southamerica-east1';
 exports.COL = {
     processos: 'secProcessos',
@@ -167,6 +172,17 @@ function registrarMovimento(tx, c, procRef, proc, tipo, descricao, dados = {}) {
     return Object.assign(Object.assign(Object.assign({}, (folha ? { folhas_seq: folha } : {})), { mov_seq: seq, ultimo_hash: hash, version: (Number(proc.version) || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp() }), (dados.oculto === true ? {} : Object.assign({ 
         // `publico` deixa o portal saber se pode usar este movimento quando falta o último público.
         ultimo_movimento: { tipo, descricao, em: base.em, publico: (0, autos_1.visivelParaPartes)(base) } }, ((0, autos_1.visivelParaPartes)(base) ? { ultimo_movimento_publico: { tipo, descricao, em: base.em } } : {}))));
+}
+/** O que a regra fez sozinha (efeitos da fase, prazos das ações): um movimento interno logo depois do ato. */
+function registrarInternos(tx, c, ref, proc, interno) {
+    if (!interno.length)
+        return {};
+    return registrarMovimento(tx, c, ref, proc, 'efeitos_fase', interno.join(' '), (0, exigencias_1.marcasDoDestino)('informacao'));
+}
+/** Calendário do órgão para o ato por documento, lido só quando a fase atual tem prazo de ação. */
+async function calendarioDasAcoes(db, orgId, proc) {
+    var _a;
+    return (0, prazosFase_1.faseComPrazoDeAcao)(proc) ? (0, secretaria_2.sanitizeCalendario)((_a = (await db.collection(exports.COL.config).doc(orgId).get()).data()) === null || _a === void 0 ? void 0 : _a.calendario) : undefined;
 }
 function nomeUnidade(c, id) {
     const u = c.unidades.find((x) => x.id === id);

@@ -1290,6 +1290,87 @@ parte 12 (`ritoConsultas` em `src/lib/secretariaRito.js`).
   tudo o que o modelo configura e segue o caminho descrito) e
   `src/lib/secretariaRito.test.js` (todos os modelos).
 
+### Ao entrar na fase: efeitos, avisos e prazos por ação (14/11/2026)
+
+O que a fase faz sozinha ganhou mais opções. Todas são campos opcionais da
+fase (ou da regra da ação); sem eles, o comportamento é o de antes. Regras
+puras em `shared/efeitosFase.ts` e `shared/prazosFase.ts`; espelho da tela em
+`src/lib/efeitosFase.js`.
+
+| Campo | O que faz |
+|---|---|
+| `ao_entrar.urgente` / `sem_urgencia` | Marca ou tira a urgência. Tirar não vale na autuação. As partes veem a frase no termo da mudança |
+| `ao_entrar.sigilo` (`restrito`/`normal`) | Muda o sigilo do processo. Registro interno |
+| `ao_entrar.sem_responsavel` | Tira o responsável (já existia) |
+| `ao_entrar.responsavel` (`autor`/`gestor`/`atribuicao`) + `responsavel_atribuicao` | Designa o responsável entre os lotados na unidade que fica com o processo |
+| `ao_entrar.pendencia` + `pendencia_interrompe` | Abre pendência (até 300 caracteres), apreciada como as demais: pela unidade que decide, com o processo |
+| `aviso.para` (`unidade`/`gestores`/`responsavel`/`ninguem`) + `aviso.mensagem` | Quem da equipe é avisado quando o processo entra na fase |
+| `acoes_regras[].prazo_dias` + `prazo_contagem` | Prazo próprio da ação (1 a 3650 dias; úteis ou corridos) |
+| `prazo_alerta_dias` | Antecedência do alerta dos prazos que a fase abre (0 a 30; não se grava quando é 2) |
+| `prazo_vencido.urgente` / `avisar_gestores` | O que acontece quando um prazo da fase vence sem cumprimento |
+
+- **Validação ao salvar** (`sanitizeAoEntrar`): marcar e tirar a urgência,
+  tirar e designar o responsável, designar por atribuição sem dizer qual e
+  designar ou abrir pendência em fase que arquiva ao entrar são recusados com
+  mensagem. O editor mostra o mesmo como pendência que impede
+  (`problemasDosEfeitos`). Antecedência e regra do vencimento só se gravam em
+  fase que abre algum prazo sozinha.
+- **Designação** (`responsavelPelaFase`): `autor` vale se quem moveu o
+  processo está lotado na unidade de destino; `gestor` e `atribuicao` valem
+  quando há **uma só** pessoa assim na unidade. Com nenhuma ou mais de uma,
+  ninguém é designado e o registro interno diz o motivo. Designado o
+  responsável, vale a situação "ao assumir" do registro ligado.
+- **Volta da espera**: a fase retomada não designa de novo nem reabre a
+  pendência (urgência e sigilo valem sempre).
+- **Aviso** (`avisarEntradaNaFase` em `secretaria/avisosEquipe.ts`): com
+  `aviso.para`, o aviso da fase substitui o de chegada por remessa e vale
+  também quando o processo muda de fase sem sair da unidade. `responsavel`
+  sem responsável (ou fora da unidade) e `gestores` em unidade sem gestor
+  avisam a unidade: o aviso não se perde. Só `mensagem`
+  acompanha o aviso padrão de remessa. Quem praticou o ato e quem é parte
+  no processo nunca recebem.
+- **Prazo da ação** (`prazosDasAcoes`): abre quando a ação está valendo, não
+  foi cumprida e a alternativa dela não foi cumprida; encerra como cumprido
+  quando a ação é marcada ou o documento que ela pede é juntado ou guardado;
+  é cancelado quando a ação deixa de valer; reabre se a ação for desfeita
+  (só o prazo que a regra encerrou: encerramento manual fica). Reaberto
+  depois de desfeito o cumprimento, vale o vencimento de antes; reaberto
+  porque a ação voltou a valer, conta de novo a partir de hoje (nunca volta
+  já vencido). Na saída da
+  fase (`encerrarPrazosDaFase`), o prazo de ação aberto é encerrado "sem
+  cumprimento, com a saída da fase". É conferido na entrada na fase, ao
+  marcar ou desfazer ação e ao juntar, guardar ou protocolar documento.
+  Nos atos por documento, a contagem usa o calendário do órgão (lido só
+  quando a fase atual tem ação com prazo, `calendarioDasAcoes`) e o que a
+  regra fez vai ao registro interno, como nos demais atos.
+- **Atualização do rito** (`migrarEstado`): o prazo de ação segue a ação
+  pelo texto, como as ações marcadas. O da ação que sumiu, ou da fase de
+  destino que recomeça, é cancelado ("Atualização do rito") e deixa de
+  contar para a rodada.
+- **Alerta e vencimento** (`secretaria/conferir.ts`, todo dia às 7h): o
+  prazo entra no alerta diário quando faltam `alerta_dias` dias (o padrão,
+  2). `secProcessos.proximo_alerta` guarda o primeiro dia de alerta dos
+  prazos com antecedência maior que a padrão, para a busca do job. A regra do
+  vencimento (`tratarVencidos`) roda uma vez por prazo
+  (`vencido_tratado_em`), no dia seguinte ao vencimento, mesmo com o alerta
+  por e-mail do órgão desligado: marca a urgência com o motivo "Prazo
+  vencido em …" e avisa quem gere a unidade.
+- **Nada disso vai às partes**: designação, sigilo, pendência, prazos e
+  vencimento ficam em movimento interno (`efeitos_fase`). A única frase
+  pública é a da urgência, no termo da mudança de fase. O motivo da
+  urgência só sai na folha de dados da equipe (a das partes diz só
+  "URGENTE"). Ao apreciar pendência aberta à mão ou pela regra da fase, o
+  ato público (`pendencia_resolvida`, ou a juntada que a decide) traz a
+  decisão, não o texto da pendência; o de petição e de documento continua
+  dizendo o que foi apreciado.
+- **Tela do processo**: a ação pendente com prazo aberto mostra "Prazo da
+  ação: vence em …". Os prazos aparecem na aba de prazos como os demais.
+- **Limite conhecido**: a ação condicional que lê um dado do processo
+  alterado depois (ex.: urgência marcada à mão) só tem o prazo conferido no
+  próximo ato da fase (marcar ação, documento ou mudança de fase).
+- Testes: `functions-v2/test/efeitosFase.test.js` e
+  `src/lib/efeitosFase.test.js`. Guia do rito, parte 14.
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`

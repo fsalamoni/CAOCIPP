@@ -6,7 +6,8 @@ import {
     Fase, MAX_TEXTO_LONGO, MAX_UPLOAD_BYTES, Pendencia, Prazo, derivados, hojeBrasil, jsonCanonico, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
-import { COL, Contexto, REGION, exigirAuth, registrarMovimento } from './context';
+import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
+import { COL, Contexto, REGION, calendarioDasAcoes, exigirAuth, registrarInternos, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
 import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
@@ -443,6 +444,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         }
         // Confere acesso antes de gravar o arquivo.
         const { ref: procRef, data: procAntes } = await lerComoParte(db, uid, p.processoId);
+        const calendario = await calendarioDasAcoes(db, String(procAntes.organization_id), procAntes);
         const ontem = new Date(Date.now() - 86400000).toISOString();
         const minhas = await procRef.collection('documentos').where('autor_uid', '==', uid).select('criado_em', 'peticao').get();
         if (minhas.docs.filter((d) => d.data().peticao === true && String(d.data().criado_em) > ontem).length >= MAX_PETICOES_DIA) {
@@ -514,12 +516,16 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(COL.verificacao).doc(codigo),
                 registroVerificacao(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
-            tx.update(procRef, { ...mov, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]) });
-            return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id };
+            const pzA = camposDosPrazosDasAcoes(proc, exig, fase, `${parte.assina} (parte)`, pendencias, calendario);
+            const mi = registrarInternos(tx, c, procRef, { ...proc, ...mov }, pzA.notas);
+            tx.update(procRef, { ...mov, ...mi, ...exig, doc_seq: ordem, folhas_seq: folha + paginas - 1, pendencias, ...derivados(pendencias, (proc.prazos || []) as Prazo[]),
+                ...pzA.campos });
+            return { ordem, protocolo: `${proc.numero}-${ordem}`, em: agora, docId: docRef.id, internos: pzA.notas.length ? 1 : 0 };
         });
-        void avisarPartesDoMovimento(db, procRef.id, uid);
+        const { internos, ...protocolado } = r;
+        void avisarPartesDoMovimento(db, procRef.id, uid, 1 + internos);
         void avisarPeticao(db, procAntes, procRef.id, String(parteDoUsuario(procAntes, uid)?.assina || 'A parte'), titulo, tipoPeticao);
-        return { success: true, ...r };
+        return { success: true, ...protocolado };
     }
 
     throw new HttpsError('invalid-argument', 'Ação desconhecida');

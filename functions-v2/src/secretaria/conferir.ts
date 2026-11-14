@@ -3,10 +3,13 @@ import { createHash } from 'crypto';
 import { Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { hojeBrasil, somarDias } from '../shared/secretaria';
+import { Pendencia, Prazo, derivados, hojeBrasil, lotacoesDe, somarDias } from '../shared/secretaria';
+import { ALERTA_PADRAO } from '../shared/efeitosFase';
+import { marcasDoDestino } from '../shared/exigencias';
+import { prazosEmAlerta, vencidosATratar } from '../shared/prazosFase';
 import { sendEmail } from '../shared/email';
 import { APP_URL, normalizarCodigo } from './autos';
-import { COL, REGION } from './context';
+import { COL, Contexto, REGION, registrarMovimento } from './context';
 import { lembrarPrazosDasPartes } from './portalAvisos';
 import { enviarResumosDiarios, notificarPessoas, prefDe } from './avisosEquipe';
 import { cienciaPorDecurso } from './comunicacoes';
@@ -53,7 +56,34 @@ export const secretariaConferir = onCall<{ codigo?: string }>({ region: REGION }
 
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso: string) => iso.split('-').reverse().join('/');
-export const DIAS_ALERTA = 2;
+export const DIAS_ALERTA = ALERTA_PADRAO;
+
+/**
+ * Prazo aberto pela fase que venceu sem ser cumprido, quando o rito diz o que
+ * fazer: marca o processo como urgente e avisa quem gere a unidade. Uma vez
+ * por prazo (`vencido_tratado_em`). O registro é interno: prazo interno não vai
+ * às partes. Devolve os prazos tratados, para o aviso.
+ */
+export async function tratarVencidos(db: admin.firestore.Firestore, ref: admin.firestore.DocumentReference, hoje: string): Promise<{ proc: admin.firestore.DocumentData; prazos: Prazo[] } | null> {
+    return db.runTransaction(async (tx) => {
+        const proc = (await tx.get(ref)).data();
+        if (!proc || proc.status !== 'em_tramitacao') return null;
+        const vencidos = vencidosATratar(proc.prazos, hoje);
+        if (!vencidos.length) return null;
+        const prazos = ((proc.prazos || []) as Prazo[]).map((x) => (vencidos.some((v) => v.id === x.id) ? { ...x, vencido_tratado_em: hoje } : x));
+        const urgencia = vencidos.some((x) => (x.ao_vencer as { urgente?: unknown }).urgente === true) && proc.urgente !== true;
+        const gestores = vencidos.some((x) => (x.ao_vencer as { avisar_gestores?: unknown }).avisar_gestores === true);
+        const c: Contexto = { db, orgId: String(proc.organization_id), org: {}, ctx: { uid: 'sistema', isAdmin: false, unidadeIds: [] }, userName: 'Sistema', unidades: [], gestorDe: [] };
+        const mov = registrarMovimento(tx, c, ref, proc, 'efeitos_fase',
+            `${vencidos.map((x) => `Prazo vencido em ${br(x.vence_em)} sem cumprimento: ${x.descricao}.`).join(' ')} Pela regra do rito: ${[urgencia && 'o processo passa a tramitar com urgência', gestores && 'quem gere a unidade foi avisado'].filter(Boolean).join(' e ') || 'o processo já tramitava com urgência'}.`,
+            { automatico: true, prazos: vencidos.map((x) => x.id), ...marcasDoDestino('informacao') });
+        tx.update(ref, {
+            ...mov, prazos, ...derivados((proc.pendencias || []) as Pendencia[], prazos),
+            ...(urgencia ? { urgente: true, urgencia: { motivo: `Prazo vencido em ${br(vencidos[0].vence_em)}: ${vencidos[0].descricao}`, por: 'Regra do rito', em: new Date().toISOString() } } : {}),
+        });
+        return { proc, prazos: vencidos.filter((x) => (x.ao_vencer as { avisar_gestores?: unknown }).avisar_gestores === true) };
+    });
+}
 
 /**
  * Todo dia às 7h: para os órgãos que ligaram o alerta, avisa por e-mail os
@@ -70,9 +100,12 @@ export const secretariaAlertaPrazos = onSchedule(
         const limite = somarDias(hoje, DIAS_ALERTA);
         // Só campo único em faixa: dispensa índice composto.
         const snap = await db.collection(COL.processos).where('proximo_vencimento', '<=', limite).limit(2000).get();
+        // Prazos com antecedência maior que a padrão (a fase do rito pede): o dia do alerta deles já chegou.
+        const antecipados = await db.collection(COL.processos).where('proximo_alerta', '<=', hoje).limit(2000).get();
+        const todos = [...snap.docs, ...antecipados.docs.filter((d) => !snap.docs.some((x) => x.id === d.id))];
         const porOrg = new Map<string, admin.firestore.QueryDocumentSnapshot[]>();
         await lembrarPrazosDasPartes(db, snap.docs.filter((d) => d.data().status === 'em_tramitacao')).catch(() => undefined);
-        for (const d of snap.docs) {
+        for (const d of todos) {
             if (d.data().status !== 'em_tramitacao') continue;
             const org = String(d.data().organization_id);
             porOrg.set(org, [...(porOrg.get(org) || []), d]);
@@ -80,13 +113,31 @@ export const secretariaAlertaPrazos = onSchedule(
         for (const [orgId, procs] of porOrg) {
             const [cfg, org] = await Promise.all([db.collection(COL.config).doc(orgId).get(), db.collection('organizations').doc(orgId).get()]);
             const sc = org.data()?.secretariaConfig || {};
-            if (cfg.data()?.alerta_prazos !== true || sc.enabled !== true || sc.suspensa_plataforma === true) continue;
+            if (sc.enabled !== true || sc.suspensa_plataforma === true) continue;
             const unidades = new Map((await db.collection(COL.unidades).where('organization_id', '==', orgId).get()).docs.map((u) => [u.id, u.data()]));
+            // Regra do vencimento (do rito): vale mesmo com o alerta por e-mail do órgão desligado.
+            for (const p of procs) {
+                if (!vencidosATratar(p.data().prazos, hoje).length) continue;
+                const t = await tratarVencidos(db, p.ref, hoje).catch((e) => { console.warn('[prazos] regra do vencimento falhou', p.id, e); return null; });
+                const u = t?.prazos.length ? unidades.get(t.proc.unidade_atual) : null;
+                if (!t || !u) continue;
+                const gestores = lotacoesDe(u).filter((l) => l.gestor).map((l) => l.uid).filter((uid) => !(t.proc.partes_uids || []).includes(uid));
+                await notificarPessoas(db, orgId, gestores, {
+                    subtipo: 'prazo', procId: p.id,
+                    titulo: `Prazo vencido no processo ${t.proc.numero}`,
+                    mensagem: t.prazos.map((x) => `Venceu em ${br(x.vence_em)}: ${x.descricao}`).join(' · ').slice(0, 300),
+                    html: `<p>No processo <b>${escapar(String(t.proc.numero))}</b> (${escapar(String(t.proc.assunto || ''))}), que está com ${escapar(String(u.nome || 'a sua unidade'))}, venceu sem cumprimento:</p><ul>${t.prazos.map((x) => `<li>${escapar(String(x.descricao))}, em ${br(x.vence_em)}</li>`).join('')}</ul><p>O rito manda avisar quem gere a unidade.</p>`,
+                });
+            }
+            if (cfg.data()?.alerta_prazos !== true) continue;
             const porPessoa = new Map<string, string[]>();
             const sinoPorPessoa = new Map<string, Array<{ id: string; numero: string; venc: string }>>();
             for (const p of procs) {
                 const d = p.data();
-                const venc = String(d.proximo_vencimento);
+                // Só o prazo que já pede alerta: vencido ou dentro da antecedência dele (a da fase, ou 2 dias).
+                const emAlerta = prazosEmAlerta(d.prazos, hoje);
+                if (!emAlerta.length) continue;
+                const venc = emAlerta[0].vence_em;
                 const linha = `<li><b>${escapar(String(d.numero))}</b> — ${escapar(String(d.assunto || ''))}: prazo ${venc < hoje ? `<b>vencido em ${br(venc)}</b>` : `vence em ${br(venc)}`}</li>`;
                 for (const uid of ((unidades.get(d.unidade_atual)?.membros_uids || []) as string[]).filter((u) => !(d.partes_uids || []).includes(u))) {
                     porPessoa.set(uid, [...(porPessoa.get(uid) || []), linha]);
