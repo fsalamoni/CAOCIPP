@@ -38,7 +38,7 @@ function casar(versao, atual, chave) {
 
 const FASE = [['nome', 'nome'], ['nome_publico', 'nome para as partes'], ['prazo_dias', 'prazo'], ['prazo_auto', 'prazo automático'], ['prazo_contagem', 'contagem do prazo'],
     ['unidade_id', 'unidade'], ['agente', 'quem faz'], ['orientacao', 'orientação'], ['proximas', 'próximas fases'], ['final', 'fase final'], ['condicoes', 'condições das saídas'],
-    ['condicoes_regra', 'saída pela resposta'], ['modelos', 'modelos sugeridos'], ['documentos', 'documentos exigidos'], ['registro_atos', 'registro nos autos'],
+    ['condicoes_regra', 'regra das saídas'], ['saida_padrao', 'saída padrão'], ['modelos', 'modelos sugeridos'], ['documentos', 'documentos exigidos'], ['registro_atos', 'registro nos autos'],
     ['registro', 'registro nos autos'], ['certidao', 'certidão'], ['ao_entrar', 'ao entrar na fase'],
     ['avanco', 'seguir sozinha'], ['situacao_registro', 'situação do registro ligado'], ['espera', 'fase de espera'], ['juntada_conjunta', 'botão Finalizar'],
     ['permissoes', 'quem pode na fase']];

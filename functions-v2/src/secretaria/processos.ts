@@ -11,7 +11,7 @@ import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
-    tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, rotuloDaCondicao, Condicao,
+    tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
 } from '../shared/exigencias';
 import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { sendEmail } from '../shared/email';
@@ -146,13 +146,8 @@ function exigenciasAbertas(proc: admin.firestore.DocumentData, form?: Formulario
  * Sair da fase com exigência em aberto: sem motivo, recusa; com motivo, a
  * dispensa fica no movimento (e nos autos). Devolve o que foi dispensado.
  */
-/** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial. */
-function textoCondicao(f: Fase | undefined, c: Condicao): string {
-    const r = f?.acoes_regras?.[c.acao];
-    const simNao = (c.campo ? r?.campos?.find((x) => x.id === c.campo)?.tipo : r?.pede) === 'sim_nao';
-    const rot = (v: string) => (simNao ? (v === 'sim' ? 'Sim' : 'Não') : v);
-    return `"${rotuloDaCondicao(f, c)}" for ${c.valores.map(rot).join(' ou ')}`;
-}
+/** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial (com as fases, diz de qual fase é a resposta). */
+const textoCondicao = (f: Fase | undefined, c: Condicao, fases?: unknown): string => textoDaCondicao(f, c, (Array.isArray(fases) ? fases : undefined) as Fase[] | undefined);
 
 /**
  * O que o rito faz ao trocar de fase (ou na autuação, sem fase de origem):
@@ -352,7 +347,7 @@ function foraDaCondicao(proc: admin.firestore.DocumentData, alvoId: string): str
     const fase = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
     const cond = fase?.condicoes_regra?.[alvoId];
     if (!cond || condicaoAtendida(cond, respostasDaFase(proc), fase)) return null;
-    return textoCondicao(fase, cond);
+    return textoCondicao(fase, cond, proc.fases);
 }
 
 function dispensarExigencias(c: Ctx, proc: admin.firestore.DocumentData, motivo: string, form?: Formulario | null): string[] {
@@ -1216,7 +1211,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const respostas = respostasDaFase(data);
             // Ação condicional: só vale com a resposta que o rito pede.
             if (p.feita !== false && !acaoAtiva(fase, idx, respostas)) {
-                throw new HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra!.se!)}`);
+                throw new HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra!.se!, data.fases)}`);
             }
             // Quem pode cumprir: o rito pode reservar ao responsável designado ou a quem gere a unidade.
             if (regra?.quem && !podeQuem(regra.quem, regra.atribuicao, atorDe(c, data))) {

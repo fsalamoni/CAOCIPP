@@ -106,8 +106,47 @@ export const MAX_CAMPOS_ACAO = 10;
  * (`RegraAcao.se`: só vale nesse caso) e na saída (`Fase.condicoes_regra`).
  * Com `campo`, a resposta é a de um campo de escolha (lista ou sim/não) do
  * formulário que a ação pede.
+ *
+ * A condição também pode ler (nov/2026): a resposta dada em outra fase
+ * (`fase`), um dado do processo (`dado`) e mais de uma coisa ao mesmo tempo
+ * (`e`: todas precisam valer). Sem esses campos, é a condição de sempre.
  */
-export interface Condicao { acao: number; campo?: string; valores: string[] }
+export interface Condicao {
+    /** Índice da ação que deu a resposta; -1 quando a condição lê um dado do processo. */
+    acao: number;
+    campo?: string;
+    valores: string[];
+    /** A resposta é a de uma ação de outra fase (o id dela), dada quando o processo passou por lá. */
+    fase?: string;
+    /** Em vez de resposta, um dado do processo: um de DADOS_CONDICAO ou 'campo:<id>' (campo de escolha do tipo de processo). */
+    dado?: string;
+    /** Com `dado` de valor livre: o nome do campo e o de cada valor, para as mensagens e a tela. */
+    rotulo?: string;
+    nomes?: string[];
+    /** Outras condições que também precisam valer (todas). Não se aninham. */
+    e?: Condicao[];
+}
+/** Condições a mais numa mesma regra (além da primeira). */
+export const MAX_CONDICOES_E = 3;
+/**
+ * Dados do processo que uma condição lê, com os valores que cada um assume
+ * (null: valor livre, vindo do cadastro do órgão). As origens são as de
+ * `ORIGENS` (shared/secretaria.ts); o teste confere que as duas listas batem.
+ */
+export const DADOS_CONDICAO: Record<string, readonly string[] | null> = {
+    urgente: ['sim', 'nao'],
+    sigilo: ['normal', 'restrito'],
+    partes: ['sim', 'nao'],
+    origem: ['requerimento', 'representacao', 'oficio', 'de_oficio', 'outro_processo', 'outro'],
+    tipo: null,
+};
+const ROTULO_DADO: Record<string, string> = { urgente: 'Urgente', sigilo: 'Sigilo', partes: 'Tem partes', origem: 'Origem', tipo: 'Tipo de processo' };
+const ROTULO_VALOR: Record<string, string> = {
+    sim: 'Sim', nao: 'Não', normal: 'Normal', restrito: 'Restrito', requerimento: 'Requerimento', representacao: 'Representação',
+    oficio: 'Ofício', de_oficio: 'De ofício', outro_processo: 'Outro processo', outro: 'Outra',
+};
+/** A condição (uma parte dela) lê a rodada da própria fase? */
+const condicaoLocal = (c: Condicao): boolean => c.fase === undefined && c.dado === undefined;
 /**
  * Quem da equipe vê o dado da ação. Ausente = toda a equipe que vê o processo.
  * 'gestor': só quem gere a unidade onde foi registrado, quem o registrou e a
@@ -308,7 +347,8 @@ export function opcoesDaResposta(r: RegraAcao | null | undefined, campo?: string
 export const chaveDaResposta = (v: unknown): string => (typeof v === 'boolean' ? (v ? 'sim' : 'nao') : String(v ?? ''));
 
 /** Onde a resposta fica na rodada da fase: '2' (a ação 2) ou '2.sistema' (o campo "sistema" do formulário da ação 2). */
-export const chaveDaCondicao = (c: { acao: number; campo?: string }): string => (c.campo ? `${c.acao}.${c.campo}` : String(c.acao));
+export const chaveDaCondicao = (c: { acao: number; campo?: string; fase?: string; dado?: string }): string =>
+    (c.dado ? `@${c.dado}` : `${c.fase ? `${c.fase}/` : ''}${c.campo ? `${c.acao}.${c.campo}` : c.acao}`);
 
 /** A chave da rodada é da ação `idx` (a própria resposta ou a de um campo dela)? */
 export const respostaDaAcao = (chave: string, idx: number): boolean => chave === String(idx) || chave.startsWith(`${idx}.`);
@@ -334,7 +374,7 @@ export function respostasDaAcao(r: RegraAcao | null | undefined, idx: number, va
  * limita a ações anteriores (ação condicional). Inválida: lança com mensagem.
  */
 export function sanitizeCondicao(raw: unknown, regras: Array<RegraAcao | null>, acoes: string[], quem: string,
-    mapa?: Map<number, number>, antesDe = Infinity): Condicao | undefined {
+    mapa?: Map<number, number>, antesDe = Infinity, onde = antesDe === Infinity ? 'desta fase' : 'anterior'): Condicao | undefined {
     if (!raw || typeof raw !== 'object') return undefined;
     const o = raw as Record<string, unknown>;
     const bruto = Number(o.acao);
@@ -345,19 +385,97 @@ export function sanitizeCondicao(raw: unknown, regras: Array<RegraAcao | null>, 
     const opcoes = Number.isInteger(acao) && acao >= 0 && acao < Math.min(acoes.length, antesDe) ? opcoesDaResposta(regras[acao], campo) : null;
     if (!opcoes) {
         throw new Error(campo
-            ? `${quem} depende de um campo de escolha do formulário de uma ação ${antesDe === Infinity ? 'desta fase' : 'anterior'} (sem dado reservado)`
-            : `${quem} depende da resposta de uma ação de escolha ${antesDe === Infinity ? 'desta fase' : 'anterior'}`);
+            ? `${quem} depende de um campo de escolha do formulário de uma ação ${onde} (sem dado reservado)`
+            : `${quem} depende da resposta de uma ação de escolha ${onde}`);
     }
     const valores = [...new Set((Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80)))].filter((v) => opcoes.includes(v));
     if (!valores.length) throw new Error(`${quem}: escolha ao menos uma resposta de "${acoes[acao]}"`);
     return { acao, ...(campo ? { campo } : {}), valores };
 }
 
-/** Rótulo do dado que a condição lê: o da ação ou o do campo do formulário. */
-export function rotuloDaCondicao(f: FaseRegras | undefined, c: Condicao): string {
-    const r = f?.acoes_regras?.[c.acao];
+/** Condição sobre um dado do processo (urgente, sigilo, partes, origem, tipo ou campo de escolha do tipo). */
+function sanitizeDado(o: Record<string, unknown>, quem: string): Condicao {
+    const dado = String(o.dado).slice(0, 48);
+    const campo = dado.startsWith('campo:') ? dado.slice(6) : '';
+    const opcoes = campo ? null : DADOS_CONDICAO[dado];
+    if (campo ? !/^[\w-]{1,40}$/.test(campo) : opcoes === undefined) throw new Error(`${quem} depende de um dado do processo que não existe`);
+    const brutos = (Array.isArray(o.valores) ? o.valores : []).map((v) => texto(v, 80));
+    // Com valor livre (tipo, campo do tipo), o nome de cada valor acompanha o valor.
+    const nomesBrutos = Array.isArray(o.nomes) ? o.nomes : [];
+    const pares = brutos.map((v, i) => [v, texto(nomesBrutos[i], 80)] as const)
+        .filter(([v], i) => v && brutos.indexOf(v) === i && (!opcoes || opcoes.includes(v))).slice(0, MAX_OPCOES_ACAO);
+    const rotulo = opcoes ? '' : texto(o.rotulo, 80);
+    if (!pares.length) throw new Error(`${quem}: escolha ao menos um valor de "${rotulo || ROTULO_DADO[dado] || 'dado do processo'}"`);
+    return {
+        acao: -1, dado, valores: pares.map(([v]) => v),
+        ...(rotulo ? { rotulo } : {}),
+        ...(!opcoes && pares.some(([v, n]) => n && n !== v) ? { nomes: pares.map(([v, n]) => n || v) } : {}),
+    };
+}
+
+/** O que a condição precisa saber de uma fase: as ações já saneadas e o mapa de índices do cliente. */
+export interface FaseDaCondicao { id: string; nome: string; acoes: string[]; regras: Array<RegraAcao | null>; mapa?: Map<number, number> }
+
+/** A condição bruta lê mais do que a rodada da própria fase (outra fase, dado do processo, várias ao mesmo tempo)? */
+export function condicaoAmpla(raw: unknown): boolean {
+    const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    return !!o.fase || !!o.dado || (Array.isArray(o.e) && o.e.length > 0);
+}
+
+/**
+ * Saneia a condição que lê mais do que a rodada da própria fase. Cada parte (a
+ * primeira e as de `e`) é: um dado do processo; a resposta de uma ação de
+ * escolha de outra fase (`outras` resolve o id mandado pelo cliente); ou a de
+ * uma ação da própria fase (`antesDe`, na ação condicional). A parte cuja ação
+ * ou fase saiu do rito sai com ela. Inválida: lança com mensagem.
+ */
+export function sanitizeCondicaoAmpla(raw: unknown, propria: FaseDaCondicao, outras: (id: string) => FaseDaCondicao | undefined,
+    quem: string, antesDe = Infinity): Condicao | undefined {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const o = raw as Record<string, unknown>;
+    const parte = (p: unknown): Condicao | undefined => {
+        if (!p || typeof p !== 'object') return undefined;
+        const x = p as Record<string, unknown>;
+        if (typeof x.dado === 'string' && x.dado) return sanitizeDado(x, quem);
+        if (typeof x.fase === 'string' && x.fase) {
+            const alvo = outras(x.fase);
+            if (!alvo) return undefined;
+            if (alvo.id !== propria.id) {
+                const c = sanitizeCondicao(x, alvo.regras, alvo.acoes, quem, alvo.mapa, Infinity, `da fase "${alvo.nome}"`);
+                return c ? { ...c, fase: alvo.id } : undefined;
+            }
+        }
+        return sanitizeCondicao(x, propria.regras, propria.acoes, quem, propria.mapa, antesDe);
+    };
+    const vistas = new Set<string>();
+    const partes = [o, ...(Array.isArray(o.e) ? o.e : [])].map(parte)
+        .filter((c): c is Condicao => !!c && !vistas.has(chaveDaCondicao(c)) && !!vistas.add(chaveDaCondicao(c)))
+        .slice(0, MAX_CONDICOES_E + 1);
+    if (!partes.length) return undefined;
+    return { ...partes[0], ...(partes.length > 1 ? { e: partes.slice(1) } : {}) };
+}
+
+/** Rótulo do dado que a condição lê: o da ação, o do campo do formulário ou o do dado do processo. Com `fases`, diz de que fase é a resposta. */
+export function rotuloDaCondicao(f: FaseRegras | undefined, c: Condicao, fases?: FaseRegras[]): string {
+    if (c.dado) return c.rotulo || ROTULO_DADO[c.dado] || 'o dado do processo';
+    const dona = c.fase ? fases?.find((x) => x.id === c.fase) : f;
+    const r = dona?.acoes_regras?.[c.acao];
     const campo = c.campo ? r?.campos?.find((x) => x.id === c.campo) : undefined;
-    return campo?.rotulo || r?.rotulo || f?.acoes?.[c.acao] || 'a resposta';
+    const nome = campo?.rotulo || r?.rotulo || dona?.acoes?.[c.acao] || 'a resposta';
+    return c.fase ? `${nome} (fase ${dona?.nome || 'anterior'})` : nome;
+}
+
+/** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial e "Urgente" for Sim. */
+export function textoDaCondicao(f: FaseRegras | undefined, c: Condicao, fases?: FaseRegras[]): string {
+    const uma = (x: Condicao): string => {
+        const dona = x.fase ? fases?.find((y) => y.id === x.fase) : f;
+        const r = x.dado ? undefined : dona?.acoes_regras?.[x.acao];
+        const simNao = !x.dado && (x.campo ? r?.campos?.find((y) => y.id === x.campo)?.tipo : r?.pede) === 'sim_nao';
+        const fixo = !!x.dado && !!DADOS_CONDICAO[x.dado];
+        const rot = (v: string, i: number) => (simNao || fixo ? ROTULO_VALOR[v] || v : x.nomes?.[i] || v);
+        return `"${rotuloDaCondicao(f, x, fases)}" for ${x.valores.map(rot).join(' ou ')}`;
+    };
+    return [c, ...(c.e || [])].map(uma).join(' e ');
 }
 
 /**
@@ -396,22 +514,57 @@ export function alternativaCumprida(f: FaseRegras | undefined, i: number, feitas
  */
 export function condicaoAtendida(c: Condicao | undefined, resp: Record<string, string> | undefined, f?: FaseRegras): boolean {
     if (!c) return true;
-    const k = chaveDaCondicao(c);
-    if (resp?.[k] === undefined || !c.valores.includes(resp[k])) return false;
-    // A condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
-    return !f || acaoAtiva(f, c.acao, resp);
+    const uma = (x: Condicao): boolean => {
+        const k = chaveDaCondicao(x);
+        if (resp?.[k] === undefined || !x.valores.includes(resp[k])) return false;
+        // Na própria fase, a condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
+        // A resposta de outra fase e o dado do processo valem como estão.
+        return !condicaoLocal(x) || !f || acaoAtiva(f, x.acao, resp);
+    };
+    return uma(c) && (c.e || []).every(uma);
 }
 
 /** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
 export function acaoAtiva(f: FaseRegras | undefined, i: number, resp: Record<string, string> | undefined): boolean {
     const se = f?.acoes_regras?.[i]?.se;
     if (!se) return true;
-    return se.acao < i && condicaoAtendida(se, resp, f);
+    return [se, ...(se.e || [])].every((x) => !condicaoLocal(x) || x.acao < i) && condicaoAtendida(se, resp, f);
 }
 
-/** Respostas da rodada da fase atual. */
-export const respostasDaFase = (proc: { acoes_respostas?: unknown; fase_atual?: unknown }): Record<string, string> | undefined =>
-    ((proc.acoes_respostas || {}) as Respostas)[String(proc.fase_atual)];
+type ProcDaCondicao = {
+    acoes_respostas?: unknown; fase_atual?: unknown; urgente?: unknown; sigilo?: unknown; partes?: unknown; origem?: unknown; tipo_id?: unknown; campos?: unknown;
+};
+
+/**
+ * Tudo o que uma condição do rito pode ler no processo, numa só tabela:
+ * - as respostas da rodada da fase atual ('2', '2.sistema'), como sempre;
+ * - as respostas dadas nas outras fases ('analise/2'), como ficaram quando o
+ *   processo passou por lá (a rodada recomeça quando ele volta à fase);
+ * - dados do processo ('@urgente', '@sigilo', '@partes', '@origem', '@tipo' e
+ *   '@campo:<id>' para os campos do tipo de processo).
+ * O que se grava em `acoes_respostas` não passa por aqui.
+ */
+export function respostasDaFase(proc: ProcDaCondicao): Record<string, string> {
+    const todas = (proc.acoes_respostas || {}) as Respostas;
+    const atual = String(proc.fase_atual);
+    const out: Record<string, string> = {};
+    for (const [fase, resp] of Object.entries(todas)) {
+        if (fase !== atual) for (const [k, v] of Object.entries(resp || {})) out[`${fase}/${k}`] = v;
+    }
+    Object.assign(out, todas[atual] || {});
+    out['@urgente'] = proc.urgente === true ? 'sim' : 'nao';
+    out['@sigilo'] = proc.sigilo === 'restrito' ? 'restrito' : 'normal';
+    out['@partes'] = (Array.isArray(proc.partes) ? proc.partes : []).some((p) => p && !(p as { retirada?: unknown }).retirada) ? 'sim' : 'nao';
+    const origem = (proc.origem as { tipo?: unknown } | null | undefined)?.tipo;
+    if (typeof origem === 'string' && origem) out['@origem'] = origem;
+    if (typeof proc.tipo_id === 'string' && proc.tipo_id) out['@tipo'] = proc.tipo_id;
+    for (const c of (Array.isArray(proc.campos) ? proc.campos : []) as Array<{ id?: unknown; valor?: unknown }>) {
+        if (typeof c?.id === 'string' && c.id && c.valor !== null && c.valor !== undefined && c.valor !== '' && typeof c.valor !== 'object') {
+            out[`@campo:${c.id}`] = chaveDaResposta(c.valor);
+        }
+    }
+    return out;
+}
 
 /** Onde fica o ato durante a fase (valor estranho lê como o padrão). */
 export function destinoDoAto(f: FaseRegras | undefined, ato: OutroAto): DestinoAto {
@@ -455,7 +608,8 @@ export function sanitizeRegras(fo: Record<string, unknown>, acoes: string[], map
     // "Só vale se": depende de uma ação de escolha anterior (nunca dela mesma nem de uma posterior).
     regras.forEach((r, i) => {
         const b = brutas[i] as Record<string, unknown> | undefined;
-        const se = sanitizeCondicao(b?.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
+        // A que lê outra fase, dado do processo ou várias coisas fica para o fim do rito (sanitizeRito), com todas as fases prontas.
+        const se = condicaoAmpla(b?.se) ? undefined : sanitizeCondicao(b?.se, regras, acoes, `A ação "${acoes[i]}"`, mapa, i);
         if (se) regras[i] = { ...(r || {}), se };
         const ou = sanitizeOu(b?.ou, regras, acoes, i, mapa);
         if (ou !== undefined) regras[i] = { ...(regras[i] || {}), ou };

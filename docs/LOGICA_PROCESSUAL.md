@@ -201,7 +201,14 @@ informado.
   ações obrigatórias são cumpridas e arquivar ao entrar na última fase. É o
   mesmo ato de quem cumpriu a ação, com as mesmas permissões e o mesmo
   registro; o termo diz que foi automático. Nunca escolhe entre duas saídas
-  nem dispensa documento exigido: na dúvida, espera o botão.
+  nem dispensa documento exigido: na dúvida, espera o botão. Quem escolhe é
+  o rito: a regra de cada saída e, quando nenhuma vale, a **saída padrão**
+  (o "senão" do desvio) que o rito tiver indicado.
+- **Desvio pelo que já consta do processo.** A regra de um desvio pode ler o
+  que foi respondido na fase, o que foi respondido em fase anterior (o rito
+  ordinário ou sumário escolhido na admissibilidade) e dados do processo
+  (urgente, sigiloso, com partes, origem, tipo). Mais de uma exigência na
+  mesma regra vale como "e". O desvio nunca lê dado reservado.
 
 ## 8. Prazos
 

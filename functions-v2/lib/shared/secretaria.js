@@ -177,8 +177,9 @@ function sanitizeRito(input) {
         // Fase de espera: nunca a primeira (o processo precisa ter de onde vir) nem a final.
         return { fo, id, nomeFase, espera: fo.espera === true && i > 0 && fo.final !== true };
     });
+    const apoio = [];
     const fases = brutas.map(({ fo, id, nomeFase, espera }, i) => {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         const prazo = Number(fo.prazo_dias);
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
         const nomePublico = texto(fo.nome_publico, 80);
@@ -222,25 +223,67 @@ function sanitizeRito(input) {
         }
         // Saída pela resposta: só para saídas que existem (as explícitas, ou a seguinte da lista quando não há).
         const condicoesRegra = {};
+        const saidas = final || espera ? [] : proximas.length ? proximas : brutas.slice(i + 1).filter((b) => !b.espera).slice(0, 1).map((b) => b.id);
+        // As que leem outra fase, dado do processo ou várias coisas ficam para o fim, com todas as fases prontas.
+        const saidasAmplas = [];
         if (fo.condicoes_regra && typeof fo.condicoes_regra === 'object') {
-            const saidas = final || espera ? [] : proximas.length ? proximas : brutas.slice(i + 1).filter((b) => !b.espera).slice(0, 1).map((b) => b.id);
             for (const [k, v] of Object.entries(fo.condicoes_regra)) {
                 const alvo = (_b = ids.get(k)) !== null && _b !== void 0 ? _b : (vistos.has(k) ? k : null);
                 if (!alvo || !saidas.includes(alvo))
                     continue;
                 const nomeAlvo = ((_c = brutas.find((b) => b.id === alvo)) === null || _c === void 0 ? void 0 : _c.nomeFase) || alvo;
-                const cond = (0, exigencias_1.sanitizeCondicao)(v, regras.acoes_regras || [], acoes, `A saída de "${nomeFase}" para "${nomeAlvo}"`, mapa);
+                const quem = `A saída de "${nomeFase}" para "${nomeAlvo}"`;
+                if ((0, exigencias_1.condicaoAmpla)(v)) {
+                    saidasAmplas.push([alvo, v, quem]);
+                    continue;
+                }
+                const cond = (0, exigencias_1.sanitizeCondicao)(v, regras.acoes_regras || [], acoes, quem, mapa);
                 if (cond)
                     condicoesRegra[alvo] = cond;
             }
         }
+        apoio.push({ mapa, regrasBrutas: regrasAlinhadas, saidasAmplas });
+        // Saída "senão": uma das saídas da fase que não seja espera, quando há mais de uma por onde seguir.
+        const padraoBruto = texto(fo.saida_padrao, 40);
+        const padraoId = padraoBruto ? ((_d = ids.get(padraoBruto)) !== null && _d !== void 0 ? _d : (vistos.has(padraoBruto) ? padraoBruto : '')) : '';
+        const caminhos = saidas.filter((s) => { var _a; return !((_a = brutas.find((b) => b.id === s)) === null || _a === void 0 ? void 0 : _a.espera); });
+        const saidaPadrao = padraoId && caminhos.length > 1 && caminhos.includes(padraoId) ? padraoId : '';
         // Grupo da certidão: o id (do cliente ou final) de outra fase, ou a própria fase.
         const cf = (fo.certidao && typeof fo.certidao === 'object' ? fo.certidao : {});
         const grupoBruto = texto(cf.grupo, 40);
-        const grupo = grupoBruto ? ((_d = ids.get(grupoBruto)) !== null && _d !== void 0 ? _d : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
+        const grupo = grupoBruto ? ((_e = ids.get(grupoBruto)) !== null && _e !== void 0 ? _e : (vistos.has(grupoBruto) ? grupoBruto : '')) : '';
         const titulo = texto(cf.titulo, 120);
         const certidao = Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), regras);
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), (saidaPadrao ? { saida_padrao: saidaPadrao } : {})), regras);
+    });
+    // 2ª passada das condições: as que leem outra fase, dado do processo ou várias coisas ao mesmo tempo.
+    const daCondicao = (k) => ({ id: fases[k].id, nome: fases[k].nome, acoes: fases[k].acoes || [], regras: fases[k].acoes_regras || [], mapa: apoio[k].mapa });
+    const outraFase = (ref) => {
+        const k = fases.findIndex((f) => { var _a; return f.id === ((_a = ids.get(ref)) !== null && _a !== void 0 ? _a : ref); });
+        return k < 0 ? undefined : daCondicao(k);
+    };
+    fases.forEach((f, k) => {
+        var _a;
+        apoio[k].regrasBrutas.forEach((b, j) => {
+            var _a;
+            const se = b === null || b === void 0 ? void 0 : b.se;
+            if (!(0, exigencias_1.condicaoAmpla)(se))
+                return;
+            const cond = (0, exigencias_1.sanitizeCondicaoAmpla)(se, daCondicao(k), outraFase, `A ação "${(_a = f.acoes) === null || _a === void 0 ? void 0 : _a[j]}"`, j);
+            if (!cond)
+                return;
+            const rs = [...(f.acoes_regras || (f.acoes || []).map(() => null))];
+            rs[j] = Object.assign(Object.assign({}, (rs[j] || {})), { se: cond });
+            f.acoes_regras = rs;
+        });
+        for (const [alvo, v, quem] of apoio[k].saidasAmplas) {
+            const cond = (0, exigencias_1.sanitizeCondicaoAmpla)(v, daCondicao(k), outraFase, quem);
+            if (cond)
+                f.condicoes_regra = Object.assign(Object.assign({}, (f.condicoes_regra || {})), { [alvo]: cond });
+        }
+        // O "senão" é saída sem regra própria: com regra, quem decide é a regra.
+        if (f.saida_padrao && ((_a = f.condicoes_regra) === null || _a === void 0 ? void 0 : _a[f.saida_padrao]))
+            delete f.saida_padrao;
     });
     // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).
     const raizes = new Map(fases.map((f) => {
@@ -335,7 +378,9 @@ function saidaAutomatica(proc, unidadesAtivas) {
     // A saída para uma fase de espera é desvio eventual: não conta como caminho do rito.
     const seguintes = fasesSeguintes(fases, atual.id).filter((f) => !f.espera);
     const indicadas = seguintes.filter((f) => { var _a; return ((_a = atual.condicoes_regra) === null || _a === void 0 ? void 0 : _a[f.id]) && cabe(f); });
-    const alvo = seguintes.length === 1 ? (cabe(seguintes[0]) ? seguintes[0] : null) : indicadas.length === 1 ? indicadas[0] : null;
+    // Senão: nenhuma saída com regra foi indicada e o rito diz por onde seguir nesse caso.
+    const padrao = !indicadas.length ? seguintes.find((f) => { var _a; return f.id === atual.saida_padrao && !((_a = atual.condicoes_regra) === null || _a === void 0 ? void 0 : _a[f.id]); }) : undefined;
+    const alvo = seguintes.length === 1 ? (cabe(seguintes[0]) ? seguintes[0] : null) : indicadas.length === 1 ? indicadas[0] : padrao || null;
     if (!alvo)
         return null;
     const outra = alvo.unidade_id && alvo.unidade_id !== proc.unidade_atual && unidadesAtivas.includes(alvo.unidade_id);

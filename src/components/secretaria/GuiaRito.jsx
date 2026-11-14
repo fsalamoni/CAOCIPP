@@ -111,6 +111,15 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             </ol>
                             <p>A ação condicional só aparece para a equipe, e só é cobrada, quando a resposta for uma das marcadas. A mesma regra serve para as saídas da fase, em <strong>Regra desta saída</strong>.</p>
                             <p>O campo de um formulário com dado reservado a quem gere a unidade não serve de condição, para a resposta não aparecer a quem não pode vê-la.</p>
+                            <p><strong>De onde a condição pode ler.</strong> A lista de <strong>Quando vale</strong> e de <strong>Regra desta saída</strong> oferece três origens:</p>
+                            <ul className="list-disc space-y-1 pl-5">
+                                <li><strong>Uma resposta desta fase.</strong> É o caso comum, descrito acima.</li>
+                                <li><strong>Uma resposta dada em outra fase.</strong> Ex.: a Admissibilidade escolhe entre rito ordinário e sumário, e a Instrução só cobra a perícia no ordinário. A resposta vale como ficou quando o processo passou pela outra fase. Se ele ainda não passou por lá, a condição não vale.</li>
+                                <li><strong>Um dado do processo.</strong> Urgente, sigilo, se tem partes e a origem. Quando mais de um tipo de processo usa o rito, também o tipo. Os campos de lista e de sim ou não do formulário do tipo aparecem aqui depois que um tipo de processo passa a usar o rito.</li>
+                            </ul>
+                            <p><strong>Mais de uma condição.</strong> O botão <strong>E também</strong> soma até três condições à primeira. Todas precisam valer ao mesmo tempo (ex.: "Resultado" for Procede <em>e</em> "Urgente" for Não). Para "ou", marque mais de uma resposta na mesma condição.</p>
+                            <p><strong>Saída padrão (o "senão").</strong> Numa fase com mais de uma saída, em Encaminhamentos, <strong>Se nenhuma regra indicar outra saída</strong> diz por onde o processo segue quando nenhuma regra vale. No processo, essa saída aparece como a indicada. Com <strong>Seguir sozinha</strong> ligado, a fase vai por ela sem esperar o botão. Sem saída padrão, continua como sempre: a equipe escolhe.</p>
+                            <p>A <strong>Prévia</strong> do rito simula tudo isso: as respostas dadas numa fase seguem valendo quando você anda para a seguinte, e os dados do processo que o rito lê aparecem para você trocar.</p>
                         </Parte>
                         <Parte titulo="6. Obrigatória, recomendada ou opcional">
                             <p>Em <strong>Para a fase seguir</strong>, escolha o peso da ação:</p>
@@ -231,6 +240,10 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                                 <tbody>
                                     <tr><td>Formulário cujos dados formam a folha de dados (evento 1 do PDF)</td><td>Na ação: <strong>O que pede</strong>, "Um formulário (vários campos)", e marque <strong>Entra na folha de dados do processo</strong>. Vale também para um dado só (texto, número, data, lista)</td></tr>
                                     <tr><td>Ação que só vale conforme uma resposta (ex.: só se não veio pelo SIM)</td><td>Na ação: <strong>Quando vale</strong>. A resposta pode ser de uma ação de escolha ou de um campo de lista ou sim/não de um formulário</td></tr>
+                                    <tr><td>Caminho que depende do que foi decidido lá atrás (ex.: rito ordinário ou sumário, escolhido na admissibilidade)</td><td>Em <strong>Quando vale</strong> ou em <strong>Regra desta saída</strong>, escolha a resposta "na fase" em que ela foi dada</td></tr>
+                                    <tr><td>Caminho que depende do processo (urgente, com partes, sigiloso, origem, tipo, campo do tipo)</td><td>Na mesma lista, as opções que começam por "Conforme o dado do processo"</td></tr>
+                                    <tr><td>Regra com duas exigências ao mesmo tempo</td><td>Depois de marcar as respostas, o botão <strong>E também</strong></td></tr>
+                                    <tr><td>Saída "senão" de um desvio, inclusive para a fase seguir sozinha por ela</td><td>Em <strong>Encaminhamentos</strong>: "Se nenhuma regra indicar outra saída"</td></tr>
                                     <tr><td>Passo que só orienta, sem marcar</td><td>Na ação: <strong>O que pede</strong>, "Nada: só orienta (não se marca)"</td></tr>
                                     <tr><td>Anotação da equipe que não gera evento</td><td>Na ação: <strong>Onde fica o cumprimento</strong>, "Sem evento (registro oculto)" ou "Só no sistema (não imprime)"</td></tr>
                                     <tr><td>Fase inteira fora dos autos (análise, diligências)</td><td>Em <strong>Registros, certidão conjunta e documentos</strong>: "Entrar e sair da fase", "Remessas entre unidades durante a fase" e "Outros atos durante a fase" em "Só no sistema"</td></tr>

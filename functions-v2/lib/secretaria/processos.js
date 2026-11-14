@@ -73,14 +73,8 @@ function exigenciasAbertas(proc, form) {
  * Sair da fase com exigência em aberto: sem motivo, recusa; com motivo, a
  * dispensa fica no movimento (e nos autos). Devolve o que foi dispensado.
  */
-/** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial. */
-function textoCondicao(f, c) {
-    var _a, _b, _d;
-    const r = (_a = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _a === void 0 ? void 0 : _a[c.acao];
-    const simNao = (c.campo ? (_d = (_b = r === null || r === void 0 ? void 0 : r.campos) === null || _b === void 0 ? void 0 : _b.find((x) => x.id === c.campo)) === null || _d === void 0 ? void 0 : _d.tipo : r === null || r === void 0 ? void 0 : r.pede) === 'sim_nao';
-    const rot = (v) => (simNao ? (v === 'sim' ? 'Sim' : 'Não') : v);
-    return `"${(0, exigencias_1.rotuloDaCondicao)(f, c)}" for ${c.valores.map(rot).join(' ou ')}`;
-}
+/** Texto da condição para mensagens: "Decisão" for Deferido ou Parcial (com as fases, diz de qual fase é a resposta). */
+const textoCondicao = (f, c, fases) => (0, exigencias_1.textoDaCondicao)(f, c, (Array.isArray(fases) ? fases : undefined));
 /**
  * O que o rito faz ao trocar de fase (ou na autuação, sem fase de origem):
  * encerra o prazo automático da fase que sai, abre o da fase que entra,
@@ -280,7 +274,7 @@ function foraDaCondicao(proc, alvoId) {
     const cond = (_a = fase === null || fase === void 0 ? void 0 : fase.condicoes_regra) === null || _a === void 0 ? void 0 : _a[alvoId];
     if (!cond || (0, exigencias_1.condicaoAtendida)(cond, (0, exigencias_1.respostasDaFase)(proc), fase))
         return null;
-    return textoCondicao(fase, cond);
+    return textoCondicao(fase, cond, proc.fases);
 }
 function dispensarExigencias(c, proc, motivo, form) {
     const abertas = exigenciasAbertas(proc, form).map((e) => e.descricao);
@@ -1127,7 +1121,7 @@ async function movimentar(c, p, opcoes = {}) {
             const respostas = (0, exigencias_1.respostasDaFase)(data);
             // Ação condicional: só vale com a resposta que o rito pede.
             if (p.feita !== false && !(0, exigencias_1.acaoAtiva)(fase, idx, respostas)) {
-                throw new https_1.HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra.se)}`);
+                throw new https_1.HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra.se, data.fases)}`);
             }
             // Quem pode cumprir: o rito pode reservar ao responsável designado ou a quem gere a unidade.
             if ((regra === null || regra === void 0 ? void 0 : regra.quem) && !(0, permissoesFase_1.podeQuem)(regra.quem, regra.atribuicao, atorDe(c, data))) {

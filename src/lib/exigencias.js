@@ -256,8 +256,45 @@ export function opcoesDaResposta(r, campo) {
     return null;
 }
 
-/** Onde a resposta fica na rodada: '2' (a ação 2) ou '2.sistema' (campo do formulário dela). Igual ao servidor. */
-export const chaveDaCondicao = (c) => (c.campo ? `${c.acao}.${c.campo}` : String(c.acao));
+/**
+ * Onde a condição lê a resposta: '2' (a ação 2 da fase), '2.sistema' (campo do
+ * formulário dela), 'analise/2' (ação de outra fase) ou '@urgente' (dado do
+ * processo). Igual ao servidor.
+ */
+export const chaveDaCondicao = (c) => (c.dado ? `@${c.dado}` : `${c.fase ? `${c.fase}/` : ''}${c.campo ? `${c.acao}.${c.campo}` : c.acao}`);
+
+/** Condições a mais numa mesma regra, além da primeira (igual ao servidor). */
+export const MAX_CONDICOES_E = 3;
+/** Dados do processo que uma condição lê (espelho de DADOS_CONDICAO no servidor): [dado, rótulo, respostas ou null se o valor vem do cadastro]. */
+export const DADOS_CONDICAO = [
+    ['urgente', 'Urgente', SIM_NAO],
+    ['sigilo', 'Sigilo', [['normal', 'Normal'], ['restrito', 'Restrito']]],
+    ['partes', 'Tem partes', SIM_NAO],
+    ['origem', 'Origem', [['requerimento', 'Requerimento'], ['representacao', 'Representação'], ['oficio', 'Ofício'], ['de_oficio', 'De ofício'], ['outro_processo', 'Outro processo'], ['outro', 'Outra']]],
+    ['tipo', 'Tipo de processo', null],
+];
+/** A parte da condição lê a rodada da própria fase? */
+const condicaoLocal = (c) => c.fase === undefined && c.dado === undefined;
+/** As partes da condição: a primeira e as de "e também" (todas precisam valer). */
+export const partesDaCondicao = (c) => {
+    if (!c) return [];
+    const { e, ...primeira } = c;
+    return [primeira, ...(e || [])];
+};
+/** A condição feita das partes (sem partes, nenhuma). */
+export const juntarPartes = (partes) => (partes.length ? { ...partes[0], ...(partes.length > 1 ? { e: partes.slice(1) } : {}) } : undefined);
+/** Alguma parte da condição está sem resposta marcada? */
+export const condicaoIncompleta = (c) => partesDaCondicao(c).some((x) => !x.valores?.length);
+/** Campos de escolha (lista ou sim/não) dos formulários dos tipos de processo: um por id. */
+const camposDosTipos = (tipos) => {
+    const vistos = new Map();
+    for (const t of tipos || []) {
+        for (const c of t.formulario?.campos || []) {
+            if (c.id && (c.tipo === 'lista' || c.tipo === 'sim_nao') && c.uso !== 'oculto' && !vistos.has(c.id)) vistos.set(c.id, c);
+        }
+    }
+    return [...vistos.values()];
+};
 
 /** Ações de escolha da fase que podem condicionar (antes de `limite`): [índice, texto]. */
 export const acoesDeEscolha = (f, limite = Infinity) => (f?.acoes || [])
@@ -277,9 +314,85 @@ export function fontesDeEscolha(f, limite = Infinity) {
     });
 }
 
-// Com `f`, a resposta só conta se a ação que a deu também vale (condições em cadeia), como no servidor.
-export const condicaoAtendida = (c, resp, f) => !c || (resp?.[chaveDaCondicao(c)] !== undefined && c.valores.includes(resp[chaveDaCondicao(c)])
-    && (!f || acaoAtiva(f, c.acao, resp)));
+/**
+ * Tudo de onde uma condição da fase pode ler: as respostas da própria fase, as
+ * de outra fase do rito (`fases`) e os dados do processo (com `tipos`, os tipos
+ * que usam o rito: "Tipo de processo" e os campos de escolha do formulário).
+ * [{ acao, campo?, fase?, dado?, rotulo, grupo }], em que `grupo` é 'fase', 'outra' ou 'processo'.
+ */
+export function fontesDaCondicao(f, limite = Infinity, { fases = [], tipos = [] } = {}) {
+    return [
+        ...fontesDeEscolha(f, limite).map((s) => ({ ...s, grupo: 'fase' })),
+        ...fases.filter((x) => x.id !== f?.id).flatMap((x) => fontesDeEscolha(x)
+            .map((s) => ({ ...s, fase: x.id, rotulo: `${s.rotulo}, na fase "${(x.nome || '').trim() || 'sem nome'}"`, grupo: 'outra' }))),
+        ...DADOS_CONDICAO.filter(([d]) => d !== 'tipo' || tipos.length > 1).map(([dado, rotulo]) => ({ acao: -1, dado, rotulo: `o dado do processo "${rotulo}"`, grupo: 'processo' })),
+        ...camposDosTipos(tipos).map((c) => ({ acao: -1, dado: `campo:${c.id}`, rotulo: `o campo "${c.rotulo || 'campo'}" do processo`, nome: c.rotulo || 'campo', grupo: 'processo' })),
+    ];
+}
+
+/** Respostas possíveis de uma parte da condição ([[valor, rótulo]]), ou null se o que ela lê não existe (mais). */
+export function opcoesDaParte(f, c, { fases = [], tipos = [] } = {}) {
+    if (c.dado) {
+        if (c.dado === 'tipo') return tipos.map((t) => [t.id, t.nome || 'tipo']);
+        if (c.dado.startsWith('campo:')) {
+            const campo = camposDosTipos(tipos).find((x) => x.id === c.dado.slice(6));
+            return !campo ? null : campo.tipo === 'lista' ? opcoesEmPares(campo.opcoes) : SIM_NAO;
+        }
+        return DADOS_CONDICAO.find(([d]) => d === c.dado)?.[2] || null;
+    }
+    const dona = c.fase ? fases.find((x) => x.id === c.fase) : f;
+    return dona && (dona.acoes?.[c.acao] || '').trim() ? opcoesDaResposta(dona.acoes_regras?.[c.acao], c.campo) : null;
+}
+
+/**
+ * Parte nova da condição, a partir da fonte escolhida e das respostas marcadas.
+ * No dado de valor livre (tipo, campo do tipo), o nome do campo e o de cada
+ * valor vão junto, para as mensagens do processo.
+ */
+export function parteDaFonte(fonte, valores = [], opcoes = []) {
+    const livre = fonte.dado === 'tipo' || fonte.dado?.startsWith('campo:');
+    const nome = Object.fromEntries(opcoes);
+    return {
+        acao: fonte.acao, ...(fonte.campo ? { campo: fonte.campo } : {}), ...(fonte.fase ? { fase: fonte.fase } : {}), ...(fonte.dado ? { dado: fonte.dado } : {}),
+        valores,
+        ...(livre && fonte.nome ? { rotulo: fonte.nome } : {}),
+        ...(livre && valores.length ? { nomes: valores.map((v) => nome[v] || v) } : {}),
+    };
+}
+
+// Com `f`, a resposta da própria fase só conta se a ação que a deu também vale (condições em cadeia), como no servidor.
+// A resposta de outra fase e o dado do processo valem como estão. Todas as partes precisam valer.
+export const condicaoAtendida = (c, resp, f) => partesDaCondicao(c).every((x) => {
+    const k = chaveDaCondicao(x);
+    return resp?.[k] !== undefined && x.valores.includes(resp[k]) && (!condicaoLocal(x) || !f || acaoAtiva(f, x.acao, resp));
+});
+
+/**
+ * Tudo o que uma condição do rito lê no processo, numa só tabela (igual a
+ * respostasDaFase, no servidor): a rodada da fase atual ('2'), as respostas
+ * das outras fases ('analise/2') e os dados do processo ('@urgente', '@tipo',
+ * '@campo:<id>'). É o que se passa como `resp` às contas desta página.
+ */
+export function respostasDoProcesso(p) {
+    const todas = p?.acoes_respostas || {};
+    const atual = String(p?.fase_atual);
+    const out = {};
+    for (const [fase, resp] of Object.entries(todas)) {
+        if (fase !== atual) for (const [k, v] of Object.entries(resp || {})) out[`${fase}/${k}`] = v;
+    }
+    Object.assign(out, todas[atual] || {});
+    out['@urgente'] = p?.urgente === true ? 'sim' : 'nao';
+    out['@sigilo'] = p?.sigilo === 'restrito' ? 'restrito' : 'normal';
+    out['@partes'] = (Array.isArray(p?.partes) ? p.partes : []).some((x) => x && !x.retirada) ? 'sim' : 'nao';
+    if (typeof p?.origem?.tipo === 'string' && p.origem.tipo) out['@origem'] = p.origem.tipo;
+    if (typeof p?.tipo_id === 'string' && p.tipo_id) out['@tipo'] = p.tipo_id;
+    for (const c of Array.isArray(p?.campos) ? p.campos : []) {
+        if (typeof c?.id === 'string' && c.id && c.valor !== null && c.valor !== undefined && c.valor !== '' && typeof c.valor !== 'object') {
+            out[`@campo:${c.id}`] = typeof c.valor === 'boolean' ? (c.valor ? 'sim' : 'nao') : String(c.valor);
+        }
+    }
+    return out;
+}
 
 /** Ações do mesmo grupo de alternativas que `i` (inclui `i`). Igual ao servidor. */
 export function grupoDeAlternativas(f, i) {
@@ -296,29 +409,60 @@ export const alternativasPossiveis = (f, i) => (f?.acoes || []).map((a, k) => [k
     .filter(([k, a]) => k < i && a.trim() && podeTerAlternativa(f.acoes_regras?.[k]));
 export const acaoAtiva = (f, i, resp) => {
     const se = f?.acoes_regras?.[i]?.se;
-    return !se || (se.acao < i && condicaoAtendida(se, resp, f));
+    return !se || (partesDaCondicao(se).every((x) => !condicaoLocal(x) || x.acao < i) && condicaoAtendida(se, resp, f));
 };
 
-/** "Decisão" for Deferido ou Parcial. */
-export function textoCondicao(f, c) {
-    if (!c) return '';
-    const r = f?.acoes_regras?.[c.acao];
-    const nomes = Object.fromEntries(opcoesDaResposta(r, c.campo) || []);
+/** Nome do que a parte da condição lê: a ação, o campo do formulário ou o dado do processo. Com `fases`, diz de que fase é a resposta. */
+function rotuloDaParte(f, c, fases) {
+    if (c.dado) return c.rotulo || DADOS_CONDICAO.find(([d]) => d === c.dado)?.[1] || 'o dado do processo';
+    const dona = c.fase ? (fases || []).find((x) => x.id === c.fase) : f;
+    const r = dona?.acoes_regras?.[c.acao];
     const campo = c.campo ? r?.campos?.find((x) => x.id === c.campo) : null;
-    return `"${campo?.rotulo || r?.rotulo || f?.acoes?.[c.acao] || `ação ${c.acao + 1}`}" for ${c.valores.map((v) => nomes[v] || v).join(' ou ')}`;
+    const nome = campo?.rotulo || r?.rotulo || dona?.acoes?.[c.acao] || (c.fase ? 'a resposta' : `ação ${c.acao + 1}`);
+    return c.fase ? `${nome} (fase ${dona?.nome || 'anterior'})` : nome;
 }
 
-/** O que está errado na condição (para as pendências do editor), ou null. */
-export function problemaDaCondicao(f, c, limite = Infinity) {
-    if (!c) return null;
-    const ops = c.acao < limite ? opcoesDaResposta(f?.acoes_regras?.[c.acao], c.campo) : null;
-    if (!ops || !(f?.acoes?.[c.acao] || '').trim()) {
-        if (c.campo) return 'depende de um campo que não existe mais ou não é de escolha';
-        return limite === Infinity ? 'depende de uma ação que não é mais de escolha' : 'depende de uma ação que não vem antes dela ou não é de escolha';
+/** "Decisão" for Deferido ou Parcial e "Urgente" for Sim. `fases`: o rito, para a resposta de outra fase. */
+export function textoCondicao(f, c, fases) {
+    return partesDaCondicao(c).map((x) => {
+        const nomes = Object.fromEntries(opcoesDaParte(f, x, { fases: fases || [] }) || []);
+        return `"${rotuloDaParte(f, x, fases)}" for ${x.valores.map((v, i) => nomes[v] || x.nomes?.[i] || v).join(' ou ')}`;
+    }).join(' e ');
+}
+
+function problemaDaParte(f, c, limite, ctx) {
+    let ops;
+    if (c.dado) {
+        // Valor que vem do cadastro (tipo, campo do tipo): só dá para conferir com os tipos em mãos.
+        if ((c.dado === 'tipo' || c.dado.startsWith('campo:')) && !ctx?.tipos) return null;
+        ops = opcoesDaParte(f, c, ctx);
+        if (!ops) return 'depende de um dado do processo que não existe mais';
+    } else if (c.fase) {
+        if (!ctx?.fases) return null;
+        if (!ctx.fases.some((x) => x.id === c.fase)) return 'depende de uma fase que não existe mais';
+        ops = opcoesDaParte(f, c, ctx);
+        if (!ops) return c.campo ? 'depende de um campo que não existe mais ou não é de escolha' : 'depende de uma ação de outra fase que não é mais de escolha';
+    } else {
+        ops = c.acao < limite ? opcoesDaParte(f, c) : null;
+        if (!ops) {
+            if (c.campo) return 'depende de um campo que não existe mais ou não é de escolha';
+            return limite === Infinity ? 'depende de uma ação que não é mais de escolha' : 'depende de uma ação que não vem antes dela ou não é de escolha';
+        }
     }
     if (!c.valores.length) return null; // sem resposta marcada: quem chama avisa à parte
-    const validos = c.valores.filter((v) => ops.some(([o]) => o === v));
-    return validos.length ? null : 'nenhuma das respostas escolhidas existe mais';
+    return c.valores.some((v) => ops.some(([o]) => o === v)) ? null : 'nenhuma das respostas escolhidas existe mais';
+}
+
+/**
+ * O que está errado na condição (para as pendências do editor), ou null.
+ * `ctx`: { fases, tipos } do rito, para conferir o que ela lê fora da fase.
+ */
+export function problemaDaCondicao(f, c, limite = Infinity, ctx) {
+    for (const x of partesDaCondicao(c)) {
+        const p = problemaDaParte(f, x, limite, ctx);
+        if (p) return p;
+    }
+    return null;
 }
 
 /**
@@ -327,7 +471,9 @@ export function problemaDaCondicao(f, c, limite = Infinity) {
  */
 export function remapearCondicoes(f, origem, regras) {
     const novo = new Map(origem.map((o, j) => [o, j]).filter(([o]) => o >= 0));
-    const mapa = (c) => (novo.has(c.acao) ? { ...c, acao: novo.get(c.acao) } : null);
+    // Só a parte que lê a própria fase acompanha a ação; a que lê outra fase ou um dado do processo fica como está.
+    const parte = (c) => (!condicaoLocal(c) ? c : novo.has(c.acao) ? { ...c, acao: novo.get(c.acao) } : null);
+    const mapa = (c) => juntarPartes(partesDaCondicao(c).map(parte).filter(Boolean)) || null;
     const rs = regras.map((r, j) => {
         if (!r) return null;
         let n = r;
@@ -348,12 +494,55 @@ export function remapearCondicoes(f, origem, regras) {
     return { acoes_regras: rs.some(Boolean) ? rs : undefined, condicoes_regra: Object.keys(cr).length ? cr : undefined };
 }
 
-/** Saídas da fase com a condição de cada uma e se a resposta registrada a indica. */
+/**
+ * As ações da fase `faseId` mudaram de lugar (`origem`, como em remapearCondicoes):
+ * as condições das OUTRAS fases que leem as respostas dela acompanham. Devolve
+ * as fases (as mesmas, se nada mudou).
+ */
+export function remapearDeOutraFase(fases, faseId, origem) {
+    const novo = new Map(origem.map((o, j) => [o, j]).filter(([o]) => o >= 0));
+    const parte = (c) => (c.fase !== faseId ? c : novo.has(c.acao) ? { ...c, acao: novo.get(c.acao) } : null);
+    const mapa = (c) => juntarPartes(partesDaCondicao(c).map(parte).filter(Boolean));
+    const le = (c) => partesDaCondicao(c).some((x) => x.fase === faseId);
+    return fases.map((f) => {
+        if (f.id === faseId) return f;
+        const regras = f.acoes_regras || [];
+        const saidas = Object.entries(f.condicoes_regra || {});
+        if (!regras.some((r) => le(r?.se)) && !saidas.some(([, c]) => le(c))) return f;
+        const rs = regras.map((r) => {
+            if (!le(r?.se)) return r;
+            const { se: _s, ...resto } = r;
+            const se = mapa(r.se);
+            const n = se ? { ...resto, se } : resto;
+            return Object.keys(n).length ? n : null;
+        });
+        const cr = Object.fromEntries(saidas.map(([k, c]) => [k, le(c) ? mapa(c) : c]).filter(([, c]) => c));
+        return { ...f, acoes_regras: rs.some(Boolean) ? rs : undefined, condicoes_regra: Object.keys(cr).length ? cr : undefined };
+    });
+}
+
+/**
+ * Saída "senão" da fase: a que o rito manda seguir quando nenhuma regra de
+ * saída indica outra. Só vale com mais de um caminho, sem ser espera nem ter
+ * regra própria (igual ao servidor). Devolve o id, ou ''.
+ */
+export function saidaPadrao(fases, f) {
+    if (!f?.saida_padrao || f.condicoes_regra?.[f.saida_padrao]) return '';
+    const caminhos = saidasDaFase(fases, f).filter((x) => !(x.espera && !x.final));
+    return caminhos.length > 1 && caminhos.some((x) => x.id === f.saida_padrao) ? f.saida_padrao : '';
+}
+
+/**
+ * Saídas da fase com a condição de cada uma e se a resposta registrada a indica.
+ * `padrao`: é a saída "senão" e nenhuma regra indicou outra (o rito manda seguir por ela).
+ */
 export function saidasComCondicao(fases, f, resp) {
-    return saidasDaFase(fases, f).map((x) => {
+    const saidas = saidasDaFase(fases, f).map((x) => {
         const c = f.condicoes_regra?.[x.id];
         return { fase: x, condicao: c || null, indicada: !!c && condicaoAtendida(c, resp, f), contra: !!c && !condicaoAtendida(c, resp, f) };
     });
+    const senao = saidas.some((s) => s.indicada) ? '' : saidaPadrao(fases, f);
+    return saidas.map((s) => ({ ...s, padrao: s.fase.id === senao }));
 }
 
 /** Regra nova a partir de outra, trocando o que a ação pede (mantém destino, quem vê e obrigatoriedade). */

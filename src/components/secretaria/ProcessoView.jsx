@@ -38,7 +38,7 @@ import { saidasDoProcesso } from '@/lib/secretariaRito';
 import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
-import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
@@ -228,12 +228,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         ? estado.unidades.find((u) => u.id === faseAtual.unidade_id && u.ativa) : null;
     const modelosDaFase = (faseAtual?.modelos || []).map((id) => (estado.modelos || []).find((m) => m.id === id)).filter(Boolean);
     const feitas = new Set(p.acoes_feitas?.[p.fase_atual] || []);
-    // Respostas das ações de escolha nesta rodada da fase: decidem as ações condicionais e a saída indicada.
-    const respostas = p.acoes_respostas?.[p.fase_atual];
+    // O que as condições do rito leem: as respostas desta rodada da fase, as dadas em outras fases e os dados do processo.
+    const respostas = respostasDoProcesso(p);
     // Documentos que o rito exige na fase (dela ou de uma ação que vale agora) e o que já foi juntado.
     const exigencias = situacaoDaFase(faseAtual, p.exigencias_cumpridas, respostas);
     const saidas = faseAtual ? saidasComCondicao(p.fases, faseAtual, respostas).filter((s) => proximas.includes(s.fase)) : [];
-    const indicadas = saidas.filter((s) => s.indicada);
+    // Indicada pela resposta ou, sem regra que indique outra, a saída padrão do rito.
+    const indicadas = saidas.filter((s) => s.indicada || s.padrao);
+    const senao = faseAtual ? saidaPadrao(p.fases, faseAtual) : '';
     // Ação reservada pelo rito: ao responsável designado, a quem gere a unidade ou a quem tem certa atribuição (a administração sempre pode).
     const ator = atorNoProcesso(estado, p);
     const podeCumprir = (r) => podeQuem(r?.quem, r?.atribuicao, ator);
@@ -508,7 +510,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             {feitas.has(i)
                                                 ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 opacity-60" aria-hidden />
                                                 : <Circle className="w-4 h-4 mt-0.5 shrink-0 opacity-50" aria-hidden />}
-                                            <span><span>{a}</span> <span className="text-xs">· vale só se {textoCondicao(faseAtual, se)}{feitas.has(i) ? ' (cumprida antes de a resposta mudar)' : ''}</span></span>
+                                            <span><span>{a}</span> <span className="text-xs">· vale só se {textoCondicao(faseAtual, se, p.fases)}{feitas.has(i) ? ' (cumprida antes de a resposta mudar)' : ''}</span></span>
                                         </li>
                                     );
                                 }
@@ -591,12 +593,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             ))}
                         </div>
                     )}
-                    {saidas.some((s) => s.condicao || faseAtual?.condicoes?.[s.fase.id]) && (
+                    {saidas.some((s) => s.condicao || faseAtual?.condicoes?.[s.fase.id] || s.fase.id === senao) && (
                         <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-0.5">
-                            {saidas.filter((s) => s.condicao || faseAtual.condicoes?.[s.fase.id]).map((s) => (
+                            {saidas.filter((s) => s.condicao || faseAtual.condicoes?.[s.fase.id] || s.fase.id === senao).map((s) => (
                                 <li key={s.fase.id}>
-                                    Se {[s.condicao ? textoCondicao(faseAtual, s.condicao) : null, faseAtual.condicoes?.[s.fase.id]].filter(Boolean).join('; ')}: segue para <b>{s.fase.nome}</b>
+                                    {s.condicao || faseAtual.condicoes?.[s.fase.id]
+                                        ? <>Se {[s.condicao ? textoCondicao(faseAtual, s.condicao, p.fases) : null, faseAtual.condicoes?.[s.fase.id]].filter(Boolean).join('; ')}: segue para <b>{s.fase.nome}</b></>
+                                        : <>Se nenhuma regra indicar outra saída: segue para <b>{s.fase.nome}</b></>}
                                     {s.indicada && <span className="ml-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">(indicada pela resposta)</span>}
+                                    {s.padrao && <span className="ml-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">(indicada: saída padrão do rito)</span>}
                                 </li>
                             ))}
                         </ul>
@@ -1041,12 +1046,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setAssinar(true); setResolve(''); setAtende(null); setLevar(null); onClose(); };
     const pendenciasAbertas = p.pendencias.filter((x) => x.status === 'aberta');
     const faseDoProc = p.fases.find((f) => f.id === p.fase_atual);
-    const resp = p.acoes_respostas?.[p.fase_atual];
+    const resp = respostasDoProcesso(p);
     const exigDocs = pendentesDaFase(faseDoProc, p.exigencias_cumpridas, resp);
     // Saída que o rito liga a uma resposta: seguir por ela sem essa resposta pede motivo.
     const contraCondicao = (id) => {
         const c = faseDoProc?.condicoes_regra?.[id];
-        return c && !saidasComCondicao(p.fases, faseDoProc, resp).find((s) => s.fase.id === id)?.indicada ? textoCondicao(faseDoProc, c) : null;
+        return c && !saidasComCondicao(p.fases, faseDoProc, resp).find((s) => s.fase.id === id)?.indicada ? textoCondicao(faseDoProc, c, p.fases) : null;
     };
     // Sair da fase com exigência em aberto (documento ou ação obrigatória): o motivo vira a dispensa, registrada.
     const exigPendentes = [...faltaNaFase(faseDoProc, p.exigencias_cumpridas, p.acoes_feitas?.[p.fase_atual], resp),
@@ -1304,7 +1309,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         const sd = saidasDoProcesso(p);
         const noFluxo = [...sd.caminho, ...sd.esperas].map((f) => f.id);
         const comCond = faseDoProc ? saidasComCondicao(p.fases, faseDoProc, resp) : [];
-        const indicada = comCond.filter((s) => s.indicada);
+        const indicada = comCond.filter((s) => s.indicada || s.padrao);
         const escolhida = valor || acao.fase_id || (indicada.length === 1 ? indicada[0].fase.id : '') || noFluxo[0] || '';
         const contra = !!escolhida && noFluxo.includes(escolhida) ? contraCondicao(escolhida) : null;
         const fora = !!escolhida && !noFluxo.includes(escolhida);
@@ -1323,7 +1328,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                                     {paraEspera(id) && <span className="ml-2 text-xs font-medium text-slate-600 dark:text-slate-300">Espera</span>}
                                     {ehVolta(id) && <span className="ml-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Volta da espera</span>}
                                     {comCond.find((s) => s.fase.id === id)?.indicada && <span className="ml-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Indicada pela resposta</span>}
-                                    {faseDoProc?.condicoes_regra?.[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Quando {textoCondicao(faseDoProc, faseDoProc.condicoes_regra[id])}</span>}
+                                    {comCond.find((s) => s.fase.id === id)?.padrao && <span className="ml-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Saída padrão do rito</span>}
+                                    {faseDoProc?.condicoes_regra?.[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Quando {textoCondicao(faseDoProc, faseDoProc.condicoes_regra[id], p.fases)}</span>}
                                     {condicoes[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Se {condicoes[id]}</span>}
                                     {p.fases.find((f) => f.id === id)?.orientacao && <span className="block text-xs text-slate-600">{p.fases.find((f) => f.id === id).orientacao}</span>}
                                 </button>

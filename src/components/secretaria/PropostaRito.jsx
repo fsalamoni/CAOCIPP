@@ -21,12 +21,12 @@ import {
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
 import { copiarFases, ehEspera, modelosDeRito, novoIdFase, origensDaEspera, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
-import { MAX_CAMPOS_ACAO, problemaDaCondicao, registroComOutros, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
+import { MAX_CAMPOS_ACAO, condicaoIncompleta, problemaDaCondicao, registroComOutros, remapearDeOutraFase, saidaPadrao, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
 import { MODULOS, integracoesLigadas, problemasFormulario } from '@/lib/camposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import FluxoRito from './FluxoRito';
-import { AcoesDaFase, CondicaoPorResposta, RegistroEDocumentos } from './RegrasDaFase';
-import { TIPOS_UNIDADE, copiarTexto } from './comum';
+import { AcoesDaFase, CondicaoContexto, CondicaoPorResposta, RegistroEDocumentos } from './RegrasDaFase';
+import { NativeSelect, TIPOS_UNIDADE, copiarTexto } from './comum';
 import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
 import GuiaRito from './GuiaRito';
@@ -68,9 +68,11 @@ export async function baixarPlanilha(fases, nome) {
  * `ligadas`: integrações com outros módulos (sem ela, não se confere a ação "registro").
  * `paginas`: páginas próprias do órgão, para conferir a que a fase conduz (`null`: ainda não se sabe).
  * `unidades`: as do órgão com as lotações, para conferir se alguém tem a atribuição que o rito reserva.
+ * `tipos`: os tipos de processo que usam o rito, para conferir a condição que lê o tipo ou um campo dele.
  */
-export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades = null) {
+export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades = null, tipos = null) {
     const out = [];
+    const ctxCond = { fases: p.fases, ...(tipos ? { tipos } : {}) };
     const ids = new Set(p.fases.map((f) => f.id));
     const fluxo = problemasDoFluxo(p.fases);
     const soltas = new Set(fluxo.soltas);
@@ -95,7 +97,7 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
             if (a.trim() && r?.pede === 'lista' && (r.opcoes || []).filter((o) => o.trim()).length < 2) {
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede uma escolha: informe ao menos duas opções.` });
             }
-            const prob = a.trim() && r?.se ? problemaDaCondicao(f, r.se, k) || (r.se.valores.length ? null : 'está sem resposta marcada') : null;
+            const prob = a.trim() && r?.se ? problemaDaCondicao(f, r.se, k, ctxCond) || (condicaoIncompleta(r.se) ? 'está sem resposta marcada' : null) : null;
             if (prob) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a condição de "${a.trim()}" ${prob}. Ajuste em "Quando vale".` });
             if (a.trim() && r?.pede === 'formulario') {
                 const campos = r.campos || [];
@@ -139,14 +141,14 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
             saidas.filter((id) => !ids.has(id)).forEach(() => out.push({ fase: f.id, grave: true, texto: `${rot} segue para uma fase que não existe mais.` }));
             saidas.filter((id) => f.condicoes_regra?.[id]).forEach((id) => {
                 const c = f.condicoes_regra[id];
-                const prob = problemaDaCondicao(f, c) || (c.valores.length ? null : 'está sem resposta marcada');
+                const prob = problemaDaCondicao(f, c, Infinity, ctxCond) || (condicaoIncompleta(c) ? 'está sem resposta marcada' : null);
                 const alvo = p.fases.find((x) => x.id === id)?.nome || 'outra fase';
                 if (prob) out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a regra da saída para ${alvo} ${prob}. Ajuste em "Encaminhamentos".` });
             });
             // A saída para uma fase de espera é desvio eventual: não entra na conta das alternativas.
             const caminho = saidas.filter((id) => !ehEspera(p.fases, p.fases.findIndex((x) => x.id === id)));
             if (caminho.length > 1) {
-                const semCond = caminho.filter((id) => !(f.condicoes?.[id] || '').trim() && !f.condicoes_regra?.[id]);
+                const semCond = caminho.filter((id) => !(f.condicoes?.[id] || '').trim() && !f.condicoes_regra?.[id] && id !== saidaPadrao(p.fases, f));
                 if (semCond.length) out.push({ fase: f.id, texto: `${rot} tem ${caminho.length} saídas e ${semCond.length} sem condição: a equipe não saberá quando escolher cada uma.` });
             }
         }
@@ -470,11 +472,17 @@ function Revisao({
 }) {
     const [excluir, setExcluir] = useState(false);
     const [copiarDe, setCopiarDe] = useState(false);
-    const tiposDoRito = editando ? (estado.tipos || []).filter((t) => t.rito_id === p.id) : [];
+    const tiposDoRito = useMemo(() => (editando ? (estado.tipos || []).filter((t) => t.rito_id === p.id) : []), [editando, estado.tipos, p.id]);
+    const ctxCond = useMemo(() => ({ fases: p.fases, tipos: tiposDoRito }), [p.fases, tiposDoRito]);
     const existentes = estado.unidades.filter((u) => u.ativa !== false);
     const nomeUnidade = (ref) => existentes.find((u) => u.id === ref)?.nome || p.unidades.find((u) => u.ref === ref)?.nome || '';
     const nomeModelo = (ref) => (estado.modelos || []).find((m) => m.id === ref)?.nome || p.modelos.find((m) => m.ref === ref)?.nome || 'Modelo excluído (sai ao salvar)';
-    const mudarFase = (id, d) => { setConfirmar(false); setP({ ...p, fases: p.fases.map((f) => (f.id === id ? { ...f, ...d } : f)) }); };
+    // `origem`: as ações da fase mudaram de lugar; as condições das outras fases que leem as respostas dela acompanham.
+    const mudarFase = (id, d, origem) => {
+        setConfirmar(false);
+        const fases = p.fases.map((f) => (f.id === id ? { ...f, ...d } : f));
+        setP({ ...p, fases: origem ? remapearDeOutraFase(fases, id, origem) : fases });
+    };
     const moverPara = (de, para) => { setConfirmar(false); setP({ ...p, fases: mudarDeLugar(p.fases, de, para) }, true); };
     const mover = (i, delta) => moverPara(i, i + delta);
     const nomeFase = (f, i) => (f?.nome.trim() ? `a fase ${f.nome.trim()}` : `a fase ${i + 1}`);
@@ -566,7 +574,7 @@ function Revisao({
     const modNovos = p.modelos.filter((m) => usadosMod.has(m.ref));
     const ligadas = useMemo(() => integracoesLigadas(estado), [estado]);
     const { paginas, paginasProntas } = useContext(RegistroContexto);
-    const pendencias = useMemo(() => pendenciasDaProposta(p, ligadas, paginasProntas ? paginas : null, estado.unidades), [p, ligadas, paginas, paginasProntas, estado.unidades]);
+    const pendencias = useMemo(() => pendenciasDaProposta(p, ligadas, paginasProntas ? paginas : null, estado.unidades, tiposDoRito), [p, ligadas, paginas, paginasProntas, estado.unidades, tiposDoRito]);
     const graves = pendencias.filter((x) => x.grave);
     const fluxoComProblema = useMemo(() => { const r = problemasDoFluxo(p.fases); return new Set([...r.soltas, ...r.presas]); }, [p.fases]);
     const outrosRitos = (estado.ritos || []).filter((r) => r.id !== p.id && (r.fases || []).length);
@@ -701,17 +709,19 @@ function Revisao({
                             <Button size="sm" variant="ghost" className="ml-auto h-7 text-xs" onClick={() => setAbertas(new Set(todasAbertas ? [] : p.fases.map((f) => f.id)))}>{todasAbertas ? 'Recolher todas' : 'Abrir todas'}</Button>
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-300 -mt-1">Arraste pela alça <span aria-hidden>⋮⋮</span> (ou use o teclado) para mudar a ordem. No menu de cada fase: inserir, duplicar, mover e remover.</p>
+                        <CondicaoContexto.Provider value={ctxCond}>
                         <ListaOrdenavel ids={p.fases.map((f) => f.id)} nome={(id) => { const i = p.fases.findIndex((f) => f.id === id); return nomeFase(p.fases[i], i); }} onMover={moverPara}>
                             {p.fases.map((f, i) => (
                                 <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
                                     aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
-                                    nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d) => mudarFase(f.id, d)} ligadas={ligadas}
+                                    nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d, origem) => mudarFase(f.id, d, origem)} ligadas={ligadas}
                                     mover={(d) => { mover(i, d); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${i + d + 1} de ${p.fases.length}.`); }}
                                     moverPara={(para) => { moverPara(i, para); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${para + 1} de ${p.fases.length}.`); }} remover={() => remover(f.id)}
                                     inserirAbaixo={() => inserirAbaixo(i)} duplicar={() => duplicar(i)}
                                     novaUnidade={() => novaUnidade(f.id)} addModelo={(n) => addModelo(f, n)} outrosEmTodas={outrosEmTodas} permissoesEmTodas={permissoesEmTodas} />
                             ))}
                         </ListaOrdenavel>
+                        </CondicaoContexto.Provider>
                         <div className="flex flex-wrap gap-2">
                             <Button id="pr-add-fase" variant="outline" size="sm" className="gap-1" onClick={() => inserirEm(p.fases.length, { id: novoIdFase(), nome: '', proximas: [] })}><Plus className="w-4 h-4" /> Adicionar fase</Button>
                             {outrosRitos.length > 0 && <Button variant="outline" size="sm" className="gap-1" onClick={() => setCopiarDe(true)}><CopyPlus className="w-4 h-4" aria-hidden /> Copiar fases de outro rito</Button>}
@@ -989,12 +999,12 @@ function CartaoFase({
         // A regra pela resposta acompanha a saída que mudou de destino.
         const regra = { ...(f.condicoes_regra || {}) };
         if (antiga && regra[antiga]) { regra[id] = regra[antiga]; delete regra[antiga]; }
-        mudar({ proximas: [...new Set(novas.filter(Boolean))], condicoes, condicoes_regra: Object.keys(regra).length ? regra : undefined });
+        mudar({ proximas: [...new Set(novas.filter(Boolean))], condicoes, condicoes_regra: Object.keys(regra).length ? regra : undefined, ...(antiga && f.saida_padrao === antiga ? { saida_padrao: id } : {}) });
     };
     const tirarSaida = (id) => {
         const { [id]: _c, ...cond } = f.condicoes || {};
         const { [id]: _r, ...regra } = f.condicoes_regra || {};
-        mudar({ proximas: saidas.filter((x) => x !== id), condicoes: cond, condicoes_regra: Object.keys(regra).length ? regra : undefined });
+        mudar({ proximas: saidas.filter((x) => x !== id), condicoes: cond, condicoes_regra: Object.keys(regra).length ? regra : undefined, ...(f.saida_padrao === id ? { saida_padrao: undefined } : {}) });
     };
     const setRegraSaida = (id, c) => {
         const regra = { ...(f.condicoes_regra || {}) };
@@ -1002,6 +1012,8 @@ function CartaoFase({
         mudar({ condicoes_regra: Object.keys(regra).length ? regra : undefined });
     };
     const nomeDe = (id) => fases.find((x) => x.id === id)?.nome || '?';
+    // Caminhos do rito a partir da fase: as saídas que não são fase de espera.
+    const caminhos = saidas.filter((id) => !ehEspera(fases, fases.findIndex((x) => x.id === id)));
     const nAcoes = (f.acoes || []).filter((a) => a.trim()).length;
     const resumo = f.final ? 'Fim do processo' : espera ? 'Espera: volta à fase de origem' : saidas.length > 1 ? `${saidas.length} saídas` : saidas.length === 1 ? `→ ${nomeDe(saidas[0])}` : proxLista ? `→ ${proxLista}` : 'Sem saída';
     const nDocs = (f.documentos || []).length;
@@ -1098,7 +1110,7 @@ function CartaoFase({
                 {i > 0 && !f.final && (
                     <label className="flex items-start gap-2 text-sm mb-2">
                         <Checkbox className="mt-0.5" checked={!!f.espera}
-                            onCheckedChange={(c) => mudar(c === true ? { espera: true, proximas: [], condicoes: {}, condicoes_regra: undefined } : { espera: undefined })} />
+                            onCheckedChange={(c) => mudar(c === true ? { espera: true, proximas: [], condicoes: {}, condicoes_regra: undefined, saida_padrao: undefined } : { espera: undefined })} />
                         <span>Fase de espera (ex.: diligência externa)
                             <span className="block text-xs text-slate-600 dark:text-slate-400">O processo entra nela vindo de outra fase, aguarda e volta para a fase de onde veio, que é retomada como estava.</span>
                         </span>
@@ -1127,11 +1139,19 @@ function CartaoFase({
                                 {/* Regra que vale: a resposta de uma ação de escolha indica esta saída; seguir por ela sem a resposta pede motivo. */}
                                 <CondicaoPorResposta id={`cr-${f.id}-${k}`} f={f} valor={f.condicoes_regra?.[id]} rotulo="Regra desta saída" vazio="Sem regra: a equipe escolhe"
                                     onChange={(c) => setRegraSaida(id, c)} />
-                                {f.condicoes_regra?.[id]?.valores.length > 0 && (
-                                    <p className="text-xs text-slate-600 dark:text-slate-400">Indicada quando {textoCondicao(f, f.condicoes_regra[id])}. Seguir por ela sem essa resposta exige motivo.</p>
+                                {f.condicoes_regra?.[id] && !condicaoIncompleta(f.condicoes_regra[id]) && (
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">Indicada quando {textoCondicao(f, f.condicoes_regra[id], fases)}. Seguir por ela sem isso exige motivo.</p>
                                 )}
                             </div>
                         ))}
+                        {/* Saída "senão": por onde seguir quando nenhuma regra indica outra. Só entre os caminhos do rito (não as esperas) sem regra própria. */}
+                        {caminhos.length > 1 && (
+                            <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-600 p-2 space-y-1">
+                                <NativeSelect id={`sp-${f.id}`} label="Se nenhuma regra indicar outra saída" value={saidaPadrao(fases, f)} onChange={(v) => mudar({ saida_padrao: v || undefined })}
+                                    options={[['', 'A equipe escolhe'], ...caminhos.filter((id) => !f.condicoes_regra?.[id]).map((id) => [id, `Segue para ${nomeDe(id)}`])]} />
+                                <p className="text-xs text-slate-600 dark:text-slate-400">É o "senão" do desvio. No processo, essa saída aparece como a indicada, e a fase que segue sozinha vai por ela quando nenhuma regra vale.</p>
+                            </div>
+                        )}
                         {outras.length > 0 && (
                             <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => {
                                 const livre = outras.find((x) => !saidas.includes(x.id) && x.id === fases[i + 1]?.id) || outras.find((x) => !saidas.includes(x.id));

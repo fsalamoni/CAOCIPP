@@ -1,5 +1,8 @@
 import { createHash } from 'crypto';
-import { CertidaoFase, Condicao, Exigencia, RegraAcao, Registro, RegistroAtos, condicaoAtendida, respostasDaFase, sanitizeCondicao, sanitizeRegras } from './exigencias';
+import {
+    CertidaoFase, Condicao, Exigencia, FaseDaCondicao, RegraAcao, Registro, RegistroAtos, condicaoAmpla, condicaoAtendida, respostasDaFase, sanitizeCondicao,
+    sanitizeCondicaoAmpla, sanitizeRegras,
+} from './exigencias';
 import { SituacaoRegistro, sanitizeSituacaoRegistro } from './situacaoRegistro';
 import { PermissoesFase, sanitizePermissoes } from './permissoesFase';
 
@@ -75,6 +78,8 @@ export interface Fase {
     condicoes?: Record<string, string>;
     /** Saída indicada pela resposta de uma ação de escolha da fase: { id da próxima fase: condição }. Seguir por outra pede motivo. */
     condicoes_regra?: Record<string, Condicao>;
+    /** Saída "senão": por onde a fase que segue sozinha vai quando nenhuma regra de saída indica outra. Ausente = espera o botão. */
+    saida_padrao?: string;
     /** Formato antigo do registro da fase (processos autuados antes de nov/2026). */
     registro?: Registro;
     /** Onde ficam a entrada/saída da fase e as remessas durante ela (ver shared/exigencias.ts). Ausente = autos. */
@@ -235,6 +240,7 @@ export function sanitizeRito(input: unknown): Rito {
         // Fase de espera: nunca a primeira (o processo precisa ter de onde vir) nem a final.
         return { fo, id, nomeFase, espera: fo.espera === true && i > 0 && fo.final !== true };
     });
+    const apoio: Array<{ mapa: Map<number, number>; regrasBrutas: unknown[]; saidasAmplas: Array<[string, unknown, string]> }> = [];
     const fases: Fase[] = brutas.map(({ fo, id, nomeFase, espera }, i) => {
         const prazo = Number(fo.prazo_dias);
         const prazoOk = Number.isInteger(prazo) && prazo > 0 && prazo <= 3650;
@@ -278,16 +284,26 @@ export function sanitizeRito(input: unknown): Rito {
         }
         // Saída pela resposta: só para saídas que existem (as explícitas, ou a seguinte da lista quando não há).
         const condicoesRegra: Record<string, Condicao> = {};
+        const saidas = final || espera ? [] : proximas.length ? proximas : brutas.slice(i + 1).filter((b) => !b.espera).slice(0, 1).map((b) => b.id);
+        // As que leem outra fase, dado do processo ou várias coisas ficam para o fim, com todas as fases prontas.
+        const saidasAmplas: Array<[string, unknown, string]> = [];
         if (fo.condicoes_regra && typeof fo.condicoes_regra === 'object') {
-            const saidas = final || espera ? [] : proximas.length ? proximas : brutas.slice(i + 1).filter((b) => !b.espera).slice(0, 1).map((b) => b.id);
             for (const [k, v] of Object.entries(fo.condicoes_regra as Record<string, unknown>)) {
                 const alvo = ids.get(k) ?? (vistos.has(k) ? k : null);
                 if (!alvo || !saidas.includes(alvo)) continue;
                 const nomeAlvo = brutas.find((b) => b.id === alvo)?.nomeFase || alvo;
-                const cond = sanitizeCondicao(v, regras.acoes_regras || [], acoes, `A saída de "${nomeFase}" para "${nomeAlvo}"`, mapa);
+                const quem = `A saída de "${nomeFase}" para "${nomeAlvo}"`;
+                if (condicaoAmpla(v)) { saidasAmplas.push([alvo, v, quem]); continue; }
+                const cond = sanitizeCondicao(v, regras.acoes_regras || [], acoes, quem, mapa);
                 if (cond) condicoesRegra[alvo] = cond;
             }
         }
+        apoio.push({ mapa, regrasBrutas: regrasAlinhadas, saidasAmplas });
+        // Saída "senão": uma das saídas da fase que não seja espera, quando há mais de uma por onde seguir.
+        const padraoBruto = texto(fo.saida_padrao, 40);
+        const padraoId = padraoBruto ? (ids.get(padraoBruto) ?? (vistos.has(padraoBruto) ? padraoBruto : '')) : '';
+        const caminhos = saidas.filter((s) => !brutas.find((b) => b.id === s)?.espera);
+        const saidaPadrao = padraoId && caminhos.length > 1 && caminhos.includes(padraoId) ? padraoId : '';
         // Grupo da certidão: o id (do cliente ou final) de outra fase, ou a própria fase.
         const cf = (fo.certidao && typeof fo.certidao === 'object' ? fo.certidao : {}) as Record<string, unknown>;
         const grupoBruto = texto(cf.grupo, 40);
@@ -320,8 +336,32 @@ export function sanitizeRito(input: unknown): Rito {
             ...(modelos.length ? { modelos } : {}),
             ...(Object.keys(condicoes).length ? { condicoes } : {}),
             ...(Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {}),
+            ...(saidaPadrao ? { saida_padrao: saidaPadrao } : {}),
             ...regras,
         };
+    });
+    // 2ª passada das condições: as que leem outra fase, dado do processo ou várias coisas ao mesmo tempo.
+    const daCondicao = (k: number): FaseDaCondicao => ({ id: fases[k].id, nome: fases[k].nome, acoes: fases[k].acoes || [], regras: fases[k].acoes_regras || [], mapa: apoio[k].mapa });
+    const outraFase = (ref: string): FaseDaCondicao | undefined => {
+        const k = fases.findIndex((f) => f.id === (ids.get(ref) ?? ref));
+        return k < 0 ? undefined : daCondicao(k);
+    };
+    fases.forEach((f, k) => {
+        apoio[k].regrasBrutas.forEach((b, j) => {
+            const se = (b as { se?: unknown } | null | undefined)?.se;
+            if (!condicaoAmpla(se)) return;
+            const cond = sanitizeCondicaoAmpla(se, daCondicao(k), outraFase, `A ação "${f.acoes?.[j]}"`, j);
+            if (!cond) return;
+            const rs = [...(f.acoes_regras || (f.acoes || []).map(() => null))];
+            rs[j] = { ...(rs[j] || {}), se: cond };
+            f.acoes_regras = rs;
+        });
+        for (const [alvo, v, quem] of apoio[k].saidasAmplas) {
+            const cond = sanitizeCondicaoAmpla(v, daCondicao(k), outraFase, quem);
+            if (cond) f.condicoes_regra = { ...(f.condicoes_regra || {}), [alvo]: cond };
+        }
+        // O "senão" é saída sem regra própria: com regra, quem decide é a regra.
+        if (f.saida_padrao && f.condicoes_regra?.[f.saida_padrao]) delete f.saida_padrao;
     });
     // Grupo apontando para fase que aponta para outra: todos ficam com a raiz (em ciclo, cada fase fica só).
     const raizes = new Map(fases.map((f) => {
@@ -409,7 +449,9 @@ export function saidaAutomatica(
     // A saída para uma fase de espera é desvio eventual: não conta como caminho do rito.
     const seguintes = fasesSeguintes(fases, atual.id).filter((f) => !f.espera);
     const indicadas = seguintes.filter((f) => atual.condicoes_regra?.[f.id] && cabe(f));
-    const alvo = seguintes.length === 1 ? (cabe(seguintes[0]) ? seguintes[0] : null) : indicadas.length === 1 ? indicadas[0] : null;
+    // Senão: nenhuma saída com regra foi indicada e o rito diz por onde seguir nesse caso.
+    const padrao = !indicadas.length ? seguintes.find((f) => f.id === atual.saida_padrao && !atual.condicoes_regra?.[f.id]) : undefined;
+    const alvo = seguintes.length === 1 ? (cabe(seguintes[0]) ? seguintes[0] : null) : indicadas.length === 1 ? indicadas[0] : padrao || null;
     if (!alvo) return null;
     const outra = alvo.unidade_id && alvo.unidade_id !== proc.unidade_atual && unidadesAtivas.includes(alvo.unidade_id);
     return { fase_id: alvo.id, ...(outra ? { unidade_destino: alvo.unidade_id } : {}) };

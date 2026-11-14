@@ -1,4 +1,4 @@
-import React, { useContext, useRef, useState } from 'react';
+import React, { createContext, useContext, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ import {
     DESTINO_INFO, DESTINOS_DOCUMENTO, MAX_CAMPOS_ACAO, DESTINOS_FASE, FORMAS, NIVEIS, OUTROS_ATOS, PEDIDOS, ROTULO_DESTINO, comOutros, destinoDaAcao, destinoDaMudanca, destinoDoAto,
     grupoDe, nivelDaAcao, niveisDaFase, opcoesDoAto, partesVeem, regraComNivel, registroComOutros,
     pedidoDaAcao, regraComPedido, resumoDaAcao, saidasDaFase, tituloCertidao,
-    QUEM, VE, podeReservar, podeIrParaFolha, alternativasPossiveis, chaveDaCondicao, fontesDeEscolha, opcoesDaResposta, problemaDaCondicao, remapearCondicoes, soOrienta,
+    QUEM, VE, podeReservar, podeIrParaFolha, alternativasPossiveis, chaveDaCondicao, condicaoIncompleta, fontesDaCondicao, juntarPartes, MAX_CONDICOES_E, opcoesDaParte, parteDaFonte, partesDaCondicao,
+    problemaDaCondicao, remapearCondicoes, soOrienta,
 } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 import { MODULOS } from '@/lib/camposProcesso';
@@ -89,42 +90,85 @@ function EscolhaDestino({ id, valor, opcoes, onChange, acao, fase, documento }) 
 }
 
 /**
- * Condição pela resposta de uma ação de escolha (lista ou sim/não) da fase, ou
- * de um campo de escolha do formulário de uma ação: de onde vem a resposta e
- * quais respostas. `limite`: só ações antes dele (ação condicional).
+ * De onde uma condição pode ler além da própria fase: o rito inteiro (`fases`,
+ * para a resposta dada em outra fase) e os tipos de processo que usam o rito
+ * (`tipos`, para "Tipo de processo" e os campos de escolha do formulário).
  */
-export function CondicaoPorResposta({ id, f, limite = Infinity, valor, onChange, rotulo, vazio }) {
-    const fontes = fontesDeEscolha(f, limite);
-    if (!fontes.length && !valor) {
-        return <p className="text-xs text-slate-600 dark:text-slate-400">{rotulo}: {vazio.toLowerCase()}. Para condicionar, crie {limite === Infinity ? 'nesta fase' : 'antes dela'} uma ação que pede escolha (lista ou sim/não) ou um formulário com um campo de escolha.</p>;
-    }
-    const ops = valor ? opcoesDaResposta(f.acoes_regras?.[valor.acao], valor.campo) || [] : [];
-    const problema = problemaDaCondicao(f, valor, limite);
+export const CondicaoContexto = createContext({ fases: [], tipos: [] });
+
+/** Uma parte da condição: o que ela lê e quais respostas fazem valer. */
+function ParteDaCondicao({ id, f, limite, ctx, parte, usadas, onChange, rotulo, vazio }) {
+    const chave = parte ? chaveDaCondicao(parte) : '';
+    // Cada coisa só entra uma vez na mesma condição.
+    const fontes = fontesDaCondicao(f, limite, ctx).filter((s) => chaveDaCondicao(s) === chave || !usadas.has(chaveDaCondicao(s)));
+    const ops = parte ? opcoesDaParte(f, parte, ctx) || [] : [];
     const opcoes = [['', vazio], ...fontes.map((s) => [chaveDaCondicao(s), `Conforme ${s.rotulo}`])];
-    if (valor && !fontes.some((s) => chaveDaCondicao(s) === chaveDaCondicao(valor))) opcoes.push([chaveDaCondicao(valor), `Ação ${valor.acao + 1} (não serve mais)`]);
+    if (parte && !fontes.some((s) => chaveDaCondicao(s) === chave)) {
+        opcoes.push([chave, parte.dado || parte.fase ? 'O que esta condição lia (não serve mais)' : `Ação ${parte.acao + 1} (não serve mais)`]);
+    }
+    const marcar = (v, c) => onChange(parteDaFonte({ ...parte, nome: parte.rotulo },
+        c === true ? [...new Set([...parte.valores, v])] : parte.valores.filter((x) => x !== v), ops));
     return (
         <div className="space-y-1">
-            <NativeSelect id={`${id}-acao`} label={rotulo} value={valor ? chaveDaCondicao(valor) : ''} options={opcoes}
+            <NativeSelect id={`${id}-acao`} label={rotulo} value={chave} options={opcoes}
                 onChange={(v) => {
-                    if (v === '') return onChange(undefined);
-                    // '2' é a ação 2; '2.sistema' é o campo "sistema" do formulário dela.
-                    const [a, ...campo] = v.split('.');
-                    return onChange({ acao: Number(a), ...(campo.length ? { campo: campo.join('.') } : {}), valores: [] });
+                    const fonte = fontes.find((x) => chaveDaCondicao(x) === v);
+                    return onChange(fonte ? parteDaFonte(fonte) : undefined);
                 }} />
-            {valor && ops.length > 0 && (
+            {parte && ops.length > 0 && (
                 <div role="group" aria-label={`Respostas que fazem valer: ${rotulo}`} className="flex flex-wrap gap-x-4 gap-y-1 pl-1">
                     {ops.map(([v, l]) => (
                         <label key={v} className="flex min-h-[2.75rem] sm:min-h-0 items-center gap-2 text-sm">
-                            <Checkbox checked={valor.valores.includes(v)}
-                                onCheckedChange={(c) => onChange({ ...valor, valores: c === true ? [...new Set([...valor.valores, v])] : valor.valores.filter((x) => x !== v) })} />
+                            <Checkbox checked={parte.valores.includes(v)} onCheckedChange={(c) => marcar(v, c)} />
                             {l}
                         </label>
                     ))}
                 </div>
             )}
+        </div>
+    );
+}
+
+/**
+ * Condição de uma ação ("quando vale") ou de uma saída ("regra desta saída").
+ * Lê a resposta de uma ação de escolha (lista ou sim/não) ou de um campo de
+ * escolha de formulário, desta fase ou de outra, ou um dado do processo
+ * (urgente, sigilo, partes, origem, tipo, campo do tipo). "E também" soma
+ * condições: todas precisam valer. `limite`: na própria fase, só ações antes
+ * dele (ação condicional).
+ */
+export function CondicaoPorResposta({ id, f, limite = Infinity, valor, onChange, rotulo, vazio }) {
+    const ctx = useContext(CondicaoContexto);
+    const [mais, setMais] = useState(false);
+    const partes = partesDaCondicao(valor);
+    const set = (k, parte) => {
+        const novas = [...partes];
+        if (parte) novas[k] = parte; else novas.splice(k, 1);
+        onChange(juntarPartes(novas));
+    };
+    const usadas = (k) => new Set(partes.filter((_, j) => j !== k).map(chaveDaCondicao));
+    const problema = problemaDaCondicao(f, valor, limite, ctx);
+    const cabeMais = partes.length > 0 && partes.length <= MAX_CONDICOES_E;
+    const semEscolhaNaFase = !fontesDaCondicao(f, limite, ctx).some((s) => s.grupo === 'fase');
+    return (
+        <div className="space-y-1">
+            {(partes.length ? partes : [undefined]).map((parte, k) => (
+                <ParteDaCondicao key={k} id={k ? `${id}-e${k}` : id} f={f} limite={limite} ctx={ctx} parte={parte} usadas={usadas(k)}
+                    rotulo={k ? `${rotulo}: e também` : rotulo} vazio={k ? '(tirar esta condição)' : vazio} onChange={(n) => set(k, n)} />
+            ))}
+            {mais && cabeMais && (
+                <ParteDaCondicao id={`${id}-e${partes.length}`} f={f} limite={limite} ctx={ctx} parte={undefined} usadas={usadas(-1)}
+                    rotulo={`${rotulo}: e também`} vazio="(escolha o que mais precisa valer)" onChange={(n) => { if (n) { set(partes.length, n); setMais(false); } }} />
+            )}
+            {cabeMais && !mais && !condicaoIncompleta(valor) && (
+                <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setMais(true)}><Plus className="w-3.5 h-3.5" aria-hidden /> E também</Button>
+            )}
+            {!valor && semEscolhaNaFase && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">Para condicionar por uma resposta, crie {limite === Infinity ? 'nesta fase' : 'antes dela'} uma ação que pede escolha (lista ou sim/não) ou um formulário com um campo de escolha. Também dá para ler a resposta de outra fase ou um dado do processo.</p>
+            )}
             {problema
                 ? <p className="text-xs text-amber-800 dark:text-amber-200">Esta condição {problema}: escolha de novo.</p>
-                : valor && !valor.valores.length && <p className="text-xs text-amber-800 dark:text-amber-200">Marque ao menos uma resposta.</p>}
+                : condicaoIncompleta(valor) && <p className="text-xs text-amber-800 dark:text-amber-200">Marque ao menos uma resposta{partes.length > 1 ? ' em cada condição' : ''}.</p>}
         </div>
     );
 }
@@ -308,7 +352,7 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
     // `origem[j]`: de que posição veio a ação j (-1, nova). As condições acompanham a ação de que dependem.
     const gravar = (as, rs, origem = as.map((_, j) => (j < acoes.length ? j : -1))) => {
         const alinhadas = as.map((_, i) => rs[i] || null);
-        mudar({ acoes: as, ...remapearCondicoes(f, origem, alinhadas) });
+        mudar({ acoes: as, ...remapearCondicoes(f, origem, alinhadas) }, origem);
     };
     const indices = acoes.map((_, j) => j);
     const setTexto = (i, v) => {
