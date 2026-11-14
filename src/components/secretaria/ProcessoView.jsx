@@ -20,7 +20,7 @@ import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, docume
 import FluxoRito from './FluxoRito';
 import { DadosCampos } from './CamposProcesso';
 import AjudaTermo, { focoSemAjuda } from './AjudaTermo';
-import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, partesParaCorrecao, pedidoDeCorrecao, valoresDe, variaveisDoProcesso } from '@/lib/camposProcesso';
+import { camposFaltandoNaFase, faltando, formParaCorrecao, formularioDe, nomePolo, partesParaCorrecao, pedidoDeCorrecao, valoresDe, variaveisDoProcesso } from '@/lib/camposProcesso';
 import FormularioAutuacao from './FormularioAutuacao';
 
 /** Formulário do tipo do processo hoje (também de tipo excluído); null se a tela não o conhece. */
@@ -185,7 +185,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const agora = new Date();
     const fixos = {
         numero: p.numero, assunto: p.assunto, tipo_processo: p.tipo_nome || '', unidade: nomeUnidade(p.unidade_atual), fase: p.fase_nome,
-        partes: p.partes.filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join('; '), orgao: estado.orgao || '',
+        partes: p.partes.filter((x) => !x.retirada).map((x) => `${x.nome} (${nomePolo(p.nomes_polos, x.polo)})`).join('; '), orgao: estado.orgao || '',
         usuario: estado.membros.find((m) => m.uid === estado.uid)?.nome || '',
         data: agora.toLocaleDateString('pt-BR'), data_extenso: agora.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
     };
@@ -370,7 +370,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     </div>
                     {noGabinete && noAndamento && (
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            {p.partes.filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join(' · ') || 'Sem partes'}{p.tipo_nome ? ` · ${p.tipo_nome}` : ''}
+                            {p.partes.filter((x) => !x.retirada).map((x) => `${x.nome} (${nomePolo(p.nomes_polos, x.polo)})`).join(' · ') || 'Sem partes'}{p.tipo_nome ? ` · ${p.tipo_nome}` : ''}
                             {diasTramitando != null && ` · ${diasTramitando} dia${diasTramitando === 1 ? '' : 's'} em tramitação`}
                             {ultimoDoc && ` · último documento: nº ${ultimoDoc.ordem}, ${ultimoDoc.titulo}`}
                         </p>
@@ -759,13 +759,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {p.partes.map((x, i) => (x.retirada ? (
                                         <li key={i} className="py-2 flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-400">
-                                            <span className="flex-1 min-w-[10rem] line-through">{x.nome} ({x.polo})</span>
+                                            <span className="flex-1 min-w-[10rem] line-through">{x.nome} ({nomePolo(p.nomes_polos, x.polo)})</span>
                                             <Badge variant="outline">Retirada{x.retirada.em ? ` em ${new Date(x.retirada.em).toLocaleDateString('pt-BR')}` : ''}</Badge>
                                         </li>
                                     ) : (
                                         <li key={i} className="py-2 space-y-1">
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <span className="flex-1 min-w-[10rem]">{x.nome} ({x.polo}){x.email ? ` · ${x.email}` : ''}</span>
+                                                <span className="flex-1 min-w-[10rem]">{x.nome} ({nomePolo(p.nomes_polos, x.polo)}){x.email ? ` · ${x.email}` : ''}</span>
                                                 {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
                                                 {x.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
                                             </div>

@@ -19,7 +19,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.atendeCondicao = exports.rotuloDe = exports.POLOS = exports.ROTULO_PADRAO = exports.PADROES = exports.MAX_OPCOES = exports.MAX_CAMPOS = exports.FORMATOS = exports.TIPOS_CAMPO = void 0;
+exports.atendeCondicao = exports.rotuloDe = exports.nomeDoPolo = exports.POLOS = exports.ROTULO_PADRAO = exports.PADROES = exports.MAX_OPCOES = exports.MAX_CAMPOS = exports.FORMATOS = exports.TIPOS_CAMPO = void 0;
 exports.formularioDe = formularioDe;
 exports.paginaDe = paginaDe;
 exports.sanitizeCampos = sanitizeCampos;
@@ -75,10 +75,21 @@ const polosDe = (v) => {
     const l = exports.POLOS.filter((p) => Array.isArray(v) && v.includes(p));
     return l.length ? l : [...exports.POLOS];
 };
+// Só dos polos que o tipo usa: nome de polo desmarcado não fica guardado.
+const nomesPolosDe = (v, polos) => {
+    const o = (v && typeof v === 'object' ? v : {});
+    return Object.fromEntries(polos.map((p) => [p, texto(o[p], 40)]).filter(([, s]) => s));
+};
+/** Nome do polo no processo (o do tipo, gravado na autuação) ou o de sempre. */
+const nomeDoPolo = (nomes, polo) => {
+    const n = nomes && typeof nomes === 'object' ? nomes[polo] : '';
+    return typeof n === 'string' && n ? n : polo;
+};
+exports.nomeDoPolo = nomeDoPolo;
 const padroesDe = (f) => ({
     assunto: usoDe('assunto', f.assunto), descricao: usoDe('descricao', f.descricao), partes: usoDe('partes', f.partes),
     origem: usoDe('origem', f.origem), sigilo: usoDe('sigilo', f.sigilo), urgencia: usoDe('urgencia', f.urgencia), unidade: usoDe('unidade', f.unidade),
-    rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos),
+    rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos), nomes_polos: nomesPolosDe(f.nomes_polos, polosDe(f.polos)),
 });
 /** Nome do campo padrão neste formulário. */
 const rotuloDe = (form, k) => { var _a; return ((_a = form.rotulos) === null || _a === void 0 ? void 0 : _a[k]) || exports.ROTULO_PADRAO[k]; };
@@ -172,6 +183,10 @@ function sanitizeFormulario(input) {
         throw new Error(`O tipo aceita até ${exports.MAX_CAMPOS} campos próprios`);
     const campos = sanitizeCampos(lista);
     const padroes = padroesDe(src);
+    const nomes = padroes.polos.map((p) => (0, exports.nomeDoPolo)(padroes.nomes_polos, p));
+    const repetido = nomes.find((n, i) => nomes.findIndex((m) => igual(m, n)) !== i);
+    if (repetido)
+        throw new Error(`Dois polos com o mesmo nome ("${repetido}"): dê nomes diferentes`);
     const reservados = [...Object.values(padroes.rotulos), 'assunto', 'descrição', 'descricao', 'partes'];
     campos.forEach((c) => {
         if (reservados.some((r) => igual(r, c.rotulo)))
@@ -482,7 +497,8 @@ function diferencasCampos(antes, depois) {
  * cliente vêm só nome, documento, e-mail, polo e o pedido de retirada; conta,
  * convites e representantes ficam como estavam. Lança Error com texto ao usuário.
  */
-function retificarPartes(antes, entrada, polos, max, quem) {
+function retificarPartes(antes, entrada, polos, max, quem, nomes) {
+    const np = (p) => (0, exports.nomeDoPolo)(nomes, p);
     if (!Array.isArray(entrada))
         throw new Error('Lista de partes inválida');
     if (entrada.length < antes.length)
@@ -503,7 +519,7 @@ function retificarPartes(antes, entrada, polos, max, quem) {
         if (a && o.retirada === true) {
             partes.push(Object.assign(Object.assign({}, a), { retirada: quem }));
             retiradas.push(i);
-            mudou.push(`Parte retirada: ${a.nome} (${a.polo})`);
+            mudou.push(`Parte retirada: ${a.nome} (${np(a.polo)})`);
             return;
         }
         const nome = texto(o.nome);
@@ -516,14 +532,14 @@ function retificarPartes(antes, entrada, polos, max, quem) {
             if (!nome)
                 return; // linha nova em branco
             partes.push(dados);
-            mudou.push(`Parte incluída: ${nome} (${polo})`);
+            mudou.push(`Parte incluída: ${nome} (${np(polo)})`);
             return;
         }
         if (!nome)
             throw new Error(`Informe o nome da ${i + 1}ª parte. Para tirá-la do processo, use "Retirar".`);
         const nova = Object.assign(Object.assign({}, a), dados);
         if (nome !== a.nome || dados.documento !== (a.documento || '') || dados.email !== (a.email || '') || polo !== a.polo) {
-            mudou.push(`Parte corrigida: ${nome !== a.nome ? `${a.nome} → ${nome}` : nome} (${polo !== a.polo ? `${a.polo} → ${polo}` : polo})`);
+            mudou.push(`Parte corrigida: ${nome !== a.nome ? `${a.nome} → ${nome}` : nome} (${polo !== a.polo ? `${np(a.polo)} → ${np(polo)}` : np(polo)})`);
         }
         if (nome !== a.nome)
             renomeadas.push(i);

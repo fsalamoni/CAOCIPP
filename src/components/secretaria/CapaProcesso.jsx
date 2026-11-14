@@ -8,7 +8,7 @@ import { DadosCampos } from './CamposProcesso';
 import { POLOS, STATUS_ROTULO, SeloUrgente, dataHora, rotuloOrigem } from './comum';
 import AjudaTermo from './AjudaTermo';
 import { ROTULO_DESTINO } from '@/lib/exigencias';
-import { ROTULO_REF, abaDoRegistro, integracoesLigadas, registrosLigados } from '@/lib/camposProcesso';
+import { ROTULO_REF, abaDoRegistro, integracoesLigadas, nomePolo, registrosLigados } from '@/lib/camposProcesso';
 import { createPageUrl } from '@/utils';
 
 // Capa do processo: só informação, igual para todos os perfis, sem nenhum
@@ -37,12 +37,12 @@ function Bloco({ titulo, children, className = '' }) {
     );
 }
 
-function Parte({ x }) {
+function Parte({ x, nomes }) {
     return (
         <li className="py-1.5">
             <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className={`font-medium ${x.retirada ? 'line-through text-slate-600 dark:text-slate-400' : ''}`}>{x.nome}</span>
-                <span className="text-slate-600 dark:text-slate-400">{POLOS[x.polo] || x.polo}{x.documento ? ` · ${x.documento}` : ''}</span>
+                <span className="text-slate-600 dark:text-slate-400">{nomePolo(nomes, x.polo, POLOS[x.polo] || x.polo)}{x.documento ? ` · ${x.documento}` : ''}</span>
                 {x.retirada && <Badge variant="outline">Retirada do processo</Badge>}
                 {x.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
             </div>
@@ -182,7 +182,7 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
 
                 <Bloco titulo={`Partes (${ativas.length})`}>
                     {partes.length
-                        ? <ul className="divide-y divide-slate-100 dark:divide-slate-800">{partes.map((x, i) => <Parte key={i} x={x} />)}</ul>
+                        ? <ul className="divide-y divide-slate-100 dark:divide-slate-800">{partes.map((x, i) => <Parte key={i} x={x} nomes={p.nomes_polos} />)}</ul>
                         : <p className="text-sm text-slate-600">Nenhuma parte cadastrada.</p>}
                 </Bloco>
             </div>

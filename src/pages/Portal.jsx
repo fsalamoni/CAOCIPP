@@ -48,7 +48,9 @@ const diasAte = (iso) => Math.round((new Date(`${iso}T12:00:00`) - new Date(`${h
 /** Quem você é neste processo: a própria parte ou representante dela. */
 export function fraseQuem(p) {
     if (!p) return '';
-    if (p.como === 'representante') return `Você representa ${p.parte_nome || p.nome}${p.polo ? ` (${p.polo})` : ''}`;
+    if (p.como === 'representante') return `Você representa ${p.parte_nome || p.nome}${p.polo ? ` (${p.nome_polo || p.polo})` : ''}`;
+    // Nome próprio do polo (do tipo de processo): dito como está.
+    if (p.nome_polo && p.nome_polo !== p.polo) return `Você participa como ${p.nome_polo}`;
     return frasePolo(p.polo);
 }
 

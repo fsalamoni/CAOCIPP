@@ -7,6 +7,7 @@ exports.registrarCiencia = registrarCiencia;
 exports.tornarSemEfeito = tornarSemEfeito;
 exports.certificarDecursos = certificarDecursos;
 exports.cienciaPorDecurso = cienciaPorDecurso;
+const camposProcesso_1 = require("../shared/camposProcesso");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const comunicacoes_1 = require("../shared/comunicacoes");
@@ -113,10 +114,10 @@ async function expedir(tx, c, ref, data, raw, cfg, saida = { internos: 0, cumpri
             com = r.comunicacao;
             if (r.prazo)
                 prazos = [...prazos, r.prazo];
-            descricao = `${nomeEspecie} de ${parte.nome} (${parte.polo}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
+            descricao = `${nomeEspecie} de ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(data.nomes_polos, parte.polo)}) realizada por ${ped.outro_meio}, com ciência em ${br(ped.ciencia_data)}: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${r.prazo ? `${prazoTxt}, vence em ${br(r.prazo.vence_em)}.` : `${prazoTxt}.`}`;
         }
         else {
-            descricao = `${nomeEspecie} expedida a ${parte.nome} (${parte.polo}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
+            descricao = `${nomeEspecie} expedida a ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(data.nomes_polos, parte.polo)}) pela plataforma: ${semPonto(ped.texto)}${docTitulo ? ` (${docTitulo})` : ''}. ${com.dias ? `${prazoTxt}, a contar da ciência` : prazoTxt}.${com.limite_ciencia ? ` Sem ciência até ${br(com.limite_ciencia)}, ela se dá por decurso.` : ''}`;
         }
         lista = [...lista, com];
         const mov = (0, context_1.registrarMovimento)(tx, c, ref, atual, 'comunicacao', descricao.slice(0, secretaria_1.MAX_TEXTO_LONGO), { comunicacao_id: com.id, especie: com.especie, parte_idx: idx });

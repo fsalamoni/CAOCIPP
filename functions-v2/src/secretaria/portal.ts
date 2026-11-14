@@ -23,7 +23,7 @@ import { avancarSozinho } from './processos';
 import { contextoDoSistema } from './context';
 import { situacaoDaParte } from '../shared/meusProcessos';
 import { informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
-import { CampoValor } from '../shared/camposProcesso';
+import { CampoValor, nomeDoPolo } from '../shared/camposProcesso';
 import { Ref, refsFechadas } from '../shared/modulos';
 
 /**
@@ -144,6 +144,8 @@ type ParteDoc = { uid?: string; nome: string; polo: string; representantes?: Arr
 /** Quem a conta é no processo: a própria parte ou representante dela. */
 export interface Quem {
     nome: string; polo: string; como: 'parte' | 'representante';
+    /** Nome do polo neste processo (o do tipo, ou o de sempre). */
+    nome_polo?: string;
     /** Nome do representante, quando é ele quem está logado. */
     representante?: string;
     /** Como assina e aparece nos autos. */
@@ -154,10 +156,11 @@ export interface Quem {
 function parteDoUsuario(proc: admin.firestore.DocumentData, uid: string): Quem | undefined {
     const partes = (proc.partes || []) as ParteDoc[];
     const propria = partes.find((p) => p.uid === uid);
-    if (propria) return { nome: propria.nome, polo: propria.polo, como: 'parte', assina: propria.nome, rotulo: `${propria.nome} (${propria.polo})` };
+    const np = (p: string) => nomeDoPolo(proc.nomes_polos, p);
+    if (propria) return { nome: propria.nome, polo: propria.polo, nome_polo: np(propria.polo), como: 'parte', assina: propria.nome, rotulo: `${propria.nome} (${np(propria.polo)})` };
     for (const p of partes) {
         const r = (p.representantes || []).find((x) => x.uid === uid);
-        if (r) return { nome: p.nome, polo: p.polo, como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${p.polo})` };
+        if (r) return { nome: p.nome, polo: p.polo, nome_polo: np(p.polo), como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${np(p.polo)})` };
     }
     return undefined;
 }
@@ -188,7 +191,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const parte = partes[conv.parte_idx];
             if (!parte || parte.nome !== conv.parte_nome || parte.retirada) throw new HttpsError('failed-precondition', 'A parte do convite não existe mais no processo');
             const ridx = typeof conv.representante_idx === 'number' ? conv.representante_idx : -1;
-            let rotulo = `${parte.nome} (${parte.polo})`;
+            let rotulo = `${parte.nome} (${nomeDoPolo(proc.nomes_polos, parte.polo)})`;
             let assina = parte.nome;
             if (ridx >= 0) {
                 // Convite a um representante: a conta fica no representante, não na parte.
@@ -198,7 +201,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 if (rep.uid && rep.uid !== uid) throw new HttpsError('failed-precondition', 'Este representante já está vinculado a outra conta');
                 reps[ridx] = { ...rep, uid, habilitada_em: new Date().toISOString(), conta: nomeConta };
                 partes[conv.parte_idx] = { ...parte, representantes: reps };
-                rotulo = `${rep.nome}, representante de ${parte.nome} (${parte.polo}),`;
+                rotulo = `${rep.nome}, representante de ${parte.nome} (${nomeDoPolo(proc.nomes_polos, parte.polo)}),`;
                 assina = `${rep.nome}, representante de ${parte.nome}`;
             } else {
                 if (parte.uid && parte.uid !== uid) throw new HttpsError('failed-precondition', 'Esta parte já está vinculada a outra conta');
@@ -287,7 +290,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             return {
                 id: d.id, numero: x.numero, assunto: x.assunto, status: x.status, urgente: x.urgente === true, orgao: ativo.get(x.organization_id)?.nome,
                 fase_nome: nomeParaPartes(x, x.fase_atual),
-                polo: parte?.polo, parte_nome: parte?.nome || null, como: parte?.como || 'parte', representante: parte?.representante || null,
+                polo: parte?.polo, nome_polo: parte ? nomeDoPolo(x.nomes_polos, parte.polo) : null, parte_nome: parte?.nome || null, como: parte?.como || 'parte', representante: parte?.representante || null,
                 ultimo_movimento: ultimo, novidades, visto_em: visto || null, comunicacoes_aguardando: aguardando.length,
                 // Planilha "Meus Processos Eletrônicos": o que fazer, prazos abertos e por abrir.
                 tipo_nome: x.tipo_nome || null, autuado_em: x.autuado_em || null,
@@ -333,6 +336,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 fase_atual: data.fase_atual,
                 fases: fasesPublicas(data),
                 partes: (data.partes || []).filter((x: { retirada?: unknown }) => !x.retirada).map((x: { nome: string; polo: string }) => ({ nome: x.nome, polo: x.polo })),
+                nomes_polos: data.nomes_polos || {},
                 prazos: prazosPublicos(data)
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
                 minha_parte: parte,
@@ -394,7 +398,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             `Processo nº ${proc.numero}`, `Assunto: ${proc.assunto}`, '',
             `Situação: ${situacao}. Fase atual: ${fase}.`,
             `Autuado em ${proc.autuado_em ? brDataHora(proc.autuado_em) : '—'}.`,
-            `Partes: ${((proc.partes || []) as Array<{ nome: string; polo: string; retirada?: unknown }>).filter((x) => !x.retirada).map((x) => `${x.nome} (${x.polo})`).join('; ')}.`, '',
+            `Partes: ${((proc.partes || []) as Array<{ nome: string; polo: string; retirada?: unknown }>).filter((x) => !x.retirada).map((x) => `${x.nome} (${nomeDoPolo(proc.nomes_polos, x.polo)})`).join('; ')}.`, '',
             `Prazos em aberto: ${prazosPublicos(proc).map((x) => `${x.descricao}, vence em ${brData(x.vence_em)}`).join('; ') || 'nenhum'}.`, '',
             'Últimos movimentos:',
             ...movs.map((m) => `${brDataHora(m.em)} — ${m.descricao}`), '',

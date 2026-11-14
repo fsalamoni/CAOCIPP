@@ -146,13 +146,18 @@ function LinhaPadrao({ p, form, onChange }) {
                 </div>
             )}
             {p.id === 'partes' && !oculto && (
-                <fieldset className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <legend className="sr-only">Polos que as partes podem ter</legend>
-                    <span className="text-xs text-slate-600 dark:text-slate-400">Polos:</span>
+                <fieldset className="mt-2 space-y-1.5">
+                    <legend className="text-xs text-slate-600 dark:text-slate-400">Polos que as partes podem ter e o nome de cada um neste tipo (opcional: Denunciante, Acusado, Licitante, Contratada...)</legend>
                     {POLOS.map(([v, l]) => (
-                        <label key={v} className="flex items-center gap-1.5 text-sm">
-                            <Checkbox checked={form.polos.includes(v)} onCheckedChange={(c) => onChange({ ...form, polos: c === true ? POLOS.map(([x]) => x).filter((x) => x === v || form.polos.includes(x)) : form.polos.filter((x) => x !== v) })} /> {l}
-                        </label>
+                        <div key={v} className="flex flex-wrap items-center gap-2">
+                            <label className="flex items-center gap-1.5 text-sm w-32">
+                                <Checkbox checked={form.polos.includes(v)} onCheckedChange={(c) => onChange({ ...form, polos: c === true ? POLOS.map(([x]) => x).filter((x) => x === v || form.polos.includes(x)) : form.polos.filter((x) => x !== v) })} /> {l}
+                            </label>
+                            {form.polos.includes(v) && (
+                                <Input aria-label={`Nome do polo ${l} neste tipo`} className="h-8 flex-1 min-w-[10rem]" maxLength={40} placeholder={`Nome neste tipo (padrão: ${l})`}
+                                    value={form.nomes_polos?.[v] || ''} onChange={(e) => onChange({ ...form, nomes_polos: { ...(form.nomes_polos || {}), [v]: e.target.value } })} />
+                            )}
+                        </div>
                     ))}
                 </fieldset>
             )}

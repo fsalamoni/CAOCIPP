@@ -414,7 +414,7 @@ function ConfigDasPartes({ id, r, f, i, onChange }) {
                         </label>
                     ))}
                 </div>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Todos marcados: todas as partes do processo. As partes retiradas nunca são comunicadas.</p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Todos marcados: todas as partes do processo. As partes retiradas nunca são comunicadas. Cada tipo de processo pode dar outro nome ao polo (Acusado no lugar de Requerido, por exemplo): aqui vale o polo, qualquer que seja o nome.</p>
             </fieldset>
             <div>
                 <Label htmlFor={`${id}-ct`}>Texto proposto</Label>

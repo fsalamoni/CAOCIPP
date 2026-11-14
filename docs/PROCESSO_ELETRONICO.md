@@ -1451,6 +1451,24 @@ conciliacao, oitiva, sessao, reuniao, inspecao). Lógica pura em
 - Testes: `functions-v2/test/audiencias.test.js` e
   `src/lib/audiencias.test.js`. Guia do rito, parte 15.
 
+### Nomes dos polos por tipo de processo (14/11/2026)
+
+`formulario.nomes_polos` no tipo (`{ requerente?, requerido?, interessado?,
+terceiro? }`, até 40 caracteres; vazio = o nome de sempre). Saneado em
+`shared/camposProcesso.ts` (`nomesPolosDe`); dois polos marcados com o mesmo
+nome são recusados.
+
+- O polo gravado na parte continua sendo a chave (`requerido`), e as regras
+  (comunicação por polo, retificação) seguem pela chave.
+- Na autuação, o processo grava `nomes_polos` do tipo (como `tipo_versao`):
+  mudar o tipo depois não renomeia processos já autuados.
+- `nomeDoPolo(nomes, polo)` (servidor) e `nomePolo(nomes, polo, padrao)`
+  (cliente) dão o nome: certidões de retificação, de comunicação e de
+  habilitação, capa impressa, certidão de andamento, tela do processo,
+  capa, diálogo de comunicação e portal (`minha_parte.nome_polo`,
+  `nome_polo` na lista; "Você participa como Acusado").
+- `obter` da equipe e do portal devolvem `processo.nomes_polos`.
+
 ### Prorrogação e devolução de prazo (14/11/2026)
 
 Ações `prorrogarPrazo` e `devolverPrazo` (`prazo_id`, `dias`, `motivo`
