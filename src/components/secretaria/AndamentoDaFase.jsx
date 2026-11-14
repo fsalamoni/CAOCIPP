@@ -43,6 +43,16 @@ export default function AndamentoDaFase({ f, mudar, ligadas }) {
                     <span className={dica}>O arquivamento fica nos autos, com quem fez e a data. Use na última fase do rito.</span>
                 </span>
             </label>
+            <label className={caixa}>
+                <Checkbox className="mt-0.5" checked={f.juntada_conjunta === true} onCheckedChange={(c) => mudar({ juntada_conjunta: c === true ? true : undefined })} />
+                <span>Botão Finalizar: escolher, ordenar, assinar e juntar os documentos de uma vez
+                    <span className={dica}>
+                        Na tela do processo, a fase ganha o botão Finalizar {f.nome?.trim() ? `(aqui, "Finalizar ${f.nome.trim()[0].toLowerCase()}${f.nome.trim().slice(1)}")` : ''}. Quem tem o processo
+                        escolhe quais minutas e anexos entram nos autos e em que ordem, assina e junta tudo. O que ficar de fora continua como minuta ou é guardado fora dos autos.
+                        A redação original de cada minuta continua guardada para a equipe.
+                    </span>
+                </span>
+            </label>
             <fieldset className="space-y-2">
                 <legend className="text-xs font-medium">Consulta ou expediente ligado ao processo</legend>
                 {modulos.length === 0 ? (

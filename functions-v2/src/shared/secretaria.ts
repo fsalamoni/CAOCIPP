@@ -55,6 +55,11 @@ export interface Fase {
      * aguarda e volta para a fase de onde veio, que é retomada como estava (ver `saidasDoProcesso`).
      */
     espera?: true;
+    /**
+     * A tela do processo mostra, nesta fase, o botão "Finalizar (fase)": escolher, ordenar, assinar e juntar
+     * os documentos de uma vez (ex.: Finalizar revisão). É só o botão: cada juntada segue as regras de sempre.
+     */
+    juntada_conjunta?: true;
     /** Unidade que cuida da fase (sugestão de tramitação ao entrar nela). */
     unidade_id?: string;
     /** Quem faz (cargo ou papel), ex.: "Analista", "Promotor". */
@@ -120,6 +125,24 @@ export function minutaAcessivel(doc: { unidade_origem?: unknown; unidades_acesso
 }
 
 export const MAX_MINUTAS_REMESSA = 30;
+
+/** Redação anterior de uma minuta, guardada quando ela muda de mãos (documentos/{id}/versoes). */
+export interface VersaoMinuta { autor_uid: string; autor_nome: string; de: string; sha256: string; titulo: string; tipo: string }
+
+/**
+ * A minuta mudou de mãos? Quando quem salva não é quem escreveu a redação
+ * atual (e o texto mudou), a redação anterior fica guardada: é assim que a
+ * minuta original da assessoria continua acessível depois da revisão do
+ * gabinete. Quem corrige o próprio texto não gera versão.
+ */
+export function versaoAnterior(doc: Record<string, unknown>, uid: string, novoSha: string): VersaoMinuta | null {
+    const ultimo = String(doc.editado_por || doc.autor_uid || '');
+    if (!ultimo || ultimo === uid || !doc.sha256 || doc.sha256 === novoSha) return null;
+    return {
+        autor_uid: ultimo, autor_nome: String(doc.editado_por_nome || doc.autor_nome || ''), de: String(doc.editado_em || doc.criado_em || ''),
+        sha256: String(doc.sha256), titulo: String(doc.titulo || ''), tipo: String(doc.tipo || ''),
+    };
+}
 
 export const MAX_TEXTO_CURTO = 200;
 export const MAX_TEXTO_LONGO = 4000;
@@ -285,6 +308,7 @@ export function sanitizeRito(input: unknown): Rito {
             ...(proximas.length ? { proximas } : {}),
             ...(final ? { final: true } : {}),
             ...(espera ? { espera: true as const } : {}),
+            ...(fo.juntada_conjunta === true ? { juntada_conjunta: true as const } : {}),
             ...(unidade ? { unidade_id: unidade } : {}),
             ...(agente ? { agente } : {}),
             ...(acoes.length ? { acoes } : {}),

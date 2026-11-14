@@ -165,7 +165,18 @@ export default function GuiaRito({ variante = 'outline', className = '' }) {
                             </ul>
                             <p>A fase de espera não pode ser a primeira nem a final. O prazo automático da fase de origem é encerrado na ida e reaberto inteiro na volta.</p>
                         </Parte>
-                        <Parte titulo="10. Exemplo: a fase Recebimento de uma consulta">
+                        <Parte titulo="10. Revisão: minuta original e botão Finalizar">
+                            <p>Quando uma unidade redige e outra revisa (ex.: a assessoria escreve a minuta e o gabinete a corrige e assina), duas coisas ajudam: a <strong>redação original fica guardada</strong> e a fase pode terminar com o botão <strong>Finalizar</strong>.</p>
+                            <ul className="space-y-1.5">
+                                <Termo nome="A minuta segue com o processo">Ao enviar o processo para a unidade da revisão, quem envia escolhe as minutas e os anexos que vão junto. Quem recebe pode editar a minuta.</Termo>
+                                <Termo nome="Redação original guardada">Sempre que outra pessoa altera a minuta, o texto de quem escreveu antes fica guardado em <strong>Versões</strong>, ao lado do documento. Não é preciso configurar nada. Só a equipe vê as versões; elas não vão aos autos nem ao portal das partes, e continuam lá depois da juntada.</Termo>
+                                <Termo nome="Botão Finalizar">Na fase da revisão, em <strong>Andamento automático</strong>, marque <strong>Botão Finalizar</strong>. Na tela do processo aparece "Finalizar (nome da fase)": quem tem o processo escolhe quais minutas e anexos entram nos autos, põe na ordem, anexa o que faltar, assina e junta tudo de uma vez.</Termo>
+                                <Termo nome="O que entra e o que fica">Os documentos escolhidos são juntados na ordem da lista e formam o evento da fase, que sai na impressão. O que não for escolhido continua como minuta ou é guardado fora dos autos, à vista da equipe.</Termo>
+                                <Termo nome="Depois de finalizar">A tela já abre o passo seguinte da fase (ex.: Concluir e enviar para a Secretaria). Para a consulta ficar <em>Revisadas</em>, use a situação "ao entrar" da fase seguinte.</Termo>
+                            </ul>
+                            <p>Arquivo enviado (PDF, Word) não se edita no sistema, então não tem versões: o original é o próprio arquivo. Minuta já assinada também não se edita.</p>
+                        </Parte>
+                        <Parte titulo="11. Exemplo: a fase Recebimento de uma consulta">
                             <table className={tabela}>
                                 <thead><tr><th>Ação</th><th>O que pede</th><th>Quando vale</th></tr></thead>
                                 <tbody>
