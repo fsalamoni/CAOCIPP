@@ -941,6 +941,33 @@ opcionais; rito sem elas funciona como antes.
   excluído ou anonimizado), o registro interno diz o motivo e o andamento
   do processo segue normalmente. Salvar um rito com essa regra exige a
   integração com o módulo ligada.
+- **Registro de página própria ligado** (14/11/2026;
+  `fase.situacao_registro: { modulo: 'paginas', pagina, ao_entrar?,
+  ao_assumir? }`). `pagina` é o id do tipo (`entityTypes`) e o alvo é a chave
+  de uma fase dele. O registro é o de origem do processo, se for daquela
+  página, ou o único dela ligado ao processo (`lerPaginasDoRito`, que lê até
+  20 registros de páginas ligados). A mudança passa pelas **regras de
+  transição da página** (`evaluatePhaseTransition`, as mesmas de
+  `updateRecord`), com quem pratica o ato no processo (uid e papel no órgão,
+  `Contexto.papel`): campo exigido para sair da fase, condição de campo e
+  aprovação por pessoa ou por papel. Permitida, grava `phase`, os campos
+  automáticos da regra (`on_success.set_fields`; `now` vira a data do dia em
+  Brasília) e a entrada "Fase: A → B (pelo processo eletrônico N, fase F)"
+  em `activity_log` e `history`, na mesma transação do ato
+  (`mudancasDaPagina`, `gravarNoRegistro`). O comentário que a regra pode
+  exigir é essa entrada. Negada, o registro fica onde está, o processo segue
+  e o registro interno (`efeitos_fase`) diz o motivo. Ao salvar o rito
+  (`salvarRito` e `aplicarPropostaRito`), `exigirPaginas` recusa página
+  inexistente ou de outro órgão e fase que a página não tem
+  (`fasesDePaginaInvalidas`), e a integração com Páginas próprias tem de
+  estar ligada. No editor, "A fase conduz" lista as páginas do órgão e as
+  situações passam a ser as fases da página escolhida (`comRegistroConduzido`,
+  `situacoesDaRegra`); página ou fase que deixou de existir vira pendência
+  grave (`problemaDaPagina`). Nada disso chega às partes. Testes:
+  `functions-v2/test/situacaoPagina.test.js` e `src/lib/andamentoFase.test.js`.
+  **Parcerias e Júri não são conduzidos pelo rito**: as fases de Parcerias
+  exigem dados do negócio a cada entrada (`PARCERIA_PHASE_REQUIREMENTS`) e têm
+  aditivos, e o Júri não tem quadro de fases.
 - **Assumir.** Na tela do processo, quem está lotado na unidade que tem o
   processo vê o botão **Assumir** enquanto ele não tem responsável (é a ação
   `atribuir` para si mesmo; o destino do registro continua sendo o da linha

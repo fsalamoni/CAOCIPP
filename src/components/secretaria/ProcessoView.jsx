@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProcessosVinculados from './ProcessosVinculados';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -36,6 +36,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { saidasDoProcesso } from '@/lib/secretariaRito';
 import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
+import { RegistroContexto } from './SeletorRegistro';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
@@ -55,6 +56,7 @@ const emCampo = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.
 export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const qc = useQueryClient();
     const navigate = useNavigate();
+    const { paginas: paginasDoOrgao } = useContext(RegistroContexto);
     const q = useQuery({ queryKey: ['sec-proc', orgId, procId], queryFn: () => secProcesso(orgId, 'obter', { id: procId }) });
     const [acao, setAcao] = useState(null); // {tipo, ...}
     const [ocupado, setOcupado] = useState(false);
@@ -460,7 +462,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </p>
                     )}
                     {resumoAndamento(faseAtual).length > 0 && (
-                        <p className="text-xs text-slate-600 dark:text-slate-300">Pelo rito, esta fase {resumoAndamento(faseAtual).join('; ')}.</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">Pelo rito, esta fase {resumoAndamento(faseAtual, paginasDoOrgao).join('; ')}.</p>
                     )}
                     {podeAssumir && (
                         <div className="flex flex-wrap items-center gap-2 pt-1">

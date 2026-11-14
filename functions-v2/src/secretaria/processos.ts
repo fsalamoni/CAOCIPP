@@ -19,8 +19,9 @@ import {
 } from '../shared/camposProcesso';
 import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
-import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refDe, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
-import { ModuloSituacao, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
+import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, refDe, refDePagina, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
+import { ModuloSituacao, chaveDoRegistro, mudancasDaPagina, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
+import type { EntityTypeDef } from '../customEntities/schema';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 import { fireOrgWebhook } from '../shared/webhooks';
@@ -208,7 +209,8 @@ const SEM_EFEITOS = { texto: '', interno: [] as string[], campos: {} as Record<s
 
 type Ctx = Awaited<ReturnType<typeof carregarContexto>>;
 /** Registro de outro módulo cuja situação o rito conduz, ou por que ele não pode ser conduzido. */
-type RegistroLido = { ref: admin.firestore.DocumentReference; doc: admin.firestore.DocumentData; modulo: ModuloSituacao; numero: string } | { falta: string };
+type RegistroAchado = { ref: admin.firestore.DocumentReference; doc: admin.firestore.DocumentData; modulo: ModuloSituacao; numero: string; tipo?: admin.firestore.DocumentData; rotulo?: string };
+type RegistroLido = RegistroAchado | { falta: string };
 const SEM_REGISTROS = new Map<string, RegistroLido>();
 
 /**
@@ -217,11 +219,13 @@ const SEM_REGISTROS = new Map<string, RegistroLido>();
  * essa regra não lê nada.
  */
 async function lerRegistrosDoRito(tx: admin.firestore.Transaction, c: Ctx, proc: admin.firestore.DocumentData): Promise<Map<string, RegistroLido>> {
-    const modulos = [...new Set(((proc.fases || []) as Fase[]).map((f) => f.situacao_registro?.modulo).filter((m): m is ModuloSituacao => !!m))];
-    if (!modulos.length) return SEM_REGISTROS;
+    const regras = ((proc.fases || []) as Fase[]).map((f) => f.situacao_registro).filter((s): s is NonNullable<Fase['situacao_registro']> => !!s?.modulo);
+    if (!regras.length) return SEM_REGISTROS;
     const ligadas = integracoesDe(c.org, await lerFlags(c.db));
     const lidos = new Map<string, RegistroLido>();
-    for (const m of modulos) {
+    const paginas = [...new Set(regras.filter((s) => s.modulo === 'paginas').map((s) => String(s.pagina)))];
+    if (paginas.length) await lerPaginasDoRito(tx, c, proc, paginas, ligadas.paginas, lidos);
+    for (const m of [...new Set(regras.map((s) => s.modulo))].filter((x): x is Exclude<ModuloSituacao, 'paginas'> => x !== 'paginas')) {
         const nome = ROTULO_MODULO[m];
         const alvo = registroDoProcesso(proc, m);
         if (!ligadas[m]) lidos.set(m, { falta: `a integração com ${nome} está desligada` });
@@ -237,7 +241,51 @@ async function lerRegistrosDoRito(tx: admin.firestore.Transaction, c: Ctx, proc:
     return lidos;
 }
 
+/**
+ * Páginas próprias que o rito conduz: de cada página, o registro de onde o
+ * processo nasceu ou o único dela ligado ao processo, com o tipo (as fases e as
+ * regras de transição). Chave `paginas:<id do tipo>`.
+ */
+async function lerPaginasDoRito(
+    tx: admin.firestore.Transaction, c: Ctx, proc: admin.firestore.DocumentData, paginas: string[], ligada: boolean, lidos: Map<string, RegistroLido>,
+): Promise<void> {
+    const nome = ROTULO_MODULO.paginas;
+    if (!ligada) {
+        for (const p of paginas) lidos.set(`paginas:${p}`, { falta: `a integração com ${nome} está desligada` });
+        return;
+    }
+    const origem = proc.origem?.ref?.modulo === 'paginas' ? String(proc.origem.ref.id || '') : '';
+    // ponytail: lê até 20 registros de páginas ligados ao processo; além disso a regra não acha o registro e avisa.
+    const ids = [...new Set([origem, ...(Array.isArray(proc.vinculos) ? proc.vinculos : []).map(String).filter((v) => v.startsWith('paginas:')).map((v) => v.slice(8))])]
+        .filter((id) => /^[A-Za-z0-9_-]{1,128}$/.test(id)).slice(0, 20);
+    const docs: Array<{ ref: admin.firestore.DocumentReference; d: admin.firestore.DocumentData }> = [];
+    for (const id of ids) {
+        const ref = c.db.collection(COLECAO.paginas).doc(id);
+        const d = (await tx.get(ref)).data();
+        if (d && d.organization_id === c.orgId) docs.push({ ref, d });
+    }
+    for (const p of paginas) {
+        const chave = `paginas:${p}`;
+        const tipo = /^[A-Za-z0-9_-]{1,128}$/.test(p) ? (await tx.get(c.db.collection('entityTypes').doc(p))).data() : undefined;
+        if (!tipo || tipo.organization_id !== c.orgId) { lidos.set(chave, { falta: 'a página própria não existe mais' }); continue; }
+        const plural = String(tipo.label_plural || tipo.label_singular || nome);
+        const daPagina = docs.filter((x) => x.d.entity_type_id === p);
+        const alvo = daPagina.find((x) => x.ref.id === origem) || (daPagina.length === 1 ? daPagina[0] : null);
+        if (!alvo) lidos.set(chave, { falta: daPagina.length ? `o processo tem mais de um registro de ${plural} ligado e não nasceu de nenhum deles` : `o processo não tem registro de ${plural} ligado` });
+        else lidos.set(chave, { ref: alvo.ref, doc: alvo.d, modulo: 'paginas', numero: refDePagina(alvo.ref.id, alvo.d, tipo).numero, tipo, rotulo: String(tipo.label_singular || 'Registro') });
+    }
+}
+
 type Arquivado = { modulo: ModuloSituacao; id: string; numero: string };
+
+/** Entrada do histórico do registro conduzido (mesmo formato dos módulos). */
+function gravarNoRegistro(tx: admin.firestore.Transaction, c: Ctx, r: RegistroAchado, campos: Record<string, unknown>, action: string): void {
+    const agora = new Date();
+    const entrada = { date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName, action, timestamp: agora.toISOString() };
+    // `set` com `merge`: registros importados têm campos com ponto no nome, que `update` leria como caminho.
+    tx.set(r.ref, { ...campos, updated_at: FieldValue.serverTimestamp(), updated_by: c.ctx.uid, activity_log: FieldValue.arrayUnion(entrada) }, { merge: true });
+    tx.set(r.ref.collection('history').doc(historyEntryId(entrada)), { ...entrada, created_at: FieldValue.serverTimestamp() });
+}
 
 /**
  * Põe o registro ligado na situação que a fase pede (ao entrar nela ou quando
@@ -253,18 +301,19 @@ function aplicarSituacao(
     const alvo = cfg?.[gatilho];
     if (!fase || !cfg || !alvo) return { notas: [], arquivou: null };
     const nome = ROTULO_MODULO[cfg.modulo];
-    const r = registros.get(cfg.modulo);
+    const r = registros.get(chaveDoRegistro(cfg));
     if (!r || 'falta' in r) return { notas: [`Situação em ${nome} não alterada: ${r ? r.falta : 'o registro ligado não foi lido'}.`], arquivou: null };
+    if (cfg.modulo === 'paginas') {
+        // A mudança passa pelas regras de transição da página, com quem pratica o ato no processo.
+        const pg = mudancasDaPagina(r.tipo as EntityTypeDef, r.doc, alvo, { userId: c.ctx.uid, userRole: c.papel || 'member' }, hojeBrasil());
+        if (!pg) return { notas: [], arquivou: null };
+        if ('motivo' in pg) return { notas: [`${r.rotulo} ${r.numero}: a fase não mudou para "${pg.para}". ${pg.motivo}`], arquivou: null };
+        gravarNoRegistro(tx, c, r, pg.campos, `Fase: ${pg.de} → ${pg.para} (pelo processo eletrônico ${proc.numero}, fase ${fase.nome})`);
+        return { notas: [`${r.rotulo} ${r.numero}: fase "${pg.para}" pela regra da fase.`], arquivou: null };
+    }
     const m = mudancasDaSituacao(r.doc, alvo, hojeBrasil(), quem);
     if (!m) return { notas: [], arquivou: null };
-    const agora = new Date();
-    const entrada = {
-        date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName,
-        action: `Situação "${alvo}" pelo processo eletrônico ${proc.numero} (fase ${fase.nome})`, timestamp: agora.toISOString(),
-    };
-    // `set` com `merge`: registros importados têm campos com ponto no nome, que `update` leria como caminho.
-    tx.set(r.ref, { ...m, updated_at: FieldValue.serverTimestamp(), updated_by: c.ctx.uid, activity_log: FieldValue.arrayUnion(entrada) }, { merge: true });
-    tx.set(r.ref.collection('history').doc(historyEntryId(entrada)), { ...entrada, created_at: FieldValue.serverTimestamp() });
+    gravarNoRegistro(tx, c, r, m, `Situação "${alvo}" pelo processo eletrônico ${proc.numero} (fase ${fase.nome})`);
     return {
         notas: [`${nome} ${r.numero}: situação "${alvo}" pela regra da fase.`],
         arquivou: m.archived_date ? { modulo: r.modulo, id: r.ref.id, numero: r.numero } : null,

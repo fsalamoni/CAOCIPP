@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { ArrowRight, CheckCircle2, Eye, FilePen, Info, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ehEspera, etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import { resumoAndamento } from '@/lib/andamentoFase';
+import { RegistroContexto } from './SeletorRegistro';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
 import { OUTROS_ATOS, ROTULO_DESTINO, destinoDaAcao, destinoDaMudanca, destinoDoAto, destinoTransicao, grupoDe, niveisDaFase, partesVeem, pedidoDaAcao, resumoDaAcao, saidasDaFase, tituloCertidao, acaoAtiva, camposDeEscolha, opcoesDaResposta, saidasComCondicao, soOrienta, textoCondicao } from '@/lib/exigencias';
@@ -46,6 +47,7 @@ function ItemAutos({ d, children, nota }) {
  */
 export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver como a equipe e a parte' }) {
     const ritos = rascunho ? [doRascunho(rascunho)] : (estado.ritos || []).filter((r) => r.ativo);
+    const { paginas } = useContext(RegistroContexto);
     const [aberto, setAberto] = useState(false);
     const [ritoId, setRitoId] = useState('');
     const [faseId, setFaseIdBruto] = useState('');
@@ -133,7 +135,7 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                         <p className="text-xs text-slate-600 dark:text-slate-300">Ao entrar: {[fase.ao_entrar.urgente && 'o processo fica urgente', fase.ao_entrar.sem_responsavel && 'sai o responsável designado'].filter(Boolean).join(' e ')}.</p>
                                     )}
                                     {resumoAndamento(fase).length > 0 && (
-                                        <p className="text-xs text-slate-600 dark:text-slate-300">Andamento automático: {resumoAndamento(fase).join('; ')}.</p>
+                                        <p className="text-xs text-slate-600 dark:text-slate-300">Andamento automático: {resumoAndamento(fase, paginas).join('; ')}.</p>
                                     )}
                                     {fase.orientacao && <p className="text-sm text-slate-700 dark:text-slate-200">{fase.orientacao}</p>}
                                     {acoes.length > 0 && (

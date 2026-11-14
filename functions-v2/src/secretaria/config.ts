@@ -13,6 +13,7 @@ import { sanitizeDocumentoConfig } from './documentoConfig';
 import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
 import { MIME_DOCX } from './conversao';
 import { MODULOS, ROTULO_MODULO, ehModuloOrigem, integracoesDe, integracoesGravadas, lerFlags, modulosAtivos } from '../shared/modulos';
+import { SituacaoRegistro, fasesDePaginaInvalidas } from '../shared/situacaoRegistro';
 import type { Contexto } from './context';
 import {
     aceitarConviteEquipe, convidarEquipe, convitesPendentes, decidirPedido, obterUnidadeDocumento, pedirLotacao,
@@ -167,6 +168,20 @@ const modulosDoRito = (r: { fases?: unknown } | null | undefined) => new Set((Ar
         ...(f.situacao_registro?.modulo ? [String(f.situacao_registro.modulo)] : []),
         ...(f.acoes_regras || []).flatMap((x) => (x?.pede === 'registro' && x.modulo ? [String(x.modulo)] : x?.pede === 'formulario' ? [...modulosDoForm(x)] : [])),
     ]));
+
+/** Rito que conduz registros de páginas próprias: a página e as fases que ele cita têm de existir. */
+async function exigirPaginas(c: Contexto, rito: { fases?: unknown } | null | undefined) {
+    const fases = (Array.isArray(rito?.fases) ? rito!.fases : []) as Array<{ nome?: string; situacao_registro?: SituacaoRegistro }>;
+    const ids = [...new Set(fases.filter((f) => f.situacao_registro?.modulo === 'paginas').map((f) => String(f.situacao_registro!.pagina)))];
+    if (!ids.length) return;
+    const tipos: Record<string, admin.firestore.DocumentData | null> = {};
+    for (const id of ids) {
+        const d = (await c.db.collection('entityTypes').doc(id).get()).data();
+        tipos[id] = d && d.organization_id === c.orgId ? d : null;
+    }
+    const erros = fasesDePaginaInvalidas(fases, tipos);
+    if (erros.length) throw new HttpsError('failed-precondition', erros[0]);
+}
 
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v: unknown): string[] => [...new Set(Array.isArray(v) ? v.filter(ehModuloOrigem) : [])];
@@ -676,6 +691,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         } catch (e) { erroUsuario(e); }
         rito = filtrarRefsRito(rito!, unidadesValidas, modelosValidos);
         await exigirIntegracoes(c, modulosDoRito(rito), modulosDoRito(ritoAtual));
+        await exigirPaginas(c, rito);
         const batch = db.batch();
         const origem = `Criada ao implantar o rito "${rito.nome}".`;
         for (const u of novasUnidades) {
@@ -727,6 +743,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         try { rito = sanitizeRito(p.rito); } catch (e) { erroUsuario(e); }
         const modelosOrg = await db.collection(COL.modelos).where('organization_id', '==', orgId).select('excluido').get();
         rito = filtrarRefsRito(rito!, new Set(c.unidades.filter((u) => !u.excluida).map((u) => u.id)), new Set(naoExcluidos(modelosOrg).map((d) => d.id)));
+        await exigirPaginas(c, rito);
         const col = db.collection(COL.ritos);
         if (p.id) {
             const ref = col.doc(p.id);

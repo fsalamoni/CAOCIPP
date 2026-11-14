@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — O rito conduz registros de páginas próprias
+- Em **Andamento automático**, "A fase conduz" passa a listar também as
+  páginas próprias do órgão. Escolhida a página, as situações são as fases
+  dela: o registro muda de coluna quando o processo entra na fase ou quando
+  alguém o assume.
+- As regras da página continuam valendo, com quem pratica o ato no
+  processo. Se ela exige um campo ou a aprovação de outra pessoa, o registro
+  fica onde está, o processo segue e a equipe vê o motivo.
+- O rito não é salvo se citar página ou fase que não existe.
+- Parcerias e Júri continuam fora: não são conduzidos pelo rito.
+
 ### 14/11/2026 — Recursos do Rito Consultas em qualquer rito
 - **Seguir sozinha** passa a valer também quando o que faltava era um
   documento: juntado (ou guardado) o último documento exigido, a fase

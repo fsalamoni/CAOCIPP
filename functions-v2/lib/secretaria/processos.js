@@ -138,12 +138,15 @@ const SEM_REGISTROS = new Map();
  * essa regra não lê nada.
  */
 async function lerRegistrosDoRito(tx, c, proc) {
-    const modulos = [...new Set((proc.fases || []).map((f) => { var _a; return (_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo; }).filter((m) => !!m))];
-    if (!modulos.length)
+    const regras = (proc.fases || []).map((f) => f.situacao_registro).filter((s) => !!(s === null || s === void 0 ? void 0 : s.modulo));
+    if (!regras.length)
         return SEM_REGISTROS;
     const ligadas = (0, modulos_1.integracoesDe)(c.org, await (0, modulos_1.lerFlags)(c.db));
     const lidos = new Map();
-    for (const m of modulos) {
+    const paginas = [...new Set(regras.filter((s) => s.modulo === 'paginas').map((s) => String(s.pagina)))];
+    if (paginas.length)
+        await lerPaginasDoRito(tx, c, proc, paginas, ligadas.paginas, lidos);
+    for (const m of [...new Set(regras.map((s) => s.modulo))].filter((x) => x !== 'paginas')) {
         const nome = modulos_1.ROTULO_MODULO[m];
         const alvo = (0, situacaoRegistro_1.registroDoProcesso)(proc, m);
         if (!ligadas[m])
@@ -164,6 +167,54 @@ async function lerRegistrosDoRito(tx, c, proc) {
     return lidos;
 }
 /**
+ * Páginas próprias que o rito conduz: de cada página, o registro de onde o
+ * processo nasceu ou o único dela ligado ao processo, com o tipo (as fases e as
+ * regras de transição). Chave `paginas:<id do tipo>`.
+ */
+async function lerPaginasDoRito(tx, c, proc, paginas, ligada, lidos) {
+    var _a, _b;
+    const nome = modulos_1.ROTULO_MODULO.paginas;
+    if (!ligada) {
+        for (const p of paginas)
+            lidos.set(`paginas:${p}`, { falta: `a integração com ${nome} está desligada` });
+        return;
+    }
+    const origem = ((_b = (_a = proc.origem) === null || _a === void 0 ? void 0 : _a.ref) === null || _b === void 0 ? void 0 : _b.modulo) === 'paginas' ? String(proc.origem.ref.id || '') : '';
+    // ponytail: lê até 20 registros de páginas ligados ao processo; além disso a regra não acha o registro e avisa.
+    const ids = [...new Set([origem, ...(Array.isArray(proc.vinculos) ? proc.vinculos : []).map(String).filter((v) => v.startsWith('paginas:')).map((v) => v.slice(8))])]
+        .filter((id) => /^[A-Za-z0-9_-]{1,128}$/.test(id)).slice(0, 20);
+    const docs = [];
+    for (const id of ids) {
+        const ref = c.db.collection(modulos_1.COLECAO.paginas).doc(id);
+        const d = (await tx.get(ref)).data();
+        if (d && d.organization_id === c.orgId)
+            docs.push({ ref, d });
+    }
+    for (const p of paginas) {
+        const chave = `paginas:${p}`;
+        const tipo = /^[A-Za-z0-9_-]{1,128}$/.test(p) ? (await tx.get(c.db.collection('entityTypes').doc(p))).data() : undefined;
+        if (!tipo || tipo.organization_id !== c.orgId) {
+            lidos.set(chave, { falta: 'a página própria não existe mais' });
+            continue;
+        }
+        const plural = String(tipo.label_plural || tipo.label_singular || nome);
+        const daPagina = docs.filter((x) => x.d.entity_type_id === p);
+        const alvo = daPagina.find((x) => x.ref.id === origem) || (daPagina.length === 1 ? daPagina[0] : null);
+        if (!alvo)
+            lidos.set(chave, { falta: daPagina.length ? `o processo tem mais de um registro de ${plural} ligado e não nasceu de nenhum deles` : `o processo não tem registro de ${plural} ligado` });
+        else
+            lidos.set(chave, { ref: alvo.ref, doc: alvo.d, modulo: 'paginas', numero: (0, modulos_1.refDePagina)(alvo.ref.id, alvo.d, tipo).numero, tipo, rotulo: String(tipo.label_singular || 'Registro') });
+    }
+}
+/** Entrada do histórico do registro conduzido (mesmo formato dos módulos). */
+function gravarNoRegistro(tx, c, r, campos, action) {
+    const agora = new Date();
+    const entrada = { date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName, action, timestamp: agora.toISOString() };
+    // `set` com `merge`: registros importados têm campos com ponto no nome, que `update` leria como caminho.
+    tx.set(r.ref, Object.assign(Object.assign({}, campos), { updated_at: firestore_1.FieldValue.serverTimestamp(), updated_by: c.ctx.uid, activity_log: firestore_1.FieldValue.arrayUnion(entrada) }), { merge: true });
+    tx.set(r.ref.collection('history').doc((0, history_1.historyEntryId)(entrada)), Object.assign(Object.assign({}, entrada), { created_at: firestore_1.FieldValue.serverTimestamp() }));
+}
+/**
  * Põe o registro ligado na situação que a fase pede (ao entrar nela ou quando
  * alguém assume o processo). Vai na mesma transação do ato: a fase do processo
  * e a coluna do registro nunca ficam diferentes. Devolve o que dizer à equipe
@@ -175,20 +226,23 @@ function aplicarSituacao(tx, c, registros, fase, gatilho, proc, quem) {
     if (!fase || !cfg || !alvo)
         return { notas: [], arquivou: null };
     const nome = modulos_1.ROTULO_MODULO[cfg.modulo];
-    const r = registros.get(cfg.modulo);
+    const r = registros.get((0, situacaoRegistro_1.chaveDoRegistro)(cfg));
     if (!r || 'falta' in r)
         return { notas: [`Situação em ${nome} não alterada: ${r ? r.falta : 'o registro ligado não foi lido'}.`], arquivou: null };
+    if (cfg.modulo === 'paginas') {
+        // A mudança passa pelas regras de transição da página, com quem pratica o ato no processo.
+        const pg = (0, situacaoRegistro_1.mudancasDaPagina)(r.tipo, r.doc, alvo, { userId: c.ctx.uid, userRole: c.papel || 'member' }, (0, secretaria_1.hojeBrasil)());
+        if (!pg)
+            return { notas: [], arquivou: null };
+        if ('motivo' in pg)
+            return { notas: [`${r.rotulo} ${r.numero}: a fase não mudou para "${pg.para}". ${pg.motivo}`], arquivou: null };
+        gravarNoRegistro(tx, c, r, pg.campos, `Fase: ${pg.de} → ${pg.para} (pelo processo eletrônico ${proc.numero}, fase ${fase.nome})`);
+        return { notas: [`${r.rotulo} ${r.numero}: fase "${pg.para}" pela regra da fase.`], arquivou: null };
+    }
     const m = (0, situacaoRegistro_1.mudancasDaSituacao)(r.doc, alvo, (0, secretaria_1.hojeBrasil)(), quem);
     if (!m)
         return { notas: [], arquivou: null };
-    const agora = new Date();
-    const entrada = {
-        date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName,
-        action: `Situação "${alvo}" pelo processo eletrônico ${proc.numero} (fase ${fase.nome})`, timestamp: agora.toISOString(),
-    };
-    // `set` com `merge`: registros importados têm campos com ponto no nome, que `update` leria como caminho.
-    tx.set(r.ref, Object.assign(Object.assign({}, m), { updated_at: firestore_1.FieldValue.serverTimestamp(), updated_by: c.ctx.uid, activity_log: firestore_1.FieldValue.arrayUnion(entrada) }), { merge: true });
-    tx.set(r.ref.collection('history').doc((0, history_1.historyEntryId)(entrada)), Object.assign(Object.assign({}, entrada), { created_at: firestore_1.FieldValue.serverTimestamp() }));
+    gravarNoRegistro(tx, c, r, m, `Situação "${alvo}" pelo processo eletrônico ${proc.numero} (fase ${fase.nome})`);
     return {
         notas: [`${nome} ${r.numero}: situação "${alvo}" pela regra da fase.`],
         arquivou: m.archived_date ? { modulo: r.modulo, id: r.ref.id, numero: r.numero } : null,

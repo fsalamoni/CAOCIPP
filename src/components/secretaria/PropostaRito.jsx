@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -31,7 +31,8 @@ import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
 import GuiaRito from './GuiaRito';
 import AndamentoDaFase from './AndamentoDaFase';
-import { MODULOS_SITUACAO, resumoAndamento } from '@/lib/andamentoFase';
+import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento } from '@/lib/andamentoFase';
+import { RegistroContexto } from './SeletorRegistro';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -63,8 +64,9 @@ export async function baixarPlanilha(fases, nome) {
 /**
  * Pendências que travam ou enfraquecem a implantação, com a fase para ir até ela.
  * `ligadas`: integrações com outros módulos (sem ela, não se confere a ação "registro").
+ * `paginas`: páginas próprias do órgão, para conferir a que a fase conduz (`null`: ainda não se sabe).
  */
-export function pendenciasDaProposta(p, ligadas = null) {
+export function pendenciasDaProposta(p, ligadas = null, paginas = null) {
     const out = [];
     const ids = new Set(p.fases.map((f) => f.id));
     const fluxo = problemasDoFluxo(p.fases);
@@ -97,7 +99,9 @@ export function pendenciasDaProposta(p, ligadas = null) {
         });
         const sit = f.situacao_registro;
         if (sit?.modulo && ligadas && !ligadas[sit.modulo]) {
-            out.push({ fase: f.id, grave: true, texto: `${rot} muda a situação em ${MODULOS_SITUACAO.find(([m]) => m === sit.modulo)?.[1] || sit.modulo}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou tire a regra em "Andamento automático".` });
+            out.push({ fase: f.id, grave: true, texto: `${rot} muda a situação em ${nomeDoModuloDaRegra(sit, paginas)}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou tire a regra em "Andamento automático".` });
+        } else if (problemaDaPagina(sit, paginas)) {
+            out.push({ fase: f.id, grave: true, texto: `${rot} ${problemaDaPagina(sit, paginas)}: ajuste em "Andamento automático".` });
         }
         if (sit?.modulo && !sit.ao_entrar && !sit.ao_assumir) out.push({ fase: f.id, texto: `${rot} escolheu um registro para conduzir, mas não disse a situação: a regra é descartada ao salvar.` });
         // Segue sozinha ao cumprir o último item obrigatório: ação obrigatória ou documento exigido (da fase ou de uma ação).
@@ -546,7 +550,8 @@ function Revisao({
     const unNovas = p.unidades.filter((u) => usadosUn.has(u.ref));
     const modNovos = p.modelos.filter((m) => usadosMod.has(m.ref));
     const ligadas = useMemo(() => integracoesLigadas(estado), [estado]);
-    const pendencias = useMemo(() => pendenciasDaProposta(p, ligadas), [p, ligadas]);
+    const { paginas, paginasProntas } = useContext(RegistroContexto);
+    const pendencias = useMemo(() => pendenciasDaProposta(p, ligadas, paginasProntas ? paginas : null), [p, ligadas, paginas, paginasProntas]);
     const graves = pendencias.filter((x) => x.grave);
     const fluxoComProblema = useMemo(() => { const r = problemasDoFluxo(p.fases); return new Set([...r.soltas, ...r.presas]); }, [p.fases]);
     const outrosRitos = (estado.ritos || []).filter((r) => r.id !== p.id && (r.fases || []).length);
@@ -954,6 +959,7 @@ function CartaoFase({
     aberta, onAlternar, selecionada, pendente, unidadeNome, outrosEmTodas, ligadas,
 }) {
     const [novoModelo, setNovoModelo] = useState('');
+    const { paginas: paginasDoOrgao } = useContext(RegistroContexto);
     const outras = fases.filter((x) => x.id !== f.id);
     const saidas = f.proximas || [];
     const espera = ehEspera(fases, i);
@@ -1048,7 +1054,7 @@ function CartaoFase({
                 <AoEntrarNaFase f={f} i={i} mudar={mudar} />
             </Secao>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
-            <Secao titulo="Andamento automático" resumo={resumoAndamento(f).join('; ') || 'a fase só anda pelo botão'}>
+            <Secao titulo="Andamento automático" resumo={resumoAndamento(f, paginasDoOrgao).join('; ') || 'a fase só anda pelo botão'}>
                 <AndamentoDaFase f={f} mudar={mudar} ligadas={ligadas} />
             </Secao>
             <Secao titulo="Registros, certidão conjunta e documentos" resumo={nDocs ? plural(nDocs, 'documento pedido', 'documentos pedidos') : 'onde fica cada ato da fase'}>
