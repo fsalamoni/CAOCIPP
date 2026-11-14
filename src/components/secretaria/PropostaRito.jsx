@@ -110,7 +110,8 @@ export function pendenciasDaProposta(p, ligadas = null) {
         if ((f.modelos_ref || []).length > MAX_MODELOS_FASE) out.push({ fase: f.id, texto: `${rot} tem ${f.modelos_ref.length} modelos; cabem ${MAX_MODELOS_FASE} por fase e só os primeiros ficam.` });
         if (soltas.has(f.id)) out.push({ fase: f.id, texto: `${rot} não é alcançada: nenhuma fase segue para ela. Ligue-a no fluxo em "Encaminhamentos" de outra fase.` });
         if (presas.has(f.id)) out.push({ fase: f.id, texto: `${rot} entra num ciclo sem saída: dali o processo nunca chega a uma fase final.` });
-        if (!f.unidade_ref) out.push({ fase: f.id, texto: `${rot} não tem unidade: a fase vai correr na unidade que estiver com o processo.` });
+        // Fase de espera sem unidade é o esperado: o processo aguarda onde está.
+        if (!f.unidade_ref && !ehEspera(p.fases, i)) out.push({ fase: f.id, texto: `${rot} não tem unidade: a fase vai correr na unidade que estiver com o processo.` });
         if (f.espera && i === 0) out.push({ fase: f.id, texto: `${rot} é a primeira fase e não pode ser de espera: a marca é descartada ao salvar.` });
         if (!f.final && !ehEspera(p.fases, i)) {
             const saidas = (f.proximas || []).filter((id) => id !== f.id);
@@ -245,8 +246,10 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
     const [trocar, setTrocar] = useState(false);
     const manter = () => ({ id: p.id, versao: p.versao, ativo: p.ativo, nome: p.nome, descricao: p.descricao, exigir_tipo: p.exigir_tipo });
     const comecar = (r, criarTipo = true) => {
-        if (trocar) { editarP({ ...deRito(r), ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
-        setP(deRito(r));
+        // Modelo que cita unidades pelo nome: casa com as do órgão ou propõe criar, como num arquivo importado.
+        const base = r.fases.some((f) => f.unidade) ? { exigir_tipo: false, ...vincularProposta(r, estado) } : deRito(r);
+        if (trocar) { editarP({ ...base, ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
+        setP(base);
         setTipo({ criar: criarTipo && semTipos, nome: r.nome || '', sigla: '' });
         setConfirmar(false);
     };

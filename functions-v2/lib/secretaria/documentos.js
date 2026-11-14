@@ -351,8 +351,8 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                 (0, context_1.erroUsuario)(e);
             }
             const cumpridas = pendentes.filter((e) => cumpre.includes(e.chave));
-            // Só no sistema quando tudo o que ele cumpre o rito quer só no sistema; senão, evento no extrato.
-            const destino = cumpridas.length && cumpridas.every((e) => e.destino === 'informacao') ? 'informacao' : 'evento';
+            // Só no sistema quando o rito pede (pela exigência cumprida ou pela fase); senão, evento no extrato.
+            const destino = (0, exigencias_1.destinoDaGuarda)(fase, cumpridas);
             const assin = (doc.assinaturas || []).map((a) => a.nome).join(', ');
             const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'guarda', `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign({ documento_id: ref.id, titulo: doc.titulo, sha256: doc.sha256, visivel_partes: false }, (0, exigencias_1.marcasDoDestino)(destino)), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));

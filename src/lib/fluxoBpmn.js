@@ -168,8 +168,9 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
     const nomesRaia = fases.map((f) => String(raiaDe(f) || '').trim());
     const temRaias = nomesRaia.some(Boolean);
     const nomes = [];
-    const raiaIdx = nomesRaia.map((n) => {
-        const nome = temRaias ? (n || 'Sem unidade') : '';
+    const raiaIdx = nomesRaia.map((n, i) => {
+        // Fase de espera sem unidade não é falha: o processo aguarda onde está.
+        const nome = temRaias ? (n || (fases[i].espera ? 'Onde o processo estiver' : 'Sem unidade')) : '';
         let k = nomes.indexOf(nome);
         if (k < 0) { k = nomes.length; nomes.push(nome); }
         return k;

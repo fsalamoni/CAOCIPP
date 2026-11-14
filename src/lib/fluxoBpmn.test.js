@@ -64,6 +64,11 @@ test('desenharFluxo: sem unidades não há cabeçalho de raia; vazio não quebra
     assert.equal(desenharFluxo(null).largura, 0);
 });
 
+test('desenharFluxo: fase de espera sem unidade fica na raia "Onde o processo estiver"', () => {
+    const fs = [{ id: 'a', nome: 'Análise', unidade: 'Assessoria', proximas: ['e', 'x'] }, { id: 'e', nome: 'Diligências', espera: true }, { id: 'x', nome: 'Solta' }];
+    assert.deepEqual(desenharFluxo(fs, (f) => f.unidade).raias.map((r) => r.nome), ['Assessoria', 'Onde o processo estiver', 'Sem unidade']);
+});
+
 test('desenharFluxo: fluxo longo muda de faixa e cabe na largura pedida', () => {
     const longas = Array.from({ length: 9 }, (_x, i) => ({ id: `f${i}`, nome: `Fase ${i}`, unidade: i < 4 ? 'A' : 'B', proximas: i < 8 ? [`f${i + 1}`] : [] }));
     const uma = desenharFluxo(longas, raia);

@@ -34,6 +34,7 @@ exports.acaoAtiva = acaoAtiva;
 exports.destinoDoAto = destinoDoAto;
 exports.marcasDoAto = marcasDoAto;
 exports.sanitizeRegras = sanitizeRegras;
+exports.destinoDaGuarda = destinoDaGuarda;
 exports.exigenciasDaFase = exigenciasDaFase;
 exports.pendentesDaFase = pendentesDaFase;
 exports.acoesObrigatoriasPendentes = acoesObrigatoriasPendentes;
@@ -422,6 +423,17 @@ function sanitizeRegras(fo, acoes, mapa) {
     const documentos = (Array.isArray(fo.documentos) ? fo.documentos : [])
         .map((d) => sanitizeExigencia(d)).filter((d) => !!d).slice(0, exports.MAX_DOCUMENTOS_FASE);
     return Object.assign(Object.assign(Object.assign({}, (registroAtos ? { registro_atos: registroAtos } : {})), (regras.some(Boolean) ? { acoes_regras: regras } : {})), (documentos.length ? { documentos } : {}));
+}
+/**
+ * Onde fica o registro de um documento guardado fora dos autos. Cumprindo
+ * exigência do rito, vale o que ela pede (só no sistema, se todas pedem). Sem
+ * exigência, segue a fase: a que o rito deixa fora da impressão (só no
+ * sistema ou sem evento) não põe a guarda no extrato impresso.
+ */
+function destinoDaGuarda(f, cumpridas) {
+    if (cumpridas.length)
+        return cumpridas.every((e) => e.destino === 'informacao') ? 'informacao' : 'evento';
+    return ['informacao', 'nenhum'].includes(niveisDaFase(f).fase) ? 'informacao' : 'evento';
 }
 /** Exigências de documento da fase com a chave que o processo grava: 'd0' (da fase), 'a2' (da ação 2). */
 function exigenciasDaFase(f, resp) {

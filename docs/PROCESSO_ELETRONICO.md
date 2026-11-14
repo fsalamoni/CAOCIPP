@@ -1087,6 +1087,54 @@ seleção.
 - Testes: `functions-v2/test/impressaoInterna.test.js` e
   `src/lib/impressaoInterna.test.js`. Guia do rito, parte 11.
 
+### Modelo pronto: Rito Consultas CAOCIPP (14/11/2026)
+
+Em **Novo rito**, "Começar sem arquivo", o modelo **Rito Consultas CAOCIPP**
+cria o rito de consultas inteiro, já configurado. É o exemplo completo do
+rito em fases, ações e desvios, e o mesmo que o Guia do rito mostra na
+parte 12 (`ritoConsultas` em `src/lib/secretariaRito.js`).
+
+| Fase | Unidade | O que acontece | Onde fica |
+|---|---|---|---|
+| Recebimento | Secretaria | Dados básicos (formulário), número do PGEA, comunicação ao solicitante (só se a consulta não veio pelo SIM), observações. Segue sozinha | Folha de dados (evento 1); observações sem evento |
+| Análise | Assessoria | Consulta Pendente; ao assumir, Em elaboração. Minuta e anexos ficam como minuta. Termina pelo botão: quem envia escolhe o que segue | Só no sistema |
+| Revisão | Gabinete | Consulta Em revisão. Edita a minuta e usa Finalizar Revisão. Termina pelo botão | Parecer e anexos escolhidos nos autos |
+| Devolução | Secretaria | Consulta Revisadas. Registros de acervo, data e meio da devolução. Segue sozinha | Devolução nos autos |
+| Arquivamento | Secretaria | Arquiva ao entrar. Consulta Na pasta | Extrato do PDF, com quem fez e a data |
+| Diligências externas | onde o processo estiver | Fase de espera da Análise e da Revisão. Consulta Aguarda retorno de terceiros. Registrado o retorno, volta sozinha | Só no sistema |
+
+- **Unidades.** O modelo cita Secretaria, Assessoria e Gabinete pelo nome. A
+  tela casa com as unidades do órgão (nome ou sigla) e propõe criar a que
+  não existir, como faz com um arquivo importado (`vincularProposta`).
+- **Antes de usar.** A integração com Consultas precisa estar ligada (o
+  editor aponta a pendência e não implanta sem ela). O processo precisa
+  nascer de uma consulta ou ter uma ligada: o rito conduz a situação dela,
+  mas não cria a consulta. O tipo de documento Parecer precisa existir (é o
+  padrão): por ele a Revisão reconhece o parecer juntado.
+- **Por que Análise e Revisão não seguem sozinhas.** Na Análise, o envio ao
+  Gabinete pede a escolha das minutas que seguem com o processo. Na
+  Revisão, o que libera a fase é a juntada do parecer, e o avanço
+  automático só dispara ao marcar uma ação obrigatória. Nas duas, a tela
+  abre o passo seguinte.
+- **Registros de acervo.** Ficam na Devolução, como ação obrigatória: o
+  processo é arquivado no instante em que chega ao Arquivamento.
+- Fase de espera sem unidade deixou de ser apontada como pendência no
+  editor: aguardar na unidade em que o processo está é o esperado. No
+  desenho, a raia dela se chama "Onde o processo estiver".
+- **Anexo não escolhido na Revisão.** Basta não marcar no Finalizar
+  Revisão: ele continua como minuta, só para a equipe, e pode sair na
+  impressão interna. Guardar fora dos autos nessa fase deixa uma linha no
+  extrato impresso, com o título do documento.
+- **Guardar fora dos autos em fase interna.** O registro da guarda seguia
+  para o extrato impresso sempre que o documento não cumpria exigência. Agora
+  segue a fase (`destinoDaGuarda` em `shared/exigencias.ts`): na fase que o
+  rito deixa só no sistema ou sem evento (Análise, Diligências externas), a
+  guarda fica só no sistema e sai na impressão interna, por seleção. Nas
+  demais fases nada muda. Vale para os ritos já existentes.
+- Testes: `functions-v2/test/modeloConsultas.test.js` (o servidor guarda
+  tudo o que o modelo configura e segue o caminho descrito) e
+  `src/lib/secretariaRito.test.js` (todos os modelos).
+
 ## Urgência (nov/2026)
 
 - **Dados:** `secProcessos.urgente` (booleano) e `urgencia`
@@ -1779,7 +1827,8 @@ no editor, acrescente a explicação dela no guia.
 Pontos de partida:
 
 - **Modelos prontos:** rito comum, requerimento simples, procedimento com
-  contraditório (com recurso) e atendimento ao cidadão.
+  contraditório (com recurso), atendimento ao cidadão e Rito Consultas
+  CAOCIPP (completo, com ações, desvios e andamento automático).
 - **Planilha:** importa .xlsx, .xls, .ods ou .csv, ou texto colado do Excel.
   Colunas Fase | Prazo | Próximas | Orientação, em qualquer ordem se houver
   cabeçalho. Próximas por nome ou número da linha, separadas por `;`; "fim"

@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 14/11/2026 — Modelo pronto: Rito Consultas CAOCIPP
+- Em **Novo rito**, o modelo **Rito Consultas CAOCIPP** cria as seis fases
+  já configuradas: Recebimento, Análise, Revisão, Devolução, Arquivamento e
+  Diligências externas (fase de espera).
+- As unidades Secretaria, Assessoria e Gabinete são casadas pelo nome com
+  as do órgão; a que não existir é proposta para criação.
+- O Guia do rito ganhou a parte 12, com o exemplo completo: o desenho, o
+  que conferir antes de usar e cada fase com as suas ações.
+- Pede a integração com Consultas ligada e uma consulta ligada ao processo.
+- Documento guardado fora dos autos numa fase que o rito deixa só no sistema
+  não aparece mais no extrato impresso; sai na impressão interna.
+
 ### 14/11/2026 — Impressão interna (o que fica fora dos autos)
 - Na tela do processo, **Impressão interna** gera um PDF de uso da equipe
   com o que for marcado: registros internos e do sistema, minutas,
