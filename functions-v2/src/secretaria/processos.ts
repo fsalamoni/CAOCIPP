@@ -37,6 +37,7 @@ import { fireOrgWebhook } from '../shared/webhooks';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
+import { acaoSessao } from './sessoes';
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
@@ -676,6 +677,8 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         recebido_em: d.recebido_em || d.autuado_em || null,
         assinaturas_pendentes: d.assinaturas_pendentes || [],
         orientacao: d.orientacao || null,
+        // Pautado em sessão de julgamento publicada: o selo da lista e da capa.
+        sessao: d.sessao || null,
     };
 }
 
@@ -684,6 +687,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     const p = request.data || ({} as ProcRequest);
     const c = await carregarContexto(auth, p.organizationId);
     const { db, orgId } = c;
+    // Sessões de julgamento dos colegiados (pauta, publicação, cancelamento).
+    if (typeof p.action === 'string' && p.action.startsWith('sessao')) return acaoSessao(c, p as unknown as Record<string, unknown>);
 
     if (p.action === 'listar' && p.limite) {
         // Paginado pelo servidor: do mais recente para o mais antigo por
@@ -1470,6 +1475,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 const prox = audienciasFuturas(lista, hojeBrasil())[0];
                 comAudiencia = { audiencias: lista, proxima_audiencia: prox ? `${prox.data}T${prox.hora}` : null };
             }
+            // Julgamento registrado: o processo sai da pauta, e a sessão o mostra como julgado.
+            const comSessao = regra?.pede === 'julgamento' && feita && data.sessao
+                ? { sessao: FieldValue.delete(), ultima_sessao: { ...data.sessao, julgado_em: hojeBrasil() } } : {};
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
             const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada;
@@ -1508,7 +1516,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     ? itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) })
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
                 const mi = registrarInternos(tx, c, ref, { ...em.proc, ...mov }, notasPrazo);
-                tx.update(ref, { ...em.mov, ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
+                tx.update(ref, { ...em.mov, ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...comSessao, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
                 return { ...mov, ...mi };
             }
             const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
@@ -1528,7 +1536,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
             const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, notasPrazo);
-            tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...comAudiencia, ...vinculoDaAcao(dado) });
+            tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...comAudiencia, ...comSessao, ...vinculoDaAcao(dado) });
             return { ...mov, ...mi };
         }
 

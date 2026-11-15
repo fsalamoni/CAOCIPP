@@ -306,7 +306,11 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })), minha_parte: parte, comunicacoes: comunicacoesDaConta(data, uid), 
                 // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
                 audiencias: (0, audiencias_1.audienciasFuturas)(data.audiencias, (0, secretaria_1.hojeBrasil)())
-                    .map((a) => (Object.assign(Object.assign({ especie: a.especie }, (a.especie_nome ? { especie_nome: a.especie_nome } : {})), { data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] }))), autuado_em: data.autuado_em || null, 
+                    .map((a) => (Object.assign(Object.assign({ especie: a.especie }, (a.especie_nome ? { especie_nome: a.especie_nome } : {})), { data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] }))), 
+                // Sessão de julgamento em que o processo está pautado (a certidão está nos autos).
+                sessao: data.sessao && data.sessao.data >= (0, secretaria_1.hojeBrasil)()
+                    ? { titulo: data.sessao.titulo, colegiado: data.sessao.colegiado || '', data: data.sessao.data, hora: data.sessao.hora, modo: data.sessao.modo, local: data.sessao.local || '', link: data.sessao.link || '' }
+                    : null, autuado_em: data.autuado_em || null, 
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))
                     .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })) }),

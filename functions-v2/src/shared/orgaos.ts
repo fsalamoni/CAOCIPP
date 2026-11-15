@@ -1,4 +1,5 @@
 import { texto, tipoUnidade, TipoUnidade } from './secretaria';
+import { RegrasSessao, sanitizeRegrasSessao } from './sessoes';
 
 /**
  * Órgãos internos de uma entidade (ex.: Conselho, Presidência, Diretorias).
@@ -56,6 +57,8 @@ export interface Orgao {
     competencias: string[];
     /** Composição do colegiado (só faz sentido com decisao 'colegiada'). */
     composicao: MembroColegiado[];
+    /** Antecedência mínima entre publicar a pauta e a sessão (só colegiado). Sem regra, 0. */
+    pauta: RegrasSessao;
     descricao: string;
     ordem: number;
     ativo: boolean;
@@ -133,6 +136,7 @@ export function sanitizeOrgao(raw: unknown, id: string, ordem = 0): Orgao {
         admins_uids: [...new Set((Array.isArray(o.admins_uids) ? o.admins_uids : []).filter((x): x is string => typeof x === 'string' && !!x).map((x) => x.slice(0, 128)))].slice(0, MAX_ADMINS_ORGAO),
         competencias: sanitizeCompetencias(o.competencias),
         composicao: sanitizeComposicao(o.composicao),
+        pauta: sanitizeRegrasSessao(o.pauta),
         descricao: texto(o.descricao, 1000),
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,

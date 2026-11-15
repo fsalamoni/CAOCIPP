@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Paperclip, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, Building2, CalendarDays, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Paperclip, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,6 +34,8 @@ import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secreta
 import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
 import AjudaTermo, { focoSemAjuda } from '@/components/secretaria/AjudaTermo';
 import GuiaRito from '@/components/secretaria/GuiaRito';
+import Sessoes from '@/components/secretaria/Sessoes';
+import { veSessoes } from '@/lib/sessoes';
 
 export default function ProcessoEletronico() {
     const [params, setParams] = useSearchParams();
@@ -165,8 +167,10 @@ export default function ProcessoEletronico() {
     const gabinetes = estado.unidades.filter((u) => unidadeDecide(u) && estado.minhasUnidades.includes(u.id)).map((u) => u.id);
     const paraDecidir = gabinetes.length ? caixa.filter((p) => gabinetes.includes(p.unidade_atual)).reduce((n, p) => n + (p.pendencias_abertas || 0), 0) : 0;
 
-    const abaPadrao = estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : 'unidades';
-    const abasValidas = ['caixa', 'todos', 'painel', 'unidades', ...(estado.minhasUnidades.length ? ['meu'] : []), ...(gabinetes.length ? ['mesa'] : [])];
+    // Sessões dos colegiados: secretaria, lotados e quem compõe (este, mesmo sem lotação, abre direto nelas).
+    const comSessoes = veSessoes(estado, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }));
+    const abaPadrao = estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : comSessoes ? 'sessoes' : 'unidades';
+    const abasValidas = ['caixa', 'todos', 'painel', 'unidades', ...(estado.minhasUnidades.length ? ['meu'] : []), ...(gabinetes.length ? ['mesa'] : []), ...(comSessoes ? ['sessoes'] : [])];
     const aba = abasValidas.includes(abaUrl) ? abaUrl : abaPadrao;
 
     return (
@@ -210,7 +214,9 @@ export default function ProcessoEletronico() {
             )}
             {!procId && estado.minhasUnidades.length === 0 && !estado.isAdmin && (
                 <div role="status" className="rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/50 p-3 text-sm text-indigo-900 dark:text-indigo-100">
-                    Você ainda não está lotado em nenhuma unidade, por isso não vê processos. Peça lotação na aba <b>Unidades</b>.
+                    {comSessoes
+                        ? <>Você não está lotado em nenhuma unidade, por isso não vê processos. As sessões dos colegiados que você compõe ficam na aba <b>Sessões</b>.</>
+                        : <>Você ainda não está lotado em nenhuma unidade, por isso não vê processos. Peça lotação na aba <b>Unidades</b>.</>}
                 </div>
             )}
 
@@ -232,6 +238,7 @@ export default function ProcessoEletronico() {
                                 {paraDecidir > 0 && <Badge className="ml-1 bg-amber-500 hover:bg-amber-500">{paraDecidir}</Badge>}
                             </TabsTrigger>
                         )}
+                        {comSessoes && <TabsTrigger value="sessoes" className="gap-2"><CalendarDays className="w-4 h-4" /> Sessões</TabsTrigger>}
                         <TabsTrigger value="todos" className="gap-2"><Files className="w-4 h-4" /> Todos</TabsTrigger>
                         <TabsTrigger value="painel" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Painel</TabsTrigger>
                         <TabsTrigger value="unidades" className="gap-2">
@@ -242,6 +249,7 @@ export default function ProcessoEletronico() {
                     <TabsContent value="meu"><MeuTrabalho orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="caixa"><ListaProcessos orgId={orgId} escopo="caixa" estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="mesa"><MesaDecisao orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
+                    <TabsContent value="sessoes">{comSessoes && <Sessoes orgId={orgId} onAbrir={abrir} />}</TabsContent>
                     <TabsContent value="todos"><ListaProcessos orgId={orgId} escopo="todos" estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="painel"><PainelSecretaria orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="unidades"><UnidadesDoUsuario orgId={orgId} estado={estado} /></TabsContent>
@@ -437,6 +445,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                             {p.urgente && <SeloUrgente motivo={p.urgencia?.motivo} />}
                             <Badge variant={p.status === 'em_tramitacao' ? 'secondary' : 'outline'}>{STATUS_ROTULO[p.status]}</Badge>
                             {p.sigilo === 'restrito' && <Badge variant="outline">Restrito</Badge>}
+                            {p.sessao && <Badge variant="outline" className="border-indigo-300 text-indigo-800 dark:border-indigo-700 dark:text-indigo-200">Pautado: {p.sessao.data.split('-').reverse().join('/')}</Badge>}
                             {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}{p.fase_suspensa ? ' · fase interrompida' : ''}</Badge>}
                             {p.proximo_vencimento && (
                                 <Badge variant="outline" className={p.proximo_vencimento < hoje ? 'border-red-400 text-red-700 dark:text-red-300' : ''}>

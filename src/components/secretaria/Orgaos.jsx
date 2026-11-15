@@ -74,7 +74,7 @@ export function Organograma({ nos, unidadesDe, nomeTitular, nomeMembro, onAbrir,
     );
 }
 
-const NOVO = { nome: '', sigla: '', natureza: 'executivo', pai_id: '', decisao: 'singular', titular_cargo: '', titular_uid: '', admins_uids: [], competencias: [], composicao: [], descricao: '', ativo: true };
+const NOVO = { nome: '', sigla: '', natureza: 'executivo', pai_id: '', decisao: 'singular', titular_cargo: '', titular_uid: '', admins_uids: [], competencias: [], composicao: [], pauta: { antecedencia: 0, contagem: 'uteis' }, descricao: '', ativo: true };
 const MAX_ADMINS = 10;
 
 /**
@@ -249,6 +249,23 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                     </div>
                     {o.decisao === 'colegiada' && (
                         <ComposicaoColegiado membros={estado.membros} composicao={o.composicao || []} onChange={(v) => set('composicao', v)} />
+                    )}
+                    {o.decisao === 'colegiada' && (
+                        <section aria-labelledby="og-pauta-titulo" className="space-y-2">
+                            <h3 id="og-pauta-titulo" className="text-sm font-medium">Pauta das sessões</h3>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">
+                                Antecedência mínima entre publicar a pauta e a sessão. Zero deixa publicar a qualquer tempo. Depois de publicada, só entra processo como extrapauta ou em mesa, com o motivo.
+                            </p>
+                            <div className="grid grid-cols-2 gap-3 max-w-md">
+                                <label htmlFor="og-pauta-dias" className="text-sm space-y-1">
+                                    <span className="block text-slate-700 dark:text-slate-300">Antecedência (dias)</span>
+                                    <Input id="og-pauta-dias" type="number" min={0} max={60} value={o.pauta?.antecedencia ?? 0}
+                                        onChange={(e) => set('pauta', { contagem: 'uteis', ...o.pauta, antecedencia: Math.max(0, Math.min(60, Math.round(Number(e.target.value) || 0))) })} />
+                                </label>
+                                <NativeSelect id="og-pauta-contagem" label="Contados em" value={o.pauta?.contagem || 'uteis'} onChange={(v) => set('pauta', { antecedencia: 0, ...o.pauta, contagem: v })}
+                                    options={[['uteis', 'Dias úteis'], ['corridos', 'Dias corridos']]} />
+                            </div>
+                        </section>
                     )}
                     <section aria-labelledby="og-admins-titulo" className="space-y-2">
                         <h3 id="og-admins-titulo" className="text-sm font-medium">Quem administra este órgão</h3>
