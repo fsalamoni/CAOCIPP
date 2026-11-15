@@ -176,7 +176,7 @@ export function processoEticoProfissional() {
             orientacao: 'Sustentação oral de 10 minutos para cada parte (art. 89, § 2º). O relator apresenta voto escrito com preliminares, mérito e sanção (art. 91). Pedido de vista devolve o processo em até 30 dias (art. 92). Intimadas as partes, o recurso cabe em 30 dias.',
             acoes: [
                 A.simNao('Houve pedido de vista?', { ajuda: 'O conselheiro devolve o processo em até 30 dias, e o julgamento continua na sessão seguinte (art. 92).' }),
-                A.escolha('Resultado do julgamento', ['Absolvição', 'Condenação'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Resultado do julgamento', ['Absolvição', 'Condenação'], {}, { obrigatoria: true }),
                 A.escolha('Sanção aplicada', ['Advertência confidencial', 'Censura confidencial', 'Censura pública', 'Suspensão do exercício', 'Cassação do exercício'], { obrigatoria: true, destino: 'autos', se: quando('Resultado do julgamento', 'Condenação'), ajuda: 'Sanções da Lei 3.268/1957, art. 22. Ajuste à lei do seu conselho.' }),
                 A.documento('Juntar o relatório e os votos', 'Relatório', { forma: 'redigir' }),
                 A.documento('Juntar o acórdão', 'Acórdão', { forma: 'redigir' }),
@@ -354,7 +354,7 @@ export function processoDisciplinarEntidadeClasse() {
             nome: 'Sessão de julgamento', unidade: 'Câmara de julgamento', vai: ['Recurso', 'Execução e registro'], nome_publico: 'Julgamento',
             orientacao: 'Sustentação oral de 15 minutos, primeiro o representante e depois o representado (CED, art. 60, § 4º). O acórdão traz ementa, quórum, enquadramento, sanção, agravantes e atenuantes (CED, arts. 61 e 62). Cabe recurso em 15 dias, com efeito suspensivo (Lei 8.906, arts. 69, 76 e 77).',
             acoes: [
-                A.escolha('Resultado do julgamento', ['Improcedente', 'Procedente'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Resultado do julgamento', ['Improcedente', 'Procedente'], { desempate: 'favoravel', favoravel: 'Improcedente' }, { obrigatoria: true }),
                 A.escolha('Sanção aplicada', ['Censura', 'Suspensão', 'Exclusão', 'Multa'], { obrigatoria: true, destino: 'autos', se: quando('Resultado do julgamento', 'Procedente'), ajuda: 'Sanções da Lei 8.906/1994, art. 35. Ajuste ao estatuto da sua entidade.' }),
                 A.simNao('Decisão unânime?', { obrigatoria: true, ajuda: 'Na OAB, o recurso ao Conselho Federal só cabe de decisão não unânime ou contrária à lei ou a precedente (art. 75).' }),
                 A.documento('Juntar o acórdão', 'Acórdão', { forma: 'redigir' }),

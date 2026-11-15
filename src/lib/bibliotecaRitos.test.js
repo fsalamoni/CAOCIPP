@@ -22,6 +22,7 @@ export function problemasDoModelo(m) {
             if (r?.pede === 'lista') return r.opcoes || [];
             if (r?.pede === 'sim_nao') return ['sim', 'nao'];
             if (r?.pede === 'resposta') return ['Apresentada', 'Parcial', 'Sem manifestação'];
+            if (r?.pede === 'julgamento') return r.julgamento?.resultados || [];
             return null;
         };
         const conferirCond = (c, onde) => {

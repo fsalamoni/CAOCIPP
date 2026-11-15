@@ -27,6 +27,7 @@ const prazosFase_1 = require("../shared/prazosFase");
 const comunicacaoRito_1 = require("../shared/comunicacaoRito");
 const ajustePrazo_1 = require("../shared/ajustePrazo");
 const audiencias_1 = require("../shared/audiencias");
+const julgamento_1 = require("../shared/julgamento");
 const email_1 = require("../shared/email");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const numeracao_1 = require("../shared/numeracao");
@@ -474,6 +475,19 @@ async function valorDaAcao(c, regra, acao, bruto) {
         const t = (0, audiencias_1.textoDaAudiencia)(d);
         const nome = `${(0, audiencias_1.nomeDaAudiencia)(regra === null || regra === void 0 ? void 0 : regra.audiencia)} ${(0, audiencias_1.designadaDe)(regra === null || regra === void 0 ? void 0 : regra.audiencia)}`;
         return { rotulo: (regra === null || regra === void 0 ? void 0 : regra.rotulo) || nome, tipo: 'texto', valor: t, valor_texto: t, ref: undefined, refs: [], restrito: false, audiencia: d };
+    }
+    if (pede === 'julgamento') {
+        // O servidor apura os votos: o resultado é a resposta da ação (decide as saídas); a certidão leva placar e composição.
+        const cfg = regra.julgamento;
+        let d = null;
+        try {
+            d = (0, julgamento_1.dadosDoJulgamento)(cfg, bruto, (0, secretaria_1.hojeBrasil)());
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        const t = (0, julgamento_1.textoDoJulgamento)(cfg, d);
+        return { rotulo: (regra === null || regra === void 0 ? void 0 : regra.rotulo) || 'Resultado do julgamento', tipo: 'lista', valor: (0, julgamento_1.apurar)(cfg, d.votos).resultado, valor_texto: t, ref: undefined, refs: [], restrito: false };
     }
     if (pede === 'formulario') {
         // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).

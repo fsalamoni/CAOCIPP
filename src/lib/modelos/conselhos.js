@@ -208,7 +208,7 @@ export function processoDisciplinarTedOabRs() {
             orientacao: 'Sessão reservada, com ao menos 3 titulares (RI-TED/RS, arts. 12 e 37, § 5º). Ordem: relatório, esclarecimentos, voto, sustentação oral de 15 minutos (primeiro o representante), debate de até 3 minutos por julgador, nova sustentação de 5 minutos se houver voto divergente, votação nominal por antiguidade e proclamação com a ementa (art. 38; CED, art. 60, § 4º). Vista: volta na sessão ordinária seguinte. O acórdão segue os arts. 61 e 62 do CED.',
             acoes: [
                 A.simNao('Houve pedido de vista ou designação de revisor?', { ajuda: 'O processo volta na sessão ordinária seguinte (RI-TED/RS, art. 38, §§ 2º e 3º).' }),
-                A.escolha('Resultado do julgamento', ['Improcedente', 'Procedente'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Resultado do julgamento', ['Improcedente', 'Procedente'], {}, { obrigatoria: true }),
                 A.escolha('Sanção aplicada', ['Censura', 'Censura convertida em advertência sem registro', 'Suspensão', 'Exclusão', 'Multa cumulada'], { obrigatoria: true, destino: 'autos', se: quando('Resultado do julgamento', 'Procedente'), ajuda: 'Lei 8.906/1994, arts. 35 a 40. A conversão da censura em advertência deve ser justificada no acórdão (CED, art. 61).' }),
                 A.simNao('Decisão unânime?', { obrigatoria: true, ajuda: 'Recurso ao Conselho Federal só de decisão não unânime ou contrária à lei, ao CED ou a precedente (Lei 8.906, art. 75).' }),
                 A.documento('Juntar o acórdão com ementa', 'Acórdão', { forma: 'redigir', ajuda: 'Com enquadramento, sanção, quórum, voto condutor, agravantes e atenuantes; o voto divergente vencido também vai aos autos (CED, arts. 61 e 62).' }),
@@ -598,7 +598,7 @@ export function processoEticoDisciplinarCau() {
                 A.audiencia('Pautar a reunião de julgamento', 'sessao'),
                 A.comunicar('Intimar as partes da reunião de julgamento', { especie: 'intimacao', dias: 0, texto: 'O processo será julgado na reunião de {audiencia}. Cada parte pode fazer sustentação oral por até 10 minutos.' }, { obrigatoria: true }),
                 A.simNao('Houve pedido de vista?', { ajuda: 'A votação passa para a reunião seguinte (Res. 143, art. 49-C).' }),
-                A.escolha('Resultado do julgamento', ['Arquivamento', 'Sanção'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Resultado do julgamento', ['Arquivamento', 'Sanção'], {}, { obrigatoria: true }),
                 A.escolha('Sanção aplicada', ['Advertência reservada', 'Advertência pública', 'Suspensão de 30 dias a 1 ano', 'Cancelamento do registro'], { obrigatoria: true, destino: 'autos', se: quando('Resultado do julgamento', 'Sanção'), ajuda: 'Res. 143, art. 62; Lei 12.378, art. 19. A multa de 1 a 10 anuidades pode ser cumulada.' }),
                 A.simNao('Multa cumulada?', { se: quando('Resultado do julgamento', 'Sanção') }),
                 A.documento('Juntar a deliberação e o voto vencedor', 'Deliberação', { forma: 'redigir' }),

@@ -89,10 +89,11 @@ export const PEDIDOS = [
     ['comunicacao', 'Comunicar as partes (intimação, citação…)'],
     ['resposta', 'Esperar a resposta das partes'],
     ['audiencia', 'Designar audiência ou sessão'],
+    ['julgamento', 'Julgar em colegiado (votos)'],
     ['orientacao', 'Nada: só orienta (não se marca)'],
 ];
 /** Ações que o rito conduz com as partes: cumprem-se pela comunicação expedida e pela manifestação (ou decurso). */
-export const PEDIDOS_DAS_PARTES = ['comunicacao', 'resposta', 'audiencia'];
+export const PEDIDOS_DAS_PARTES = ['comunicacao', 'resposta', 'audiencia', 'julgamento'];
 export const daPartes = (r) => PEDIDOS_DAS_PARTES.includes(r?.pede);
 /** Campos de uma ação que pede um formulário (igual ao servidor). */
 export const MAX_CAMPOS_ACAO = 10;
@@ -272,6 +273,7 @@ export function opcoesDaResposta(r, campo) {
     if (r.pede === 'lista') return opcoesEmPares(r.opcoes);
     if (r.pede === 'sim_nao') return SIM_NAO;
     if (r.pede === 'resposta') return opcoesEmPares(RESPOSTAS);
+    if (r.pede === 'julgamento') return opcoesEmPares(r.julgamento?.resultados || []);
     return null;
 }
 
@@ -614,8 +616,9 @@ function regraComPedidoBase(r, pede, acao) {
             pede,
             ...(pede === 'comunicacao' ? { comunicacao: r?.comunicacao || { especie: 'intimacao', dias: 0 } }
                 : pede === 'resposta' ? { resposta: r?.resposta || { de: -1 } }
-                    // A designação é ato público: sempre nos autos, e as partes veem.
-                    : { audiencia: r?.audiencia || { especie: 'audiencia' }, destino: 'autos', partes: true }),
+                    // Designação e julgamento são atos públicos: sempre nos autos, e as partes veem.
+                    : pede === 'julgamento' ? { julgamento: r?.julgamento || { resultados: r?.opcoes?.length > 1 ? r.opcoes : ['Procedente', 'Improcedente'] }, destino: 'autos', partes: true }
+                        : { audiencia: r?.audiencia || { especie: 'audiencia' }, destino: 'autos', partes: true }),
             ...(r?.obrigatoria ? { obrigatoria: true } : r?.recomendada ? { recomendada: true } : {}),
             ...(r?.ajuda ? { ajuda: r.ajuda } : {}),
         };
@@ -646,6 +649,10 @@ export function resumoDaAcao(r) {
         return `comunica ${textoDosPolos(c)} (${nomeEspecie(c.especie).toLowerCase()}${prazo}); certidão nos autos${sufixo}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}${r?.prazo_dias > 0 ? `; expedir em ${textoPrazoDaAcao(r)}` : ''}`;
     }
     if (pede === 'resposta') return `espera a resposta das partes ou o fim do prazo; cumpre-se sozinha${sufixo}`;
+    if (pede === 'julgamento') {
+        const j = r?.julgamento || {};
+        return `julgamento colegiado (${(j.resultados || []).join(', ')}${j.quorum > 1 ? `; quórum de ${j.quorum} votos` : ''}; empate: ${j.desempate === 'favoravel' ? `prevalece ${j.favoravel}` : 'desempata o presidente'}); certidão nos autos; partes veem${sufixo}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}${r?.prazo_dias > 0 ? `; julgar em ${textoPrazoDaAcao(r)}` : ''}`;
+    }
     if (pede === 'audiencia') {
         return `designa ${nomeAudiencia(r?.audiencia?.especie).toLowerCase()}; certidão nos autos; partes veem${sufixo}${r?.quem ? `; ${rotuloQuem(r.quem, r.atribuicao)}` : ''}${r?.prazo_dias > 0 ? `; designar em ${textoPrazoDaAcao(r)}` : ''}`;
     }

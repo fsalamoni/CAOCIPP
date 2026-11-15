@@ -70,7 +70,7 @@ export function compromissoAjustamentoConduta() {
             ao_entrar: { pendencia: 'Deliberar sobre o arquivamento com compromisso de ajustamento.' },
             orientacao: 'O colegiado aprecia o arquivamento e o termo. Homologado, o termo é publicado e o cumprimento passa a ser acompanhado. Recusada a homologação, o termo é revisto em nova negociação, sem prejuízo de o colegiado determinar o prosseguimento do procedimento de origem.',
             acoes: [
-                A.escolha('Deliberação', ['Homologa', 'Não homologa'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Homologa', 'Não homologa'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
             ],
             saidas: { 'Publicidade do termo': quando('Deliberação', 'Homologa'), 'Negociação': quando('Deliberação', 'Não homologa') },
@@ -149,7 +149,7 @@ export function compromissoAjustamentoConduta() {
             orientacao: 'O recurso é remetido ao Conselho Superior em 3 dias com os autos (Provimento 71/2017-PGJ, art. 43, § 6º). O colegiado mantém o arquivamento ou nega a homologação e indica as medidas para comprovar o cumprimento (art. 43, § 9º).',
             acoes: [
                 A.fazer('Remeter o recurso e os autos em 3 dias', { obrigatoria: true }),
-                A.escolha('Deliberação', ['Mantém o arquivamento', 'Determina novas medidas de comprovação'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Mantém o arquivamento', 'Determina novas medidas de comprovação'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
             ],
             saidas: { 'Arquivamento': quando('Deliberação', 'Mantém o arquivamento'), 'Acompanhamento do cumprimento': quando('Deliberação', 'Determina novas medidas de comprovação') },
@@ -501,7 +501,7 @@ export function destinacaoBensValoresMprs() {
             orientacao: 'Aprovadas as contas ou rescindido o termo com a devolução, o procedimento é submetido ao Conselho Superior para homologação (art. 15).',
             acoes: [
                 A.fazer('Remeter o procedimento ao Conselho Superior', { obrigatoria: true }),
-                A.escolha('Deliberação', ['Homologa', 'Determina diligências'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Homologa', 'Determina diligências'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
             ],
             saidas: { 'Encerramento': quando('Deliberação', 'Homologa'), 'Análise das contas': quando('Deliberação', 'Determina diligências') },
@@ -648,7 +648,7 @@ export function triagemPatrimonioPublicoMprs() {
             nome: 'Deliberação do Conselho Superior', unidade: 'Conselho Superior', vai: ['Arquivamento', 'Instauração de procedimento'], nome_publico: 'Revisão pelo Conselho Superior',
             orientacao: 'O colegiado examina a decisão e o recurso, se houver. Homologada, arquiva-se; rejeitada, instaura-se o procedimento próprio.',
             acoes: [
-                A.escolha('Deliberação', ['Homologa', 'Rejeita e determina a instauração'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Homologa', 'Rejeita e determina a instauração'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
             ],
             saidas: { 'Arquivamento': quando('Deliberação', 'Homologa'), 'Instauração de procedimento': quando('Deliberação', 'Rejeita e determina a instauração') },

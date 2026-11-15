@@ -16,6 +16,7 @@ import {
 } from '@/lib/exigencias';
 import { camposDaEspecie, especiesParaEscolher } from '@/lib/comunicacaoRito';
 import { audienciasParaEscolher, camposDaAudiencia } from '@/lib/audiencias';
+import { MAX_MEMBROS, MAX_RESULTADOS } from '@/lib/julgamento';
 import { NativeSelect } from './comum';
 import { MODULOS, POLOS } from '@/lib/camposProcesso';
 import { RegistroContexto } from './SeletorRegistro';
@@ -326,7 +327,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     </div>
                 )}
                 {pede !== 'resposta' && <div>
-                    <Label htmlFor={`${id}-pz`}>{pede === 'comunicacao' ? 'Prazo para expedir (dias)' : pede === 'audiencia' ? 'Prazo para designar (dias)' : 'Prazo próprio da ação (dias)'}</Label>
+                    <Label htmlFor={`${id}-pz`}>{pede === 'comunicacao' ? 'Prazo para expedir (dias)' : pede === 'audiencia' ? 'Prazo para designar (dias)' : pede === 'julgamento' ? 'Prazo para julgar (dias)' : 'Prazo próprio da ação (dias)'}</Label>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                         <Input id={`${id}-pz`} type="number" min={1} max={3650} placeholder="Sem prazo" className="h-9 w-28" value={r?.prazo_dias || ''}
                             onChange={(e) => { const n = Number(e.target.value); set({ prazo_dias: Number.isInteger(n) && n > 0 ? n : undefined, ...(Number.isInteger(n) && n > 0 ? {} : { prazo_contagem: undefined }) }); }} />
@@ -378,6 +379,57 @@ function ConfigDasPartes({ id, r, f, i, onChange }) {
                     Na tela do processo, o botão &quot;Designar&quot; pede a data, a hora, o modo (presencial, por videoconferência ou híbrido), o local ou o link e quem participa além das partes (testemunha, perito...).
                     A designação vira certidão nos autos e as partes a veem no portal. Para intimar, ponha depois uma ação &quot;Comunicar as partes&quot; com {'{audiencia}'} no texto: ele é trocado pela data e pelo local.
                     Desfazer cancela a audiência, com certidão. A realização e a ata ficam com as ações seguintes (uma escolha &quot;Realizada / Não realizada&quot;, um documento da ata).
+                </p>
+            </div>
+        );
+    }
+    if (r?.pede === 'julgamento') {
+        const j = r.julgamento || { resultados: [] };
+        const setJ = (patch) => {
+            const n = { ...j, ...patch };
+            Object.keys(n).forEach((k) => n[k] === undefined && delete n[k]);
+            onChange({ ...r, julgamento: n });
+        };
+        const res = j.resultados || [];
+        const limpos = [...new Set(res.map((x) => x.trim()).filter(Boolean))];
+        const setRes = (l) => setJ({ resultados: l, ...(j.favoravel && !l.includes(j.favoravel) ? { favoravel: undefined } : {}) });
+        return (
+            <div className="space-y-3">
+                <fieldset>
+                    <legend className="text-sm font-medium">Resultados possíveis</legend>
+                    <ul className="mt-1 space-y-1">
+                        {res.map((x, k) => (
+                            <li key={k} className="flex items-center gap-2">
+                                <Input aria-label={`Resultado ${k + 1}`} className="h-9 sm:max-w-xs" maxLength={80} value={x}
+                                    onChange={(e) => setRes(res.map((y, n) => (n === k ? e.target.value : y)))} />
+                                <Button type="button" variant="ghost" size="icon" aria-label={`Tirar o resultado ${x || k + 1}`} disabled={res.length <= 2}
+                                    onClick={() => setRes(res.filter((_, n) => n !== k))}><Trash2 className="w-4 h-4" /></Button>
+                            </li>
+                        ))}
+                    </ul>
+                    {res.length < MAX_RESULTADOS && (
+                        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => setRes([...res, ''])}><Plus className="w-4 h-4 mr-1" />Resultado</Button>
+                    )}
+                    {limpos.length < 2 && <p role="alert" className="mt-1 text-xs text-amber-800 dark:text-amber-200">Informe ao menos dois resultados diferentes.</p>}
+                </fieldset>
+                <div className="grid sm:grid-cols-3 gap-3">
+                    <div>
+                        <Label htmlFor={`${id}-quorum`}>Quórum (votos válidos)</Label>
+                        <Input id={`${id}-quorum`} type="number" min={1} max={MAX_MEMBROS} placeholder="Sem mínimo" className="mt-1 h-9 w-28" value={j.quorum || ''}
+                            onChange={(e) => { const n = Number(e.target.value); setJ({ quorum: Number.isInteger(n) && n > 1 ? n : undefined }); }} />
+                    </div>
+                    <NativeSelect id={`${id}-desempate`} label="No empate" value={j.desempate || 'presidente'}
+                        onChange={(v) => setJ(v === 'favoravel' ? { desempate: 'favoravel', favoravel: limpos.includes(j.favoravel) ? j.favoravel : limpos[limpos.length - 1] } : { desempate: undefined, favoravel: undefined })}
+                        options={[['presidente', 'Desempata o presidente'], ['favoravel', 'Prevalece o mais favorável']]} />
+                    {j.desempate === 'favoravel' && (
+                        <NativeSelect id={`${id}-favoravel`} label="Mais favorável à parte" value={j.favoravel || ''} onChange={(v) => setJ({ favoravel: v })}
+                            options={limpos.map((x) => [x, x])} />
+                    )}
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Na tela do processo, o botão &quot;Registrar julgamento&quot; pede a data da sessão e, para cada membro, o nome, a função (relator, revisor, presidente, membro) e o voto: um dos resultados, ou impedido, suspeito, ausente ou abstenção, que ficam registrados e não contam.
+                    O sistema apura pela maioria dos votos válidos, confere o quórum e aplica o desempate do rito. O resultado vira a resposta da ação (use-o nas saídas da fase) e a certidão de julgamento, com placar, relator e vencidos, vai aos autos, e as partes a veem.
+                    Os fundamentos ficam nos documentos da fase (voto do relator, acórdão, ata).
                 </p>
             </div>
         );

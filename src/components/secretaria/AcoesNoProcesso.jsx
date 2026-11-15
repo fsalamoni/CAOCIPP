@@ -13,6 +13,7 @@ import { CamposProcesso, DadosCampos } from './CamposProcesso';
 import { faltando } from '@/lib/camposProcesso';
 import { RESPOSTAS } from '@/lib/comunicacaoRito';
 import { MAX_PARTICIPANTES, MODOS_AUDIENCIA, QUALIDADES } from '@/lib/audiencias';
+import { FUNCOES, MAX_MEMBROS, SITUACOES, apurar, problemasDosVotos, textoDaApuracao } from '@/lib/julgamento';
 
 const br = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('/');
 
@@ -119,7 +120,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                     </span>
                 )}
             </span>
-            {podeMexer && !feita && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : 'Registrar'}</Button>}
+            {podeMexer && !feita && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : 'Registrar'}</Button>}
             {podeMexer && feita && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={onDesfazer}><Undo2 className="w-4 h-4" /> Desfazer</Button>}
         </div>
     );
@@ -167,6 +168,57 @@ function CamposAudiencia({ a, onChange }) {
     );
 }
 
+const hojeBr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const MEMBRO_VAZIO = { nome: '', funcao: 'membro', voto: '' };
+
+/** Sessão e votos do julgamento colegiado: a apuração aparece enquanto se preenche; o servidor apura de novo. */
+function CamposJulgamento({ cfg, j, onChange }) {
+    const sel = 'h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
+    const vs = j.votos;
+    const setV = (k, x) => onChange({ votos: vs.map((v, n) => (n === k ? { ...v, ...x } : v)) });
+    const preenchidos = vs.filter((v) => v.nome.trim());
+    const problemas = problemasDosVotos(cfg, vs);
+    const a = !problemas.length && preenchidos.length ? apurar(cfg, preenchidos) : null;
+    return (
+        <div className="space-y-3">
+            <div className="sm:max-w-[12rem]">
+                <Label htmlFor="jul-data">Data da sessão</Label>
+                <Input id="jul-data" type="date" max={hojeBr()} className="mt-1" value={j.data || ''} onChange={(e) => onChange({ data: e.target.value })} />
+            </div>
+            <fieldset>
+                <legend className="text-sm font-medium">Membros e votos</legend>
+                <div className="mt-1 space-y-2">
+                    {vs.map((v, k) => (
+                        <div key={k} className="grid grid-cols-[1fr_1fr_auto] sm:grid-cols-[1fr_8rem_10rem_auto] gap-2 items-center">
+                            <Input aria-label={`Nome do membro ${k + 1}`} placeholder="Nome" maxLength={120} value={v.nome} onChange={(e) => setV(k, { nome: e.target.value })} className="col-span-2 sm:col-span-1" />
+                            <Button type="button" variant="ghost" size="sm" className="sm:order-last" aria-label={`Tirar o membro ${k + 1}`} disabled={vs.length <= 1} onClick={() => onChange({ votos: vs.filter((_, n) => n !== k) })}>Tirar</Button>
+                            <select aria-label={`Função do membro ${k + 1}`} className={sel} value={v.funcao} onChange={(e) => setV(k, { funcao: e.target.value })}>
+                                {FUNCOES.map(([f, n]) => <option key={f} value={f}>{n}</option>)}
+                            </select>
+                            <select aria-label={`Voto do membro ${k + 1}`} className={`${sel} col-span-2 sm:col-span-1`} value={v.voto} onChange={(e) => setV(k, { voto: e.target.value })}>
+                                <option value="">Voto…</option>
+                                <optgroup label="Vota">{cfg.resultados.map((o) => <option key={o} value={o}>{o}</option>)}</optgroup>
+                                <optgroup label="Não vota">{SITUACOES.map(([s, n]) => <option key={s} value={s}>{n}</option>)}</optgroup>
+                            </select>
+                        </div>
+                    ))}
+                    {vs.length < MAX_MEMBROS && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onChange({ votos: [...vs, MEMBRO_VAZIO] })}>Incluir membro</Button>
+                    )}
+                </div>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                    Impedido, suspeito, ausente e abstenção saem na certidão e não contam como voto.
+                    {cfg.quorum > 1 ? ` O rito exige ao menos ${cfg.quorum} votos válidos.` : ''}
+                    {cfg.desempate === 'favoravel' ? ` No empate, prevalece ${cfg.favoravel}.` : ' No empate, vale o voto do presidente.'}
+                </p>
+            </fieldset>
+            <div role="status" className={`rounded-md px-2 py-1.5 text-sm ${a ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100' : 'bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+                {a ? <>Resultado: <b>{textoDaApuracao(a)}</b></> : preenchidos.length ? <ul className="list-disc pl-5">{problemas.map((p) => <li key={p}>{p}</li>)}</ul> : 'Informe os membros e os votos para ver a apuração.'}
+            </div>
+        </div>
+    );
+}
+
 /** Diálogo para informar o dado que a ação pede. */
 export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const [valor, setValor] = useState('');
@@ -182,10 +234,13 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const falta = form ? faltando(form, { campos: valores }) : [];
     const algum = Object.values(valores).some((x) => (Array.isArray(x) ? x.length : x && typeof x === 'object' ? true : String(x ?? '').trim()));
     const aud = pede === 'audiencia' ? { modo: 'presencial', participantes: [], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
-    const vazio = aud ? !aud.data || !aud.hora || (aud.modo !== 'virtual' && !aud.local?.trim()) || (aud.modo !== 'presencial' && !aud.link?.trim())
+    const jul = pede === 'julgamento' ? { data: hojeBr(), votos: [{ ...MEMBRO_VAZIO, funcao: 'relator' }, MEMBRO_VAZIO, MEMBRO_VAZIO], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
+    const vazio = jul ? !jul.data || problemasDosVotos(r.julgamento, jul.votos).length > 0 : aud ? !aud.data || !aud.hora || (aud.modo !== 'virtual' && !aud.local?.trim()) || (aud.modo !== 'presencial' && !aud.link?.trim())
         : form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
     const fechar = () => { setValor(''); setTentou(false); onFechar(); };
-    const onde = pede === 'audiencia'
+    const onde = pede === 'julgamento'
+        ? 'O sistema apura os votos. O resultado decide a saída da fase, e a certidão de julgamento (resultado, placar, relator, vencidos, impedidos e ausentes) vai aos autos, com folha; as partes a veem no portal. Os fundamentos ficam nos documentos da fase.'
+        : pede === 'audiencia'
         ? 'A designação vira certidão nos autos, com folha, e as partes a veem no portal. Para intimá-las, use a ação de comunicação do rito: {audiencia} no texto vira esta data e local.'
         : pede === 'resposta'
         ? 'Registre só quando a manifestação chegou por outro meio (a equipe junta a peça). Com parte ainda no prazo, só "Apresentada" é aceita; o resto o sistema registra sozinho.'
@@ -198,9 +253,10 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 : dest === 'consolidar'
                     ? 'Entra como item da certidão conjunta da fase, emitida nos autos quando o processo sair da fase (ou do grupo de fases).'
                 : 'Fica só nas informações do processo e na aba Eventos, para controle. Não sai em impressão.';
-    const quem = pede === 'audiencia' ? '' : partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
+    const quem = pede === 'audiencia' || pede === 'julgamento' ? '' : partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
     let campo;
-    if (aud) campo = <CamposAudiencia a={aud} onChange={(x) => setValor({ ...aud, ...x })} />;
+    if (jul) campo = <CamposJulgamento cfg={r.julgamento} j={jul} onChange={(x) => setValor({ ...jul, ...x })} />;
+    else if (aud) campo = <CamposAudiencia a={aud} onChange={(x) => setValor({ ...aud, ...x })} />;
     else if (form) campo = <CamposProcesso prefixo="acao-f" campos={form.campos} valores={valores} onChange={(id, x) => setValor({ ...valores, [id]: x })} />;
     else if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'numero') campo = <Input id="acao-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 12345" autoFocus />;
@@ -218,7 +274,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     } else campo = <Input id="acao-valor" maxLength={200} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     return (
         <Dialog open onOpenChange={(o) => !o && fechar()}>
-            <DialogContent className={`${form ? 'max-w-2xl' : 'max-w-lg'} max-h-[90dvh] overflow-y-auto`}>
+            <DialogContent className={`${form || jul ? 'max-w-2xl' : 'max-w-lg'} max-h-[90dvh] overflow-y-auto`}>
                 <DialogHeader>
                     <DialogTitle>{acao}</DialogTitle>
                     <DialogDescription>Fase {fase}. {onde} {quem}</DialogDescription>
@@ -226,9 +282,9 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 <form className="space-y-2" onSubmit={(e) => {
                     e.preventDefault();
                     if (falta.length) { setTentou(true); return; }
-                    if (!vazio) onEnviar(form ? valores : aud ? { ...aud, participantes: aud.participantes.filter((x) => x.nome.trim()) } : valor).then((ok) => ok && (setValor(''), setTentou(false)));
+                    if (!vazio) onEnviar(form ? valores : jul ? { data: jul.data, votos: jul.votos.filter((x) => x.nome.trim()) } : aud ? { ...aud, participantes: aud.participantes.filter((x) => x.nome.trim()) } : valor).then((ok) => ok && (setValor(''), setTentou(false)));
                 }}>
-                    {form || aud ? <p className="text-sm font-medium">{aud ? 'Quando e onde' : rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
+                    {form || aud || jul ? <p className="text-sm font-medium">{aud ? 'Quando e onde' : jul ? 'Sessão de julgamento' : rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
                     {r?.ajuda && form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
                     {campo}
                     {r?.ajuda && !form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}

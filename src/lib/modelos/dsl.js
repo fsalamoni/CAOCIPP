@@ -63,6 +63,8 @@ export const A = {
     /** Espera a resposta da comunicação `de` (nome da ação, na mesma fase). */
     esperar: (texto, de, extra) => com(texto, { pede: 'resposta', resposta: { de } }, extra),
     audiencia: (texto, especie, extra) => com(texto, { pede: 'audiencia', audiencia: { especie } }, extra),
+    /** Julgamento colegiado: resultados (as opções das saídas), e em `opts` quorum, desempate 'favoravel' e favoravel. */
+    julgamento: (texto, resultados, opts = {}, extra) => com(texto, { pede: 'julgamento', julgamento: { resultados, ...opts } }, extra),
 };
 
 /** Condição: a resposta da ação `acao` (nome) for uma destas. */
