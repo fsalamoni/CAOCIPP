@@ -3,6 +3,7 @@
  * estruturas de exemplo do assistente. As regras que valem estão no servidor
  * (functions-v2/src/shared/orgaos.ts).
  */
+import { MAX_MEMBROS } from './julgamento.js';
 
 export const NATUREZAS = {
     deliberativo: { rotulo: 'Deliberativo', descricao: 'Delibera e fixa as regras (assembleia, conselho, plenário)' },
@@ -54,6 +55,53 @@ export function descendentes(orgaos, id) {
         for (const o of orgaos) if (o.pai_id && ids.has(o.pai_id) && !ids.has(o.id)) { ids.add(o.id); mudou = true; }
     }
     return ids;
+}
+
+/** Funções no colegiado, na ordem em que aparecem. Espelha FUNCOES_COLEGIADO do servidor. */
+export const FUNCOES_COLEGIADO = [['presidente', 'Presidente'], ['vice', 'Vice-presidente'], ['titular', 'Titular'], ['suplente', 'Suplente']];
+export const MAX_COMPOSICAO = 40;
+const ORDEM_FUNCAO = FUNCOES_COLEGIADO.map(([f]) => f);
+export const rotuloFuncao = (f) => (FUNCOES_COLEGIADO.find(([k]) => k === f) || FUNCOES_COLEGIADO[2])[1];
+
+/** O mandato vale na data (AAAA-MM-DD)? Sem início, desde sempre; sem fim, até hoje. */
+export const vigente = (m, dia) => (!m.inicio || m.inicio <= dia) && (!m.fim || m.fim >= dia);
+
+/** Quem compõe o colegiado na data, do presidente aos suplentes. */
+export function composicaoEm(composicao, dia) {
+    return (composicao || []).filter((m) => m.uid && vigente(m, dia)).sort((a, b) => ORDEM_FUNCAO.indexOf(a.funcao) - ORDEM_FUNCAO.indexOf(b.funcao));
+}
+
+const cruzam = (a, b) => (!a.inicio || !b.fim || a.inicio <= b.fim) && (!b.inicio || !a.fim || b.inicio <= a.fim);
+
+/** Os mesmos conflitos que o servidor recusa, para avisar antes de salvar. */
+export function problemasComposicao(composicao, nome = (u) => u) {
+    const lista = (composicao || []).filter((m) => m.uid);
+    const out = [];
+    lista.forEach((m, i) => {
+        if (m.inicio && m.fim && m.fim < m.inicio) out.push(`O mandato de ${nome(m.uid)} termina antes de começar.`);
+        for (const o of lista.slice(i + 1)) {
+            if (!cruzam(m, o)) continue;
+            if (o.uid === m.uid) out.push(`${nome(m.uid)} aparece duas vezes no mesmo período.`);
+            else if (o.funcao === m.funcao && (m.funcao === 'presidente' || m.funcao === 'vice')) {
+                out.push(`Há dois ${m.funcao === 'presidente' ? 'presidentes' : 'vice-presidentes'} no mesmo período (${nome(m.uid)} e ${nome(o.uid)}).`);
+            }
+        }
+    });
+    return [...new Set(out)];
+}
+
+/**
+ * Membros para o registro de julgamento: a composição, na data, do colegiado
+ * a que a unidade pertence. Suplentes ficam de fora (entram no lugar de um
+ * titular, quem registra inclui). Vazio quando a unidade não é de colegiado.
+ */
+export function membrosDoJulgamento(estado, unidadeId, dia) {
+    const u = (estado?.unidades || []).find((x) => x.id === unidadeId);
+    const o = (estado?.orgaos || []).find((x) => x.id === u?.orgao_id);
+    if (!o || o.decisao !== 'colegiada') return [];
+    const nome = (uid) => (estado.membros || []).find((m) => m.uid === uid)?.nome || '';
+    return composicaoEm(o.composicao, dia).filter((m) => m.funcao !== 'suplente' && nome(m.uid))
+        .map((m) => ({ nome: nome(m.uid), funcao: m.funcao === 'presidente' ? 'presidente' : 'membro', voto: '' })).slice(0, MAX_MEMBROS);
 }
 
 export const nomeOrgao = (estado, orgaoId) => (estado?.orgaos || []).find((o) => o.id === orgaoId)?.nome || '';

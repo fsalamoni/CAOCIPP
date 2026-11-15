@@ -14,7 +14,7 @@ import { secConfig } from '@/services/secretariaService';
 import { TIPOS_UNIDADE, dataHora } from './comum';
 import GestaoUnidade from './GestaoUnidade';
 import EstruturaOrgaos, { Organograma } from './Orgaos';
-import { nomeOrgao } from '@/lib/orgaos';
+import { composicaoEm, nomeOrgao, rotuloFuncao } from '@/lib/orgaos';
 
 /**
  * Aba "Unidades" do Processo Eletrônico: quem é quem em cada unidade,
@@ -30,6 +30,10 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
     const [ocupado, setOcupado] = useState(false);
     const nome = (uid) => estado.membros.find((m) => m.uid === uid)?.nome;
     const ativas = estado.unidades.filter((u) => u.ativa);
+    const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const br = (d) => d.split('-').reverse().join('/');
+    const meusMandatos = (estado.orgaos || []).filter((o) => o.ativo !== false && o.decisao === 'colegiada')
+        .map((o) => ({ o, m: composicaoEm(o.composicao, hoje).find((x) => x.uid === estado.uid) })).filter((x) => x.m);
 
     const pedir = async () => {
         setOcupado(true);
@@ -44,6 +48,28 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
 
     return (
         <div className="space-y-5 pt-2">
+            {meusMandatos.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">{meusMandatos.length > 1 ? 'Colegiados que você compõe' : 'Colegiado que você compõe'}</CardTitle>
+                        <CardDescription>Seu mandato em cada órgão que decide em conjunto. Quem cuida da estrutura mantém a composição.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-2">
+                            {meusMandatos.map(({ o, m }) => (
+                                <li key={o.id} className="rounded-md border border-slate-200 dark:border-slate-700 p-3 text-sm">
+                                    <span className="font-medium text-slate-900 dark:text-slate-100">{o.nome}</span>
+                                    <span className="text-slate-700 dark:text-slate-300">: {rotuloFuncao(m.funcao)}{m.representa ? `, representando ${m.representa}` : ''}</span>
+                                    <span className="block text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                                        {m.inicio ? `Desde ${br(m.inicio)}` : 'Sem data de início'}{m.fim ? `, até ${br(m.fim)}` : ', sem data para terminar'}.
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </CardContent>
+                </Card>
+            )}
+
             {geridas.length > 0 && (
                 <Card>
                     <CardHeader>
@@ -72,7 +98,7 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
                         <CardDescription>Os órgãos internos, o que compete a cada um, quem responde e por quais unidades os processos passam.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Organograma detalhado nos={estado.orgaos.filter((o) => o.ativo !== false)} unidadesDe={(o) => ativas.filter((u) => u.orgao_id === o.id)} nomeTitular={(o) => nome(o.titular_uid)} />
+                        <Organograma detalhado nos={estado.orgaos.filter((o) => o.ativo !== false)} unidadesDe={(o) => ativas.filter((u) => u.orgao_id === o.id)} nomeTitular={(o) => nome(o.titular_uid)} nomeMembro={nome} />
                     </CardContent>
                 </Card>
             )}

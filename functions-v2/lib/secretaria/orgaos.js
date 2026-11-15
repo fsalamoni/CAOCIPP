@@ -7,6 +7,7 @@ exports.criarEstrutura = criarEstrutura;
 const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
+const secretaria_1 = require("../shared/secretaria");
 const orgaos_1 = require("../shared/orgaos");
 const context_1 = require("./context");
 const MAX_UNIDADES = 100;
@@ -23,6 +24,30 @@ async function exigirMembro(c, uid, papel = 'O titular') {
     const s = await c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`).get();
     if (!s.exists || ((_a = s.data()) === null || _a === void 0 ? void 0 : _a.active) === false)
         throw new https_1.HttpsError('invalid-argument', `${papel} precisa ser membro ativo`);
+}
+/**
+ * Composição do colegiado: confere períodos e funções e exige que quem tem
+ * mandato atual ou futuro seja membro ativo. Mandato encerrado de quem saiu
+ * da entidade fica, como histórico.
+ */
+async function conferirMembros(c, orgao) {
+    const uids = [...new Set(orgao.composicao.map((m) => m.uid))];
+    const snaps = await Promise.all(uids.map((u) => c.db.collection('userOrganizations').doc(`${u}_${c.orgId}`).get()));
+    const dados = new Map(uids.map((u, i) => [u, snaps[i].exists ? snaps[i].data() : undefined]));
+    const nome = (u) => { var _a; return String(((_a = dados.get(u)) === null || _a === void 0 ? void 0 : _a.user_name) || 'Um membro'); };
+    try {
+        (0, orgaos_1.conferirComposicao)(orgao.composicao, nome);
+    }
+    catch (e) {
+        (0, context_1.erroUsuario)(e);
+    }
+    const hoje = (0, secretaria_1.hojeBrasil)();
+    for (const m of orgao.composicao) {
+        const d = dados.get(m.uid);
+        if ((!m.fim || m.fim >= hoje) && (!d || d.active === false)) {
+            throw new https_1.HttpsError('invalid-argument', `${nome(m.uid)} saiu da entidade. Informe o fim do mandato ou tire da composição.`);
+        }
+    }
 }
 /** Regrava a lista de órgãos dentro de uma transação, validando a estrutura inteira. */
 async function mudar(c, uid, fn) {
@@ -58,6 +83,7 @@ async function salvarOrgao(c, p, uid, auditar) {
     await exigirMembro(c, orgao.titular_uid);
     for (const a of orgao.admins_uids)
         await exigirMembro(c, a, 'Quem administra o órgão');
+    await conferirMembros(c, orgao);
     await mudar(c, uid, (atuais) => {
         const i = atuais.findIndex((o) => o.id === id);
         if (p.id && i < 0)
@@ -68,7 +94,7 @@ async function salvarOrgao(c, p, uid, auditar) {
             return [...atuais, Object.assign(Object.assign({}, orgao), { ordem: atuais.length, criado_por: uid })];
         return atuais.map((o) => (o.id === id ? Object.assign(Object.assign({}, orgao), { criado_por: o.criado_por || null }) : o));
     });
-    await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao.nome, superior: orgao.pai_id, admins: orgao.admins_uids.length });
+    await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao.nome, superior: orgao.pai_id, admins: orgao.admins_uids.length, mandatos: orgao.composicao.length });
     return { success: true, id };
 }
 /**

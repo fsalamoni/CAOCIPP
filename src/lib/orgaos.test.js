@@ -1,6 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ESTRUTURAS, descendentes, emArvore, orgaosDoDelegado, problemasEstrutura, unidadeComOrgao, unidadesDoOrgao } from './orgaos.js';
+import { ESTRUTURAS, composicaoEm, descendentes, emArvore, membrosDoJulgamento, orgaosDoDelegado, problemasComposicao, problemasEstrutura, unidadeComOrgao, unidadesDoOrgao } from './orgaos.js';
+
+test('colegiado: quem compõe na data, conflitos e membros que já vêm no registro de julgamento', () => {
+    const composicao = [
+        { uid: 'davi', funcao: 'suplente', inicio: '', fim: '' },
+        { uid: 'ana', funcao: 'presidente', inicio: '2025-01-01', fim: '2026-06-30' },
+        { uid: 'bia', funcao: 'presidente', inicio: '2026-07-01', fim: '' },
+        { uid: 'caio', funcao: 'titular', inicio: '', fim: '' },
+        { uid: 'eva', funcao: 'titular', inicio: '', fim: '' },
+    ];
+    assert.deepEqual(composicaoEm(composicao, '2026-03-01').map((m) => m.uid), ['ana', 'caio', 'eva', 'davi']);
+    assert.deepEqual(problemasComposicao(composicao), []);
+    const nome = (u) => u.toUpperCase();
+    assert.deepEqual(problemasComposicao([...composicao, { uid: 'eva', funcao: 'presidente', inicio: '2026-01-01', fim: '' }], nome),
+        ['Há dois presidentes no mesmo período (ANA e EVA).', 'Há dois presidentes no mesmo período (BIA e EVA).', 'EVA aparece duas vezes no mesmo período.']);
+    assert.deepEqual(problemasComposicao([{ uid: 'ana', inicio: '2026-05-01', fim: '2026-04-01' }], nome), ['O mandato de ANA termina antes de começar.']);
+    const estado = {
+        orgaos: [{ id: 'cam', decisao: 'colegiada', composicao }, { id: 'pres', decisao: 'singular', composicao }],
+        unidades: [{ id: 'sec', orgao_id: 'cam' }, { id: 'gab', orgao_id: 'pres' }, { id: 'solta', orgao_id: null }],
+        membros: [{ uid: 'bia', nome: 'Bia' }, { uid: 'caio', nome: 'Caio' }, { uid: 'davi', nome: 'Davi' }],
+    };
+    assert.deepEqual(membrosDoJulgamento(estado, 'sec', '2026-08-01'), [{ nome: 'Bia', funcao: 'presidente', voto: '' }, { nome: 'Caio', funcao: 'membro', voto: '' }],
+        'presidente e titulares do dia; suplente e quem saiu da entidade ficam de fora');
+    assert.deepEqual(membrosDoJulgamento(estado, 'gab', '2026-08-01'), [], 'órgão singular não preenche');
+    assert.deepEqual(membrosDoJulgamento(estado, 'solta', '2026-08-01'), []);
+});
 
 test('admin delegado vê só o que administra, a partir do órgão delegado; o admin vê tudo', () => {
     const orgaos = [{ id: 'pres', pai_id: null }, { id: 'dir', pai_id: 'pres' }, { id: 'setor', pai_id: 'dir' }, { id: 'cons', pai_id: null }];

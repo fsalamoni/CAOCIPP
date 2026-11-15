@@ -234,7 +234,9 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const falta = form ? faltando(form, { campos: valores }) : [];
     const algum = Object.values(valores).some((x) => (Array.isArray(x) ? x.length : x && typeof x === 'object' ? true : String(x ?? '').trim()));
     const aud = pede === 'audiencia' ? { modo: 'presencial', participantes: [], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
-    const jul = pede === 'julgamento' ? { data: hojeBr(), votos: [{ ...MEMBRO_VAZIO, funcao: 'relator' }, MEMBRO_VAZIO, MEMBRO_VAZIO], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
+    // Unidade de colegiado com composição: os membros do dia já vêm na lista (quem registra indica o relator).
+    const doColegiado = alvo.membros?.length ? alvo.membros : null;
+    const jul = pede === 'julgamento' ? { data: hojeBr(), votos: doColegiado || [{ ...MEMBRO_VAZIO, funcao: 'relator' }, MEMBRO_VAZIO, MEMBRO_VAZIO], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
     const vazio = jul ? !jul.data || problemasDosVotos(r.julgamento, jul.votos).length > 0 : aud ? !aud.data || !aud.hora || (aud.modo !== 'virtual' && !aud.local?.trim()) || (aud.modo !== 'presencial' && !aud.link?.trim())
         : form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
     const fechar = () => { setValor(''); setTentou(false); onFechar(); };
@@ -286,6 +288,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 }}>
                     {form || aud || jul ? <p className="text-sm font-medium">{aud ? 'Quando e onde' : jul ? 'Sessão de julgamento' : rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
                     {r?.ajuda && form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
+                    {jul && doColegiado && <p className="text-xs text-slate-600 dark:text-slate-400">Os membros vieram da composição de hoje do colegiado. Indique o relator e ajuste quem faltou, foi substituído pelo suplente ou se declarou impedido.</p>}
                     {campo}
                     {r?.ajuda && !form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
                     {tentou && falta.length > 0 && (

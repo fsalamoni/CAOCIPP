@@ -2,7 +2,8 @@ import * as admin from 'firebase-admin';
 import { randomBytes } from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { Orgao, conferirDelegado, orgaosAdministrados, orgaosDe, sanitizeOrgao, sanitizeProposta, validarEstrutura } from '../shared/orgaos';
+import { hojeBrasil } from '../shared/secretaria';
+import { Orgao, conferirComposicao, conferirDelegado, orgaosAdministrados, orgaosDe, sanitizeOrgao, sanitizeProposta, validarEstrutura } from '../shared/orgaos';
 import { COL, Contexto, erroUsuario, exigirAdmin } from './context';
 
 /**
@@ -27,6 +28,26 @@ async function exigirMembro(c: Contexto, uid: string | null, papel = 'O titular'
     if (!s.exists || s.data()?.active === false) throw new HttpsError('invalid-argument', `${papel} precisa ser membro ativo`);
 }
 
+/**
+ * Composição do colegiado: confere períodos e funções e exige que quem tem
+ * mandato atual ou futuro seja membro ativo. Mandato encerrado de quem saiu
+ * da entidade fica, como histórico.
+ */
+async function conferirMembros(c: Contexto, orgao: Orgao) {
+    const uids = [...new Set(orgao.composicao.map((m) => m.uid))];
+    const snaps = await Promise.all(uids.map((u) => c.db.collection('userOrganizations').doc(`${u}_${c.orgId}`).get()));
+    const dados = new Map(uids.map((u, i) => [u, snaps[i].exists ? snaps[i].data() : undefined]));
+    const nome = (u: string) => String(dados.get(u)?.user_name || 'Um membro');
+    try { conferirComposicao(orgao.composicao, nome); } catch (e) { erroUsuario(e); }
+    const hoje = hojeBrasil();
+    for (const m of orgao.composicao) {
+        const d = dados.get(m.uid);
+        if ((!m.fim || m.fim >= hoje) && (!d || d.active === false)) {
+            throw new HttpsError('invalid-argument', `${nome(m.uid)} saiu da entidade. Informe o fim do mandato ou tire da composição.`);
+        }
+    }
+}
+
 /** Regrava a lista de órgãos dentro de uma transação, validando a estrutura inteira. */
 async function mudar(c: Contexto, uid: string, fn: (atuais: Orgao[]) => Orgao[]): Promise<Orgao[]> {
     const ref = c.db.collection(COL.config).doc(c.orgId);
@@ -49,6 +70,7 @@ export async function salvarOrgao(c: Contexto, p: Payload, uid: string, auditar:
     try { orgao = sanitizeOrgao(p.orgao, id); } catch (e) { erroUsuario(e); }
     await exigirMembro(c, orgao!.titular_uid);
     for (const a of orgao!.admins_uids) await exigirMembro(c, a, 'Quem administra o órgão');
+    await conferirMembros(c, orgao!);
     await mudar(c, uid, (atuais) => {
         const i = atuais.findIndex((o) => o.id === id);
         if (p.id && i < 0) throw new HttpsError('not-found', 'Órgão não encontrado');
@@ -56,7 +78,7 @@ export async function salvarOrgao(c: Contexto, p: Payload, uid: string, auditar:
         if (i < 0) return [...atuais, { ...orgao, ordem: atuais.length, criado_por: uid }];
         return atuais.map((o) => (o.id === id ? { ...orgao, criado_por: o.criado_por || null } : o));
     });
-    await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao!.nome, superior: orgao!.pai_id, admins: orgao!.admins_uids.length });
+    await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao!.nome, superior: orgao!.pai_id, admins: orgao!.admins_uids.length, mandatos: orgao!.composicao.length });
     return { success: true, id };
 }
 

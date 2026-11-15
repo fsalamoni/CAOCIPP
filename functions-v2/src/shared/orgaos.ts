@@ -16,6 +16,25 @@ export const MAX_COMPETENCIAS = 20;
 /** Admins delegados por órgão interno. */
 export const MAX_ADMINS_ORGAO = 10;
 const MAX_COMPETENCIA = 300;
+/** Entradas da composição de um colegiado, contando os mandatos que já acabaram. */
+export const MAX_COMPOSICAO = 40;
+
+export const FUNCOES_COLEGIADO = ['presidente', 'vice', 'titular', 'suplente'] as const;
+export type FuncaoColegiado = typeof FUNCOES_COLEGIADO[number];
+
+/**
+ * Um mandato no colegiado: a pessoa (conta do SIGO), a função e o período.
+ * Sem início, vale desde sempre; sem fim, vale até hoje. Mandatos encerrados
+ * ficam na lista: é por ela que se sabe quem compôs o colegiado em cada data.
+ */
+export interface MembroColegiado {
+    uid: string;
+    funcao: FuncaoColegiado;
+    inicio: string;
+    fim: string;
+    /** O que o membro representa (ex.: "OAB", "sociedade civil"); opcional. */
+    representa: string;
+}
 
 export interface Orgao {
     id: string;
@@ -35,6 +54,8 @@ export interface Orgao {
      */
     admins_uids: string[];
     competencias: string[];
+    /** Composição do colegiado (só faz sentido com decisao 'colegiada'). */
+    composicao: MembroColegiado[];
     descricao: string;
     ordem: number;
     ativo: boolean;
@@ -49,6 +70,51 @@ export function sanitizeCompetencias(raw: unknown): string[] {
 }
 
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const data = (v: unknown) => (typeof v === 'string' && DATA.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) ? v : '');
+
+/** Lista da composição com os tipos certos; entrada sem pessoa é descartada (nunca lança). */
+export function sanitizeComposicao(raw: unknown): MembroColegiado[] {
+    return (Array.isArray(raw) ? raw : []).map((x) => {
+        const m = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+        return {
+            uid: typeof m.uid === 'string' ? m.uid.slice(0, 128) : '',
+            funcao: FUNCOES_COLEGIADO.includes(m.funcao as FuncaoColegiado) ? (m.funcao as FuncaoColegiado) : 'titular',
+            inicio: data(m.inicio),
+            fim: data(m.fim),
+            representa: texto(m.representa, 80),
+        };
+    }).filter((m) => m.uid).slice(0, MAX_COMPOSICAO);
+}
+
+/** O mandato vale na data (AAAA-MM-DD)? */
+export const vigente = (m: MembroColegiado, dia: string) => (!m.inicio || m.inicio <= dia) && (!m.fim || m.fim >= dia);
+
+/** Quem compõe o colegiado na data, do presidente aos suplentes. */
+export function composicaoEm(composicao: MembroColegiado[], dia: string): MembroColegiado[] {
+    return composicao.filter((m) => vigente(m, dia)).sort((a, b) => FUNCOES_COLEGIADO.indexOf(a.funcao) - FUNCOES_COLEGIADO.indexOf(b.funcao));
+}
+
+const cruzam = (a: MembroColegiado, b: MembroColegiado) => (!a.inicio || !b.fim || a.inicio <= b.fim) && (!b.inicio || !a.fim || b.inicio <= a.fim);
+
+/**
+ * Confere a composição ao gravar: fim depois do início, a mesma pessoa uma
+ * vez só em cada período e um presidente e um vice por vez. Lança com a
+ * explicação; `nome(uid)` dá o nome para a mensagem.
+ */
+export function conferirComposicao(composicao: MembroColegiado[], nome: (uid: string) => string = (u) => u): MembroColegiado[] {
+    composicao.forEach((m, i) => {
+        if (m.inicio && m.fim && m.fim < m.inicio) throw new Error(`O mandato de ${nome(m.uid)} termina antes de começar`);
+        for (const o of composicao.slice(i + 1)) {
+            if (!cruzam(m, o)) continue;
+            if (o.uid === m.uid) throw new Error(`${nome(m.uid)} aparece duas vezes no mesmo período. Encerre um mandato antes de começar o outro.`);
+            if (o.funcao === m.funcao && (m.funcao === 'presidente' || m.funcao === 'vice')) {
+                throw new Error(`Há dois ${m.funcao === 'presidente' ? 'presidentes' : 'vice-presidentes'} no mesmo período (${nome(m.uid)} e ${nome(o.uid)})`);
+            }
+        }
+    });
+    return composicao;
+}
 
 export function sanitizeOrgao(raw: unknown, id: string, ordem = 0): Orgao {
     const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -66,6 +132,7 @@ export function sanitizeOrgao(raw: unknown, id: string, ordem = 0): Orgao {
         titular_uid: typeof o.titular_uid === 'string' && o.titular_uid ? o.titular_uid.slice(0, 128) : null,
         admins_uids: [...new Set((Array.isArray(o.admins_uids) ? o.admins_uids : []).filter((x): x is string => typeof x === 'string' && !!x).map((x) => x.slice(0, 128)))].slice(0, MAX_ADMINS_ORGAO),
         competencias: sanitizeCompetencias(o.competencias),
+        composicao: sanitizeComposicao(o.composicao),
         descricao: texto(o.descricao, 1000),
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,
