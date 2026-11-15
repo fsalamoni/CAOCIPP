@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CheckCircle2, Gavel, Loader2, Lock, Megaphone, Send, UserRound } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ClipboardList, Eye, Gavel, Hourglass, Loader2, Lock, Megaphone, Send, Undo2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { secProcesso } from '@/services/secretariaService';
-import { MODOS_VOTO, br, textoDoVoto } from '@/lib/sessoes';
+import { MODOS_VOTO, br, juntarNomes, textoDoVoto } from '@/lib/sessoes';
 import AjudaTermo from './AjudaTermo';
 import ErroQuery from './ErroQuery';
 
@@ -118,6 +118,93 @@ function Votar({ orgId, sessaoId, d, onMudou }) {
     );
 }
 
+/** Confirmação de vista, devolução, adiamento ou diligência; com `minimo`, pede o texto que vai à certidão. */
+function Confirmar({ titulo, descricao, botao, rotulo, minimo, indo, onFechar, onConfirmar }) {
+    const [texto, setTexto] = useState('');
+    return (
+        <Dialog open onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-md w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader><DialogTitle>{titulo}</DialogTitle><DialogDescription>{descricao}</DialogDescription></DialogHeader>
+                {minimo > 0 && (
+                    <div>
+                        <Label htmlFor="vt-motivo">{rotulo}</Label>
+                        <Textarea id="vt-motivo" rows={3} maxLength={2000} className="mt-1" value={texto} onChange={(e) => setTexto(e.target.value)} />
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Vai para a certidão nos autos, que as partes veem.</p>
+                    </div>
+                )}
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={onFechar}>Voltar</Button>
+                    <Button disabled={indo || texto.trim().length < (minimo || 0)} onClick={() => onConfirmar(texto.trim())}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}{botao}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+const continuaEm = (r) => (r?.continua_em ? `O julgamento continua na ${r.continua_em.titulo}, em ${br(r.continua_em.data)}.` : 'Ele entra na próxima sessão do colegiado que for marcada.');
+
+/**
+ * Vista, adiamento e conversão em diligência (S5): o julgamento sai desta
+ * sessão e continua em outra, com o mesmo relator (e, salvo na diligência, com
+ * os votos já dados).
+ */
+function Andamento({ d, indo, acao }) {
+    const [aberto, setAberto] = useState(null); // 'vista' | 'juntar' | 'devolver' | 'adiar' | 'diligencia'
+    const fechar = () => setAberto(null);
+    const ir = async (nome, extra, ok) => { if (await acao(nome, extra, ok)) fechar(); };
+    const v = d.vista;
+    const algo = v || ['adiado', 'diligencia'].includes(d.situacao_item) || d.pode.vista || d.pode.adiar;
+    if (!algo) return null;
+    const dias = d.vista_dias;
+    return (
+        <section className={caixa} aria-labelledby="vt-andamento">
+            <h3 id="vt-andamento" className={titulo}><Hourglass className="w-4 h-4" aria-hidden /> Vista, adiamento e diligência <AjudaTermo id="vista" /></h3>
+            {v && !v.encerrada && (
+                <div className="rounded-md bg-violet-50 dark:bg-violet-950/40 p-3 text-sm text-violet-900 dark:text-violet-100 space-y-1" role="status">
+                    <p className="font-semibold">Vista para {juntarNomes(v.nomes)}, até {br(v.prazo)}{v.vencida ? ' (prazo vencido)' : ''}.</p>
+                    <p>O julgamento está suspenso e os votos já dados continuam valendo. Com a devolução, o processo vai para a próxima sessão do colegiado, com o mesmo relator.</p>
+                    {v.vencida && (d.gere || d.preside) && !v.minha && <p>Vencido o prazo, a secretaria ou o presidente pode requisitar o processo: devolva a vista por quem a pediu, ou inclua o processo direto em outra sessão.</p>}
+                </div>
+            )}
+            {v?.encerrada && <p className="text-sm text-slate-700 dark:text-slate-300">{v.devolvida ? `Vista de ${juntarNomes(v.nomes)}, devolvida. O julgamento continua em outra sessão.` : `Houve pedido de vista de ${juntarNomes(v.nomes)}.`}</p>}
+            {d.situacao_item === 'adiado' && <p className="text-sm text-slate-700 dark:text-slate-300">Julgamento adiado{d.motivo ? `: ${d.motivo}` : ''}. Continua em outra sessão, com o relator e os votos já dados.</p>}
+            {d.situacao_item === 'diligencia' && <p className="text-sm text-slate-700 dark:text-slate-300">Convertido em diligência{d.motivo ? `: ${d.motivo}` : ''}. O processo voltou à unidade; cumprida a diligência, vai a nova pauta com o mesmo relator, e os votos recomeçam.</p>}
+            <div className="flex flex-wrap gap-2">
+                {d.pode.vista && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('vista')}><Eye className="w-4 h-4" aria-hidden /> Pedir vista</Button>}
+                {d.pode.juntar_vista && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('juntar')}><Eye className="w-4 h-4" aria-hidden /> Pedir vista também</Button>}
+                {d.pode.devolver_vista && <Button className="gap-1" disabled={indo} onClick={() => setAberto('devolver')}><Undo2 className="w-4 h-4" aria-hidden /> {v?.minha ? 'Devolver a vista' : 'Requisitar o processo'}</Button>}
+                {d.pode.adiar && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('adiar')}><CalendarClock className="w-4 h-4" aria-hidden /> Adiar o julgamento</Button>}
+                {d.pode.adiar && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('diligencia')}><ClipboardList className="w-4 h-4" aria-hidden /> Converter em diligência</Button>}
+            </div>
+            {aberto === 'vista' && (
+                <Confirmar titulo="Pedir vista?" botao="Pedir vista" indo={indo} onFechar={fechar}
+                    descricao={`O julgamento fica suspenso, e você tem ${dias} dias para examinar o processo e devolver. Os votos já dados continuam valendo. O pedido vai aos autos na certidão de vista, e as partes são avisadas.`}
+                    onConfirmar={() => ir('sessaoVista', {}, (r) => `Vista pedida, até ${br(r.prazo)}`)} />
+            )}
+            {aberto === 'juntar' && (
+                <Confirmar titulo="Pedir vista também?" botao="Pedir vista" indo={indo} onFechar={fechar}
+                    descricao={`A vista é coletiva: você se junta ao pedido de ${juntarNomes(v.nomes)}, no mesmo prazo, até ${br(v.prazo)}.`}
+                    onConfirmar={() => ir('sessaoVista', {}, () => 'Você também está com vista')} />
+            )}
+            {aberto === 'devolver' && (
+                <Confirmar titulo={v?.minha ? 'Devolver a vista?' : 'Requisitar o processo?'} botao={v?.minha ? 'Devolver' : 'Requisitar'} indo={indo} onFechar={fechar}
+                    descricao="O processo vai para a próxima sessão do colegiado já marcada (extrapauta, se a pauta dela já foi publicada), com o mesmo relator e os votos já dados. A devolução vai aos autos, e as partes são avisadas."
+                    onConfirmar={() => ir('sessaoDevolverVista', {}, (r) => `Vista devolvida. ${continuaEm(r)}`)} />
+            )}
+            {aberto === 'adiar' && (
+                <Confirmar titulo="Adiar o julgamento?" botao="Adiar" rotulo="Motivo do adiamento" minimo={5} indo={indo} onFechar={fechar}
+                    descricao="O processo sai desta sessão e vai para a próxima do colegiado, com o mesmo relator e os votos já dados."
+                    onConfirmar={(motivo) => ir('sessaoAdiar', { motivo }, (r) => `Julgamento adiado. ${continuaEm(r)}`)} />
+            )}
+            {aberto === 'diligencia' && (
+                <Confirmar titulo="Converter o julgamento em diligência?" botao="Converter" rotulo="O que a diligência deve fazer" minimo={10} indo={indo} onFechar={fechar}
+                    descricao="O processo sai desta sessão e volta à unidade, com a orientação na capa. Cumprida a diligência, a secretaria o inclui em nova pauta: o relator continua, e os votos recomeçam, porque o processo mudou."
+                    onConfirmar={(motivo) => ir('sessaoDiligencia', { motivo }, () => 'Convertido em diligência. A orientação está na capa do processo.')} />
+            )}
+        </section>
+    );
+}
+
 /**
  * Julgamento de um processo da pauta: relator, voto liberado, votos dos pares
  * com placar ao vivo e proclamação. Cada um vê e faz o que o seu papel permite.
@@ -128,7 +215,7 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
     // Ao vivo: enquanto a votação está aberta, a tela se atualiza sozinha.
     const q = useQuery({
         queryKey: chave, queryFn: () => secProcesso(orgId, 'sessaoVotacao', { id: sessaoId, processo_id: processoId }),
-        refetchInterval: (query) => (query.state.data?.liberado_em && !query.state.data?.proclamado ? 10000 : false),
+        refetchInterval: (query) => (query.state.data?.liberado_em && !query.state.data?.proclamado && query.state.data?.situacao_item === 'pautado' ? 10000 : false),
     });
     const [indo, setIndo] = useState(false);
     const [proclamar, setProclamar] = useState(false);
@@ -158,7 +245,7 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                                 <p className="text-xs">Por {d.proclamado.por_nome}, em {new Date(d.proclamado.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}. {d.registrado ? 'A certidão de julgamento já está nos autos.' : 'A unidade registra o julgamento no processo com estes votos.'}</p>
                             </div>
                         )}
-                        {!d.pendente && !d.proclamado && <p className="text-sm text-slate-700 dark:text-slate-300">O processo não tem mais o julgamento pendente nesta sessão (foi julgado, retirado ou mudou de fase).</p>}
+                        {!d.pendente && !d.proclamado && d.situacao_item === 'pautado' && <p className="text-sm text-slate-700 dark:text-slate-300">O processo não tem mais o julgamento pendente nesta sessão (foi julgado, retirado ou mudou de fase).</p>}
 
                         <section className={caixa} aria-labelledby="vt-relator">
                             <h3 id="vt-relator" className={titulo}><UserRound className="w-4 h-4" aria-hidden /> Relator <AjudaTermo id="relator" /></h3>
@@ -211,8 +298,13 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                                 <Button className="gap-1" disabled={indo || !!d.previa?.erro} onClick={() => setProclamar(true)}><Megaphone className="w-4 h-4" aria-hidden /> Proclamar o resultado</Button>
                             </section>
                         )}
-                        {!d.pode.proclamar && d.liberado_em && !d.proclamado && d.pendente && (d.preside || d.gere) && d.data_sessao > d.hoje && (
+                        {!d.pode.proclamar && d.liberado_em && !d.proclamado && d.pendente && d.situacao_item === 'pautado' && (d.preside || d.gere) && d.data_sessao > d.hoje && (
                             <p className="text-xs text-slate-600 dark:text-slate-400">A proclamação abre no dia da sessão, {br(d.data_sessao)}.</p>
+                        )}
+
+                        <Andamento d={d} indo={indo} acao={acao} />
+                        {d.liberado_em && !d.proclamado && d.pendente && d.situacao_item === 'pautado' && !d.pode.vista && !d.pode.adiar && d.sou_relator && (
+                            <p className="text-xs text-slate-600 dark:text-slate-400">Os vogais podem pedir vista; o presidente pode adiar o julgamento ou convertê-lo em diligência.</p>
                         )}
                     </div>
                 )}

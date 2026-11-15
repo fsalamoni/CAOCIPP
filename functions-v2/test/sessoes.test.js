@@ -85,3 +85,19 @@ test('votação na sessão: quem vota, voto do vogal, votos para o registro e pl
     const cfg = { resultados: R, desempate: 'presidente' };
     assert.match(textoDoJulgamento(cfg, dadosDoJulgamento(cfg, { data: '2026-11-20', votos }, '2026-11-20')), /^Improcedente, pelo voto de desempate do presidente \(1 a 1\).*Ausente: Tit/);
 });
+
+test('vista, adiamento e diligência: prazo do colegiado e certidões (S5)', () => {
+    const { prazoDaVista, textoDaVista, textoDaDevolucao, textoDoAdiamento, textoDaDiligencia } = require('../lib/shared/sessoes');
+    // Ausente = 10 dias (padrão do CPC); só se guarda o que difere.
+    assert.equal(sanitizeRegrasSessao({ antecedencia: 2, vista_dias: 10 }).vista_dias, undefined);
+    assert.equal(sanitizeRegrasSessao({ vista_dias: 15 }).vista_dias, 15);
+    assert.equal(sanitizeRegrasSessao({ vista_dias: 500 }).vista_dias, undefined);
+    assert.equal(prazoDaVista('2026-11-16', { antecedencia: 0, contagem: 'corridos' }), '2026-11-26');
+    assert.equal(prazoDaVista('2026-11-16', { antecedencia: 0, contagem: 'corridos', vista_dias: 3 }), '2026-11-19');
+    const s = { titulo: '1ª Sessão Ordinária', data: '2026-11-16' };
+    assert.match(textoDaVista(s, ['Ana', 'Bruno'], '2026-11-26'), /^Pedido de vista por Ana e Bruno na 1ª Sessão Ordinária, de 16\/11\/2026\. .*até 26\/11\/2026\.$/);
+    assert.match(textoDaDevolucao(['Ana'], { titulo: '2ª Sessão', data: '2026-12-01' }), /continua na 2ª Sessão, de 01\/12\/2026\.$/);
+    assert.match(textoDaDevolucao(['Ana'], null), /próxima sessão do colegiado\.$/);
+    assert.match(textoDoAdiamento(s, 'falta de quórum'), /Motivo: falta de quórum\.$/);
+    assert.match(textoDaDiligencia(s, 'Ouvir a testemunha indicada.'), /em diligência .*: Ouvir a testemunha indicada\.$/);
+});

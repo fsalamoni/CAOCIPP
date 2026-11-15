@@ -1533,6 +1533,53 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Vista, adiamento e conversão em diligência (15/11/2026)
+
+Quinta etapa (S5). O julgamento pode sair da sessão sem resultado e
+continuar em outra, como nos tribunais (CPC, arts. 935, 938 e 940, por
+analogia), e tudo vai aos autos.
+
+- **Onde:** ações `sessaoVista`, `sessaoDevolverVista`, `sessaoAdiar` e
+  `sessaoDiligencia` (`secretaria/votacao.ts`). Textos das certidões e prazo
+  em `shared/sessoes.ts` (`prazoDaVista`, `textoDaVista`, `textoDaDevolucao`,
+  `textoDoAdiamento`, `textoDaDiligencia`); movimentos `vista`,
+  `vista_devolvida`, `adiamento` e `diligencia`, todos visíveis às partes e
+  avisados por e-mail (contam como "prazos e decisões" na preferência).
+- **Prazo de vista:** `orgao.pauta.vista_dias` (1 a 90; ausente = 10, como
+  no CPC), contado como a antecedência da pauta (dias úteis ou corridos, com
+  o calendário do órgão). Edita-se em Órgãos, na "Pauta das sessões".
+- **Pedir vista:** quem vota no dia (presidente e titulares), menos o
+  relator, depois que o relator liberou o voto e antes da proclamação, com a
+  pauta publicada. O item fica `vista` (com `vista.nomes` e `vista.prazo`),
+  o processo perde `sessao` e ganha `vista {sessao_id, orgao_id, sessao,
+  colegiado, uids, nomes, desde, prazo}` e `julgamento_em_curso {sessao_id,
+  manter_votos: true, relator}`. Outro membro pode se juntar no mesmo prazo
+  (vista coletiva), sem nova certidão.
+- **Devolver:** quem pediu, a qualquer tempo; vencido o prazo, também o
+  presidente ou a secretaria ("Requisitar o processo"). O sistema procura a
+  próxima sessão ativa do colegiado com vaga (`proximaSessao`): em rascunho,
+  o processo entra na pauta; com a pauta publicada, entra em extrapauta com
+  o motivo "retorno de vista" e recebe a certidão de inclusão. Sem sessão
+  marcada, fica aguardando, e a secretaria o inclui quando marcar. Vencido o
+  prazo sem devolução, a secretaria pode incluí-lo direto em outra sessão
+  (requisição); antes, `sessaoIncluir` recusa.
+- **Adiar:** o presidente ou a secretaria, com motivo (mínimo 5 letras). Item
+  `adiado`; o processo segue para a próxima sessão como na devolução, com o
+  relator e os votos já dados.
+- **Diligência:** o presidente ou a secretaria, dizendo o que fazer (mínimo
+  10 letras). Item `diligencia`; o processo volta à unidade com a orientação
+  na capa (`orientacao`) e, cumprida a diligência, a secretaria o inclui em
+  nova pauta: o relator continua, os votos recomeçam (`manter_votos: false`).
+- **Votos que seguem:** ao entrar na nova sessão (`incluirNaSessao`), a
+  votação é copiada com `proclamado: null` e `continua_de`; os vogais podem
+  mudar o voto até a proclamação. O relator vem junto.
+- **Telas:** no diálogo Julgamento, a seção "Vista, adiamento e diligência"
+  mostra o estado e os botões de cada papel; na pauta, selos "Pedido de
+  vista", "Adiado" e "Convertido em diligência", com o motivo; entre os aptos,
+  o aviso de vista (no prazo, bloqueado; vencida, requisição) e de julgamento
+  já iniciado; na capa do processo, "Julgamento suspenso por vista".
+- **Glossário:** vista.
+
 ### Votação na sessão: relator, vogais e proclamação (15/11/2026)
 
 Quarta etapa (S4). Quem vota é o próprio julgador, na conta dele; a equipe

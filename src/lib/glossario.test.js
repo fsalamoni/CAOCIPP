@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { GLOSSARIO } from './glossario.js';
 
-const IDS = ['autos', 'autuar', 'certidao_conjunta', 'ciencia_decurso', 'dispensa', 'em_mesa', 'extrapauta', 'juntada', 'pauta', 'proclamacao', 'relator', 'remessa', 'sobrestar', 'vogal'];
+const IDS = ['autos', 'autuar', 'certidao_conjunta', 'ciencia_decurso', 'dispensa', 'em_mesa', 'extrapauta', 'juntada', 'pauta', 'proclamacao', 'relator', 'remessa', 'sobrestar', 'vista', 'vogal'];
 
 test('glossário: os termos, uma ou duas frases, sem travessão, em ordem alfabética', () => {
     assert.deepEqual(Object.keys(GLOSSARIO).sort(), IDS);

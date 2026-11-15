@@ -15,7 +15,7 @@ import { visivelParaPartes } from '../shared/autos';
  * "prazos" (só prazos, decisões e situação) ou "nenhum".
  */
 
-const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'prazo_prorrogado', 'prazo_devolvido', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso', 'decurso_prazo', 'pauta', 'pauta_retirada'];
+const TIPOS_PRAZOS_DECISOES = ['prazo', 'prazo_encerrado', 'prazo_prorrogado', 'prazo_devolvido', 'pendencia_resolvida', 'situacao', 'fase', 'comunicacao', 'ciencia_decurso', 'decurso_prazo', 'pauta', 'pauta_retirada', 'vista', 'vista_devolvida', 'adiamento', 'diligencia'];
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const br = (iso: string) => iso.split('-').reverse().join('/');
 
@@ -79,7 +79,7 @@ function rotulo(tipo: string): string {
     return ({
         juntada: 'novo documento nos autos', peticao: 'petição protocolada', fase: 'o processo mudou de fase', situacao: 'a situação do processo mudou',
         prazo: 'prazo aberto', prazo_encerrado: 'prazo encerrado', prazo_prorrogado: 'prazo prorrogado', prazo_devolvido: 'prazo devolvido', comunicacao: 'comunicação expedida, aguardando ciência', ciencia_decurso: 'ciência registrada por decurso', decurso_prazo: 'prazo encerrado sem manifestação', pendencia_resolvida: 'decisão registrada', autuacao: 'processo autuado',
-        pauta: 'processo incluído em pauta de julgamento', pauta_retirada: 'processo retirado de pauta',
+        pauta: 'processo incluído em pauta de julgamento', pauta_retirada: 'processo retirado de pauta', vista: 'pedido de vista no julgamento', vista_devolvida: 'devolução da vista', adiamento: 'julgamento adiado', diligencia: 'julgamento convertido em diligência',
     } as Record<string, string>)[tipo] || 'novo andamento';
 }
 

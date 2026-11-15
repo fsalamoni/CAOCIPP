@@ -955,6 +955,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 campos_exigidos: data.campos_exigidos || {},
                 registro_criado: data.registro_criado || null,
                 ultima_sessao: data.ultima_sessao || null,
+                // S5: vista em curso e julgamento que continua de outra sessão (equipe e julgadores; o portal não lê isto).
+                vista: data.vista ? { nomes: data.vista.nomes || [], prazo: data.vista.prazo, desde: data.vista.desde, sessao: data.vista.sessao || '', colegiado: data.vista.colegiado || '', sessao_id: data.vista.sessao_id, orgao_id: data.vista.orgao_id } : null,
+                julgamento_em_curso: data.julgamento_em_curso ? { relator_nome: data.julgamento_em_curso.relator_nome || '', manter_votos: data.julgamento_em_curso.manter_votos === true } : null,
             },
             hoje: hojeBrasil(),
             movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),

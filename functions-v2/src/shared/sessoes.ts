@@ -42,16 +42,28 @@ export interface ItemPauta {
     ordem: number;
     inclusao: Inclusao;
     motivo: string;
-    /** pautado; retirado (com motivo). Julgado e adiado chegam com a sessão aberta. */
-    situacao: 'pautado' | 'retirado';
+    /**
+     * pautado; retirado (com motivo); vista (julgamento suspenso por pedido de
+     * vista); adiado (para a sessão seguinte); diligencia (convertido em
+     * diligência). Julgado se lê do processo.
+     */
+    situacao: 'pautado' | 'retirado' | 'vista' | 'adiado' | 'diligencia';
+    /** Pedido de vista: quem pediu e até quando. */
+    vista?: { nomes: string[]; prazo: string; devolvida?: boolean };
     incluido_em: string;
     /** Relator designado pela secretaria entre quem vota no dia (S4). */
     relator_uid?: string;
     relator_nome?: string;
 }
 
-/** Antecedência mínima entre publicar a pauta e a sessão, do colegiado. Sem regra, 0 (como hoje). */
-export interface RegrasSessao { antecedencia: number; contagem: Contagem }
+/**
+ * Regras de pauta do colegiado. `antecedencia`: mínima entre publicar a pauta e
+ * a sessão (sem regra, 0). `vista_dias`: prazo do pedido de vista, na mesma
+ * contagem (sem regra, VISTA_PADRAO, como no CPC, art. 940).
+ */
+export interface RegrasSessao { antecedencia: number; contagem: Contagem; vista_dias?: number }
+export const VISTA_PADRAO = 10;
+export const MAX_VISTA = 90;
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -59,7 +71,17 @@ const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 export function sanitizeRegrasSessao(raw: unknown): RegrasSessao {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const n = Math.round(Number(r.antecedencia));
-    return { antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis' };
+    const v = Math.round(Number(r.vista_dias));
+    return {
+        antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis',
+        // Ausente = o padrão; só se guarda o que difere dele.
+        ...(Number.isFinite(v) && v >= 1 && v <= MAX_VISTA && v !== VISTA_PADRAO ? { vista_dias: v } : {}),
+    };
+}
+
+/** Último dia para devolver a vista pedida em `hoje`. */
+export function prazoDaVista(hoje: string, regras: RegrasSessao, cal?: CalendarioOrgao): string {
+    return calcularVencimento(hoje, regras.vista_dias || VISTA_PADRAO, regras.contagem, cal);
 }
 
 /** Dados da sessão conferidos; lança com a explicação. */
@@ -123,11 +145,13 @@ export function julgamentoPendente(proc: ProcParaPauta): number {
  * feito ali). Saiu do colegiado, a leitura acaba.
  */
 export function leituraDeJulgador(
-    proc: { sessao?: { orgao_id?: unknown } | null; ultima_sessao?: { orgao_id?: unknown } | null; unidade_atual?: unknown; status?: unknown },
+    proc: { sessao?: { orgao_id?: unknown } | null; ultima_sessao?: { orgao_id?: unknown } | null; vista?: { orgao_id?: unknown } | null; unidade_atual?: unknown; status?: unknown },
     compoe: string[], orgaoDaUnidade: (u: string) => unknown,
 ): boolean {
     if (!compoe.length || proc.status === 'excluido') return false;
     if (proc.sessao && compoe.includes(String(proc.sessao.orgao_id))) return true;
+    // Com vista (S5): o julgamento está suspenso, mas o colegiado segue lendo.
+    if (proc.vista && proc.status === 'em_tramitacao' && compoe.includes(String(proc.vista.orgao_id))) return true;
     const ult = proc.ultima_sessao ? String(proc.ultima_sessao.orgao_id) : '';
     return !!ult && proc.status === 'em_tramitacao' && compoe.includes(ult) && orgaoDaUnidade(String(proc.unidade_atual || '')) === ult;
 }
@@ -149,6 +173,28 @@ export function textoDaInclusao(s: DadosSessao, colegiado: string, item: Pick<It
 /** Texto da certidão de retirada (ou de cancelamento da sessão). */
 export function textoDaRetirada(s: DadosSessao, motivo: string, cancelada = false): string {
     return `${cancelada ? `A ${s.titulo}, de ${br(s.data)}, foi cancelada, e o processo saiu da pauta` : `Retirado da pauta da ${s.titulo}, de ${br(s.data)}`}. Motivo: ${motivo}.`;
+}
+
+const lista = (nomes: string[]) => (nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0] || '');
+
+/** Certidão do pedido de vista (S5). */
+export function textoDaVista(s: Pick<DadosSessao, 'titulo' | 'data'>, nomes: string[], prazo: string): string {
+    return `Pedido de vista por ${lista(nomes)} na ${s.titulo}, de ${br(s.data)}. Julgamento suspenso; os autos devem ser devolvidos até ${br(prazo)}.`;
+}
+
+/** Certidão da devolução da vista; `incluido`: a sessão em que o processo entrou, se já há. */
+export function textoDaDevolucao(nomes: string[], incluido?: Pick<DadosSessao, 'titulo' | 'data'> | null): string {
+    return `Devolvidos os autos do pedido de vista de ${lista(nomes)}. ${incluido ? `O julgamento continua na ${incluido.titulo}, de ${br(incluido.data)}.` : 'O julgamento continua na próxima sessão do colegiado.'}`;
+}
+
+/** Certidão do adiamento. */
+export function textoDoAdiamento(s: Pick<DadosSessao, 'titulo' | 'data'>, motivo: string): string {
+    return `Adiado o julgamento na ${s.titulo}, de ${br(s.data)}, para a sessão seguinte. Motivo: ${motivo}.`;
+}
+
+/** Certidão da conversão em diligência. */
+export function textoDaDiligencia(s: Pick<DadosSessao, 'titulo' | 'data'>, oQue: string): string {
+    return `O colegiado converteu o julgamento em diligência na ${s.titulo}, de ${br(s.data)}: ${oQue.replace(/[.\s]+$/, '')}.`;
 }
 
 /** Reordena a pauta com a lista de ids (os que faltam ficam no fim, na ordem atual). */

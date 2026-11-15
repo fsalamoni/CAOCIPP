@@ -86,8 +86,25 @@ export function situacaoDaVotacao(x) {
     const v = x?.votacao;
     if (!v) return '';
     if (v.proclamado) return `Proclamado: ${v.proclamado}`;
+    if (x.situacao === 'vista') return x.vista?.devolvida ? 'Vista devolvida: o julgamento continua em outra sessão' : 'Julgamento suspenso pela vista';
+    if (x.situacao && x.situacao !== 'pautado') return '';
     if (v.aguarda_meu_voto) return 'Aguarda o seu voto';
     if (v.liberado) return `${v.votaram} de ${v.vogais} ${v.vogais === 1 ? 'vogal votou' : 'vogais votaram'}`;
     if (v.sou_relator) return 'Você relata: voto a liberar';
     return x.relator_nome ? 'Voto do relator a liberar' : '';
+}
+
+// ---- Vista, adiamento e diligência (S5) ----
+
+/** Selo do item que saiu do julgamento na sessão. */
+export const SITUACAO_ITEM = { pautado: 'Pautado', retirado: 'Retirado', vista: 'Pedido de vista', adiado: 'Adiado', diligencia: 'Convertido em diligência' };
+export const ROTULO_MOTIVO = { pautado: 'Motivo da inclusão', retirado: 'Motivo da retirada', adiado: 'Motivo do adiamento', diligencia: 'Diligência determinada' };
+
+/** Lista de nomes em português: "Ana", "Ana e Bruno", "Ana, Bruno e Carla". */
+export const juntarNomes = (nomes = []) => (nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0] || '');
+
+/** "Vista: Ana e Bruno, até 25/11/2026." ou "Vista de Ana, devolvida." */
+export function textoDaVistaNaPauta(v) {
+    if (!v?.nomes?.length) return '';
+    return v.devolvida ? `Vista de ${juntarNomes(v.nomes)}, devolvida.` : `Vista: ${juntarNomes(v.nomes)}, até ${br(v.prazo)}.`;
 }

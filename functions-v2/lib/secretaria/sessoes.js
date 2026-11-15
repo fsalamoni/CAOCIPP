@@ -6,6 +6,9 @@ exports.veSessoes = veSessoes;
 exports.lerConfig = lerConfig;
 exports.colegiado = colegiado;
 exports.lerSessao = lerSessao;
+exports.lerContinuacao = lerContinuacao;
+exports.proximaSessao = proximaSessao;
+exports.incluirNaSessao = incluirNaSessao;
 exports.registrarLeitura = registrarLeitura;
 exports.leiturasDoProcesso = leiturasDoProcesso;
 exports.acaoAnotacao = acaoAnotacao;
@@ -82,6 +85,46 @@ const marcaNoProcesso = (id, s, orgao, item) => ({
     id, titulo: s.titulo, data: s.data, hora: s.hora, modo: s.modo, local: s.local, link: s.link,
     orgao_id: orgao.id, colegiado: orgao.nome, inclusao: item.inclusao,
 });
+/**
+ * Julgamento que continua de outra sessão (S5: vista, adiamento, diligência):
+ * `proc.julgamento_em_curso` diz de qual sessão e se os votos seguem. Lido na
+ * transação, antes de qualquer escrita.
+ */
+async function lerContinuacao(tx, c, pid, proc) {
+    const j = proc.julgamento_em_curso;
+    if (!(j === null || j === void 0 ? void 0 : j.sessao_id))
+        return null;
+    const v = j.manter_votos ? (await tx.get(c.db.collection(exports.COL_SESSOES).doc(j.sessao_id).collection('votacoes').doc(pid))).data() : undefined;
+    return { de: j.sessao_id, v, relator_uid: j.relator_uid || '', relator_nome: j.relator_nome || '' };
+}
+/** Próxima sessão ativa do colegiado depois de `depoisDe`, onde o julgamento continua. Lida na transação. */
+async function proximaSessao(tx, c, orgaoId, excluir, depoisDe) {
+    const q = await tx.get(c.db.collection(exports.COL_SESSOES).where('organization_id', '==', c.orgId).where('orgao_id', '==', orgaoId).where('ativa', '==', true));
+    const hoje = (0, secretaria_1.hojeBrasil)();
+    return q.docs.map((d) => ({ ref: d.ref, s: d.data() }))
+        .filter((x) => x.ref.id !== excluir && x.s.data > depoisDe && x.s.data >= hoje && (x.s.pauta || []).filter((i) => i.situacao === 'pautado').length < sessoes_1.MAX_PAUTA)
+        .sort((a, b) => `${a.s.data}T${a.s.hora}`.localeCompare(`${b.s.data}T${b.s.hora}`))[0] || null;
+}
+/**
+ * Põe o processo na pauta (só escritas): o item, a votação que continua e,
+ * com a pauta publicada, a certidão de inclusão. Devolve o que o processo
+ * recebe (o chamador grava, junto com o que mais mudar nele).
+ */
+function incluirNaSessao(tx, c, alvo, o, pref, proc, inclusao, motivo, cont) {
+    var _a;
+    const { ref, s } = alvo;
+    const pauta = (s.pauta || []).filter((x) => x.processo_id !== pref.id);
+    const relator = ((_a = cont === null || cont === void 0 ? void 0 : cont.v) === null || _a === void 0 ? void 0 : _a.relator_uid) ? { relator_uid: cont.v.relator_uid, relator_nome: cont.v.relator_nome } : (cont === null || cont === void 0 ? void 0 : cont.relator_uid) ? { relator_uid: cont.relator_uid, relator_nome: cont.relator_nome } : {};
+    const item = Object.assign({ processo_id: pref.id, numero: String(proc.numero || ''), assunto: String(proc.assunto || '').slice(0, 200), ordem: pauta.length + 1, inclusao, motivo, situacao: 'pautado', incluido_em: new Date().toISOString() }, relator);
+    // Os votos já dados seguem (e podem mudar até a proclamação); o resultado de lá não.
+    if (cont === null || cont === void 0 ? void 0 : cont.v)
+        tx.set(ref.collection('votacoes').doc(pref.id), Object.assign(Object.assign({}, cont.v), { proclamado: null, continua_de: cont.de }));
+    tx.update(ref, { pauta: [...pauta, item], processos_ids: [...new Set([...(s.processos_ids || []), pref.id])], version: (s.version || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp() });
+    if (s.situacao !== 'publicada')
+        return {};
+    const mov = (0, context_1.registrarMovimento)(tx, c, pref, proc, 'pauta', (0, sessoes_1.textoDaInclusao)(s, o.nome, item), { sessao_id: ref.id, inclusao });
+    return Object.assign(Object.assign({}, mov), { sessao: marcaNoProcesso(ref.id, s, o, item), julgamento_em_curso: firestore_1.FieldValue.delete(), vista: firestore_1.FieldValue.delete() });
+}
 /** Leitura dos autos pelo julgador, pela pauta: registrada fora dos autos (secProcessos/{id}/leituras). */
 async function registrarLeitura(c, ref, proc, oQue) {
     const s = proc.sessao || proc.ultima_sessao || {};
@@ -166,7 +209,7 @@ async function acaoSessao(c, p) {
             // Sigilo restrito: quem não vê os autos não vê o assunto nem as partes.
             const aberto = !!d && (abre || d.sigilo !== 'restrito');
             const julgado = !!d && ((_a = d.ultima_sessao) === null || _a === void 0 ? void 0 : _a.id) === ref.id && ((_b = d.sessao) === null || _b === void 0 ? void 0 : _b.id) !== ref.id;
-            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists, relator_nome: x.relator_nome || '', votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, quemVota, x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
+            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists, relator_nome: x.relator_nome || '', votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
         });
         return {
             hoje,
@@ -214,6 +257,9 @@ async function acaoSessao(c, p) {
                 id: d.id, numero: x.numero, assunto: x.assunto, urgente: x.urgente === true, autuado_em: x.autuado_em || null,
                 fase_nome: (fase === null || fase === void 0 ? void 0 : fase.nome) || '', acao: ((_a = fase === null || fase === void 0 ? void 0 : fase.acoes) === null || _a === void 0 ? void 0 : _a[idx]) || 'Julgamento', unidade_atual: x.unidade_atual,
                 em_pauta: emPauta.get(d.id) || null,
+                // S5: com vista, só entra em pauta depois da devolução ou do fim do prazo; julgamento que continua leva relator e votos.
+                vista: x.vista ? { nomes: x.vista.nomes || [], prazo: x.vista.prazo, vencida: x.vista.prazo < hoje } : null,
+                continua: x.julgamento_em_curso ? { relator_nome: x.julgamento_em_curso.relator_nome || '', manter_votos: x.julgamento_em_curso.manter_votos === true } : null,
             };
         }).filter(Boolean);
         return { processos };
@@ -295,6 +341,11 @@ async function acaoSessao(c, p) {
             if (outra || (proc.sessao && proc.sessao.id !== ref.id)) {
                 throw new https_1.HttpsError('failed-precondition', `O processo ${proc.numero} já está na pauta da ${(outra === null || outra === void 0 ? void 0 : outra.data().titulo) || ((_a = proc.sessao) === null || _a === void 0 ? void 0 : _a.titulo)}. Retire de lá antes.`);
             }
+            // Com vista no prazo, o processo espera a devolução; vencido o prazo, a secretaria o requisita incluindo-o (CPC, art. 940, § 1º).
+            const vista = proc.vista;
+            if ((vista === null || vista === void 0 ? void 0 : vista.prazo) && vista.prazo >= hoje) {
+                throw new https_1.HttpsError('failed-precondition', `O processo ${proc.numero} está com vista para ${(vista.nomes || []).join(', ')} até ${vista.prazo.split('-').reverse().join('/')}. Ele volta à pauta com a devolução, ou depois do prazo.`);
+            }
             const publicada = s.situacao === 'publicada';
             const inclusao = publicada ? (p.inclusao === 'mesa' ? 'mesa' : 'extrapauta') : 'pauta';
             if (publicada) {
@@ -302,19 +353,13 @@ async function acaoSessao(c, p) {
                 if (s.data < hoje)
                     throw new https_1.HttpsError('failed-precondition', 'A sessão já passou');
             }
-            const item = {
-                processo_id: pref.id, numero: String(proc.numero || ''), assunto: String(proc.assunto || '').slice(0, 200),
-                ordem: pauta.length + 1, inclusao, motivo: publicada ? motivo : '', situacao: 'pautado', incluido_em: new Date().toISOString(),
-            };
-            const sem = pauta.filter((x) => x.processo_id !== pref.id);
-            const nova = [...sem, Object.assign(Object.assign({}, item), { ordem: sem.length + 1 })];
+            const cont = await lerContinuacao(tx, c, pref.id, proc);
+            const patch = incluirNaSessao(tx, c, { ref, s: Object.assign(Object.assign({}, s), { pauta }) }, o, pref, proc, inclusao, publicada ? motivo : '', cont);
             if (publicada) {
-                const mov = (0, context_1.registrarMovimento)(tx, c, pref, proc, 'pauta', (0, sessoes_1.textoDaInclusao)(s, o.nome, item), { sessao_id: ref.id, inclusao });
-                tx.update(pref, Object.assign(Object.assign({}, mov), { sessao: marcaNoProcesso(ref.id, s, o, item) }));
+                tx.update(pref, patch);
                 avisar.push(pref.id);
             }
-            tx.update(ref, Object.assign({ pauta: nova, processos_ids: [...new Set([...(s.processos_ids || []), pref.id])] }, versao));
-            auditoria = ['SECRETARIA_SESSAO_PAUTA_INCLUIDA', { sessao_id: ref.id, processo_id: pref.id, numero: item.numero, inclusao }];
+            auditoria = ['SECRETARIA_SESSAO_PAUTA_INCLUIDA', { sessao_id: ref.id, processo_id: pref.id, numero: String(proc.numero || ''), inclusao }];
             return { ok: true };
         }
         if (p.action === 'sessaoTirar') {
@@ -359,7 +404,8 @@ async function acaoSessao(c, p) {
             });
             procs.forEach((snap, i) => {
                 const mov = (0, context_1.registrarMovimento)(tx, c, refs[i], snap.data(), 'pauta', (0, sessoes_1.textoDaInclusao)(s, o.nome, itens[i]), { sessao_id: ref.id, inclusao: 'pauta' });
-                tx.update(refs[i], Object.assign(Object.assign({}, mov), { sessao: marcaNoProcesso(ref.id, s, o, itens[i]) }));
+                // O julgamento que vinha de outra sessão continua nesta (a votação foi trazida na inclusão).
+                tx.update(refs[i], Object.assign(Object.assign({}, mov), { sessao: marcaNoProcesso(ref.id, s, o, itens[i]), julgamento_em_curso: firestore_1.FieldValue.delete(), vista: firestore_1.FieldValue.delete() }));
                 avisar.push(refs[i].id);
             });
             tx.update(ref, Object.assign({ situacao: 'publicada', publicada_em: new Date().toISOString(), publicada_por: quem.uid, publicada_por_nome: quem.nome }, versao));
