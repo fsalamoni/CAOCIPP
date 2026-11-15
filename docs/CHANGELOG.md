@@ -5,6 +5,11 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Guia do rito para todos
+- O Guia do rito agora fica no alto da tela do Processo Eletrônico, para toda a equipe.
+- Também fica na Central de Ajuda (link direto `#guia-do-rito`), para qualquer usuário da plataforma.
+- Antes, ele só aparecia no editor de rito.
+
 ### 14/11/2026 — Tipo de processo que cria o registro
 - O tipo de processo pode **criar um registro numa página própria** ao autuar
   (aba Dados, "Criar registro na autuação"): escolhe a página, a fase em que

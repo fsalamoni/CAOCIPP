@@ -1561,6 +1561,15 @@ Nenhum modelo é penal. O catálogo completo, com descrição, quando usar, base
 - **Conferência automática:** em `src/lib/bibliotecaRitos.test.js` e `functions-v2/test/bibliotecaRitos.test.js`. Cobre o fluxo, as condições, as esperas, o diagrama, a aceitação pelo servidor sem perda de configuração, os metadados, a ausência de conteúdo penal e o tipo de cada modelo. O e2e abre cada modelo na tela e confere que nenhum chega com pendência que impeça implantar.
 - **Guia do rito:** nova parte "16. Começar de um modelo da biblioteca".
 
+### Guia do rito para todos (15/11/2026)
+
+O Guia do rito (`GuiaRito.jsx`) não fica só no editor de rito. Ele também aparece:
+
+- no alto da tela do Processo Eletrônico, ao lado da Ajuda, para quem usa o módulo;
+- na Central de Ajuda, seção Processo Eletrônico (`#guia-do-rito`), para qualquer usuário da plataforma, mesmo sem o módulo ligado.
+
+Na Central de Ajuda o componente é carregado sob demanda (`lazy`). O link `Help#guia-do-rito` já abre o guia (`inicial`). O conteúdo é o mesmo nos três lugares, e nada nele é dado do órgão.
+
 ### Guia de implantação (14/11/2026)
 
 O botão **Guia de implantação** fica em Painel Administrativo > Processo Eletrônico, ao lado de "Ver como a equipe e a parte", e só aparece para quem administra. O componente é `GuiaImplantacao.jsx`. O texto é o mesmo de [GUIA_IMPLANTACAO.md](GUIA_IMPLANTACAO.md) e cobre:
