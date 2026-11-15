@@ -50,3 +50,23 @@ test('órgão: ativo false é preservado e ausente vale true (desativar em vez d
     assert.equal(sanitizeOrgao({ nome: 'A' }, 'a').ativo, true);
     assert.equal(orgaosDe([{ id: 'a', nome: 'A', ativo: false }])[0].ativo, false);
 });
+
+test('colegiado: composição com mandatos, quem compõe em cada data e conflitos', () => {
+    const { sanitizeComposicao, composicaoEm, conferirComposicao } = require('../lib/shared/orgaos');
+    const c = sanitizeComposicao([
+        { uid: 'ana', funcao: 'presidente', inicio: '2025-01-01', fim: '2026-06-30' },
+        { uid: 'bia', funcao: 'presidente', inicio: '2026-07-01' },
+        { uid: 'caio', funcao: 'xx', representa: ' OAB ', inicio: '31/12/2025' },
+        { uid: 'davi', funcao: 'suplente' }, { funcao: 'titular' },
+    ]);
+    assert.equal(c.length, 4, 'entrada sem pessoa sai');
+    assert.deepEqual([c[2].funcao, c[2].representa, c[2].inicio], ['titular', 'OAB', ''], 'função e data inválidas caem no padrão');
+    assert.deepEqual(composicaoEm(c, '2026-03-01').map((m) => m.uid), ['ana', 'caio', 'davi']);
+    assert.deepEqual(composicaoEm(c, '2026-08-01').map((m) => m.uid), ['bia', 'caio', 'davi']);
+    assert.equal(conferirComposicao(c).length, 4, 'presidentes em períodos seguidos não conflitam');
+    const nome = (u) => u.toUpperCase();
+    assert.throws(() => conferirComposicao(sanitizeComposicao([{ uid: 'ana', funcao: 'presidente' }, { uid: 'bia', funcao: 'presidente', inicio: '2026-01-01' }]), nome), /dois presidentes no mesmo período \(ANA e BIA\)/);
+    assert.throws(() => conferirComposicao(sanitizeComposicao([{ uid: 'ana', fim: '2026-12-31' }, { uid: 'ana', funcao: 'suplente', inicio: '2026-12-31' }]), nome), /ANA aparece duas vezes/);
+    assert.throws(() => conferirComposicao(sanitizeComposicao([{ uid: 'ana', inicio: '2026-05-01', fim: '2026-04-01' }]), nome), /termina antes de começar/);
+    assert.deepEqual(sanitizeOrgao({ nome: 'Conselho' }, 'cs').composicao, [], 'sem o campo, nada muda');
+});

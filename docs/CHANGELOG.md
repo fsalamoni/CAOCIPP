@@ -5,6 +5,12 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Composição dos colegiados
+- Primeira etapa do plano de sessões de julgamento, reuniões e pregão.
+- O órgão que decide em colegiado passa a ter a **composição**: presidente, vice, titulares e suplentes, cada um com a sua conta, o mandato e o que representa.
+- Mandatos encerrados ficam guardados, como histórico de quem compôs o colegiado em cada data. O sistema recusa dois presidentes ao mesmo tempo e a mesma pessoa duas vezes no mesmo período.
+- O **Registrar julgamento** já vem com os membros do dia do colegiado da unidade.
+
 ### 15/11/2026 — Julgamento colegiado no rito
 - Nova opção de ação, **Julgar em colegiado (votos)**, para turma, câmara, comissão, conselho ou plenário.
 - O rito diz os resultados possíveis, o quórum e quem desempata (o presidente, ou o resultado mais favorável à parte).

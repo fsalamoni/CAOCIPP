@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
-import { CARGOS, ESTRUTURAS, NATUREZAS, descendentes, emArvore, orgaosDoDelegado, problemasEstrutura, rotuloNatureza, unidadesDoOrgao } from '@/lib/orgaos';
+import { CARGOS, ESTRUTURAS, FUNCOES_COLEGIADO, MAX_COMPOSICAO, NATUREZAS, composicaoEm, descendentes, emArvore, orgaosDoDelegado, problemasComposicao, problemasEstrutura, rotuloFuncao, rotuloNatureza, unidadesDoOrgao } from '@/lib/orgaos';
 import { ListaTextos, NativeSelect, rotuloUnidade } from './comum';
 import GestaoUnidade, { NovaUnidade } from './GestaoUnidade';
 import { ListaModelos } from './ConfiguracaoDocumentos';
@@ -24,7 +24,7 @@ const sel = 'mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 
  * `nos` já vem na ordem de leitura, com `nivel`; `unidadesDe(no)` devolve as
  * unidades do órgão ({ nome, tipo }).
  */
-export function Organograma({ nos, unidadesDe, nomeTitular, onAbrir, chave = 'id', detalhado = false }) {
+export function Organograma({ nos, unidadesDe, nomeTitular, nomeMembro, onAbrir, chave = 'id', detalhado = false }) {
     return (
         <ul className="space-y-2">
             {nos.map((o) => {
@@ -40,8 +40,14 @@ export function Organograma({ nos, unidadesDe, nomeTitular, onAbrir, chave = 'id
                         </span>
                         <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1">
                             {o.decisao === 'colegiada' ? 'Decisão colegiada' : 'Decisão do titular'}{titular ? ` · ${titular}` : ''}
+                            {o.decisao === 'colegiada' && (o.composicao || []).length > 0 && ((n) => ` · ${n} membro${n === 1 ? '' : 's'} hoje`)(composicaoEm(o.composicao, hojeIso()).length)}
                             {!detalhado && (o.competencias || []).length > 0 ? ` · ${o.competencias.length} competência${o.competencias.length > 1 ? 's' : ''}` : ''}
                         </span>
+                        {detalhado && nomeMembro && o.decisao === 'colegiada' && ((hoje) => hoje.length > 0 && (
+                            <span className="block text-xs text-slate-700 dark:text-slate-300 mt-1">
+                                Composição hoje: {hoje.map((m) => `${nomeMembro(m.uid) || 'Membro que saiu'} (${rotuloFuncao(m.funcao).toLowerCase()}${m.representa ? `, ${m.representa}` : ''})`).join('; ')}
+                            </span>
+                        ))(composicaoEm(o.composicao, hojeIso()))}
                         {detalhado && (o.competencias || []).length > 0 && (
                             <ul className="mt-1 list-disc pl-5 text-sm text-slate-700 dark:text-slate-300">{o.competencias.map((c) => <li key={c}>{c}</li>)}</ul>
                         )}
@@ -68,7 +74,7 @@ export function Organograma({ nos, unidadesDe, nomeTitular, onAbrir, chave = 'id
     );
 }
 
-const NOVO = { nome: '', sigla: '', natureza: 'executivo', pai_id: '', decisao: 'singular', titular_cargo: '', titular_uid: '', admins_uids: [], competencias: [], descricao: '', ativo: true };
+const NOVO = { nome: '', sigla: '', natureza: 'executivo', pai_id: '', decisao: 'singular', titular_cargo: '', titular_uid: '', admins_uids: [], competencias: [], composicao: [], descricao: '', ativo: true };
 const MAX_ADMINS = 10;
 
 /**
@@ -241,6 +247,9 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                         <NativeSelect id="og-titular" label="Quem ocupa hoje" value={o.titular_uid} onChange={(v) => set('titular_uid', v)}
                             options={[['', 'Ninguém indicado'], ...estado.membros.map((m) => [m.uid, m.nome])]} />
                     </div>
+                    {o.decisao === 'colegiada' && (
+                        <ComposicaoColegiado membros={estado.membros} composicao={o.composicao || []} onChange={(v) => set('composicao', v)} />
+                    )}
                     <section aria-labelledby="og-admins-titulo" className="space-y-2">
                         <h3 id="og-admins-titulo" className="text-sm font-medium">Quem administra este órgão</h3>
                         <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -324,13 +333,81 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                     </div>
                     <div className="flex gap-2 justify-end">
                         <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>
-                        <Button disabled={ocupado || !o.nome.trim()} onClick={() => salvar(o, 'Órgão salvo')}>
+                        <Button disabled={ocupado || !o.nome.trim() || (o.decisao === 'colegiada' && problemasDaComposicao(o.composicao, estado.membros).length > 0)} onClick={() => salvar(o, 'Órgão salvo')}>
                             {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {o.id ? 'Salvar' : 'Criar órgão'}
                         </Button>
                     </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+
+/** Conflitos que o servidor recusa, mais o mandato em curso de quem saiu da entidade. */
+function problemasDaComposicao(composicao, membros) {
+    const nome = (uid) => membros.find((m) => m.uid === uid)?.nome || 'Um membro que saiu da entidade';
+    const hoje = hojeIso();
+    const saiu = (composicao || []).some((m) => m.uid && (!m.fim || m.fim >= hoje) && !membros.some((x) => x.uid === m.uid));
+    return [...problemasComposicao(composicao, nome), ...(saiu ? ['Um membro que saiu da entidade ainda tem mandato em curso. Informe o fim do mandato ou tire da composição.'] : [])];
+}
+
+/**
+ * Composição do colegiado: cada mandato com a pessoa, a função e o período.
+ * Mandato encerrado fica na lista, como histórico de quem compôs o colegiado.
+ */
+function ComposicaoColegiado({ membros, composicao, onChange }) {
+    const hoje = hojeIso();
+    const mudar = (i, k, v) => onChange(composicao.map((m, j) => (j === i ? { ...m, [k]: v } : m)));
+    const problemas = problemasDaComposicao(composicao, membros);
+    const atual = composicaoEm(composicao, hoje);
+    const conta = FUNCOES_COLEGIADO.map(([f, r]) => [r, atual.filter((m) => m.funcao === f).length]).filter(([, n]) => n);
+    return (
+        <section aria-labelledby="og-comp-titulo" className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-3">
+            <div>
+                <h3 id="og-comp-titulo" className="text-sm font-semibold">Composição do colegiado</h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Quem decide em conjunto neste órgão, cada um com a sua conta no SIGO, a função e o mandato. Sem início, vale desde sempre; sem fim, segue valendo.
+                    Ao terminar um mandato, informe o fim em vez de apagar: a lista guarda quem compôs o colegiado em cada data.
+                    O registro de julgamento das unidades deste órgão já vem com o presidente e os titulares do dia.
+                </p>
+            </div>
+            <p className="text-sm text-slate-800 dark:text-slate-200">
+                {conta.length ? `Hoje: ${conta.map(([r, n]) => `${n} ${r.toLowerCase()}${n > 1 ? (r.endsWith('e') ? 's' : 'es') : ''}`).join(', ')}.` : 'Ninguém compõe o colegiado hoje.'}
+            </p>
+            {composicao.length > 0 && (
+                <ul className="space-y-2" aria-label="Mandatos no colegiado">
+                    {composicao.map((m, i) => {
+                        const encerrado = !!m.fim && m.fim < hoje;
+                        return (
+                            <li key={i} className={`grid grid-cols-2 sm:grid-cols-[1fr_9rem_auto] gap-2 rounded-md border p-2 ${encerrado ? 'border-dashed border-slate-300 dark:border-slate-600' : 'border-slate-200 dark:border-slate-700'}`}>
+                                <select aria-label={`Membro ${i + 1}`} className={`${sel} col-span-2 sm:col-span-1 mt-0`} value={m.uid} onChange={(e) => mudar(i, 'uid', e.target.value)}>
+                                    <option value="">Escolher membro…</option>
+                                    {m.uid && !membros.some((x) => x.uid === m.uid) && <option value={m.uid}>Membro que saiu</option>}
+                                    {membros.map((x) => <option key={x.uid} value={x.uid}>{x.nome}</option>)}
+                                </select>
+                                <select aria-label={`Função do membro ${i + 1}`} className={`${sel} mt-0`} value={m.funcao} onChange={(e) => mudar(i, 'funcao', e.target.value)}>
+                                    {FUNCOES_COLEGIADO.map(([f, r]) => <option key={f} value={f}>{r}</option>)}
+                                </select>
+                                <Button type="button" variant="ghost" size="sm" className="justify-self-end" aria-label={`Tirar o membro ${i + 1} da composição`}
+                                    onClick={() => onChange(composicao.filter((_, j) => j !== i))}><Trash2 className="w-4 h-4" aria-hidden /></Button>
+                                <div className="col-span-2 sm:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    <div><Label htmlFor={`og-ini-${i}`} className="text-xs">Início do mandato</Label><Input id={`og-ini-${i}`} type="date" value={m.inicio || ''} onChange={(e) => mudar(i, 'inicio', e.target.value)} /></div>
+                                    <div><Label htmlFor={`og-fim-${i}`} className="text-xs">Fim do mandato</Label><Input id={`og-fim-${i}`} type="date" value={m.fim || ''} onChange={(e) => mudar(i, 'fim', e.target.value)} /></div>
+                                    <div className="col-span-2 sm:col-span-1"><Label htmlFor={`og-rep-${i}`} className="text-xs">Representa (opcional)</Label><Input id={`og-rep-${i}`} maxLength={80} value={m.representa || ''} onChange={(e) => mudar(i, 'representa', e.target.value)} placeholder="Ex.: OAB" /></div>
+                                </div>
+                                {encerrado && <p className="col-span-2 sm:col-span-3 text-xs text-slate-600 dark:text-slate-400">Mandato encerrado em {m.fim.split('-').reverse().join('/')}.</p>}
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+            {problemas.length > 0 && <ul role="alert" className="list-disc pl-5 text-sm text-red-700 dark:text-red-300">{problemas.map((p) => <li key={p}>{p}</li>)}</ul>}
+            {composicao.length < MAX_COMPOSICAO
+                ? <Button type="button" size="sm" variant="outline" className="gap-1" onClick={() => onChange([...composicao, { uid: '', funcao: 'titular', inicio: hoje, fim: '', representa: '' }])}><Plus className="w-4 h-4" aria-hidden /> Incluir membro</Button>
+                : <p className="text-xs text-amber-800 dark:text-amber-300">A composição comporta até {MAX_COMPOSICAO} mandatos. Tire os mais antigos para incluir outro.</p>}
+        </section>
     );
 }
 

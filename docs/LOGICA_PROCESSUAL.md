@@ -274,7 +274,10 @@ informado.
   registrados e não contam como voto. A certidão diz o resultado, o placar,
   o relator e os vencidos: é ato público, nos autos, e a parte a vê. Os
   fundamentos ficam no voto do relator e no acórdão, documentos da fase,
-  porque a decisão precisa ser motivada (art. 50).
+  porque a decisão precisa ser motivada (art. 50). Quem compõe o colegiado
+  vem do órgão: cada mandato tem início e fim, e o encerrado fica guardado,
+  porque o julgamento vale pela composição da data da sessão. O suplente só
+  vota no lugar de um titular, e por isso quem registra o inclui.
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

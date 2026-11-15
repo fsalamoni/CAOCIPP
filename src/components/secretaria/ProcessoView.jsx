@@ -43,7 +43,7 @@ import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprid
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
 import { audienciasFuturas, nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
-import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
+import { membrosDoJulgamento, nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
 import JuntadaConjunta from './JuntadaConjunta';
@@ -558,7 +558,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             onExpedir={() => setAcao({ tipo: 'comunicar', daAcao: { idx: i, nome: a, cfg: r.comunicacao, alvos, faltam } })}
                                             nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
-                                            onRegistrar={() => setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version })}
+                                            onRegistrar={() => setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version,
+                                                membros: r?.pede === 'julgamento' ? membrosDoJulgamento(estado, p.unidade_atual, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) : [] })}
                                             onDesfazer={desfazer} />
                                     </li>
                                 );

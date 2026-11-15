@@ -1533,6 +1533,33 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Composição dos colegiados (15/11/2026)
+
+Primeira etapa (S1) do plano de sessões, julgamentos e pregão. O órgão
+interno com `decisao: 'colegiada'` ganha `composicao: [{ uid, funcao,
+inicio, fim, representa }]`, gravada com o órgão em `secConfig.orgaos`
+(`salvarOrgao`). Lógica pura em `shared/orgaos.ts`; espelho em
+`src/lib/orgaos.js`.
+
+- **Mandato:** `funcao` presidente, vice, titular ou suplente (inválida vira
+  titular); `inicio` e `fim` em AAAA-MM-DD, vazios = desde sempre e sem
+  fim; `representa` até 80 caracteres. Até 40 mandatos por órgão, contando
+  os encerrados. Sem o campo, `composicao: []` e nada muda.
+- **Ao gravar** (`conferirComposicao`): fim antes do início é recusado; a
+  mesma pessoa não pode ter dois mandatos que se cruzam; há no máximo um
+  presidente e um vice em cada período. Quem tem mandato atual ou futuro
+  precisa ser membro ativo da entidade; mandato encerrado de quem saiu fica
+  como histórico. A leitura (`orgaosDe`) nunca descarta o órgão por causa da
+  composição.
+- **Quem compõe na data** (`composicaoEm`): mandatos vigentes, do presidente
+  aos suplentes. O organograma mostra quantos membros há hoje.
+- **Registro de julgamento:** na unidade de um órgão colegiado com
+  composição, o diálogo já vem com o presidente (função presidente) e os
+  titulares e o vice (função membro) do dia; suplentes ficam de fora, e
+  quem registra indica o relator. Sem composição, segue como antes.
+- Testes: `functions-v2/test/orgaos.test.js` e `src/lib/orgaos.test.js`.
+  Guia do rito, parte 15.
+
 ### Nomes dos polos por tipo de processo (14/11/2026)
 
 `formulario.nomes_polos` no tipo (`{ requerente?, requerido?, interessado?,

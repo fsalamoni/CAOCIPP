@@ -1,7 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ADMINS_ORGAO = exports.MAX_COMPETENCIAS = exports.MAX_NIVEIS = exports.MAX_ORGAOS = exports.NATUREZAS = void 0;
+exports.vigente = exports.FUNCOES_COLEGIADO = exports.MAX_COMPOSICAO = exports.MAX_ADMINS_ORGAO = exports.MAX_COMPETENCIAS = exports.MAX_NIVEIS = exports.MAX_ORGAOS = exports.NATUREZAS = void 0;
 exports.sanitizeCompetencias = sanitizeCompetencias;
+exports.sanitizeComposicao = sanitizeComposicao;
+exports.composicaoEm = composicaoEm;
+exports.conferirComposicao = conferirComposicao;
 exports.sanitizeOrgao = sanitizeOrgao;
 exports.orgaosDe = orgaosDe;
 exports.orgaosAdministrados = orgaosAdministrados;
@@ -25,12 +28,59 @@ exports.MAX_COMPETENCIAS = 20;
 /** Admins delegados por órgão interno. */
 exports.MAX_ADMINS_ORGAO = 10;
 const MAX_COMPETENCIA = 300;
+/** Entradas da composição de um colegiado, contando os mandatos que já acabaram. */
+exports.MAX_COMPOSICAO = 40;
+exports.FUNCOES_COLEGIADO = ['presidente', 'vice', 'titular', 'suplente'];
 /** Lista de competências ou atribuições: textos curtos, sem repetição. */
 function sanitizeCompetencias(raw) {
     const lista = (Array.isArray(raw) ? raw : []).map((x) => (0, secretaria_1.texto)(x, MAX_COMPETENCIA)).filter(Boolean);
     return [...new Set(lista)].slice(0, exports.MAX_COMPETENCIAS);
 }
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const data = (v) => (typeof v === 'string' && DATA.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) ? v : '');
+/** Lista da composição com os tipos certos; entrada sem pessoa é descartada (nunca lança). */
+function sanitizeComposicao(raw) {
+    return (Array.isArray(raw) ? raw : []).map((x) => {
+        const m = (x && typeof x === 'object' ? x : {});
+        return {
+            uid: typeof m.uid === 'string' ? m.uid.slice(0, 128) : '',
+            funcao: exports.FUNCOES_COLEGIADO.includes(m.funcao) ? m.funcao : 'titular',
+            inicio: data(m.inicio),
+            fim: data(m.fim),
+            representa: (0, secretaria_1.texto)(m.representa, 80),
+        };
+    }).filter((m) => m.uid).slice(0, exports.MAX_COMPOSICAO);
+}
+/** O mandato vale na data (AAAA-MM-DD)? */
+const vigente = (m, dia) => (!m.inicio || m.inicio <= dia) && (!m.fim || m.fim >= dia);
+exports.vigente = vigente;
+/** Quem compõe o colegiado na data, do presidente aos suplentes. */
+function composicaoEm(composicao, dia) {
+    return composicao.filter((m) => (0, exports.vigente)(m, dia)).sort((a, b) => exports.FUNCOES_COLEGIADO.indexOf(a.funcao) - exports.FUNCOES_COLEGIADO.indexOf(b.funcao));
+}
+const cruzam = (a, b) => (!a.inicio || !b.fim || a.inicio <= b.fim) && (!b.inicio || !a.fim || b.inicio <= a.fim);
+/**
+ * Confere a composição ao gravar: fim depois do início, a mesma pessoa uma
+ * vez só em cada período e um presidente e um vice por vez. Lança com a
+ * explicação; `nome(uid)` dá o nome para a mensagem.
+ */
+function conferirComposicao(composicao, nome = (u) => u) {
+    composicao.forEach((m, i) => {
+        if (m.inicio && m.fim && m.fim < m.inicio)
+            throw new Error(`O mandato de ${nome(m.uid)} termina antes de começar`);
+        for (const o of composicao.slice(i + 1)) {
+            if (!cruzam(m, o))
+                continue;
+            if (o.uid === m.uid)
+                throw new Error(`${nome(m.uid)} aparece duas vezes no mesmo período. Encerre um mandato antes de começar o outro.`);
+            if (o.funcao === m.funcao && (m.funcao === 'presidente' || m.funcao === 'vice')) {
+                throw new Error(`Há dois ${m.funcao === 'presidente' ? 'presidentes' : 'vice-presidentes'} no mesmo período (${nome(m.uid)} e ${nome(o.uid)})`);
+            }
+        }
+    });
+    return composicao;
+}
 function sanitizeOrgao(raw, id, ordem = 0) {
     const o = (raw && typeof raw === 'object' ? raw : {});
     const nome = (0, secretaria_1.texto)(o.nome, 120);
@@ -49,6 +99,7 @@ function sanitizeOrgao(raw, id, ordem = 0) {
         titular_uid: typeof o.titular_uid === 'string' && o.titular_uid ? o.titular_uid.slice(0, 128) : null,
         admins_uids: [...new Set((Array.isArray(o.admins_uids) ? o.admins_uids : []).filter((x) => typeof x === 'string' && !!x).map((x) => x.slice(0, 128)))].slice(0, exports.MAX_ADMINS_ORGAO),
         competencias: sanitizeCompetencias(o.competencias),
+        composicao: sanitizeComposicao(o.composicao),
         descricao: (0, secretaria_1.texto)(o.descricao, 1000),
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,
