@@ -24,6 +24,7 @@ import AjudaTermo from './AjudaTermo';
 import { CampoAtribuicao } from './PermissoesDaFase';
 import { EditorCampos, EscolhaPagina } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
+import { PERFIS_DISPUTA } from '@/lib/certames';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
 // Usado pela tela de rito (criar e alterar). Fundamento e exemplos:
@@ -327,7 +328,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                     </div>
                 )}
                 {pede !== 'resposta' && <div>
-                    <Label htmlFor={`${id}-pz`}>{pede === 'comunicacao' ? 'Prazo para expedir (dias)' : pede === 'audiencia' ? 'Prazo para designar (dias)' : pede === 'julgamento' ? 'Prazo para julgar (dias)' : 'Prazo próprio da ação (dias)'}</Label>
+                    <Label htmlFor={`${id}-pz`}>{pede === 'comunicacao' ? 'Prazo para expedir (dias)' : pede === 'audiencia' ? 'Prazo para designar (dias)' : pede === 'julgamento' ? 'Prazo para julgar (dias)' : pede === 'disputa' ? 'Prazo para concluir a disputa (dias)' : 'Prazo próprio da ação (dias)'}</Label>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                         <Input id={`${id}-pz`} type="number" min={1} max={3650} placeholder="Sem prazo" className="h-9 w-28" value={r?.prazo_dias || ''}
                             onChange={(e) => { const n = Number(e.target.value); set({ prazo_dias: Number.isInteger(n) && n > 0 ? n : undefined, ...(Number.isInteger(n) && n > 0 ? {} : { prazo_contagem: undefined }) }); }} />
@@ -379,6 +380,21 @@ function ConfigDasPartes({ id, r, f, i, onChange }) {
                     Na tela do processo, o botão &quot;Designar&quot; pede a data, a hora, o modo (presencial, por videoconferência ou híbrido), o local ou o link e quem participa além das partes (testemunha, perito...).
                     A designação vira certidão nos autos e as partes a veem no portal. Para intimar, ponha depois uma ação &quot;Comunicar as partes&quot; com {'{audiencia}'} no texto: ele é trocado pela data e pelo local.
                     Desfazer cancela a audiência, com certidão. A realização e a ata ficam com as ações seguintes (uma escolha &quot;Realizada / Não realizada&quot;, um documento da ata).
+                </p>
+            </div>
+        );
+    }
+    if (r?.pede === 'disputa') {
+        return (
+            <div className="space-y-1 sm:max-w-md">
+                <NativeSelect id={`${id}-disp`} label="Tipo de disputa" value={r.disputa?.perfil || 'cotacao'} options={Object.entries(PERFIS_DISPUTA)}
+                    onChange={(v) => onChange({ ...r, disputa: { perfil: v } })} />
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {r.disputa?.perfil === 'dispensa'
+                        ? 'Dispensa eletrônica (IN 67/2021): aviso com link público, abertura ao menos 3 dias úteis depois da publicação, propostas de qualquer fornecedor com conta e lances de 6 a 10 horas.'
+                        : 'Cotação privada: só os fornecedores convidados por e-mail veem o aviso e mandam proposta; abertura a partir do dia útil seguinte e lances opcionais.'}
+                    {' '}Na tela do processo, o botão &quot;Montar a disputa&quot; abre o aviso (objeto, itens, critério, abertura). Aviso, adiamento e cancelamento vão aos autos; as propostas são sigilosas até a abertura.
+                    A ação se cumpre com o resultado: Homologada, Deserta ou Fracassada, que podem levar a caminhos diferentes do rito.
                 </p>
             </div>
         );

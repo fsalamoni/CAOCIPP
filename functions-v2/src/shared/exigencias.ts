@@ -13,6 +13,7 @@ import { MAX_ATRIBUICAO, QUEM, Quem, mesmaAtribuicao, sanitizeQuem } from './per
 import { ComunicacaoDaAcao, RESPOSTAS, RespostaDaAcao, sanitizeComunicacaoDaAcao, sanitizeRespostaDaAcao } from './comunicacaoRito';
 import { AudienciaDaAcao, sanitizeAudienciaDaAcao } from './audiencias';
 import { JulgamentoDaAcao, sanitizeJulgamentoDaAcao } from './julgamento';
+import { DisputaDaAcao, RESULTADOS_DISPUTA, sanitizeDisputaDaAcao } from './certames';
 import { ehDoOrgao } from './listasOrgao';
 
 export { QUEM, Quem };
@@ -106,7 +107,7 @@ export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
@@ -216,6 +217,8 @@ export interface RegraAcao {
     audiencia?: AudienciaDaAcao;
     /** Pede 'julgamento': resultados, quórum e desempate (ver shared/julgamento.ts). A certidão vai sempre aos autos, e as partes veem. */
     julgamento?: JulgamentoDaAcao;
+    /** Pede 'disputa': o tipo de disputa de preços (ver shared/certames.ts). Cumpre-se com o resultado do certame, nos autos. */
+    disputa?: DisputaDaAcao;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -311,6 +314,12 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
         return { ...out, pede: 'audiencia', audiencia: sanitizeAudienciaDaAcao(r.audiencia, acao), destino: 'autos', partes: true,
             ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
     }
+    // Disputa de preços: aviso, propostas e resultado são atos públicos, nos autos.
+    if (pedeBruto === 'disputa') {
+        Object.assign(out, sanitizeQuem(r.quem, r.atribuicao, `A ação "${acao}"`));
+        return { ...out, pede: 'disputa', disputa: sanitizeDisputaDaAcao(r.disputa, acao), destino: 'autos', partes: true,
+            ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
+    }
     // Julgamento colegiado: a certidão (resultado, placar, relator, vencidos, impedidos) é ato público, nos autos.
     if (pedeBruto === 'julgamento') {
         Object.assign(out, sanitizeQuem(r.quem, r.atribuicao, `A ação "${acao}"`));
@@ -394,6 +403,7 @@ export function opcoesDaResposta(r: RegraAcao | null | undefined, campo?: string
     if (r.pede === 'sim_nao') return ['sim', 'nao'];
     if (r.pede === 'resposta') return [...RESPOSTAS];
     if (r.pede === 'julgamento') return [...(r.julgamento?.resultados || [])];
+    if (r.pede === 'disputa') return [...RESULTADOS_DISPUTA];
     return null;
 }
 

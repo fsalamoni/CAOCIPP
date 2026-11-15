@@ -11,6 +11,7 @@ exports.exigirGestor = exigirGestor;
 exports.julgadorLe = julgadorLe;
 exports.lerProcesso = lerProcesso;
 exports.exigirPosse = exigirPosse;
+exports.atorDe = atorDe;
 exports.conferirVersao = conferirVersao;
 exports.registrarMovimento = registrarMovimento;
 exports.registrarInternos = registrarInternos;
@@ -184,6 +185,19 @@ function exigirPosse(c, proc) {
     if (!(0, secretaria_1.podeAgir)(proc, c.ctx)) {
         throw new https_1.HttpsError('permission-denied', 'O processo não está com uma unidade em que você esteja lotado');
     }
+}
+/**
+ * Quem pratica o ato, como o rito o enxerga na unidade que tem o processo:
+ * administração, gestão da unidade, responsável designado e a atribuição que a
+ * pessoa tem na lotação (shared/permissoesFase.ts).
+ */
+function atorDe(c, proc) {
+    var _a;
+    const un = c.unidades.find((u) => u.id === proc.unidade_atual);
+    return {
+        isAdmin: c.ctx.isAdmin, gestor: c.gestorDe.includes(String(proc.unidade_atual)), responsavel: !!proc.responsavel_uid && proc.responsavel_uid === c.ctx.uid,
+        atribuicao: un ? ((_a = (0, secretaria_1.lotacoesDe)(un).find((l) => l.uid === c.ctx.uid)) === null || _a === void 0 ? void 0 : _a.atribuicao) || '' : '',
+    };
 }
 function conferirVersao(proc, esperada) {
     if (typeof esperada === 'number' && esperada !== proc.version) {

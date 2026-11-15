@@ -42,7 +42,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 // Só carrega para quem é parte em algum processo.
 const ComunicacoesPendentes = React.lazy(() => import('@/components/secretaria/ComunicacoesPendentes'));
 
-const publicPages = ['Landing', 'Help', 'Terms', 'Portal', 'Conferir'];
+const publicPages = ['Landing', 'Help', 'Terms', 'Portal', 'Disputas', 'Conferir'];
 const PAGES_WITH_MENU_WHEN_LOGGED = ['Help', 'Terms'];
 
 /* Campos do documento do órgão que decidem quais abas aparecem. São os únicos

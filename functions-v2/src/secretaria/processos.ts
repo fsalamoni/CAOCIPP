@@ -13,12 +13,13 @@ import {
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
     aberturaCertidao, tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
 } from '../shared/exigencias';
-import { Ator, podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
+import { podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { responsavelPelaFase } from '../shared/efeitosFase';
 import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
 import { RESPOSTAS, encerrarComunicacoesDaFase, faseQueEspera, situacaoDaResposta } from '../shared/comunicacaoRito';
 import { ajustarComunicacao, ajustarPrazo } from '../shared/ajustePrazo';
 import { ACOES_SALA, acaoSalaAudiencia } from './audienciaSala';
+import { ACOES_CERTAME, acaoCertame } from './certames';
 import { Audiencia, aplicarAudiencia, designadaDe, nomeDaAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
 import { apurar, dadosDoJulgamento, textoDoJulgamento } from '../shared/julgamento';
 import { sendEmail } from '../shared/email';
@@ -43,7 +44,7 @@ import { acaoAnotacao, acaoSessao, leiturasDoProcesso, registrarLeitura } from '
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
-    COL, REGION, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
+    COL, REGION, atorDe, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarInternos, registrarMovimento,
 } from './context';
 
@@ -487,18 +488,6 @@ function dispensarExigencias(c: Ctx, proc: admin.firestore.DocumentData, motivo:
     return abertas;
 }
 
-/**
- * Quem pratica o ato, como o rito o enxerga na unidade que tem o processo:
- * administração, gestão da unidade, responsável designado e a atribuição que a
- * pessoa tem na lotação (shared/permissoesFase.ts).
- */
-function atorDe(c: Ctx, proc: admin.firestore.DocumentData): Ator {
-    const un = c.unidades.find((u) => u.id === proc.unidade_atual);
-    return {
-        isAdmin: c.ctx.isAdmin, gestor: c.gestorDe.includes(String(proc.unidade_atual)), responsavel: !!proc.responsavel_uid && proc.responsavel_uid === c.ctx.uid,
-        atribuicao: un ? lotacoesDe(un).find((l) => l.uid === c.ctx.uid)?.atribuicao || '' : '',
-    };
-}
 
 const faseDoProcesso = (proc: admin.firestore.DocumentData): Fase | undefined => ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
 
@@ -693,6 +682,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     if (typeof p.action === 'string' && (p.action.startsWith('sessao') || p.action.startsWith('reuniao'))) return acaoSessao(c, p as unknown as Record<string, unknown>);
     // Sala da audiência designada pelo rito: presença, registros e termo (S10).
     if (typeof p.action === 'string' && ACOES_SALA.includes(p.action)) return acaoSalaAudiencia(c, p as unknown as Record<string, unknown>);
+    if (typeof p.action === 'string' && ACOES_CERTAME.includes(p.action)) return acaoCertame(c, p as unknown as Record<string, unknown>);
     // Anotação privada de quem lê o processo (nunca vai aos autos).
     if ((p.action as string) === 'anotacao') return acaoAnotacao(c, p as unknown as Record<string, unknown>);
 
@@ -947,6 +937,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 prazos: data.prazos || [],
                 comunicacoes: data.comunicacoes || [],
                 audiencias: data.audiencias || [],
+                // Disputa de preços da ação do rito (S11): só o resumo; o aviso e as propostas ficam em secCertames.
+                certame: data.certame || null,
                 nomes_polos: data.nomes_polos || {},
                 acoes_feitas: data.acoes_feitas || {},
                 acoes_respostas: data.acoes_respostas || {},
@@ -1446,6 +1438,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (!fase || !acao) throw new HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = fase.acoes_regras?.[idx];
             if (regra?.pede === 'orientacao') throw new HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
+            if (regra?.pede === 'disputa' && p.feita !== false) {
+                throw new HttpsError('failed-precondition', `"${acao}" se cumpre com o resultado da disputa de preços: monte e publique a disputa pela própria ação.`);
+            }
             if (regra?.pede === 'comunicacao') {
                 throw new HttpsError('failed-precondition', `"${acao}" se cumpre expedindo a comunicação pela própria ação, a todas as partes que ela alcança.`);
             }

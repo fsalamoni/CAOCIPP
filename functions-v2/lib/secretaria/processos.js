@@ -28,6 +28,7 @@ const prazosFase_1 = require("../shared/prazosFase");
 const comunicacaoRito_1 = require("../shared/comunicacaoRito");
 const ajustePrazo_1 = require("../shared/ajustePrazo");
 const audienciaSala_1 = require("./audienciaSala");
+const certames_1 = require("./certames");
 const audiencias_1 = require("../shared/audiencias");
 const julgamento_1 = require("../shared/julgamento");
 const email_1 = require("../shared/email");
@@ -397,26 +398,13 @@ function dispensarExigencias(c, proc, motivo, form) {
     }
     return abertas;
 }
-/**
- * Quem pratica o ato, como o rito o enxerga na unidade que tem o processo:
- * administração, gestão da unidade, responsável designado e a atribuição que a
- * pessoa tem na lotação (shared/permissoesFase.ts).
- */
-function atorDe(c, proc) {
-    var _a;
-    const un = c.unidades.find((u) => u.id === proc.unidade_atual);
-    return {
-        isAdmin: c.ctx.isAdmin, gestor: c.gestorDe.includes(String(proc.unidade_atual)), responsavel: !!proc.responsavel_uid && proc.responsavel_uid === c.ctx.uid,
-        atribuicao: un ? ((_a = (0, secretaria_1.lotacoesDe)(un).find((l) => l.uid === c.ctx.uid)) === null || _a === void 0 ? void 0 : _a.atribuicao) || '' : '',
-    };
-}
 const faseDoProcesso = (proc) => (proc.fases || []).find((f) => f.id === proc.fase_atual);
 /** O rito pode reservar a dispensa do que a fase exige a quem gere a unidade ou à administração. Lança HttpsError. */
 function exigirDispensa(c, proc, abertas) {
     var _a;
     const fase = faseDoProcesso(proc);
     const r = (_a = fase === null || fase === void 0 ? void 0 : fase.permissoes) === null || _a === void 0 ? void 0 : _a.dispensar;
-    if (abertas.length && r && !(0, permissoesFase_1.podeReserva)(r, atorDe(c, proc))) {
+    if (abertas.length && r && !(0, permissoesFase_1.podeReserva)(r, (0, context_1.atorDe)(c, proc))) {
         throw new https_1.HttpsError('permission-denied', `O rito exige nesta fase: ${abertas.join('; ')}. Cumpra o que falta: na fase ${fase.nome}, só ${(0, permissoesFase_1.textoReserva)(r)} pode dispensar.`);
     }
 }
@@ -429,7 +417,7 @@ function exigirSaida(c, proc, faseSai, alvo, desvio) {
     const pm = faseSai === null || faseSai === void 0 ? void 0 : faseSai.permissoes;
     if (!pm)
         return;
-    const a = atorDe(c, proc);
+    const a = (0, context_1.atorDe)(c, proc);
     if (pm.concluir && !alvo.espera && !(0, permissoesFase_1.podeQuem)(pm.concluir, pm.concluir_atribuicao, a)) {
         throw new https_1.HttpsError('permission-denied', `Pelo rito, só ${(0, permissoesFase_1.textoQuem)(pm.concluir, pm.concluir_atribuicao)} conclui a fase ${faseSai.nome}.`);
     }
@@ -626,6 +614,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     // Sala da audiência designada pelo rito: presença, registros e termo (S10).
     if (typeof p.action === 'string' && audienciaSala_1.ACOES_SALA.includes(p.action))
         return (0, audienciaSala_1.acaoSalaAudiencia)(c, p);
+    if (typeof p.action === 'string' && certames_1.ACOES_CERTAME.includes(p.action))
+        return (0, certames_1.acaoCertame)(c, p);
     // Anotação privada de quem lê o processo (nunca vai aos autos).
     if (p.action === 'anotacao')
         return (0, sessoes_2.acaoAnotacao)(c, p);
@@ -872,7 +862,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                         })) }));
                 }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], 
                 // A primeira unidade da lista é a que autuou (arrayUnion só acrescenta).
-                unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: origemLida && fechada(origemLida.ref) ? Object.assign(Object.assign({}, origemLida), { ref: Object.assign(Object.assign({}, origemLida.ref), { restrito: true }) }) : data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], audiencias: data.audiencias || [], nomes_polos: data.nomes_polos || {}, acoes_feitas: data.acoes_feitas || {}, acoes_respostas: data.acoes_respostas || {}, 
+                unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: origemLida && fechada(origemLida.ref) ? Object.assign(Object.assign({}, origemLida), { ref: Object.assign(Object.assign({}, origemLida.ref), { restrito: true }) }) : data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], audiencias: data.audiencias || [], 
+                // Disputa de preços da ação do rito (S11): só o resumo; o aviso e as propostas ficam em secCertames.
+                certame: data.certame || null, nomes_polos: data.nomes_polos || {}, acoes_feitas: data.acoes_feitas || {}, acoes_respostas: data.acoes_respostas || {}, 
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
                 consolidacao: data.consolidacao || null, exigencias_cumpridas: data.exigencias_cumpridas || {}, 
                 // Em fase de espera: a fase e a unidade para onde o processo volta.
@@ -1351,6 +1343,9 @@ async function movimentar(c, p, opcoes = {}) {
             const regra = (_h = fase.acoes_regras) === null || _h === void 0 ? void 0 : _h[idx];
             if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'orientacao')
                 throw new https_1.HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
+            if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'disputa' && p.feita !== false) {
+                throw new https_1.HttpsError('failed-precondition', `"${acao}" se cumpre com o resultado da disputa de preços: monte e publique a disputa pela própria ação.`);
+            }
             if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'comunicacao') {
                 throw new https_1.HttpsError('failed-precondition', `"${acao}" se cumpre expedindo a comunicação pela própria ação, a todas as partes que ela alcança.`);
             }
@@ -1362,7 +1357,7 @@ async function movimentar(c, p, opcoes = {}) {
                 throw new https_1.HttpsError('failed-precondition', `"${acao}" só vale quando ${textoCondicao(fase, regra.se, data.fases)}`);
             }
             // Quem pode cumprir: o rito pode reservar ao responsável designado ou a quem gere a unidade.
-            if ((regra === null || regra === void 0 ? void 0 : regra.quem) && !(0, permissoesFase_1.podeQuem)(regra.quem, regra.atribuicao, atorDe(c, data))) {
+            if ((regra === null || regra === void 0 ? void 0 : regra.quem) && !(0, permissoesFase_1.podeQuem)(regra.quem, regra.atribuicao, (0, context_1.atorDe)(c, data))) {
                 throw new https_1.HttpsError('permission-denied', regra.quem === 'responsavel'
                     ? `"${acao}" é do responsável pelo processo. Peça a atribuição ou a quem está designado.`
                     : `"${acao}" é de ${(0, permissoesFase_1.textoQuem)(regra.quem, regra.atribuicao)}.`);
@@ -1591,7 +1586,7 @@ async function movimentar(c, p, opcoes = {}) {
             // O rito pode reservar a mudança de situação, na fase, a quem gere a unidade ou à administração.
             const faseSit = faseDoProcesso(data);
             const reservaSit = (_w = faseSit === null || faseSit === void 0 ? void 0 : faseSit.permissoes) === null || _w === void 0 ? void 0 : _w.situacao;
-            if (reservaSit && !(0, permissoesFase_1.podeReserva)(reservaSit, atorDe(c, data))) {
+            if (reservaSit && !(0, permissoesFase_1.podeReserva)(reservaSit, (0, context_1.atorDe)(c, data))) {
                 throw new https_1.HttpsError('permission-denied', `Pelo rito, na fase ${faseSit.nome} só ${(0, permissoesFase_1.textoReserva)(reservaSit)} arquiva, sobresta ou reativa o processo.`);
             }
             if (!motivo)

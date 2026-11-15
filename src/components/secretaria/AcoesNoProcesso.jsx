@@ -14,6 +14,7 @@ import { faltando } from '@/lib/camposProcesso';
 import { RESPOSTAS } from '@/lib/comunicacaoRito';
 import { MAX_PARTICIPANTES, MODOS_AUDIENCIA, QUALIDADES } from '@/lib/audiencias';
 import { FUNCOES, MAX_MEMBROS, SITUACOES, apurar, problemasDosVotos, textoDaApuracao } from '@/lib/julgamento';
+import { quandoBr } from '@/lib/certames';
 
 const br = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('/');
 
@@ -42,7 +43,7 @@ export function SelosAcao({ r }) {
  * Uma ação da fase. `info`: a informação registrada nesta rodada da fase (se a ação pede um dado).
  * `onMarcar(feita, valor)` chama o servidor.
  */
-export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer, partes = [], comunicacao, espera, onExpedir }) {
+export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer, partes = [], comunicacao, espera, onExpedir, certame }) {
     const pede = pedidoDaAcao(r);
     // Reservada pelo rito a outra pessoa: quem tem o processo vê por quê não pode cumprir.
     // `nota`: recado sobre a ação pendente (ex.: a alternativa já foi cumprida).
@@ -103,6 +104,13 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {aviso}{situacaoEspera}
+                {pede === 'disputa' && !feita && (
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                        {!certame ? 'Monte o aviso e publique; a ação se cumpre com o resultado da disputa.'
+                            : certame.situacao === 'rascunho' ? 'Aviso em montagem (só a equipe vê).'
+                                : Date.parse(certame.abertura_em) > Date.now() ? `Recebendo propostas até ${quandoBr(certame.abertura_em)}.` : `Aberta em ${quandoBr(certame.abertura_em)}.`}
+                    </span>
+                )}
                 {feita && info?.oculta ? (
                     <span className="block text-slate-800 dark:text-slate-200">
                         {info.rotulo}: <i className="text-slate-600 dark:text-slate-400">reservado a quem gere a unidade</i>
@@ -120,8 +128,9 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                     </span>
                 )}
             </span>
-            {podeMexer && !feita && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : 'Registrar'}</Button>}
-            {podeMexer && feita && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={onDesfazer}><Undo2 className="w-4 h-4" /> Desfazer</Button>}
+            {pede === 'disputa' && !feita && (podeMexer || certame) && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{!certame ? 'Montar a disputa' : 'Abrir a disputa'}</Button>}
+            {podeMexer && !feita && pede !== 'disputa' && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : 'Registrar'}</Button>}
+            {podeMexer && feita && pede !== 'disputa' && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={onDesfazer}><Undo2 className="w-4 h-4" /> Desfazer</Button>}
         </div>
     );
 }

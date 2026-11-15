@@ -41,6 +41,7 @@ const modulos_1 = require("../shared/modulos");
 const sessoes_1 = require("../shared/sessoes");
 const sessoes_2 = require("./sessoes");
 const painelAta_1 = require("./painelAta");
+const certames_1 = require("./certames");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -150,6 +151,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
     const db = admin.firestore();
     const uid = auth.uid;
     const nomeConta = String(auth.token.name || auth.token.email || 'Parte');
+    // Fornecedor em disputa de preços (S11): não é parte e não vê os autos.
+    if (typeof p.action === 'string' && certames_1.ACOES_FORNECEDOR.includes(p.action))
+        return (0, certames_1.acaoFornecedor)(db, auth, p);
     if (p.action === 'aceitarConvite') {
         const token = String(p.convite || '');
         if (token.length < 20)
