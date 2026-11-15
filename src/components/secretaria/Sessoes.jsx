@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Loader2, MapPin, NotebookPen, Pencil, Plus, Search, Send, Trash2, Users, Video } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Loader2, MapPin, NotebookPen, Pencil, Plus, ScrollText, Search, Send, Trash2, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -90,9 +90,10 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
     const q = useQuery({ queryKey: ['sec-sessoes', orgId], queryFn: () => secProcesso(orgId, 'sessaoListar') });
     const [filtro, setFiltro] = useState('');
     const [nova, setNova] = useState(false);
+    const [acordao, setAcordao] = useState(null);
     if (q.isLoading) return <p className="text-sm text-slate-600 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando as sessões…</p>;
     if (q.error) return <ErroQuery q={q} />;
-    const { colegiados = [], sessoes = [], hoje = hojeIso() } = q.data || {};
+    const { colegiados = [], sessoes = [], acordaos = [], hoje = hojeIso() } = q.data || {};
     const lista = filtro ? sessoes.filter((s) => s.orgao_id === filtro) : sessoes;
     const g = agruparSessoes(lista, hoje);
     const gere = colegiados.filter((c) => c.gere);
@@ -120,6 +121,26 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
                 </div>
             </div>
             {!colegiados.length && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum colegiado ativo em que você esteja lotado ou que você componha.</p>}
+            {acordaos.length > 0 && (
+                <section className="space-y-2" aria-label="Acórdãos que você redige">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5"><ScrollText className="w-4 h-4" aria-hidden /> Acórdãos que você redige ({acordaos.length})</h3>
+                    <ul className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
+                        {acordaos.map((a) => (
+                            <li key={a.processo_id} className="p-3 flex flex-wrap items-center gap-2 text-sm">
+                                <span className="min-w-0 flex-1">
+                                    <span className="font-mono text-slate-800 dark:text-slate-200 mr-2">{a.numero}</span>
+                                    <span className="text-slate-900 dark:text-white">{a.resultado}</span>
+                                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                                        {a.sessao}{varios ? ` · ${a.colegiado}` : ''} · {a.enviado ? 'enviado à unidade, aguardando a juntada' : <span className={a.prazo < hoje ? 'text-rose-700 dark:text-rose-300 font-semibold' : ''}>até {br(a.prazo)}{a.prazo < hoje ? ' (vencido)' : ''}</span>}
+                                    </span>
+                                </span>
+                                <Button size="sm" variant={a.enviado ? 'outline' : 'default'} aria-label={`Acórdão de ${a.numero}`} onClick={() => setAcordao(a)}>{a.enviado ? 'Ver' : 'Redigir'}</Button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
+            {acordao && <VotacaoSessao orgId={orgId} sessaoId={acordao.sessao_id} processoId={acordao.processo_id} onFechar={() => setAcordao(null)} onMudou={() => qc.invalidateQueries({ queryKey: ['sec-sessoes', orgId] })} />}
             {colegiados.length > 0 && (
                 <>
                     {g.minhas.length > 0 && <Grupo titulo="Minhas próximas sessões" itens={g.minhas} onAbrir={onAbrirSessao} mostraOrgao={varios} />}
@@ -356,6 +377,13 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     {x.partes?.length > 0 && <p className="text-slate-700 dark:text-slate-300"><Users className="inline w-3.5 h-3.5 -mt-0.5 mr-1" aria-hidden />{x.partes.map((p) => `${p.nome} (${POLOS[p.polo] || p.polo})`).join('; ')}</p>}
                     {x.motivo && <p className="text-xs text-slate-600 dark:text-slate-400">{ROTULO_MOTIVO[x.situacao] || 'Motivo da inclusão'}: {x.motivo}</p>}
                     {x.vista && <p className="text-xs text-violet-900 dark:text-violet-200">{textoDaVistaNaPauta(x.vista)}</p>}
+                    {x.acordao && (
+                        <p className={`text-xs flex items-center gap-1 ${x.acordao.sou_redator && !x.acordao.enviado ? 'font-semibold text-amber-800 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300'}`}>
+                            <ScrollText className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                            {x.acordao.juntado ? 'Acórdão juntado aos autos.' : x.acordao.enviado ? `Acórdão de ${x.acordao.redator_nome} enviado à unidade, para juntar aos autos.`
+                                : x.acordao.sou_redator ? `Você redige o acórdão, até ${br(x.acordao.prazo)}.` : `Acórdão a cargo de ${x.acordao.redator_nome}, até ${br(x.acordao.prazo)}.`}
+                        </p>
+                    )}
                     {(!fora || suspenso) && s.situacao !== 'cancelada' && (x.relator_nome || (gere && !x.julgado)) && (
                         <p className="text-xs text-slate-700 dark:text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span>{x.relator_nome ? `Relator: ${x.relator_nome}` : 'Sem relator designado'}</span>

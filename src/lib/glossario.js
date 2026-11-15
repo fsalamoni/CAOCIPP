@@ -2,6 +2,7 @@
 // Usado pelo botão "?" (components/secretaria/AjudaTermo.jsx) e pela Central de Ajuda (pages/Help.jsx).
 // Texto público: aparece na Ajuda, aberta a qualquer visitante. Nada interno aqui.
 export const GLOSSARIO = {
+    acordao: { termo: 'Acórdão', definicao: 'Acórdão é a decisão do colegiado por escrito, com a ementa, o relatório, o voto que conduziu o resultado e os votos vencidos. Quem o redige é o relator ou, se ele ficar vencido, quem primeiro divergiu para o resultado que venceu.' },
     autos: { termo: 'Autos', definicao: 'Autos são o conjunto oficial dos documentos e termos do processo, em ordem e com folhas numeradas. É o que sai no PDF da íntegra.' },
     autuar: { termo: 'Autuar', definicao: 'Autuar é registrar um pedido ou fato como processo formal. Ele recebe número (ou identificador) e o termo de autuação, o primeiro dos autos.' },
     certidao_conjunta: { termo: 'Certidão conjunta', definicao: 'Certidão conjunta é uma só certidão que reúne vários atos de uma fase, ou de um grupo de fases, em vez de uma para cada ato. Ela vai aos autos quando o processo sai da fase, é arquivado ou alguém pede a emissão.' },

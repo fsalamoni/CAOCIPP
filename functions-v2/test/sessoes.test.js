@@ -86,6 +86,37 @@ test('votação na sessão: quem vota, voto do vogal, votos para o registro e pl
     assert.match(textoDoJulgamento(cfg, dadosDoJulgamento(cfg, { data: '2026-11-20', votos }, '2026-11-20')), /^Improcedente, pelo voto de desempate do presidente \(1 a 1\).*Ausente: Tit/);
 });
 
+test('acórdão: voto condutor, votos vencidos, declarações e o documento (S6)', () => {
+    const { votoCondutor, votosDoAcordao, documentoDoAcordao, prazoDoAcordao, modeloDoAcordao, sanitizeVoto } = require('../lib/shared/sessoes');
+    const { sanitizeDoc, docParaTexto: textoPuro } = require('../lib/shared/documento');
+    const R = ['Procedente', 'Improcedente'];
+    assert.equal(sanitizeVoto({ modo: 'diverge', resultado: 'Improcedente', fundamentos: '  Fundamento longo.  ' }, R, 'Procedente').fundamentos, 'Fundamento longo.');
+    assert.equal(sanitizeVoto({ modo: 'acompanha', fundamentos: 'x' }, R, 'Procedente').fundamentos, undefined, 'quem só acompanha não declara voto');
+    const v = {
+        relator_uid: 'r', relator_nome: 'Rel', resultado: 'Procedente', fundamentos: 'Voto do relator.', votos: {
+            b: { nome: 'Bia', modo: 'diverge', resultado: 'Improcedente', nota: '', fundamentos: 'Divergência da Bia.', em: '2026-11-20T10:05', divergiu_em: '2026-11-20T10:01' },
+            a: { nome: 'Ana', modo: 'diverge', resultado: 'Improcedente', nota: 'Sem prova.', em: '2026-11-20T10:02', divergiu_em: '2026-11-20T10:02' },
+            c: { nome: 'Caio', modo: 'ressalva', resultado: 'Procedente', nota: 'Pena mínima.', em: '2026-11-20T10:03' },
+        },
+    };
+    assert.deepEqual(votoCondutor(v, 'Procedente'), { uid: 'r', nome: 'Rel', relator: true });
+    assert.deepEqual(votoCondutor(v, 'Improcedente'), { uid: 'b', nome: 'Bia', relator: false }, 'conduz quem divergiu primeiro, mesmo que mude o texto depois');
+    const { vencidos, declaracoes } = votosDoAcordao(v, 'Improcedente', 'b');
+    assert.deepEqual(vencidos.map((x) => x.nome), ['Rel', 'Caio'], 'o relator vencido e quem o acompanhou');
+    assert.deepEqual(declaracoes.map((x) => `${x.nome}:${x.texto}`), ['Ana:Sem prova.']);
+    const doc = sanitizeDoc(documentoDoAcordao({ numero: '1/2026', colegiado: 'Conselho', sessao: '1ª Sessão', ementa: 'Ementa.\n\nSegundo parágrafo.', texto: 'Acordam.', relatorio: 'Relatório.', relator: 'Rel',
+        condutor: { nome: 'Bia', relator: false }, fundamentosCondutor: 'Divergência da Bia.', vencidos, declaracoes }));
+    const t = textoPuro(doc);
+    for (const s of ['ACÓRDÃO', 'Ementa', 'Segundo parágrafo.', 'Voto condutor (Bia)', 'Voto vencido de Rel (Procedente)', 'Declaração de Ana (Improcedente)']) assert.ok(t.includes(s), s);
+    assert.equal(prazoDoAcordao('2026-11-16', { antecedencia: 0, contagem: 'corridos' }), '2026-12-16');
+    assert.match(modeloDoAcordao('1/2026', 'Conselho', { titulo: '1ª Sessão', data: '2026-11-20' }, 'Improcedente, por maioria (2 a 1).', { nome: 'Bia', relator: false }),
+        /acordam os membros do Conselho, na 1ª Sessão, de 20\/11\/2026, no seguinte resultado: Improcedente, por maioria \(2 a 1\), nos termos do voto condutor de Bia\.$/);
+    const { leituraDeJulgador } = require('../lib/shared/sessoes');
+    const base = { status: 'em_tramitacao', unidade_atual: 'uC', ultima_sessao: { orgao_id: 'c' } };
+    assert.equal(leituraDeJulgador(base, ['c'], () => 'c'), true);
+    assert.equal(leituraDeJulgador({ ...base, acordao: { juntado_em: '2026-11-21' } }, ['c'], () => 'c'), false, 'juntado o acórdão, a leitura pela pauta acaba');
+});
+
 test('vista, adiamento e diligência: prazo do colegiado e certidões (S5)', () => {
     const { prazoDaVista, textoDaVista, textoDaDevolucao, textoDoAdiamento, textoDaDiligencia } = require('../lib/shared/sessoes');
     // Ausente = 10 dias (padrão do CPC); só se guarda o que difere.

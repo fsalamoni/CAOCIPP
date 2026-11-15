@@ -404,6 +404,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <b>Julgamento iniciado no colegiado:</b> volta à pauta com {p.julgamento_em_curso.relator_nome ? `o relator ${p.julgamento_em_curso.relator_nome}` : 'o mesmo relator'}{p.julgamento_em_curso.manter_votos ? ' e os votos já dados' : ''}.
                         </p>
                     )}
+                    {p.acordao?.pendente && (
+                        <p className={`text-sm rounded-md border px-3 py-1.5 ${p.acordao.enviado_em ? 'border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-100' : 'border-slate-200 dark:border-slate-700'}`}>
+                            <b>{p.acordao.enviado_em ? 'Acórdão para juntar:' : 'Acórdão a redigir:'}</b>{' '}
+                            {p.acordao.enviado_em
+                                ? `${p.acordao.redator_nome} enviou a minuta assinada (${p.acordao.resultado}, ${p.acordao.sessao}). Confira em Minutas da unidade, na aba Andamento, e junte aos autos; excluir a minuta devolve ao redator.`
+                                : `${p.acordao.redator_nome}, até ${br(p.acordao.prazo)}${p.acordao.prazo < hoje ? ' (prazo vencido)' : ''} (${p.acordao.resultado}, ${p.acordao.sessao}${p.acordao.colegiado ? ` do ${p.acordao.colegiado}` : ''}).`}
+                        </p>
+                    )}
                 </div>
             </div>
 

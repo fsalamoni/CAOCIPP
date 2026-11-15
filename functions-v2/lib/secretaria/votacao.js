@@ -7,6 +7,7 @@ exports.acaoVotacao = acaoVotacao;
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const documento_1 = require("../shared/documento");
 const orgaos_1 = require("../shared/orgaos");
 const julgamento_1 = require("../shared/julgamento");
 const sessoes_1 = require("../shared/sessoes");
@@ -16,7 +17,7 @@ const sessoes_2 = require("./sessoes");
 const processos_1 = require("./processos");
 const portalAvisos_1 = require("./portalAvisos");
 const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia'];
-exports.ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', ...ACOES_S5];
+exports.ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', 'sessaoRedator', 'sessaoAcordao', ...ACOES_S5];
 const MIN_TEXTO = 10;
 const vazia = (pid) => ({
     processo_id: pid, relator_uid: '', relator_nome: '', relatorio: '', resultado: '', fundamentos: '', liberado_em: null, votos: {}, proclamado: null,
@@ -51,7 +52,7 @@ function resumoVotacao(v, uid, quemVota, relatorUid) {
     };
 }
 async function acaoVotacao(c, p) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     const hoje = (0, secretaria_1.hojeBrasil)();
     const quem = { uid: c.ctx.uid, nome: c.userName };
     const { orgaos, calendario } = await (0, sessoes_2.lerConfig)(c);
@@ -83,6 +84,7 @@ async function acaoVotacao(c, p) {
         // Com vista nesta sessão: o processo saiu da pauta até a devolução.
         const vista = ((_b = proc === null || proc === void 0 ? void 0 : proc.vista) === null || _b === void 0 ? void 0 : _b.sessao_id) === sref.id ? proc.vista : null;
         const comVista = !!vista && (vista.uids || []).includes(quem.uid);
+        const souRedator = !!v.proclamado && ((_c = v.acordao) === null || _c === void 0 ? void 0 : _c.redator_uid) === quem.uid;
         // Liberado o voto, os pares e a secretaria acompanham; antes, só o relator vê o que escreve.
         const vePares = !!v.liberado_em && (!!eu || gere);
         const votos = vePares ? (0, sessoes_1.votosDaSessao)(v, membros) : [];
@@ -97,7 +99,12 @@ async function acaoVotacao(c, p) {
         }
         return Object.assign(Object.assign({ hoje, data_sessao: s.data, situacao: s.situacao, gere, preside, sou_relator: souRelator, sou_membro: !!eu, numero: item.numero, assunto: item.assunto, membros: membros.map((m) => ({ uid: m.uid, nome: m.nome, funcao: m.funcao })), relator: relatorUid ? { uid: relatorUid, nome: v.liberado_em ? v.relator_nome : item.relator_nome || nm.get(relatorUid) || '' } : null, resultados: (regra === null || regra === void 0 ? void 0 : regra.cfg.resultados) || [], pendente: !!regra, liberado_em: v.liberado_em }, (souRelator || vePares ? { relatorio: v.relatorio, resultado: v.resultado, fundamentos: v.fundamentos } : {})), { votos: vePares ? membros.filter((m) => m.uid !== v.relator_uid).map((m) => (Object.assign(Object.assign({}, (v.votos[m.uid] || {})), { uid: m.uid, nome: m.nome, funcao: m.funcao }))) : [], meu_voto: v.votos[quem.uid] || null, placar: vePares && regra ? (0, sessoes_1.placarParcial)(regra.cfg.resultados, votos) : [], previa, proclamado: v.proclamado ? { resultado: v.proclamado.resultado, texto: v.proclamado.texto, em: v.proclamado.em, por_nome: v.proclamado.por_nome } : null, 
             // Registrado na ação do rito: o processo saiu da pauta com esta sessão como a última.
-            registrado: !!v.proclamado && !!proc && ((_c = proc.ultima_sessao) === null || _c === void 0 ? void 0 : _c.id) === sref.id && ((_d = proc.sessao) === null || _d === void 0 ? void 0 : _d.id) !== sref.id, situacao_item: item.situacao, motivo: item.motivo || '', vista: vista ? { nomes: vista.nomes || [], desde: vista.desde, prazo: vista.prazo, vencida: vista.prazo < hoje, minha: comVista } : item.vista ? Object.assign(Object.assign({}, item.vista), { encerrada: true }) : null, vista_dias: ((_e = o.pauta) === null || _e === void 0 ? void 0 : _e.vista_dias) || 10, pode: {
+            registrado: !!v.proclamado && !!proc && ((_d = proc.ultima_sessao) === null || _d === void 0 ? void 0 : _d.id) === sref.id && ((_e = proc.sessao) === null || _e === void 0 ? void 0 : _e.id) !== sref.id, situacao_item: item.situacao, motivo: item.motivo || '', vista: vista ? { nomes: vista.nomes || [], desde: vista.desde, prazo: vista.prazo, vencida: vista.prazo < hoje, minha: comVista } : item.vista ? Object.assign(Object.assign({}, item.vista), { encerrada: true }) : null, vista_dias: ((_f = o.pauta) === null || _f === void 0 ? void 0 : _f.vista_dias) || 10, 
+            // S6: voto condutor, redator e acórdão (para quem acompanha a votação; o texto em redação, só ao redator).
+            acordao: v.proclamado && v.acordao && (vePares || souRedator) ? Object.assign({ condutor: v.proclamado.condutor || null, redator: { uid: v.acordao.redator_uid, nome: v.acordao.redator_nome }, prazo: v.acordao.prazo, enviado_em: v.acordao.enviado_em || null, juntado_em: ((_g = proc === null || proc === void 0 ? void 0 : proc.acordao) === null || _g === void 0 ? void 0 : _g.sessao_id) === sref.id ? proc.acordao.juntado_em || null : null, ordem: ((_h = proc === null || proc === void 0 ? void 0 : proc.acordao) === null || _h === void 0 ? void 0 : _h.sessao_id) === sref.id ? proc.acordao.ordem || null : null }, (souRedator ? {
+                ementa: v.acordao.ementa || '', texto: v.acordao.texto || '',
+                modelo: (0, sessoes_1.modeloDoAcordao)(item.numero, o.nome, s, v.proclamado.texto, v.proclamado.condutor || { nome: v.relator_nome, relator: true }),
+            } : {})) : null, pode: {
                 designar: gere && ativa && !v.liberado_em,
                 relatar: souRelator && ativa && !v.liberado_em && !!regra,
                 votar: emJulgamento && !!eu && !souRelator,
@@ -106,6 +113,8 @@ async function acaoVotacao(c, p) {
                 juntar_vista: !!vista && !!eu && !souRelator && !comVista,
                 devolver_vista: !!vista && (comVista || ((preside || gere) && vista.prazo < hoje)),
                 adiar: (preside || gere) && ativa && !v.proclamado && !!regra && s.situacao === 'publicada',
+                redigir: souRedator && !((_j = v.acordao) === null || _j === void 0 ? void 0 : _j.enviado_em),
+                redesignar: !!v.proclamado && !!v.acordao && !v.acordao.enviado_em && (preside || gere),
             } });
     }
     if (p.action === 'sessaoRelator') {
@@ -134,8 +143,8 @@ async function acaoVotacao(c, p) {
         if (!item.relator_uid || item.relator_uid !== quem.uid)
             throw new https_1.HttpsError('permission-denied', 'Só o relator designado escreve o relatório e o voto');
         const liberar = p.liberar === true;
-        const relatorio = String((_f = p.relatorio) !== null && _f !== void 0 ? _f : '').replace(/\r\n/g, '\n').slice(0, sessoes_1.MAX_RELATORIO);
-        const fundamentos = String((_g = p.fundamentos) !== null && _g !== void 0 ? _g : '').replace(/\r\n/g, '\n').slice(0, sessoes_1.MAX_RELATORIO);
+        const relatorio = String((_k = p.relatorio) !== null && _k !== void 0 ? _k : '').replace(/\r\n/g, '\n').slice(0, sessoes_1.MAX_RELATORIO);
+        const fundamentos = String((_l = p.fundamentos) !== null && _l !== void 0 ? _l : '').replace(/\r\n/g, '\n').slice(0, sessoes_1.MAX_RELATORIO);
         const resultado = (0, secretaria_1.texto)(p.resultado, 80);
         await c.db.runTransaction(async (tx) => {
             var _a;
@@ -168,7 +177,7 @@ async function acaoVotacao(c, p) {
             throw new https_1.HttpsError('permission-denied', 'Vota quem compõe o colegiado no dia da sessão (presidente e titulares)');
         let voto = null;
         await c.db.runTransaction(async (tx) => {
-            var _a;
+            var _a, _b;
             const [vs, ps] = await Promise.all([tx.get(vref), tx.get(pref)]);
             const v = vs.data();
             if (!(v === null || v === void 0 ? void 0 : v.liberado_em))
@@ -187,7 +196,12 @@ async function acaoVotacao(c, p) {
             catch (e) {
                 (0, context_1.erroUsuario)(e);
             }
-            tx.set(vref, { votos: { [quem.uid]: Object.assign(Object.assign({}, voto), { nome: quem.nome, funcao: eu.funcao, em: new Date().toISOString() }) } }, { merge: true });
+            const agora = new Date().toISOString();
+            // Quem diverge primeiro para o resultado que vence conduz o acórdão (S6): mudar o texto não muda a ordem.
+            const antes = (_b = v.votos) === null || _b === void 0 ? void 0 : _b[quem.uid];
+            const divergiu = voto.modo === 'diverge' ? { divergiu_em: (antes === null || antes === void 0 ? void 0 : antes.modo) === 'diverge' && antes.resultado === voto.resultado && antes.divergiu_em ? antes.divergiu_em : agora } : {};
+            // O voto inteiro é trocado (sem sobrar fundamento de um voto anterior).
+            tx.update(vref, new firestore_1.FieldPath('votos', quem.uid), Object.assign(Object.assign(Object.assign({}, voto), divergiu), { nome: quem.nome, funcao: eu.funcao, em: agora }));
         });
         await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_VOTO', { sessao_id: sref.id, processo_id: pid, numero: item.numero, modo: voto.modo });
         return { ok: true };
@@ -218,18 +232,102 @@ async function acaoVotacao(c, p) {
             catch (e) {
                 (0, context_1.erroUsuario)(e);
             }
+            const resultado = (0, julgamento_1.apurar)(regra.cfg, dados.votos).resultado;
+            // S6: o voto que conduz o resultado e, com ele, o redator do acórdão e o prazo.
+            const condutor = (0, sessoes_1.votoCondutor)(v, resultado);
             proclamado = {
-                resultado: (0, julgamento_1.apurar)(regra.cfg, dados.votos).resultado, texto: (0, julgamento_1.textoDoJulgamento)(regra.cfg, dados),
-                data: hoje, em: new Date().toISOString(), por_nome: quem.nome, votos: dados.votos,
+                resultado, texto: (0, julgamento_1.textoDoJulgamento)(regra.cfg, dados),
+                data: hoje, em: new Date().toISOString(), por_nome: quem.nome, votos: dados.votos, condutor,
             };
-            tx.set(vref, { proclamado }, { merge: true });
-            tx.update(pref, { 'sessao.proclamado': proclamado });
+            const prazo = (0, sessoes_1.prazoDoAcordao)(hoje, o.pauta, calendario);
+            tx.set(vref, { proclamado, acordao: { redator_uid: condutor.uid, redator_nome: condutor.nome, prazo, ementa: '', texto: '' } }, { merge: true });
+            tx.update(pref, {
+                'sessao.proclamado': proclamado,
+                acordao: { sessao_id: sref.id, sessao: s.titulo, colegiado: o.nome, orgao_id: o.id, resultado, redator_uid: condutor.uid, redator_nome: condutor.nome, prazo, pendente: true },
+            });
         });
         const p2 = proclamado;
         await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_PROCLAMADO', { sessao_id: sref.id, processo_id: pid, numero: item.numero, resultado: p2.resultado });
         // O registro na ação do rito: se não couber agora (o rito mudou, ação reservada), a equipe registra com os votos da sessão.
         const aviso = await (0, processos_1.registrarJulgamentoDaSessao)(c.db, c.orgId, pid, quem.nome);
-        return { ok: true, resultado: p2.resultado, texto: p2.texto, registrado: !aviso, aviso };
+        return { ok: true, resultado: p2.resultado, texto: p2.texto, registrado: !aviso, aviso, redator: ((_m = p2.condutor) === null || _m === void 0 ? void 0 : _m.nome) || '' };
+    }
+    // ---- S6: redator e acórdão ----
+    if (p.action === 'sessaoRedator') {
+        if (!preside && !gere)
+            throw new https_1.HttpsError('permission-denied', 'Quem designa outro redator é o presidente do colegiado (ou a secretaria)');
+        const uid = String(p.uid || '');
+        const m = membros.find((x) => x.uid === uid);
+        if (!m)
+            throw new https_1.HttpsError('invalid-argument', 'O redator precisa ter votado na sessão (presidente ou titular)');
+        await c.db.runTransaction(async (tx) => {
+            var _a, _b;
+            const [vs, ps] = await Promise.all([tx.get(vref), tx.get(pref)]);
+            const v = vs.data();
+            if (!(v === null || v === void 0 ? void 0 : v.proclamado) || !v.acordao)
+                throw new https_1.HttpsError('failed-precondition', 'O redator se designa depois da proclamação');
+            if (v.acordao.enviado_em)
+                throw new https_1.HttpsError('failed-precondition', 'O acórdão já foi enviado à unidade');
+            tx.update(vref, { 'acordao.redator_uid': uid, 'acordao.redator_nome': m.nome });
+            if (((_b = (_a = ps.data()) === null || _a === void 0 ? void 0 : _a.acordao) === null || _b === void 0 ? void 0 : _b.sessao_id) === sref.id)
+                tx.update(pref, { 'acordao.redator_uid': uid, 'acordao.redator_nome': m.nome });
+        });
+        await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_REDATOR', { sessao_id: sref.id, processo_id: pid, numero: item.numero, redator: m.nome });
+        return { ok: true };
+    }
+    if (p.action === 'sessaoAcordao') {
+        const enviar = p.enviar === true;
+        const ementa = String((_o = p.ementa) !== null && _o !== void 0 ? _o : '').replace(/\r\n/g, '\n').slice(0, sessoes_1.MAX_EMENTA);
+        const textoA = String((_p = p.texto) !== null && _p !== void 0 ? _p : '').replace(/\r\n/g, '\n').slice(0, sessoes_1.MAX_RELATORIO);
+        const r = await c.db.runTransaction(async (tx) => {
+            var _a, _b, _c;
+            const [vs, ps] = await Promise.all([tx.get(vref), tx.get(pref)]);
+            const v = vs.data();
+            const proc = ps.data();
+            if (!(v === null || v === void 0 ? void 0 : v.proclamado) || !v.acordao)
+                throw new https_1.HttpsError('failed-precondition', 'O acórdão se redige depois da proclamação');
+            if (v.acordao.redator_uid !== quem.uid)
+                throw new https_1.HttpsError('permission-denied', 'Só o redator designado escreve o acórdão');
+            if (v.acordao.enviado_em)
+                throw new https_1.HttpsError('failed-precondition', 'O acórdão já foi enviado à unidade e não muda mais aqui');
+            if (!enviar) {
+                tx.update(vref, { 'acordao.ementa': ementa, 'acordao.texto': textoA });
+                return { enviado: false, documento_id: '' };
+            }
+            if (ementa.trim().length < MIN_TEXTO || textoA.trim().length < MIN_TEXTO)
+                throw new https_1.HttpsError('invalid-argument', 'Escreva a ementa e o acórdão antes de enviar');
+            if (!proc || proc.status === 'arquivado' || proc.status === 'excluido')
+                throw new https_1.HttpsError('failed-precondition', 'O processo não está mais em tramitação');
+            const cond = v.proclamado.condutor || (0, sessoes_1.votoCondutor)(v, v.proclamado.resultado);
+            const { vencidos, declaracoes } = (0, sessoes_1.votosDoAcordao)(v, v.proclamado.resultado, cond.uid);
+            const votoCond = cond.relator ? v.fundamentos : (((_a = v.votos[cond.uid]) === null || _a === void 0 ? void 0 : _a.fundamentos) || ((_b = v.votos[cond.uid]) === null || _b === void 0 ? void 0 : _b.nota) || '');
+            let conteudo = null;
+            try {
+                conteudo = (0, documento_1.sanitizeDoc)((0, sessoes_1.documentoDoAcordao)({
+                    numero: String(proc.numero || ''), colegiado: o.nome, sessao: `${s.titulo}, de ${(0, sessoes_1.br)(s.data)}`, ementa, texto: textoA,
+                    relatorio: v.relatorio, relator: v.relator_nome, condutor: cond, fundamentosCondutor: votoCond, vencidos, declaracoes,
+                }));
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+            const hash = (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudo));
+            const agora = new Date().toISOString();
+            // Vai à unidade do processo como minuta assinada pelo redator; a unidade junta aos autos (e o rito confere).
+            const dref = pref.collection('documentos').doc();
+            tx.set(dref, {
+                titulo: `Acórdão: ${s.titulo}`, tipo: 'Acórdão', status: 'minuta', unidade_origem: proc.unidade_atual, autor_uid: quem.uid, autor_nome: quem.nome,
+                criado_em: agora, origem: 'editor', conteudo, sha256: hash, acordao_sessao_id: sref.id,
+                assinaturas: [{ uid: quem.uid, nome: quem.nome, em: agora, sha256: hash, nivel: 'simples' }],
+            });
+            tx.update(vref, { 'acordao.ementa': ementa, 'acordao.texto': textoA, 'acordao.enviado_em': agora, 'acordao.documento_id': dref.id });
+            if (((_c = proc.acordao) === null || _c === void 0 ? void 0 : _c.sessao_id) === sref.id)
+                tx.update(pref, { 'acordao.enviado_em': agora, 'acordao.documento_id': dref.id });
+            return { enviado: true, documento_id: dref.id };
+        });
+        if (r.enviado)
+            await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_ACORDAO_ENVIADO', { sessao_id: sref.id, processo_id: pid, numero: item.numero, documento_id: r.documento_id });
+        return Object.assign({ ok: true }, r);
     }
     // ---- S5: vista, adiamento e conversão em diligência ----
     if (!ACOES_S5.includes(String(p.action)))
