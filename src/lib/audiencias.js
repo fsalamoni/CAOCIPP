@@ -38,7 +38,7 @@ export function textoDaAudiencia(a, comParticipantes = true) {
 }
 
 /** Audiências designadas de hoje em diante, da mais próxima. */
-export const audienciasFuturas = (lista, hoje) => (lista || []).filter((a) => a.status !== 'cancelada' && a.data >= hoje)
+export const audienciasFuturas = (lista, hoje) => (lista || []).filter((a) => a.status !== 'cancelada' && !a.realizada_em && a.data >= hoje)
     .sort((a, b) => `${a.data}T${a.hora}`.localeCompare(`${b.data}T${b.hora}`));
 
 /** Troca {audiencia} pela próxima audiência designada; sem audiência, o texto fica como está (o servidor recusa). */

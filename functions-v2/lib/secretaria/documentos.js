@@ -28,6 +28,7 @@ const secretaria_2 = require("../shared/secretaria");
 const context_1 = require("./context");
 const autos_1 = require("./autos");
 const pdfDocumento_1 = require("./pdfDocumento");
+const audienciaSala_1 = require("./audienciaSala");
 function caminhoArquivo(orgId, procId, docId) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
@@ -204,6 +205,9 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             await procRef.update(sem);
             await c.db.collection('secSessoes').doc(String(doc.acordao_sessao_id)).collection('votacoes').doc(procRef.id).update(sem).catch(() => undefined);
         }
+        // Termo de audiência excluído: a sala volta a ficar aberta para corrigir e encerrar de novo (S10).
+        if (doc.audiencia_id)
+            await (0, audienciaSala_1.reabrirSala)(c.db, procRef, String(doc.audiencia_id), ref.id);
         if ((proc.assinaturas_pendentes || []).some((x) => x.docId === ref.id)) {
             await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
         }

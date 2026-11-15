@@ -21,6 +21,7 @@ import {
     registroVerificacao, textoFolhas,
 } from './autos';
 import { renderizarDocumento } from './pdfDocumento';
+import { reabrirSala } from './audienciaSala';
 
 /**
  * Documentos do processo. Todo documento nasce como MINUTA da unidade que tem
@@ -253,6 +254,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 await procRef.update(sem);
                 await c.db.collection('secSessoes').doc(String(doc.acordao_sessao_id)).collection('votacoes').doc(procRef.id).update(sem).catch(() => undefined);
             }
+            // Termo de audiência excluído: a sala volta a ficar aberta para corrigir e encerrar de novo (S10).
+            if (doc.audiencia_id) await reabrirSala(c.db, procRef, String(doc.audiencia_id), ref.id);
             if (((proc.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id)) {
                 await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
             }

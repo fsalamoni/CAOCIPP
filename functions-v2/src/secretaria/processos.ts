@@ -18,6 +18,7 @@ import { responsavelPelaFase } from '../shared/efeitosFase';
 import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
 import { RESPOSTAS, encerrarComunicacoesDaFase, faseQueEspera, situacaoDaResposta } from '../shared/comunicacaoRito';
 import { ajustarComunicacao, ajustarPrazo } from '../shared/ajustePrazo';
+import { ACOES_SALA, acaoSalaAudiencia } from './audienciaSala';
 import { Audiencia, aplicarAudiencia, designadaDe, nomeDaAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
 import { apurar, dadosDoJulgamento, textoDoJulgamento } from '../shared/julgamento';
 import { sendEmail } from '../shared/email';
@@ -690,6 +691,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     const { db, orgId } = c;
     // Sessões de julgamento dos colegiados (pauta, publicação, cancelamento).
     if (typeof p.action === 'string' && (p.action.startsWith('sessao') || p.action.startsWith('reuniao'))) return acaoSessao(c, p as unknown as Record<string, unknown>);
+    // Sala da audiência designada pelo rito: presença, registros e termo (S10).
+    if (typeof p.action === 'string' && ACOES_SALA.includes(p.action)) return acaoSalaAudiencia(c, p as unknown as Record<string, unknown>);
     // Anotação privada de quem lê o processo (nunca vai aos autos).
     if ((p.action as string) === 'anotacao') return acaoAnotacao(c, p as unknown as Record<string, unknown>);
 
@@ -1515,6 +1518,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 } : null;
                 const lista = aplicarAudiencia(antes, fase.id, idx, nova);
                 const sai = !feita ? antes.filter((a, k) => a.status === 'designada' && lista[k]?.status === 'cancelada')[0] : undefined;
+                // S10: a audiência já conduzida na sala tem termo; não se cancela desfazendo a designação.
+                if (sai?.realizada_em) throw new HttpsError('failed-precondition', 'A audiência já foi encerrada na sala e tem termo: não se cancela mais');
                 if (sai) cancelada = ` Fica cancelada a audiência designada para ${textoDaAudiencia(sai, false)}.`;
                 const prox = audienciasFuturas(lista, hojeBrasil())[0];
                 comAudiencia = { audiencias: lista, proxima_audiencia: prox ? `${prox.data}T${prox.hora}` : null };

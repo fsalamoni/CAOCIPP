@@ -34,6 +34,8 @@ export interface Audiencia {
     id: string; fase_id: string; acao_idx: number; especie: string; especie_nome?: string; especie_m?: true;
     data: string; hora: string; modo: string; local?: string; link?: string; participantes?: Participante[];
     designada_em: string; designada_por: string; status: 'designada' | 'cancelada';
+    /** S10: encerrada na sala da audiência (com o termo para a juntada); `realizada` false = não se realizou. */
+    realizada_em?: string; realizada?: boolean;
 }
 export type DadosAudiencia = Pick<Audiencia, 'data' | 'hora' | 'modo' | 'local' | 'link' | 'participantes'>;
 
@@ -83,9 +85,9 @@ export function textoDaAudiencia(a: DadosAudiencia, comParticipantes = true): st
     return `${br(a.data)}, às ${a.hora}, ${onde}${quem}`;
 }
 
-/** Audiências designadas (não canceladas) de hoje em diante, da mais próxima à mais distante. */
+/** Audiências designadas (não canceladas nem já encerradas na sala) de hoje em diante, da mais próxima à mais distante. */
 export function audienciasFuturas(lista: Audiencia[] | undefined, hoje: string): Audiencia[] {
-    return (lista || []).filter((a) => a.status === 'designada' && a.data >= hoje)
+    return (lista || []).filter((a) => a.status === 'designada' && !a.realizada_em && a.data >= hoje)
         .sort((a, b) => `${a.data}T${a.hora}`.localeCompare(`${b.data}T${b.hora}`));
 }
 

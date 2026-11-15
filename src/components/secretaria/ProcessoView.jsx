@@ -53,6 +53,8 @@ import VersoesMinuta from './VersoesMinuta';
 import ImpressaoInterna from './ImpressaoInterna';
 import { rotuloFinalizar } from '@/lib/juntadaConjunta';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import SalaAudiencia from './SalaAudiencia';
+import { audienciasParaSala } from '@/lib/audienciaSala';
 
 const MAX_MB = 5;
 const folhas = (d) => (d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null);
@@ -66,6 +68,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const q = useQuery({ queryKey: ['sec-proc', orgId, procId], queryFn: () => secProcesso(orgId, 'obter', { id: procId }) });
     const [acao, setAcao] = useState(null); // {tipo, ...}
     const [ocupado, setOcupado] = useState(false);
+    const [salaAud, setSalaAud] = useState(null); // id da audiência aberta na sala (S10)
     const [linkConvite, setLinkConvite] = useState(null); // {link, emailEnviado}
     const [editor, setEditor] = useState(null); // {docId?, titulo, tipo, conteudo, somenteLeitura, modeloId?}
     const [pdf, setPdf] = useState(null); // {base64, nome, titulo}
@@ -380,7 +383,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             {ultimoDoc && ` · último documento: nº ${ultimoDoc.ordem}, ${ultimoDoc.titulo}`}
                         </p>
                     )}
-                    {audienciasFuturas(p.audiencias, hoje).slice(0, 1).map((a) => (
+                    {audienciasParaSala(p.audiencias, hoje).map((a) => (
+                        <p key={`sala-${a.id}`} className="text-sm rounded-md border border-indigo-300 dark:border-indigo-700 bg-indigo-50/60 dark:bg-indigo-950/40 px-3 py-1.5">
+                            <b>{nomeAudiencia(a.especie, a.especie_nome)} {a.data === hoje ? 'de hoje' : `de ${br(a.data)}, ainda sem termo`}:</b> {textoDaAudiencia(a)}.{' '}
+                            <button type="button" className="text-indigo-700 dark:text-indigo-300 underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                onClick={() => setSalaAud(a.id)}>Sala da audiência</button>
+                        </p>
+                    ))}
+                    {audienciasFuturas(p.audiencias, hoje).filter((a) => a.data > hoje).slice(0, 1).map((a) => (
                         <p key={a.id} className="text-sm rounded-md border border-indigo-200 dark:border-indigo-800 px-3 py-1.5">
                             <b>Próxima {nomeAudiencia(a.especie, a.especie_nome).toLowerCase()}:</b> {textoDaAudiencia(a)}.
                         </p>
@@ -992,6 +1002,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onConfirmar={juntarEmConjunto}
                 onFechar={() => setConjunta(false)}
             />
+            {salaAud && <SalaAudiencia orgId={orgId} procId={procId} audienciaId={salaAud} onFechar={() => { setSalaAud(null); atualizar(); }} />}
             <ImpressaoInterna aberto={interna} movimentos={movimentos} documentos={documentos} gerar={(sel) => secExportarInterno(orgId, procId, sel)} onFechar={() => setInterna(false)} />
             <VersoesMinuta orgId={orgId} procId={procId} documento={versoesDe} ocupado={ocupado} onLer={(v) => lerVersao(versoesDe, v)} onFechar={() => setVersoesDe(null)} />
             <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>

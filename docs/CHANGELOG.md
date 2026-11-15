@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Sala da audiência
+- Décima etapa do plano de sessões de julgamento, reuniões e pregão.
+- **A audiência designada pelo rito agora acontece na plataforma:** no dia, quem tem o processo abre a sala pelo aviso no alto do processo.
+- **Presença:** partes, quem as representa e os participantes da designação (testemunha, perito...), mais quem compareceu sem convocação (membro do Ministério Público, defensor nomeado, intérprete).
+- **Registros em ordem:** manifestação, depoimento, requerimento, proposta de acordo, acordo, sem acordo, deliberação de quem conduz, documento apresentado, suspensão e retomada, cada um com a hora e quem registrou. A fala só vale para quem está presente.
+- **Termo de audiência:** ao encerrar, o sistema lavra o termo (presentes, ausentes, cada registro e a hora do fim) e o manda à lista de documentos como minuta assinada, para a juntada. Se a audiência não se realizou, o termo diz o motivo. Excluir a minuta reabre a sala para corrigir.
+- Encerrada, a audiência sai das próximas (também no portal) e não se cancela mais desfazendo a designação.
+
 ### 15/11/2026 — Reunião deliberativa
 - Nona etapa do plano de sessões de julgamento, reuniões e pregão.
 - **Reunião do colegiado sem processo:** ao marcar, escolha "Reunião deliberativa". A pauta é de assuntos (plano de trabalho, eleição, proposta), cada um com proponente, forma de votação (nominal, simbólica, secreta ou sem votação) e maioria exigida (simples, absoluta ou dois terços). Assunto incluído depois da convocação exige motivo; o adiado de outra reunião pode ser trazido para a pauta.
