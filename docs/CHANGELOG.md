@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Julgador lê os autos pela pauta e anotações privadas
+- Terceira etapa do plano de sessões de julgamento, reuniões e pregão.
+- Quem compõe o colegiado **lê os autos** do processo pautado numa sessão dele, mesmo sem lotação, tocando no número do processo na pauta. A leitura vale até o acórdão, enquanto o processo segue no colegiado.
+- O julgador vê os documentos juntados; minutas e documentos guardados fora dos autos não aparecem, e ele não pratica atos no processo.
+- **Cada leitura fica registrada** (quem, quando, o quê), fora dos autos, e a unidade vê a lista em "Leituras pelos julgadores", na capa.
+- **Minhas anotações**: todo mundo que lê um processo pode anotar para si. Só a própria pessoa vê; nunca vai aos autos nem às partes. A pauta marca onde você anotou.
+- Quem só compõe o colegiado abre o Processo Eletrônico direto na aba Sessões.
+
 ### 15/11/2026 — Sessões de julgamento e pauta
 - Segunda etapa do plano de sessões de julgamento, reuniões e pregão.
 - Nova aba **Sessões** no Processo Eletrônico: a agenda dos colegiados, com as próximas sessões, as que você compõe, os rascunhos da secretaria e as realizadas ou canceladas.

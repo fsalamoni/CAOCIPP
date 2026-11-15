@@ -21,6 +21,7 @@ const documento_1 = require("../shared/documento");
 const exigencias_1 = require("../shared/exigencias");
 const processos_1 = require("./processos");
 const portalAvisos_1 = require("./portalAvisos");
+const sessoes_1 = require("./sessoes");
 const avisosEquipe_1 = require("./avisosEquipe");
 const prazosFase_1 = require("../shared/prazosFase");
 const secretaria_2 = require("../shared/secretaria");
@@ -34,7 +35,15 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
-    const { ref: procRef, data: proc } = await (0, context_1.lerProcesso)(c, p.processoId);
+    // Julgador do colegiado (S3): só baixa ou vê o PDF de documento juntado, e cada leitura fica registrada.
+    const leitura = (p.action === 'baixar' || p.action === 'pdf') && !p.versaoId;
+    const { ref: procRef, data: proc, julgador } = await (0, context_1.lerProcesso)(c, p.processoId, undefined, { julgador: leitura });
+    if (julgador) {
+        const d = p.docId ? (await procRef.collection('documentos').doc(String(p.docId)).get()).data() : undefined;
+        if (!d || d.status !== 'juntado')
+            throw new https_1.HttpsError('not-found', 'Documento não encontrado');
+        await (0, sessoes_1.registrarLeitura)(c, procRef, proc, `Leu o documento ${d.ordem ? `nº ${d.ordem}, ` : ''}${String(d.titulo || '')}`);
+    }
     // Feriados locais e recesso, se o ato puder abrir prazo de ação.
     const calendario = ['juntar', 'guardar'].includes(String(p.action)) ? await (0, context_1.calendarioDasAcoes)(c.db, c.orgId, proc) : undefined;
     const docsCol = procRef.collection('documentos');

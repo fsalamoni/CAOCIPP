@@ -6,6 +6,7 @@ exports.sanitizeDadosSessao = sanitizeDadosSessao;
 exports.dataMinimaDaSessao = dataMinimaDaSessao;
 exports.problemaDaAntecedencia = problemaDaAntecedencia;
 exports.julgamentoPendente = julgamentoPendente;
+exports.leituraDeJulgador = leituraDeJulgador;
 exports.ondeSessao = ondeSessao;
 exports.textoDaInclusao = textoDaInclusao;
 exports.textoDaRetirada = textoDaRetirada;
@@ -89,6 +90,20 @@ function julgamentoPendente(proc) {
     const feitas = (proc.acoes_feitas || {})[String(proc.fase_atual)] || [];
     const resp = (0, exigencias_1.respostasDaFase)(proc);
     return (fase.acoes_regras || []).findIndex((r, i) => (r === null || r === void 0 ? void 0 : r.pede) === 'julgamento' && !feitas.includes(i) && (0, exigencias_1.acaoAtiva)(fase, i, resp));
+}
+/**
+ * Leitura do julgador (decisão do Flavio, 15/11/2026): quem compõe o
+ * colegiado lê os autos enquanto o processo está pautado numa sessão dele e,
+ * julgado, enquanto o processo segue em unidade do colegiado (o acórdão é
+ * feito ali). Saiu do colegiado, a leitura acaba.
+ */
+function leituraDeJulgador(proc, compoe, orgaoDaUnidade) {
+    if (!compoe.length || proc.status === 'excluido')
+        return false;
+    if (proc.sessao && compoe.includes(String(proc.sessao.orgao_id)))
+        return true;
+    const ult = proc.ultima_sessao ? String(proc.ultima_sessao.orgao_id) : '';
+    return !!ult && proc.status === 'em_tramitacao' && compoe.includes(ult) && orgaoDaUnidade(String(proc.unidade_atual || '')) === ult;
 }
 /** Onde e como, no mesmo jeito das audiências: "em Sala 2", "por videoconferência (link)", "em Sala 2 e por videoconferência (link)". */
 function ondeSessao(s) {

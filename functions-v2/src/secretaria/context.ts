@@ -11,8 +11,9 @@ import {
     podeVer,
 } from '../shared/secretaria';
 import { geraTermo, visivelParaPartes } from '../shared/autos';
-import { orgaosAdministrados, orgaosDe } from '../shared/orgaos';
-import { CalendarioOrgao, sanitizeCalendario } from '../shared/secretaria';
+import { composicaoEm, orgaosAdministrados, orgaosDe } from '../shared/orgaos';
+import { CalendarioOrgao, hojeBrasil, sanitizeCalendario } from '../shared/secretaria';
+import { leituraDeJulgador } from '../shared/sessoes';
 import { marcasDoDestino } from '../shared/exigencias';
 import { faseComPrazoDeAcao } from '../shared/prazosFase';
 
@@ -50,6 +51,8 @@ export interface Contexto {
     gestorDe: string[];
     /** Órgãos internos que o usuário administra por delegação (com os subordinados). */
     adminOrgaos?: string[];
+    /** Colegiados que o usuário compõe hoje (leitura dos autos pautados, etapa S3). */
+    compoe?: string[];
 }
 
 export function exigirAuth(request: { auth?: { uid: string; token: Record<string, unknown> } }) {
@@ -93,7 +96,10 @@ export async function carregarContexto(
     const unidades = unSnap.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string } & admin.firestore.DocumentData));
     const ativas = unidades.filter((u) => u.ativa !== false);
     const unidadeIds = ativas.filter((u) => lotacoesDe(u).some((l) => l.uid === auth.uid)).map((u) => u.id);
-    const adminOrgaos = orgaosAdministrados(orgaosDe(cfgSnap.data()?.orgaos), auth.uid);
+    const orgaos = orgaosDe(cfgSnap.data()?.orgaos);
+    const adminOrgaos = orgaosAdministrados(orgaos, auth.uid);
+    const hoje = hojeBrasil();
+    const compoe = orgaos.filter((o) => o.decisao === 'colegiada' && o.ativo && composicaoEm(o.composicao, hoje).some((m) => m.uid === auth.uid)).map((o) => o.id);
     const gestorDe = unidades.filter((u) => !u.excluida && (
         (u.ativa !== false && lotacoesDe(u).some((l) => l.uid === auth.uid && l.gestor)) || (!!u.orgao_id && adminOrgaos.includes(String(u.orgao_id)))
     )).map((u) => u.id);
@@ -107,6 +113,7 @@ export async function carregarContexto(
         unidades,
         gestorDe,
         adminOrgaos,
+        compoe,
     };
 }
 
@@ -160,11 +167,25 @@ export function exigirGestor(c: Contexto, unidadeId: unknown) {
     return u;
 }
 
-/** Lê o processo garantindo que é do órgão (sem vazar existência de outro). */
+/**
+ * Julgador que compõe o colegiado e não vê o processo pela lotação: lê os
+ * autos enquanto o processo está pautado numa sessão do colegiado e, depois
+ * do julgamento, enquanto segue numa unidade dele (até o acórdão sair).
+ */
+export function julgadorLe(c: Contexto, proc: admin.firestore.DocumentData): boolean {
+    return leituraDeJulgador(proc, c.compoe || [], (u) => c.unidades.find((x) => x.id === u && !x.excluida)?.orgao_id || null);
+}
+
+/**
+ * Lê o processo garantindo que é do órgão (sem vazar existência de outro).
+ * `julgador`: aceita a leitura do julgador do colegiado (só nas leituras;
+ * `julgador` volta true quando foi por ela).
+ */
 export async function lerProcesso(
     c: Contexto,
     id: unknown,
-    tx?: admin.firestore.Transaction
+    tx?: admin.firestore.Transaction,
+    opts: { julgador?: boolean } = {}
 ) {
     if (typeof id !== 'string' || !id) throw new HttpsError('invalid-argument', 'processoId é obrigatório');
     const ref = c.db.collection(COL.processos).doc(id);
@@ -175,10 +196,12 @@ export async function lerProcesso(
         throw new HttpsError('failed-precondition', 'Você é parte neste processo. Acompanhe-o pelo Portal das partes.');
     }
     // Excluído só reaparece pela lista de excluídos do admin (restaurar).
-    if (!snap.exists || !data || data.organization_id !== c.orgId || data.status === 'excluido' || !podeVer(data as never, c.ctx)) {
+    if (!snap.exists || !data || data.organization_id !== c.orgId || data.status === 'excluido') {
         throw new HttpsError('not-found', 'Processo não encontrado');
     }
-    return { ref, data };
+    if (podeVer(data as never, c.ctx)) return { ref, data, julgador: false };
+    if (opts.julgador && julgadorLe(c, data)) return { ref, data, julgador: true };
+    throw new HttpsError('not-found', 'Processo não encontrado');
 }
 
 export function exigirPosse(c: Contexto, proc: admin.firestore.DocumentData) {

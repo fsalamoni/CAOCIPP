@@ -1533,6 +1533,40 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Leitura dos autos pelo julgador e anotações privadas (15/11/2026)
+
+Terceira etapa (S3), com a decisão do Flavio: o julgador de outra unidade lê
+os autos só enquanto o processo está pautado numa sessão do seu colegiado,
+até o acórdão, sem os restritos, com cada leitura registrada.
+
+- **Quem:** quem compõe hoje um colegiado ativo (`Contexto.compoe`, de
+  `composicaoEm`) e não vê o processo pela lotação. Regra pura em
+  `leituraDeJulgador` (`shared/sessoes.ts`): o processo tem `sessao` do
+  colegiado; ou, já julgado, tem `ultima_sessao` dele, está em tramitação e
+  segue numa unidade do órgão (é ali que o acórdão é feito). Saiu do
+  colegiado ou foi arquivado, a leitura acaba.
+- **Onde vale:** só nas leituras. `lerProcesso(c, id, tx, { julgador: true })`
+  é usado em `obter`, em `baixar` e `pdf` do documento (sem versão anterior)
+  e na anotação; todo ato continua exigindo a lotação, e para o julgador o
+  processo segue "não encontrado" fora da leitura.
+- **O que vê:** documentos juntados; minutas e documentos guardados fora dos
+  autos ficam de fora, e o dado reservado segue oculto. Sem exportar os autos
+  nem impressão interna. `obter` devolve `leitura_julgador: true`, sem posse.
+- **Registro:** cada abertura dos autos e cada documento lido gravam
+  `secProcessos/{id}/leituras` (`uid, nome, em, o_que, sessao_id, sessao,
+  colegiado`), fora dos autos e da cadeia. `obter` devolve as 50 últimas
+  (`leituras`) para quem tem a posse, gere a unidade atual ou administra; a
+  capa mostra "Leituras pelos julgadores".
+- **Anotações privadas:** `secAnotacoes/{uid}_{processoId}` (fechada ao
+  cliente), pela ação `anotacao` (sem `texto` lê; texto vazio apaga; até
+  20.000 caracteres). Quem pode ler o processo anota; só o autor lê. Nunca vai
+  aos autos, ao portal, à exportação ou à lista da equipe. A pauta marca
+  `minha_anotacao` em cada item, e o processo mostra "Minhas anotações".
+- **Telas:** aviso de leitura como julgador no processo, número do processo
+  clicável na pauta para quem compõe, selo "Sua anotação" na pauta, cartão
+  "Minhas anotações" no processo (para todos que o leem), "Leituras pelos
+  julgadores" na capa. Quem só compõe o colegiado abre direto na aba Sessões.
+
 ### Sessões de julgamento e pauta (15/11/2026)
 
 Segunda etapa (S2). Coleção `secSessoes` (fechada ao cliente), pelas ações

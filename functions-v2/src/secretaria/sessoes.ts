@@ -8,7 +8,7 @@ import {
     reordenar, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
 } from '../shared/sessoes';
 import { auditar } from './config';
-import { COL, Contexto, administraOrgao, erroUsuario, lerProcesso, registrarMovimento } from './context';
+import { COL, Contexto, administraOrgao, erroUsuario, julgadorLe, lerProcesso, registrarMovimento } from './context';
 import { avisarPartesDoMovimento } from './portalAvisos';
 
 /**
@@ -83,6 +83,42 @@ const marcaNoProcesso = (id: string, s: DadosSessao, orgao: Orgao, item: ItemPau
     orgao_id: orgao.id, colegiado: orgao.nome, inclusao: item.inclusao,
 });
 
+/** Leitura dos autos pelo julgador, pela pauta: registrada fora dos autos (secProcessos/{id}/leituras). */
+export async function registrarLeitura(c: Contexto, ref: admin.firestore.DocumentReference, proc: admin.firestore.DocumentData, oQue: string) {
+    const s = proc.sessao || proc.ultima_sessao || {};
+    await ref.collection('leituras').add({
+        uid: c.ctx.uid, nome: c.userName, em: new Date().toISOString(), o_que: oQue.slice(0, 200),
+        sessao_id: s.id || null, sessao: s.titulo || '', colegiado: s.colegiado || '',
+    });
+}
+
+export async function leiturasDoProcesso(ref: admin.firestore.DocumentReference) {
+    const s = await ref.collection('leituras').orderBy('em', 'desc').limit(50).get();
+    return s.docs.map((d) => { const x = d.data(); return { nome: x.nome, em: x.em, o_que: x.o_que, sessao: x.sessao, colegiado: x.colegiado }; });
+}
+
+export const COL_ANOTACOES = 'secAnotacoes';
+export const MAX_ANOTACAO = 20000;
+
+/**
+ * Anotação privada de quem lê o processo (julgador, assessoria, secretaria):
+ * uma por pessoa e processo, só ela lê e escreve, nunca vai aos autos. Sem
+ * `texto`, devolve a atual; com texto vazio, apaga.
+ */
+export async function acaoAnotacao(c: Contexto, p: Payload) {
+    const { ref: pref } = await lerProcesso(c, p.id, undefined, { julgador: true });
+    const ref = c.db.collection(COL_ANOTACOES).doc(`${c.ctx.uid}_${pref.id}`);
+    if (typeof p.texto !== 'string') {
+        const d = (await ref.get()).data();
+        return { texto: d?.texto || '', atualizada_em: d?.atualizada_em || null };
+    }
+    const texto = p.texto.replace(/\r\n/g, '\n').slice(0, MAX_ANOTACAO);
+    if (!texto.trim()) { await ref.delete(); return { texto: '', atualizada_em: null }; }
+    const atualizada_em = new Date().toISOString();
+    await ref.set({ organization_id: c.orgId, uid: c.ctx.uid, processo_id: pref.id, texto, atualizada_em });
+    return { texto, atualizada_em };
+}
+
 export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
     const hoje = hojeBrasil();
     const quem = { uid: c.ctx.uid, nome: c.userName };
@@ -116,10 +152,14 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
         const gere = gereSessoes(c, o.id);
         if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere)) throw new HttpsError('not-found', 'Sessão não encontrada');
         const pauta = [...(s.pauta || [])].sort((a, b) => a.ordem - b.ordem);
-        const snaps = pauta.length ? await c.db.getAll(...pauta.map((x) => c.db.collection(COL.processos).doc(x.processo_id))) : [];
+        const [snaps, notas] = pauta.length ? await Promise.all([
+            c.db.getAll(...pauta.map((x) => c.db.collection(COL.processos).doc(x.processo_id))),
+            c.db.getAll(...pauta.map((x) => c.db.collection(COL_ANOTACOES).doc(`${c.ctx.uid}_${x.processo_id}`))),
+        ]) : [[], []];
         const itens = pauta.map((x, i) => {
             const d = snaps[i].data();
-            const abre = !!d && d.status !== 'excluido' && podeVer(d as never, c.ctx);
+            // Pela lotação, ou como julgador do colegiado enquanto pautado (S3).
+            const abre = !!d && d.status !== 'excluido' && (podeVer(d as never, c.ctx) || julgadorLe(c, d));
             // Sigilo restrito: quem não vê os autos não vê o assunto nem as partes.
             const aberto = !!d && (abre || d.sigilo !== 'restrito');
             const julgado = !!d && d.ultima_sessao?.id === ref.id && d.sessao?.id !== ref.id;
@@ -130,6 +170,7 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
                 pode_abrir: abre,
                 urgente: d?.urgente === true,
                 julgado,
+                minha_anotacao: notas[i].exists,
                 // Só a secretaria precisa saber se o processo deixou de estar apto (para retirar).
                 ...(gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}),
             };

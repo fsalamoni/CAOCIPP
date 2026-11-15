@@ -9,6 +9,7 @@ import type { Fase } from '../shared/secretaria';
 import { Cumpridas, camposDoCumprimento, destinoDaGuarda, exigeAlgo, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { avancarSozinho } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
+import { registrarLeitura } from './sessoes';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
 import { lotacoesDe, unidadeDecide } from '../shared/secretaria';
@@ -82,7 +83,14 @@ export const secretariaDocumento = onCall<DocRequest>(
         const auth = exigirAuth(request);
         const p = request.data || ({} as DocRequest);
         const c = await carregarContexto(auth, p.organizationId);
-        const { ref: procRef, data: proc } = await lerProcesso(c, p.processoId);
+        // Julgador do colegiado (S3): só baixa ou vê o PDF de documento juntado, e cada leitura fica registrada.
+        const leitura = (p.action === 'baixar' || p.action === 'pdf') && !p.versaoId;
+        const { ref: procRef, data: proc, julgador } = await lerProcesso(c, p.processoId, undefined, { julgador: leitura });
+        if (julgador) {
+            const d = p.docId ? (await procRef.collection('documentos').doc(String(p.docId)).get()).data() : undefined;
+            if (!d || d.status !== 'juntado') throw new HttpsError('not-found', 'Documento não encontrado');
+            await registrarLeitura(c, procRef, proc, `Leu o documento ${d.ordem ? `nº ${d.ordem}, ` : ''}${String(d.titulo || '')}`);
+        }
         // Feriados locais e recesso, se o ato puder abrir prazo de ação.
         const calendario = ['juntar', 'guardar'].includes(String(p.action)) ? await calendarioDasAcoes(c.db, c.orgId, proc) : undefined;
         const docsCol = procRef.collection('documentos');

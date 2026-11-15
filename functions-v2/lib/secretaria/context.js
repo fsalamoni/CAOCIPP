@@ -8,6 +8,7 @@ exports.administraOrgao = administraOrgao;
 exports.exigirAdminDoOrgao = exigirAdminDoOrgao;
 exports.exigirAdmin = exigirAdmin;
 exports.exigirGestor = exigirGestor;
+exports.julgadorLe = julgadorLe;
 exports.lerProcesso = lerProcesso;
 exports.exigirPosse = exigirPosse;
 exports.conferirVersao = conferirVersao;
@@ -23,6 +24,7 @@ const secretaria_1 = require("../shared/secretaria");
 const autos_1 = require("../shared/autos");
 const orgaos_1 = require("../shared/orgaos");
 const secretaria_2 = require("../shared/secretaria");
+const sessoes_1 = require("../shared/sessoes");
 const exigencias_1 = require("../shared/exigencias");
 const prazosFase_1 = require("../shared/prazosFase");
 exports.REGION = 'southamerica-east1';
@@ -79,7 +81,10 @@ async function carregarContexto(auth, orgId, opts = {}) {
     const unidades = unSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())));
     const ativas = unidades.filter((u) => u.ativa !== false);
     const unidadeIds = ativas.filter((u) => (0, secretaria_1.lotacoesDe)(u).some((l) => l.uid === auth.uid)).map((u) => u.id);
-    const adminOrgaos = (0, orgaos_1.orgaosAdministrados)((0, orgaos_1.orgaosDe)((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.orgaos), auth.uid);
+    const orgaos = (0, orgaos_1.orgaosDe)((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.orgaos);
+    const adminOrgaos = (0, orgaos_1.orgaosAdministrados)(orgaos, auth.uid);
+    const hoje = (0, secretaria_2.hojeBrasil)();
+    const compoe = orgaos.filter((o) => o.decisao === 'colegiada' && o.ativo && (0, orgaos_1.composicaoEm)(o.composicao, hoje).some((m) => m.uid === auth.uid)).map((o) => o.id);
     const gestorDe = unidades.filter((u) => !u.excluida && ((u.ativa !== false && (0, secretaria_1.lotacoesDe)(u).some((l) => l.uid === auth.uid && l.gestor)) || (!!u.orgao_id && adminOrgaos.includes(String(u.orgao_id))))).map((u) => u.id);
     return {
         db,
@@ -91,6 +96,7 @@ async function carregarContexto(auth, orgId, opts = {}) {
         unidades,
         gestorDe,
         adminOrgaos,
+        compoe,
     };
 }
 /**
@@ -141,8 +147,20 @@ function exigirGestor(c, unidadeId) {
     }
     return u;
 }
-/** Lê o processo garantindo que é do órgão (sem vazar existência de outro). */
-async function lerProcesso(c, id, tx) {
+/**
+ * Julgador que compõe o colegiado e não vê o processo pela lotação: lê os
+ * autos enquanto o processo está pautado numa sessão do colegiado e, depois
+ * do julgamento, enquanto segue numa unidade dele (até o acórdão sair).
+ */
+function julgadorLe(c, proc) {
+    return (0, sessoes_1.leituraDeJulgador)(proc, c.compoe || [], (u) => { var _a; return ((_a = c.unidades.find((x) => x.id === u && !x.excluida)) === null || _a === void 0 ? void 0 : _a.orgao_id) || null; });
+}
+/**
+ * Lê o processo garantindo que é do órgão (sem vazar existência de outro).
+ * `julgador`: aceita a leitura do julgador do colegiado (só nas leituras;
+ * `julgador` volta true quando foi por ela).
+ */
+async function lerProcesso(c, id, tx, opts = {}) {
     if (typeof id !== 'string' || !id)
         throw new https_1.HttpsError('invalid-argument', 'processoId é obrigatório');
     const ref = c.db.collection(exports.COL.processos).doc(id);
@@ -153,10 +171,14 @@ async function lerProcesso(c, id, tx) {
         throw new https_1.HttpsError('failed-precondition', 'Você é parte neste processo. Acompanhe-o pelo Portal das partes.');
     }
     // Excluído só reaparece pela lista de excluídos do admin (restaurar).
-    if (!snap.exists || !data || data.organization_id !== c.orgId || data.status === 'excluido' || !(0, secretaria_1.podeVer)(data, c.ctx)) {
+    if (!snap.exists || !data || data.organization_id !== c.orgId || data.status === 'excluido') {
         throw new https_1.HttpsError('not-found', 'Processo não encontrado');
     }
-    return { ref, data };
+    if ((0, secretaria_1.podeVer)(data, c.ctx))
+        return { ref, data, julgador: false };
+    if (opts.julgador && julgadorLe(c, data))
+        return { ref, data, julgador: true };
+    throw new https_1.HttpsError('not-found', 'Processo não encontrado');
 }
 function exigirPosse(c, proc) {
     if (!(0, secretaria_1.podeAgir)(proc, c.ctx)) {
