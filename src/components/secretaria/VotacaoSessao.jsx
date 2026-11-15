@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CalendarClock, CheckCircle2, ClipboardList, Eye, Gavel, Hourglass, Loader2, Lock, Megaphone, ScrollText, Send, Undo2, UserRound } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ClipboardList, ExternalLink, Eye, Gavel, Highlighter, Hourglass, Laptop, Loader2, Lock, Megaphone, Mic, ScrollText, Send, Undo2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { secProcesso } from '@/services/secretariaService';
-import { MODOS_VOTO, br, juntarNomes, textoDoVoto } from '@/lib/sessoes';
+import { MODOS_VOTO, SITUACAO_PEDIDO, br, juntarNomes, textoDoVoto } from '@/lib/sessoes';
 import AjudaTermo from './AjudaTermo';
 import ErroQuery from './ErroQuery';
 
@@ -127,7 +127,7 @@ function Votar({ orgId, sessaoId, d, onMudou }) {
 }
 
 /** Confirmação de vista, devolução, adiamento ou diligência; com `minimo`, pede o texto que vai à certidão. */
-function Confirmar({ titulo, descricao, botao, rotulo, minimo, indo, onFechar, onConfirmar }) {
+function Confirmar({ titulo, descricao, botao, rotulo, minimo, indo, onFechar, onConfirmar, nota = 'Vai para a certidão nos autos, que as partes veem.' }) {
     const [texto, setTexto] = useState('');
     return (
         <Dialog open onOpenChange={(o) => !o && onFechar()}>
@@ -137,7 +137,7 @@ function Confirmar({ titulo, descricao, botao, rotulo, minimo, indo, onFechar, o
                     <div>
                         <Label htmlFor="vt-motivo">{rotulo}</Label>
                         <Textarea id="vt-motivo" rows={3} maxLength={2000} className="mt-1" value={texto} onChange={(e) => setTexto(e.target.value)} />
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Vai para a certidão nos autos, que as partes veem.</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{nota}</p>
                     </div>
                 )}
                 <DialogFooter className="gap-2">
@@ -146,6 +146,59 @@ function Confirmar({ titulo, descricao, botao, rotulo, minimo, indo, onFechar, o
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+const COR_PEDIDO = {
+    pedido: 'border-amber-300 text-amber-900 dark:border-amber-800 dark:text-amber-200',
+    deferido: 'border-emerald-300 text-emerald-900 dark:border-emerald-800 dark:text-emerald-200',
+    indeferido: 'border-rose-300 text-rose-900 dark:border-rose-800 dark:text-rose-200',
+};
+const EXPLICA_DEFERIR = {
+    destaque: 'O processo sai da sessão virtual e vai para a próxima sessão síncrona do colegiado, onde o julgamento recomeça. O destaque vai aos autos, e as partes são avisadas.',
+    sustentacao: 'A sustentação fica registrada como deferida para quem julga.',
+    preferencia: 'A preferência fica registrada; use "Ordem do CPC" na pauta para pôr o processo à frente.',
+    esclarecimento: 'O esclarecimento fica registrado como recebido para quem julga.',
+};
+
+/**
+ * Pedidos das partes para a sessão (S7): sustentação oral, preferência,
+ * destaque e esclarecimento de fato. O relator decide o destaque; a secretaria
+ * confere os demais, que valem enquanto não indeferidos.
+ */
+function Pedidos({ d, indo, acao }) {
+    const [aberto, setAberto] = useState(null); // { p, deferir }
+    const fechar = () => setAberto(null);
+    return (
+        <section className={caixa} aria-labelledby="vt-pedidos">
+            <h3 id="vt-pedidos" className={titulo}><Mic className="w-4 h-4" aria-hidden /> Pedidos das partes <AjudaTermo id="sustentacao" /></h3>
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                {d.pedidos.map((p) => (
+                    <li key={p.id} className="py-2 space-y-1 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-slate-900 dark:text-white">{p.nome_tipo}</span>
+                            <Badge variant="outline" className={COR_PEDIDO[p.situacao]}>{SITUACAO_PEDIDO[p.situacao]}</Badge>
+                            <span className="text-xs text-slate-600 dark:text-slate-400">{p.parte}, em {new Date(p.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                        </div>
+                        {p.texto && <p className="whitespace-pre-line text-slate-800 dark:text-slate-200">{p.texto}</p>}
+                        {p.link && <a href={p.link} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-300 underline">Ouvir ou ver a sustentação gravada <ExternalLink className="w-3.5 h-3.5" aria-hidden /></a>}
+                        {p.situacao !== 'pedido' && p.decidido_por && <p className="text-xs text-slate-600 dark:text-slate-400">{p.situacao === 'deferido' ? 'Deferido' : 'Indeferido'} por {p.decidido_por}{p.motivo ? `: ${p.motivo}` : ''}.</p>}
+                        {p.pode_decidir && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                <Button size="sm" disabled={indo} onClick={() => setAberto({ p, deferir: true })} aria-label={`Deferir ${p.nome_tipo.toLowerCase()} de ${p.parte}`}>Deferir</Button>
+                                <Button size="sm" variant="outline" disabled={indo} onClick={() => setAberto({ p, deferir: false })} aria-label={`Indeferir ${p.nome_tipo.toLowerCase()} de ${p.parte}`}>Indeferir</Button>
+                            </div>
+                        )}
+                    </li>
+                ))}
+            </ul>
+            {aberto && (
+                <Confirmar titulo={`${aberto.deferir ? 'Deferir' : 'Indeferir'} o pedido de ${aberto.p.nome_tipo.toLowerCase()}?`} botao={aberto.deferir ? 'Deferir' : 'Indeferir'} indo={indo} onFechar={fechar}
+                    rotulo={aberto.deferir ? undefined : 'Motivo do indeferimento'} minimo={aberto.deferir ? undefined : 5} nota="Fica com o pedido, fora dos autos; a parte vê no portal."
+                    descricao={aberto.deferir ? EXPLICA_DEFERIR[aberto.p.tipo] : 'A parte vê o indeferimento e o motivo no portal.'}
+                    onConfirmar={async (motivo) => { if (await acao('sessaoPedidoDecidir', { pedido_id: aberto.p.id, deferir: aberto.deferir, motivo: motivo || '' }, () => (aberto.deferir ? 'Pedido deferido' : 'Pedido indeferido'))) fechar(); }} />
+            )}
+        </section>
     );
 }
 
@@ -161,7 +214,7 @@ function Andamento({ d, indo, acao }) {
     const fechar = () => setAberto(null);
     const ir = async (nome, extra, ok) => { if (await acao(nome, extra, ok)) fechar(); };
     const v = d.vista;
-    const algo = v || ['adiado', 'diligencia'].includes(d.situacao_item) || d.pode.vista || d.pode.adiar;
+    const algo = v || ['adiado', 'diligencia', 'destacado'].includes(d.situacao_item) || d.pode.vista || d.pode.adiar || d.pode.destacar;
     if (!algo) return null;
     const dias = d.vista_dias;
     return (
@@ -177,13 +230,20 @@ function Andamento({ d, indo, acao }) {
             {v?.encerrada && <p className="text-sm text-slate-700 dark:text-slate-300">{v.devolvida ? `Vista de ${juntarNomes(v.nomes)}, devolvida. O julgamento continua em outra sessão.` : `Houve pedido de vista de ${juntarNomes(v.nomes)}.`}</p>}
             {d.situacao_item === 'adiado' && <p className="text-sm text-slate-700 dark:text-slate-300">Julgamento adiado{d.motivo ? `: ${d.motivo}` : ''}. Continua em outra sessão, com o relator e os votos já dados.</p>}
             {d.situacao_item === 'diligencia' && <p className="text-sm text-slate-700 dark:text-slate-300">Convertido em diligência{d.motivo ? `: ${d.motivo}` : ''}. O processo voltou à unidade; cumprida a diligência, vai a nova pauta com o mesmo relator, e os votos recomeçam.</p>}
+            {d.situacao_item === 'destacado' && <p className="text-sm text-slate-700 dark:text-slate-300">Destacado da sessão virtual{d.motivo ? ` (${d.motivo})` : ''}. O julgamento recomeça numa sessão síncrona, com o mesmo relator.</p>}
             <div className="flex flex-wrap gap-2">
                 {d.pode.vista && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('vista')}><Eye className="w-4 h-4" aria-hidden /> Pedir vista</Button>}
                 {d.pode.juntar_vista && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('juntar')}><Eye className="w-4 h-4" aria-hidden /> Pedir vista também</Button>}
                 {d.pode.devolver_vista && <Button className="gap-1" disabled={indo} onClick={() => setAberto('devolver')}><Undo2 className="w-4 h-4" aria-hidden /> {v?.minha ? 'Devolver a vista' : 'Requisitar o processo'}</Button>}
                 {d.pode.adiar && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('adiar')}><CalendarClock className="w-4 h-4" aria-hidden /> Adiar o julgamento</Button>}
                 {d.pode.adiar && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('diligencia')}><ClipboardList className="w-4 h-4" aria-hidden /> Converter em diligência</Button>}
+                {d.pode.destacar && <Button variant="outline" className="gap-1" disabled={indo} onClick={() => setAberto('destacar')}><Highlighter className="w-4 h-4" aria-hidden /> Destacar para sessão síncrona</Button>}
             </div>
+            {aberto === 'destacar' && (
+                <Confirmar titulo="Destacar o processo?" botao="Destacar" indo={indo} onFechar={fechar}
+                    descricao="O processo sai da sessão virtual e vai para a próxima sessão síncrona do colegiado (presencial, por vídeo ou híbrida), onde o julgamento recomeça, com debate e sustentação oral. O relator continua, com o voto de volta ao rascunho; os votos dados aqui não seguem. O destaque vai aos autos, e as partes são avisadas."
+                    onConfirmar={() => ir('sessaoDestacar', {}, (r) => `Processo destacado. ${r?.continua_em ? `Entrou na ${r.continua_em.titulo}, em ${br(r.continua_em.data)}.` : 'Ele entra na próxima sessão síncrona que for marcada.'}`)} />
+            )}
             {aberto === 'vista' && (
                 <Confirmar titulo="Pedir vista?" botao="Pedir vista" indo={indo} onFechar={fechar}
                     descricao={`O julgamento fica suspenso, e você tem ${dias} dias para examinar o processo e devolver. Os votos já dados continuam valendo. O pedido vai aos autos na certidão de vista, e as partes são avisadas.`}
@@ -332,6 +392,15 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                             </div>
                         )}
                         {!d.pendente && !d.proclamado && d.situacao_item === 'pautado' && <p className="text-sm text-slate-700 dark:text-slate-300">O processo não tem mais o julgamento pendente nesta sessão (foi julgado, retirado ou mudou de fase).</p>}
+                        {d.modo === 'assincrona' && !d.proclamado && d.situacao_item === 'pautado' && d.pendente && (
+                            <p className="rounded-md bg-indigo-50 dark:bg-indigo-950/50 p-2 text-sm text-indigo-900 dark:text-indigo-100 flex gap-2" role="status">
+                                <Laptop className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+                                {d.virtual_encerrou ? `A votação virtual terminou em ${br(d.fim)}. O sistema apura o resultado no dia seguinte, às 7h (o presidente ou a secretaria podem apurar antes, na sessão); sem resultado, o julgamento é adiado.`
+                                    : d.votacao_aberta ? `Sessão virtual: vote até ${br(d.fim)}. Quem não votar até lá fica ausente.`
+                                        : `Sessão virtual: a votação vai de ${br(d.data_sessao)} a ${br(d.fim)}. O relator pode liberar o voto antes.`}
+                            </p>
+                        )}
+                        {d.pedidos?.length > 0 && <Pedidos d={d} indo={indo} acao={acao} />}
 
                         <section className={caixa} aria-labelledby="vt-relator">
                             <h3 id="vt-relator" className={titulo}><UserRound className="w-4 h-4" aria-hidden /> Relator <AjudaTermo id="relator" /></h3>
@@ -390,7 +459,7 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                                 <Button className="gap-1" disabled={indo || !!d.previa?.erro} onClick={() => setProclamar(true)}><Megaphone className="w-4 h-4" aria-hidden /> Proclamar o resultado</Button>
                             </section>
                         )}
-                        {!d.pode.proclamar && d.liberado_em && !d.proclamado && d.pendente && d.situacao_item === 'pautado' && (d.preside || d.gere) && d.data_sessao > d.hoje && (
+                        {!d.pode.proclamar && d.modo !== 'assincrona' && d.liberado_em && !d.proclamado && d.pendente && d.situacao_item === 'pautado' && (d.preside || d.gere) && d.data_sessao > d.hoje && (
                             <p className="text-xs text-slate-600 dark:text-slate-400">A proclamação abre no dia da sessão, {br(d.data_sessao)}.</p>
                         )}
 

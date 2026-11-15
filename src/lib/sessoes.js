@@ -2,7 +2,7 @@
 // jeito de functions-v2/src/shared/sessoes.ts (o servidor confere tudo de novo).
 import { composicaoEm } from './orgaos.js';
 
-export const MODOS_SESSAO = [['presencial', 'Presencial'], ['virtual', 'Por videoconferência'], ['hibrida', 'Híbrida (presencial e por vídeo)']];
+export const MODOS_SESSAO = [['presencial', 'Presencial'], ['virtual', 'Por videoconferência'], ['hibrida', 'Híbrida (presencial e por vídeo)'], ['assincrona', 'Virtual assíncrona (votação por período)']];
 export const CARATER_SESSAO = [['ordinaria', 'Ordinária'], ['extraordinaria', 'Extraordinária']];
 export const SITUACAO_SESSAO = { rascunho: 'Rascunho da pauta', publicada: 'Pauta publicada', encerrada: 'Encerrada', cancelada: 'Cancelada' };
 export const INCLUSAO = { pauta: 'Pauta', extrapauta: 'Extrapauta', mesa: 'Em mesa' };
@@ -11,13 +11,25 @@ export const br = (d) => String(d || '').split('-').reverse().join('/');
 
 /** "em Sala 2", "por videoconferência (link)", "em Sala 2 e por videoconferência (link)". */
 export function ondeSessao(s) {
+    if (s.modo === 'assincrona') return 'em sessão virtual';
     if (s.modo === 'virtual') return `por videoconferência (${s.link})`;
     if (s.modo === 'hibrida') return `em ${s.local} e por videoconferência (${s.link})`;
     return `em ${s.local}`;
 }
 
-/** "15/12/2026, às 14:00, em Sala 2". */
-export const quandoSessao = (s) => `${br(s.data)}, às ${s.hora}, ${ondeSessao(s)}`;
+/** "15/12/2026, às 14:00, em Sala 2" ou, na sessão virtual, "votação virtual de 07/12/2026 (09:00) a 14/12/2026". */
+export const quandoSessao = (s) => (s.modo === 'assincrona'
+    ? `votação virtual de ${br(s.data)} (a partir das ${s.hora}) a ${br(s.fim)}`
+    : `${br(s.data)}, às ${s.hora}, ${ondeSessao(s)}`);
+
+/** Último dia em que a sessão acontece (na virtual, o fim da votação). */
+export const ultimoDia = (s) => s.fim || s.data;
+
+const somarDias = (data, n) => {
+    const d = new Date(`${data}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+};
 
 /** Regra de antecedência do colegiado, em uma frase (ou '' sem regra). */
 export function textoAntecedencia(regras) {
@@ -32,6 +44,12 @@ export function problemasDaSessao(s, hoje) {
     if (!s.data) out.push('Informe a data da sessão.');
     else if (s.data < hoje) out.push('A data da sessão já passou.');
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(s.hora || '')) out.push('Informe a hora da sessão.');
+    if (s.modo === 'assincrona') {
+        if (!s.fim) out.push('Informe o último dia da votação.');
+        else if (s.data && s.fim < s.data) out.push('O último dia da votação não pode ser antes do primeiro.');
+        else if (s.data && s.fim > somarDias(s.data, 30)) out.push('A votação virtual dura no máximo 30 dias.');
+        return out;
+    }
     if (s.modo !== 'virtual' && !String(s.local || '').trim()) out.push('Informe o local da sessão.');
     if (s.modo !== 'presencial' && !String(s.link || '').trim()) out.push('Informe o link ou a sala virtual.');
     return out;
@@ -54,10 +72,10 @@ export function veSessoes(estado, hoje, orgaoId) {
 export function agruparSessoes(sessoes, hoje) {
     const ativa = (s) => s.situacao !== 'cancelada' && s.situacao !== 'encerrada';
     return {
-        minhas: sessoes.filter((s) => s.componho && s.situacao === 'publicada' && s.data >= hoje),
-        proximas: sessoes.filter((s) => !s.componho && s.situacao === 'publicada' && s.data >= hoje),
+        minhas: sessoes.filter((s) => s.componho && s.situacao === 'publicada' && ultimoDia(s) >= hoje),
+        proximas: sessoes.filter((s) => !s.componho && s.situacao === 'publicada' && ultimoDia(s) >= hoje),
         rascunhos: sessoes.filter((s) => s.situacao === 'rascunho'),
-        passadas: sessoes.filter((s) => !ativa(s) || (s.situacao === 'publicada' && s.data < hoje)).reverse(),
+        passadas: sessoes.filter((s) => !ativa(s) || (s.situacao === 'publicada' && ultimoDia(s) < hoje)).reverse(),
     };
 }
 
@@ -97,8 +115,39 @@ export function situacaoDaVotacao(x) {
 // ---- Vista, adiamento e diligência (S5) ----
 
 /** Selo do item que saiu do julgamento na sessão. */
-export const SITUACAO_ITEM = { pautado: 'Pautado', retirado: 'Retirado', vista: 'Pedido de vista', adiado: 'Adiado', diligencia: 'Convertido em diligência' };
-export const ROTULO_MOTIVO = { pautado: 'Motivo da inclusão', retirado: 'Motivo da retirada', adiado: 'Motivo do adiamento', diligencia: 'Diligência determinada' };
+export const SITUACAO_ITEM = { pautado: 'Pautado', retirado: 'Retirado', vista: 'Pedido de vista', adiado: 'Adiado', diligencia: 'Convertido em diligência', destacado: 'Destacado para sessão síncrona' };
+export const ROTULO_MOTIVO = { pautado: 'Motivo da inclusão', retirado: 'Motivo da retirada', adiado: 'Motivo do adiamento', diligencia: 'Diligência determinada', destacado: 'Destaque' };
+
+// ---- Sessão virtual, destaque, sustentação oral e preferência (S7) ----
+
+export const NOME_PEDIDO = { sustentacao: 'Sustentação oral', preferencia: 'Preferência', destaque: 'Destaque', esclarecimento: 'Esclarecimento de fato' };
+export const SITUACAO_PEDIDO = { pedido: 'Aguarda decisão', deferido: 'Deferido', indeferido: 'Indeferido' };
+
+/** Selos da linha da pauta com os pedidos das partes (resumo vindo de sessaoObter). */
+export function selosDosPedidos(p) {
+    if (!p) return [];
+    const out = [];
+    if (p.sustentacao) out.push(p.sustentacao > 1 ? `${p.sustentacao} sustentações orais` : 'Sustentação oral');
+    if (p.preferencia) out.push('Preferência');
+    if (p.destaque) out.push('Destaque pedido');
+    if (p.esclarecimento) out.push(p.esclarecimento > 1 ? `${p.esclarecimento} esclarecimentos` : 'Esclarecimento de fato');
+    return out;
+}
+
+/**
+ * Ordem de julgamento do CPC, art. 936: primeiro os processos com sustentação
+ * oral, depois os com preferência, os que começaram em sessão anterior e os
+ * demais, cada grupo na ordem atual. Devolve os ids, para `sessaoOrdenar`.
+ */
+export function ordemDoCPC(itens) {
+    const grupo = (x) => {
+        if (x.situacao !== 'pautado') return 4;
+        if (x.pedidos?.sustentacao) return 0;
+        if (x.pedidos?.preferencia) return 1;
+        return x.continua ? 2 : 3;
+    };
+    return [...itens].sort((a, b) => grupo(a) - grupo(b) || a.ordem - b.ordem).map((x) => x.processo_id);
+}
 
 /** Lista de nomes em português: "Ana", "Ana e Bruno", "Ana, Bruno e Carla". */
 export const juntarNomes = (nomes = []) => (nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0] || '');

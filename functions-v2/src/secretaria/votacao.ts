@@ -6,12 +6,13 @@ import { sanitizeDoc } from '../shared/documento';
 import { composicaoEm } from '../shared/orgaos';
 import { JulgamentoDaAcao, apurar, dadosDoJulgamento, textoDoJulgamento } from '../shared/julgamento';
 import {
-    ItemPauta, MAX_EMENTA, MAX_RELATORIO, Proclamacao, Votacao, br, documentoDoAcordao, julgamentoPendente, modeloDoAcordao, placarParcial, prazoDaVista,
-    prazoDoAcordao, sanitizeVoto, textoDaDevolucao, textoDaDiligencia, textoDaVista, textoDoAdiamento, votantes, votoCondutor, votosDaSessao, votosDoAcordao,
+    ItemPauta, MAX_EMENTA, MAX_RELATORIO, NOME_PEDIDO, PedidoSessao, Proclamacao, Votacao, br, documentoDoAcordao, julgamentoPendente, modeloDoAcordao, placarParcial,
+    prazoDaVista, prazoDoAcordao, sanitizeVoto, textoDaDevolucao, textoDaDiligencia, textoDaVista, textoDoAdiamento, textoDoDestaque, votacaoAberta, virtualEncerrou,
+    votantes, votoCondutor, votosDaSessao, votosDoAcordao,
 } from '../shared/sessoes';
 import { auditar } from './config';
-import { COL, Contexto, erroUsuario, registrarMovimento } from './context';
-import { colegiado, gereSessoes, incluirNaSessao, lerConfig, lerSessao, proximaSessao, veSessoes } from './sessoes';
+import { COL, Contexto, contextoDoSistema, erroUsuario, registrarMovimento } from './context';
+import { COL_SESSOES, colegiado, gereSessoes, incluirNaSessao, lerConfig, lerSessao, proximaSessao, veSessoes } from './sessoes';
 import { registrarJulgamentoDaSessao } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 
@@ -28,8 +29,8 @@ import { avisarPartesDoMovimento } from './portalAvisos';
  */
 
 type Payload = Record<string, unknown>;
-const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia'];
-export const ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', 'sessaoRedator', 'sessaoAcordao', ...ACOES_S5];
+const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia', 'sessaoDestacar'];
+export const ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', 'sessaoRedator', 'sessaoAcordao', 'sessaoPedidoDecidir', 'sessaoEncerrar', ...ACOES_S5];
 const MIN_TEXTO = 10;
 
 const vazia = (pid: string): Votacao => ({
@@ -72,6 +73,15 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
     const o = colegiado(orgaos, s.orgao_id);
     const gere = gereSessoes(c, o.id);
     if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere)) throw new HttpsError('not-found', 'Sessão não encontrada');
+    if (p.action === 'sessaoEncerrar') {
+        const presidente = composicaoEm(o.composicao, s.data).some((m) => m.uid === quem.uid && m.funcao === 'presidente');
+        if (!gere && !presidente) throw new HttpsError('permission-denied', 'Encerra a sessão virtual o presidente do colegiado (ou a secretaria)');
+        if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa) throw new HttpsError('failed-precondition', 'Só a sessão virtual publicada se encerra aqui');
+        if (!virtualEncerrou(s, hoje)) throw new HttpsError('failed-precondition', `A votação vai até ${br(String(s.fim))}: o resultado se apura no dia seguinte`);
+        const r = await encerrarVirtual(c.db, c.orgId, sref.id);
+        await auditar(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_VIRTUAL_ENCERRADA', { sessao_id: sref.id, ...r });
+        return { ok: true, ...r };
+    }
     const pid = String(p.processo_id || '');
     const item = (s.pauta || []).find((x) => x.processo_id === pid);
     if (!item) throw new HttpsError('not-found', 'O processo não está nesta pauta');
@@ -85,13 +95,24 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
     const ativa = s.ativa && item.situacao === 'pautado';
 
     if (p.action === 'sessaoVotacao') {
-        const [vs, ps] = await Promise.all([vref.get(), pref.get()]);
+        const [vs, ps, pds] = await Promise.all([vref.get(), pref.get(), sref.collection('pedidos').where('processo_id', '==', pid).get()]);
         const v = { ...vazia(pid), ...(vs.data() || {}) } as Votacao;
         const proc = ps.data();
         const regra = proc && proc.sessao?.id === sref.id ? regraDoJulgamento(proc) : null;
         const relatorUid = v.liberado_em ? v.relator_uid : item.relator_uid || '';
         const souRelator = !!relatorUid && relatorUid === quem.uid;
         const emJulgamento = ativa && !!v.liberado_em && !v.proclamado && !!regra && s.situacao === 'publicada';
+        const aberta = votacaoAberta(s, hoje);
+        // S7: o destaque de parte é decidido pelo relator (sem relator, pelo presidente ou pela secretaria).
+        const decideDestaque = relatorUid ? souRelator : (preside || gere);
+        const pedidos = pds.docs.map((d) => ({ id: d.id, ...(d.data() as PedidoSessao) }))
+            .filter((x) => gere || (!!eu && (x.situacao !== 'indeferido' || x.tipo === 'destaque')))
+            .sort((a, b) => a.em.localeCompare(b.em))
+            .map((x) => ({
+                id: x.id, tipo: x.tipo, nome_tipo: NOME_PEDIDO[x.tipo], parte: x.parte, texto: x.texto, link: x.link, em: x.em, situacao: x.situacao,
+                motivo: x.motivo || '', decidido_por: x.decidido_por || '',
+                pode_decidir: x.situacao === 'pedido' && ativa && !v.proclamado && (x.tipo === 'destaque' ? decideDestaque && s.situacao === 'publicada' : gere),
+            }));
         // Com vista nesta sessão: o processo saiu da pauta até a devolução.
         const vista = proc?.vista?.sessao_id === sref.id ? proc.vista as { nomes: string[]; uids: string[]; desde: string; prazo: string } : null;
         const comVista = !!vista && (vista.uids || []).includes(quem.uid);
@@ -105,6 +126,7 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
         }
         return {
             hoje, data_sessao: s.data, situacao: s.situacao, gere, preside, sou_relator: souRelator, sou_membro: !!eu,
+            modo: s.modo, fim: s.fim || null, votacao_aberta: aberta, virtual_encerrou: virtualEncerrou(s, hoje), pedidos,
             numero: item.numero, assunto: item.assunto,
             membros: membros.map((m) => ({ uid: m.uid, nome: m.nome, funcao: m.funcao })),
             relator: relatorUid ? { uid: relatorUid, nome: v.liberado_em ? v.relator_nome : item.relator_nome || nm.get(relatorUid) || '' } : null,
@@ -136,9 +158,11 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
             pode: {
                 designar: gere && ativa && !v.liberado_em,
                 relatar: souRelator && ativa && !v.liberado_em && !!regra,
-                votar: emJulgamento && !!eu && !souRelator,
-                proclamar: emJulgamento && (preside || gere) && s.data <= hoje,
-                vista: emJulgamento && !!eu && !souRelator,
+                votar: emJulgamento && aberta && !!eu && !souRelator,
+                proclamar: emJulgamento && (preside || gere) && (s.modo === 'assincrona' ? virtualEncerrou(s, hoje) : s.data <= hoje),
+                vista: emJulgamento && aberta && !!eu && !souRelator,
+                // S7: qualquer membro destaca da sessão virtual até o fim da votação.
+                destacar: s.modo === 'assincrona' && ativa && !v.proclamado && !!regra && s.situacao === 'publicada' && !!eu && !virtualEncerrou(s, hoje),
                 juntar_vista: !!vista && !!eu && !souRelator && !comVista,
                 devolver_vista: !!vista && (comVista || ((preside || gere) && vista.prazo < hoje)),
                 adiar: (preside || gere) && ativa && !v.proclamado && !!regra && s.situacao === 'publicada',
@@ -195,6 +219,7 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
 
     if (p.action === 'sessaoVotar') {
         if (!eu) throw new HttpsError('permission-denied', 'Vota quem compõe o colegiado no dia da sessão (presidente e titulares)');
+        if (!votacaoAberta(s, hoje)) throw new HttpsError('failed-precondition', `Na sessão virtual, vota-se de ${br(s.data)} a ${br(String(s.fim))}`);
         let voto: ReturnType<typeof sanitizeVoto> | null = null;
         await c.db.runTransaction(async (tx) => {
             const [vs, ps] = await Promise.all([tx.get(vref), tx.get(pref)]);
@@ -219,6 +244,7 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
 
     if (p.action === 'sessaoProclamar') {
         if (!preside && !gere) throw new HttpsError('permission-denied', 'Proclama o resultado o presidente do colegiado (ou a secretaria, que conduz a sessão)');
+        if (s.modo === 'assincrona' && !virtualEncerrou(s, hoje)) throw new HttpsError('failed-precondition', `A votação virtual vai até ${br(String(s.fim))}: o resultado se apura depois`);
         if (s.data > hoje) throw new HttpsError('failed-precondition', `O resultado se proclama na sessão, em ${s.data.split('-').reverse().join('/')}`);
         let proclamado: Proclamacao | null = null;
         await c.db.runTransaction(async (tx) => {
@@ -315,7 +341,26 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
         return { ok: true, ...r };
     }
 
-    // ---- S5: vista, adiamento e conversão em diligência ----
+    // ---- S7: pedidos das partes (sustentação, preferência, destaque, esclarecimento) ----
+    if (p.action === 'sessaoPedidoDecidir') {
+        const dref = sref.collection('pedidos').doc(String(p.pedido_id || '_'));
+        const ped = (await dref.get()).data() as PedidoSessao | undefined;
+        if (!ped || ped.processo_id !== pid) throw new HttpsError('not-found', 'Pedido não encontrado');
+        if (ped.tipo === 'destaque' && p.deferir === true) return acaoVotacao(c, { ...p, action: 'sessaoDestacar' });
+        const decide = ped.tipo === 'destaque' ? (item.relator_uid ? item.relator_uid === quem.uid : preside || gere) : gere;
+        if (!decide) throw new HttpsError('permission-denied', ped.tipo === 'destaque' ? 'Decide o destaque o relator' : 'Quem confere os pedidos é a secretaria do colegiado');
+        const motivo = texto(p.motivo, 1000);
+        if (p.deferir !== true && motivo.length < 5) throw new HttpsError('invalid-argument', 'Diga o motivo do indeferimento (ao menos 5 letras)');
+        await c.db.runTransaction(async (tx) => {
+            const atual = (await tx.get(dref)).data() as PedidoSessao | undefined;
+            if (atual?.situacao !== 'pedido') throw new HttpsError('failed-precondition', 'O pedido já foi decidido');
+            tx.update(dref, { situacao: p.deferir === true ? 'deferido' : 'indeferido', motivo, decidido_por: quem.nome, decidido_em: new Date().toISOString() });
+        });
+        await auditar(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_PEDIDO_DECIDIDO', { sessao_id: sref.id, processo_id: pid, tipo: ped.tipo, deferido: p.deferir === true });
+        return { ok: true };
+    }
+
+    // ---- S5: vista, adiamento e conversão em diligência (e o destaque da S7) ----
     if (!ACOES_S5.includes(String(p.action))) throw new HttpsError('invalid-argument', 'Ação desconhecida');
     const motivo = texto(p.motivo, 2000);
     const avisar: string[] = [];
@@ -334,12 +379,39 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
         const relator = { relator_uid: it.relator_uid || '', relator_nome: it.relator_nome || '' };
         const emCurso = (manter: boolean) => ({ sessao_id: ref.id, manter_votos: manter, ...relator });
         /** Continua na próxima sessão do colegiado, se já houver uma marcada. */
-        const continuar = async (proc2: admin.firestore.DocumentData, porque: string) => {
-            const prox = await proximaSessao(tx, c, o.id, ref.id, s2.data);
+        const continuar = async (proc2: admin.firestore.DocumentData, porque: string, destaque = false) => {
+            // Destacado (S7), vai a uma sessão síncrona e recomeça: segue só o relator, com o voto em rascunho.
+            const prox = await proximaSessao(tx, c, o.id, ref.id, s2.data, destaque);
             if (!prox) return { prox: null, inc: {} };
             const publicada = prox.s.situacao === 'publicada';
-            return { prox, inc: { publicada, fazer: (base: admin.firestore.DocumentData) => incluirNaSessao(tx, c, prox, o, pref, base, publicada ? 'extrapauta' : 'pauta', publicada ? porque : '', { de: ref.id, v, ...relator }) } };
+            const vv = destaque && v ? { ...v, votos: {}, liberado_em: null } : v;
+            return { prox, inc: { publicada, fazer: (base: admin.firestore.DocumentData) => incluirNaSessao(tx, c, prox, o, pref, base, publicada ? 'extrapauta' : 'pauta', publicada ? porque : '', { de: ref.id, v: vv, ...relator }) } };
         };
+
+        if (p.action === 'sessaoDestacar') {
+            const pedidoId = typeof p.pedido_id === 'string' ? p.pedido_id : '';
+            const dref = pedidoId ? ref.collection('pedidos').doc(pedidoId) : null;
+            const ped = dref ? (await tx.get(dref)).data() as PedidoSessao | undefined : undefined;
+            if (dref) {
+                if (!ped || ped.processo_id !== pid || ped.tipo !== 'destaque') throw new HttpsError('not-found', 'Pedido não encontrado');
+                if (ped.situacao !== 'pedido') throw new HttpsError('failed-precondition', 'O pedido já foi decidido');
+                if (!(it.relator_uid ? it.relator_uid === quem.uid : preside || gere)) throw new HttpsError('permission-denied', 'Decide o destaque o relator');
+            } else if (!eu) throw new HttpsError('permission-denied', 'Destaca quem vota no dia da sessão (presidente e titulares)');
+            if (s2.modo !== 'assincrona') throw new HttpsError('failed-precondition', 'Só se destaca processo da sessão virtual');
+            if (!regra) throw new HttpsError('failed-precondition', 'O processo não está mais pautado para julgamento nesta sessão');
+            if (v?.proclamado) throw new HttpsError('failed-precondition', 'O resultado já foi proclamado');
+            if (virtualEncerrou(s2, hoje)) throw new HttpsError('failed-precondition', 'A votação virtual já terminou');
+            const { prox, inc } = await continuar(proc, `destaque da ${s2.titulo}`, true);
+            const quemPediu = ped ? `pedido de ${ped.parte}, deferido por ${quem.nome}` : quem.nome;
+            const mov = registrarMovimento(tx, c, pref, proc, 'destaque', textoDoDestaque(s2, quemPediu, prox?.s), { sessao_id: ref.id });
+            const mais = 'fazer' in inc && inc.fazer ? inc.fazer({ ...proc, ...mov }) : {};
+            tx.update(pref, { ...mov, sessao: FieldValue.delete(), julgamento_em_curso: { ...emCurso(true), so_relator: true }, ...mais });
+            marcarItem({ situacao: 'destacado', motivo: ped ? `a pedido de ${ped.parte}: ${ped.texto}`.slice(0, 500) : `destacado por ${quem.nome}` });
+            if (dref) tx.update(dref, { situacao: 'deferido', motivo: '', decidido_por: quem.nome, decidido_em: new Date().toISOString() });
+            avisar.push(pid);
+            auditoria = ['SECRETARIA_SESSAO_DESTAQUE', { sessao_id: ref.id, processo_id: pid, numero: it.numero, a_pedido: ped?.parte || null, continua_em: prox?.ref.id || null }];
+            return { ok: true, continua_em: prox ? { id: prox.ref.id, titulo: prox.s.titulo, data: prox.s.data } : null };
+        }
 
         if (p.action === 'sessaoVista') {
             if (!eu) throw new HttpsError('permission-denied', 'Pede vista quem vota no dia da sessão (presidente e titulares)');
@@ -355,6 +427,7 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
             }
             if (!regra) throw new HttpsError('failed-precondition', 'O processo não está mais pautado para julgamento nesta sessão');
             if (!v?.liberado_em) throw new HttpsError('failed-precondition', 'Peça vista depois que o relator liberar o voto');
+            if (!votacaoAberta(s2, hoje)) throw new HttpsError('failed-precondition', `Na sessão virtual, a vista se pede durante a votação, de ${br(s2.data)} a ${br(String(s2.fim))}`);
             if (v.proclamado) throw new HttpsError('failed-precondition', 'O resultado já foi proclamado');
             const prazo = prazoDaVista(hoje, o.pauta, calendario);
             const mov = registrarMovimento(tx, c, pref, proc, 'vista', textoDaVista(s2, [quem.nome], prazo), { sessao_id: ref.id });
@@ -413,4 +486,46 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
     // E-mail às partes depois da transação: falha de envio não desfaz o ato.
     await Promise.all(avisar.map((id) => avisarPartesDoMovimento(c.db, id, quem.uid).catch(() => undefined)));
     return resultado;
+}
+
+/**
+ * Fim da sessão virtual (S7): o sistema apura cada processo pautado, como o
+ * presidente faria. Sem resultado (o relator não liberou o voto, faltou
+ * quórum), o julgamento é adiado para a sessão seguinte com os votos já dados
+ * (Res. CNJ 591/2024, art. 5º, §§ 7º e 8º). Depois, a sessão fica encerrada.
+ */
+export async function encerrarVirtual(db: admin.firestore.Firestore, orgId: string, sessaoId: string): Promise<{ proclamados: number; adiados: number }> {
+    const sis = await contextoDoSistema(db, orgId);
+    if (!sis) return { proclamados: 0, adiados: 0 };
+    const c: Contexto = { ...sis, userName: 'Sistema (fim da sessão virtual)' };
+    const { ref, s } = await lerSessao(c, sessaoId);
+    if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa || !virtualEncerrou(s, hojeBrasil())) return { proclamados: 0, adiados: 0 };
+    let proclamados = 0;
+    let adiados = 0;
+    for (const it of (s.pauta || []).filter((x) => x.situacao === 'pautado')) {
+        if ((await ref.collection('votacoes').doc(it.processo_id).get()).data()?.proclamado) continue;
+        const base = { id: sessaoId, processo_id: it.processo_id };
+        try {
+            await acaoVotacao(c, { ...base, action: 'sessaoProclamar' });
+            proclamados++;
+        } catch (e) {
+            const porque = String((e as Error).message || '').replace(/[.\s]+$/, '');
+            // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
+            await acaoVotacao(c, { ...base, action: 'sessaoAdiar', motivo: `a votação virtual terminou sem resultado (${porque})` }).then(() => { adiados++; }, () => undefined);
+        }
+    }
+    await ref.update({ situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerra_em: FieldValue.delete(), version: FieldValue.increment(1), updated_at: FieldValue.serverTimestamp() });
+    return { proclamados, adiados };
+}
+
+/** Rotina diária: encerra as sessões virtuais cuja votação terminou ontem (ou antes). */
+export async function encerrarSessoesVirtuais(db: admin.firestore.Firestore, hoje = hojeBrasil()): Promise<number> {
+    const q = await db.collection(COL_SESSOES).where('encerra_em', '<', hoje).limit(200).get();
+    let n = 0;
+    for (const d of q.docs) {
+        const s = d.data();
+        if (s.situacao !== 'publicada' || !s.ativa) { await d.ref.update({ encerra_em: FieldValue.delete() }); continue; }
+        await encerrarVirtual(db, String(s.organization_id), d.id).then(() => { n++; }, (e) => console.error('encerrarVirtual', d.id, e));
+    }
+    return n;
 }

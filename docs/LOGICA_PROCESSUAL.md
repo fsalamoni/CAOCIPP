@@ -320,6 +320,21 @@ informado.
   que o integram para todos os fins (art. 941, § 3º). Tem prazo para ser
   lavrado (art. 944), e só depois de juntado aos autos as partes o conhecem;
   com ele termina a leitura dos autos pelos julgadores pela pauta.
+- **Sessão virtual, destaque, sustentação oral e preferência.** Na sessão
+  virtual assíncrona, cada membro vota no seu tempo dentro de um período, e
+  o voto do relator está disponível desde o início (Res. CNJ 591/2024, arts.
+  1º a 6º). No fim, apura-se como na proclamação; sem quórum, ou sem o voto
+  do relator, o julgamento passa à sessão seguinte (art. 5º, §§ 7º e 8º). O
+  destaque leva o processo a uma sessão síncrona, onde o julgamento recomeça
+  (art. 8º): qualquer membro destaca; a parte pede até 48 horas antes do
+  início, e o relator decide. A sustentação oral é direito da parte nas
+  hipóteses do regimento (CPC, art. 937): na síncrona, ela se inscreve até o
+  início da sessão; na virtual, envia a gravação até 48 horas antes (Res. CNJ
+  591, art. 9º), e durante a votação pode esclarecer fato (art. 9º, § 6º). A
+  ordem de julgamento põe à frente os processos com sustentação, depois os
+  com preferência e os iniciados em sessão anterior (CPC, art. 936). Os
+  pedidos da parte e a decisão sobre eles ficam com a sessão; vão aos autos o
+  destaque, o adiamento e o resultado.
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

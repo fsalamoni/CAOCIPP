@@ -132,3 +132,42 @@ test('vista, adiamento e diligência: prazo do colegiado e certidões (S5)', () 
     assert.match(textoDoAdiamento(s, 'falta de quórum'), /Motivo: falta de quórum\.$/);
     assert.match(textoDaDiligencia(s, 'Ouvir a testemunha indicada.'), /em diligência .*: Ouvir a testemunha indicada\.$/);
 });
+
+test('sessão virtual assíncrona: período de votação, pedidos das partes e destaque (S7)', () => {
+    const S = require('../lib/shared/sessoes');
+    const base = { modo: 'assincrona', data: '2026-12-07', hora: '09:00' };
+    assert.throws(() => S.sanitizeDadosSessao(base), /último dia da votação/);
+    assert.throws(() => S.sanitizeDadosSessao({ ...base, fim: '2026-12-06' }), /antes do primeiro/);
+    assert.throws(() => S.sanitizeDadosSessao({ ...base, fim: '2027-02-01' }), /no máximo 30 dias/);
+    const d = S.sanitizeDadosSessao({ ...base, fim: '2026-12-14', local: 'Sala 1' });
+    assert.equal(d.fim, '2026-12-14');
+    assert.equal(d.local, '');
+    assert.equal(S.sanitizeDadosSessao({ modo: 'presencial', data: '2026-12-07', hora: '09:00', local: 'Sala', fim: '2026-12-14' }).fim, undefined);
+    assert.match(S.textoDaInclusao({ ...d, titulo: '1ª Sessão Virtual' }, 'Conselho', { inclusao: 'pauta', motivo: '' }), /Sessão Virtual do Conselho, em sessão virtual, com votação de 07\/12\/2026 a 14\/12\/2026\.$/);
+    assert.equal(S.votacaoAberta(d, '2026-12-06'), false);
+    assert.equal(S.votacaoAberta(d, '2026-12-07'), true);
+    assert.equal(S.votacaoAberta(d, '2026-12-14'), true);
+    assert.equal(S.votacaoAberta(d, '2026-12-15'), false);
+    assert.equal(S.votacaoAberta({ modo: 'presencial', data: '2026-12-07' }, '2026-12-01'), true);
+    assert.equal(S.virtualEncerrou(d, '2026-12-14'), false);
+    assert.equal(S.virtualEncerrou(d, '2026-12-15'), true);
+    // Até 48 horas antes do início: sustentação gravada e destaque; preferência, até o início; esclarecimento, durante.
+    assert.equal(S.problemaDoPedido(d, 'destaque', '2026-12-05'), '');
+    assert.match(S.problemaDoPedido(d, 'destaque', '2026-12-06'), /terminou em 05\/12\/2026/);
+    assert.match(S.problemaDoPedido(d, 'sustentacao', '2026-12-06'), /terminou/);
+    assert.equal(S.problemaDoPedido(d, 'preferencia', '2026-12-07'), '');
+    assert.match(S.problemaDoPedido(d, 'esclarecimento', '2026-12-05'), /durante a votação/);
+    assert.equal(S.problemaDoPedido(d, 'esclarecimento', '2026-12-10'), '');
+    const sinc = { modo: 'presencial', data: '2026-12-07' };
+    assert.match(S.problemaDoPedido(sinc, 'destaque', '2026-12-01'), /só da sessão virtual/);
+    assert.equal(S.problemaDoPedido(sinc, 'sustentacao', '2026-12-07'), '');
+    assert.match(S.problemaDoPedido(sinc, 'sustentacao', '2026-12-08'), /terminou/);
+    assert.throws(() => S.sanitizePedido({ tipo: 'x' }, d), /Escolha/);
+    assert.throws(() => S.sanitizePedido({ tipo: 'sustentacao' }, d), /link do áudio ou do vídeo/);
+    assert.throws(() => S.sanitizePedido({ tipo: 'sustentacao', link: 'http://x' }, d), /https/);
+    assert.deepEqual(S.sanitizePedido({ tipo: 'sustentacao', link: 'https://v.org/a', texto: ' Resumo ' }, d), { tipo: 'sustentacao', texto: 'Resumo', link: 'https://v.org/a' });
+    assert.deepEqual(S.sanitizePedido({ tipo: 'sustentacao' }, sinc), { tipo: 'sustentacao', texto: '', link: '' });
+    assert.throws(() => S.sanitizePedido({ tipo: 'destaque', texto: 'curto' }, d), /por que/);
+    assert.equal(S.sanitizePedido({ tipo: 'preferencia', link: 'https://x.org' }, d).link, '');
+    assert.match(S.textoDoDestaque({ titulo: '1ª Sessão Virtual', data: '2026-12-07' }, 'Eva', null), /^Destacado da 1ª Sessão Virtual, de 07\/12\/2026, por Eva, .*recomeça\. Será incluído na próxima sessão síncrona/);
+});

@@ -15,6 +15,7 @@ import { enviarResumosDiarios, notificarPessoas, prefDe } from './avisosEquipe';
 import { certificarDecursos, cienciaPorDecurso } from './comunicacoes';
 import { avancarSozinho } from './processos';
 import { contextoDoSistema } from './context';
+import { encerrarSessoesVirtuais } from './votacao';
 import { avisarPartesDoMovimento } from './portalAvisos';
 
 export const CONFERENCIAS_POR_HORA = 60;
@@ -123,6 +124,8 @@ export const secretariaAlertaPrazos = onSchedule(
         // Antes dos alertas: a ciência por decurso abre prazos que entram neles.
         await cienciaPorDecurso(db).catch((e) => console.warn('[comunicacoes] ciência por decurso falhou', e));
         await respostasPorDecurso(db).catch((e) => console.warn('[comunicacoes] decurso do prazo de resposta falhou', e));
+        // S7: sessões virtuais cuja votação terminou: o sistema apura e encerra.
+        await encerrarSessoesVirtuais(db).catch((e) => console.warn('[sessoes] encerramento das sessões virtuais falhou', e));
         const hoje = hojeBrasil();
         const limite = somarDias(hoje, DIAS_ALERTA);
         // Só campo único em faixa: dispensa índice composto.

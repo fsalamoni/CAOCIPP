@@ -31,7 +31,7 @@ import EventosAutos from '@/components/secretaria/EventosAutos';
 import ComunicacoesPendentes from '@/components/secretaria/ComunicacoesPendentes';
 import { SeloComunicacao } from '@/components/secretaria/Comunicacoes';
 import { nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
-import { quandoSessao } from '@/lib/sessoes';
+import { NOME_PEDIDO, SITUACAO_PEDIDO, quandoSessao } from '@/lib/sessoes';
 import { etapasAteOFim } from '@/lib/secretariaRito';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
@@ -65,7 +65,7 @@ export function frasePolo(polo) {
 const ICONE_MOV = {
     juntada: FileText, peticao: Send, fase: GitBranch, situacao: Flag, prazo: CalendarClock, prazo_encerrado: CalendarCheck, prazo_prorrogado: CalendarClock, prazo_devolvido: CalendarClock,
     pendencia_resolvida: Gavel, autuacao: FilePlus, habilitacao: UserCheck, convite: Mail,
-    comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck, decurso_prazo: CalendarCheck, pauta: Gavel, pauta_retirada: Gavel, vista: Gavel, vista_devolvida: Gavel, adiamento: Gavel, diligencia: Gavel,
+    comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck, decurso_prazo: CalendarCheck, pauta: Gavel, pauta_retirada: Gavel, vista: Gavel, vista_devolvida: Gavel, adiamento: Gavel, diligencia: Gavel, destaque: Gavel,
 };
 
 export default function Portal() {
@@ -511,6 +511,7 @@ function ProcessoParte({ id, onVoltar }) {
                             <CardContent className="space-y-1 text-sm">
                                 <p>O processo está na pauta da <b>{p.sessao.titulo}</b>{p.sessao.colegiado ? ` do ${p.sessao.colegiado}` : ''}: {quandoSessao(p.sessao)}.</p>
                                 <p className="text-slate-600 dark:text-slate-400">A certidão de inclusão em pauta está nos autos. Se o processo sair da pauta, você é avisado.</p>
+                                <PedidosSessao id={id} sessao={p.sessao} onFeito={() => qc.invalidateQueries({ queryKey: ['portal-proc', id] })} />
                             </CardContent>
                         </Card>
                     )}
@@ -654,6 +655,80 @@ const MODELOS_PETICAO = {
     'Recurso': { texto: 'Recorro da decisão de ____, pelos motivos a seguir: ', dica: 'Indique a decisão e os motivos. Anexe o que sustenta o recurso.' },
     'Outro': { texto: '', dica: '' },
 };
+
+const EXPLICA_PEDIDO = {
+    sustentacao: (virtual) => (virtual
+        ? 'Na sessão virtual, a sustentação oral é gravada: grave o áudio ou o vídeo, no tempo do regimento, publique num serviço da sua escolha e informe o link. Vale até 48 horas antes do início da votação.'
+        : 'Inscreve você para falar ao colegiado antes do voto, no tempo do regimento. Vale até o dia da sessão.'),
+    preferencia: () => 'Pede que o processo seja julgado antes dos outros da pauta (CPC, art. 936). Vale até o início da sessão.',
+    destaque: () => 'Pede que o processo saia da sessão virtual e seja julgado numa sessão síncrona, com debate e sustentação ao vivo. Diga por quê; o relator decide. Vale até 48 horas antes do início.',
+    esclarecimento: () => 'Durante a votação virtual, esclareça um fato do processo para quem julga. Não é nova argumentação.',
+};
+const COR_PEDIDO_PARTE = { pedido: 'text-amber-800 dark:text-amber-200', deferido: 'text-emerald-800 dark:text-emerald-200', indeferido: 'text-rose-800 dark:text-rose-200' };
+
+/** Pedidos da parte para a sessão em que o processo está pautado (S7). */
+function PedidosSessao({ id, sessao, onFeito }) {
+    const pode = sessao.pode_pedir || [];
+    const meus = sessao.meus_pedidos || [];
+    const [tipo, setTipo] = useState('');
+    const [texto, setTexto] = useState('');
+    const [link, setLink] = useState('');
+    const [indo, setIndo] = useState(false);
+    const virtual = sessao.modo === 'assincrona';
+    if (!pode.length && !meus.length) return null;
+    const pedeLink = tipo === 'sustentacao' && virtual;
+    const pedeTexto = tipo === 'destaque' || tipo === 'esclarecimento';
+    const enviar = async () => {
+        setIndo(true);
+        try {
+            await secPortal('pedidoSessao', { processoId: id, tipo, texto, link });
+            toast.success('Pedido enviado. A resposta aparece aqui.');
+            setTipo(''); setTexto(''); setLink('');
+            await onFeito();
+        } catch (e) { toast.error(e?.message || 'Não foi possível enviar o pedido'); } finally { setIndo(false); }
+    };
+    return (
+        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
+            {meus.length > 0 && (
+                <div className="space-y-1">
+                    <p className="font-medium text-slate-900 dark:text-white">Seus pedidos para esta sessão</p>
+                    <ul className="space-y-1">
+                        {meus.map((x) => (
+                            <li key={x.id} className="text-slate-700 dark:text-slate-300">
+                                <b>{x.nome_tipo}</b>: <span className={COR_PEDIDO_PARTE[x.situacao]}>{SITUACAO_PEDIDO[x.situacao]}</span>{x.motivo ? ` (${x.motivo})` : ''}
+                                {x.link && <> · <a href={x.link} target="_blank" rel="noreferrer noopener" className="underline text-indigo-700 dark:text-indigo-300">gravação</a></>}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            {pode.length > 0 && (
+                <div className="space-y-2">
+                    <Label htmlFor="pp-tipo" className="font-medium">Fazer um pedido para o julgamento</Label>
+                    <select id="pp-tipo" value={tipo} onChange={(e) => setTipo(e.target.value)} className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+                        <option value="">Escolha…</option>
+                        {pode.map((t) => <option key={t} value={t}>{NOME_PEDIDO[t]}</option>)}
+                    </select>
+                    {tipo && <p className="text-xs text-slate-600 dark:text-slate-400">{EXPLICA_PEDIDO[tipo](virtual)}</p>}
+                    {pedeLink && (
+                        <div><Label htmlFor="pp-link">Link da gravação</Label><Input id="pp-link" className="mt-1" placeholder="https://" value={link} maxLength={500} onChange={(e) => setLink(e.target.value)} /></div>
+                    )}
+                    {tipo && (
+                        <div>
+                            <Label htmlFor="pp-texto">{tipo === 'destaque' ? 'Por que o processo deve ir à sessão síncrona' : tipo === 'esclarecimento' ? 'Esclarecimento' : 'Observação (opcional)'}</Label>
+                            <Textarea id="pp-texto" className="mt-1" rows={3} maxLength={4000} value={texto} onChange={(e) => setTexto(e.target.value)} />
+                        </div>
+                    )}
+                    {tipo && (
+                        <Button size="sm" disabled={indo || (pedeLink && !/^https:\/\//i.test(link.trim())) || (pedeTexto && texto.trim().length < 10)} onClick={enviar}>
+                            {indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Enviar pedido
+                        </Button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, onFeito, onComprovante }) {
     const chave = `portal-rascunho-${id}`;

@@ -1,4 +1,4 @@
-import { CalendarioOrgao, Contagem, calcularVencimento, texto } from './secretaria';
+import { CalendarioOrgao, Contagem, calcularVencimento, somarDias, texto } from './secretaria';
 import { acaoAtiva, respostasDaFase } from './exigencias';
 import { composicaoEm } from './orgaos';
 import type { MembroColegiado } from './orgaos';
@@ -11,7 +11,7 @@ import type { Voto } from './julgamento';
  * colegiado; a pauta lista processos que têm o julgamento pendente na fase.
  */
 
-export const MODOS_SESSAO = ['presencial', 'virtual', 'hibrida'] as const;
+export const MODOS_SESSAO = ['presencial', 'virtual', 'hibrida', 'assincrona'] as const;
 export type ModoSessao = typeof MODOS_SESSAO[number];
 export const CARATER_SESSAO = ['ordinaria', 'extraordinaria'] as const;
 export type CaraterSessao = typeof CARATER_SESSAO[number];
@@ -33,6 +33,11 @@ export interface DadosSessao {
     local: string;
     link: string;
     observacoes: string;
+    /**
+     * Sessão virtual assíncrona (S7): último dia da votação; `data` é o
+     * primeiro e `hora`, a abertura. Vazio nos outros modos.
+     */
+    fim?: string;
 }
 
 export interface ItemPauta {
@@ -45,9 +50,10 @@ export interface ItemPauta {
     /**
      * pautado; retirado (com motivo); vista (julgamento suspenso por pedido de
      * vista); adiado (para a sessão seguinte); diligencia (convertido em
-     * diligência). Julgado se lê do processo.
+     * diligência); destacado (da sessão virtual para uma síncrona, S7).
+     * Julgado se lê do processo.
      */
-    situacao: 'pautado' | 'retirado' | 'vista' | 'adiado' | 'diligencia';
+    situacao: 'pautado' | 'retirado' | 'vista' | 'adiado' | 'diligencia' | 'destacado';
     /** Pedido de vista: quem pediu e até quando. */
     vista?: { nomes: string[]; prazo: string; devolvida?: boolean };
     incluido_em: string;
@@ -110,10 +116,20 @@ export function sanitizeDadosSessao(raw: unknown): DadosSessao {
     };
     if (!d.data) throw new Error('Informe a data da sessão');
     if (!d.hora) throw new Error('Informe a hora da sessão (HH:MM)');
-    if (d.modo !== 'virtual' && !d.local) throw new Error('Informe o local da sessão');
-    if (d.modo !== 'presencial' && !d.link) throw new Error('Informe o link ou a sala virtual da sessão');
-    if (d.modo === 'virtual') d.local = '';
-    if (d.modo === 'presencial') d.link = '';
+    if (d.modo === 'assincrona') {
+        // Sem local nem sala: o link é opcional (onde acompanhar, se houver).
+        const fim = typeof s.fim === 'string' && DATA.test(s.fim) && !Number.isNaN(Date.parse(`${s.fim}T00:00:00Z`)) ? s.fim : '';
+        if (!fim) throw new Error('Informe o último dia da votação virtual');
+        if (fim < d.data) throw new Error('O último dia da votação não pode ser antes do primeiro');
+        if (fim > somarDias(d.data, MAX_DIAS_VIRTUAL)) throw new Error(`A votação virtual dura no máximo ${MAX_DIAS_VIRTUAL} dias`);
+        d.fim = fim;
+        d.local = '';
+    } else {
+        if (d.modo !== 'virtual' && !d.local) throw new Error('Informe o local da sessão');
+        if (d.modo !== 'presencial' && !d.link) throw new Error('Informe o link ou a sala virtual da sessão');
+        if (d.modo === 'virtual') d.local = '';
+        if (d.modo === 'presencial') d.link = '';
+    }
     if (!d.titulo) d.titulo = `Sessão ${d.carater === 'ordinaria' ? 'ordinária' : 'extraordinária'} de ${br(d.data)}`;
     return d;
 }
@@ -169,7 +185,8 @@ export function leituraDeJulgador(
 }
 
 /** Onde e como, no mesmo jeito das audiências: "em Sala 2", "por videoconferência (link)", "em Sala 2 e por videoconferência (link)". */
-export function ondeSessao(s: Pick<DadosSessao, 'modo' | 'local' | 'link'>): string {
+export function ondeSessao(s: Pick<DadosSessao, 'modo' | 'local' | 'link'> & Partial<Pick<DadosSessao, 'data' | 'fim'>>): string {
+    if (s.modo === 'assincrona') return `em sessão virtual, com votação de ${br(s.data || '')} a ${br(s.fim || '')}`;
     if (s.modo === 'virtual') return `por videoconferência (${s.link})`;
     if (s.modo === 'hibrida') return `em ${s.local} e por videoconferência (${s.link})`;
     return `em ${s.local}`;
@@ -179,7 +196,85 @@ export function ondeSessao(s: Pick<DadosSessao, 'modo' | 'local' | 'link'>): str
 export function textoDaInclusao(s: DadosSessao, colegiado: string, item: Pick<ItemPauta, 'inclusao' | 'motivo'>): string {
     const como = item.inclusao === 'extrapauta' ? 'Incluído em extrapauta' : item.inclusao === 'mesa' ? 'Apresentado em mesa' : 'Incluído em pauta';
     const motivo = item.inclusao !== 'pauta' && item.motivo ? ` Motivo: ${item.motivo}.` : '';
-    return `${como} para julgamento na ${s.titulo}${colegiado ? ` do ${colegiado}` : ''}, em ${br(s.data)}, às ${s.hora}, ${ondeSessao(s)}.${motivo}`;
+    const quando = s.modo === 'assincrona' ? ondeSessao(s) : `em ${br(s.data)}, às ${s.hora}, ${ondeSessao(s)}`;
+    return `${como} para julgamento na ${s.titulo}${colegiado ? ` do ${colegiado}` : ''}, ${quando}.${motivo}`;
+}
+
+// ---- S7: sessão virtual assíncrona, destaque, sustentação oral e preferência ----
+
+export const MAX_DIAS_VIRTUAL = 30;
+
+/** Na sessão virtual, vota-se do primeiro ao último dia; nas outras, a qualquer tempo depois de liberado o voto (como antes). */
+export function votacaoAberta(s: Pick<DadosSessao, 'modo' | 'data' | 'fim'>, hoje: string): boolean {
+    return s.modo !== 'assincrona' || (s.data <= hoje && hoje <= String(s.fim || ''));
+}
+
+/** A votação virtual terminou (o resultado se apura no dia seguinte ao último). */
+export const virtualEncerrou = (s: Pick<DadosSessao, 'modo' | 'fim'>, hoje: string) => s.modo === 'assincrona' && !!s.fim && s.fim < hoje;
+
+/**
+ * O que a parte (ou quem a representa) pede para a sessão: sustentação oral
+ * (CPC, art. 937), preferência no julgamento (art. 936), destaque da sessão
+ * virtual para uma síncrona (Res. CNJ 591/2024, art. 8º) e esclarecimento de
+ * fato durante a votação virtual (art. 9º, § 6º).
+ */
+export const TIPOS_PEDIDO = ['sustentacao', 'preferencia', 'destaque', 'esclarecimento'] as const;
+export type TipoPedido = typeof TIPOS_PEDIDO[number];
+export const NOME_PEDIDO: Record<TipoPedido, string> = {
+    sustentacao: 'Sustentação oral', preferencia: 'Preferência', destaque: 'Destaque', esclarecimento: 'Esclarecimento de fato',
+};
+export const MAX_PEDIDO = 4000;
+
+export interface PedidoSessao {
+    processo_id: string;
+    tipo: TipoPedido;
+    uid: string;
+    parte: string;
+    texto: string;
+    link: string;
+    em: string;
+    /** pedido; deferido; indeferido (com motivo). Sustentação, preferência e esclarecimento valem enquanto não indeferidos. */
+    situacao: 'pedido' | 'deferido' | 'indeferido';
+    decidido_por?: string;
+    decidido_em?: string;
+    motivo?: string;
+}
+
+/**
+ * Por que a parte não pode fazer este pedido agora ('' quando pode). Na
+ * sessão virtual, sustentação gravada e destaque vão até 48 horas antes do
+ * início (dois dias antes); o esclarecimento, durante a votação. Na síncrona,
+ * sustentação e preferência até o dia da sessão (CPC, art. 937, § 2º).
+ */
+export function problemaDoPedido(s: Pick<DadosSessao, 'modo' | 'data' | 'fim'>, tipo: TipoPedido, hoje: string): string {
+    const virtual = s.modo === 'assincrona';
+    if (tipo === 'destaque' && !virtual) return 'O destaque é só da sessão virtual';
+    if (tipo === 'esclarecimento') {
+        if (!virtual) return 'Na sessão síncrona, o esclarecimento de fato se pede ao presidente, durante a sessão';
+        return votacaoAberta(s, hoje) ? '' : `O esclarecimento se envia durante a votação, de ${br(s.data)} a ${br(String(s.fim))}`;
+    }
+    const limite = virtual && tipo !== 'preferencia' ? somarDias(s.data, -2) : s.data;
+    return hoje > limite ? `O prazo para este pedido terminou em ${br(limite)}` : '';
+}
+
+/** Pedido conferido (lança com a explicação). */
+export function sanitizePedido(raw: unknown, s: Pick<DadosSessao, 'modo'>): Pick<PedidoSessao, 'tipo' | 'texto' | 'link'> {
+    const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const tipo = String(r.tipo || '') as TipoPedido;
+    if (!TIPOS_PEDIDO.includes(tipo)) throw new Error('Escolha o que pede');
+    const txt = String(r.texto ?? '').replace(/\r\n/g, '\n').trim().slice(0, MAX_PEDIDO);
+    const link = texto(r.link, 500);
+    if (link && !/^https:\/\/[^\s]+$/i.test(link)) throw new Error('O link precisa começar com https://');
+    if ((tipo === 'destaque' || tipo === 'esclarecimento') && txt.length < 10) throw new Error(tipo === 'destaque' ? 'Diga por que o processo deve ir à sessão síncrona (ao menos 10 letras)' : 'Escreva o esclarecimento (ao menos 10 letras)');
+    // Na sessão virtual, a sustentação é gravada: o link do áudio ou vídeo (o sistema não guarda arquivos grandes).
+    if (tipo === 'sustentacao' && s.modo === 'assincrona' && !link) throw new Error('Na sessão virtual, a sustentação é gravada: informe o link do áudio ou do vídeo');
+    return { tipo, texto: txt, link: tipo === 'sustentacao' ? link : '' };
+}
+
+/** Certidão do destaque: o processo sai da sessão virtual e o julgamento recomeça numa síncrona. */
+export function textoDoDestaque(s: Pick<DadosSessao, 'titulo' | 'data'>, quem: string, incluido?: Pick<DadosSessao, 'titulo' | 'data'> | null): string {
+    return `Destacado da ${s.titulo}, de ${br(s.data)}, por ${quem}, para julgamento em sessão síncrona; o julgamento recomeça. `
+        + (incluido ? `Incluído na ${incluido.titulo}, de ${br(incluido.data)}.` : 'Será incluído na próxima sessão síncrona do colegiado.');
 }
 
 /** Texto da certidão de retirada (ou de cancelamento da sessão). */

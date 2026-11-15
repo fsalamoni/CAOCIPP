@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.br = exports.MAX_EMENTA = exports.ACORDAO_PADRAO = exports.MAX_VISTA = exports.VISTA_PADRAO = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
+exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.MAX_PEDIDO = exports.NOME_PEDIDO = exports.TIPOS_PEDIDO = exports.virtualEncerrou = exports.MAX_DIAS_VIRTUAL = exports.br = exports.MAX_EMENTA = exports.ACORDAO_PADRAO = exports.MAX_VISTA = exports.VISTA_PADRAO = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
 exports.sanitizeRegrasSessao = sanitizeRegrasSessao;
 exports.prazoDoAcordao = prazoDoAcordao;
 exports.prazoDaVista = prazoDaVista;
@@ -11,6 +11,10 @@ exports.julgamentoPendente = julgamentoPendente;
 exports.leituraDeJulgador = leituraDeJulgador;
 exports.ondeSessao = ondeSessao;
 exports.textoDaInclusao = textoDaInclusao;
+exports.votacaoAberta = votacaoAberta;
+exports.problemaDoPedido = problemaDoPedido;
+exports.sanitizePedido = sanitizePedido;
+exports.textoDoDestaque = textoDoDestaque;
 exports.textoDaRetirada = textoDaRetirada;
 exports.textoDaVista = textoDaVista;
 exports.textoDaDevolucao = textoDaDevolucao;
@@ -34,7 +38,7 @@ const orgaos_1 = require("./orgaos");
  * secretaria/sessoes.ts). A sessão é do órgão interno que decide em
  * colegiado; a pauta lista processos que têm o julgamento pendente na fase.
  */
-exports.MODOS_SESSAO = ['presencial', 'virtual', 'hibrida'];
+exports.MODOS_SESSAO = ['presencial', 'virtual', 'hibrida', 'assincrona'];
 exports.CARATER_SESSAO = ['ordinaria', 'extraordinaria'];
 /** Como o item entrou: na pauta publicada, depois dela (extrapauta) ou em mesa (urgente, sem pauta). */
 exports.INCLUSOES = ['pauta', 'extrapauta', 'mesa'];
@@ -78,14 +82,28 @@ function sanitizeDadosSessao(raw) {
         throw new Error('Informe a data da sessão');
     if (!d.hora)
         throw new Error('Informe a hora da sessão (HH:MM)');
-    if (d.modo !== 'virtual' && !d.local)
-        throw new Error('Informe o local da sessão');
-    if (d.modo !== 'presencial' && !d.link)
-        throw new Error('Informe o link ou a sala virtual da sessão');
-    if (d.modo === 'virtual')
+    if (d.modo === 'assincrona') {
+        // Sem local nem sala: o link é opcional (onde acompanhar, se houver).
+        const fim = typeof s.fim === 'string' && DATA.test(s.fim) && !Number.isNaN(Date.parse(`${s.fim}T00:00:00Z`)) ? s.fim : '';
+        if (!fim)
+            throw new Error('Informe o último dia da votação virtual');
+        if (fim < d.data)
+            throw new Error('O último dia da votação não pode ser antes do primeiro');
+        if (fim > (0, secretaria_1.somarDias)(d.data, exports.MAX_DIAS_VIRTUAL))
+            throw new Error(`A votação virtual dura no máximo ${exports.MAX_DIAS_VIRTUAL} dias`);
+        d.fim = fim;
         d.local = '';
-    if (d.modo === 'presencial')
-        d.link = '';
+    }
+    else {
+        if (d.modo !== 'virtual' && !d.local)
+            throw new Error('Informe o local da sessão');
+        if (d.modo !== 'presencial' && !d.link)
+            throw new Error('Informe o link ou a sala virtual da sessão');
+        if (d.modo === 'virtual')
+            d.local = '';
+        if (d.modo === 'presencial')
+            d.link = '';
+    }
     if (!d.titulo)
         d.titulo = `Sessão ${d.carater === 'ordinaria' ? 'ordinária' : 'extraordinária'} de ${(0, exports.br)(d.data)}`;
     return d;
@@ -141,6 +159,8 @@ function leituraDeJulgador(proc, compoe, orgaoDaUnidade) {
 }
 /** Onde e como, no mesmo jeito das audiências: "em Sala 2", "por videoconferência (link)", "em Sala 2 e por videoconferência (link)". */
 function ondeSessao(s) {
+    if (s.modo === 'assincrona')
+        return `em sessão virtual, com votação de ${(0, exports.br)(s.data || '')} a ${(0, exports.br)(s.fim || '')}`;
     if (s.modo === 'virtual')
         return `por videoconferência (${s.link})`;
     if (s.modo === 'hibrida')
@@ -151,7 +171,69 @@ function ondeSessao(s) {
 function textoDaInclusao(s, colegiado, item) {
     const como = item.inclusao === 'extrapauta' ? 'Incluído em extrapauta' : item.inclusao === 'mesa' ? 'Apresentado em mesa' : 'Incluído em pauta';
     const motivo = item.inclusao !== 'pauta' && item.motivo ? ` Motivo: ${item.motivo}.` : '';
-    return `${como} para julgamento na ${s.titulo}${colegiado ? ` do ${colegiado}` : ''}, em ${(0, exports.br)(s.data)}, às ${s.hora}, ${ondeSessao(s)}.${motivo}`;
+    const quando = s.modo === 'assincrona' ? ondeSessao(s) : `em ${(0, exports.br)(s.data)}, às ${s.hora}, ${ondeSessao(s)}`;
+    return `${como} para julgamento na ${s.titulo}${colegiado ? ` do ${colegiado}` : ''}, ${quando}.${motivo}`;
+}
+// ---- S7: sessão virtual assíncrona, destaque, sustentação oral e preferência ----
+exports.MAX_DIAS_VIRTUAL = 30;
+/** Na sessão virtual, vota-se do primeiro ao último dia; nas outras, a qualquer tempo depois de liberado o voto (como antes). */
+function votacaoAberta(s, hoje) {
+    return s.modo !== 'assincrona' || (s.data <= hoje && hoje <= String(s.fim || ''));
+}
+/** A votação virtual terminou (o resultado se apura no dia seguinte ao último). */
+const virtualEncerrou = (s, hoje) => s.modo === 'assincrona' && !!s.fim && s.fim < hoje;
+exports.virtualEncerrou = virtualEncerrou;
+/**
+ * O que a parte (ou quem a representa) pede para a sessão: sustentação oral
+ * (CPC, art. 937), preferência no julgamento (art. 936), destaque da sessão
+ * virtual para uma síncrona (Res. CNJ 591/2024, art. 8º) e esclarecimento de
+ * fato durante a votação virtual (art. 9º, § 6º).
+ */
+exports.TIPOS_PEDIDO = ['sustentacao', 'preferencia', 'destaque', 'esclarecimento'];
+exports.NOME_PEDIDO = {
+    sustentacao: 'Sustentação oral', preferencia: 'Preferência', destaque: 'Destaque', esclarecimento: 'Esclarecimento de fato',
+};
+exports.MAX_PEDIDO = 4000;
+/**
+ * Por que a parte não pode fazer este pedido agora ('' quando pode). Na
+ * sessão virtual, sustentação gravada e destaque vão até 48 horas antes do
+ * início (dois dias antes); o esclarecimento, durante a votação. Na síncrona,
+ * sustentação e preferência até o dia da sessão (CPC, art. 937, § 2º).
+ */
+function problemaDoPedido(s, tipo, hoje) {
+    const virtual = s.modo === 'assincrona';
+    if (tipo === 'destaque' && !virtual)
+        return 'O destaque é só da sessão virtual';
+    if (tipo === 'esclarecimento') {
+        if (!virtual)
+            return 'Na sessão síncrona, o esclarecimento de fato se pede ao presidente, durante a sessão';
+        return votacaoAberta(s, hoje) ? '' : `O esclarecimento se envia durante a votação, de ${(0, exports.br)(s.data)} a ${(0, exports.br)(String(s.fim))}`;
+    }
+    const limite = virtual && tipo !== 'preferencia' ? (0, secretaria_1.somarDias)(s.data, -2) : s.data;
+    return hoje > limite ? `O prazo para este pedido terminou em ${(0, exports.br)(limite)}` : '';
+}
+/** Pedido conferido (lança com a explicação). */
+function sanitizePedido(raw, s) {
+    var _a;
+    const r = (raw && typeof raw === 'object' ? raw : {});
+    const tipo = String(r.tipo || '');
+    if (!exports.TIPOS_PEDIDO.includes(tipo))
+        throw new Error('Escolha o que pede');
+    const txt = String((_a = r.texto) !== null && _a !== void 0 ? _a : '').replace(/\r\n/g, '\n').trim().slice(0, exports.MAX_PEDIDO);
+    const link = (0, secretaria_1.texto)(r.link, 500);
+    if (link && !/^https:\/\/[^\s]+$/i.test(link))
+        throw new Error('O link precisa começar com https://');
+    if ((tipo === 'destaque' || tipo === 'esclarecimento') && txt.length < 10)
+        throw new Error(tipo === 'destaque' ? 'Diga por que o processo deve ir à sessão síncrona (ao menos 10 letras)' : 'Escreva o esclarecimento (ao menos 10 letras)');
+    // Na sessão virtual, a sustentação é gravada: o link do áudio ou vídeo (o sistema não guarda arquivos grandes).
+    if (tipo === 'sustentacao' && s.modo === 'assincrona' && !link)
+        throw new Error('Na sessão virtual, a sustentação é gravada: informe o link do áudio ou do vídeo');
+    return { tipo, texto: txt, link: tipo === 'sustentacao' ? link : '' };
+}
+/** Certidão do destaque: o processo sai da sessão virtual e o julgamento recomeça numa síncrona. */
+function textoDoDestaque(s, quem, incluido) {
+    return `Destacado da ${s.titulo}, de ${(0, exports.br)(s.data)}, por ${quem}, para julgamento em sessão síncrona; o julgamento recomeça. `
+        + (incluido ? `Incluído na ${incluido.titulo}, de ${(0, exports.br)(incluido.data)}.` : 'Será incluído na próxima sessão síncrona do colegiado.');
 }
 /** Texto da certidão de retirada (ou de cancelamento da sessão). */
 function textoDaRetirada(s, motivo, cancelada = false) {
