@@ -43,6 +43,7 @@ import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprid
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
 import { audienciasFuturas, nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
+import { quandoSessao, veSessoes } from '@/lib/sessoes';
 import { membrosDoJulgamento, nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
@@ -382,6 +383,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <b>Próxima {nomeAudiencia(a.especie, a.especie_nome).toLowerCase()}:</b> {textoDaAudiencia(a)}.
                         </p>
                     ))}
+                    {p.sessao && (
+                        <p className="text-sm rounded-md border border-indigo-200 dark:border-indigo-800 px-3 py-1.5">
+                            <b>{p.sessao.inclusao === 'mesa' ? 'Em mesa' : p.sessao.inclusao === 'extrapauta' ? 'Em extrapauta' : 'Pautado'} para julgamento:</b> {p.sessao.titulo}{p.sessao.colegiado ? ` do ${p.sessao.colegiado}` : ''}, {quandoSessao(p.sessao)}.{' '}
+                            {veSessoes(estado, hoje, p.sessao.orgao_id) && <button type="button" className="text-indigo-700 dark:text-indigo-300 underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                onClick={() => navigate(`/ProcessoEletronico?org=${orgId}&aba=sessoes&sessao=${p.sessao.id}`)}>Ver a pauta</button>}
+                        </p>
+                    )}
                 </div>
             </div>
 

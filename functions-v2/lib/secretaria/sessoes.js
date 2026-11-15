@@ -1,0 +1,344 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.COL_SESSOES = void 0;
+exports.gereSessoes = gereSessoes;
+exports.acaoSessao = acaoSessao;
+const firestore_1 = require("firebase-admin/firestore");
+const https_1 = require("firebase-functions/v2/https");
+const secretaria_1 = require("../shared/secretaria");
+const orgaos_1 = require("../shared/orgaos");
+const sessoes_1 = require("../shared/sessoes");
+const config_1 = require("./config");
+const context_1 = require("./context");
+const portalAvisos_1 = require("./portalAvisos");
+/**
+ * Sessões de julgamento dos colegiados (secSessoes), pelas ações `sessao*` de
+ * secretariaProcesso. A secretaria do colegiado monta a pauta em rascunho e a
+ * publica; cada processo pautado ganha a certidão de inclusão nos autos (vista
+ * e avisada às partes) e o campo `sessao`. Quem compõe o colegiado e quem está
+ * lotado nele veem as sessões publicadas; o rascunho é só da secretaria.
+ */
+exports.COL_SESSOES = 'secSessoes';
+const MOTIVO_MIN = 5;
+/** Secretaria do colegiado: admin (ou admin delegado do órgão), gestor de unidade dele ou lotado em unidade dele que expede. */
+function gereSessoes(c, orgaoId) {
+    if ((0, context_1.administraOrgao)(c, orgaoId))
+        return true;
+    return c.unidades.some((u) => !u.excluida && u.ativa !== false && u.orgao_id === orgaoId
+        && (c.gestorDe.includes(u.id) || (c.ctx.unidadeIds.includes(u.id) && (0, secretaria_1.unidadeExpede)(u))));
+}
+/** Vê as sessões publicadas: a secretaria, quem está lotado no colegiado e quem o compõe hoje. */
+function veSessoes(c, o, hoje) {
+    return gereSessoes(c, o.id)
+        || c.unidades.some((u) => u.orgao_id === o.id && c.ctx.unidadeIds.includes(u.id))
+        || (0, orgaos_1.composicaoEm)(o.composicao, hoje).some((m) => m.uid === c.ctx.uid);
+}
+async function lerConfig(c, tx) {
+    const ref = c.db.collection(context_1.COL.config).doc(c.orgId);
+    const d = (tx ? await tx.get(ref) : await ref.get()).data();
+    return { orgaos: (0, orgaos_1.orgaosDe)(d === null || d === void 0 ? void 0 : d.orgaos).filter((o) => o.decisao === 'colegiada' && o.ativo), calendario: (0, secretaria_1.sanitizeCalendario)(d === null || d === void 0 ? void 0 : d.calendario) };
+}
+function colegiado(orgaos, id) {
+    const o = orgaos.find((x) => x.id === id);
+    if (!o)
+        throw new https_1.HttpsError('not-found', 'Colegiado não encontrado (o órgão precisa decidir em colegiado e estar ativo)');
+    return o;
+}
+async function lerSessao(c, id, tx) {
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id))
+        throw new https_1.HttpsError('invalid-argument', 'Sessão inválida');
+    const ref = c.db.collection(exports.COL_SESSOES).doc(id);
+    const snap = tx ? await tx.get(ref) : await ref.get();
+    const s = snap.data();
+    if (!s || s.organization_id !== c.orgId)
+        throw new https_1.HttpsError('not-found', 'Sessão não encontrada');
+    return { ref, s };
+}
+const unidadesDo = (c, orgaoId) => c.unidades.filter((u) => !u.excluida && u.orgao_id === orgaoId).map((u) => u.id);
+/** Por que o processo não pode entrar (ou ficar) na pauta deste colegiado; '' quando pode. */
+function inapto(c, proc, orgaoId) {
+    if (proc.status !== 'em_tramitacao')
+        return 'não está em tramitação';
+    if (!unidadesDo(c, orgaoId).includes(String(proc.unidade_atual)))
+        return 'não está em unidade do colegiado';
+    if ((0, sessoes_1.julgamentoPendente)(proc) < 0)
+        return 'não tem julgamento pendente na fase atual';
+    return '';
+}
+const resumoSessao = (id, s, orgao) => ({
+    id, orgao_id: s.orgao_id, orgao_nome: (orgao === null || orgao === void 0 ? void 0 : orgao.nome) || '', titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora,
+    local: s.local, link: s.link, situacao: s.situacao, itens: (s.pauta || []).filter((x) => x.situacao === 'pautado').length,
+});
+/** O que vai no processo pautado (lido pela capa, pela lista e pelo portal). */
+const marcaNoProcesso = (id, s, orgao, item) => ({
+    id, titulo: s.titulo, data: s.data, hora: s.hora, modo: s.modo, local: s.local, link: s.link,
+    orgao_id: orgao.id, colegiado: orgao.nome, inclusao: item.inclusao,
+});
+async function acaoSessao(c, p) {
+    const hoje = (0, secretaria_1.hojeBrasil)();
+    const quem = { uid: c.ctx.uid, nome: c.userName };
+    if (p.action === 'sessaoListar') {
+        const { orgaos } = await lerConfig(c);
+        const vistos = orgaos.filter((o) => veSessoes(c, o, hoje));
+        if (!vistos.length)
+            return { colegiados: [], sessoes: [] };
+        // ponytail: lê todas as sessões da entidade e filtra aqui; índice por órgão e data quando passarem de alguns milhares.
+        const snap = await c.db.collection(exports.COL_SESSOES).where('organization_id', '==', c.orgId).get();
+        const porId = new Map(vistos.map((o) => [o.id, o]));
+        const sessoes = snap.docs.map((d) => ({ id: d.id, s: d.data() }))
+            .filter(({ s }) => porId.has(s.orgao_id) && (s.situacao !== 'rascunho' || gereSessoes(c, s.orgao_id)))
+            .map(({ id, s }) => (Object.assign(Object.assign({}, resumoSessao(id, s, porId.get(s.orgao_id))), { 
+            // Agenda pessoal: compõe o colegiado no dia da sessão.
+            componho: (0, orgaos_1.composicaoEm)(porId.get(s.orgao_id).composicao, s.data).some((m) => m.uid === c.ctx.uid) })))
+            .sort((a, b) => `${a.data}T${a.hora}`.localeCompare(`${b.data}T${b.hora}`));
+        return {
+            hoje,
+            colegiados: vistos.map((o) => ({ id: o.id, nome: o.nome, sigla: o.sigla, gere: gereSessoes(c, o.id), pauta: o.pauta })),
+            sessoes,
+        };
+    }
+    if (p.action === 'sessaoObter') {
+        const { orgaos, calendario } = await lerConfig(c);
+        const { ref, s } = await lerSessao(c, p.id);
+        const o = colegiado(orgaos, s.orgao_id);
+        const gere = gereSessoes(c, o.id);
+        if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere))
+            throw new https_1.HttpsError('not-found', 'Sessão não encontrada');
+        const pauta = [...(s.pauta || [])].sort((a, b) => a.ordem - b.ordem);
+        const snaps = pauta.length ? await c.db.getAll(...pauta.map((x) => c.db.collection(context_1.COL.processos).doc(x.processo_id))) : [];
+        const itens = pauta.map((x, i) => {
+            var _a, _b;
+            const d = snaps[i].data();
+            const abre = !!d && d.status !== 'excluido' && (0, secretaria_1.podeVer)(d, c.ctx);
+            // Sigilo restrito: quem não vê os autos não vê o assunto nem as partes.
+            const aberto = !!d && (abre || d.sigilo !== 'restrito');
+            const julgado = !!d && ((_a = d.ultima_sessao) === null || _a === void 0 ? void 0 : _a.id) === ref.id && ((_b = d.sessao) === null || _b === void 0 ? void 0 : _b.id) !== ref.id;
+            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
+        });
+        return {
+            hoje,
+            gere,
+            colegiado: { id: o.id, nome: o.nome, pauta: o.pauta },
+            data_minima: (0, sessoes_1.dataMinimaDaSessao)(hoje, o.pauta, calendario),
+            // Fim de semana, feriado nacional ou do órgão, ou recesso: a tela avisa (sessão extraordinária pode ser assim).
+            dia_util: (0, secretaria_1.diaUtil)(new Date(`${s.data}T00:00:00Z`), calendario),
+            sessao: Object.assign(Object.assign({}, resumoSessao(ref.id, s, o)), { observacoes: s.observacoes || '', version: s.version, publicada_em: s.publicada_em || null, publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '' }),
+            pauta: itens,
+        };
+    }
+    // Daqui em diante, só a secretaria do colegiado.
+    const exigirGere = (orgaoId) => {
+        if (!gereSessoes(c, orgaoId))
+            throw new https_1.HttpsError('permission-denied', 'Só a secretaria do colegiado (ou quem o administra) cuida das sessões');
+    };
+    const motivo = (0, secretaria_1.texto)(p.motivo, 500);
+    const exigirMotivo = (o) => { if (motivo.length < MOTIVO_MIN)
+        throw new https_1.HttpsError('invalid-argument', `Diga o motivo ${o} (ao menos ${MOTIVO_MIN} letras)`); };
+    if (p.action === 'sessaoAptos') {
+        const { orgaos } = await lerConfig(c);
+        const o = colegiado(orgaos, p.orgao_id);
+        exigirGere(o.id);
+        const unidades = unidadesDo(c, o.id).slice(0, 30);
+        if (!unidades.length)
+            return { processos: [] };
+        const [procs, ativas] = await Promise.all([
+            c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', 'in', unidades).where('status', '==', 'em_tramitacao').get(),
+            c.db.collection(exports.COL_SESSOES).where('organization_id', '==', c.orgId).where('orgao_id', '==', o.id).where('ativa', '==', true).get(),
+        ]);
+        const emPauta = new Map();
+        for (const d of ativas.docs)
+            for (const x of (d.data().pauta || []))
+                if (x.situacao === 'pautado')
+                    emPauta.set(x.processo_id, d.data().titulo);
+        const processos = procs.docs.filter((d) => (0, secretaria_1.podeVer)(d.data(), c.ctx)).map((d) => {
+            var _a;
+            const x = d.data();
+            const idx = (0, sessoes_1.julgamentoPendente)(x);
+            if (idx < 0)
+                return null;
+            const fase = (x.fases || []).find((f) => f.id === x.fase_atual);
+            return {
+                id: d.id, numero: x.numero, assunto: x.assunto, urgente: x.urgente === true, autuado_em: x.autuado_em || null,
+                fase_nome: (fase === null || fase === void 0 ? void 0 : fase.nome) || '', acao: ((_a = fase === null || fase === void 0 ? void 0 : fase.acoes) === null || _a === void 0 ? void 0 : _a[idx]) || 'Julgamento', unidade_atual: x.unidade_atual,
+                em_pauta: emPauta.get(d.id) || null,
+            };
+        }).filter(Boolean);
+        return { processos };
+    }
+    if (p.action === 'sessaoSalvar') {
+        const { orgaos } = await lerConfig(c);
+        let dados;
+        try {
+            dados = (0, sessoes_1.sanitizeDadosSessao)(p.sessao);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        if (!p.id) {
+            const o = colegiado(orgaos, p.orgao_id);
+            exigirGere(o.id);
+            if (dados.data < hoje)
+                throw new https_1.HttpsError('invalid-argument', 'A data da sessão já passou');
+            const ref = c.db.collection(exports.COL_SESSOES).doc();
+            await ref.set(Object.assign(Object.assign({ organization_id: c.orgId, orgao_id: o.id, tipo: 'julgamento' }, dados), { situacao: 'rascunho', ativa: true, pauta: [], processos_ids: [], criado_por: quem.uid, criado_por_nome: quem.nome, criado_em: new Date().toISOString(), version: 1, updated_at: firestore_1.FieldValue.serverTimestamp() }));
+            await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_CRIADA', { sessao_id: ref.id, orgao_id: o.id, data: dados.data });
+            return { id: ref.id };
+        }
+        return c.db.runTransaction(async (tx) => {
+            const { ref, s } = await lerSessao(c, p.id, tx);
+            exigirGere(s.orgao_id);
+            if (!s.ativa)
+                throw new https_1.HttpsError('failed-precondition', 'Sessão cancelada não muda');
+            if (s.situacao === 'publicada') {
+                // Publicada, a pauta já foi às partes com data, hora e local: só as observações mudam aqui.
+                const mudou = ['titulo', 'carater', 'modo', 'data', 'hora', 'local', 'link'].filter((k) => dados[k] !== s[k]);
+                if (mudou.length) {
+                    throw new https_1.HttpsError('failed-precondition', 'A pauta já foi publicada com estes dados. Para mudar a data, a hora ou o local, cancele a sessão (as partes são avisadas) e marque outra.');
+                }
+            }
+            else if (dados.data < hoje)
+                throw new https_1.HttpsError('invalid-argument', 'A data da sessão já passou');
+            tx.update(ref, Object.assign(Object.assign({}, dados), { version: (s.version || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp() }));
+            return { id: ref.id };
+        });
+    }
+    if (p.action === 'sessaoOrdenar') {
+        return c.db.runTransaction(async (tx) => {
+            const { ref, s } = await lerSessao(c, p.id, tx);
+            exigirGere(s.orgao_id);
+            if (!s.ativa)
+                throw new https_1.HttpsError('failed-precondition', 'Sessão cancelada não muda');
+            const ids = (Array.isArray(p.ordem) ? p.ordem : []).map(String);
+            tx.update(ref, { pauta: (0, sessoes_1.reordenar)(s.pauta || [], ids), version: (s.version || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp() });
+            return { ok: true };
+        });
+    }
+    // Inclui, retira, publica e cancela: mexem nos autos dos processos pautados.
+    const avisar = [];
+    let auditoria = null;
+    const resultado = await c.db.runTransaction(async (tx) => {
+        var _a, _b;
+        avisar.length = 0;
+        const { orgaos, calendario } = await lerConfig(c, tx);
+        const { ref, s } = await lerSessao(c, p.id, tx);
+        const o = colegiado(orgaos, s.orgao_id);
+        exigirGere(o.id);
+        if (!s.ativa)
+            throw new https_1.HttpsError('failed-precondition', 'A sessão foi cancelada');
+        const pauta = [...(s.pauta || [])];
+        const versao = { version: (s.version || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp() };
+        if (p.action === 'sessaoIncluir') {
+            if (pauta.filter((x) => x.situacao === 'pautado').length >= sessoes_1.MAX_PAUTA)
+                throw new https_1.HttpsError('failed-precondition', `A pauta comporta até ${sessoes_1.MAX_PAUTA} processos`);
+            const { ref: pref, data: proc } = await (0, context_1.lerProcesso)(c, p.processo_id, tx);
+            const porque = inapto(c, proc, o.id);
+            if (porque)
+                throw new https_1.HttpsError('failed-precondition', `O processo ${proc.numero} ${porque}`);
+            if (pauta.some((x) => x.processo_id === pref.id && x.situacao === 'pautado'))
+                throw new https_1.HttpsError('already-exists', 'O processo já está nesta pauta');
+            // Um processo, uma pauta ativa por vez.
+            const outras = await tx.get(c.db.collection(exports.COL_SESSOES).where('organization_id', '==', c.orgId).where('orgao_id', '==', o.id).where('ativa', '==', true));
+            const outra = outras.docs.find((d) => d.id !== ref.id && (d.data().pauta || []).some((x) => x.processo_id === pref.id && x.situacao === 'pautado'));
+            if (outra || (proc.sessao && proc.sessao.id !== ref.id)) {
+                throw new https_1.HttpsError('failed-precondition', `O processo ${proc.numero} já está na pauta da ${(outra === null || outra === void 0 ? void 0 : outra.data().titulo) || ((_a = proc.sessao) === null || _a === void 0 ? void 0 : _a.titulo)}. Retire de lá antes.`);
+            }
+            const publicada = s.situacao === 'publicada';
+            const inclusao = publicada ? (p.inclusao === 'mesa' ? 'mesa' : 'extrapauta') : 'pauta';
+            if (publicada) {
+                exigirMotivo('da inclusão depois da publicação');
+                if (s.data < hoje)
+                    throw new https_1.HttpsError('failed-precondition', 'A sessão já passou');
+            }
+            const item = {
+                processo_id: pref.id, numero: String(proc.numero || ''), assunto: String(proc.assunto || '').slice(0, 200),
+                ordem: pauta.length + 1, inclusao, motivo: publicada ? motivo : '', situacao: 'pautado', incluido_em: new Date().toISOString(),
+            };
+            const sem = pauta.filter((x) => x.processo_id !== pref.id);
+            const nova = [...sem, Object.assign(Object.assign({}, item), { ordem: sem.length + 1 })];
+            if (publicada) {
+                const mov = (0, context_1.registrarMovimento)(tx, c, pref, proc, 'pauta', (0, sessoes_1.textoDaInclusao)(s, o.nome, item), { sessao_id: ref.id, inclusao });
+                tx.update(pref, Object.assign(Object.assign({}, mov), { sessao: marcaNoProcesso(ref.id, s, o, item) }));
+                avisar.push(pref.id);
+            }
+            tx.update(ref, Object.assign({ pauta: nova, processos_ids: [...new Set([...(s.processos_ids || []), pref.id])] }, versao));
+            auditoria = ['SECRETARIA_SESSAO_PAUTA_INCLUIDA', { sessao_id: ref.id, processo_id: pref.id, numero: item.numero, inclusao }];
+            return { ok: true };
+        }
+        if (p.action === 'sessaoTirar') {
+            const pid = String(p.processo_id || '');
+            const k = pauta.findIndex((x) => x.processo_id === pid && x.situacao === 'pautado');
+            if (k < 0)
+                throw new https_1.HttpsError('not-found', 'O processo não está nesta pauta');
+            if (s.situacao === 'rascunho') {
+                tx.update(ref, Object.assign({ pauta: (0, sessoes_1.reordenar)(pauta.filter((_, i) => i !== k), []) }, versao));
+                return { ok: true };
+            }
+            exigirMotivo('da retirada');
+            const pref = c.db.collection(context_1.COL.processos).doc(pid);
+            const proc = (await tx.get(pref)).data();
+            if (proc && ((_b = proc.sessao) === null || _b === void 0 ? void 0 : _b.id) === ref.id) {
+                const mov = (0, context_1.registrarMovimento)(tx, c, pref, proc, 'pauta_retirada', (0, sessoes_1.textoDaRetirada)(s, motivo), { sessao_id: ref.id });
+                tx.update(pref, Object.assign(Object.assign({}, mov), { sessao: firestore_1.FieldValue.delete() }));
+                avisar.push(pid);
+            }
+            pauta[k] = Object.assign(Object.assign({}, pauta[k]), { situacao: 'retirado', motivo });
+            tx.update(ref, Object.assign({ pauta }, versao));
+            auditoria = ['SECRETARIA_SESSAO_PAUTA_RETIRADA', { sessao_id: ref.id, processo_id: pid, numero: pauta[k].numero, motivo }];
+            return { ok: true };
+        }
+        if (p.action === 'sessaoPublicar') {
+            if (s.situacao !== 'rascunho')
+                throw new https_1.HttpsError('failed-precondition', 'A pauta já foi publicada');
+            const itens = pauta.filter((x) => x.situacao === 'pautado');
+            if (!itens.length)
+                throw new https_1.HttpsError('failed-precondition', 'Inclua ao menos um processo na pauta antes de publicar');
+            const problema = (0, sessoes_1.problemaDaAntecedencia)(hoje, s.data, o.pauta, calendario);
+            if (problema)
+                throw new https_1.HttpsError('failed-precondition', problema);
+            const refs = itens.map((x) => c.db.collection(context_1.COL.processos).doc(x.processo_id));
+            const procs = await tx.getAll(...refs);
+            procs.forEach((snap, i) => {
+                const d = snap.data();
+                const porque = !d || d.status === 'excluido' ? 'não existe mais' : inapto(c, d, o.id)
+                    || (d.sessao && d.sessao.id !== ref.id ? `já está na pauta da ${d.sessao.titulo}` : '');
+                if (porque)
+                    throw new https_1.HttpsError('failed-precondition', `O processo ${itens[i].numero} ${porque}. Tire da pauta antes de publicar.`);
+            });
+            procs.forEach((snap, i) => {
+                const mov = (0, context_1.registrarMovimento)(tx, c, refs[i], snap.data(), 'pauta', (0, sessoes_1.textoDaInclusao)(s, o.nome, itens[i]), { sessao_id: ref.id, inclusao: 'pauta' });
+                tx.update(refs[i], Object.assign(Object.assign({}, mov), { sessao: marcaNoProcesso(ref.id, s, o, itens[i]) }));
+                avisar.push(refs[i].id);
+            });
+            tx.update(ref, Object.assign({ situacao: 'publicada', publicada_em: new Date().toISOString(), publicada_por: quem.uid, publicada_por_nome: quem.nome }, versao));
+            auditoria = ['SECRETARIA_SESSAO_PUBLICADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, processos: itens.length }];
+            return { ok: true, processos: itens.length };
+        }
+        if (p.action === 'sessaoCancelar') {
+            exigirMotivo('do cancelamento');
+            if (s.situacao === 'publicada') {
+                const itens = pauta.filter((x) => x.situacao === 'pautado');
+                const refs = itens.map((x) => c.db.collection(context_1.COL.processos).doc(x.processo_id));
+                const procs = refs.length ? await tx.getAll(...refs) : [];
+                procs.forEach((snap, i) => {
+                    var _a;
+                    const d = snap.data();
+                    if (!d || ((_a = d.sessao) === null || _a === void 0 ? void 0 : _a.id) !== ref.id)
+                        return;
+                    const mov = (0, context_1.registrarMovimento)(tx, c, refs[i], d, 'pauta_retirada', (0, sessoes_1.textoDaRetirada)(s, motivo, true), { sessao_id: ref.id, cancelada: true });
+                    tx.update(refs[i], Object.assign(Object.assign({}, mov), { sessao: firestore_1.FieldValue.delete() }));
+                    avisar.push(refs[i].id);
+                });
+            }
+            tx.update(ref, Object.assign({ situacao: 'cancelada', ativa: false, cancelada_em: new Date().toISOString(), cancelada_por_nome: quem.nome, motivo_cancelamento: motivo }, versao));
+            auditoria = ['SECRETARIA_SESSAO_CANCELADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, motivo }];
+            return { ok: true };
+        }
+        throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
+    });
+    if (auditoria)
+        await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, auditoria[0], auditoria[1]);
+    // E-mail às partes depois da transação: falha de envio não desfaz o ato.
+    await Promise.all(avisar.map((id) => (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, id, quem.uid).catch(() => undefined)));
+    return resultado;
+}
+//# sourceMappingURL=sessoes.js.map

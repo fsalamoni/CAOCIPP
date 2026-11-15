@@ -347,6 +347,10 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
                 audiencias: audienciasFuturas(data.audiencias as Audiencia[] | undefined, hojeBrasil())
                     .map((a) => ({ especie: a.especie, ...(a.especie_nome ? { especie_nome: a.especie_nome } : {}), data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })),
+                // Sessão de julgamento em que o processo está pautado (a certidão está nos autos).
+                sessao: data.sessao && data.sessao.data >= hojeBrasil()
+                    ? { titulo: data.sessao.titulo, colegiado: data.sessao.colegiado || '', data: data.sessao.data, hora: data.sessao.hora, modo: data.sessao.modo, local: data.sessao.local || '', link: data.sessao.link || '' }
+                    : null,
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))

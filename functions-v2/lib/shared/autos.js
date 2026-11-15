@@ -80,6 +80,8 @@ const TITULOS = {
     certidao_fase: 'Certidão conjunta',
     efeitos_fase: 'O que a fase fez sozinha',
     rito_atualizado: 'Certidão de atualização do rito',
+    pauta: 'Certidão de inclusão em pauta',
+    pauta_retirada: 'Certidão de retirada de pauta',
 };
 function tituloEvento(m) {
     var _a, _b, _c;

@@ -278,6 +278,17 @@ informado.
   vem do órgão: cada mandato tem início e fim, e o encerrado fica guardado,
   porque o julgamento vale pela composição da data da sessão. O suplente só
   vota no lugar de um titular, e por isso quem registra o inclui.
+- **Pauta da sessão de julgamento**: o julgamento colegiado acontece em
+  sessão, e a pauta é a forma de dar publicidade e de permitir que a parte
+  acompanhe e se manifeste (CF, art. 93, IX; por analogia, CPC, arts. 934 e
+  935, que pedem a pauta publicada com antecedência). Por isso a pauta é
+  publicada antes da sessão, com a antecedência que o colegiado definir, e
+  cada processo recebe a certidão de inclusão, vista e avisada às partes. Só
+  entra na pauta o processo que está numa unidade do colegiado e tem o
+  julgamento pendente na fase. Depois de publicada, o processo só entra como
+  extrapauta ou em mesa, com o motivo na certidão; retirar ou cancelar
+  também é certificado com o motivo. Data, hora e local publicados não mudam
+  em silêncio: para mudar, cancela-se a sessão, e as partes são avisadas.
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

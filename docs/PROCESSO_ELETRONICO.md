@@ -1533,6 +1533,55 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Sessões de julgamento e pauta (15/11/2026)
+
+Segunda etapa (S2). Coleção `secSessoes` (fechada ao cliente), pelas ações
+`sessao*` de `secretariaProcesso` (`secretaria/sessoes.ts`); regras puras em
+`shared/sessoes.ts`, espelho de tela em `src/lib/sessoes.js`; aba
+**Sessões** em `components/secretaria/Sessoes.jsx`.
+
+- **Sessão:** `{ organization_id, orgao_id, tipo: 'julgamento', titulo,
+  carater (ordinaria|extraordinaria), modo (presencial|virtual|hibrida), data,
+  hora, local, link, observacoes, situacao (rascunho|publicada|cancelada),
+  ativa, pauta: ItemPauta[], processos_ids, version }`. Título vazio vira
+  "Sessão ordinária de dd/mm/aaaa". Presencial exige local; virtual, link ou
+  sala; híbrida, os dois.
+- **Item da pauta:** `{ processo_id, numero, assunto, ordem, inclusao
+  (pauta|extrapauta|mesa), motivo, situacao (pautado|retirado), incluido_em }`.
+  Até 100 processos. Apto (`julgamentoPendente`): em tramitação, numa unidade
+  do órgão e com a ação `pede: 'julgamento'` ativa e não feita na fase atual.
+  Um processo fica em uma pauta ativa por vez.
+- **Quem faz o quê:** a secretaria do colegiado (admin da entidade, admin
+  delegado do órgão, gestor de unidade do órgão ou lotado em unidade dele que
+  expede) marca, inclui, ordena, publica, retira e cancela (`gereSessoes`).
+  Quem está lotado no colegiado e quem o compõe hoje veem as sessões
+  publicadas e a pauta (`sessaoListar`, `sessaoObter`); o rascunho é só da
+  secretaria. Em processo restrito, quem não vê os autos não vê assunto nem
+  partes. Bloqueio por quem não é do colegiado responde "não encontrada".
+- **Publicar** (`sessaoPublicar`): confere a antecedência do órgão
+  (`Orgao.pauta = { antecedencia 0..60, contagem uteis|corridos }`, ausente =
+  0, como antes, com o calendário do órgão) e se cada item segue apto; numa
+  só transação, cada processo recebe o movimento `pauta` (Certidão de
+  inclusão em pauta, nos autos e visto pelas partes) e o campo `sessao = {
+  id, titulo, data, hora, modo, local, link, orgao_id, colegiado, inclusao }`.
+  Depois, `avisarPartesDoMovimento` (e-mail, preferência "prazos" inclui).
+- **Depois de publicada:** data, hora, modo, local e link não mudam (cancelar
+  e marcar outra); observações mudam. Inclusão é extrapauta ou em mesa, com
+  motivo (5 letras ou mais), e já certifica. Retirada (`sessaoTirar`) e
+  cancelamento (`sessaoCancelar`) pedem motivo, gravam `pauta_retirada` e
+  tiram `sessao` do processo. No rascunho, nada vai aos autos.
+- **Julgamento registrado** (`marcarAcao` da ação de julgamento): o processo
+  troca `sessao` por `ultima_sessao` (com `julgado_em`), e a pauta o mostra
+  como julgado.
+- **Telas:** aba Sessões (agenda em grupos, filtro por colegiado, marcar
+  sessão, detalhe com a ordem do dia arrastável, incluir com busca, publicar
+  com confirmação, retirar e cancelar com motivo); selo "Pautado para
+  julgamento" no processo, com "Ver a pauta"; cartão "Julgamento marcado" no
+  portal; antecedência na edição do órgão colegiado; glossário (pauta,
+  extrapauta, em mesa).
+- Auditoria: `SECRETARIA_SESSAO_*` (fora do histórico de configuração).
+- Testes: `functions-v2/test/sessoes.test.js`, `src/lib/sessoes.test.js`.
+
 ### Composição dos colegiados (15/11/2026)
 
 Primeira etapa (S1) do plano de sessões, julgamentos e pregão. O órgão

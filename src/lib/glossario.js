@@ -7,7 +7,10 @@ export const GLOSSARIO = {
     certidao_conjunta: { termo: 'Certidão conjunta', definicao: 'Certidão conjunta é uma só certidão que reúne vários atos de uma fase, ou de um grupo de fases, em vez de uma para cada ato. Ela vai aos autos quando o processo sai da fase, é arquivado ou alguém pede a emissão.' },
     ciencia_decurso: { termo: 'Ciência por decurso', definicao: 'Ciência por decurso é quando a comunicação feita pela plataforma passa a valer mesmo sem a parte abri-la, depois dos dias corridos definidos pelo órgão. A partir daí o prazo começa a contar.' },
     dispensa: { termo: 'Dispensa', definicao: 'Dispensa é seguir adiante sem cumprir algo que o rito exige na fase, informando o motivo. O motivo fica registrado nos autos.' },
+    em_mesa: { termo: 'Em mesa', definicao: 'Em mesa é o processo levado a julgamento na sessão sem ter saído na pauta publicada, nos casos que dispensam a publicação. O motivo fica na certidão nos autos.' },
+    extrapauta: { termo: 'Extrapauta', definicao: 'Extrapauta é o processo incluído numa sessão depois que a pauta dela já foi publicada. Entra no fim da ordem do dia, com o motivo na certidão.' },
     juntada: { termo: 'Juntada', definicao: 'Juntada é a inclusão de um documento nos autos, com número de folha e data. Depois de juntado, o documento não se edita nem se apaga.' },
+    pauta: { termo: 'Pauta', definicao: 'Pauta é a lista dos processos que serão julgados numa sessão do colegiado, na ordem do dia. Publicada, cada processo recebe a certidão de inclusão e as partes são avisadas.' },
     remessa: { termo: 'Remessa', definicao: 'Remessa é o envio do processo de uma unidade para outra, que passa a cuidar dele. Entre órgãos diferentes, sempre gera um termo de remessa nos autos.' },
     sobrestar: { termo: 'Sobrestar', definicao: 'Sobrestar é suspender o andamento do processo por um tempo, por exemplo à espera de outra decisão. O processo fica parado na mesma fase até ser reativado.' },
 };

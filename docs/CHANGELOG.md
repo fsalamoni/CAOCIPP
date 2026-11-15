@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Sessões de julgamento e pauta
+- Segunda etapa do plano de sessões de julgamento, reuniões e pregão.
+- Nova aba **Sessões** no Processo Eletrônico: a agenda dos colegiados, com as próximas sessões, as que você compõe, os rascunhos da secretaria e as realizadas ou canceladas.
+- A secretaria do colegiado **marca a sessão** (data, hora, presencial, por vídeo ou híbrida), inclui os processos com julgamento pendente, organiza a **ordem do dia** arrastando e **publica a pauta**.
+- Publicada a pauta, cada processo recebe a **certidão de inclusão em pauta** e as partes são avisadas por e-mail e veem o **julgamento marcado** no portal. Depois disso, só entra processo em **extrapauta** ou **em mesa**, com o motivo.
+- Retirar da pauta e cancelar a sessão também deixam certidão com o motivo e avisam as partes. Registrado o julgamento, o processo aparece como julgado na pauta.
+- O colegiado pode exigir uma **antecedência mínima** da pauta, em dias úteis ou corridos (Configurações, Estrutura).
+- Quem compõe o colegiado vê a sessão publicada e a pauta, mesmo sem lotação; o rascunho fica só com a secretaria.
+
 ### 15/11/2026 — Composição dos colegiados
 - Primeira etapa do plano de sessões de julgamento, reuniões e pregão.
 - O órgão que decide em colegiado passa a ter a **composição**: presidente, vice, titulares e suplentes, cada um com a sua conta, o mandato e o que representa.

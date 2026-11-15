@@ -1,0 +1,434 @@
+import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Loader2, MapPin, Pencil, Plus, Search, Send, Trash2, Users, Video } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { secProcesso } from '@/services/secretariaService';
+import { CARATER_SESSAO, INCLUSAO, MODOS_SESSAO, SITUACAO_SESSAO, agruparSessoes, br, ondeSessao, problemasDaSessao, textoAntecedencia } from '@/lib/sessoes';
+import { POLOS, SeloUrgente } from './comum';
+import AjudaTermo from './AjudaTermo';
+import ErroQuery from './ErroQuery';
+import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
+
+const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const sel = 'h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const COR_SITUACAO = {
+    rascunho: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100',
+    publicada: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200',
+    encerrada: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
+    cancelada: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200',
+};
+const Situacao = ({ s }) => <Badge variant="outline" className={`border-0 ${COR_SITUACAO[s] || ''}`}>{SITUACAO_SESSAO[s] || s}</Badge>;
+const IconeModo = ({ modo, className = 'w-4 h-4' }) => (modo === 'presencial' ? <MapPin className={className} aria-hidden /> : <Video className={className} aria-hidden />);
+
+/**
+ * Aba Sessões: agenda das sessões de julgamento dos colegiados que a pessoa
+ * vê (secretaria, lotados e membros), com a pauta de cada uma. A secretaria
+ * marca a sessão, monta a ordem do dia, publica e cancela.
+ */
+export default function Sessoes({ orgId, onAbrir }) {
+    const [params, setParams] = useSearchParams();
+    const aberta = params.get('sessao');
+    const abrir = (id) => {
+        const next = new URLSearchParams(params);
+        if (id) next.set('sessao', id); else next.delete('sessao');
+        setParams(next);
+    };
+    return aberta
+        ? <DetalheSessao orgId={orgId} id={aberta} onVoltar={() => abrir(null)} onAbrir={onAbrir} />
+        : <ListaSessoes orgId={orgId} onAbrirSessao={abrir} />;
+}
+
+function CartaoSessao({ s, onAbrir, mostraOrgao }) {
+    const [, m, d] = s.data.split('-');
+    return (
+        <li>
+            <button type="button" onClick={() => onAbrir(s.id)}
+                className="w-full text-left flex gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 hover:border-indigo-300 dark:hover:border-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                <span className="flex flex-col items-center justify-center w-14 shrink-0 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-200 py-1" aria-hidden>
+                    <span className="text-xl font-semibold leading-none">{d}</span>
+                    <span className="text-xs uppercase">{MESES[Number(m) - 1]}</span>
+                </span>
+                <span className="min-w-0 flex-1 space-y-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-slate-900 dark:text-white">{s.titulo}</span>
+                        <Situacao s={s.situacao} />
+                        {s.componho && <Badge className="bg-indigo-600 hover:bg-indigo-600">Você compõe</Badge>}
+                    </span>
+                    <span className="block text-sm text-slate-700 dark:text-slate-300">
+                        {mostraOrgao && <>{s.orgao_nome} · </>}{br(s.data)}, às {s.hora} · <IconeModo modo={s.modo} className="inline w-3.5 h-3.5 -mt-0.5" /> {s.modo === 'presencial' ? s.local : s.modo === 'virtual' ? 'Por videoconferência' : `${s.local} e por vídeo`}
+                    </span>
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">{s.itens === 0 ? 'Nenhum processo na pauta' : s.itens === 1 ? '1 processo na pauta' : `${s.itens} processos na pauta`}</span>
+                </span>
+            </button>
+        </li>
+    );
+}
+
+function Grupo({ titulo, itens, vazio, onAbrir, mostraOrgao }) {
+    return (
+        <section className="space-y-2" aria-label={titulo}>
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{titulo}</h3>
+            {itens.length ? <ul className="grid gap-2 md:grid-cols-2">{itens.map((s) => <CartaoSessao key={s.id} s={s} onAbrir={onAbrir} mostraOrgao={mostraOrgao} />)}</ul>
+                : <p className="text-sm text-slate-600 dark:text-slate-400">{vazio}</p>}
+        </section>
+    );
+}
+
+function ListaSessoes({ orgId, onAbrirSessao }) {
+    const qc = useQueryClient();
+    const q = useQuery({ queryKey: ['sec-sessoes', orgId], queryFn: () => secProcesso(orgId, 'sessaoListar') });
+    const [filtro, setFiltro] = useState('');
+    const [nova, setNova] = useState(false);
+    if (q.isLoading) return <p className="text-sm text-slate-600 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando as sessões…</p>;
+    if (q.error) return <ErroQuery q={q} />;
+    const { colegiados = [], sessoes = [], hoje = hojeIso() } = q.data || {};
+    const lista = filtro ? sessoes.filter((s) => s.orgao_id === filtro) : sessoes;
+    const g = agruparSessoes(lista, hoje);
+    const gere = colegiados.filter((c) => c.gere);
+    const varios = colegiados.length > 1;
+    return (
+        <div className="space-y-5 pt-2">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1 max-w-2xl">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2"><Gavel className="w-5 h-5 text-indigo-600 dark:text-indigo-400" aria-hidden /> Sessões de julgamento</h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                        A agenda dos colegiados e a ordem do dia de cada sessão. {gere.length ? 'Marque a sessão, inclua os processos com julgamento pendente e publique a pauta: cada processo recebe a certidão nos autos e as partes são avisadas.' : 'Abra a sessão para ver a pauta.'} <AjudaTermo id="pauta" />
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    {varios && (
+                        <label className="text-sm">
+                            <span className="sr-only">Colegiado</span>
+                            <select value={filtro} onChange={(e) => setFiltro(e.target.value)} className={sel} aria-label="Colegiado">
+                                <option value="">Todos os colegiados</option>
+                                {colegiados.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                            </select>
+                        </label>
+                    )}
+                    {gere.length > 0 && <Button className="gap-2" onClick={() => setNova(true)}><CalendarPlus className="w-4 h-4" aria-hidden /> Marcar sessão</Button>}
+                </div>
+            </div>
+            {!colegiados.length && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum colegiado ativo em que você esteja lotado ou que você componha.</p>}
+            {colegiados.length > 0 && (
+                <>
+                    {g.minhas.length > 0 && <Grupo titulo="Minhas próximas sessões" itens={g.minhas} onAbrir={onAbrirSessao} mostraOrgao={varios} />}
+                    <Grupo titulo="Próximas sessões" itens={g.proximas} onAbrir={onAbrirSessao} mostraOrgao={varios}
+                        vazio={gere.length ? 'Nenhuma sessão com pauta publicada. Use Marcar sessão para começar.' : 'Nenhuma sessão com pauta publicada por enquanto.'} />
+                    {gere.length > 0 && <Grupo titulo="Rascunhos de pauta" itens={g.rascunhos} onAbrir={onAbrirSessao} mostraOrgao={varios} vazio="Nenhum rascunho." />}
+                    {g.passadas.length > 0 && (
+                        <details className="group">
+                            <summary className="cursor-pointer text-sm font-semibold text-slate-800 dark:text-slate-100">Realizadas e canceladas ({g.passadas.length})</summary>
+                            <ul className="grid gap-2 md:grid-cols-2 mt-2">{g.passadas.map((s) => <CartaoSessao key={s.id} s={s} onAbrir={onAbrirSessao} mostraOrgao={varios} />)}</ul>
+                        </details>
+                    )}
+                </>
+            )}
+            {nova && (
+                <FormSessao orgId={orgId} colegiados={gere} hoje={hoje} onFechar={() => setNova(false)}
+                    onSalvo={async (id) => { setNova(false); await qc.invalidateQueries({ queryKey: ['sec-sessoes', orgId] }); onAbrirSessao(id); }} />
+            )}
+        </div>
+    );
+}
+
+const VAZIA = { titulo: '', carater: 'ordinaria', modo: 'presencial', data: '', hora: '', local: '', link: '', observacoes: '' };
+
+/** Marcar ou editar a sessão. Publicada, só as observações mudam (a pauta já foi às partes). */
+function FormSessao({ orgId, colegiados, sessao, hoje, onFechar, onSalvo }) {
+    const [orgao, setOrgao] = useState(sessao?.orgao_id || colegiados[0]?.id || '');
+    const [f, setF] = useState(sessao ? { ...VAZIA, ...sessao } : VAZIA);
+    const [salvando, setSalvando] = useState(false);
+    const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+    const travada = sessao?.situacao === 'publicada';
+    const problemas = travada ? [] : problemasDaSessao(f, hoje);
+    const regra = textoAntecedencia(colegiados.find((c) => c.id === orgao)?.pauta);
+    const salvar = async () => {
+        setSalvando(true);
+        try {
+            const r = await secProcesso(orgId, 'sessaoSalvar', { id: sessao?.id, orgao_id: orgao, sessao: f });
+            toast.success(sessao ? 'Sessão atualizada' : 'Sessão marcada. Agora inclua os processos na pauta.');
+            await onSalvo(r.id);
+        } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
+    };
+    const campo = (id, rotulo, el) => <label htmlFor={id} className="text-sm space-y-1 block"><span className="block text-slate-700 dark:text-slate-300">{rotulo}</span>{el}</label>;
+    return (
+        <Dialog open onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader>
+                    <DialogTitle>{sessao ? 'Dados da sessão' : 'Marcar sessão de julgamento'}</DialogTitle>
+                    <DialogDescription>
+                        {travada ? 'A pauta já foi publicada com estes dados: só as observações mudam. Para outra data, hora ou local, cancele a sessão (as partes são avisadas) e marque outra.'
+                            : 'A sessão começa como rascunho de pauta, que só a secretaria vê. Ninguém é avisado até a publicação.'}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {!sessao && colegiados.length > 1 && (
+                        <div className="sm:col-span-2">{campo('ss-orgao', 'Colegiado', (
+                            <select id="ss-orgao" value={orgao} onChange={(e) => setOrgao(e.target.value)} className={sel}>
+                                {colegiados.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                            </select>))}</div>
+                    )}
+                    <div className="sm:col-span-2">{campo('ss-titulo', 'Título (opcional)', <Input id="ss-titulo" value={f.titulo} disabled={travada} maxLength={120} onChange={(e) => set('titulo', e.target.value)} placeholder="Sessão ordinária de dd/mm/aaaa" />)}</div>
+                    {campo('ss-carater', 'Caráter', (
+                        <select id="ss-carater" value={f.carater} disabled={travada} onChange={(e) => set('carater', e.target.value)} className={sel}>
+                            {CARATER_SESSAO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                        </select>))}
+                    {campo('ss-modo', 'Como', (
+                        <select id="ss-modo" value={f.modo} disabled={travada} onChange={(e) => set('modo', e.target.value)} className={sel}>
+                            {MODOS_SESSAO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                        </select>))}
+                    {campo('ss-data', 'Data', <Input id="ss-data" type="date" min={hoje} value={f.data} disabled={travada} onChange={(e) => set('data', e.target.value)} />)}
+                    {campo('ss-hora', 'Hora', <Input id="ss-hora" type="time" value={f.hora} disabled={travada} onChange={(e) => set('hora', e.target.value)} />)}
+                    {f.modo !== 'virtual' && <div className="sm:col-span-2">{campo('ss-local', 'Local', <Input id="ss-local" value={f.local} disabled={travada} maxLength={200} onChange={(e) => set('local', e.target.value)} placeholder="Sala de sessões, endereço" />)}</div>}
+                    {f.modo !== 'presencial' && <div className="sm:col-span-2">{campo('ss-link', 'Link ou sala virtual', <Input id="ss-link" value={f.link} disabled={travada} maxLength={500} onChange={(e) => set('link', e.target.value)} placeholder="https://" />)}</div>}
+                    <div className="sm:col-span-2">{campo('ss-obs', 'Observações (aparecem para quem vê a sessão, não para as partes)', <Textarea id="ss-obs" rows={3} value={f.observacoes} maxLength={2000} onChange={(e) => set('observacoes', e.target.value)} />)}</div>
+                </div>
+                {regra && !travada && <p className="text-sm text-slate-600 dark:text-slate-400">{regra} Isso é conferido na publicação.</p>}
+                {problemas.length > 0 && f.data && <ul role="alert" className="text-sm text-amber-800 dark:text-amber-200 list-disc pl-5">{problemas.map((x) => <li key={x}>{x}</li>)}</ul>}
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={onFechar}>Fechar</Button>
+                    <Button onClick={salvar} disabled={salvando || problemas.length > 0 || !orgao}>{salvando && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}{sessao ? 'Salvar' : 'Marcar sessão'}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/** Pede o motivo (retirada, cancelamento) antes de mexer nos autos. */
+function DialogoMotivo({ titulo, descricao, acao, perigo, onFechar, onConfirmar }) {
+    const [motivo, setMotivo] = useState('');
+    const [indo, setIndo] = useState(false);
+    const ir = async () => { setIndo(true); try { await onConfirmar(motivo.trim()); } finally { setIndo(false); } };
+    return (
+        <Dialog open onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-lg w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader><DialogTitle>{titulo}</DialogTitle><DialogDescription>{descricao}</DialogDescription></DialogHeader>
+                <label htmlFor="ss-motivo" className="text-sm space-y-1 block">
+                    <span className="block text-slate-700 dark:text-slate-300">Motivo (vai para a certidão nos autos)</span>
+                    <Textarea id="ss-motivo" rows={3} maxLength={500} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+                </label>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={onFechar}>Voltar</Button>
+                    <Button variant={perigo ? 'destructive' : 'default'} disabled={indo || motivo.trim().length < 5} onClick={ir}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}{acao}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+/** Processos aptos: em unidade do colegiado, com julgamento pendente na fase atual. */
+function IncluirProcessos({ orgId, sessao, pautados, onFechar, onIncluido }) {
+    const q = useQuery({ queryKey: ['sec-sessao-aptos', orgId, sessao.orgao_id], queryFn: () => secProcesso(orgId, 'sessaoAptos', { orgao_id: sessao.orgao_id }) });
+    const [busca, setBusca] = useState('');
+    const [inclusao, setInclusao] = useState('extrapauta');
+    const [motivo, setMotivo] = useState('');
+    const [indo, setIndo] = useState('');
+    const publicada = sessao.situacao === 'publicada';
+    const norm = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const lista = (q.data?.processos || []).filter((x) => !pautados.has(x.id) && (!busca || norm(`${x.numero} ${x.assunto}`).includes(norm(busca))));
+    const incluir = async (x) => {
+        setIndo(x.id);
+        try {
+            await secProcesso(orgId, 'sessaoIncluir', { id: sessao.id, processo_id: x.id, ...(publicada ? { inclusao, motivo: motivo.trim() } : {}) });
+            toast.success(publicada ? `${x.numero} incluído; a certidão foi aos autos e as partes foram avisadas` : `${x.numero} incluído na pauta`);
+            await onIncluido();
+            if (publicada) onFechar();
+        } catch (e) { toast.error(e?.message || 'Não foi possível incluir'); } finally { setIndo(''); }
+    };
+    const falta = publicada && motivo.trim().length < 5;
+    return (
+        <Dialog open onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
+                <DialogHeader>
+                    <DialogTitle>Incluir processos na pauta</DialogTitle>
+                    <DialogDescription>Aparecem os processos que estão em unidade do colegiado e têm o julgamento pendente na fase atual. Quem já está em outra pauta aparece marcado.</DialogDescription>
+                </DialogHeader>
+                {publicada && (
+                    <fieldset className="rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-2 text-sm">
+                        <legend className="px-1 font-medium text-amber-900 dark:text-amber-100">A pauta já foi publicada</legend>
+                        <div className="flex flex-wrap gap-4">
+                            {['extrapauta', 'mesa'].map((v) => (
+                                <label key={v} className="flex items-center gap-2"><input type="radio" name="ss-inclusao" value={v} checked={inclusao === v} onChange={() => setInclusao(v)} /> {INCLUSAO[v]} <AjudaTermo id={v === 'mesa' ? 'em_mesa' : 'extrapauta'} /></label>
+                            ))}
+                        </div>
+                        <label htmlFor="ss-motivo-inc" className="block space-y-1">
+                            <span className="block text-slate-700 dark:text-slate-300">Motivo (vai para a certidão nos autos)</span>
+                            <Textarea id="ss-motivo-inc" rows={2} maxLength={500} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+                        </label>
+                    </fieldset>
+                )}
+                <div className="relative">
+                    <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-slate-500" aria-hidden />
+                    <Input className="pl-8" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por número ou assunto" aria-label="Buscar processo" />
+                </div>
+                {q.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Procurando processos…</p>}
+                {q.error && <ErroQuery q={q} />}
+                {q.data && !lista.length && <p className="text-sm text-slate-600 dark:text-slate-400">{busca ? 'Nenhum processo com essa busca.' : 'Nenhum processo aguardando julgamento neste colegiado. O processo aparece aqui quando chega a uma fase com a ação de registrar julgamento ainda pendente.'}</p>}
+                <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {lista.map((x) => (
+                        <li key={x.id} className="py-2 flex flex-wrap items-center gap-2 text-sm">
+                            <span className="min-w-0 flex-1">
+                                <span className="font-mono text-indigo-700 dark:text-indigo-300 mr-2">{x.numero}</span>
+                                <span className="font-medium">{x.assunto}</span>
+                                {x.urgente && <SeloUrgente className="ml-2" />}
+                                <span className="block text-xs text-slate-600 dark:text-slate-400">{x.fase_nome}{x.acao ? ` · ${x.acao}` : ''}{x.em_pauta ? ` · já na pauta da ${x.em_pauta}` : ''}</span>
+                            </span>
+                            <Button size="sm" variant="outline" className="gap-1" disabled={!!indo || !!x.em_pauta || falta} onClick={() => incluir(x)} aria-label={`Incluir ${x.numero}`}>
+                                {indo === x.id ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Plus className="w-4 h-4" aria-hidden />} Incluir
+                            </Button>
+                        </li>
+                    ))}
+                </ul>
+                <DialogFooter><Button variant="outline" onClick={onFechar}>Fechar</Button></DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
+    const qc = useQueryClient();
+    const chave = ['sec-sessao', orgId, id];
+    const q = useQuery({ queryKey: chave, queryFn: () => secProcesso(orgId, 'sessaoObter', { id }) });
+    const [dialogo, setDialogo] = useState(null); // 'editar' | 'incluir' | 'publicar' | 'cancelar' | { tirar: item }
+    const [indo, setIndo] = useState(false);
+    const [ordem, setOrdem] = useState(null);
+    const atualizar = () => Promise.all([qc.invalidateQueries({ queryKey: chave }), qc.invalidateQueries({ queryKey: ['sec-sessoes', orgId] }), qc.invalidateQueries({ queryKey: ['sec-sessao-aptos', orgId] })]);
+    const pauta = useMemo(() => q.data?.pauta || [], [q.data]);
+    if (q.isLoading) return <p className="text-sm text-slate-600 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando a sessão…</p>;
+    if (q.error) return <div className="space-y-3 pt-2"><Button variant="ghost" className="gap-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Voltar às sessões</Button><ErroQuery q={q} /></div>;
+    const { sessao: s, colegiado, gere, hoje, data_minima: minima, dia_util: diaUtil } = q.data;
+    const ativa = s.situacao === 'rascunho' || s.situacao === 'publicada';
+    const pode = gere && ativa;
+    const pautados = pauta.filter((x) => x.situacao === 'pautado');
+    const ids = (ordem || pauta.map((x) => x.processo_id));
+    const porId = new Map(pauta.map((x) => [x.processo_id, x]));
+    const itens = ids.map((i) => porId.get(i)).filter(Boolean);
+    const cedo = s.situacao === 'rascunho' && minima && s.data < minima;
+    const acao = async (nome, extra, ok) => {
+        setIndo(true);
+        try { await secProcesso(orgId, nome, { id, ...extra }); toast.success(ok); setDialogo(null); await atualizar(); } catch (e) { toast.error(e?.message || 'Não foi possível concluir'); } finally { setIndo(false); }
+    };
+    const mover = async (de, para) => {
+        const nova = [...ids];
+        nova.splice(para, 0, nova.splice(de, 1)[0]);
+        setOrdem(nova);
+        try { await secProcesso(orgId, 'sessaoOrdenar', { id, ordem: nova }); await qc.invalidateQueries({ queryKey: chave }); } catch (e) { toast.error(e?.message || 'Não foi possível mudar a ordem'); } finally { setOrdem(null); }
+    };
+    const tirar = (x) => (s.situacao === 'rascunho' ? acao('sessaoTirar', { processo_id: x.processo_id }, `${x.numero} saiu do rascunho da pauta`) : setDialogo({ tirar: x }));
+    const linha = (x, i, alca) => {
+        const fora = x.situacao === 'retirado';
+        return (
+            <div className={`flex gap-2 p-3 ${fora ? 'opacity-70' : ''}`}>
+                {pode && !fora && !x.julgado ? alca : <span className="w-6 shrink-0" aria-hidden />}
+                <span className="w-7 shrink-0 text-right font-semibold text-slate-500 dark:text-slate-400 pt-0.5">{i + 1}.</span>
+                <div className="min-w-0 flex-1 space-y-1 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {x.pode_abrir ? (
+                            <button type="button" className="font-mono text-indigo-700 dark:text-indigo-300 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded" onClick={() => onAbrir(x.processo_id)}>{x.numero}</button>
+                        ) : <span className="font-mono text-slate-800 dark:text-slate-200">{x.numero}</span>}
+                        <span className={`font-medium text-slate-900 dark:text-white ${fora ? 'line-through' : ''}`}>{x.assunto}</span>
+                        {x.urgente && <SeloUrgente />}
+                        {x.inclusao !== 'pauta' && <Badge variant="outline" className="border-amber-300 text-amber-900 dark:border-amber-800 dark:text-amber-200">{INCLUSAO[x.inclusao]}</Badge>}
+                        {x.julgado && <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden /> Julgado</Badge>}
+                        {fora && <Badge variant="outline">Retirado</Badge>}
+                    </div>
+                    {x.partes?.length > 0 && <p className="text-slate-700 dark:text-slate-300"><Users className="inline w-3.5 h-3.5 -mt-0.5 mr-1" aria-hidden />{x.partes.map((p) => `${p.nome} (${POLOS[p.polo] || p.polo})`).join('; ')}</p>}
+                    {x.motivo && <p className="text-xs text-slate-600 dark:text-slate-400">{fora ? 'Motivo da retirada' : 'Motivo da inclusão'}: {x.motivo}</p>}
+                    {x.problema && <p className="text-xs text-amber-800 dark:text-amber-200 flex gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden /> O processo {x.problema}. Retire da pauta ou acerte o processo antes de {s.situacao === 'rascunho' ? 'publicar' : 'julgar'}.</p>}
+                </div>
+                {pode && !fora && !x.julgado && (
+                    <Button size="icon" variant="ghost" className="shrink-0 text-rose-700 dark:text-rose-300" aria-label={`Tirar ${x.numero} da pauta`} disabled={indo} onClick={() => tirar(x)}><Trash2 className="w-4 h-4" aria-hidden /></Button>
+                )}
+            </div>
+        );
+    };
+    return (
+        <div className="space-y-4 pt-2">
+            <Button variant="ghost" className="gap-2 -ml-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Voltar às sessões</Button>
+            <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                        <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex flex-wrap items-center gap-2">{s.titulo} <Situacao s={s.situacao} /></h2>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{colegiado.nome} · {CARATER_SESSAO.find(([v]) => v === s.carater)?.[1]}</p>
+                        <p className="text-sm text-slate-800 dark:text-slate-200 flex items-start gap-1.5"><CalendarDays className="w-4 h-4 mt-0.5 shrink-0" aria-hidden /> {br(s.data)}, às {s.hora}, {ondeSessao(s)}</p>
+                        {s.link && s.modo !== 'presencial' && /^https:\/\//.test(s.link) && (
+                            <a href={s.link} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-sm text-indigo-700 dark:text-indigo-300 underline">Entrar na sala virtual <ExternalLink className="w-3.5 h-3.5" aria-hidden /></a>
+                        )}
+                        {diaUtil === false && ativa && <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-1"><AlertTriangle className="w-4 h-4 shrink-0" aria-hidden /> A data cai em fim de semana, feriado ou recesso do órgão.</p>}
+                        {s.publicada_em && <p className="text-xs text-slate-600 dark:text-slate-400">Pauta publicada em {new Date(s.publicada_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{s.publicada_por ? ` por ${s.publicada_por}` : ''}.</p>}
+                        {s.situacao === 'cancelada' && <p className="text-sm text-rose-800 dark:text-rose-200">Cancelada{s.motivo_cancelamento ? `: ${s.motivo_cancelamento}` : ''}.</p>}
+                        {s.observacoes && <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">{s.observacoes}</p>}
+                    </div>
+                    {pode && (
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('editar')}><Pencil className="w-4 h-4" aria-hidden /> Dados da sessão</Button>
+                            <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('incluir')}><Plus className="w-4 h-4" aria-hidden /> Incluir processos</Button>
+                            {s.situacao === 'rascunho' && <Button size="sm" className="gap-1" disabled={!pautados.length || cedo} onClick={() => setDialogo('publicar')}><Send className="w-4 h-4" aria-hidden /> Publicar pauta</Button>}
+                            <Button variant="ghost" size="sm" className="gap-1 text-rose-700 dark:text-rose-300" onClick={() => setDialogo('cancelar')}><Ban className="w-4 h-4" aria-hidden /> Cancelar sessão</Button>
+                        </div>
+                    )}
+                </div>
+                {gere && s.situacao === 'rascunho' && (
+                    <p className={`text-sm rounded-md p-2 ${cedo ? 'bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`} role={cedo ? 'alert' : undefined}>
+                        {textoAntecedencia(colegiado.pauta) || 'O colegiado não pede antecedência mínima para a pauta.'}{' '}
+                        {cedo ? `Publicada hoje, a sessão só pode ser a partir de ${br(minima)}: mude a data da sessão.` : 'Rascunho: só a secretaria vê esta pauta, e ninguém foi avisado ainda.'}
+                    </p>
+                )}
+            </section>
+
+            <section className="space-y-2" aria-label="Ordem do dia">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Ordem do dia{pautados.length ? ` (${pautados.length})` : ''}</h3>
+                {!itens.length && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-4">
+                        Nenhum processo na pauta. {pode ? 'Use Incluir processos: aparecem os que estão em unidade do colegiado com o julgamento pendente na fase.' : ''}
+                    </p>
+                )}
+                {itens.length > 0 && (
+                    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
+                        {pode ? (
+                            <ListaOrdenavel ids={ids} nome={(i) => porId.get(i)?.numero || 'processo'} onMover={mover}>
+                                {itens.map((x, i) => <ItemOrdenavel key={x.processo_id} id={x.processo_id} rotulo={`Mudar a posição de ${x.numero}`}>{({ alca }) => linha(x, i, alca)}</ItemOrdenavel>)}
+                            </ListaOrdenavel>
+                        ) : itens.map((x, i) => <div key={x.processo_id}>{linha(x, i, null)}</div>)}
+                    </div>
+                )}
+            </section>
+
+            {dialogo === 'editar' && <FormSessao orgId={orgId} colegiados={[{ id: s.orgao_id, nome: colegiado.nome, pauta: colegiado.pauta }]} sessao={s} hoje={hoje} onFechar={() => setDialogo(null)} onSalvo={async () => { setDialogo(null); await atualizar(); }} />}
+            {dialogo === 'incluir' && <IncluirProcessos orgId={orgId} sessao={s} pautados={new Set(pautados.map((x) => x.processo_id))} onFechar={() => setDialogo(null)} onIncluido={atualizar} />}
+            {dialogo === 'publicar' && (
+                <Dialog open onOpenChange={(o) => !o && setDialogo(null)}>
+                    <DialogContent className="max-w-lg w-[calc(100vw-1rem)] sm:w-full">
+                        <DialogHeader>
+                            <DialogTitle>Publicar a pauta?</DialogTitle>
+                            <DialogDescription>
+                                {pautados.length === 1 ? 'O processo recebe' : `Os ${pautados.length} processos recebem`} a certidão de inclusão em pauta nos autos, com a data, a hora e o local da sessão, e as partes com acesso ao portal são avisadas por e-mail. Quem compõe o colegiado passa a ver a sessão. Depois disso, data, hora e local não mudam: para mudar, é preciso cancelar a sessão.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="gap-2">
+                            <Button variant="outline" onClick={() => setDialogo(null)}>Voltar</Button>
+                            <Button disabled={indo} onClick={() => acao('sessaoPublicar', {}, 'Pauta publicada. As certidões foram aos autos e as partes foram avisadas.')}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Publicar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
+            {dialogo === 'cancelar' && (
+                <DialogoMotivo titulo="Cancelar a sessão?" perigo acao="Cancelar sessão" onFechar={() => setDialogo(null)}
+                    descricao={s.situacao === 'publicada' ? 'Cada processo pautado recebe a certidão de retirada de pauta, com o motivo, e as partes são avisadas. A sessão fica na lista como cancelada.' : 'É só um rascunho: ninguém foi avisado, e nada vai aos autos.'}
+                    onConfirmar={(motivo) => acao('sessaoCancelar', { motivo }, 'Sessão cancelada')} />
+            )}
+            {dialogo?.tirar && (
+                <DialogoMotivo titulo={`Retirar ${dialogo.tirar.numero} da pauta?`} acao="Retirar da pauta" onFechar={() => setDialogo(null)}
+                    descricao="O processo recebe a certidão de retirada de pauta, com o motivo, e as partes são avisadas. Ele volta a aparecer entre os aptos para outra sessão."
+                    onConfirmar={(motivo) => acao('sessaoTirar', { processo_id: dialogo.tirar.processo_id, motivo }, `${dialogo.tirar.numero} retirado da pauta`)} />
+            )}
+        </div>
+    );
+}

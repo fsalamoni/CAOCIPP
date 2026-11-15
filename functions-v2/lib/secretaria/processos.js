@@ -42,6 +42,7 @@ const webhooks_1 = require("../shared/webhooks");
 const portalAvisos_1 = require("./portalAvisos");
 const orgaos_1 = require("../shared/orgaos");
 const orgaos_2 = require("./orgaos");
+const sessoes_1 = require("./sessoes");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
 const context_1 = require("./context");
@@ -606,6 +607,8 @@ function resumo(id, d) {
         recebido_em: d.recebido_em || d.autuado_em || null,
         assinaturas_pendentes: d.assinaturas_pendentes || [],
         orientacao: d.orientacao || null,
+        // Pautado em sessão de julgamento publicada: o selo da lista e da capa.
+        sessao: d.sessao || null,
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
@@ -614,6 +617,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
     const { db, orgId } = c;
+    // Sessões de julgamento dos colegiados (pauta, publicação, cancelamento).
+    if (typeof p.action === 'string' && p.action.startsWith('sessao'))
+        return (0, sessoes_1.acaoSessao)(c, p);
     if (p.action === 'listar' && p.limite) {
         // Paginado pelo servidor: do mais recente para o mais antigo por
         // updated_at (índice organization_id + updated_at), filtrando a posse
@@ -1372,6 +1378,9 @@ async function movimentar(c, p, opcoes = {}) {
                 const prox = (0, audiencias_1.audienciasFuturas)(lista, (0, secretaria_1.hojeBrasil)())[0];
                 comAudiencia = { audiencias: lista, proxima_audiencia: prox ? `${prox.data}T${prox.hora}` : null };
             }
+            // Julgamento registrado: o processo sai da pauta, e a sessão o mostra como julgado.
+            const comSessao = (regra === null || regra === void 0 ? void 0 : regra.pede) === 'julgamento' && feita && data.sessao
+                ? { sessao: firestore_1.FieldValue.delete(), ultima_sessao: Object.assign(Object.assign({}, data.sessao), { julgado_em: (0, secretaria_1.hojeBrasil)() }) } : {};
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = (0, exigencias_1.destinoDaAcao)(regra);
             const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada;
@@ -1403,14 +1412,14 @@ async function movimentar(c, p, opcoes = {}) {
                     ? itensDepois(em.proc, grupo, Object.assign(Object.assign({}, item), { seq: Number(mov.mov_seq) }))
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
                 const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, em.proc), mov), notasPrazo);
-                tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), { acoes_feitas: feitas }), comResposta), comPrazos), { consolidacao: consolidacao.itens.length ? consolidacao : firestore_1.FieldValue.delete() }), vinculoDaAcao(dado)));
+                tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, em.mov), mov), mi), { acoes_feitas: feitas }), comResposta), comPrazos), comSessao), { consolidacao: consolidacao.itens.length ? consolidacao : firestore_1.FieldValue.delete() }), vinculoDaAcao(dado)));
                 return Object.assign(Object.assign({}, mov), mi);
             }
             const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'acao_fase', dest === 'autos'
                 ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
                 : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ fase_id: fase.id, acao_idx: idx, feita }, (dado ? Object.assign({ rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto }, (dado.ref ? { ref: dado.ref } : {})) : {})), (reservado ? { reservado: 'gestor', ve_unidade: String(data.unidade_atual || '') } : {})), (dado && (regra === null || regra === void 0 ? void 0 : regra.folha_dados) && !reservado ? { folha_dados: true } : {})), { destino: dest }), (dest === 'autos' ? { nos_autos: true } : {})), (dest === 'informacao' ? { fora_impressao: true } : {})), { visivel_partes: vePartes }), (dest === 'nenhum' ? (0, exigencias_1.marcasDoDestino)('nenhum') : {})));
             const mi = (0, context_1.registrarInternos)(tx, c, ref, Object.assign(Object.assign({}, data), mov), notasPrazo);
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), { acoes_feitas: feitas }), comResposta), comPrazos), comAudiencia), vinculoDaAcao(dado)));
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), { acoes_feitas: feitas }), comResposta), comPrazos), comAudiencia), comSessao), vinculoDaAcao(dado)));
             return Object.assign(Object.assign({}, mov), mi);
         }
         if (p.action === 'atribuir') {

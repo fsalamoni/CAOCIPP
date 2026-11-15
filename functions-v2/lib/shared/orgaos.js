@@ -15,6 +15,7 @@ exports.emArvore = emArvore;
 exports.nomeOrgao = nomeOrgao;
 exports.sanitizeProposta = sanitizeProposta;
 const secretaria_1 = require("./secretaria");
+const sessoes_1 = require("./sessoes");
 /**
  * Órgãos internos de uma entidade (ex.: Conselho, Presidência, Diretorias).
  * A entidade pode ser singular (lista vazia: as unidades ficam ligadas direto
@@ -100,6 +101,7 @@ function sanitizeOrgao(raw, id, ordem = 0) {
         admins_uids: [...new Set((Array.isArray(o.admins_uids) ? o.admins_uids : []).filter((x) => typeof x === 'string' && !!x).map((x) => x.slice(0, 128)))].slice(0, exports.MAX_ADMINS_ORGAO),
         competencias: sanitizeCompetencias(o.competencias),
         composicao: sanitizeComposicao(o.composicao),
+        pauta: (0, sessoes_1.sanitizeRegrasSessao)(o.pauta),
         descricao: (0, secretaria_1.texto)(o.descricao, 1000),
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,

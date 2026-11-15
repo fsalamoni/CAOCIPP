@@ -31,6 +31,7 @@ import EventosAutos from '@/components/secretaria/EventosAutos';
 import ComunicacoesPendentes from '@/components/secretaria/ComunicacoesPendentes';
 import { SeloComunicacao } from '@/components/secretaria/Comunicacoes';
 import { nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
+import { quandoSessao } from '@/lib/sessoes';
 import { etapasAteOFim } from '@/lib/secretariaRito';
 
 // Portal das partes: página pública (fora do menu do SIGO). A parte entra com
@@ -64,7 +65,7 @@ export function frasePolo(polo) {
 const ICONE_MOV = {
     juntada: FileText, peticao: Send, fase: GitBranch, situacao: Flag, prazo: CalendarClock, prazo_encerrado: CalendarCheck, prazo_prorrogado: CalendarClock, prazo_devolvido: CalendarClock,
     pendencia_resolvida: Gavel, autuacao: FilePlus, habilitacao: UserCheck, convite: Mail,
-    comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck, decurso_prazo: CalendarCheck,
+    comunicacao: Mail, ciencia: UserCheck, ciencia_decurso: CalendarCheck, decurso_prazo: CalendarCheck, pauta: Gavel, pauta_retirada: Gavel,
 };
 
 export default function Portal() {
@@ -501,6 +502,15 @@ function ProcessoParte({ id, onVoltar }) {
                             <CardHeader className="pb-2"><CardTitle className="text-base">Audiências designadas</CardTitle></CardHeader>
                             <CardContent className="space-y-1 text-sm">
                                 {p.audiencias.map((a) => <p key={`${a.data}${a.hora}`}><b>{nomeAudiencia(a.especie, a.especie_nome)}:</b> {textoDaAudiencia(a)}.</p>)}
+                            </CardContent>
+                        </Card>
+                    )}
+                    {p.sessao && (
+                        <Card className="border-indigo-300 dark:border-indigo-800">
+                            <CardHeader className="pb-2"><CardTitle className="text-base">Julgamento marcado</CardTitle></CardHeader>
+                            <CardContent className="space-y-1 text-sm">
+                                <p>O processo está na pauta da <b>{p.sessao.titulo}</b>{p.sessao.colegiado ? ` do ${p.sessao.colegiado}` : ''}: {quandoSessao(p.sessao)}.</p>
+                                <p className="text-slate-600 dark:text-slate-400">A certidão de inclusão em pauta está nos autos. Se o processo sair da pauta, você é avisado.</p>
                             </CardContent>
                         </Card>
                     )}

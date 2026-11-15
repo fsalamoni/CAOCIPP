@@ -88,6 +88,7 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
                                         {p.fase_nome} · {nomeUnidade(p.unidade_atual)}{naUnidade != null ? ` ${ha(naUnidade)}` : ''}{p.responsavel_uid && p.responsavel_uid !== estado.uid ? ` · ${nomeMembro(p.responsavel_uid)}` : ''}
                                     </span>
                                     {p.urgente && g.id !== 'urgentes' && <SeloUrgente motivo={p.urgencia?.motivo} />}
+                                    {p.sessao && <Badge variant="outline" className="border-indigo-300 text-indigo-800 dark:border-indigo-700 dark:text-indigo-200">Pautado: {p.sessao.data.split('-').reverse().join('/')}</Badge>}
                                     {g.id === 'urgentes' && p.urgencia?.motivo && <span className="text-xs text-red-800 dark:text-red-200 max-w-md truncate" title={p.urgencia.motivo}>{p.urgencia.motivo}</span>}
                                     {(p.assinaturas_pendentes || []).some((x) => x.uid === estado.uid) && <Badge className="bg-amber-500 hover:bg-amber-500 gap-1"><PenLine className="w-3 h-3" aria-hidden />Assinar: {(p.assinaturas_pendentes || []).filter((x) => x.uid === estado.uid).map((x) => x.titulo).join(', ')}</Badge>}
                                     {p.orientacao && <span className="text-xs text-amber-800 dark:text-amber-200 max-w-md truncate" title={p.orientacao.texto}>Orientação: {p.orientacao.texto}</span>}
