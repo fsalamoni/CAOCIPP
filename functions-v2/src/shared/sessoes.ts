@@ -59,11 +59,15 @@ export interface ItemPauta {
 /**
  * Regras de pauta do colegiado. `antecedencia`: mínima entre publicar a pauta e
  * a sessão (sem regra, 0). `vista_dias`: prazo do pedido de vista, na mesma
- * contagem (sem regra, VISTA_PADRAO, como no CPC, art. 940).
+ * contagem (sem regra, VISTA_PADRAO, como no CPC, art. 940). `acordao_dias`:
+ * prazo do redator para o acórdão (sem regra, ACORDAO_PADRAO, como no CPC,
+ * art. 944).
  */
-export interface RegrasSessao { antecedencia: number; contagem: Contagem; vista_dias?: number }
+export interface RegrasSessao { antecedencia: number; contagem: Contagem; vista_dias?: number; acordao_dias?: number }
 export const VISTA_PADRAO = 10;
 export const MAX_VISTA = 90;
+export const ACORDAO_PADRAO = 30;
+export const MAX_EMENTA = 5000;
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -72,11 +76,18 @@ export function sanitizeRegrasSessao(raw: unknown): RegrasSessao {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const n = Math.round(Number(r.antecedencia));
     const v = Math.round(Number(r.vista_dias));
+    const a = Math.round(Number(r.acordao_dias));
     return {
         antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis',
         // Ausente = o padrão; só se guarda o que difere dele.
         ...(Number.isFinite(v) && v >= 1 && v <= MAX_VISTA && v !== VISTA_PADRAO ? { vista_dias: v } : {}),
+        ...(Number.isFinite(a) && a >= 1 && a <= MAX_VISTA && a !== ACORDAO_PADRAO ? { acordao_dias: a } : {}),
     };
+}
+
+/** Último dia para o redator entregar o acórdão (S6). */
+export function prazoDoAcordao(hoje: string, regras: RegrasSessao, cal?: CalendarioOrgao): string {
+    return calcularVencimento(hoje, regras.acordao_dias || ACORDAO_PADRAO, regras.contagem, cal);
 }
 
 /** Último dia para devolver a vista pedida em `hoje`. */
@@ -145,14 +156,15 @@ export function julgamentoPendente(proc: ProcParaPauta): number {
  * feito ali). Saiu do colegiado, a leitura acaba.
  */
 export function leituraDeJulgador(
-    proc: { sessao?: { orgao_id?: unknown } | null; ultima_sessao?: { orgao_id?: unknown } | null; vista?: { orgao_id?: unknown } | null; unidade_atual?: unknown; status?: unknown },
+    proc: { sessao?: { orgao_id?: unknown } | null; ultima_sessao?: { orgao_id?: unknown } | null; vista?: { orgao_id?: unknown } | null; acordao?: { juntado_em?: unknown } | null; unidade_atual?: unknown; status?: unknown },
     compoe: string[], orgaoDaUnidade: (u: string) => unknown,
 ): boolean {
     if (!compoe.length || proc.status === 'excluido') return false;
     if (proc.sessao && compoe.includes(String(proc.sessao.orgao_id))) return true;
     // Com vista (S5): o julgamento está suspenso, mas o colegiado segue lendo.
     if (proc.vista && proc.status === 'em_tramitacao' && compoe.includes(String(proc.vista.orgao_id))) return true;
-    const ult = proc.ultima_sessao ? String(proc.ultima_sessao.orgao_id) : '';
+    // Julgado, lê até o acórdão ser juntado aos autos (S6), enquanto segue no colegiado.
+    const ult = proc.ultima_sessao && !proc.acordao?.juntado_em ? String(proc.ultima_sessao.orgao_id) : '';
     return !!ult && proc.status === 'em_tramitacao' && compoe.includes(ult) && orgaoDaUnidade(String(proc.unidade_atual || '')) === ult;
 }
 
@@ -211,8 +223,17 @@ export type ModoVoto = typeof MODOS_VOTO[number];
 export const MAX_RELATORIO = 50000;
 export const MAX_NOTA_VOTO = 4000;
 
-export interface VotoDoMembro { nome: string; funcao: 'presidente' | 'membro'; modo: ModoVoto; resultado: string; nota: string; em: string }
-export interface Proclamacao { resultado: string; texto: string; data: string; em: string; por_nome: string; votos: Voto[] }
+/**
+ * `fundamentos` (S6): voto divergente fundamentado ou declaração de voto na
+ * ressalva, que vai ao acórdão. `divergiu_em`: quando o membro passou a
+ * divergir para esse resultado (decide quem conduz, se o relator ficar vencido).
+ */
+export interface VotoDoMembro { nome: string; funcao: 'presidente' | 'membro'; modo: ModoVoto; resultado: string; nota: string; em: string; fundamentos?: string; divergiu_em?: string }
+/** `condutor` e `redator` (S6): o voto que conduz o resultado e quem redige o acórdão. */
+export interface Proclamacao {
+    resultado: string; texto: string; data: string; em: string; por_nome: string; votos: Voto[];
+    condutor?: { uid: string; nome: string; relator: boolean };
+}
 /** secSessoes/{sessao}/votacoes/{processo}: o voto do relator (sigiloso até liberar) e os votos dos pares. */
 export interface Votacao {
     processo_id: string;
@@ -224,6 +245,8 @@ export interface Votacao {
     liberado_em: string | null;
     votos: Record<string, VotoDoMembro>;
     proclamado: Proclamacao | null;
+    /** S6: redator designado, rascunho do acórdão e a minuta enviada à unidade. */
+    acordao?: { redator_uid: string; redator_nome: string; prazo: string; ementa: string; texto: string; enviado_em?: string; documento_id?: string };
 }
 export interface Votante { uid: string; nome: string; funcao: 'presidente' | 'membro' }
 
@@ -237,20 +260,89 @@ export function votantes(composicao: MembroColegiado[], dia: string, nome: (uid:
 }
 
 /** Confere o voto do vogal contra os resultados do rito e o voto do relator. Lança com mensagem. */
-export function sanitizeVoto(raw: unknown, resultados: string[], doRelator: string): Pick<VotoDoMembro, 'modo' | 'resultado' | 'nota'> {
+export function sanitizeVoto(raw: unknown, resultados: string[], doRelator: string): Pick<VotoDoMembro, 'modo' | 'resultado' | 'nota' | 'fundamentos'> {
     const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const modo = String(r.modo || '') as ModoVoto;
     if (!MODOS_VOTO.includes(modo)) throw new Error('Escolha como vota');
     const nota = texto(r.nota, MAX_NOTA_VOTO);
+    // Voto divergente fundamentado ou declaração de voto (S6): texto longo, que vai ao acórdão.
+    const fundamentos = String(r.fundamentos ?? '').replace(/\r\n/g, '\n').slice(0, MAX_RELATORIO).trim();
+    const comFund = fundamentos ? { fundamentos } : {};
     if (modo === 'impedido' || modo === 'suspeito') return { modo, resultado: '', nota };
     if (modo === 'diverge') {
         const resultado = texto(r.resultado, 80);
         if (!resultados.includes(resultado)) throw new Error('Na divergência, escolha o resultado do seu voto');
         if (resultado === doRelator) throw new Error(`O relator votou por ${doRelator}: para esse resultado, acompanhe o relator`);
-        return { modo, resultado, nota };
+        return { modo, resultado, nota, ...comFund };
     }
     if (modo === 'ressalva' && nota.length < 5) throw new Error('Escreva a ressalva (ao menos 5 letras)');
-    return { modo, resultado: doRelator, nota: modo === 'ressalva' ? nota : '' };
+    return modo === 'ressalva' ? { modo, resultado: doRelator, nota, ...comFund } : { modo, resultado: doRelator, nota: '' };
+}
+
+// ---- S6: voto condutor, votos vencidos e acórdão ----
+
+/**
+ * Quem conduz o resultado: o relator, se venceu; senão, quem primeiro divergiu
+ * para o resultado proclamado (CPC, art. 941, por analogia). Sem divergente
+ * (resultado por regra de desempate), fica o relator.
+ */
+export function votoCondutor(v: Pick<Votacao, 'relator_uid' | 'relator_nome' | 'resultado' | 'votos'>, resultado: string): { uid: string; nome: string; relator: boolean } {
+    if (v.resultado === resultado) return { uid: v.relator_uid, nome: v.relator_nome, relator: true };
+    const primeiro = Object.entries(v.votos || {})
+        .filter(([, x]) => x.modo === 'diverge' && x.resultado === resultado)
+        .sort((a, b) => (a[1].divergiu_em || a[1].em).localeCompare(b[1].divergiu_em || b[1].em))[0];
+    return primeiro ? { uid: primeiro[0], nome: primeiro[1].nome, relator: false } : { uid: v.relator_uid, nome: v.relator_nome, relator: true };
+}
+
+export interface TextoDeVoto { nome: string; resultado: string; texto: string }
+
+/** Votos vencidos (com o do relator, se vencido) e declarações de voto, para o acórdão. */
+export function votosDoAcordao(v: Pick<Votacao, 'relator_uid' | 'relator_nome' | 'resultado' | 'fundamentos' | 'votos'>, resultado: string, condutorUid: string) {
+    const vencidos: TextoDeVoto[] = [];
+    const declaracoes: TextoDeVoto[] = [];
+    if (v.resultado && v.resultado !== resultado) vencidos.push({ nome: v.relator_nome, resultado: v.resultado, texto: v.fundamentos });
+    for (const [uid, x] of Object.entries(v.votos || {})) {
+        if (uid === condutorUid || !x.resultado) continue;
+        const t = x.fundamentos || x.nota || '';
+        if (x.resultado !== resultado) vencidos.push({ nome: x.nome, resultado: x.resultado, texto: t });
+        else if (t && (x.modo === 'ressalva' || x.modo === 'diverge')) declaracoes.push({ nome: x.nome, resultado: x.resultado, texto: t });
+    }
+    return { vencidos, declaracoes };
+}
+
+/** Dispositivo sugerido ao redator. */
+export function modeloDoAcordao(numero: string, colegiado: string, s: Pick<DadosSessao, 'titulo' | 'data'>, textoProclamado: string, condutor: { nome: string; relator: boolean }): string {
+    return `Vistos, relatados e discutidos os autos do processo ${numero}, acordam os membros do ${colegiado}, na ${s.titulo}, de ${br(s.data)}, no seguinte resultado: ${textoProclamado.replace(/[.\s]+$/, '')}, nos termos do voto ${condutor.relator ? 'do relator' : `condutor de ${condutor.nome}`}.`;
+}
+
+type NoDoc = { type: string; attrs?: Record<string, unknown>; content?: NoDoc[]; text?: string; marks?: Array<{ type: string }> };
+const titulo = (t: string, level = 2): NoDoc => ({ type: 'heading', attrs: { level }, content: [{ type: 'text', text: t }] });
+const paragrafos = (t: string): NoDoc[] => t.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean)
+    .map((x) => ({ type: 'paragraph', attrs: { textAlign: 'justify' }, content: x.split('\n').flatMap((l, i): NoDoc[] => [...(i ? [{ type: 'hardBreak' }] : []), ...(l ? [{ type: 'text', text: l }] : [])]) }));
+
+/**
+ * O acórdão como documento do editor (vai à unidade como minuta assinada pelo
+ * redator; a unidade junta aos autos): ementa, acórdão, relatório, voto
+ * condutor, votos vencidos e declarações de voto (CPC, art. 941, § 3º).
+ */
+export function documentoDoAcordao(a: {
+    numero: string; colegiado: string; sessao: string; ementa: string; texto: string; relatorio: string; relator: string;
+    condutor: { nome: string; relator: boolean }; fundamentosCondutor: string; vencidos: TextoDeVoto[]; declaracoes: TextoDeVoto[];
+}): NoDoc {
+    const voto = (x: TextoDeVoto, rotulo: string) => [titulo(`${rotulo} de ${x.nome} (${x.resultado})`, 3), ...(x.texto ? paragrafos(x.texto) : [{ type: 'paragraph', content: [{ type: 'text', text: 'Sem declaração escrita.' }] }])];
+    return {
+        type: 'doc',
+        content: [
+            { type: 'heading', attrs: { level: 1, textAlign: 'center' }, content: [{ type: 'text', text: 'ACÓRDÃO' }] },
+            { type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: `Processo ${a.numero} · ${a.colegiado} · ${a.sessao}` }] },
+            titulo('Ementa'), ...paragrafos(a.ementa),
+            titulo('Acórdão'), ...paragrafos(a.texto),
+            titulo(`Relatório (${a.relator})`), ...paragrafos(a.relatorio || 'Sem relatório escrito.'),
+            titulo(a.condutor.relator ? `Voto do relator (${a.condutor.nome})` : `Voto condutor (${a.condutor.nome})`), ...paragrafos(a.fundamentosCondutor || 'Sem fundamentos escritos.'),
+            ...(a.vencidos.length ? [titulo('Votos vencidos'), ...a.vencidos.flatMap((x) => voto(x, 'Voto vencido'))] : []),
+            ...(a.declaracoes.length ? [titulo('Declarações de voto'), ...a.declaracoes.flatMap((x) => voto(x, 'Declaração'))] : []),
+        ],
+    };
 }
 
 /**

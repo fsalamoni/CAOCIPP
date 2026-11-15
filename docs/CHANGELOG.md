@@ -5,6 +5,13 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Voto divergente, voto condutor e acórdão
+- Sexta etapa do plano de sessões de julgamento, reuniões e pregão.
+- Quem diverge pode escrever o **voto divergente fundamentado**, e quem acompanha com ressalva, a **declaração de voto**. Os pares leem durante a votação.
+- Proclamado o resultado, o sistema define o **voto condutor**: o do relator, se venceu, ou o de quem primeiro divergiu para o resultado vencedor. O autor dele é o **redator do acórdão**, e o presidente pode designar outro.
+- O redator escreve a **ementa e o acórdão** no prazo do colegiado (30 dias por padrão, ajustável no órgão), com um texto sugerido. Ao enviar, o sistema monta o documento com o relatório, o voto condutor, os **votos vencidos** e as declarações, assinado pelo redator, e a unidade junta aos autos.
+- Na aba Sessões, cada julgador vê os **acórdãos que redige**, com o prazo. A pauta e a capa do processo mostram em que pé está o acórdão.
+
 ### 15/11/2026 — Vista, adiamento e conversão em diligência
 - Quinta etapa do plano de sessões de julgamento, reuniões e pregão.
 - Depois que o relator libera o voto, o membro do colegiado pode **pedir vista**. O julgamento fica suspenso, com o prazo do colegiado (10 dias por padrão, ajustável no órgão). Outros membros podem se juntar ao pedido, que fica coletivo.

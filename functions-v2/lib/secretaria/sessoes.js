@@ -180,10 +180,17 @@ async function acaoSessao(c, p) {
             // Agenda pessoal: compõe o colegiado no dia da sessão.
             componho: (0, orgaos_1.composicaoEm)(porId.get(s.orgao_id).composicao, s.data).some((m) => m.uid === c.ctx.uid) })))
             .sort((a, b) => `${a.data}T${a.hora}`.localeCompare(`${b.data}T${b.hora}`));
+        // S6: acórdãos que esta pessoa redige, ainda não juntados.
+        const acs = await c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('acordao.redator_uid', '==', c.ctx.uid).where('acordao.pendente', '==', true).limit(50).get();
+        const acordaos = acs.docs.map((d) => {
+            const x = d.data();
+            return { processo_id: d.id, numero: x.numero, sessao_id: x.acordao.sessao_id, sessao: x.acordao.sessao, colegiado: x.acordao.colegiado, resultado: x.acordao.resultado, prazo: x.acordao.prazo, enviado: !!x.acordao.enviado_em };
+        }).sort((a, b) => String(a.prazo).localeCompare(String(b.prazo)));
         return {
             hoje,
             colegiados: vistos.map((o) => ({ id: o.id, nome: o.nome, sigla: o.sigla, gere: gereSessoes(c, o.id), pauta: o.pauta })),
             sessoes,
+            acordaos,
         };
     }
     if (p.action === 'sessaoObter') {
@@ -202,14 +209,17 @@ async function acaoSessao(c, p) {
         // Quem vota no dia da sessão: presidente e titulares.
         const quemVota = (0, orgaos_1.composicaoEm)(o.composicao, s.data).filter((m) => m.funcao !== 'suplente').map((m) => m.uid);
         const itens = pauta.map((x, i) => {
-            var _a, _b;
+            var _a, _b, _c;
             const d = snaps[i].data();
             // Pela lotação, ou como julgador do colegiado enquanto pautado (S3).
             const abre = !!d && d.status !== 'excluido' && ((0, secretaria_1.podeVer)(d, c.ctx) || (0, context_1.julgadorLe)(c, d));
             // Sigilo restrito: quem não vê os autos não vê o assunto nem as partes.
             const aberto = !!d && (abre || d.sigilo !== 'restrito');
             const julgado = !!d && ((_a = d.ultima_sessao) === null || _a === void 0 ? void 0 : _a.id) === ref.id && ((_b = d.sessao) === null || _b === void 0 ? void 0 : _b.id) !== ref.id;
-            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists, relator_nome: x.relator_nome || '', votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
+            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists, 
+                // S6: o acórdão do julgamento desta sessão.
+                acordao: julgado && ((_c = d.acordao) === null || _c === void 0 ? void 0 : _c.sessao_id) === ref.id
+                    ? { redator_nome: d.acordao.redator_nome || '', prazo: d.acordao.prazo, enviado: !!d.acordao.enviado_em, juntado: !!d.acordao.juntado_em, sou_redator: d.acordao.redator_uid === c.ctx.uid } : null, relator_nome: x.relator_nome || '', votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
         });
         return {
             hoje,

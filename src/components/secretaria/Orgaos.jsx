@@ -269,9 +269,14 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                                     <Input id="og-vista-dias" type="number" min={1} max={90} value={o.pauta?.vista_dias ?? 10}
                                         onChange={(e) => set('pauta', { antecedencia: 0, contagem: 'uteis', ...o.pauta, vista_dias: Math.max(1, Math.min(90, Math.round(Number(e.target.value) || 10))) })} />
                                 </label>
+                                <label htmlFor="og-acordao-dias" className="text-sm space-y-1">
+                                    <span className="block text-slate-700 dark:text-slate-300">Prazo do acórdão (dias)</span>
+                                    <Input id="og-acordao-dias" type="number" min={1} max={90} value={o.pauta?.acordao_dias ?? 30}
+                                        onChange={(e) => set('pauta', { antecedencia: 0, contagem: 'uteis', ...o.pauta, acordao_dias: Math.max(1, Math.min(90, Math.round(Number(e.target.value) || 30))) })} />
+                                </label>
                             </div>
                             <p className="text-xs text-slate-600 dark:text-slate-400">
-                                Prazo para quem pede vista devolver o processo, contado como a antecedência (dias úteis ou corridos). O padrão é 10 dias, como no CPC. Vencido, a secretaria ou o presidente requisita o processo para julgamento.
+                                Prazo para quem pede vista devolver o processo e prazo para o redator entregar o acórdão, contados como a antecedência (dias úteis ou corridos). Os padrões são 10 e 30 dias, como no CPC. Vencida a vista, a secretaria ou o presidente requisita o processo para julgamento.
                             </p>
                         </section>
                     )}

@@ -874,7 +874,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 // Em fase de espera: a fase e a unidade para onde o processo volta.
                 espera: data.espera ? { fase: String(data.espera.fase || ''), unidade: String(data.espera.unidade || ''), desde: String(data.espera.desde || '') } : null, campos_exigidos: data.campos_exigidos || {}, registro_criado: data.registro_criado || null, ultima_sessao: data.ultima_sessao || null, 
                 // S5: vista em curso e julgamento que continua de outra sessão (equipe e julgadores; o portal não lê isto).
-                vista: data.vista ? { nomes: data.vista.nomes || [], prazo: data.vista.prazo, desde: data.vista.desde, sessao: data.vista.sessao || '', colegiado: data.vista.colegiado || '', sessao_id: data.vista.sessao_id, orgao_id: data.vista.orgao_id } : null, julgamento_em_curso: data.julgamento_em_curso ? { relator_nome: data.julgamento_em_curso.relator_nome || '', manter_votos: data.julgamento_em_curso.manter_votos === true } : null }),
+                vista: data.vista ? { nomes: data.vista.nomes || [], prazo: data.vista.prazo, desde: data.vista.desde, sessao: data.vista.sessao || '', colegiado: data.vista.colegiado || '', sessao_id: data.vista.sessao_id, orgao_id: data.vista.orgao_id } : null, 
+                // S6: acórdão do último julgamento em sessão (redator, prazo, minuta enviada, juntada).
+                acordao: data.acordao ? {
+                    sessao_id: data.acordao.sessao_id, sessao: data.acordao.sessao || '', colegiado: data.acordao.colegiado || '', orgao_id: data.acordao.orgao_id || '', resultado: data.acordao.resultado || '',
+                    redator_nome: data.acordao.redator_nome || '', prazo: data.acordao.prazo || '', pendente: data.acordao.pendente === true,
+                    enviado_em: data.acordao.enviado_em || null, documento_id: data.acordao.documento_id || null, juntado_em: data.acordao.juntado_em || null, ordem: data.acordao.ordem || null,
+                } : null, julgamento_em_curso: data.julgamento_em_curso ? { relator_nome: data.julgamento_em_curso.relator_nome || '', manter_votos: data.julgamento_em_curso.manter_votos === true } : null }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,

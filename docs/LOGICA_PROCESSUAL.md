@@ -313,6 +313,13 @@ informado.
   algo para decidir (CPC, art. 938, § 3º): o processo volta à unidade e, ao
   retornar, os votos recomeçam, porque o que se julga mudou. O relator
   continua o mesmo. Cada ato é certificado nos autos e comunicado às partes.
+- **Voto condutor e acórdão.** Proclamado o resultado, redige o acórdão o
+  relator, se o voto dele venceu; vencido, redige quem primeiro votou no
+  sentido que prevaleceu (CPC, art. 941, por analogia). O acórdão traz a
+  ementa (CPC, art. 943, § 1º) e, além do voto condutor, os votos vencidos,
+  que o integram para todos os fins (art. 941, § 3º). Tem prazo para ser
+  lavrado (art. 944), e só depois de juntado aos autos as partes o conhecem;
+  com ele termina a leitura dos autos pelos julgadores pela pauta.
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

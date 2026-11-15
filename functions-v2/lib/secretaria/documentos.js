@@ -32,6 +32,7 @@ function caminhoArquivo(orgId, procId, docId) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
 exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
+    var _a;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -197,6 +198,12 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             throw new https_1.HttpsError('failed-precondition', 'Esta minuta seguiu com o processo para outra unidade. Ela só pode ser excluída quando o processo voltar à sua unidade.');
         }
         await c.db.recursiveDelete(ref); // com as redações anteriores
+        // Minuta do acórdão excluída pela unidade: volta ao redator, que corrige e envia de novo (S6).
+        if (doc.acordao_sessao_id && ((_a = proc.acordao) === null || _a === void 0 ? void 0 : _a.documento_id) === ref.id) {
+            const sem = { 'acordao.enviado_em': firestore_1.FieldValue.delete(), 'acordao.documento_id': firestore_1.FieldValue.delete() };
+            await procRef.update(sem);
+            await c.db.collection('secSessoes').doc(String(doc.acordao_sessao_id)).collection('votacoes').doc(procRef.id).update(sem).catch(() => undefined);
+        }
         if ((proc.assinaturas_pendentes || []).some((x) => x.docId === ref.id)) {
             await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
         }
@@ -311,7 +318,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             paginas = await (0, autos_1.paginasDeArquivo)(buf, antes.mime);
         }
         const r = await c.db.runTransaction(async (tx) => {
-            var _a;
+            var _a, _b;
             const { ref: pr, data: atual } = await (0, context_1.lerProcesso)(c, p.processoId, tx);
             (0, context_1.conferirVersao)(atual, p.version);
             (0, context_1.exigirPosse)(c, atual);
@@ -365,8 +372,8 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             // Ação com prazo próprio cumprida pela juntada: o prazo dela se encerra (e o registro interno diz).
             const pzA = (0, prazosFase_1.camposDosPrazosDasAcoes)(atual, exig, fase, c.userName, mexeuPendencias ? pendencias : undefined, calendario);
             const mi = (0, context_1.registrarInternos)(tx, c, pr, Object.assign(Object.assign({}, atual), mov), pzA.notas);
-            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), pzA.campos), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})));
-            return { ordem, version: (_a = mi.version) !== null && _a !== void 0 ? _a : mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual), internos: pzA.notas.length ? 1 : 0 };
+            tx.update(pr, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, mov), mi), exig), { doc_seq: ordem, folhas_seq: folha + paginas - 1 }), (mexeuPendencias ? Object.assign({ pendencias }, (0, secretaria_1.derivados)(pendencias, (atual.prazos || []))) : {})), pzA.campos), ((atual.assinaturas_pendentes || []).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {})), (doc.acordao_sessao_id && ((_a = atual.acordao) === null || _a === void 0 ? void 0 : _a.documento_id) === ref.id ? { 'acordao.pendente': false, 'acordao.juntado_em': agoraIso, 'acordao.ordem': ordem } : {})));
+            return { ordem, version: (_b = mi.version) !== null && _b !== void 0 ? _b : mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual), internos: pzA.notas.length ? 1 : 0 };
         });
         void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id, undefined, 1 + r.internos);
         if (p.pendencia === 'sim' || p.pendencia === 'interrompe')

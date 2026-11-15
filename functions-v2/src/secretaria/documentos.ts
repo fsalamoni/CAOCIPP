@@ -247,6 +247,12 @@ export const secretariaDocumento = onCall<DocRequest>(
                 throw new HttpsError('failed-precondition', 'Esta minuta seguiu com o processo para outra unidade. Ela só pode ser excluída quando o processo voltar à sua unidade.');
             }
             await c.db.recursiveDelete(ref); // com as redações anteriores
+            // Minuta do acórdão excluída pela unidade: volta ao redator, que corrige e envia de novo (S6).
+            if (doc.acordao_sessao_id && proc.acordao?.documento_id === ref.id) {
+                const sem = { 'acordao.enviado_em': FieldValue.delete(), 'acordao.documento_id': FieldValue.delete() };
+                await procRef.update(sem);
+                await c.db.collection('secSessoes').doc(String(doc.acordao_sessao_id)).collection('votacoes').doc(procRef.id).update(sem).catch(() => undefined);
+            }
             if (((proc.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id)) {
                 await procRef.update({ assinaturas_pendentes: semPedidos(proc.assinaturas_pendentes, ref.id) });
             }
@@ -416,6 +422,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                     ...(mexeuPendencias ? { pendencias, ...derivados(pendencias, (atual.prazos || []) as Prazo[]) } : {}),
                     ...pzA.campos,
                     ...(((atual.assinaturas_pendentes || []) as Pedido[]).some((x) => x.docId === ref.id) ? { assinaturas_pendentes: semPedidos(atual.assinaturas_pendentes, ref.id) } : {}),
+                    // Acórdão da sessão (S6): juntado, a tarefa do redator se encerra e a leitura pelos julgadores acaba.
+                    ...(doc.acordao_sessao_id && atual.acordao?.documento_id === ref.id ? { 'acordao.pendente': false, 'acordao.juntado_em': agoraIso, 'acordao.ordem': ordem } : {}),
                 });
                 return { ordem, version: mi.version ?? mov.version, folha_inicial: folha, paginas, tentar: podeSeguir(fase, atual), internos: pzA.notas.length ? 1 : 0 };
             });

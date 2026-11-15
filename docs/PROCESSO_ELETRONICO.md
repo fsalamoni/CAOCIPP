@@ -1533,6 +1533,50 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Voto divergente, voto condutor e acórdão (15/11/2026)
+
+Sexta etapa (S6). O julgamento proclamado vira acórdão nos autos, redigido
+por quem conduziu o resultado, com os votos vencidos (CPC, arts. 941 e 943 a
+944, por analogia).
+
+- **Voto divergente fundamentado:** no voto, `fundamentos` (até 50.000
+  caracteres) para quem diverge (voto divergente) ou acompanha com ressalva
+  (declaração de voto). Os pares leem na votação. `sanitizeVoto` descarta
+  fundamentos de quem só acompanha. O voto agora é trocado inteiro
+  (`FieldPath('votos', uid)`), e `divergiu_em` guarda quando o membro passou
+  a divergir para aquele resultado (mudar o texto não muda a ordem).
+- **Voto condutor e redator:** na proclamação, `votoCondutor` escolhe o
+  relator, se venceu, ou quem primeiro divergiu para o resultado
+  proclamado; sem divergente (desempate por regra), fica o relator. Vai em
+  `proclamado.condutor`. O redator é o autor do voto condutor; o presidente
+  ou a secretaria designam outro entre quem votou (`sessaoRedator`) até o
+  envio.
+- **Prazo:** `orgao.pauta.acordao_dias` (1 a 90; ausente = 30, como no CPC,
+  art. 944), na contagem da pauta. Fica em `votacao.acordao.prazo` e em
+  `processo.acordao {sessao_id, sessao, colegiado, orgao_id, resultado,
+  redator_uid, redator_nome, prazo, pendente, enviado_em, documento_id,
+  juntado_em, ordem}`.
+- **Redação:** `sessaoAcordao` (só o redator): guarda ementa e acórdão;
+  com `enviar`, monta o documento (`documentoDoAcordao`: ementa, acórdão,
+  relatório, voto condutor, votos vencidos e declarações de voto, via
+  `votosDoAcordao`) e cria a **minuta** "Acórdão: sessão" (tipo Acórdão, da
+  unidade que tem o processo, assinada pelo redator, `acordao_sessao_id`).
+  O texto sugerido (`modeloDoAcordao`) traz o resultado proclamado e o voto
+  condutor.
+- **Juntada:** pela unidade, pelo caminho comum de juntar (PDF, folhas,
+  código de verificação, exigências do rito). Ao juntar, `processo.acordao`
+  fica `pendente: false` com `juntado_em` e `ordem`, e a leitura pela pauta
+  acaba (`leituraDeJulgador`). Excluir a minuta devolve ao redator, que
+  corrige e envia de novo.
+- **Telas:** no Votar, o campo do voto divergente ou da declaração; na
+  lista de votos, "Ler o voto divergente"; no diálogo Julgamento, a seção
+  Acórdão (voto condutor, redator, situação, designar outro redator,
+  editor); na aba Sessões, "Acórdãos que você redige", com prazo; na pauta,
+  a situação do acórdão; na capa do processo, "Acórdão a redigir" ou
+  "Acórdão para juntar". Em Órgãos, o prazo do acórdão.
+- **Sigilo:** relatório, votos e acórdão só chegam às partes com a juntada.
+- **Glossário:** acórdão.
+
 ### Vista, adiamento e conversão em diligência (15/11/2026)
 
 Quinta etapa (S5). O julgamento pode sair da sessão sem resultado e

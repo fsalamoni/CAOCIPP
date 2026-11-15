@@ -187,10 +187,17 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
                 componho: composicaoEm(porId.get(s.orgao_id)!.composicao, s.data).some((m) => m.uid === c.ctx.uid),
             }))
             .sort((a, b) => `${a.data}T${a.hora}`.localeCompare(`${b.data}T${b.hora}`));
+        // S6: acórdãos que esta pessoa redige, ainda não juntados.
+        const acs = await c.db.collection(COL.processos).where('organization_id', '==', c.orgId).where('acordao.redator_uid', '==', c.ctx.uid).where('acordao.pendente', '==', true).limit(50).get();
+        const acordaos = acs.docs.map((d) => {
+            const x = d.data();
+            return { processo_id: d.id, numero: x.numero, sessao_id: x.acordao.sessao_id, sessao: x.acordao.sessao, colegiado: x.acordao.colegiado, resultado: x.acordao.resultado, prazo: x.acordao.prazo, enviado: !!x.acordao.enviado_em };
+        }).sort((a, b) => String(a.prazo).localeCompare(String(b.prazo)));
         return {
             hoje,
             colegiados: vistos.map((o) => ({ id: o.id, nome: o.nome, sigla: o.sigla, gere: gereSessoes(c, o.id), pauta: o.pauta })),
             sessoes,
+            acordaos,
         };
     }
 
@@ -223,6 +230,9 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
                 urgente: d?.urgente === true,
                 julgado,
                 minha_anotacao: notas[i].exists,
+                // S6: o acórdão do julgamento desta sessão.
+                acordao: julgado && d!.acordao?.sessao_id === ref.id
+                    ? { redator_nome: d!.acordao.redator_nome || '', prazo: d!.acordao.prazo, enviado: !!d!.acordao.enviado_em, juntado: !!d!.acordao.juntado_em, sou_redator: d!.acordao.redator_uid === c.ctx.uid } : null,
                 relator_nome: x.relator_nome || '',
                 votacao: resumoVotacao(votacoes[i].data() as Votacao | undefined, c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || ''),
                 // Só a secretaria precisa saber se o processo deixou de estar apto (para retirar).

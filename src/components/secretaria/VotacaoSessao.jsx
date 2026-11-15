@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CalendarClock, CheckCircle2, ClipboardList, Eye, Gavel, Hourglass, Loader2, Lock, Megaphone, Send, Undo2, UserRound } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ClipboardList, Eye, Gavel, Hourglass, Loader2, Lock, Megaphone, ScrollText, Send, Undo2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -77,7 +77,7 @@ function Relatar({ orgId, sessaoId, d, onMudou }) {
 
 /** Voto do vogal: acompanha, com ressalva, diverge, impedido ou suspeito; muda até a proclamação. */
 function Votar({ orgId, sessaoId, d, onMudou }) {
-    const [v, setV] = useState({ modo: d.meu_voto?.modo || '', resultado: d.meu_voto?.modo === 'diverge' ? d.meu_voto.resultado : '', nota: d.meu_voto?.nota || '' });
+    const [v, setV] = useState({ modo: d.meu_voto?.modo || '', resultado: d.meu_voto?.modo === 'diverge' ? d.meu_voto.resultado : '', nota: d.meu_voto?.nota || '', fundamentos: d.meu_voto?.fundamentos || '' });
     const [indo, setIndo] = useState(false);
     const outros = d.resultados.filter((r) => r !== d.resultado);
     const falta = !v.modo || (v.modo === 'diverge' && !v.resultado) || (v.modo === 'ressalva' && v.nota.trim().length < 5);
@@ -111,6 +111,14 @@ function Votar({ orgId, sessaoId, d, onMudou }) {
                 <div>
                     <Label htmlFor="vt-nota">{v.modo === 'ressalva' ? 'Ressalva' : v.modo === 'diverge' ? 'Síntese da divergência (opcional)' : 'Motivo (opcional)'}</Label>
                     <Textarea id="vt-nota" rows={3} className="mt-1" value={v.nota} onChange={(e) => setV({ ...v, nota: e.target.value })} />
+                </div>
+            )}
+            {['ressalva', 'diverge'].includes(v.modo) && (
+                <div>
+                    <Label htmlFor="vt-fundamentos-voto">{v.modo === 'diverge' ? 'Voto divergente fundamentado (opcional)' : 'Declaração de voto (opcional)'}</Label>
+                    <Textarea id="vt-fundamentos-voto" rows={6} className="mt-1" value={v.fundamentos} onChange={(e) => setV({ ...v, fundamentos: e.target.value })}
+                        placeholder={v.modo === 'diverge' ? 'Os fundamentos do seu voto. Se a divergência vencer e você for o primeiro a divergir, ele conduz o acórdão.' : 'Por que você acompanha com ressalva.'} />
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Os pares leem agora; depois do julgamento, vai ao acórdão, nos autos.</p>
                 </div>
             )}
             <Button disabled={indo || falta} onClick={enviar}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}{d.meu_voto ? 'Mudar meu voto' : 'Registrar meu voto'}</Button>
@@ -206,6 +214,84 @@ function Andamento({ d, indo, acao }) {
 }
 
 /**
+ * Acórdão (S6): o voto condutor define o redator, que escreve a ementa e o
+ * acórdão e envia à unidade como minuta assinada; a unidade junta aos autos,
+ * com o relatório, o voto condutor, os votos vencidos e as declarações.
+ */
+function Acordao({ orgId, sessaoId, d, indo, acao, membros, onMudou }) {
+    const a = d.acordao;
+    const [f, setF] = useState({ ementa: a.ementa || '', texto: a.texto || '' });
+    const [redator, setRedator] = useState(a.redator.uid);
+    const [confirmar, setConfirmar] = useState(false);
+    const [salvando, setSalvando] = useState(false);
+    const salvar = async (enviar) => {
+        setSalvando(true);
+        try {
+            await secProcesso(orgId, 'sessaoAcordao', { id: sessaoId, processo_id: d.processo_id, ...f, enviar });
+            toast.success(enviar ? 'Acórdão enviado à unidade, assinado por você. A unidade junta aos autos.' : 'Rascunho do acórdão guardado');
+            setConfirmar(false);
+            await onMudou();
+        } catch (e) { toast.error(e?.message || 'Não foi possível guardar'); } finally { setSalvando(false); }
+    };
+    const pronto = f.ementa.trim().length >= 10 && f.texto.trim().length >= 10;
+    const situacao = a.juntado_em ? `Juntado aos autos${a.ordem ? ` como documento nº ${a.ordem}` : ''} em ${new Date(a.juntado_em).toLocaleDateString('pt-BR')}.`
+        : a.enviado_em ? `Enviado à unidade em ${new Date(a.enviado_em).toLocaleDateString('pt-BR')}: falta a unidade juntar aos autos.`
+            : `A redigir até ${br(a.prazo)}${a.prazo < d.hoje ? ' (prazo vencido)' : ''}.`;
+    return (
+        <section className={caixa} aria-labelledby="vt-acordao">
+            <h3 id="vt-acordao" className={titulo}><ScrollText className="w-4 h-4" aria-hidden /> Acórdão <AjudaTermo id="acordao" /></h3>
+            <dl className="text-sm grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                {a.condutor && <><dt className="text-slate-600 dark:text-slate-400">Voto condutor</dt><dd className="text-slate-900 dark:text-white">{a.condutor.nome}{a.condutor.relator ? ' (relator)' : ' (primeiro a divergir para o resultado que venceu)'}</dd></>}
+                <dt className="text-slate-600 dark:text-slate-400">Redator</dt><dd className="text-slate-900 dark:text-white">{a.redator.nome}</dd>
+                <dt className="text-slate-600 dark:text-slate-400">Situação</dt><dd className={a.juntado_em ? 'text-emerald-800 dark:text-emerald-200' : 'text-slate-900 dark:text-white'}>{situacao}</dd>
+            </dl>
+            {d.pode.redesignar && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <select aria-label="Redator do acórdão" className={sel} value={redator} onChange={(e) => setRedator(e.target.value)}>
+                        {membros.map((m) => <option key={m.uid} value={m.uid}>{m.nome}</option>)}
+                    </select>
+                    <Button variant="outline" disabled={indo || redator === a.redator.uid} onClick={() => acao('sessaoRedator', { uid: redator }, () => 'Redator designado')}>Designar outro redator</Button>
+                </div>
+            )}
+            {d.pode.redigir && (
+                <div className="space-y-3 border-t border-slate-200 dark:border-slate-700 pt-3">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Você redige. O sistema monta o documento com a ementa, o acórdão, o relatório, o voto condutor, os votos vencidos e as declarações de voto, e envia à unidade assinado por você.</p>
+                    <div>
+                        <Label htmlFor="vt-ementa">Ementa</Label>
+                        <Textarea id="vt-ementa" rows={4} className="mt-1" value={f.ementa} onChange={(e) => setF({ ...f, ementa: e.target.value })} placeholder="Tema. Tese. Resultado, em poucas linhas." />
+                    </div>
+                    <div>
+                        <div className="flex items-end justify-between gap-2">
+                            <Label htmlFor="vt-texto-acordao">Acórdão</Label>
+                            {!f.texto && <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setF({ ...f, texto: a.modelo })}>Usar o texto sugerido</Button>}
+                        </div>
+                        <Textarea id="vt-texto-acordao" rows={6} className="mt-1" value={f.texto} onChange={(e) => setF({ ...f, texto: e.target.value })} placeholder={a.modelo} />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" disabled={salvando} onClick={() => salvar(false)}>Guardar rascunho</Button>
+                        <Button className="gap-1" disabled={salvando || !pronto} onClick={() => setConfirmar(true)}><Send className="w-4 h-4" aria-hidden /> Enviar à unidade</Button>
+                    </div>
+                </div>
+            )}
+            {confirmar && (
+                <Dialog open onOpenChange={(o) => !o && setConfirmar(false)}>
+                    <DialogContent className="max-w-md w-[calc(100vw-1rem)] sm:w-full">
+                        <DialogHeader>
+                            <DialogTitle>Enviar o acórdão à unidade?</DialogTitle>
+                            <DialogDescription>Vai como minuta assinada por você. A unidade confere e junta aos autos, e então as partes leem o acórdão e os votos. Se a unidade devolver, você corrige e envia de novo.</DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="gap-2">
+                            <Button variant="outline" onClick={() => setConfirmar(false)}>Voltar</Button>
+                            <Button disabled={salvando} onClick={() => salvar(true)}>{salvando && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Assinar e enviar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
+        </section>
+    );
+}
+
+/**
  * Julgamento de um processo da pauta: relator, voto liberado, votos dos pares
  * com placar ao vivo e proclamação. Cada um vê e faz o que o seu papel permite.
  */
@@ -284,6 +370,12 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                                             {x.modo ? <Badge variant="outline" className={x.modo === 'diverge' ? 'border-amber-300 text-amber-900 dark:border-amber-800 dark:text-amber-200' : ''}>{textoDoVoto(x)}</Badge>
                                                 : <span className="text-xs text-slate-500 dark:text-slate-400">{d.proclamado ? 'Ausente' : 'Aguardando'}</span>}
                                             {x.nota && <p className="w-full text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line">{x.nota}</p>}
+                                            {x.fundamentos && (
+                                                <details className="w-full text-sm">
+                                                    <summary className="cursor-pointer text-indigo-700 dark:text-indigo-300 text-xs">{x.modo === 'diverge' ? 'Ler o voto divergente' : 'Ler a declaração de voto'}</summary>
+                                                    <p className="mt-1 whitespace-pre-line text-slate-800 dark:text-slate-200">{x.fundamentos}</p>
+                                                </details>
+                                            )}
                                         </li>
                                     ))}
                                 </ul>
@@ -302,6 +394,7 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                             <p className="text-xs text-slate-600 dark:text-slate-400">A proclamação abre no dia da sessão, {br(d.data_sessao)}.</p>
                         )}
 
+                        {d.acordao && <Acordao key={`${d.acordao.redator.uid}-${d.acordao.enviado_em || ''}`} orgId={orgId} sessaoId={sessaoId} d={d} indo={indo} acao={acao} membros={d.membros} onMudou={mudou} />}
                         <Andamento d={d} indo={indo} acao={acao} />
                         {d.liberado_em && !d.proclamado && d.pendente && d.situacao_item === 'pautado' && !d.pode.vista && !d.pode.adiar && d.sou_relator && (
                             <p className="text-xs text-slate-600 dark:text-slate-400">Os vogais podem pedir vista; o presidente pode adiar o julgamento ou convertê-lo em diligência.</p>
