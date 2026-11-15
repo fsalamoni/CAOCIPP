@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { secProcesso } from '@/services/secretariaService';
 import AjudaTermo from './AjudaTermo';
 import {
-    CRITERIOS, DIAS_UTEIS_MINIMOS, HORAS_LANCES, MAX_ITENS, PERFIS_DISPUTA, UNIDADES_DISPUTA, faltaPara, moeda, numero, percentual, quandoBr, valorEstimado,
+    CRITERIOS, DIAS_UTEIS_MINIMOS, HORAS_LANCES, MAX_ITENS, PERFIS_DISPUTA, UNIDADES_DISPUTA, faltaPara, moeda, numero, quandoBr, valorEstimado,
 } from '@/lib/certames';
 
 /**
