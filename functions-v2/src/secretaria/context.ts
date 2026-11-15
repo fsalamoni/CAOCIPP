@@ -16,6 +16,7 @@ import { CalendarioOrgao, hojeBrasil, sanitizeCalendario } from '../shared/secre
 import { leituraDeJulgador } from '../shared/sessoes';
 import { marcasDoDestino } from '../shared/exigencias';
 import { faseComPrazoDeAcao } from '../shared/prazosFase';
+import type { Ator } from '../shared/permissoesFase';
 
 export const REGION = 'southamerica-east1';
 
@@ -208,6 +209,19 @@ export function exigirPosse(c: Contexto, proc: admin.firestore.DocumentData) {
     if (!podeAgir(proc as never, c.ctx)) {
         throw new HttpsError('permission-denied', 'O processo não está com uma unidade em que você esteja lotado');
     }
+}
+
+/**
+ * Quem pratica o ato, como o rito o enxerga na unidade que tem o processo:
+ * administração, gestão da unidade, responsável designado e a atribuição que a
+ * pessoa tem na lotação (shared/permissoesFase.ts).
+ */
+export function atorDe(c: Contexto, proc: admin.firestore.DocumentData): Ator {
+    const un = c.unidades.find((u) => u.id === proc.unidade_atual);
+    return {
+        isAdmin: c.ctx.isAdmin, gestor: c.gestorDe.includes(String(proc.unidade_atual)), responsavel: !!proc.responsavel_uid && proc.responsavel_uid === c.ctx.uid,
+        atribuicao: un ? lotacoesDe(un).find((l) => l.uid === c.ctx.uid)?.atribuicao || '' : '',
+    };
 }
 
 export function conferirVersao(proc: admin.firestore.DocumentData, esperada: unknown) {

@@ -341,6 +341,13 @@ informado.
   hora do fim (CPC, art. 367, por analogia); quem conduziu assina. O termo
   vai aos autos pela juntada, como qualquer documento, e é ele que as
   partes veem. Se a audiência não se realizou, o termo diz por quê.
+- **Disputa de preços.** A contratação escolhe o fornecedor por um ato do
+  rito, e não fora dele: o aviso, o adiamento e o cancelamento vão aos autos,
+  e o resultado (homologada, deserta ou fracassada) decide o caminho. O
+  fornecedor não é parte e não vê os autos: vê o aviso e a própria proposta.
+  O conteúdo das propostas fica em sigilo até a abertura, para ninguém
+  ajustar preço pelo dos outros. Na dispensa eletrônica, a abertura respeita
+  ao menos 3 dias úteis da publicação (IN SEGES/ME 67/2021, art. 6º).
 - **Reunião deliberativa.** O colegiado também decide assuntos que não são
   processos. Cada assunto tem a forma de votação e a maioria que ele exige:
   simples (mais votos a favor que contra), absoluta (mais da metade dos

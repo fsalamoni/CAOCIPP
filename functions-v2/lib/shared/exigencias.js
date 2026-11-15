@@ -60,6 +60,7 @@ Object.defineProperty(exports, "QUEM", { enumerable: true, get: function () { re
 const comunicacaoRito_1 = require("./comunicacaoRito");
 const audiencias_1 = require("./audiencias");
 const julgamento_1 = require("./julgamento");
+const certames_1 = require("./certames");
 const listasOrgao_1 = require("./listasOrgao");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
@@ -111,7 +112,7 @@ exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.MAX_ASSINATURAS_EXIGIDAS = 5;
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -222,6 +223,11 @@ function sanitizeRegra(raw, acao) {
         Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
         return Object.assign(Object.assign(Object.assign({}, out), { pede: 'audiencia', audiencia: (0, audiencias_1.sanitizeAudienciaDaAcao)(r.audiencia, acao), destino: 'autos', partes: true }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
     }
+    // Disputa de preços: aviso, propostas e resultado são atos públicos, nos autos.
+    if (pedeBruto === 'disputa') {
+        Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
+        return Object.assign(Object.assign(Object.assign({}, out), { pede: 'disputa', disputa: (0, certames_1.sanitizeDisputaDaAcao)(r.disputa, acao), destino: 'autos', partes: true }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
+    }
     // Julgamento colegiado: a certidão (resultado, placar, relator, vencidos, impedidos) é ato público, nos autos.
     if (pedeBruto === 'julgamento') {
         Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
@@ -322,6 +328,8 @@ function opcoesDaResposta(r, campo) {
         return [...comunicacaoRito_1.RESPOSTAS];
     if (r.pede === 'julgamento')
         return [...(((_b = r.julgamento) === null || _b === void 0 ? void 0 : _b.resultados) || [])];
+    if (r.pede === 'disputa')
+        return [...certames_1.RESULTADOS_DISPUTA];
     return null;
 }
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */

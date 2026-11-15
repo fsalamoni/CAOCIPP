@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Disputa de preços: cotação privada e dispensa eletrônica
+- Décima primeira etapa do plano de sessões de julgamento, reuniões e pregão: a primeira da contratação.
+- **Nova ação do rito, "Disputa de preços":** o rito escolhe cotação privada (só convidados) ou dispensa eletrônica (link público, IN SEGES/ME 67/2021). A ação se cumpre com o resultado (Homologada, Deserta ou Fracassada), que decide o caminho do rito.
+- **Aviso:** objeto, itens (com valor estimado, lote e exclusividade para ME/EPP; dá para colar da planilha), menor preço ou maior desconto, por item ou por lote, orçamento sigiloso, abertura, intervalo entre lances, condições e habilitação. Publicado, vai aos autos; adiamento e cancelamento também, com motivo e e-mail a quem participa.
+- **Prazo mínimo conferido no servidor:** 3 dias úteis na dispensa (IN 67/2021, art. 6º), 1 na cotação, em dia útil e horário comercial, com os feriados do órgão.
+- **Página Disputas, do fornecedor:** convite por e-mail ou código do aviso, cadastro com CNPJ ou CPF conferidos, proposta por item, declarações e recibo. Até a abertura, atualiza ou retira; o órgão só sabe quantas propostas chegaram.
+- Sem lances, a abertura mostra a classificação; com lances, a sala de lances vem na próxima etapa.
+
 ### 15/11/2026 — Sala da audiência
 - Décima etapa do plano de sessões de julgamento, reuniões e pregão.
 - **A audiência designada pelo rito agora acontece na plataforma:** no dia, quem tem o processo abre a sala pelo aviso no alto do processo.

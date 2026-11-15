@@ -54,6 +54,7 @@ import ImpressaoInterna from './ImpressaoInterna';
 import { rotuloFinalizar } from '@/lib/juntadaConjunta';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SalaAudiencia from './SalaAudiencia';
+import DisputaPrecos from './DisputaPrecos';
 import { audienciasParaSala } from '@/lib/audienciaSala';
 
 const MAX_MB = 5;
@@ -69,6 +70,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [acao, setAcao] = useState(null); // {tipo, ...}
     const [ocupado, setOcupado] = useState(false);
     const [salaAud, setSalaAud] = useState(null); // id da audiência aberta na sala (S10)
+    const [disputa, setDisputa] = useState(false); // disputa de preços da ação (S11)
     const [linkConvite, setLinkConvite] = useState(null); // {link, emailEnviado}
     const [editor, setEditor] = useState(null); // {docId?, titulo, tipo, conteudo, somenteLeitura, modeloId?}
     const [pdf, setPdf] = useState(null); // {base64, nome, titulo}
@@ -624,9 +626,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             onExpedir={() => setAcao({ tipo: 'comunicar', daAcao: { idx: i, nome: a, cfg: r.comunicacao, alvos, faltam } })}
                                             nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
-                                            onRegistrar={() => setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version,
+                                            certame={r?.pede === 'disputa' && p.certame?.fase_id === faseAtual.id && p.certame?.acao_idx === i ? p.certame : null}
+                                            onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version,
                                                 proclamado: r?.pede === 'julgamento' ? p.sessao?.proclamado || null : null,
-                                                membros: r?.pede === 'julgamento' ? membrosDoJulgamento(estado, p.unidade_atual, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) : [] })}
+                                                membros: r?.pede === 'julgamento' ? membrosDoJulgamento(estado, p.unidade_atual, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) : [] }))}
                                             onDesfazer={desfazer} />
                                     </li>
                                 );
@@ -1003,6 +1006,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onFechar={() => setConjunta(false)}
             />
             {salaAud && <SalaAudiencia orgId={orgId} procId={procId} audienciaId={salaAud} onFechar={() => { setSalaAud(null); atualizar(); }} />}
+            {disputa && <DisputaPrecos orgId={orgId} procId={procId} onFechar={() => { setDisputa(false); atualizar(); }} />}
             <ImpressaoInterna aberto={interna} movimentos={movimentos} documentos={documentos} gerar={(sel) => secExportarInterno(orgId, procId, sel)} onFechar={() => setInterna(false)} />
             <VersoesMinuta orgId={orgId} procId={procId} documento={versoesDe} ocupado={ocupado} onLer={(v) => lerVersao(versoesDe, v)} onFechar={() => setVersoesDe(null)} />
             <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>

@@ -65,6 +65,8 @@ export const A = {
     audiencia: (texto, especie, extra) => com(texto, { pede: 'audiencia', audiencia: { especie } }, extra),
     /** Julgamento colegiado: resultados (as opções das saídas), e em `opts` quorum, desempate 'favoravel' e favoravel. */
     julgamento: (texto, resultados, opts = {}, extra) => com(texto, { pede: 'julgamento', julgamento: { resultados, ...opts } }, extra),
+    /** Disputa de preços: perfil 'cotacao' ou 'dispensa'; as saídas são Homologada, Deserta e Fracassada. */
+    disputa: (texto, perfil, extra) => com(texto, { pede: 'disputa', disputa: { perfil } }, extra),
 };
 
 /** Condição: a resposta da ação `acao` (nome) for uma destas. */

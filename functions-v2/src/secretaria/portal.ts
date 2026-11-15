@@ -28,6 +28,7 @@ import { Ref, refsFechadas } from '../shared/modulos';
 import { NOME_PEDIDO, PedidoSessao, TIPOS_PEDIDO, problemaDoPedido, sanitizePedido } from '../shared/sessoes';
 import { COL_SESSOES } from './sessoes';
 import { atualizarPainel } from './painelAta';
+import { ACOES_FORNECEDOR, acaoFornecedor } from './certames';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -182,6 +183,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
     const db = admin.firestore();
     const uid = auth.uid;
     const nomeConta = String(auth.token.name || auth.token.email || 'Parte');
+    // Fornecedor em disputa de preços (S11): não é parte e não vê os autos.
+    if (typeof p.action === 'string' && ACOES_FORNECEDOR.includes(p.action)) return acaoFornecedor(db, auth, p as unknown as Record<string, unknown>);
 
     if (p.action === 'aceitarConvite') {
         const token = String(p.convite || '');

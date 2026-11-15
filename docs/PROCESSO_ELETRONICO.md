@@ -1573,6 +1573,65 @@ seja ela monocrática ou não. Lógica pura em `shared/audienciaSala.ts`
   `termo_audiencia`. Testes: `functions-v2/test/audienciaSala.test.js` e
   `src/lib/audienciaSala.test.js`.
 
+### Disputa de preços: o certame (15/11/2026)
+
+Décima primeira etapa (S11), a primeira da contratação. Nova ação do rito
+`pede: 'disputa'`, com `disputa: { perfil: 'cotacao' | 'dispensa' }`
+(destino autos, partes veem). As opções da ação, para condições e saídas,
+são `Homologada`, `Deserta` e `Fracassada`; ela se cumpre com o resultado
+do certame (etapa S13), e `marcarAcao` recusa marcá-la à mão. Lógica pura em
+`shared/certames.ts` (espelho `src/lib/certames.js`); servidor em
+`secretaria/certames.ts`.
+
+- **Certame** em `secCertames/{id}` (fora do processo, porque o fornecedor
+  não é parte; regras do Firestore fecham a coleção e as subcoleções):
+  aviso (`objeto, criterio, unidade_disputa, itens, intervalo,
+  orcamento_sigiloso, abertura_data, abertura_hora, lances, horas_lances,
+  condicoes, habilitacao`), `perfil`, `situacao` (rascunho, publicado,
+  cancelado; em_disputa e encerrado nas etapas seguintes), `codigo` (8
+  letras, para o link `/Disputas?c=`), `abertura_em` (UTC), `convites`
+  (nome, e-mail, hash do token), `convites_hashes`, `fornecedores_uids`,
+  `propostas_n`, `adiamentos`, `cancelado`. O processo guarda só o resumo em
+  `certame` (`id, situacao, perfil, fase_id, acao_idx, abertura_em, codigo`),
+  que a tela usa.
+- **Ações do órgão** `certame*` em `secretariaProcesso`: `certameLer`
+  (quem vê o processo), `certameSalvar`, `certamePublicar`, `certameAdiar`,
+  `certameCancelar`, `certameConvidar`, `certameRevogarConvite` e
+  `certamePropostas` (quem tem o processo; montar e publicar também exige
+  poder cumprir a ação, se o rito a reserva). Publicar confere
+  `problemasParaPublicar`: objeto, ao menos um item, preço de referência no
+  maior desconto e abertura a partir de `aberturaMinima` (3 dias úteis na
+  dispensa, IN 67/2021, art. 6º, parágrafo único; 1 na cotação), em dia
+  útil e entre 8h e 18h. Publicação, adiamento (só para depois) e
+  cancelamento são movimentos nos autos (`disputa_publicada`,
+  `disputa_adiada`, `disputa_cancelada`); descartar o rascunho não deixa
+  rastro. Convite só depois de publicar e antes da abertura (token por
+  e-mail, válido por 60 dias).
+- **Ações do fornecedor** `disputa*` em `secretariaPortal` (qualquer conta
+  autenticada): `disputaMinhas`, `disputaAviso` (por id ou código; a
+  cotação só para convidados), `disputaConvite`, `disputaParticipar` (só
+  dispensa), `disputaProposta` e `disputaRetirar` (só antes da abertura).
+  A proposta fica em `secCertames/{id}/propostas/{uid}`, com o cadastro
+  (`sanitizeLicitante`: razão social, CNPJ ou CPF com dígitos, porte) e os
+  itens (`sanitizeProposta`: valor com até 4 casas, percentual no maior
+  desconto, lote inteiro ou nada, item exclusivo só para ME/EPP,
+  declarações obrigatórias e a de ME/EPP para quem se declara). O cadastro
+  fica em `secPortalAcessos/{uid}.fornecedor` para a próxima disputa;
+  `participantes/{uid}` guarda o e-mail para os avisos.
+- **Sigilo:** ninguém do órgão lê as propostas antes de `abertura_em`; a
+  leitura mostra só `propostas_n`. Depois da abertura, sem lances,
+  `certamePropostas` classifica cada item ou lote (empate: quem enviou
+  antes, IN 67/2021, art. 12, § 1º). Com lances, a abertura é da sala de
+  lances (S12). O orçamento sigiloso não sai no aviso nem para o
+  fornecedor.
+- Auditoria: `SECRETARIA_SESSAO_DISPUTA_CRIADA`, `_PUBLICADA`, `_ADIADA`,
+  `_CANCELADA`.
+- Tela: botão "Montar a disputa" na ação (`DisputaPrecos.jsx`); página
+  pública `Disputas` (`pages/Disputas.jsx`) para o fornecedor, com o
+  `Entrar` do portal. Editor do rito com o tipo de disputa, guia do rito e
+  glossário `disputa_precos`. Testes: `functions-v2/test/certames.test.js` e
+  `src/lib/certames.test.js`.
+
 ### Reunião deliberativa (15/11/2026)
 
 Nona etapa (S9). A sessão ganha o tipo `reuniao` (`secSessoes`, campo

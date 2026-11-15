@@ -384,6 +384,8 @@ service cloud.firestore {
     match /secConvitesEquipe/{id} { allow read, write: if false; }
     match /secLimites/{id} { allow read, write: if false; }
     match /secSessoes/{id} { allow read, write: if false; }
+    // Disputa de preços (S11): aviso, convites e propostas sigilosas só pelas Functions.
+    match /secCertames/{id=**} { allow read, write: if false; }
     // Painel ao vivo da sessão (S8): cópia, feita pelas Functions, do que todos
     // os leitores podem ver (sem votos antes da proclamação nem assunto de
     // processo restrito). Lê quem está em `leitores`; ninguém escreve.

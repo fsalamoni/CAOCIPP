@@ -172,7 +172,7 @@ function Avisos() {
     );
 }
 
-function Entrar({ convite }) {
+export function Entrar({ convite, titulo, texto }) {
     const { signInWithGoogle } = useAuth();
     const [modo, setModo] = useState('entrar'); // entrar | criar | link
     const [nome, setNome] = useState('');
@@ -240,10 +240,10 @@ function Entrar({ convite }) {
     return (
         <div className="max-w-md mx-auto space-y-4">
             <div className="text-center space-y-1">
-                <h1 className="text-2xl font-semibold">{convite ? 'Entre para aceitar o convite' : 'Portal das partes'}</h1>
+                <h1 className="text-2xl font-semibold">{convite ? 'Entre para aceitar o convite' : titulo || 'Portal das partes'}</h1>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                    Aqui você acompanha os processos em que participa, lê todos os documentos, baixa o processo completo e se manifesta a qualquer momento.
-                    Para entrar pela primeira vez, use o link de convite que recebeu.
+                    {texto || <>Aqui você acompanha os processos em que participa, lê todos os documentos, baixa o processo completo e se manifesta a qualquer momento.
+                        Para entrar pela primeira vez, use o link de convite que recebeu.</>}
                 </p>
             </div>
             <Card>
