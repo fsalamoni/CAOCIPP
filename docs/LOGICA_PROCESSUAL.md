@@ -295,6 +295,14 @@ informado.
   alcança o que está juntado aos autos e fica registrada, para que a unidade
   saiba quem consultou. As anotações do julgador são dele: não são ato do
   processo e não vão aos autos.
+- **Votação na sessão.** O relator vota primeiro e expõe o caso; os demais
+  votam depois de conhecer o voto dele (por isso o voto do relator só se
+  libera com relatório e fundamentos, e não muda depois). Cada um vota por
+  si, e o voto só se torna definitivo com a proclamação do resultado pelo
+  presidente; até ali, o membro pode reconsiderar (CPC, art. 941, § 1º, por
+  analogia). Quem não votou conta como ausente, e o resultado segue a
+  maioria, o quórum e o desempate que o rito define. A proclamação é o ato
+  que vai aos autos, como certidão de julgamento.
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

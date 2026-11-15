@@ -60,3 +60,34 @@ export function agruparSessoes(sessoes, hoje) {
         passadas: sessoes.filter((s) => !ativa(s) || (s.situacao === 'publicada' && s.data < hoje)).reverse(),
     };
 }
+
+// ---- Votação na sessão (S4): espelho de functions-v2/src/shared/sessoes.ts ----
+
+/** Como o vogal vota. */
+export const MODOS_VOTO = {
+    acompanha: 'Acompanho o relator',
+    ressalva: 'Acompanho o relator, com ressalva',
+    diverge: 'Divirjo do relator',
+    impedido: 'Declaro-me impedido',
+    suspeito: 'Declaro-me suspeito',
+};
+
+/** "Acompanha o relator", "Diverge: Improcedente", "Impedido". */
+export function textoDoVoto(v) {
+    if (!v?.modo) return '';
+    if (v.modo === 'acompanha') return 'Acompanha o relator';
+    if (v.modo === 'ressalva') return 'Acompanha, com ressalva';
+    if (v.modo === 'diverge') return `Diverge: ${v.resultado}`;
+    return v.modo === 'impedido' ? 'Impedido' : 'Suspeito';
+}
+
+/** Situação do julgamento na linha da pauta (resumo vindo de sessaoObter). */
+export function situacaoDaVotacao(x) {
+    const v = x?.votacao;
+    if (!v) return '';
+    if (v.proclamado) return `Proclamado: ${v.proclamado}`;
+    if (v.aguarda_meu_voto) return 'Aguarda o seu voto';
+    if (v.liberado) return `${v.votaram} de ${v.vogais} ${v.vogais === 1 ? 'vogal votou' : 'vogais votaram'}`;
+    if (v.sou_relator) return 'Você relata: voto a liberar';
+    return x.relator_nome ? 'Voto do relator a liberar' : '';
+}

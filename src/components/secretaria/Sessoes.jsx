@@ -9,11 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { secProcesso } from '@/services/secretariaService';
-import { CARATER_SESSAO, INCLUSAO, MODOS_SESSAO, SITUACAO_SESSAO, agruparSessoes, br, ondeSessao, problemasDaSessao, textoAntecedencia } from '@/lib/sessoes';
+import { CARATER_SESSAO, INCLUSAO, MODOS_SESSAO, SITUACAO_SESSAO, agruparSessoes, br, ondeSessao, problemasDaSessao, situacaoDaVotacao, textoAntecedencia } from '@/lib/sessoes';
 import { POLOS, SeloUrgente } from './comum';
 import AjudaTermo from './AjudaTermo';
 import ErroQuery from './ErroQuery';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
+import VotacaoSessao from './VotacaoSessao';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const sel = 'h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
@@ -344,8 +345,20 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     </div>
                     {x.partes?.length > 0 && <p className="text-slate-700 dark:text-slate-300"><Users className="inline w-3.5 h-3.5 -mt-0.5 mr-1" aria-hidden />{x.partes.map((p) => `${p.nome} (${POLOS[p.polo] || p.polo})`).join('; ')}</p>}
                     {x.motivo && <p className="text-xs text-slate-600 dark:text-slate-400">{fora ? 'Motivo da retirada' : 'Motivo da inclusão'}: {x.motivo}</p>}
+                    {!fora && s.situacao !== 'cancelada' && (x.relator_nome || (gere && !x.julgado)) && (
+                        <p className="text-xs text-slate-700 dark:text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span>{x.relator_nome ? `Relator: ${x.relator_nome}` : 'Sem relator designado'}</span>
+                            {situacaoDaVotacao(x) && <span className={x.votacao?.aguarda_meu_voto ? 'font-semibold text-amber-800 dark:text-amber-200' : x.votacao?.proclamado ? 'font-semibold text-emerald-800 dark:text-emerald-200' : ''}>· {situacaoDaVotacao(x)}</span>}
+                        </p>
+                    )}
                     {x.problema && <p className="text-xs text-amber-800 dark:text-amber-200 flex gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden /> O processo {x.problema}. Retire da pauta ou acerte o processo antes de {s.situacao === 'rascunho' ? 'publicar' : 'julgar'}.</p>}
                 </div>
+                {!fora && s.situacao !== 'cancelada' && (gere || x.votacao?.liberado || x.votacao?.sou_relator || x.votacao?.proclamado) && (
+                    <Button size="sm" variant={x.votacao?.aguarda_meu_voto || (x.votacao?.sou_relator && !x.votacao?.liberado) ? 'default' : 'outline'} className="shrink-0 gap-1 self-start"
+                        aria-label={`Julgamento de ${x.numero}`} onClick={() => setDialogo({ votacao: x.processo_id })}>
+                        <Gavel className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Julgamento</span>
+                    </Button>
+                )}
                 {pode && !fora && !x.julgado && (
                     <Button size="icon" variant="ghost" className="shrink-0 text-rose-700 dark:text-rose-300" aria-label={`Tirar ${x.numero} da pauta`} disabled={indo} onClick={() => tirar(x)}><Trash2 className="w-4 h-4" aria-hidden /></Button>
                 )}
@@ -408,7 +421,8 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
             </section>
 
             {dialogo === 'editar' && <FormSessao orgId={orgId} colegiados={[{ id: s.orgao_id, nome: colegiado.nome, pauta: colegiado.pauta }]} sessao={s} hoje={hoje} onFechar={() => setDialogo(null)} onSalvo={async () => { setDialogo(null); await atualizar(); }} />}
-            {dialogo === 'incluir' && <IncluirProcessos orgId={orgId} sessao={s} pautados={new Set(pautados.map((x) => x.processo_id))} onFechar={() => setDialogo(null)} onIncluido={atualizar} />}
+            {dialogo?.votacao && <VotacaoSessao orgId={orgId} sessaoId={id} processoId={dialogo.votacao} onFechar={() => setDialogo(null)} onMudou={atualizar} />}
+            {dialogo === 'incluir' &&<IncluirProcessos orgId={orgId} sessao={s} pautados={new Set(pautados.map((x) => x.processo_id))} onFechar={() => setDialogo(null)} onIncluido={atualizar} />}
             {dialogo === 'publicar' && (
                 <Dialog open onOpenChange={(o) => !o && setDialogo(null)}>
                     <DialogContent className="max-w-lg w-[calc(100vw-1rem)] sm:w-full">

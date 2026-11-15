@@ -1533,6 +1533,44 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Votação na sessão: relator, vogais e proclamação (15/11/2026)
+
+Quarta etapa (S4). Quem vota é o próprio julgador, na conta dele; a equipe
+não digita mais os votos quando o colegiado vota pela sessão.
+
+- **Onde:** `secSessoes/{sessao}/votacoes/{processo}` (fechada ao cliente),
+  pelas ações `sessaoVotacao`, `sessaoRelator`, `sessaoRelatar`,
+  `sessaoVotar` e `sessaoProclamar` (`secretaria/votacao.ts`). Regras puras em
+  `shared/sessoes.ts` (`votantes`, `sanitizeVoto`, `votosDaSessao`,
+  `placarParcial`); apuração, quórum e desempate seguem `shared/julgamento.ts`.
+- **Quem vota:** o presidente e os titulares da composição no dia da sessão.
+  O suplente não vota nesta etapa (a convocação no lugar de um titular vem
+  depois).
+- **Relator:** a secretaria designa na pauta (`ItemPauta.relator_uid`,
+  `relator_nome`), entre quem vota. O relator escreve relatório, resultado e
+  fundamentos; o rascunho é só dele. Liberar exige pauta publicada, resultado
+  e os dois textos; liberado, o voto e a relatoria não mudam mais.
+- **Vogais:** depois da liberação, acompanham, acompanham com ressalva
+  (texto obrigatório), divergem (outro resultado do rito, síntese opcional)
+  ou se declaram impedidos ou suspeitos. O voto muda até a proclamação. Os
+  pares e a secretaria veem os votos e o placar; a tela se atualiza sozinha.
+- **Proclamação:** o presidente, ou a secretaria que conduz a sessão no
+  sistema, no dia da sessão ou depois. Quem não votou fica ausente. O
+  servidor monta os votos (relator, presidente, titulares) e confere tudo com
+  `dadosDoJulgamento`; grava `proclamado` na votação e em
+  `processo.sessao.proclamado`. Em seguida o sistema registra o julgamento na
+  ação do rito pelo mesmo caminho de "Registrar julgamento"
+  (`registrarJulgamentoDaSessao`, contexto do sistema, autor "Fulano
+  (proclamação na sessão)"): certidão de julgamento nos autos, saída da fase
+  e avanço automático quando o rito manda. Se não couber (o rito mudou),
+  a unidade registra, e o diálogo já vem com os votos proclamados, que o
+  servidor impõe.
+- **Sigilo:** relatório e voto não vão aos autos nem ao portal nesta etapa;
+  o acórdão e os votos vencidos vão aos autos na etapa do acórdão (S6).
+- **Pauta:** cada item mostra o relator e a situação ("Aguarda o seu voto",
+  "1 de 2 vogais votaram", "Proclamado: Procedente") e o botão Julgamento.
+- **Glossário:** relator, vogal e proclamação.
+
 ### Leitura dos autos pelo julgador e anotações privadas (15/11/2026)
 
 Terceira etapa (S3), com a decisão do Flavio: o julgador de outra unidade lê
