@@ -15,7 +15,7 @@ import { COL, Contexto, contextoDoSistema, erroUsuario, registrarMovimento } fro
 import { COL_SESSOES, colegiado, gereSessoes, incluirNaSessao, lerConfig, lerSessao, proximaSessao, veSessoes } from './sessoes';
 import { registrarJulgamentoDaSessao } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
-
+import { atualizarPainel, montarAta } from './painelAta';
 /**
  * Votação na sessão de julgamento (etapa S4), em secSessoes/{sessao}/votacoes/{processo}.
  * A secretaria designa o relator entre quem vota no dia (presidente e
@@ -75,11 +75,14 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
     if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere)) throw new HttpsError('not-found', 'Sessão não encontrada');
     if (p.action === 'sessaoEncerrar') {
         const presidente = composicaoEm(o.composicao, s.data).some((m) => m.uid === quem.uid && m.funcao === 'presidente');
-        if (!gere && !presidente) throw new HttpsError('permission-denied', 'Encerra a sessão virtual o presidente do colegiado (ou a secretaria)');
-        if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa) throw new HttpsError('failed-precondition', 'Só a sessão virtual publicada se encerra aqui');
-        if (!virtualEncerrou(s, hoje)) throw new HttpsError('failed-precondition', `A votação vai até ${br(String(s.fim))}: o resultado se apura no dia seguinte`);
-        const r = await encerrarVirtual(c.db, c.orgId, sref.id);
-        await auditar(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_VIRTUAL_ENCERRADA', { sessao_id: sref.id, ...r });
+        if (!gere && !presidente) throw new HttpsError('permission-denied', 'Encerra a sessão o presidente do colegiado (ou a secretaria)');
+        if (s.situacao !== 'publicada' || !s.ativa) throw new HttpsError('failed-precondition', 'Só a sessão publicada se encerra (esta já foi encerrada ou cancelada)');
+        const virtual = s.modo === 'assincrona';
+        if (virtual && !virtualEncerrou(s, hoje)) throw new HttpsError('failed-precondition', `A votação vai até ${br(String(s.fim))}: o resultado se apura no dia seguinte`);
+        if (!virtual && s.data > hoje) throw new HttpsError('failed-precondition', `A sessão se encerra no dia dela (${br(s.data)}) ou depois`);
+        // S8: na síncrona, o que não foi julgado segue para a sessão seguinte, por ato de quem encerra.
+        const r = await encerrarSessao(c.db, c.orgId, sref.id, virtual ? undefined : c);
+        await auditar(c.db, c.orgId, quem.uid, quem.nome, virtual ? 'SECRETARIA_SESSAO_VIRTUAL_ENCERRADA' : 'SECRETARIA_SESSAO_ENCERRADA', { sessao_id: sref.id, ...r });
         return { ok: true, ...r };
     }
     const pid = String(p.processo_id || '');
@@ -489,32 +492,43 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
 }
 
 /**
- * Fim da sessão virtual (S7): o sistema apura cada processo pautado, como o
- * presidente faria. Sem resultado (o relator não liberou o voto, faltou
- * quórum), o julgamento é adiado para a sessão seguinte com os votos já dados
- * (Res. CNJ 591/2024, art. 5º, §§ 7º e 8º). Depois, a sessão fica encerrada.
+ * Encerra a sessão publicada. Virtual (S7, sem `quem`): o sistema apura cada
+ * processo como o presidente faria e, sem resultado (o relator não liberou o
+ * voto, faltou quórum), adia com os votos já dados (Res. CNJ 591/2024, art. 5º,
+ * §§ 7º e 8º). Síncrona (S8, com
+ * `quem`, o presidente ou a secretaria): o que não foi julgado segue para a
+ * sessão seguinte, com os votos já dados. Depois, a ata é lavrada e o painel,
+ * atualizado.
  */
-export async function encerrarVirtual(db: admin.firestore.Firestore, orgId: string, sessaoId: string): Promise<{ proclamados: number; adiados: number }> {
-    const sis = await contextoDoSistema(db, orgId);
-    if (!sis) return { proclamados: 0, adiados: 0 };
-    const c: Contexto = { ...sis, userName: 'Sistema (fim da sessão virtual)' };
+export async function encerrarSessao(db: admin.firestore.Firestore, orgId: string, sessaoId: string, quem?: Contexto): Promise<{ proclamados: number; adiados: number }> {
+    const sis = quem ? null : await contextoDoSistema(db, orgId);
+    if (!quem && !sis) return { proclamados: 0, adiados: 0 };
+    const c: Contexto = quem || { ...sis!, userName: 'Sistema (fim da sessão virtual)' };
     const { ref, s } = await lerSessao(c, sessaoId);
-    if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa || !virtualEncerrou(s, hojeBrasil())) return { proclamados: 0, adiados: 0 };
+    const virtual = s.modo === 'assincrona';
+    if (s.situacao !== 'publicada' || !s.ativa || (virtual ? !virtualEncerrou(s, hojeBrasil()) : !quem)) return { proclamados: 0, adiados: 0 };
     let proclamados = 0;
     let adiados = 0;
     for (const it of (s.pauta || []).filter((x) => x.situacao === 'pautado')) {
         if ((await ref.collection('votacoes').doc(it.processo_id).get()).data()?.proclamado) continue;
         const base = { id: sessaoId, processo_id: it.processo_id };
-        try {
-            await acaoVotacao(c, { ...base, action: 'sessaoProclamar' });
-            proclamados++;
-        } catch (e) {
-            const porque = String((e as Error).message || '').replace(/[.\s]+$/, '');
-            // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
-            await acaoVotacao(c, { ...base, action: 'sessaoAdiar', motivo: `a votação virtual terminou sem resultado (${porque})` }).then(() => { adiados++; }, () => undefined);
+        let porque = 'não foi julgado na sessão';
+        if (virtual) {
+            try {
+                await acaoVotacao(c, { ...base, action: 'sessaoProclamar' });
+                proclamados++;
+                continue;
+            } catch (e) { porque = `a votação virtual terminou sem resultado (${String((e as Error).message || '').replace(/[.\s]+$/, '')})`; }
         }
-    }
-    await ref.update({ situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerra_em: FieldValue.delete(), version: FieldValue.increment(1), updated_at: FieldValue.serverTimestamp() });
+        // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
+        await acaoVotacao(c, { ...base, action: 'sessaoAdiar', motivo: porque }).then(() => { adiados++; }, () => undefined);
+    }    await ref.update({
+        situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerrada_por_nome: c.userName, encerra_em: FieldValue.delete(), em_julgamento: FieldValue.delete(),
+        version: FieldValue.increment(1), updated_at: FieldValue.serverTimestamp(),
+    });
+    // A ata sai pronta para conferir e assinar (a secretaria ajusta antes da primeira assinatura).
+    await montarAta(db, orgId, sessaoId).then((ata) => ref.update({ ata }), (e) => console.error('ata não lavrada', sessaoId, e));
+    await atualizarPainel(db, orgId, sessaoId);
     return { proclamados, adiados };
 }
 
@@ -525,7 +539,7 @@ export async function encerrarSessoesVirtuais(db: admin.firestore.Firestore, hoj
     for (const d of q.docs) {
         const s = d.data();
         if (s.situacao !== 'publicada' || !s.ativa) { await d.ref.update({ encerra_em: FieldValue.delete() }); continue; }
-        await encerrarVirtual(db, String(s.organization_id), d.id).then(() => { n++; }, (e) => console.error('encerrarVirtual', d.id, e));
+        await encerrarSessao(db, String(s.organization_id), d.id).then(() => { n++; }, (e) => console.error('encerrarSessao', d.id, e));
     }
     return n;
 }

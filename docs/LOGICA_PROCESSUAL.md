@@ -335,6 +335,13 @@ informado.
   com preferência e os iniciados em sessão anterior (CPC, art. 936). Os
   pedidos da parte e a decisão sobre eles ficam com a sessão; vão aos autos o
   destaque, o adiamento e o resultado.
+- **Encerramento e ata.** Encerrada a sessão síncrona, o processo da pauta
+  que não foi julgado passa à sessão seguinte, com os votos já dados (CPC,
+  art. 935, por analogia). A ata registra quem esteve presente (na virtual,
+  quem votou) e o desfecho de cada processo, e é assinada pelo presidente e
+  pela secretaria; depois da primeira assinatura não se altera. A ata fica
+  com a sessão; nos autos ficam as certidões de cada ato (julgamento,
+  adiamento, vista, retirada).
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

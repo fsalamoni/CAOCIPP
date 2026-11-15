@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useUserPreferences } from '@/hooks/useFirestore';
 
 const OPCOES_EMAIL = [
-    ['cada', 'Um e-mail a cada aviso', 'Processo que chegou, pedido de assinatura, pendência, petição.'],
+    ['cada', 'Um e-mail a cada aviso', 'Processo que chegou, pedido de assinatura, pendência, petição e, para quem compõe colegiado, pauta publicada, sessão cancelada e lembretes da sessão.'],
     ['resumo', 'Um resumo por dia', 'Pela manhã, junto com o alerta de prazos, só o que ainda não foi lido.'],
     ['nenhum', 'Nenhum e-mail', 'Só o sino aqui na plataforma, se estiver ligado.'],
 ];

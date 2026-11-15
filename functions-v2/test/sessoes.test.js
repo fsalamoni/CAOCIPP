@@ -171,3 +171,30 @@ test('sessão virtual assíncrona: período de votação, pedidos das partes e d
     assert.equal(S.sanitizePedido({ tipo: 'preferencia', link: 'https://x.org' }, d).link, '');
     assert.match(S.textoDoDestaque({ titulo: '1ª Sessão Virtual', data: '2026-12-07' }, 'Eva', null), /^Destacado da 1ª Sessão Virtual, de 07\/12\/2026, por Eva, .*recomeça\. Será incluído na próxima sessão síncrona/);
 });
+
+test('ata da sessão: presença, desfecho de cada processo e assinaturas (S8)', () => {
+    const S = require('../lib/shared/sessoes');
+    const s = { titulo: '3ª Sessão Ordinária', carater: 'ordinaria', modo: 'presencial', data: '2026-12-07', hora: '14:00', local: 'Sala 2', link: '', observacoes: '' };
+    const itens = [
+        { numero: '000001/2026', assunto: 'Falta funcional', situacao: 'pautado', motivo: '', relator: 'Julia', proclamado: 'Improcedente, por maioria (2 a 1), em sessão de 07/12/2026. Relator: Julia', redator: 'Julia', sustentacoes: ['Maria Souza (requerido)'] },
+        { numero: '000002/2026', assunto: '', situacao: 'vista', motivo: '', relator: 'Hugo', vista: { nomes: ['Eva', 'Hugo'], prazo: '2026-12-17' } },
+        { numero: '000003/2026', assunto: 'Outro', situacao: 'adiado', motivo: 'não foi julgado na sessão', relator: '' },
+        { numero: '000004/2026', assunto: 'Mais um', situacao: 'pautado', motivo: '', relator: 'Hugo' },
+    ];
+    const t = S.textoDaAta(s, 'Conselho de Ética', { presidente: 'Eva', presentes: ['Hugo', 'Julia'], ausentes: ['Dora'], registrada: true }, itens, '2026-12-07');
+    assert.match(t, /^ATA DA 3ª SESSÃO ORDINÁRIA DO CONSELHO DE ÉTICA\n\n/);
+    assert.match(t, /Em 07\/12\/2026, às 14:00, em Sala 2, reuniu-se o Conselho de Ética em sessão ordinária, sob a presidência de Eva, presentes Hugo e Julia; ausente Dora\./);
+    assert.match(t, /1\. Processo 000001\/2026 \(Falta funcional\)\. Sustentação oral por Maria Souza \(requerido\)\. Improcedente, por maioria .*Relator: Julia\. Redator do acórdão: Julia\./);
+    assert.match(t, /2\. Processo 000002\/2026, relator Hugo\. Pedido de vista de Eva e Hugo, com prazo até 17\/12\/2026; julgamento suspenso\./);
+    assert.match(t, /3\. Processo 000003\/2026 \(Outro\)\. Adiado: não foi julgado na sessão\./);
+    assert.match(t, /4\. Processo 000004\/2026 \(Mais um\), relator Hugo\. Não julgado nesta sessão\./);
+    assert.match(t, /Encerrada a sessão em 07\/12\/2026\. Esta ata, lavrada pela secretaria do colegiado, vai assinada pelo presidente e pela secretaria\.$/);
+    const sem = S.textoDaAta(s, 'Conselho', { presidente: 'Eva', presentes: ['Hugo'], ausentes: [], registrada: false }, [], '2026-12-07');
+    assert.match(sem, /com a composição do dia: Hugo \(a presença não foi registrada no sistema\)\.\n\nNão houve processos na pauta\./);
+    const v = S.textoDaAta({ ...s, modo: 'assincrona', fim: '2026-12-11' }, 'Conselho', { presidente: 'Eva', presentes: ['Eva', 'Julia'], ausentes: [], registrada: true }, [], '2026-12-12');
+    assert.match(v, /Sessão ordinária virtual do Conselho, com votação de 07\/12\/2026 a 11\/12\/2026, sob a presidência de Eva\. Votaram Eva e Julia\./);
+    assert.equal(S.desfechoNaAta({ situacao: 'destacado', motivo: 'destacado por Hugo.' }), 'Destacado para julgamento em sessão síncrona (destacado por Hugo).');
+    assert.equal(S.ataAssinada({ assinaturas: [{ papel: 'presidente' }] }), false);
+    assert.equal(S.ataAssinada({ assinaturas: [{ papel: 'presidente' }, { papel: 'secretaria' }] }), true);
+    assert.equal(S.ataAssinada(null), false);
+});

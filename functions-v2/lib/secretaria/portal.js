@@ -40,6 +40,7 @@ const camposProcesso_1 = require("../shared/camposProcesso");
 const modulos_1 = require("../shared/modulos");
 const sessoes_1 = require("../shared/sessoes");
 const sessoes_2 = require("./sessoes");
+const painelAta_1 = require("./painelAta");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -446,6 +447,8 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         if (iguais >= (pedido.tipo === 'esclarecimento' ? 3 : 1))
             throw new https_1.HttpsError('already-exists', 'Você já fez este pedido para esta sessão');
         const novo = await sref.collection('pedidos').add(Object.assign(Object.assign({ organization_id: proc.organization_id, processo_id: ref.id, numero: String(proc.numero || ''), uid, parte: parte.rotulo }, pedido), { em: new Date().toISOString(), situacao: 'pedido' }));
+        // S8: a secretaria e o relator, com a sessão aberta, veem o pedido chegar.
+        await (0, painelAta_1.atualizarPainel)(db, String(proc.organization_id), sid);
         return { ok: true, id: novo.id };
     }
     if (p.action === 'peticionar') {

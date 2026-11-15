@@ -4,7 +4,7 @@ exports.ACOES_VOTACAO = void 0;
 exports.regraDoJulgamento = regraDoJulgamento;
 exports.resumoVotacao = resumoVotacao;
 exports.acaoVotacao = acaoVotacao;
-exports.encerrarVirtual = encerrarVirtual;
+exports.encerrarSessao = encerrarSessao;
 exports.encerrarSessoesVirtuais = encerrarSessoesVirtuais;
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -18,6 +18,7 @@ const context_1 = require("./context");
 const sessoes_2 = require("./sessoes");
 const processos_1 = require("./processos");
 const portalAvisos_1 = require("./portalAvisos");
+const painelAta_1 = require("./painelAta");
 const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia', 'sessaoDestacar'];
 exports.ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', 'sessaoRedator', 'sessaoAcordao', 'sessaoPedidoDecidir', 'sessaoEncerrar', ...ACOES_S5];
 const MIN_TEXTO = 10;
@@ -66,13 +67,17 @@ async function acaoVotacao(c, p) {
     if (p.action === 'sessaoEncerrar') {
         const presidente = (0, orgaos_1.composicaoEm)(o.composicao, s.data).some((m) => m.uid === quem.uid && m.funcao === 'presidente');
         if (!gere && !presidente)
-            throw new https_1.HttpsError('permission-denied', 'Encerra a sessão virtual o presidente do colegiado (ou a secretaria)');
-        if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa)
-            throw new https_1.HttpsError('failed-precondition', 'Só a sessão virtual publicada se encerra aqui');
-        if (!(0, sessoes_1.virtualEncerrou)(s, hoje))
+            throw new https_1.HttpsError('permission-denied', 'Encerra a sessão o presidente do colegiado (ou a secretaria)');
+        if (s.situacao !== 'publicada' || !s.ativa)
+            throw new https_1.HttpsError('failed-precondition', 'Só a sessão publicada se encerra (esta já foi encerrada ou cancelada)');
+        const virtual = s.modo === 'assincrona';
+        if (virtual && !(0, sessoes_1.virtualEncerrou)(s, hoje))
             throw new https_1.HttpsError('failed-precondition', `A votação vai até ${(0, sessoes_1.br)(String(s.fim))}: o resultado se apura no dia seguinte`);
-        const r = await encerrarVirtual(c.db, c.orgId, sref.id);
-        await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_VIRTUAL_ENCERRADA', Object.assign({ sessao_id: sref.id }, r));
+        if (!virtual && s.data > hoje)
+            throw new https_1.HttpsError('failed-precondition', `A sessão se encerra no dia dela (${(0, sessoes_1.br)(s.data)}) ou depois`);
+        // S8: na síncrona, o que não foi julgado segue para a sessão seguinte, por ato de quem encerra.
+        const r = await encerrarSessao(c.db, c.orgId, sref.id, virtual ? undefined : c);
+        await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, virtual ? 'SECRETARIA_SESSAO_VIRTUAL_ENCERRADA' : 'SECRETARIA_SESSAO_ENCERRADA', Object.assign({ sessao_id: sref.id }, r));
         return Object.assign({ ok: true }, r);
     }
     const pid = String(p.processo_id || '');
@@ -527,19 +532,23 @@ async function acaoVotacao(c, p) {
     return resultado;
 }
 /**
- * Fim da sessão virtual (S7): o sistema apura cada processo pautado, como o
- * presidente faria. Sem resultado (o relator não liberou o voto, faltou
- * quórum), o julgamento é adiado para a sessão seguinte com os votos já dados
- * (Res. CNJ 591/2024, art. 5º, §§ 7º e 8º). Depois, a sessão fica encerrada.
+ * Encerra a sessão publicada. Virtual (S7, sem `quem`): o sistema apura cada
+ * processo como o presidente faria e, sem resultado (o relator não liberou o
+ * voto, faltou quórum), adia com os votos já dados (Res. CNJ 591/2024, art. 5º,
+ * §§ 7º e 8º). Síncrona (S8, com
+ * `quem`, o presidente ou a secretaria): o que não foi julgado segue para a
+ * sessão seguinte, com os votos já dados. Depois, a ata é lavrada e o painel,
+ * atualizado.
  */
-async function encerrarVirtual(db, orgId, sessaoId) {
+async function encerrarSessao(db, orgId, sessaoId, quem) {
     var _a;
-    const sis = await (0, context_1.contextoDoSistema)(db, orgId);
-    if (!sis)
+    const sis = quem ? null : await (0, context_1.contextoDoSistema)(db, orgId);
+    if (!quem && !sis)
         return { proclamados: 0, adiados: 0 };
-    const c = Object.assign(Object.assign({}, sis), { userName: 'Sistema (fim da sessão virtual)' });
+    const c = quem || Object.assign(Object.assign({}, sis), { userName: 'Sistema (fim da sessão virtual)' });
     const { ref, s } = await (0, sessoes_2.lerSessao)(c, sessaoId);
-    if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa || !(0, sessoes_1.virtualEncerrou)(s, (0, secretaria_1.hojeBrasil)()))
+    const virtual = s.modo === 'assincrona';
+    if (s.situacao !== 'publicada' || !s.ativa || (virtual ? !(0, sessoes_1.virtualEncerrou)(s, (0, secretaria_1.hojeBrasil)()) : !quem))
         return { proclamados: 0, adiados: 0 };
     let proclamados = 0;
     let adiados = 0;
@@ -547,17 +556,27 @@ async function encerrarVirtual(db, orgId, sessaoId) {
         if ((_a = (await ref.collection('votacoes').doc(it.processo_id).get()).data()) === null || _a === void 0 ? void 0 : _a.proclamado)
             continue;
         const base = { id: sessaoId, processo_id: it.processo_id };
-        try {
-            await acaoVotacao(c, Object.assign(Object.assign({}, base), { action: 'sessaoProclamar' }));
-            proclamados++;
+        let porque = 'não foi julgado na sessão';
+        if (virtual) {
+            try {
+                await acaoVotacao(c, Object.assign(Object.assign({}, base), { action: 'sessaoProclamar' }));
+                proclamados++;
+                continue;
+            }
+            catch (e) {
+                porque = `a votação virtual terminou sem resultado (${String(e.message || '').replace(/[.\s]+$/, '')})`;
+            }
         }
-        catch (e) {
-            const porque = String(e.message || '').replace(/[.\s]+$/, '');
-            // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
-            await acaoVotacao(c, Object.assign(Object.assign({}, base), { action: 'sessaoAdiar', motivo: `a votação virtual terminou sem resultado (${porque})` })).then(() => { adiados++; }, () => undefined);
-        }
+        // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
+        await acaoVotacao(c, Object.assign(Object.assign({}, base), { action: 'sessaoAdiar', motivo: porque })).then(() => { adiados++; }, () => undefined);
     }
-    await ref.update({ situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerra_em: firestore_1.FieldValue.delete(), version: firestore_1.FieldValue.increment(1), updated_at: firestore_1.FieldValue.serverTimestamp() });
+    await ref.update({
+        situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerrada_por_nome: c.userName, encerra_em: firestore_1.FieldValue.delete(), em_julgamento: firestore_1.FieldValue.delete(),
+        version: firestore_1.FieldValue.increment(1), updated_at: firestore_1.FieldValue.serverTimestamp(),
+    });
+    // A ata sai pronta para conferir e assinar (a secretaria ajusta antes da primeira assinatura).
+    await (0, painelAta_1.montarAta)(db, orgId, sessaoId).then((ata) => ref.update({ ata }), (e) => console.error('ata não lavrada', sessaoId, e));
+    await (0, painelAta_1.atualizarPainel)(db, orgId, sessaoId);
     return { proclamados, adiados };
 }
 /** Rotina diária: encerra as sessões virtuais cuja votação terminou ontem (ou antes). */
@@ -570,7 +589,7 @@ async function encerrarSessoesVirtuais(db, hoje = (0, secretaria_1.hojeBrasil)()
             await d.ref.update({ encerra_em: firestore_1.FieldValue.delete() });
             continue;
         }
-        await encerrarVirtual(db, String(s.organization_id), d.id).then(() => { n++; }, (e) => console.error('encerrarVirtual', d.id, e));
+        await encerrarSessao(db, String(s.organization_id), d.id).then(() => { n++; }, (e) => console.error('encerrarSessao', d.id, e));
     }
     return n;
 }

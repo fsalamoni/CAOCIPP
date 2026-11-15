@@ -5,13 +5,13 @@ import { CalendarioOrgao, diaUtil, hojeBrasil, podeVer, sanitizeCalendario, text
 import { Orgao, composicaoEm, orgaosDe } from '../shared/orgaos';
 import {
     DadosSessao, ItemPauta, MAX_PAUTA, SituacaoSessao, dataMinimaDaSessao, julgamentoPendente, problemaDaAntecedencia,
-    PedidoSessao, Votacao, reordenar, votacaoAberta, virtualEncerrou, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
+    AtaSessao, PedidoSessao, Votacao, reordenar, votacaoAberta, virtualEncerrou, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
 } from '../shared/sessoes';
 import { auditar } from './config';
 import { COL, Contexto, administraOrgao, erroUsuario, julgadorLe, lerProcesso, registrarMovimento } from './context';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { ACOES_VOTACAO, acaoVotacao, resumoVotacao } from './votacao';
-
+import { ACOES_S8, COL_PAINEIS, acaoAta, ataParaTela, atualizarPainel, avisarComposicao } from './painelAta';
 /**
  * Sessões de julgamento dos colegiados (secSessoes), pelas ações `sessao*` de
  * secretariaProcesso. A secretaria do colegiado monta a pauta em rascunho e a
@@ -168,10 +168,23 @@ export async function acaoAnotacao(c: Contexto, p: Payload) {
     return { texto, atualizada_em };
 }
 
+const SO_LEITURA = ['sessaoListar', 'sessaoObter', 'sessaoAptos', 'sessaoVotacao'];
+
 export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
+    const r = await acaoSessaoEm(c, p);
+    // S8: cada mudança refaz o painel ao vivo, e quem está com a sessão aberta recarrega.
+    if (!SO_LEITURA.includes(String(p.action))) {
+        const ids = [p.action === 'sessaoSalvar' && !p.id ? (r as { id?: string })?.id : p.id, (r as { continua_em?: { id?: string } } | null)?.continua_em?.id];
+        for (const id of new Set(ids)) if (typeof id === 'string' && id) await atualizarPainel(c.db, c.orgId, id);
+    }
+    return r;
+}
+
+async function acaoSessaoEm(c: Contexto, p: Payload): Promise<unknown> {
     // Relator, votos e proclamação (S4): secretaria/votacao.ts.
     if (ACOES_VOTACAO.includes(String(p.action))) return acaoVotacao(c, p);
-    const hoje = hojeBrasil();
+    // Presença, chamada do processo e ata (S8): secretaria/painelAta.ts.
+    if (ACOES_S8.includes(String(p.action))) return acaoAta(c, p);    const hoje = hojeBrasil();
     const quem = { uid: c.ctx.uid, nome: c.userName };
 
     if (p.action === 'sessaoListar') {
@@ -251,6 +264,18 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
                 ...(gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}),
             };
         });
+        // S8: quem pode ver a sessão lê o painel ao vivo (admin ou gestor fora do colegiado entra ao abrir).
+        const painel = (await c.db.collection(COL_PAINEIS).doc(ref.id).get()).data();
+        if (!painel || !((painel.leitores || []) as string[]).includes(c.ctx.uid)) await atualizarPainel(c.db, c.orgId, ref.id, c.ctx.uid);
+        const comp = composicaoEm(o.composicao, s.data);
+        const preside = comp.some((m) => m.uid === c.ctx.uid && m.funcao === 'presidente');
+        const sincrona = s.modo !== 'assincrona';
+        const noDia = s.situacao === 'publicada' && s.ativa && sincrona && s.data <= hoje;
+        const ata = s.ata as AtaSessao | undefined;
+        const assinou = (papel: string) => !!ata?.assinaturas?.some((x) => x.papel === papel);
+        const jaAssinei = !!ata?.assinaturas?.some((x) => x.uid === c.ctx.uid);
+        // Para a lista de presença: a composição do dia com os nomes (só a secretaria marca).
+        const nmComp = gere && noDia && comp.length ? await c.db.getAll(...comp.map((m) => c.db.collection('userOrganizations').doc(`${m.uid}_${c.orgId}`))) : [];
         return {
             hoje,
             gere,
@@ -261,8 +286,21 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
             sessao: { ...resumoSessao(ref.id, s, o), observacoes: s.observacoes || '', version: s.version, publicada_em: s.publicada_em || null,
                 publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '',
                 encerrada_em: s.encerrada_em || null, votacao_aberta: votacaoAberta(s, hoje), virtual_encerrou: virtualEncerrou(s, hoje),
-                preside: composicaoEm(o.composicao, s.data).some((m) => m.uid === c.ctx.uid && m.funcao === 'presidente') },
+                preside, em_julgamento: s.em_julgamento || null, encerrada_por: s.encerrada_por_nome || '' },
             pauta: itens,
+            // S8: presença (marcada pela secretaria no dia da sessão síncrona) e ata.
+            presenca: sincrona && (gere || s.presencas) ? {
+                marcas: s.presencas || {},
+                composicao: nmComp.length ? comp.map((m, i) => ({ uid: m.uid, funcao: m.funcao, nome: String(nmComp[i].data()?.user_name || nmComp[i].data()?.user_email || 'Membro') })) : [],
+            } : null,
+            ata: ataParaTela(ata),
+            pode: {
+                presenca: gere && noDia,
+                chamar: (gere || preside) && noDia,
+                encerrar: (gere || preside) && s.situacao === 'publicada' && s.ativa && (sincrona ? s.data <= hoje : virtualEncerrou(s, hoje)),
+                ata_editar: gere && s.situacao === 'encerrada' && !ata?.assinaturas?.length,
+                assinar_presidente: !!ata && preside && !assinou('presidente') && !jaAssinei,
+                assinar_secretaria: !!ata && gere && !assinou('secretaria') && !jaAssinei,            },
         };
     }
 
@@ -350,8 +388,10 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
     // Inclui, retira, publica e cancela: mexem nos autos dos processos pautados.
     const avisar: string[] = [];
     let auditoria = null as [string, Record<string, unknown>] | null;
+    let avisoMembros = null as ['publicada' | 'cancelada', Sessao, Orgao] | null;
     const resultado = await c.db.runTransaction(async (tx) => {
         avisar.length = 0;
+        avisoMembros = null;
         const { orgaos, calendario } = await lerConfig(c, tx);
         const { ref, s } = await lerSessao(c, p.id, tx);
         const o = colegiado(orgaos, s.orgao_id);
@@ -437,6 +477,7 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
             });
             tx.update(ref, { situacao: 'publicada', publicada_em: new Date().toISOString(), publicada_por: quem.uid, publicada_por_nome: quem.nome, ...versao });
             auditoria = ['SECRETARIA_SESSAO_PUBLICADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, processos: itens.length }];
+            avisoMembros = ['publicada', s, o];
             return { ok: true, processos: itens.length };
         }
 
@@ -456,6 +497,8 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
             }
             tx.update(ref, { situacao: 'cancelada', ativa: false, encerra_em: FieldValue.delete(), cancelada_em: new Date().toISOString(), cancelada_por_nome: quem.nome, motivo_cancelamento: motivo, ...versao });
             auditoria = ['SECRETARIA_SESSAO_CANCELADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, motivo }];
+            // Rascunho cancelado: a composição nem sabia da sessão.
+            if (s.situacao === 'publicada') avisoMembros = ['cancelada', { ...s, motivo_cancelamento: motivo }, o];
             return { ok: true };
         }
 
@@ -464,5 +507,8 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
     if (auditoria) await auditar(c.db, c.orgId, quem.uid, quem.nome, auditoria[0], auditoria[1]);
     // E-mail às partes depois da transação: falha de envio não desfaz o ato.
     await Promise.all(avisar.map((id) => avisarPartesDoMovimento(c.db, id, quem.uid).catch(() => undefined)));
+    // S8: e a composição do colegiado, pelo sino e pelo e-mail.
+    const am = avisoMembros as ['publicada' | 'cancelada', Sessao, Orgao] | null;
+    if (am) await avisarComposicao(c.db, c.orgId, String(p.id), am[1], am[2], am[0], undefined, quem.uid);
     return resultado;
 }

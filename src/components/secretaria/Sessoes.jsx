@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Laptop, ListOrdered, Loader2, MapPin, NotebookPen, Pencil, Plus, ScrollText, Search, Send, Trash2, Users, Video } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Flag, Gavel, Laptop, ListOrdered, Loader2, MapPin, Megaphone, MonitorPlay, NotebookPen, Pencil, Plus, Radio, ScrollText, Search, Send, Trash2, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import AjudaTermo from './AjudaTermo';
 import ErroQuery from './ErroQuery';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import VotacaoSessao from './VotacaoSessao';
+import { AtaDaSessao, BotaoAgenda, PainelAoVivo, PresencaSessao, usePainelSessao } from './PainelSessao';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const sel = 'h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
@@ -365,11 +366,18 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
     const [dialogo, setDialogo] = useState(null); // 'editar' | 'incluir' | 'publicar' | 'cancelar' | { tirar: item }
     const [indo, setIndo] = useState(false);
     const [ordem, setOrdem] = useState(null);
+    const [telao, setTelao] = useState(false);
     const atualizar = () => Promise.all([qc.invalidateQueries({ queryKey: chave }), qc.invalidateQueries({ queryKey: ['sec-sessoes', orgId] }), qc.invalidateQueries({ queryKey: ['sec-sessao-aptos', orgId] })]);
+    // S8: ao vivo. Escuta o painel depois de abrir a sessão (abrir é o que dá a leitura) e recarrega a cada mudança.
+    const painel = usePainelSessao(q.data ? id : null, () => {
+        qc.invalidateQueries({ queryKey: chave });
+        qc.invalidateQueries({ queryKey: ['sec-votacao', orgId, id] });
+    });
     const pauta = useMemo(() => q.data?.pauta || [], [q.data]);
     if (q.isLoading) return <p className="text-sm text-slate-600 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando a sessão…</p>;
     if (q.error) return <div className="space-y-3 pt-2"><Button variant="ghost" className="gap-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Voltar às sessões</Button><ErroQuery q={q} /></div>;
-    const { sessao: s, colegiado, gere, hoje, data_minima: minima, dia_util: diaUtil } = q.data;
+    const { sessao: s, colegiado, gere, hoje, data_minima: minima, dia_util: diaUtil, pode: podeS8 = {}, presenca, ata } = q.data;
+    const sincrona = s.modo !== 'assincrona';
     const ativa = s.situacao === 'rascunho' || s.situacao === 'publicada';
     const pode = gere && ativa;
     const pautados = pauta.filter((x) => x.situacao === 'pautado');
@@ -391,8 +399,9 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
     const linha = (x, i, alca) => {
         const fora = x.situacao !== 'pautado';
         const suspenso = x.situacao === 'vista';
+        const chamado = s.em_julgamento === x.processo_id && !fora && !x.julgado;
         return (
-            <div className={`flex gap-2 p-3 ${fora ? 'opacity-70' : ''}`}>
+            <div className={`flex gap-2 p-3 ${fora ? 'opacity-70' : ''} ${chamado ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`}>
                 {pode && !fora && !x.julgado ? alca : <span className="w-6 shrink-0" aria-hidden />}
                 <span className="w-7 shrink-0 text-right font-semibold text-slate-500 dark:text-slate-400 pt-0.5">{i + 1}.</span>
                 <div className="min-w-0 flex-1 space-y-1 text-sm">
@@ -404,6 +413,7 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                         {x.urgente && <SeloUrgente />}
                         {x.inclusao !== 'pauta' && <Badge variant="outline" className="border-amber-300 text-amber-900 dark:border-amber-800 dark:text-amber-200">{INCLUSAO[x.inclusao]}</Badge>}
                         {x.julgado && <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden /> Julgado</Badge>}
+                        {chamado && <Badge className="bg-indigo-600 hover:bg-indigo-600 gap-1"><Radio className="w-3.5 h-3.5" aria-hidden /> Em julgamento agora</Badge>}
                         {fora && <Badge variant="outline" className={suspenso ? 'border-violet-300 text-violet-900 dark:border-violet-800 dark:text-violet-200' : ''}>{SITUACAO_ITEM[x.situacao]}</Badge>}
                         {x.minha_anotacao && <Badge variant="outline" className="gap-1" title="Só você vê"><NotebookPen className="w-3.5 h-3.5" aria-hidden /> Sua anotação</Badge>}
                         {!fora && selosDosPedidos(x.pedidos).map((t) => <Badge key={t} variant="outline" className="border-sky-300 text-sky-900 dark:border-sky-800 dark:text-sky-200">{t}</Badge>)}
@@ -427,6 +437,12 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     )}
                     {x.problema && <p className="text-xs text-amber-800 dark:text-amber-200 flex gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden /> O processo {x.problema}. Retire da pauta ou acerte o processo antes de {s.situacao === 'rascunho' ? 'publicar' : 'julgar'}.</p>}
                 </div>
+                {podeS8.chamar && !fora && !x.julgado && !chamado && (
+                    <Button size="sm" variant="ghost" className="shrink-0 gap-1 self-start" disabled={indo} aria-label={`Chamar ${x.numero} para julgamento`}
+                        onClick={() => acao('sessaoChamar', { processo_id: x.processo_id }, `${x.numero} chamado: o painel mostra o processo em julgamento`)}>
+                        <Megaphone className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Chamar</span>
+                    </Button>
+                )}
                 {(!fora || suspenso) && s.situacao !== 'cancelada' && (gere || x.votacao?.liberado || x.votacao?.sou_relator || x.votacao?.proclamado) && (
                     <Button size="sm" variant={x.votacao?.aguarda_meu_voto || (x.votacao?.sou_relator && !x.votacao?.liberado) ? 'default' : 'outline'} className="shrink-0 gap-1 self-start"
                         aria-label={`Julgamento de ${x.numero}`} onClick={() => setDialogo({ votacao: x.processo_id })}>
@@ -455,16 +471,26 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                         {diaUtil === false && ativa && <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-1"><AlertTriangle className="w-4 h-4 shrink-0" aria-hidden /> A data cai em fim de semana, feriado ou recesso do órgão.</p>}
                         {s.publicada_em && <p className="text-xs text-slate-600 dark:text-slate-400">Pauta publicada em {new Date(s.publicada_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{s.publicada_por ? ` por ${s.publicada_por}` : ''}.</p>}
                         {s.situacao === 'cancelada' && <p className="text-sm text-rose-800 dark:text-rose-200">Cancelada{s.motivo_cancelamento ? `: ${s.motivo_cancelamento}` : ''}.</p>}
+                        {s.situacao === 'encerrada' && sincrona && <p className="text-sm text-emerald-800 dark:text-emerald-200 flex items-center gap-1"><CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden /> Sessão encerrada{s.encerrada_em ? ` em ${new Date(s.encerrada_em).toLocaleDateString('pt-BR')}` : ''}{s.encerrada_por ? ` por ${s.encerrada_por}` : ''}.</p>}
                         {s.observacoes && <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">{s.observacoes}</p>}
                     </div>
-                    {pode && (
-                        <div className="flex flex-wrap gap-2">
-                            <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('editar')}><Pencil className="w-4 h-4" aria-hidden /> Dados da sessão</Button>
-                            <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('incluir')}><Plus className="w-4 h-4" aria-hidden /> Incluir processos</Button>
-                            {s.situacao === 'rascunho' && <Button size="sm" className="gap-1" disabled={!pautados.length || cedo} onClick={() => setDialogo('publicar')}><Send className="w-4 h-4" aria-hidden /> Publicar pauta</Button>}
-                            <Button variant="ghost" size="sm" className="gap-1 text-rose-700 dark:text-rose-300" onClick={() => setDialogo('cancelar')}><Ban className="w-4 h-4" aria-hidden /> Cancelar sessão</Button>
-                        </div>
-                    )}
+                    <div className="flex flex-col gap-2 sm:items-end">
+                        {(s.situacao === 'publicada' || (painel && s.situacao === 'encerrada')) && (
+                            <div className="flex flex-wrap gap-2">
+                                {s.situacao === 'publicada' && <BotaoAgenda s={s} colegiado={colegiado.nome} />}
+                                {painel && <Button variant="outline" size="sm" className="gap-1" onClick={() => setTelao(true)}><MonitorPlay className="w-4 h-4" aria-hidden /> Painel ao vivo</Button>}
+                                {podeS8.encerrar && sincrona && <Button size="sm" className="gap-1" onClick={() => setDialogo('encerrar')}><Flag className="w-4 h-4" aria-hidden /> Encerrar sessão</Button>}
+                            </div>
+                        )}
+                        {pode && (
+                            <div className="flex flex-wrap gap-2">
+                                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('editar')}><Pencil className="w-4 h-4" aria-hidden /> Dados da sessão</Button>
+                                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('incluir')}><Plus className="w-4 h-4" aria-hidden /> Incluir processos</Button>
+                                {s.situacao === 'rascunho' && <Button size="sm" className="gap-1" disabled={!pautados.length || cedo} onClick={() => setDialogo('publicar')}><Send className="w-4 h-4" aria-hidden /> Publicar pauta</Button>}
+                                <Button variant="ghost" size="sm" className="gap-1 text-rose-700 dark:text-rose-300" onClick={() => setDialogo('cancelar')}><Ban className="w-4 h-4" aria-hidden /> Cancelar sessão</Button>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 {gere && s.situacao === 'rascunho' && (
                     <p className={`text-sm rounded-md p-2 ${cedo ? 'bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`} role={cedo ? 'alert' : undefined}>
@@ -473,6 +499,9 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     </p>
                 )}
             </section>
+
+            {podeS8.presenca && presenca && <PresencaSessao key={JSON.stringify(presenca.marcas)} presenca={presenca} indo={indo} onSalvar={(presencas) => acao('sessaoPresenca', { presencas }, 'Presença registrada: vai para a ata')} />}
+            <AtaDaSessao ata={ata} pode={podeS8} indo={indo} acao={acao} />
 
             <section className="space-y-2" aria-label="Ordem do dia">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -518,6 +547,26 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                         <DialogFooter className="gap-2">
                             <Button variant="outline" onClick={() => setDialogo(null)}>Voltar</Button>
                             <Button disabled={indo} onClick={() => acao('sessaoPublicar', {}, 'Pauta publicada. As certidões foram aos autos e as partes foram avisadas.')}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Publicar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
+            {telao && <PainelAoVivo painel={painel} onFechar={() => setTelao(false)} />}
+            {dialogo === 'encerrar' && (
+                <Dialog open onOpenChange={(o) => !o && setDialogo(null)}>
+                    <DialogContent className="max-w-lg w-[calc(100vw-1rem)] sm:w-full">
+                        <DialogHeader>
+                            <DialogTitle>Encerrar a sessão?</DialogTitle>
+                            <DialogDescription>
+                                {pautados.length
+                                    ? `${pautados.length === 1 ? 'O processo ainda pautado, sem resultado proclamado, é adiado' : `Os ${pautados.length} processos ainda pautados, sem resultado proclamado, são adiados`} para a sessão seguinte, com os votos já dados, e recebem a certidão nos autos. `
+                                    : 'Todos os processos da pauta já tiveram desfecho. '}
+                                O sistema lavra a ata com a presença e o que aconteceu com cada processo, para a secretaria conferir e o presidente e a secretaria assinarem.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="gap-2">
+                            <Button variant="outline" onClick={() => setDialogo(null)}>Voltar</Button>
+                            <Button disabled={indo} onClick={() => acao('sessaoEncerrar', {}, 'Sessão encerrada. A ata está pronta para conferir e assinar.')}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Encerrar</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

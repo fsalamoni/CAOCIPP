@@ -79,6 +79,10 @@ export default function NotificationBell({ className, variant = 'desktop' }) {
             await markNotificationAsRead(notif.id);
         } catch { /* melhor esforço — navegação segue mesmo se falhar */ }
         setOpen(false);
+        if (notif.entity_type === 'sessao_julgamento' && notif.organization_id && notif.entity_id) {
+            navigate(`${createPageUrl('ProcessoEletronico')}?org=${notif.organization_id}&aba=sessoes&sessao=${notif.entity_id}`);
+            return;
+        }
         if (notif.entity_type === 'processo_eletronico' && notif.organization_id && notif.entity_id) {
             navigate(`${createPageUrl('ProcessoEletronico')}?org=${notif.organization_id}&p=${notif.entity_id}`);
             return;
