@@ -335,6 +335,17 @@ informado.
   com preferência e os iniciados em sessão anterior (CPC, art. 936). Os
   pedidos da parte e a decisão sobre eles ficam com a sessão; vão aos autos o
   destaque, o adiamento e o resultado.
+- **Reunião deliberativa.** O colegiado também decide assuntos que não são
+  processos. Cada assunto tem a forma de votação e a maioria que ele exige:
+  simples (mais votos a favor que contra), absoluta (mais da metade dos
+  membros) ou dois terços dos membros. Sem o quórum do colegiado não se
+  delibera. Quem tem interesse no assunto declara o impedimento e não vota
+  (Lei 9.784/1999, arts. 18 e 19). No voto secreto, só se registra quem
+  votou e a contagem. O empate se resolve pelo voto de qualidade do
+  presidente ou, se o colegiado preferir, mantém o que está (rejeita). A ata
+  só traz o resultado depois de apurados os votos (CC, art. 1.354-A, § 3º,
+  por analogia). Na reunião virtual, o empate e o assunto sem quórum vão para
+  a reunião seguinte (Res. CNJ 591/2024, art. 5º, § 8º, por analogia).
 - **Encerramento e ata.** Encerrada a sessão síncrona, o processo da pauta
   que não foi julgado passa à sessão seguinte, com os votos já dados (CPC,
   art. 935, por analogia). A ata registra quem esteve presente (na virtual,

@@ -127,7 +127,7 @@ export function PainelAoVivo({ painel, onFechar }) {
 }
 
 /** Lista de presença do dia (síncrona): a secretaria marca quem está; vai para a ata. */
-export function PresencaSessao({ presenca, indo, onSalvar }) {
+export function PresencaSessao({ presenca, reuniao, indo, onSalvar }) {
     const [marcas, setMarcas] = useState(() => ({ ...(presenca.marcas || {}) }));
     const comp = presenca.composicao || [];
     if (!comp.length) return null;
@@ -138,7 +138,7 @@ export function PresencaSessao({ presenca, indo, onSalvar }) {
                 <h3 id="pr-titulo" className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2"><UserCheck className="w-4 h-4" aria-hidden /> Presença</h3>
                 <Button variant="ghost" size="sm" onClick={() => setMarcas(Object.fromEntries(comp.map((m) => [m.uid, true])))}>Marcar todos</Button>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Marque quem está na sessão. Quem não for marcado sai como ausente na ata. A votação continua aberta a quem compõe o colegiado no dia.</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">Marque quem está na sessão. Quem não for marcado sai como ausente na ata. {reuniao ? 'Na reunião, o quórum se conta pelos presentes, e só vota quem está marcado.' : 'A votação continua aberta a quem compõe o colegiado no dia.'}</p>
             <ul className="grid gap-1 sm:grid-cols-2">
                 {comp.map((m) => (
                     <li key={m.uid}>
@@ -171,7 +171,7 @@ function imprimirAta(ata) {
 }
 
 /** A ata lavrada ao encerrar: conferir, ajustar (até a primeira assinatura), assinar e imprimir. */
-export function AtaDaSessao({ ata, pode, indo, acao }) {
+export function AtaDaSessao({ ata, pode, indo, acao, reuniao = false }) {
     const [editando, setEditando] = useState(false);
     const [texto, setTexto] = useState('');
     if (!ata && !pode.ata_editar) return null;
@@ -179,7 +179,7 @@ export function AtaDaSessao({ ata, pode, indo, acao }) {
         <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-3" aria-labelledby="ata-titulo">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 id="ata-titulo" className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex flex-wrap items-center gap-2">
-                    <ScrollText className="w-4 h-4" aria-hidden /> Ata da sessão <AjudaTermo id="ata_sessao" />
+                    <ScrollText className="w-4 h-4" aria-hidden /> {reuniao ? 'Ata da reunião' : 'Ata da sessão'} <AjudaTermo id="ata_sessao" />
                     {ata && (ata.assinada
                         ? <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden /> Assinada</Badge>
                         : <Badge variant="outline" className="border-amber-300 text-amber-900 dark:border-amber-800 dark:text-amber-200">{ata.assinaturas.length ? 'Falta uma assinatura' : 'Aguarda conferência e assinaturas'}</Badge>)}

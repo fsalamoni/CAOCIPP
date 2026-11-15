@@ -278,6 +278,15 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                             <p className="text-xs text-slate-600 dark:text-slate-400">
                                 Prazo para quem pede vista devolver o processo e prazo para o redator entregar o acórdão, contados como a antecedência (dias úteis ou corridos). Os padrões são 10 e 30 dias, como no CPC. Vencida a vista, a secretaria ou o presidente requisita o processo para julgamento.
                             </p>
+                            <div className="grid sm:grid-cols-2 gap-3 max-w-md">
+                                <NativeSelect id="og-quorum" label="Quórum das reuniões" value={o.pauta?.quorum || 'maioria'} onChange={(v) => set('pauta', { antecedencia: 0, contagem: 'uteis', ...o.pauta, quorum: v })}
+                                    options={[['maioria', 'Maioria dos membros'], ['um_terco', 'Um terço dos membros'], ['dois_tercos', 'Dois terços dos membros'], ['livre', 'Sem quórum mínimo']]} />
+                                <NativeSelect id="og-desempate" label="Empate nas reuniões" value={o.pauta?.desempate || 'presidente'} onChange={(v) => set('pauta', { antecedencia: 0, contagem: 'uteis', ...o.pauta, desempate: v })}
+                                    options={[['presidente', 'Voto de qualidade do presidente'], ['rejeita', 'Rejeita (fica como está)']]} />
+                            </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">
+                                Nas reuniões deliberativas: quantos membros que votam (presidente e titulares, menos os impedidos no assunto) precisam estar presentes para abrir a votação e ter votado para valer o resultado, e o que acontece no empate da maioria simples. O regimento ou o estatuto do colegiado diz qual vale.
+                            </p>
                         </section>
                     )}
                     <section aria-labelledby="og-admins-titulo" className="space-y-2">

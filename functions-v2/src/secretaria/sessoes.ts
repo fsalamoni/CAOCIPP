@@ -12,6 +12,9 @@ import { COL, Contexto, administraOrgao, erroUsuario, julgadorLe, lerProcesso, r
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { ACOES_VOTACAO, acaoVotacao, resumoVotacao } from './votacao';
 import { ACOES_S8, COL_PAINEIS, acaoAta, ataParaTela, atualizarPainel, avisarComposicao } from './painelAta';
+import { ACOES_S9, acaoReuniao, assuntosParaTela } from './reunioes';
+import { AssuntoReuniao, regrasReuniao } from '../shared/reunioes';
+
 /**
  * Sessões de julgamento dos colegiados (secSessoes), pelas ações `sessao*` de
  * secretariaProcesso. A secretaria do colegiado monta a pauta em rascunho e a
@@ -23,7 +26,7 @@ import { ACOES_S8, COL_PAINEIS, acaoAta, ataParaTela, atualizarPainel, avisarCom
 export const COL_SESSOES = 'secSessoes';
 type Payload = Record<string, unknown>;
 export type Sessao = DadosSessao & {
-    organization_id: string; orgao_id: string; tipo: 'julgamento'; situacao: SituacaoSessao; ativa: boolean;
+    organization_id: string; orgao_id: string; tipo: 'julgamento' | 'reuniao'; situacao: SituacaoSessao; ativa: boolean;
     pauta: ItemPauta[]; processos_ids: string[]; version: number; [k: string]: unknown;
 };
 const MOTIVO_MIN = 5;
@@ -73,9 +76,11 @@ function inapto(c: Contexto, proc: admin.firestore.DocumentData, orgaoId: string
     return '';
 }
 
+const reuniao = (s: Pick<Sessao, 'tipo'>) => s.tipo === 'reuniao';
 const resumoSessao = (id: string, s: Sessao, orgao?: Orgao) => ({
-    id, orgao_id: s.orgao_id, orgao_nome: orgao?.nome || '', titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora, fim: s.fim || null,
-    local: s.local, link: s.link, situacao: s.situacao, itens: (s.pauta || []).filter((x) => x.situacao === 'pautado').length,
+    id, tipo: s.tipo || 'julgamento', orgao_id: s.orgao_id, orgao_nome: orgao?.nome || '', titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora, fim: s.fim || null,
+    local: s.local, link: s.link, situacao: s.situacao,
+    itens: reuniao(s) ? ((s.assuntos || []) as AssuntoReuniao[]).filter((a) => a.situacao !== 'retirado').length : (s.pauta || []).filter((x) => x.situacao === 'pautado').length,
 });
 
 /** O que vai no processo pautado (lido pela capa, pela lista e pelo portal). */
@@ -103,7 +108,7 @@ export async function proximaSessao(tx: admin.firestore.Transaction, c: Contexto
     const q = await tx.get(c.db.collection(COL_SESSOES).where('organization_id', '==', c.orgId).where('orgao_id', '==', orgaoId).where('ativa', '==', true));
     const hoje = hojeBrasil();
     return q.docs.map((d) => ({ ref: d.ref, s: d.data() as Sessao }))
-        .filter((x) => x.ref.id !== excluir && (!sincrona || x.s.modo !== 'assincrona') && x.s.data > depoisDe && x.s.data >= hoje && (x.s.pauta || []).filter((i) => i.situacao === 'pautado').length < MAX_PAUTA)
+        .filter((x) => x.ref.id !== excluir && !reuniao(x.s) && (!sincrona || x.s.modo !== 'assincrona') && x.s.data > depoisDe && x.s.data >= hoje && (x.s.pauta || []).filter((i) => i.situacao === 'pautado').length < MAX_PAUTA)
         .sort((a, b) => `${a.s.data}T${a.s.hora}`.localeCompare(`${b.s.data}T${b.s.hora}`))[0] || null;
 }
 
@@ -184,7 +189,10 @@ async function acaoSessaoEm(c: Contexto, p: Payload): Promise<unknown> {
     // Relator, votos e proclamação (S4): secretaria/votacao.ts.
     if (ACOES_VOTACAO.includes(String(p.action))) return acaoVotacao(c, p);
     // Presença, chamada do processo e ata (S8): secretaria/painelAta.ts.
-    if (ACOES_S8.includes(String(p.action))) return acaoAta(c, p);    const hoje = hojeBrasil();
+    if (ACOES_S8.includes(String(p.action))) return acaoAta(c, p);
+    // Reunião deliberativa: assuntos, palavra, impedimento e votação (S9): secretaria/reunioes.ts.
+    if (ACOES_S9.includes(String(p.action))) return acaoReuniao(c, p);
+    const hoje = hojeBrasil();
     const quem = { uid: c.ctx.uid, nome: c.userName };
 
     if (p.action === 'sessaoListar') {
@@ -276,7 +284,18 @@ async function acaoSessaoEm(c: Contexto, p: Payload): Promise<unknown> {
         const jaAssinei = !!ata?.assinaturas?.some((x) => x.uid === c.ctx.uid);
         // Para a lista de presença: a composição do dia com os nomes (só a secretaria marca).
         const nmComp = gere && noDia && comp.length ? await c.db.getAll(...comp.map((m) => c.db.collection('userOrganizations').doc(`${m.uid}_${c.orgId}`))) : [];
+        // S9: a reunião tem assuntos; a secretaria vê os adiados de outras reuniões do colegiado, para trazer.
+        const ehReuniao = reuniao(s);
+        let pendentes: Array<Record<string, unknown>> = [];
+        if (ehReuniao && gere && s.ativa && (s.situacao === 'rascunho' || s.situacao === 'publicada')) {
+            const outras = await c.db.collection(COL_SESSOES).where('organization_id', '==', c.orgId).where('orgao_id', '==', o.id).where('tipo', '==', 'reuniao').get();
+            pendentes = outras.docs.filter((d) => d.id !== ref.id).flatMap((d) => ((d.data().assuntos || []) as AssuntoReuniao[])
+                .filter((a) => a.situacao === 'adiado' && !a.levado_para)
+                .map((a) => ({ sessao_id: d.id, sessao: d.data().titulo, data: d.data().data, assunto_id: a.id, titulo: a.titulo, motivo: a.motivo, votacao: a.votacao, maioria: a.maioria })))
+                .sort((a, b) => String(a.data).localeCompare(String(b.data))).slice(0, 50);
+        }
         return {
+            ...(ehReuniao ? { assuntos: await assuntosParaTela(c, ref, s, o, hoje), pendentes, regras_reuniao: regrasReuniao(o.pauta) } : {}),
             hoje,
             gere,
             colegiado: { id: o.id, nome: o.nome, pauta: o.pauta },
@@ -300,7 +319,12 @@ async function acaoSessaoEm(c: Contexto, p: Payload): Promise<unknown> {
                 encerrar: (gere || preside) && s.situacao === 'publicada' && s.ativa && (sincrona ? s.data <= hoje : virtualEncerrou(s, hoje)),
                 ata_editar: gere && s.situacao === 'encerrada' && !ata?.assinaturas?.length,
                 assinar_presidente: !!ata && preside && !assinou('presidente') && !jaAssinei,
-                assinar_secretaria: !!ata && gere && !assinou('secretaria') && !jaAssinei,            },
+                assinar_secretaria: !!ata && gere && !assinou('secretaria') && !jaAssinei,
+                // S9: o presidente (ou a secretaria) conduz a reunião no dia: palavra, votação e apuração.
+                conduzir: ehReuniao && (gere || preside) && noDia,
+                desempatar: ehReuniao && preside && s.situacao === 'publicada',
+                encaminhar: ehReuniao && gere && (s.situacao === 'publicada' || s.situacao === 'encerrada') && !ata?.assinaturas?.length,
+            },
         };
     }
 
@@ -349,8 +373,11 @@ async function acaoSessaoEm(c: Contexto, p: Payload): Promise<unknown> {
             exigirGere(o.id);
             if (dados!.data < hoje) throw new HttpsError('invalid-argument', 'A data da sessão já passou');
             const ref = c.db.collection(COL_SESSOES).doc();
+            // S9: reunião deliberativa (pauta de assuntos) ou sessão de julgamento (pauta de processos).
+            const tipo = (p.sessao as { tipo?: unknown } | undefined)?.tipo === 'reuniao' ? 'reuniao' : 'julgamento';
             await ref.set({
-                organization_id: c.orgId, orgao_id: o.id, tipo: 'julgamento', ...dados!, ...(dados!.fim ? { encerra_em: dados!.fim } : {}), situacao: 'rascunho', ativa: true, pauta: [], processos_ids: [],
+                organization_id: c.orgId, orgao_id: o.id, tipo, ...dados!, ...(dados!.fim ? { encerra_em: dados!.fim } : {}), situacao: 'rascunho', ativa: true, pauta: [], processos_ids: [],
+                ...(tipo === 'reuniao' ? { assuntos: [] } : {}),
                 criado_por: quem.uid, criado_por_nome: quem.nome, criado_em: new Date().toISOString(), version: 1, updated_at: FieldValue.serverTimestamp(),
             });
             await auditar(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_CRIADA', { sessao_id: ref.id, orgao_id: o.id, data: dados!.data });
@@ -399,6 +426,8 @@ async function acaoSessaoEm(c: Contexto, p: Payload): Promise<unknown> {
         if (!s.ativa) throw new HttpsError('failed-precondition', 'A sessão foi cancelada');
         const pauta = [...(s.pauta || [])];
         const versao = { version: (s.version || 0) + 1, updated_at: FieldValue.serverTimestamp() };
+
+        if (reuniao(s) && (p.action === 'sessaoIncluir' || p.action === 'sessaoTirar')) throw new HttpsError('failed-precondition', 'A reunião tem assuntos, não processos: use Novo assunto');
 
         if (p.action === 'sessaoIncluir') {
             if (pauta.filter((x) => x.situacao === 'pautado').length >= MAX_PAUTA) throw new HttpsError('failed-precondition', `A pauta comporta até ${MAX_PAUTA} processos`);
@@ -457,6 +486,17 @@ async function acaoSessaoEm(c: Contexto, p: Payload): Promise<unknown> {
 
         if (p.action === 'sessaoPublicar') {
             if (s.situacao !== 'rascunho') throw new HttpsError('failed-precondition', 'A pauta já foi publicada');
+            if (reuniao(s)) {
+                // Convocação da reunião: sem autos; a composição é avisada.
+                const n = ((s.assuntos || []) as AssuntoReuniao[]).length;
+                if (!n) throw new HttpsError('failed-precondition', 'Inclua ao menos um assunto na pauta antes de convocar');
+                const problemaR = problemaDaAntecedencia(hoje, s.data, o.pauta, calendario);
+                if (problemaR) throw new HttpsError('failed-precondition', problemaR);
+                tx.update(ref, { situacao: 'publicada', publicada_em: new Date().toISOString(), publicada_por: quem.uid, publicada_por_nome: quem.nome, ...versao });
+                auditoria = ['SECRETARIA_SESSAO_PUBLICADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, assuntos: n, reuniao: true }];
+                avisoMembros = ['publicada', s, o];
+                return { ok: true, assuntos: n };
+            }
             const itens = pauta.filter((x) => x.situacao === 'pautado');
             if (!itens.length) throw new HttpsError('failed-precondition', 'Inclua ao menos um processo na pauta antes de publicar');
             const problema = problemaDaAntecedencia(hoje, s.data, o.pauta, calendario);
