@@ -236,7 +236,10 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const aud = pede === 'audiencia' ? { modo: 'presencial', participantes: [], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
     // Unidade de colegiado com composição: os membros do dia já vêm na lista (quem registra indica o relator).
     const doColegiado = alvo.membros?.length ? alvo.membros : null;
-    const jul = pede === 'julgamento' ? { data: hojeBr(), votos: doColegiado || [{ ...MEMBRO_VAZIO, funcao: 'relator' }, MEMBRO_VAZIO, MEMBRO_VAZIO], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
+    // Proclamado na sessão de julgamento: valem a data e os votos da sessão (o servidor confere).
+    const procl = pede === 'julgamento' ? alvo.proclamado : null;
+    const jul = procl ? { data: procl.data, votos: procl.votos }
+        : pede === 'julgamento' ? { data: hojeBr(), votos: doColegiado || [{ ...MEMBRO_VAZIO, funcao: 'relator' }, MEMBRO_VAZIO, MEMBRO_VAZIO], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
     const vazio = jul ? !jul.data || problemasDosVotos(r.julgamento, jul.votos).length > 0 : aud ? !aud.data || !aud.hora || (aud.modo !== 'virtual' && !aud.local?.trim()) || (aud.modo !== 'presencial' && !aud.link?.trim())
         : form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
     const fechar = () => { setValor(''); setTentou(false); onFechar(); };
@@ -257,7 +260,15 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 : 'Fica só nas informações do processo e na aba Eventos, para controle. Não sai em impressão.';
     const quem = pede === 'audiencia' || pede === 'julgamento' ? '' : partesVeem(r) ? 'As partes também veem no portal.' : 'Só a equipe vê.';
     let campo;
-    if (jul) campo = <CamposJulgamento cfg={r.julgamento} j={jul} onChange={(x) => setValor({ ...jul, ...x })} />;
+    if (procl) {
+        campo = (
+            <div className="rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-sm text-emerald-900 dark:text-emerald-100 space-y-1">
+                <p className="font-semibold">Proclamado na sessão: {procl.resultado}</p>
+                <p>{procl.texto}.</p>
+                <p className="text-xs">Por {procl.por_nome}. O registro usa a data e os votos da sessão; não se digitam de novo.</p>
+            </div>
+        );
+    } else if (jul) campo = <CamposJulgamento cfg={r.julgamento} j={jul} onChange={(x) => setValor({ ...jul, ...x })} />;
     else if (aud) campo = <CamposAudiencia a={aud} onChange={(x) => setValor({ ...aud, ...x })} />;
     else if (form) campo = <CamposProcesso prefixo="acao-f" campos={form.campos} valores={valores} onChange={(id, x) => setValor({ ...valores, [id]: x })} />;
     else if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
@@ -288,7 +299,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                 }}>
                     {form || aud || jul ? <p className="text-sm font-medium">{aud ? 'Quando e onde' : jul ? 'Sessão de julgamento' : rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
                     {r?.ajuda && form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
-                    {jul && doColegiado && <p className="text-xs text-slate-600 dark:text-slate-400">Os membros vieram da composição de hoje do colegiado. Indique o relator e ajuste quem faltou, foi substituído pelo suplente ou se declarou impedido.</p>}
+                    {jul && !procl && doColegiado && <p className="text-xs text-slate-600 dark:text-slate-400">Os membros vieram da composição de hoje do colegiado. Indique o relator e ajuste quem faltou, foi substituído pelo suplente ou se declarou impedido.</p>}
                     {campo}
                     {r?.ajuda && !form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
                     {tentou && falta.length > 0 && (

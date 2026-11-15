@@ -11,6 +11,9 @@ export const GLOSSARIO = {
     extrapauta: { termo: 'Extrapauta', definicao: 'Extrapauta é o processo incluído numa sessão depois que a pauta dela já foi publicada. Entra no fim da ordem do dia, com o motivo na certidão.' },
     juntada: { termo: 'Juntada', definicao: 'Juntada é a inclusão de um documento nos autos, com número de folha e data. Depois de juntado, o documento não se edita nem se apaga.' },
     pauta: { termo: 'Pauta', definicao: 'Pauta é a lista dos processos que serão julgados numa sessão do colegiado, na ordem do dia. Publicada, cada processo recebe a certidão de inclusão e as partes são avisadas.' },
+    proclamacao: { termo: 'Proclamação', definicao: 'Proclamação é o anúncio do resultado do julgamento pelo presidente do colegiado, depois dos votos. Com ela a votação se encerra, e o resultado vai aos autos na certidão de julgamento.' },
+    relator: { termo: 'Relator', definicao: 'Relator é o membro do colegiado designado para estudar o processo, escrever o relatório e votar primeiro. Os demais votam depois de ler o voto dele.' },
     remessa: { termo: 'Remessa', definicao: 'Remessa é o envio do processo de uma unidade para outra, que passa a cuidar dele. Entre órgãos diferentes, sempre gera um termo de remessa nos autos.' },
     sobrestar: { termo: 'Sobrestar', definicao: 'Sobrestar é suspender o andamento do processo por um tempo, por exemplo à espera de outra decisão. O processo fica parado na mesma fase até ser reativado.' },
+    vogal: { termo: 'Vogal', definicao: 'Vogal é o membro do colegiado que vota depois do relator. Ele acompanha o voto do relator, com ou sem ressalva, ou diverge dele.' },
 };

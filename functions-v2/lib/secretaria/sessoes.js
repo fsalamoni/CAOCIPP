@@ -2,6 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_ANOTACAO = exports.COL_ANOTACOES = exports.COL_SESSOES = void 0;
 exports.gereSessoes = gereSessoes;
+exports.veSessoes = veSessoes;
+exports.lerConfig = lerConfig;
+exports.colegiado = colegiado;
+exports.lerSessao = lerSessao;
 exports.registrarLeitura = registrarLeitura;
 exports.leiturasDoProcesso = leiturasDoProcesso;
 exports.acaoAnotacao = acaoAnotacao;
@@ -14,6 +18,7 @@ const sessoes_1 = require("../shared/sessoes");
 const config_1 = require("./config");
 const context_1 = require("./context");
 const portalAvisos_1 = require("./portalAvisos");
+const votacao_1 = require("./votacao");
 /**
  * Sessões de julgamento dos colegiados (secSessoes), pelas ações `sessao*` de
  * secretariaProcesso. A secretaria do colegiado monta a pauta em rascunho e a
@@ -113,6 +118,9 @@ async function acaoAnotacao(c, p) {
     return { texto, atualizada_em };
 }
 async function acaoSessao(c, p) {
+    // Relator, votos e proclamação (S4): secretaria/votacao.ts.
+    if (votacao_1.ACOES_VOTACAO.includes(String(p.action)))
+        return (0, votacao_1.acaoVotacao)(c, p);
     const hoje = (0, secretaria_1.hojeBrasil)();
     const quem = { uid: c.ctx.uid, nome: c.userName };
     if (p.action === 'sessaoListar') {
@@ -143,10 +151,13 @@ async function acaoSessao(c, p) {
         if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere))
             throw new https_1.HttpsError('not-found', 'Sessão não encontrada');
         const pauta = [...(s.pauta || [])].sort((a, b) => a.ordem - b.ordem);
-        const [snaps, notas] = pauta.length ? await Promise.all([
+        const [snaps, notas, votacoes] = pauta.length ? await Promise.all([
             c.db.getAll(...pauta.map((x) => c.db.collection(context_1.COL.processos).doc(x.processo_id))),
             c.db.getAll(...pauta.map((x) => c.db.collection(exports.COL_ANOTACOES).doc(`${c.ctx.uid}_${x.processo_id}`))),
-        ]) : [[], []];
+            c.db.getAll(...pauta.map((x) => ref.collection('votacoes').doc(x.processo_id))),
+        ]) : [[], [], []];
+        // Quem vota no dia da sessão: presidente e titulares.
+        const quemVota = (0, orgaos_1.composicaoEm)(o.composicao, s.data).filter((m) => m.funcao !== 'suplente').map((m) => m.uid);
         const itens = pauta.map((x, i) => {
             var _a, _b;
             const d = snaps[i].data();
@@ -155,7 +166,7 @@ async function acaoSessao(c, p) {
             // Sigilo restrito: quem não vê os autos não vê o assunto nem as partes.
             const aberto = !!d && (abre || d.sigilo !== 'restrito');
             const julgado = !!d && ((_a = d.ultima_sessao) === null || _a === void 0 ? void 0 : _a.id) === ref.id && ((_b = d.sessao) === null || _b === void 0 ? void 0 : _b.id) !== ref.id;
-            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
+            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists, relator_nome: x.relator_nome || '', votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, quemVota, x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
         });
         return {
             hoje,

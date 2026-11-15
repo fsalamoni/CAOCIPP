@@ -5,11 +5,12 @@ import { CalendarioOrgao, diaUtil, hojeBrasil, podeVer, sanitizeCalendario, text
 import { Orgao, composicaoEm, orgaosDe } from '../shared/orgaos';
 import {
     DadosSessao, ItemPauta, MAX_PAUTA, SituacaoSessao, dataMinimaDaSessao, julgamentoPendente, problemaDaAntecedencia,
-    reordenar, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
+    Votacao, reordenar, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
 } from '../shared/sessoes';
 import { auditar } from './config';
 import { COL, Contexto, administraOrgao, erroUsuario, julgadorLe, lerProcesso, registrarMovimento } from './context';
 import { avisarPartesDoMovimento } from './portalAvisos';
+import { ACOES_VOTACAO, acaoVotacao, resumoVotacao } from './votacao';
 
 /**
  * Sessões de julgamento dos colegiados (secSessoes), pelas ações `sessao*` de
@@ -21,7 +22,7 @@ import { avisarPartesDoMovimento } from './portalAvisos';
 
 export const COL_SESSOES = 'secSessoes';
 type Payload = Record<string, unknown>;
-type Sessao = DadosSessao & {
+export type Sessao = DadosSessao & {
     organization_id: string; orgao_id: string; tipo: 'julgamento'; situacao: SituacaoSessao; ativa: boolean;
     pauta: ItemPauta[]; processos_ids: string[]; version: number; [k: string]: unknown;
 };
@@ -35,25 +36,25 @@ export function gereSessoes(c: Contexto, orgaoId: string): boolean {
 }
 
 /** Vê as sessões publicadas: a secretaria, quem está lotado no colegiado e quem o compõe hoje. */
-function veSessoes(c: Contexto, o: Orgao, hoje: string): boolean {
+export function veSessoes(c: Contexto, o: Orgao, hoje: string): boolean {
     return gereSessoes(c, o.id)
         || c.unidades.some((u) => u.orgao_id === o.id && c.ctx.unidadeIds.includes(u.id))
         || composicaoEm(o.composicao, hoje).some((m) => m.uid === c.ctx.uid);
 }
 
-async function lerConfig(c: Contexto, tx?: admin.firestore.Transaction) {
+export async function lerConfig(c: Contexto, tx?: admin.firestore.Transaction) {
     const ref = c.db.collection(COL.config).doc(c.orgId);
     const d = (tx ? await tx.get(ref) : await ref.get()).data();
     return { orgaos: orgaosDe(d?.orgaos).filter((o) => o.decisao === 'colegiada' && o.ativo), calendario: sanitizeCalendario(d?.calendario) as CalendarioOrgao };
 }
 
-function colegiado(orgaos: Orgao[], id: unknown): Orgao {
+export function colegiado(orgaos: Orgao[], id: unknown): Orgao {
     const o = orgaos.find((x) => x.id === id);
     if (!o) throw new HttpsError('not-found', 'Colegiado não encontrado (o órgão precisa decidir em colegiado e estar ativo)');
     return o;
 }
 
-async function lerSessao(c: Contexto, id: unknown, tx?: admin.firestore.Transaction) {
+export async function lerSessao(c: Contexto, id: unknown, tx?: admin.firestore.Transaction) {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new HttpsError('invalid-argument', 'Sessão inválida');
     const ref = c.db.collection(COL_SESSOES).doc(id);
     const snap = tx ? await tx.get(ref) : await ref.get();
@@ -120,6 +121,8 @@ export async function acaoAnotacao(c: Contexto, p: Payload) {
 }
 
 export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
+    // Relator, votos e proclamação (S4): secretaria/votacao.ts.
+    if (ACOES_VOTACAO.includes(String(p.action))) return acaoVotacao(c, p);
     const hoje = hojeBrasil();
     const quem = { uid: c.ctx.uid, nome: c.userName };
 
@@ -152,10 +155,13 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
         const gere = gereSessoes(c, o.id);
         if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere)) throw new HttpsError('not-found', 'Sessão não encontrada');
         const pauta = [...(s.pauta || [])].sort((a, b) => a.ordem - b.ordem);
-        const [snaps, notas] = pauta.length ? await Promise.all([
+        const [snaps, notas, votacoes] = pauta.length ? await Promise.all([
             c.db.getAll(...pauta.map((x) => c.db.collection(COL.processos).doc(x.processo_id))),
             c.db.getAll(...pauta.map((x) => c.db.collection(COL_ANOTACOES).doc(`${c.ctx.uid}_${x.processo_id}`))),
-        ]) : [[], []];
+            c.db.getAll(...pauta.map((x) => ref.collection('votacoes').doc(x.processo_id))),
+        ]) : [[], [], []];
+        // Quem vota no dia da sessão: presidente e titulares.
+        const quemVota = composicaoEm(o.composicao, s.data).filter((m) => m.funcao !== 'suplente').map((m) => m.uid);
         const itens = pauta.map((x, i) => {
             const d = snaps[i].data();
             // Pela lotação, ou como julgador do colegiado enquanto pautado (S3).
@@ -171,6 +177,8 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
                 urgente: d?.urgente === true,
                 julgado,
                 minha_anotacao: notas[i].exists,
+                relator_nome: x.relator_nome || '',
+                votacao: resumoVotacao(votacoes[i].data() as Votacao | undefined, c.ctx.uid, quemVota, x.relator_uid || ''),
                 // Só a secretaria precisa saber se o processo deixou de estar apto (para retirar).
                 ...(gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}),
             };

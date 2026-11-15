@@ -595,6 +595,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
                                             onRegistrar={() => setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version,
+                                                proclamado: r?.pede === 'julgamento' ? p.sessao?.proclamado || null : null,
                                                 membros: r?.pede === 'julgamento' ? membrosDoJulgamento(estado, p.unidade_atual, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) : [] })}
                                             onDesfazer={desfazer} />
                                     </li>

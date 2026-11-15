@@ -36,12 +36,13 @@ import { formatPersonName } from '../shared/normalization';
 import { fireOrgWebhook } from '../shared/webhooks';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
+import { julgamentoPendente } from '../shared/sessoes';
 import { lerOrgaos } from './orgaos';
 import { acaoAnotacao, acaoSessao, leiturasDoProcesso, registrarLeitura } from './sessoes';
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
-    COL, REGION, carregarContexto, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
+    COL, REGION, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
     nomeUnidade, registrarInternos, registrarMovimento,
 } from './context';
 
@@ -1173,6 +1174,29 @@ export async function avancarSozinho(c: Ctx, id: string): Promise<Record<string,
 }
 
 /**
+ * Julgamento proclamado na sessão (S4): o sistema registra o resultado na ação
+ * de julgamento do rito, com os votos da sessão, pelo mesmo caminho do botão
+ * "Registrar julgamento" (certidão, saída da fase, avanço automático). Devolve
+ * '' quando registrou, ou o motivo de não caber agora: a equipe registra
+ * depois, e o diálogo já vem com os votos proclamados.
+ */
+export async function registrarJulgamentoDaSessao(db: admin.firestore.Firestore, orgId: string, id: string, quem: string): Promise<string> {
+    try {
+        const sis = await contextoDoSistema(db, orgId);
+        if (!sis) return 'o Processo Eletrônico não está ativo';
+        const d = (await db.collection(COL.processos).doc(id).get()).data();
+        const idx = d ? julgamentoPendente(d) : -1;
+        if (!d?.sessao?.proclamado || idx < 0) return 'o julgamento não está mais pendente no processo';
+        await movimentar({ ...sis, userName: `${quem} (proclamação na sessão)` }, {
+            organizationId: orgId, action: 'marcarAcao', id, version: d.version, acao_idx: idx, feita: true,
+        } as unknown as ProcRequest);
+        return '';
+    } catch (e) {
+        return (e as Error)?.message || 'falha ao registrar';
+    }
+}
+
+/**
  * Movimentação de um processo existente. `opcoes.automatico`: chamada do
  * próprio servidor (avanço automático da fase); nunca vem do cliente.
  */
@@ -1438,7 +1462,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             // Duas pessoas marcando a mesma caixa: a segunda não gera movimento repetido.
             if (lista.has(idx) === feita) throw new HttpsError('aborted', feita ? 'Esta ação já estava feita' : 'Esta ação já estava desfeita');
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
-            const dado = feita ? await valorDaAcao(c, regra, acao, p.valor) : null;
+            // Julgamento proclamado na sessão: valem a data e os votos da sessão, não o que vier na tela.
+            const proclamado = regra?.pede === 'julgamento' ? data.sessao?.proclamado : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : p.valor) : null;
             // Resposta registrada à mão (manifestação por outro meio): "sem manifestação" ou "parcial" só depois de
             // decorrido o prazo de quem foi comunicado. Contraditório: ninguém perde a vez antes da hora.
             if (regra?.pede === 'resposta' && dado && dado.valor !== 'Apresentada'

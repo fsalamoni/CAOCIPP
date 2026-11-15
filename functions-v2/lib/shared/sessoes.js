@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.br = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
+exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.br = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
 exports.sanitizeRegrasSessao = sanitizeRegrasSessao;
 exports.sanitizeDadosSessao = sanitizeDadosSessao;
 exports.dataMinimaDaSessao = dataMinimaDaSessao;
@@ -11,8 +11,13 @@ exports.ondeSessao = ondeSessao;
 exports.textoDaInclusao = textoDaInclusao;
 exports.textoDaRetirada = textoDaRetirada;
 exports.reordenar = reordenar;
+exports.votantes = votantes;
+exports.sanitizeVoto = sanitizeVoto;
+exports.votosDaSessao = votosDaSessao;
+exports.placarParcial = placarParcial;
 const secretaria_1 = require("./secretaria");
 const exigencias_1 = require("./exigencias");
+const orgaos_1 = require("./orgaos");
 /**
  * Sessões de julgamento de um colegiado: dados da sessão, pauta e
  * antecedência mínima. Regras puras, sem banco (a gravação está em
@@ -127,5 +132,57 @@ function textoDaRetirada(s, motivo, cancelada = false) {
 function reordenar(pauta, ids) {
     const pos = (id) => { const i = ids.indexOf(id); return i < 0 ? ids.length : i; };
     return [...pauta].sort((a, b) => pos(a.processo_id) - pos(b.processo_id) || a.ordem - b.ordem).map((x, i) => (Object.assign(Object.assign({}, x), { ordem: i + 1 })));
+}
+// ---- Votação na sessão (S4): relator, vogais, proclamação ----
+/** Como o vogal vota: acompanha o relator (com ou sem ressalva), diverge, ou se declara impedido ou suspeito. */
+exports.MODOS_VOTO = ['acompanha', 'ressalva', 'diverge', 'impedido', 'suspeito'];
+exports.MAX_RELATORIO = 50000;
+exports.MAX_NOTA_VOTO = 4000;
+/**
+ * Quem vota no dia: o presidente e os titulares. O suplente fica de fora
+ * (vota quando convocado no lugar de um titular, numa etapa seguinte).
+ */
+function votantes(composicao, dia, nome) {
+    return (0, orgaos_1.composicaoEm)(composicao, dia).filter((m) => m.funcao !== 'suplente')
+        .map((m) => ({ uid: m.uid, nome: nome(m.uid) || `Membro ${m.uid.slice(0, 6)}`, funcao: m.funcao === 'presidente' ? 'presidente' : 'membro' }));
+}
+/** Confere o voto do vogal contra os resultados do rito e o voto do relator. Lança com mensagem. */
+function sanitizeVoto(raw, resultados, doRelator) {
+    const r = (raw && typeof raw === 'object' ? raw : {});
+    const modo = String(r.modo || '');
+    if (!exports.MODOS_VOTO.includes(modo))
+        throw new Error('Escolha como vota');
+    const nota = (0, secretaria_1.texto)(r.nota, exports.MAX_NOTA_VOTO);
+    if (modo === 'impedido' || modo === 'suspeito')
+        return { modo, resultado: '', nota };
+    if (modo === 'diverge') {
+        const resultado = (0, secretaria_1.texto)(r.resultado, 80);
+        if (!resultados.includes(resultado))
+            throw new Error('Na divergência, escolha o resultado do seu voto');
+        if (resultado === doRelator)
+            throw new Error(`O relator votou por ${doRelator}: para esse resultado, acompanhe o relator`);
+        return { modo, resultado, nota };
+    }
+    if (modo === 'ressalva' && nota.length < 5)
+        throw new Error('Escreva a ressalva (ao menos 5 letras)');
+    return { modo, resultado: doRelator, nota: modo === 'ressalva' ? nota : '' };
+}
+/**
+ * Votos no formato do registro do julgamento (shared/julgamento.ts): o relator
+ * primeiro, depois quem vota no dia; quem não votou fica ausente.
+ */
+function votosDaSessao(v, membros) {
+    const out = [{ nome: v.relator_nome, funcao: 'relator', voto: v.resultado }];
+    for (const m of membros) {
+        if (m.uid === v.relator_uid)
+            continue;
+        const x = v.votos[m.uid];
+        out.push({ nome: (x === null || x === void 0 ? void 0 : x.nome) || m.nome, funcao: m.funcao, voto: !x ? 'ausente' : x.modo === 'impedido' || x.modo === 'suspeito' ? x.modo : x.resultado });
+    }
+    return out;
+}
+/** Placar dos votos já dados (sem quórum nem desempate): para acompanhar ao vivo. */
+function placarParcial(resultados, votos) {
+    return resultados.map((o) => [o, votos.filter((v) => v.voto === o).length]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
 }
 //# sourceMappingURL=sessoes.js.map

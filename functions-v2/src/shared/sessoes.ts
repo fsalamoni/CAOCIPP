@@ -1,5 +1,8 @@
 import { CalendarioOrgao, Contagem, calcularVencimento, texto } from './secretaria';
 import { acaoAtiva, respostasDaFase } from './exigencias';
+import { composicaoEm } from './orgaos';
+import type { MembroColegiado } from './orgaos';
+import type { Voto } from './julgamento';
 
 /**
  * Sessões de julgamento de um colegiado: dados da sessão, pauta e
@@ -42,6 +45,9 @@ export interface ItemPauta {
     /** pautado; retirado (com motivo). Julgado e adiado chegam com a sessão aberta. */
     situacao: 'pautado' | 'retirado';
     incluido_em: string;
+    /** Relator designado pela secretaria entre quem vota no dia (S4). */
+    relator_uid?: string;
+    relator_nome?: string;
 }
 
 /** Antecedência mínima entre publicar a pauta e a sessão, do colegiado. Sem regra, 0 (como hoje). */
@@ -149,4 +155,73 @@ export function textoDaRetirada(s: DadosSessao, motivo: string, cancelada = fals
 export function reordenar(pauta: ItemPauta[], ids: string[]): ItemPauta[] {
     const pos = (id: string) => { const i = ids.indexOf(id); return i < 0 ? ids.length : i; };
     return [...pauta].sort((a, b) => pos(a.processo_id) - pos(b.processo_id) || a.ordem - b.ordem).map((x, i) => ({ ...x, ordem: i + 1 }));
+}
+
+// ---- Votação na sessão (S4): relator, vogais, proclamação ----
+
+/** Como o vogal vota: acompanha o relator (com ou sem ressalva), diverge, ou se declara impedido ou suspeito. */
+export const MODOS_VOTO = ['acompanha', 'ressalva', 'diverge', 'impedido', 'suspeito'] as const;
+export type ModoVoto = typeof MODOS_VOTO[number];
+export const MAX_RELATORIO = 50000;
+export const MAX_NOTA_VOTO = 4000;
+
+export interface VotoDoMembro { nome: string; funcao: 'presidente' | 'membro'; modo: ModoVoto; resultado: string; nota: string; em: string }
+export interface Proclamacao { resultado: string; texto: string; data: string; em: string; por_nome: string; votos: Voto[] }
+/** secSessoes/{sessao}/votacoes/{processo}: o voto do relator (sigiloso até liberar) e os votos dos pares. */
+export interface Votacao {
+    processo_id: string;
+    relator_uid: string;
+    relator_nome: string;
+    relatorio: string;
+    resultado: string;
+    fundamentos: string;
+    liberado_em: string | null;
+    votos: Record<string, VotoDoMembro>;
+    proclamado: Proclamacao | null;
+}
+export interface Votante { uid: string; nome: string; funcao: 'presidente' | 'membro' }
+
+/**
+ * Quem vota no dia: o presidente e os titulares. O suplente fica de fora
+ * (vota quando convocado no lugar de um titular, numa etapa seguinte).
+ */
+export function votantes(composicao: MembroColegiado[], dia: string, nome: (uid: string) => string): Votante[] {
+    return composicaoEm(composicao, dia).filter((m) => m.funcao !== 'suplente')
+        .map((m) => ({ uid: m.uid, nome: nome(m.uid) || `Membro ${m.uid.slice(0, 6)}`, funcao: m.funcao === 'presidente' ? 'presidente' as const : 'membro' as const }));
+}
+
+/** Confere o voto do vogal contra os resultados do rito e o voto do relator. Lança com mensagem. */
+export function sanitizeVoto(raw: unknown, resultados: string[], doRelator: string): Pick<VotoDoMembro, 'modo' | 'resultado' | 'nota'> {
+    const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const modo = String(r.modo || '') as ModoVoto;
+    if (!MODOS_VOTO.includes(modo)) throw new Error('Escolha como vota');
+    const nota = texto(r.nota, MAX_NOTA_VOTO);
+    if (modo === 'impedido' || modo === 'suspeito') return { modo, resultado: '', nota };
+    if (modo === 'diverge') {
+        const resultado = texto(r.resultado, 80);
+        if (!resultados.includes(resultado)) throw new Error('Na divergência, escolha o resultado do seu voto');
+        if (resultado === doRelator) throw new Error(`O relator votou por ${doRelator}: para esse resultado, acompanhe o relator`);
+        return { modo, resultado, nota };
+    }
+    if (modo === 'ressalva' && nota.length < 5) throw new Error('Escreva a ressalva (ao menos 5 letras)');
+    return { modo, resultado: doRelator, nota: modo === 'ressalva' ? nota : '' };
+}
+
+/**
+ * Votos no formato do registro do julgamento (shared/julgamento.ts): o relator
+ * primeiro, depois quem vota no dia; quem não votou fica ausente.
+ */
+export function votosDaSessao(v: Pick<Votacao, 'relator_uid' | 'relator_nome' | 'resultado' | 'votos'>, membros: Votante[]): Voto[] {
+    const out: Voto[] = [{ nome: v.relator_nome, funcao: 'relator', voto: v.resultado }];
+    for (const m of membros) {
+        if (m.uid === v.relator_uid) continue;
+        const x = v.votos[m.uid];
+        out.push({ nome: x?.nome || m.nome, funcao: m.funcao, voto: !x ? 'ausente' : x.modo === 'impedido' || x.modo === 'suspeito' ? x.modo : x.resultado });
+    }
+    return out;
+}
+
+/** Placar dos votos já dados (sem quórum nem desempate): para acompanhar ao vivo. */
+export function placarParcial(resultados: string[], votos: Voto[]): Array<[string, number]> {
+    return resultados.map((o) => [o, votos.filter((v) => v.voto === o).length] as [string, number]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
 }

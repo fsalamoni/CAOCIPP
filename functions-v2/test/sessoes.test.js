@@ -65,3 +65,23 @@ test('pauta: certidões de inclusão e retirada, e a ordem do dia', () => {
     const pauta = ['a', 'b', 'c'].map((id, i) => ({ processo_id: id, ordem: i + 1 }));
     assert.deepEqual(reordenar(pauta, ['c', 'a']).map((x) => [x.processo_id, x.ordem]), [['c', 1], ['a', 2], ['b', 3]]);
 });
+
+test('votação na sessão: quem vota, voto do vogal, votos para o registro e placar', () => {
+    const { votantes, sanitizeVoto, votosDaSessao, placarParcial } = require('../lib/shared/sessoes');
+    const { dadosDoJulgamento, textoDoJulgamento } = require('../lib/shared/julgamento');
+    const comp = [{ uid: 'p', funcao: 'presidente' }, { uid: 'r', funcao: 'titular' }, { uid: 't', funcao: 'titular' }, { uid: 's', funcao: 'suplente' }, { uid: 'v', funcao: 'titular', fim: '2020-01-01' }];
+    const m = votantes(comp, '2026-11-20', (u) => ({ p: 'Pres', r: 'Rel', t: 'Tit' })[u] || '');
+    assert.deepEqual(m.map((x) => `${x.uid}:${x.funcao}`), ['p:presidente', 'r:membro', 't:membro'], 'suplente e mandato encerrado não votam');
+    const R = ['Procedente', 'Improcedente'];
+    assert.deepEqual(sanitizeVoto({ modo: 'acompanha', nota: 'x' }, R, 'Procedente'), { modo: 'acompanha', resultado: 'Procedente', nota: '' });
+    assert.throws(() => sanitizeVoto({ modo: 'diverge', resultado: 'Procedente' }, R, 'Procedente'), /acompanhe o relator/);
+    assert.throws(() => sanitizeVoto({ modo: 'ressalva' }, R, 'Procedente'), /ressalva/);
+    assert.throws(() => sanitizeVoto({ modo: 'outro' }, R, 'Procedente'), /Escolha como vota/);
+    assert.equal(sanitizeVoto({ modo: 'impedido' }, R, 'Procedente').resultado, '');
+    const v = { relator_uid: 'r', relator_nome: 'Rel', resultado: 'Procedente', votos: { p: { nome: 'Pres', modo: 'diverge', resultado: 'Improcedente' } } };
+    const votos = votosDaSessao(v, m);
+    assert.deepEqual(votos.map((x) => `${x.nome}:${x.funcao}:${x.voto}`), ['Rel:relator:Procedente', 'Pres:presidente:Improcedente', 'Tit:membro:ausente'], 'quem não votou fica ausente');
+    assert.deepEqual(placarParcial(R, votos), [['Procedente', 1], ['Improcedente', 1]]);
+    const cfg = { resultados: R, desempate: 'presidente' };
+    assert.match(textoDoJulgamento(cfg, dadosDoJulgamento(cfg, { data: '2026-11-20', votos }, '2026-11-20')), /^Improcedente, pelo voto de desempate do presidente \(1 a 1\).*Ausente: Tit/);
+});

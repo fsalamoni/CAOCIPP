@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Votação na sessão: relator, vogais e proclamação
+- Quarta etapa do plano de sessões de julgamento, reuniões e pregão.
+- A secretaria **designa o relator** de cada processo da pauta, entre o presidente e os titulares.
+- O relator escreve o **relatório e o voto**, que só ele vê até **liberar aos pares**.
+- Cada membro **vota na própria conta**: acompanha o relator, com ou sem ressalva, diverge ou se declara impedido ou suspeito. Dá para mudar o voto até a proclamação, e todos acompanham o placar ao vivo.
+- O presidente **proclama o resultado** no dia da sessão. O sistema apura com a regra do rito, registra o julgamento no processo com a certidão nos autos, e a fase segue sozinha quando o rito manda.
+- A pauta mostra o relator e a situação de cada julgamento, e avisa quem ainda não votou.
+
 ### 15/11/2026 — Julgador lê os autos pela pauta e anotações privadas
 - Terceira etapa do plano de sessões de julgamento, reuniões e pregão.
 - Quem compõe o colegiado **lê os autos** do processo pautado numa sessão dele, mesmo sem lotação, tocando no número do processo na pauta. A leitura vale até o acórdão, enquanto o processo segue no colegiado.
