@@ -31,15 +31,17 @@ import {
     ConviteCertame, DadosCertame, DECLARACOES, ItemProposta, Licitante, MAX_CONVITES, MAX_FORNECEDORES, PERFIS_DISPUTA, PerfilDisputa, Proposta,
     SITUACOES_CERTAME, SituacaoCertame, aberturaMinima, alertasDaProposta, codigoDoAviso, instanteDaAbertura, problemasParaPublicar,
     sanitizeDadosCertame, sanitizeLicitante, sanitizeProposta, textoDoAviso, unidadesDeDisputa, valorEstimado, valorNaUnidade,
+    fimDosLances, momentoDaDisputa, valorTexto,
 } from '../shared/certames';
+import { ACOES_SALA_FORNECEDOR, ACOES_SALA_ORGAO, acaoSalaFornecedor, acaoSalaOrgao, lerEstado } from './salaLances';
 import { sendEmail } from '../shared/email';
 import { auditar } from './config';
 import { COL, Contexto, atorDe, erroUsuario, exigirPosse, lerProcesso, registrarMovimento } from './context';
 
 export const COL_CERTAMES = 'secCertames';
 const COL_ACESSOS = 'secPortalAcessos';
-export const ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas'];
-export const ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar'];
+export const ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...ACOES_SALA_ORGAO];
+export const ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar', ...ACOES_SALA_FORNECEDOR];
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const CONVITE_DIAS = 60;
@@ -95,10 +97,12 @@ function avisoPublico(id: string, x: Certame) {
         abertura_data: x.abertura_data, abertura_hora: x.abertura_hora, abertura_em: x.abertura_em, condicoes: x.condicoes, habilitacao: x.habilitacao,
         participacao: x.perfil === 'cotacao' ? 'convidados' : 'aberta', codigo: x.codigo, adiamentos: (x.adiamentos || []).map(({ por: _p, ...a }) => a),
         cancelado: x.cancelado ? { motivo: x.cancelado.motivo, em: x.cancelado.em } : undefined,
+        fim_lances: fimDosLances(x), momento: x.situacao === 'publicado' ? momentoDaDisputa(x, new Date().toISOString()) : null,
     };
 }
 
 export async function acaoCertame(c: Contexto, p: Payload): Promise<unknown> {
+    if (ACOES_SALA_ORGAO.includes(String(p.action))) return acaoSalaOrgao(c, p, (data) => (data.certame as CertameNoProcesso | undefined)?.id || null);
     const quem = { uid: c.ctx.uid, nome: c.userName };
     const col = c.db.collection(COL_CERTAMES);
 
@@ -117,7 +121,10 @@ export async function acaoCertame(c: Contexto, p: Payload): Promise<unknown> {
             if (!x.abertura_em || x.abertura_em > new Date().toISOString() || x.situacao === 'cancelado' || x.situacao === 'rascunho') {
                 throw new HttpsError('failed-precondition', 'As propostas são sigilosas até a abertura');
             }
-            if (x.lances) throw new HttpsError('failed-precondition', 'Esta disputa tem lances: as propostas se abrem na sala de lances');
+            if (x.lances) {
+                if (momentoDaDisputa(x, new Date().toISOString()) !== 'encerrada') throw new HttpsError('failed-precondition', 'Os lances ainda estão em curso: a classificação sai no fim');
+                return classificacaoComLances(c, ref, atual.id, x);
+            }
             const ps = await col.doc(atual.id).collection('propostas').get();
             const propostas = ps.docs.map((d) => d.data() as Proposta);
             const desc = x.criterio === 'maior_desconto';
@@ -138,6 +145,7 @@ export async function acaoCertame(c: Contexto, p: Payload): Promise<unknown> {
             abertura_minima: aberturaMinima((x?.perfil || alvo?.regra.disputa?.perfil || 'cotacao') as PerfilDisputa, hoje, cal),
             hoje,
             agora: new Date().toISOString(),
+            momento: x && x.situacao === 'publicado' ? momentoDaDisputa(x, new Date().toISOString()) : null,
             declaracoes: DECLARACOES.map(([id, t, o]) => ({ id, texto: t, obrigatoria: o })),
             pode: {
                 editar: posse && podeCumprir && (!x || x.situacao === 'rascunho' || x.situacao === 'cancelado'),
@@ -286,6 +294,40 @@ export async function acaoCertame(c: Contexto, p: Payload): Promise<unknown> {
     return resto;
 }
 
+/**
+ * Classificação depois da fase de lances: as posições finais da sala, com os
+ * nomes. Na primeira leitura depois do fim, registra nos autos o encerramento
+ * dos lances (melhor oferta de cada item ou lote, sem nomes: o julgamento os dá).
+ */
+async function classificacaoComLances(c: Contexto, pref: admin.firestore.DocumentReference, id: string, x0: Certame) {
+    const ref = c.db.collection(COL_CERTAMES).doc(id);
+    return c.db.runTransaction(async (tx) => {
+        const [x, pdata] = await Promise.all([tx.get(ref).then((s) => (s.data() as Certame) || x0), tx.get(pref).then((s) => s.data()!)]);
+        const { estado: e, novo } = await lerEstado(c.db, ref, x, tx);
+        const ps = await tx.get(ref.collection('propostas'));
+        const props = new Map(ps.docs.map((d) => [d.id, d.data() as Proposta]));
+        const unidades = unidadesDeDisputa(x).map((u) => ({
+            chave: u.chave, nome: u.nome,
+            classificacao: (e.posicoes[u.chave] || []).map((v) => {
+                const pr = props.get(v.uid);
+                return { fornecedor: pr?.licitante.razao_social || `Licitante ${e.apelidos[v.uid]}`, documento: pr?.licitante.documento || '', porte: pr?.licitante.porte, valor: v.total, lance: v.valor, por_lance: v.seq > 0, enviada_em: v.em };
+            }),
+        }));
+        if (!e.encerramento_registrado) {
+            const linhas = unidades.map((u) => {
+                const n = (e.posicoes[u.chave] || []).length;
+                return `${u.nome}: ${u.classificacao[0] ? `melhor oferta ${valorTexto(u.classificacao[0].valor, x)}` : 'sem oferta'} (${n} licitante${n === 1 ? '' : 's'}).`;
+            });
+            const mov = registrarMovimento(tx, c, pref, pdata, 'disputa_lances_encerrados',
+                `Encerrada a fase de lances da ${PERFIS_DISPUTA[x.perfil].toLowerCase()} em ${quando(fimDosLances(x)!)}, com ${e.seq} lance${e.seq === 1 ? '' : 's'}.\n${linhas.join('\n')}`, { certame_id: id });
+            tx.update(pref, mov);
+            e.encerramento_registrado = true;
+            tx.set(ref.collection('sala').doc('estado'), e);
+        } else if (novo) tx.set(ref.collection('sala').doc('estado'), e);
+        return { unidades, lances: e.seq };
+    });
+}
+
 /** E-mail a quem participa (fora da transação; a falha de envio não desfaz o ato). */
 async function avisarPorEmail(db: admin.firestore.Firestore, certameId: string, uids: string[], assunto: string, corpo: string) {
     if (!uids.length) return;
@@ -320,6 +362,7 @@ export async function acaoFornecedor(db: admin.firestore.Firestore, auth: { uid:
     const uid = auth.uid;
     const emailConta = String(auth.token.email || '');
     const agora = () => new Date().toISOString();
+    if (ACOES_SALA_FORNECEDOR.includes(String(p.action))) return acaoSalaFornecedor(db, uid, p, lerCertame);
 
     if (p.action === 'disputaMinhas') {
         const snap = await db.collection(COL_CERTAMES).where('fornecedores_uids', 'array-contains', uid).limit(200).get();

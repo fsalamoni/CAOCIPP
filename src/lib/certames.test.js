@@ -1,7 +1,7 @@
 // Rodar: node --test src/lib/certames.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alertasDaProposta, faltaPara, lotesIncompletos, numero, quandoBr, unidadesDeDisputa, valorEstimado, valorNaUnidade } from './certames.js';
+import { alertasDaProposta, faltaPara, lotesIncompletos, numero, problemaDoLance, quandoBr, relogio, unidadesDeDisputa, valorEstimado, valorNaUnidade } from './certames.js';
 
 const aviso = {
     criterio: 'menor_preco', unidade_disputa: 'lote',
@@ -34,4 +34,15 @@ test('disputa: horário de Brasília e contagem até a abertura', () => {
     assert.equal(faltaPara('2026-11-23T12:00:00.000Z', t + 1), 'encerrado');
     assert.equal(faltaPara('2026-11-23T12:00:00.000Z', t - 45 * 60000), '45 min');
     assert.equal(faltaPara('2026-11-23T12:00:00.000Z', t - (2 * 1440 + 180) * 60000), '2 dias e 3 h');
+});
+
+test('sala de lances: relógio e conferência do lance', () => {
+    assert.equal(relogio(3725000), '01:02:05');
+    assert.equal(relogio(65000), '01:05');
+    assert.equal(relogio(-5), '00:00');
+    const d = { criterio: 'menor_preco', intervalo: { tipo: 'percentual', valor: 1 } };
+    assert.equal(problemaDoLance(99, 100, d), '');
+    assert.match(problemaDoLance(99.5, 100, d), /no máximo R\$\s?99,00/);
+    assert.match(problemaDoLance(101, 100, d), /menor que o seu último/);
+    assert.match(problemaDoLance(10.2, 10, { criterio: 'maior_desconto', intervalo: { valor: 0.5 } }), /ao menos 10,5%/);
 });

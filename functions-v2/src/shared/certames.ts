@@ -4,7 +4,8 @@
  * e o publica; fornecedores entram por convite (cotação privada) ou pelo link
  * do aviso (dispensa eletrônica, IN SEGES/ME 67/2021) e enviam a proposta.
  * Até a abertura, o conteúdo das propostas é sigiloso: o órgão sabe só quantas
- * chegaram. A sala de lances, o julgamento e o resultado vêm nas etapas S12 e S13.
+ * chegaram. A sala de lances (S12) está no fim deste arquivo; o julgamento e o
+ * resultado vêm na S13.
  *
  * Lógica pura; o servidor grava. Ver docs/PROCESSO_ELETRONICO.md.
  */
@@ -60,7 +61,7 @@ export const DECLARACOES: Array<[string, string, boolean]> = [
     ['meepp', 'Sou microempresa ou empresa de pequeno porte e cumpro os requisitos da Lei Complementar 123/2006 para o tratamento diferenciado.', false],
 ];
 
-const num = (v: unknown): number => (typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(/\./g, '').replace(',', '.')) : NaN);
+export const num = (v: unknown): number => (typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(/\./g, '').replace(',', '.')) : NaN);
 /** Até 4 casas decimais (IN 73/2022 e manual do fornecedor). */
 const casas4 = (n: number) => Math.round(n * 10000) / 10000;
 const ehData = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T12:00:00Z`));
@@ -265,4 +266,84 @@ export function textoDoAviso(perfil: PerfilDisputa, d: DadosCertame, numero: str
 export function codigoDoAviso(bytes: Uint8Array): string {
     const ALF = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     return Array.from(bytes.slice(0, 8), (b) => ALF[b % ALF.length]).join('');
+}
+
+// ─── Sala de lances (S12) ─────────────────────────────────────────────────
+
+/** O licitante desfaz o próprio último lance uma vez por item ou lote, em até 15 segundos (IN 73/2022, art. 21, § 3º). */
+export const SEGUNDOS_PARA_DESFAZER = 15;
+/** Intervalo mínimo entre dois lances do mesmo licitante, contra cliques repetidos. */
+export const SEGUNDOS_ENTRE_LANCES = 3;
+
+export interface Lance {
+    id: string; seq: number; chave: string; uid: string;
+    /** O que o licitante digita: unitário (item, menor preço), global (lote) ou percentual (desconto). */
+    valor: number;
+    /** O que classifica: no item por menor preço, quantidade x unitário; nos demais, o próprio valor. */
+    total: number;
+    em: string;
+    excluido?: { por: 'licitante' | 'agente'; motivo?: string; em: string };
+}
+/** Posição de um licitante numa unidade de disputa: o último lance válido ou, sem lance, a proposta. */
+export interface Posicao { uid: string; valor: number; total: number; em: string; seq: number }
+
+type Sala = Pick<DadosCertame, 'lances' | 'horas_lances'> & { abertura_em?: string };
+
+/** Fim da fase de lances (ISO), ou undefined sem lances. A dispensa não prorroga (IN 67/2021, art. 11). */
+export const fimDosLances = (x: Sala): string | undefined =>
+    (x.abertura_em && x.lances ? new Date(Date.parse(x.abertura_em) + x.horas_lances * 3600e3).toISOString() : undefined);
+
+export type MomentoDisputa = 'propostas' | 'lances' | 'encerrada';
+/** Em que ponto está a disputa publicada: recebendo propostas, em lances ou encerrada (sem lances, encerra na abertura). */
+export function momentoDaDisputa(x: Sala, agora: string): MomentoDisputa {
+    if (!x.abertura_em || agora < x.abertura_em) return 'propostas';
+    const fim = fimDosLances(x);
+    return fim && agora < fim ? 'lances' : 'encerrada';
+}
+
+type Criterio = Pick<DadosCertame, 'criterio' | 'unidade_disputa'>;
+const unitario = (d: Criterio) => d.criterio === 'menor_preco' && d.unidade_disputa === 'item';
+export const totalDoValor = (v: number, u: { itens: ItemCertame[] }, d: Criterio): number =>
+    (unitario(d) ? casas4(v * u.itens[0].quantidade) : casas4(v));
+
+/** O valor da proposta na unidade, no que o licitante digita no lance. Null se não cotou. */
+export function valorDaProposta(p: Pick<Proposta, 'itens'>, u: { itens: ItemCertame[] }, d: Criterio): number | null {
+    const t = valorNaUnidade(p, u, d.criterio);
+    if (t == null) return null;
+    return unitario(d) ? p.itens.find((x) => x.item_id === u.itens[0].id)!.valor : t;
+}
+
+export const valorTexto = (v: number, d: Pick<DadosCertame, 'criterio'>) => (d.criterio === 'maior_desconto' ? `${String(v).replace('.', ',')}%` : moeda(v));
+
+/**
+ * Confere o lance contra o último valor do próprio licitante (lance intermediário
+ * vale: não precisa vencer o melhor). Devolve o problema, ou '' quando vale.
+ * No desconto, o intervalo é em pontos percentuais.
+ */
+export function problemaDoLance(valor: number, atual: number, d: Pick<DadosCertame, 'criterio' | 'intervalo'>): string {
+    const desc = d.criterio === 'maior_desconto';
+    if (!Number.isFinite(valor) || valor <= 0 || valor >= 1e12) return 'Informe o valor do lance';
+    if (desc && valor >= 100) return 'O desconto precisa ser menor que 100%';
+    const iv = d.intervalo?.valor || 0;
+    const passo = desc || d.intervalo?.tipo === 'valor' ? iv : casas4((atual * iv) / 100);
+    if (desc ? !(valor > atual) : !(valor < atual)) return `O lance precisa ser ${desc ? 'maior' : 'menor'} que o seu último (${valorTexto(atual, d)})`;
+    const limite = casas4(desc ? atual + passo : atual - passo);
+    if (passo > 0 && (desc ? valor < limite : valor > limite)) {
+        return `Respeite o intervalo mínimo entre lances: ${desc ? 'ao menos' : 'no máximo'} ${valorTexto(limite, d)}`;
+    }
+    return '';
+}
+
+/** Ordena as posições: menor total (ou maior desconto); empate, quem chegou antes ao valor (IN 67/2021, art. 12, § 1º). */
+export function ordenarPosicoes(ps: Posicao[], d: Pick<DadosCertame, 'criterio'>): Posicao[] {
+    const desc = d.criterio === 'maior_desconto';
+    return [...ps].sort((a, b) => (desc ? b.total - a.total : a.total - b.total) || a.em.localeCompare(b.em) || a.seq - b.seq);
+}
+
+/** Posição de um licitante: o último lance não excluído, ou a proposta. Null se não cotou a unidade. */
+export function posicaoDe(uid: string, p: Pick<Proposta, 'itens' | 'atualizada_em'>, u: { chave: string; itens: ItemCertame[] }, d: Criterio, lances: Lance[]): Posicao | null {
+    const base = valorDaProposta(p, u, d);
+    if (base == null) return null;
+    const ult = lances.filter((l) => l.uid === uid && l.chave === u.chave && !l.excluido).sort((a, b) => a.seq - b.seq).at(-1);
+    return ult ? { uid, valor: ult.valor, total: ult.total, em: ult.em, seq: ult.seq } : { uid, valor: base, total: totalDoValor(base, u, d), em: p.atualizada_em, seq: 0 };
 }

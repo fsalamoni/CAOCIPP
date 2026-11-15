@@ -348,6 +348,11 @@ informado.
   O conteúdo das propostas fica em sigilo até a abertura, para ninguém
   ajustar preço pelo dos outros. Na dispensa eletrônica, a abertura respeita
   ao menos 3 dias úteis da publicação (IN SEGES/ME 67/2021, art. 6º).
+  Nos lances, quem dá o lance não aparece: cada um vê o melhor valor e a
+  própria posição, e o órgão vê apelidos até o fim, para que a disputa seja
+  pelo preço e não por quem concorre. O prazo é o do relógio do servidor,
+  igual para todos, e o lance excluído pelo órgão sempre tem motivo e aviso
+  a todos na sala.
 - **Reunião deliberativa.** O colegiado também decide assuntos que não são
   processos. Cada assunto tem a forma de votação e a maioria que ele exige:
   simples (mais votos a favor que contra), absoluta (mais da metade dos

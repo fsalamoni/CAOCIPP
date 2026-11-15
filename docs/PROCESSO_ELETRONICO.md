@@ -1622,7 +1622,7 @@ do certame (etapa S13), e `marcarAcao` recusa marcá-la à mão. Lógica pura em
   leitura mostra só `propostas_n`. Depois da abertura, sem lances,
   `certamePropostas` classifica cada item ou lote (empate: quem enviou
   antes, IN 67/2021, art. 12, § 1º). Com lances, a abertura é da sala de
-  lances (S12). O orçamento sigiloso não sai no aviso nem para o
+  lances (abaixo). O orçamento sigiloso não sai no aviso nem para o
   fornecedor.
 - Auditoria: `SECRETARIA_SESSAO_DISPUTA_CRIADA`, `_PUBLICADA`, `_ADIADA`,
   `_CANCELADA`.
@@ -1631,6 +1631,50 @@ do certame (etapa S13), e `marcarAcao` recusa marcá-la à mão. Lógica pura em
   `Entrar` do portal. Editor do rito com o tipo de disputa, guia do rito e
   glossário `disputa_precos`. Testes: `functions-v2/test/certames.test.js` e
   `src/lib/certames.test.js`.
+
+### Sala de lances (15/11/2026)
+
+Etapa S12. Na disputa com lances (a dispensa sempre; a cotação privada, se
+o aviso pedir), a sala abre em `abertura_em` e fecha sozinha em
+`abertura_em + horas_lances` (`fimDosLances`), sem prorrogação (IN 67/2021,
+art. 11). O relógio é só o do servidor: cada resposta traz `agora`, a tela
+corrige a contagem pela diferença, e o lance que chega depois do fim é
+recusado. `momentoDaDisputa` diz se a disputa publicada está em
+`propostas`, `lances` ou `encerrada`.
+
+- **Estado:** `secCertames/{id}/sala/estado` guarda, por item ou lote, as
+  posições em ordem (`Posicao`: o último lance válido do licitante ou, sem
+  lance, a proposta), o contador `seq`, os apelidos ("Licitante n", pela
+  ordem de envio da proposta), o último lance de cada um e quem já desfez.
+  Monta-se das propostas no primeiro acesso depois da abertura. Cada lance
+  fica em `lances/{id}` e nunca se apaga: a exclusão só marca `excluido`.
+  Todo lance passa por uma transação sobre o estado, então entram um de
+  cada vez, com número de ordem.
+- **Lance** (`disputaLance`, portal): só de quem cotou o item ou lote; melhor
+  que o seu último (menor preço ou maior desconto), respeitado o intervalo
+  mínimo (percentual sobre o último, ou em reais; no desconto, pontos
+  percentuais); não precisa vencer o melhor (lance intermediário, Lei
+  14.133/2021, art. 56, § 3º). O valor é o unitário no item por menor preço
+  (classifica quantidade x unitário), o global no lote e o percentual no
+  desconto. Três segundos entre lances do mesmo licitante; `envio` torna o
+  reenvio idempotente. Empate: quem chegou antes ao valor (IN 67/2021, art.
+  12, § 1º).
+- **Desfazer** (`disputaDesfazer`): o último lance, uma vez por item ou lote,
+  em até 15 segundos (IN 73/2022, art. 21, § 3º). O licitante volta ao
+  lance anterior ou à proposta.
+- **Órgão** (`certameSala`, `certameExcluirLance`, `certameMensagem`): vê as
+  posições e os lances por apelido; os nomes só depois do fim. Quem tem o
+  processo exclui, com motivo, o lance que compromete a disputa, e todos na
+  sala recebem o aviso automático (IN 73/2022, art. 21, § 4º); auditoria
+  `SECRETARIA_SESSAO_LANCE_EXCLUIDO`. Mensagens: o órgão escreve a todos; o
+  licitante escreve ao órgão, e os outros licitantes não veem.
+- **Fim:** `certamePropostas` dá a classificação final, com nomes e a marca
+  "por lance"; na primeira leitura depois do fim, registra nos autos
+  `disputa_lances_encerrados` com o melhor valor de cada item ou lote (sem
+  nomes: o julgamento os dá, na S13).
+- Tela: `SalaLances.jsx` (`SalaLancesFornecedor` na página `Disputas`,
+  `SalaLancesOrgao` na janela da disputa), com consulta a cada 3 ou 4
+  segundos durante os lances.
 
 ### Reunião deliberativa (15/11/2026)
 

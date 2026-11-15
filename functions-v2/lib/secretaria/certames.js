@@ -21,13 +21,14 @@ const secretaria_1 = require("../shared/secretaria");
 const exigencias_1 = require("../shared/exigencias");
 const permissoesFase_1 = require("../shared/permissoesFase");
 const certames_1 = require("../shared/certames");
+const salaLances_1 = require("./salaLances");
 const email_1 = require("../shared/email");
 const config_1 = require("./config");
 const context_1 = require("./context");
 exports.COL_CERTAMES = 'secCertames';
 const COL_ACESSOS = 'secPortalAcessos';
-exports.ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas'];
-exports.ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar'];
+exports.ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...salaLances_1.ACOES_SALA_ORGAO];
+exports.ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar', ...salaLances_1.ACOES_SALA_FORNECEDOR];
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const CONVITE_DIAS = 60;
@@ -74,10 +75,13 @@ function avisoPublico(id, x) {
             return a;
         }),
         cancelado: x.cancelado ? { motivo: x.cancelado.motivo, em: x.cancelado.em } : undefined,
+        fim_lances: (0, certames_1.fimDosLances)(x), momento: x.situacao === 'publicado' ? (0, certames_1.momentoDaDisputa)(x, new Date().toISOString()) : null,
     };
 }
 async function acaoCertame(c, p) {
     var _a, _b;
+    if (salaLances_1.ACOES_SALA_ORGAO.includes(String(p.action)))
+        return (0, salaLances_1.acaoSalaOrgao)(c, p, (data) => { var _a; return ((_a = data.certame) === null || _a === void 0 ? void 0 : _a.id) || null; });
     const quem = { uid: c.ctx.uid, nome: c.userName };
     const col = c.db.collection(exports.COL_CERTAMES);
     if (p.action === 'certameLer' || p.action === 'certamePropostas') {
@@ -96,8 +100,11 @@ async function acaoCertame(c, p) {
             if (!x.abertura_em || x.abertura_em > new Date().toISOString() || x.situacao === 'cancelado' || x.situacao === 'rascunho') {
                 throw new https_1.HttpsError('failed-precondition', 'As propostas são sigilosas até a abertura');
             }
-            if (x.lances)
-                throw new https_1.HttpsError('failed-precondition', 'Esta disputa tem lances: as propostas se abrem na sala de lances');
+            if (x.lances) {
+                if ((0, certames_1.momentoDaDisputa)(x, new Date().toISOString()) !== 'encerrada')
+                    throw new https_1.HttpsError('failed-precondition', 'Os lances ainda estão em curso: a classificação sai no fim');
+                return classificacaoComLances(c, ref, atual.id, x);
+            }
             const ps = await col.doc(atual.id).collection('propostas').get();
             const propostas = ps.docs.map((d) => d.data());
             const desc = x.criterio === 'maior_desconto';
@@ -118,6 +125,7 @@ async function acaoCertame(c, p) {
             abertura_minima: (0, certames_1.aberturaMinima)(((x === null || x === void 0 ? void 0 : x.perfil) || ((_b = alvo === null || alvo === void 0 ? void 0 : alvo.regra.disputa) === null || _b === void 0 ? void 0 : _b.perfil) || 'cotacao'), hoje, cal),
             hoje,
             agora: new Date().toISOString(),
+            momento: x && x.situacao === 'publicado' ? (0, certames_1.momentoDaDisputa)(x, new Date().toISOString()) : null,
             declaracoes: certames_1.DECLARACOES.map(([id, t, o]) => ({ id, texto: t, obrigatoria: o })),
             pode: {
                 editar: posse && podeCumprir && (!x || x.situacao === 'rascunho' || x.situacao === 'cancelado'),
@@ -280,6 +288,40 @@ async function acaoCertame(c, p) {
     }
     return resto;
 }
+/**
+ * Classificação depois da fase de lances: as posições finais da sala, com os
+ * nomes. Na primeira leitura depois do fim, registra nos autos o encerramento
+ * dos lances (melhor oferta de cada item ou lote, sem nomes: o julgamento os dá).
+ */
+async function classificacaoComLances(c, pref, id, x0) {
+    const ref = c.db.collection(exports.COL_CERTAMES).doc(id);
+    return c.db.runTransaction(async (tx) => {
+        const [x, pdata] = await Promise.all([tx.get(ref).then((s) => s.data() || x0), tx.get(pref).then((s) => s.data())]);
+        const { estado: e, novo } = await (0, salaLances_1.lerEstado)(c.db, ref, x, tx);
+        const ps = await tx.get(ref.collection('propostas'));
+        const props = new Map(ps.docs.map((d) => [d.id, d.data()]));
+        const unidades = (0, certames_1.unidadesDeDisputa)(x).map((u) => ({
+            chave: u.chave, nome: u.nome,
+            classificacao: (e.posicoes[u.chave] || []).map((v) => {
+                const pr = props.get(v.uid);
+                return { fornecedor: (pr === null || pr === void 0 ? void 0 : pr.licitante.razao_social) || `Licitante ${e.apelidos[v.uid]}`, documento: (pr === null || pr === void 0 ? void 0 : pr.licitante.documento) || '', porte: pr === null || pr === void 0 ? void 0 : pr.licitante.porte, valor: v.total, lance: v.valor, por_lance: v.seq > 0, enviada_em: v.em };
+            }),
+        }));
+        if (!e.encerramento_registrado) {
+            const linhas = unidades.map((u) => {
+                const n = (e.posicoes[u.chave] || []).length;
+                return `${u.nome}: ${u.classificacao[0] ? `melhor oferta ${(0, certames_1.valorTexto)(u.classificacao[0].valor, x)}` : 'sem oferta'} (${n} licitante${n === 1 ? '' : 's'}).`;
+            });
+            const mov = (0, context_1.registrarMovimento)(tx, c, pref, pdata, 'disputa_lances_encerrados', `Encerrada a fase de lances da ${certames_1.PERFIS_DISPUTA[x.perfil].toLowerCase()} em ${quando((0, certames_1.fimDosLances)(x))}, com ${e.seq} lance${e.seq === 1 ? '' : 's'}.\n${linhas.join('\n')}`, { certame_id: id });
+            tx.update(pref, mov);
+            e.encerramento_registrado = true;
+            tx.set(ref.collection('sala').doc('estado'), e);
+        }
+        else if (novo)
+            tx.set(ref.collection('sala').doc('estado'), e);
+        return { unidades, lances: e.seq };
+    });
+}
 /** E-mail a quem participa (fora da transação; a falha de envio não desfaz o ato). */
 async function avisarPorEmail(db, certameId, uids, assunto, corpo) {
     if (!uids.length)
@@ -314,6 +356,8 @@ async function acaoFornecedor(db, auth, p) {
     const uid = auth.uid;
     const emailConta = String(auth.token.email || '');
     const agora = () => new Date().toISOString();
+    if (salaLances_1.ACOES_SALA_FORNECEDOR.includes(String(p.action)))
+        return (0, salaLances_1.acaoSalaFornecedor)(db, uid, p, lerCertame);
     if (p.action === 'disputaMinhas') {
         const snap = await db.collection(exports.COL_CERTAMES).where('fornecedores_uids', 'array-contains', uid).limit(200).get();
         const perfil = ((_a = (await db.collection(COL_ACESSOS).doc(uid).get()).data()) === null || _a === void 0 ? void 0 : _a.fornecedor) || null;
