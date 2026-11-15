@@ -110,6 +110,22 @@ export function julgamentoPendente(proc: ProcParaPauta): number {
     return (fase.acoes_regras || []).findIndex((r, i) => r?.pede === 'julgamento' && !feitas.includes(i) && acaoAtiva(fase as never, i, resp));
 }
 
+/**
+ * Leitura do julgador (decisão do Flavio, 15/11/2026): quem compõe o
+ * colegiado lê os autos enquanto o processo está pautado numa sessão dele e,
+ * julgado, enquanto o processo segue em unidade do colegiado (o acórdão é
+ * feito ali). Saiu do colegiado, a leitura acaba.
+ */
+export function leituraDeJulgador(
+    proc: { sessao?: { orgao_id?: unknown } | null; ultima_sessao?: { orgao_id?: unknown } | null; unidade_atual?: unknown; status?: unknown },
+    compoe: string[], orgaoDaUnidade: (u: string) => unknown,
+): boolean {
+    if (!compoe.length || proc.status === 'excluido') return false;
+    if (proc.sessao && compoe.includes(String(proc.sessao.orgao_id))) return true;
+    const ult = proc.ultima_sessao ? String(proc.ultima_sessao.orgao_id) : '';
+    return !!ult && proc.status === 'em_tramitacao' && compoe.includes(ult) && orgaoDaUnidade(String(proc.unidade_atual || '')) === ult;
+}
+
 /** Onde e como, no mesmo jeito das audiências: "em Sala 2", "por videoconferência (link)", "em Sala 2 e por videoconferência (link)". */
 export function ondeSessao(s: Pick<DadosSessao, 'modo' | 'local' | 'link'>): string {
     if (s.modo === 'virtual') return `por videoconferência (${s.link})`;

@@ -289,6 +289,12 @@ informado.
   extrapauta ou em mesa, com o motivo na certidão; retirar ou cancelar
   também é certificado com o motivo. Data, hora e local publicados não mudam
   em silêncio: para mudar, cancela-se a sessão, e as partes são avisadas.
+  Quem vai votar precisa conhecer os autos: por isso quem compõe o
+  colegiado lê o processo pautado, mesmo sem estar lotado na unidade, até o
+  acórdão. A leitura é só leitura (o julgador não pratica atos no processo),
+  alcança o que está juntado aos autos e fica registrada, para que a unidade
+  saiba quem consultou. As anotações do julgador são dele: não são ato do
+  processo e não vão aos autos.
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

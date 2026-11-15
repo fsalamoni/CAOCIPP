@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProcessosVinculados from './ProcessosVinculados';
+import MinhasAnotacoes from './MinhasAnotacoes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -81,6 +82,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     const p = q.data?.processo;
     const posse = q.data?.posse;
+    const julgador = q.data?.leitura_julgador === true;
     const arquivado = p?.status === 'arquivado';
     const podeMexer = !!posse && !arquivado;
     const algoAberto = !!(acao || editor || pdf || novoDoc || leitura || linkConvite);
@@ -393,6 +395,17 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </div>
             </div>
 
+            {julgador && (
+                <div role="status" className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/50 px-4 py-3 text-sm text-indigo-950 dark:text-indigo-100 flex gap-2">
+                    <Eye className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
+                    <p>
+                        Você lê estes autos como membro do {(p.sessao || p.ultima_sessao)?.colegiado || 'colegiado'}, porque o processo {p.sessao ? `está na pauta da ${p.sessao.titulo}` : 'foi julgado pelo colegiado e ainda está com ele'}.
+                        Aparecem os documentos juntados; minutas e documentos guardados fora dos autos, não. Cada leitura fica registrada para a unidade que tem o processo.
+                    </p>
+                </div>
+            )}
+            <MinhasAnotacoes orgId={orgId} procId={procId} />
+
             <Tabs value={vistaAtual} onValueChange={setVista}>
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <TabsList className="flex-wrap h-auto">
@@ -431,8 +444,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuItem disabled={!autos.length} onSelect={() => setLeitura(autos[0]?.id)}>Ler os autos em sequência</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={exportar}>Exportar PDF dos autos</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setInterna(true)}>Impressão interna (fora dos autos)</DropdownMenuItem>
+                            {!julgador && <DropdownMenuItem onSelect={exportar}>Exportar PDF dos autos</DropdownMenuItem>}
+                            {!julgador && <DropdownMenuItem onSelect={() => setInterna(true)}>Impressão interna (fora dos autos)</DropdownMenuItem>}
                             {q.data?.pode_excluir && (
                                 <>
                                     <DropdownMenuSeparator />
@@ -448,12 +461,27 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <TabsContent value="capa" className="mt-4">
                 <CapaProcesso p={p} movimentos={movimentos} informacoes={informacoes} estado={estado} nomeUnidade={nomeUnidade} cadeiaQuebradaEm={cadeiaQuebradaEm}
                     onLer={(id) => setLeitura(id)} onVerEventos={() => setVista('eventos')} />
+                {q.data?.leituras?.length > 0 && (
+                    <section className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-2" aria-labelledby="leit-titulo">
+                        <h3 id="leit-titulo" className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2"><Eye className="w-4 h-4" aria-hidden /> Leituras pelos julgadores</h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Quem compõe o colegiado e leu os autos pela pauta. Fica fora dos autos e não aparece para as partes.</p>
+                        <ul className="text-sm divide-y divide-slate-100 dark:divide-slate-800">
+                            {q.data.leituras.map((l) => (
+                                <li key={`${l.em}${l.o_que}`} className="py-1.5 flex flex-wrap gap-x-3">
+                                    <span className="text-slate-600 dark:text-slate-400 tabular-nums">{new Date(l.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                    <span className="font-medium">{l.nome}</span>
+                                    <span className="text-slate-700 dark:text-slate-300">{l.o_que}{l.sessao ? ` (${l.sessao})` : ''}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
                 <ProcessosVinculados className="mt-4" orgId={orgId} titulo="Processos derivados" rotuloCriar="Novo processo derivado"
                     registro={{ modulo: 'pe', id: procId, numero: p.numero }} />
             </TabsContent>
 
             <TabsContent value="andamento" className="mt-4 space-y-5">
-            {!posse && <p className="text-sm text-slate-600 dark:text-slate-400">Você consulta este processo. Só a unidade que está com ele pode movimentá-lo.</p>}
+            {!posse && !julgador && <p className="text-sm text-slate-600 dark:text-slate-400">Você consulta este processo. Só a unidade que está com ele pode movimentá-lo.</p>}
 
             {p.orientacao && (
                 <div role="status" className="flex flex-wrap items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-4 py-3 text-sm">

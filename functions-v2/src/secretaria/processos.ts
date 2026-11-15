@@ -37,7 +37,7 @@ import { fireOrgWebhook } from '../shared/webhooks';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { lerOrgaos } from './orgaos';
-import { acaoSessao } from './sessoes';
+import { acaoAnotacao, acaoSessao, leiturasDoProcesso, registrarLeitura } from './sessoes';
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
@@ -689,6 +689,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     const { db, orgId } = c;
     // Sessões de julgamento dos colegiados (pauta, publicação, cancelamento).
     if (typeof p.action === 'string' && p.action.startsWith('sessao')) return acaoSessao(c, p as unknown as Record<string, unknown>);
+    // Anotação privada de quem lê o processo (nunca vai aos autos).
+    if ((p.action as string) === 'anotacao') return acaoAnotacao(c, p as unknown as Record<string, unknown>);
 
     if (p.action === 'listar' && p.limite) {
         // Paginado pelo servidor: do mais recente para o mais antigo por
@@ -878,7 +880,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     }
 
     if (p.action === 'obter') {
-        const { ref, data } = await lerProcesso(c, p.id);
+        const { ref, data, julgador } = await lerProcesso(c, p.id, undefined, { julgador: true });
+        // Leitura do julgador: fica registrada (quem, quando, por qual sessão), fora dos autos.
+        if (julgador) await registrarLeitura(c, ref, data, 'Abriu os autos');
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
@@ -896,7 +900,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
         const documentos = docs.docs
             .map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
             // Minuta só é vista pela unidade que a redigiu; juntado = autos; controle = guardado fora dos autos (toda a equipe).
-            .filter((d) => d.status === 'juntado' || d.status === 'controle' || minutaAcessivel(d, c.ctx.unidadeIds))
+            .filter((d) => d.status === 'juntado' || (!julgador && (d.status === 'controle' || minutaAcessivel(d, c.ctx.unidadeIds))))
             .map((d) => ({
                 id: d.id, titulo: d.titulo, tipo: d.tipo, origem: d.origem, status: d.status,
                 mime: d.mime || null, nome_arquivo: d.nome_arquivo || null, tamanho: d.tamanho || null,
@@ -949,6 +953,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 espera: data.espera ? { fase: String(data.espera.fase || ''), unidade: String(data.espera.unidade || ''), desde: String(data.espera.desde || '') } : null,
                 campos_exigidos: data.campos_exigidos || {},
                 registro_criado: data.registro_criado || null,
+                ultima_sessao: data.ultima_sessao || null,
             },
             hoje: hojeBrasil(),
             movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
@@ -957,7 +962,11 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 ? { ...i, restrito: true, ref: marcar(i.ref), ...(i.refs ? { refs: i.refs.map(marcar) } : {}) } : i)),
             cadeiaQuebradaEm: verificarCadeia(movsBrutos as never),
             posse,
-            pode_excluir: podeExcluirProcesso(data as never, movimentos as never, c.ctx),
+            pode_excluir: !julgador && podeExcluirProcesso(data as never, movimentos as never, c.ctx),
+            // Julgador do colegiado lendo pela pauta: a tela mostra só a leitura, sem atos.
+            leitura_julgador: julgador,
+            // Quem leu pela pauta: para a unidade que tem o processo e a administração.
+            leituras: !julgador && (posse || c.ctx.isAdmin || c.gestorDe.includes(String(data.unidade_atual))) ? await leiturasDoProcesso(ref) : [],
         };
     }
 

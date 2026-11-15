@@ -384,6 +384,7 @@ service cloud.firestore {
     match /secConvitesEquipe/{id} { allow read, write: if false; }
     match /secLimites/{id} { allow read, write: if false; }
     match /secSessoes/{id} { allow read, write: if false; }
+    match /secAnotacoes/{id} { allow read, write: if false; }
 
     // ========== PLATAFORMA: ALLOWLIST DE SUPER-ADMINS ==========
 

@@ -4,6 +4,18 @@ const {
     sanitizeDadosSessao, sanitizeRegrasSessao, dataMinimaDaSessao, problemaDaAntecedencia, julgamentoPendente, textoDaInclusao, textoDaRetirada, reordenar,
 } = require('../lib/shared/sessoes');
 const { sanitizeOrgao } = require('../lib/shared/orgaos');
+const { leituraDeJulgador } = require('../lib/shared/sessoes');
+
+test('leitura do julgador: pautado no colegiado que compõe; julgado, enquanto segue no colegiado', () => {
+    const orgao = (u) => ({ uC: 'c', uX: 'x' })[u] || null;
+    const base = { status: 'em_tramitacao', unidade_atual: 'uC' };
+    assert.equal(leituraDeJulgador({ ...base, sessao: { orgao_id: 'c' } }, ['c'], orgao), true);
+    assert.equal(leituraDeJulgador({ ...base, sessao: { orgao_id: 'c' } }, ['outro'], orgao), false, 'não compõe');
+    assert.equal(leituraDeJulgador({ ...base }, ['c'], orgao), false, 'sem pauta, nada');
+    assert.equal(leituraDeJulgador({ ...base, ultima_sessao: { orgao_id: 'c' } }, ['c'], orgao), true, 'julgado, o acórdão segue no colegiado');
+    assert.equal(leituraDeJulgador({ ...base, unidade_atual: 'uX', ultima_sessao: { orgao_id: 'c' } }, ['c'], orgao), false, 'saiu do colegiado');
+    assert.equal(leituraDeJulgador({ ...base, status: 'arquivado', ultima_sessao: { orgao_id: 'c' } }, ['c'], orgao), false, 'arquivado');
+});
 
 test('sessão: dados conferidos, título padrão e modo decide local e link', () => {
     assert.throws(() => sanitizeDadosSessao({ hora: '14:00', local: 'Sala' }), /data da sessão/);

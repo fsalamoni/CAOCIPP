@@ -1,7 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COL_SESSOES = void 0;
+exports.MAX_ANOTACAO = exports.COL_ANOTACOES = exports.COL_SESSOES = void 0;
 exports.gereSessoes = gereSessoes;
+exports.registrarLeitura = registrarLeitura;
+exports.leiturasDoProcesso = leiturasDoProcesso;
+exports.acaoAnotacao = acaoAnotacao;
 exports.acaoSessao = acaoSessao;
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -74,6 +77,41 @@ const marcaNoProcesso = (id, s, orgao, item) => ({
     id, titulo: s.titulo, data: s.data, hora: s.hora, modo: s.modo, local: s.local, link: s.link,
     orgao_id: orgao.id, colegiado: orgao.nome, inclusao: item.inclusao,
 });
+/** Leitura dos autos pelo julgador, pela pauta: registrada fora dos autos (secProcessos/{id}/leituras). */
+async function registrarLeitura(c, ref, proc, oQue) {
+    const s = proc.sessao || proc.ultima_sessao || {};
+    await ref.collection('leituras').add({
+        uid: c.ctx.uid, nome: c.userName, em: new Date().toISOString(), o_que: oQue.slice(0, 200),
+        sessao_id: s.id || null, sessao: s.titulo || '', colegiado: s.colegiado || '',
+    });
+}
+async function leiturasDoProcesso(ref) {
+    const s = await ref.collection('leituras').orderBy('em', 'desc').limit(50).get();
+    return s.docs.map((d) => { const x = d.data(); return { nome: x.nome, em: x.em, o_que: x.o_que, sessao: x.sessao, colegiado: x.colegiado }; });
+}
+exports.COL_ANOTACOES = 'secAnotacoes';
+exports.MAX_ANOTACAO = 20000;
+/**
+ * Anotação privada de quem lê o processo (julgador, assessoria, secretaria):
+ * uma por pessoa e processo, só ela lê e escreve, nunca vai aos autos. Sem
+ * `texto`, devolve a atual; com texto vazio, apaga.
+ */
+async function acaoAnotacao(c, p) {
+    const { ref: pref } = await (0, context_1.lerProcesso)(c, p.id, undefined, { julgador: true });
+    const ref = c.db.collection(exports.COL_ANOTACOES).doc(`${c.ctx.uid}_${pref.id}`);
+    if (typeof p.texto !== 'string') {
+        const d = (await ref.get()).data();
+        return { texto: (d === null || d === void 0 ? void 0 : d.texto) || '', atualizada_em: (d === null || d === void 0 ? void 0 : d.atualizada_em) || null };
+    }
+    const texto = p.texto.replace(/\r\n/g, '\n').slice(0, exports.MAX_ANOTACAO);
+    if (!texto.trim()) {
+        await ref.delete();
+        return { texto: '', atualizada_em: null };
+    }
+    const atualizada_em = new Date().toISOString();
+    await ref.set({ organization_id: c.orgId, uid: c.ctx.uid, processo_id: pref.id, texto, atualizada_em });
+    return { texto, atualizada_em };
+}
 async function acaoSessao(c, p) {
     const hoje = (0, secretaria_1.hojeBrasil)();
     const quem = { uid: c.ctx.uid, nome: c.userName };
@@ -105,15 +143,19 @@ async function acaoSessao(c, p) {
         if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere))
             throw new https_1.HttpsError('not-found', 'Sessão não encontrada');
         const pauta = [...(s.pauta || [])].sort((a, b) => a.ordem - b.ordem);
-        const snaps = pauta.length ? await c.db.getAll(...pauta.map((x) => c.db.collection(context_1.COL.processos).doc(x.processo_id))) : [];
+        const [snaps, notas] = pauta.length ? await Promise.all([
+            c.db.getAll(...pauta.map((x) => c.db.collection(context_1.COL.processos).doc(x.processo_id))),
+            c.db.getAll(...pauta.map((x) => c.db.collection(exports.COL_ANOTACOES).doc(`${c.ctx.uid}_${x.processo_id}`))),
+        ]) : [[], []];
         const itens = pauta.map((x, i) => {
             var _a, _b;
             const d = snaps[i].data();
-            const abre = !!d && d.status !== 'excluido' && (0, secretaria_1.podeVer)(d, c.ctx);
+            // Pela lotação, ou como julgador do colegiado enquanto pautado (S3).
+            const abre = !!d && d.status !== 'excluido' && ((0, secretaria_1.podeVer)(d, c.ctx) || (0, context_1.julgadorLe)(c, d));
             // Sigilo restrito: quem não vê os autos não vê o assunto nem as partes.
             const aberto = !!d && (abre || d.sigilo !== 'restrito');
             const julgado = !!d && ((_a = d.ultima_sessao) === null || _a === void 0 ? void 0 : _a.id) === ref.id && ((_b = d.sessao) === null || _b === void 0 ? void 0 : _b.id) !== ref.id;
-            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
+            return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
         });
         return {
             hoje,

@@ -55,7 +55,7 @@ export function agruparSessoes(sessoes, hoje) {
     const ativa = (s) => s.situacao !== 'cancelada' && s.situacao !== 'encerrada';
     return {
         minhas: sessoes.filter((s) => s.componho && s.situacao === 'publicada' && s.data >= hoje),
-        proximas: sessoes.filter((s) => s.situacao === 'publicada' && s.data >= hoje),
+        proximas: sessoes.filter((s) => !s.componho && s.situacao === 'publicada' && s.data >= hoje),
         rascunhos: sessoes.filter((s) => s.situacao === 'rascunho'),
         passadas: sessoes.filter((s) => !ativa(s) || (s.situacao === 'publicada' && s.data < hoje)).reverse(),
     };

@@ -32,5 +32,5 @@ test('sessões: quem vê a aba e como a agenda se agrupa', () => {
         { id: '3', data: '2026-11-25', situacao: 'rascunho' }, { id: '4', data: '2026-11-30', situacao: 'cancelada' },
     ];
     const g = agruparSessoes(ss, '2026-11-16');
-    assert.deepEqual([g.minhas, g.proximas, g.rascunhos, g.passadas].map((l) => l.map((x) => x.id)), [['2'], ['2'], ['3'], ['4', '1']]);
+    assert.deepEqual([g.minhas, g.proximas, g.rascunhos, g.passadas].map((l) => l.map((x) => x.id)), [['2'], [], ['3'], ['4', '1']]);
 });

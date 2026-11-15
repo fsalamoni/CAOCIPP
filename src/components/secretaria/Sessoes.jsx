@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Loader2, MapPin, Pencil, Plus, Search, Send, Trash2, Users, Video } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Loader2, MapPin, NotebookPen, Pencil, Plus, Search, Send, Trash2, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -119,8 +119,10 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
             {colegiados.length > 0 && (
                 <>
                     {g.minhas.length > 0 && <Grupo titulo="Minhas próximas sessões" itens={g.minhas} onAbrir={onAbrirSessao} mostraOrgao={varios} />}
-                    <Grupo titulo="Próximas sessões" itens={g.proximas} onAbrir={onAbrirSessao} mostraOrgao={varios}
-                        vazio={gere.length ? 'Nenhuma sessão com pauta publicada. Use Marcar sessão para começar.' : 'Nenhuma sessão com pauta publicada por enquanto.'} />
+                    {(g.proximas.length > 0 || !g.minhas.length) && (
+                        <Grupo titulo={g.minhas.length ? 'Outras próximas sessões' : 'Próximas sessões'} itens={g.proximas} onAbrir={onAbrirSessao} mostraOrgao={varios}
+                            vazio={gere.length ? 'Nenhuma sessão com pauta publicada. Use Marcar sessão para começar.' : 'Nenhuma sessão com pauta publicada por enquanto.'} />
+                    )}
                     {gere.length > 0 && <Grupo titulo="Rascunhos de pauta" itens={g.rascunhos} onAbrir={onAbrirSessao} mostraOrgao={varios} vazio="Nenhum rascunho." />}
                     {g.passadas.length > 0 && (
                         <details className="group">
@@ -338,6 +340,7 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                         {x.inclusao !== 'pauta' && <Badge variant="outline" className="border-amber-300 text-amber-900 dark:border-amber-800 dark:text-amber-200">{INCLUSAO[x.inclusao]}</Badge>}
                         {x.julgado && <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden /> Julgado</Badge>}
                         {fora && <Badge variant="outline">Retirado</Badge>}
+                        {x.minha_anotacao && <Badge variant="outline" className="gap-1" title="Só você vê"><NotebookPen className="w-3.5 h-3.5" aria-hidden /> Sua anotação</Badge>}
                     </div>
                     {x.partes?.length > 0 && <p className="text-slate-700 dark:text-slate-300"><Users className="inline w-3.5 h-3.5 -mt-0.5 mr-1" aria-hidden />{x.partes.map((p) => `${p.nome} (${POLOS[p.polo] || p.polo})`).join('; ')}</p>}
                     {x.motivo && <p className="text-xs text-slate-600 dark:text-slate-400">{fora ? 'Motivo da retirada' : 'Motivo da inclusão'}: {x.motivo}</p>}
@@ -385,6 +388,9 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
 
             <section className="space-y-2" aria-label="Ordem do dia">
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Ordem do dia{pautados.length ? ` (${pautados.length})` : ''}</h3>
+                {!gere && itens.some((x) => x.pode_abrir) && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Toque no número para ler os autos e fazer suas anotações. Quem compõe o colegiado lê enquanto o processo está pautado, e cada leitura fica registrada.</p>
+                )}
                 {!itens.length && (
                     <p className="text-sm text-slate-600 dark:text-slate-400 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-4">
                         Nenhum processo na pauta. {pode ? 'Use Incluir processos: aparecem os que estão em unidade do colegiado com o julgamento pendente na fase.' : ''}
