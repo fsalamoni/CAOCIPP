@@ -80,6 +80,10 @@ const TITULOS: Record<string, string> = {
     rito_atualizado: 'Certidão de atualização do rito',
     pauta: 'Certidão de inclusão em pauta',
     pauta_retirada: 'Certidão de retirada de pauta',
+    vista: 'Certidão de pedido de vista',
+    vista_devolvida: 'Certidão de devolução de vista',
+    adiamento: 'Certidão de adiamento do julgamento',
+    diligencia: 'Certidão de conversão em diligência',
 };
 export function tituloEvento(m: Evento): string {
     if (m.tipo === 'acao_fase' && m.dados?.nos_autos === true) return 'Certidão de cumprimento';

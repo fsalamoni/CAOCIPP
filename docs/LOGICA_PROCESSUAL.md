@@ -303,6 +303,16 @@ informado.
   analogia). Quem não votou conta como ausente, e o resultado segue a
   maioria, o quórum e o desempate que o rito define. A proclamação é o ato
   que vai aos autos, como certidão de julgamento.
+- **Vista, adiamento e diligência.** Quem ainda não se sente pronto para
+  votar pede vista e examina o processo; o julgamento fica suspenso pelo
+  prazo do colegiado e retoma na sessão seguinte, com os votos já dados, que
+  ainda podem ser reconsiderados (CPC, art. 940, por analogia). Vencido o
+  prazo, o presidente requisita o processo, para que a vista não paralise o
+  julgamento. O presidente também adia o julgamento, motivadamente, para a
+  sessão seguinte (CPC, art. 935), e o converte em diligência quando falta
+  algo para decidir (CPC, art. 938, § 3º): o processo volta à unidade e, ao
+  retornar, os votos recomeçam, porque o que se julga mudou. O relator
+  continua o mesmo. Cada ato é certificado nos autos e comunicado às partes.
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

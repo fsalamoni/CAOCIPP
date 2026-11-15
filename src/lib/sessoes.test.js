@@ -1,7 +1,7 @@
 // npm run test:lib
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agruparSessoes, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDoVoto, veSessoes } from './sessoes.js';
+import { agruparSessoes, juntarNomes, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDaVistaNaPauta, textoDoVoto, veSessoes } from './sessoes.js';
 
 test('sessões: textos de onde e quando, no jeito das certidões', () => {
     assert.equal(ondeSessao({ modo: 'presencial', local: 'Sala 2' }), 'em Sala 2');
@@ -37,4 +37,12 @@ test('sessões: quem vê a aba e como a agenda se agrupa', () => {
     assert.equal(situacaoDaVotacao({ relator_nome: 'Ana', votacao: { liberado: false } }), 'Voto do relator a liberar');
     const g = agruparSessoes(ss, '2026-11-16');
     assert.deepEqual([g.minhas, g.proximas, g.rascunhos, g.passadas].map((l) => l.map((x) => x.id)), [['2'], [], ['3'], ['4', '1']]);
+});
+
+test('sessões: vista na pauta (S5)', () => {
+    assert.equal(juntarNomes(['Ana', 'Bruno', 'Carla']), 'Ana, Bruno e Carla');
+    assert.equal(textoDaVistaNaPauta({ nomes: ['Ana'], prazo: '2026-11-26' }), 'Vista: Ana, até 26/11/2026.');
+    assert.equal(textoDaVistaNaPauta({ nomes: ['Ana', 'Bruno'], prazo: '2026-11-26', devolvida: true }), 'Vista de Ana e Bruno, devolvida.');
+    assert.equal(situacaoDaVotacao({ situacao: 'vista', votacao: { liberado: true } }), 'Julgamento suspenso pela vista');
+    assert.equal(situacaoDaVotacao({ situacao: 'adiado', votacao: { liberado: true } }), '');
 });

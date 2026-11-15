@@ -9,7 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { secProcesso } from '@/services/secretariaService';
-import { CARATER_SESSAO, INCLUSAO, MODOS_SESSAO, SITUACAO_SESSAO, agruparSessoes, br, ondeSessao, problemasDaSessao, situacaoDaVotacao, textoAntecedencia } from '@/lib/sessoes';
+import {
+    CARATER_SESSAO, INCLUSAO, MODOS_SESSAO, ROTULO_MOTIVO, SITUACAO_ITEM, SITUACAO_SESSAO, agruparSessoes, br, ondeSessao, problemasDaSessao, situacaoDaVotacao,
+    juntarNomes, textoAntecedencia, textoDaVistaNaPauta,
+} from '@/lib/sessoes';
 import { POLOS, SeloUrgente } from './comum';
 import AjudaTermo from './AjudaTermo';
 import ErroQuery from './ErroQuery';
@@ -282,8 +285,14 @@ function IncluirProcessos({ orgId, sessao, pautados, onFechar, onIncluido }) {
                                 <span className="font-medium">{x.assunto}</span>
                                 {x.urgente && <SeloUrgente className="ml-2" />}
                                 <span className="block text-xs text-slate-600 dark:text-slate-400">{x.fase_nome}{x.acao ? ` · ${x.acao}` : ''}{x.em_pauta ? ` · já na pauta da ${x.em_pauta}` : ''}</span>
+                                {x.vista && (
+                                    <span className="block text-xs text-violet-900 dark:text-violet-200">
+                                        {x.vista.vencida ? `Prazo de vista de ${juntarNomes(x.vista.nomes)} vencido em ${br(x.vista.prazo)}: incluir agora requisita o processo.` : `Com vista para ${juntarNomes(x.vista.nomes)} até ${br(x.vista.prazo)}: volta à pauta com a devolução.`}
+                                    </span>
+                                )}
+                                {x.continua && <span className="block text-xs text-slate-600 dark:text-slate-400">Julgamento já iniciado: segue com {x.continua.relator_nome ? `o relator ${x.continua.relator_nome}` : 'o mesmo relator'}{x.continua.manter_votos ? ' e os votos já dados' : ''}.</span>}
                             </span>
-                            <Button size="sm" variant="outline" className="gap-1" disabled={!!indo || !!x.em_pauta || falta} onClick={() => incluir(x)} aria-label={`Incluir ${x.numero}`}>
+                            <Button size="sm" variant="outline" className="gap-1" disabled={!!indo || !!x.em_pauta || falta || (x.vista && !x.vista.vencida)} onClick={() => incluir(x)} aria-label={`Incluir ${x.numero}`}>
                                 {indo === x.id ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Plus className="w-4 h-4" aria-hidden />} Incluir
                             </Button>
                         </li>
@@ -326,7 +335,8 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
     };
     const tirar = (x) => (s.situacao === 'rascunho' ? acao('sessaoTirar', { processo_id: x.processo_id }, `${x.numero} saiu do rascunho da pauta`) : setDialogo({ tirar: x }));
     const linha = (x, i, alca) => {
-        const fora = x.situacao === 'retirado';
+        const fora = x.situacao !== 'pautado';
+        const suspenso = x.situacao === 'vista';
         return (
             <div className={`flex gap-2 p-3 ${fora ? 'opacity-70' : ''}`}>
                 {pode && !fora && !x.julgado ? alca : <span className="w-6 shrink-0" aria-hidden />}
@@ -336,16 +346,17 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                         {x.pode_abrir ? (
                             <button type="button" className="font-mono text-indigo-700 dark:text-indigo-300 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded" onClick={() => onAbrir(x.processo_id)}>{x.numero}</button>
                         ) : <span className="font-mono text-slate-800 dark:text-slate-200">{x.numero}</span>}
-                        <span className={`font-medium text-slate-900 dark:text-white ${fora ? 'line-through' : ''}`}>{x.assunto}</span>
+                        <span className={`font-medium text-slate-900 dark:text-white ${x.situacao === 'retirado' ? 'line-through' : ''}`}>{x.assunto}</span>
                         {x.urgente && <SeloUrgente />}
                         {x.inclusao !== 'pauta' && <Badge variant="outline" className="border-amber-300 text-amber-900 dark:border-amber-800 dark:text-amber-200">{INCLUSAO[x.inclusao]}</Badge>}
                         {x.julgado && <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden /> Julgado</Badge>}
-                        {fora && <Badge variant="outline">Retirado</Badge>}
+                        {fora && <Badge variant="outline" className={suspenso ? 'border-violet-300 text-violet-900 dark:border-violet-800 dark:text-violet-200' : ''}>{SITUACAO_ITEM[x.situacao]}</Badge>}
                         {x.minha_anotacao && <Badge variant="outline" className="gap-1" title="Só você vê"><NotebookPen className="w-3.5 h-3.5" aria-hidden /> Sua anotação</Badge>}
                     </div>
                     {x.partes?.length > 0 && <p className="text-slate-700 dark:text-slate-300"><Users className="inline w-3.5 h-3.5 -mt-0.5 mr-1" aria-hidden />{x.partes.map((p) => `${p.nome} (${POLOS[p.polo] || p.polo})`).join('; ')}</p>}
-                    {x.motivo && <p className="text-xs text-slate-600 dark:text-slate-400">{fora ? 'Motivo da retirada' : 'Motivo da inclusão'}: {x.motivo}</p>}
-                    {!fora && s.situacao !== 'cancelada' && (x.relator_nome || (gere && !x.julgado)) && (
+                    {x.motivo && <p className="text-xs text-slate-600 dark:text-slate-400">{ROTULO_MOTIVO[x.situacao] || 'Motivo da inclusão'}: {x.motivo}</p>}
+                    {x.vista && <p className="text-xs text-violet-900 dark:text-violet-200">{textoDaVistaNaPauta(x.vista)}</p>}
+                    {(!fora || suspenso) && s.situacao !== 'cancelada' && (x.relator_nome || (gere && !x.julgado)) && (
                         <p className="text-xs text-slate-700 dark:text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span>{x.relator_nome ? `Relator: ${x.relator_nome}` : 'Sem relator designado'}</span>
                             {situacaoDaVotacao(x) && <span className={x.votacao?.aguarda_meu_voto ? 'font-semibold text-amber-800 dark:text-amber-200' : x.votacao?.proclamado ? 'font-semibold text-emerald-800 dark:text-emerald-200' : ''}>· {situacaoDaVotacao(x)}</span>}
@@ -353,7 +364,7 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     )}
                     {x.problema && <p className="text-xs text-amber-800 dark:text-amber-200 flex gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden /> O processo {x.problema}. Retire da pauta ou acerte o processo antes de {s.situacao === 'rascunho' ? 'publicar' : 'julgar'}.</p>}
                 </div>
-                {!fora && s.situacao !== 'cancelada' && (gere || x.votacao?.liberado || x.votacao?.sou_relator || x.votacao?.proclamado) && (
+                {(!fora || suspenso) && s.situacao !== 'cancelada' && (gere || x.votacao?.liberado || x.votacao?.sou_relator || x.votacao?.proclamado) && (
                     <Button size="sm" variant={x.votacao?.aguarda_meu_voto || (x.votacao?.sou_relator && !x.votacao?.liberado) ? 'default' : 'outline'} className="shrink-0 gap-1 self-start"
                         aria-label={`Julgamento de ${x.numero}`} onClick={() => setDialogo({ votacao: x.processo_id })}>
                         <Gavel className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Julgamento</span>

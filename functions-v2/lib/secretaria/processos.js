@@ -872,7 +872,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
                 consolidacao: data.consolidacao || null, exigencias_cumpridas: data.exigencias_cumpridas || {}, 
                 // Em fase de espera: a fase e a unidade para onde o processo volta.
-                espera: data.espera ? { fase: String(data.espera.fase || ''), unidade: String(data.espera.unidade || ''), desde: String(data.espera.desde || '') } : null, campos_exigidos: data.campos_exigidos || {}, registro_criado: data.registro_criado || null, ultima_sessao: data.ultima_sessao || null }),
+                espera: data.espera ? { fase: String(data.espera.fase || ''), unidade: String(data.espera.unidade || ''), desde: String(data.espera.desde || '') } : null, campos_exigidos: data.campos_exigidos || {}, registro_criado: data.registro_criado || null, ultima_sessao: data.ultima_sessao || null, 
+                // S5: vista em curso e julgamento que continua de outra sessão (equipe e julgadores; o portal não lê isto).
+                vista: data.vista ? { nomes: data.vista.nomes || [], prazo: data.vista.prazo, desde: data.vista.desde, sessao: data.vista.sessao || '', colegiado: data.vista.colegiado || '', sessao_id: data.vista.sessao_id, orgao_id: data.vista.orgao_id } : null, julgamento_em_curso: data.julgamento_em_curso ? { relator_nome: data.julgamento_em_curso.relator_nome || '', manter_votos: data.julgamento_em_curso.manter_votos === true } : null }),
             hoje: (0, secretaria_1.hojeBrasil)(),
             movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos,

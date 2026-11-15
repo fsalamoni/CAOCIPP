@@ -5,6 +5,13 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Vista, adiamento e conversão em diligência
+- Quinta etapa do plano de sessões de julgamento, reuniões e pregão.
+- Depois que o relator libera o voto, o membro do colegiado pode **pedir vista**. O julgamento fica suspenso, com o prazo do colegiado (10 dias por padrão, ajustável no órgão). Outros membros podem se juntar ao pedido, que fica coletivo.
+- Com a **devolução da vista**, o processo vai sozinho para a próxima sessão do colegiado, com o mesmo relator e os votos já dados. Vencido o prazo, a secretaria ou o presidente requisita o processo.
+- O presidente pode **adiar o julgamento**, com o motivo, e o processo segue para a próxima sessão. Pode também **convertê-lo em diligência**: o processo volta à unidade com a orientação na capa e, depois, vai a nova pauta com o mesmo relator.
+- Cada um desses atos vai aos autos como certidão, e as partes recebem o aviso por e-mail. A pauta, a lista de aptos e a capa do processo mostram a vista e o adiamento.
+
 ### 15/11/2026 — Votação na sessão: relator, vogais e proclamação
 - Quarta etapa do plano de sessões de julgamento, reuniões e pregão.
 - A secretaria **designa o relator** de cada processo da pauta, entre o presidente e os titulares.

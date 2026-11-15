@@ -1,13 +1,18 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { hojeBrasil, texto } from '../shared/secretaria';
 import { composicaoEm } from '../shared/orgaos';
 import { JulgamentoDaAcao, apurar, dadosDoJulgamento, textoDoJulgamento } from '../shared/julgamento';
-import { MAX_RELATORIO, Proclamacao, Votacao, julgamentoPendente, placarParcial, sanitizeVoto, votantes, votosDaSessao } from '../shared/sessoes';
+import {
+    ItemPauta, MAX_RELATORIO, Proclamacao, Votacao, julgamentoPendente, placarParcial, prazoDaVista, sanitizeVoto,
+    textoDaDevolucao, textoDaDiligencia, textoDaVista, textoDoAdiamento, votantes, votosDaSessao,
+} from '../shared/sessoes';
 import { auditar } from './config';
-import { COL, Contexto, erroUsuario } from './context';
-import { colegiado, gereSessoes, lerConfig, lerSessao, veSessoes } from './sessoes';
+import { COL, Contexto, erroUsuario, registrarMovimento } from './context';
+import { colegiado, gereSessoes, incluirNaSessao, lerConfig, lerSessao, proximaSessao, veSessoes } from './sessoes';
 import { registrarJulgamentoDaSessao } from './processos';
+import { avisarPartesDoMovimento } from './portalAvisos';
 
 /**
  * Votação na sessão de julgamento (etapa S4), em secSessoes/{sessao}/votacoes/{processo}.
@@ -22,7 +27,8 @@ import { registrarJulgamentoDaSessao } from './processos';
  */
 
 type Payload = Record<string, unknown>;
-export const ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar'];
+const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia'];
+export const ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', ...ACOES_S5];
 const MIN_TEXTO = 10;
 
 const vazia = (pid: string): Votacao => ({
@@ -60,7 +66,7 @@ export function resumoVotacao(v: Votacao | undefined, uid: string, quemVota: str
 export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
     const hoje = hojeBrasil();
     const quem = { uid: c.ctx.uid, nome: c.userName };
-    const { orgaos } = await lerConfig(c);
+    const { orgaos, calendario } = await lerConfig(c);
     const { ref: sref, s } = await lerSessao(c, p.id);
     const o = colegiado(orgaos, s.orgao_id);
     const gere = gereSessoes(c, o.id);
@@ -84,6 +90,10 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
         const regra = proc && proc.sessao?.id === sref.id ? regraDoJulgamento(proc) : null;
         const relatorUid = v.liberado_em ? v.relator_uid : item.relator_uid || '';
         const souRelator = !!relatorUid && relatorUid === quem.uid;
+        const emJulgamento = ativa && !!v.liberado_em && !v.proclamado && !!regra && s.situacao === 'publicada';
+        // Com vista nesta sessão: o processo saiu da pauta até a devolução.
+        const vista = proc?.vista?.sessao_id === sref.id ? proc.vista as { nomes: string[]; uids: string[]; desde: string; prazo: string } : null;
+        const comVista = !!vista && (vista.uids || []).includes(quem.uid);
         // Liberado o voto, os pares e a secretaria acompanham; antes, só o relator vê o que escreve.
         const vePares = !!v.liberado_em && (!!eu || gere);
         const votos = vePares ? votosDaSessao(v, membros) : [];
@@ -107,11 +117,18 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
             proclamado: v.proclamado ? { resultado: v.proclamado.resultado, texto: v.proclamado.texto, em: v.proclamado.em, por_nome: v.proclamado.por_nome } : null,
             // Registrado na ação do rito: o processo saiu da pauta com esta sessão como a última.
             registrado: !!v.proclamado && !!proc && proc.ultima_sessao?.id === sref.id && proc.sessao?.id !== sref.id,
+            situacao_item: item.situacao, motivo: item.motivo || '',
+            vista: vista ? { nomes: vista.nomes || [], desde: vista.desde, prazo: vista.prazo, vencida: vista.prazo < hoje, minha: comVista } : item.vista ? { ...item.vista, encerrada: true } : null,
+            vista_dias: o.pauta?.vista_dias || 10,
             pode: {
                 designar: gere && ativa && !v.liberado_em,
                 relatar: souRelator && ativa && !v.liberado_em && !!regra,
-                votar: !!eu && !souRelator && ativa && !!v.liberado_em && !v.proclamado && !!regra && s.situacao === 'publicada',
-                proclamar: (preside || gere) && ativa && !!v.liberado_em && !v.proclamado && !!regra && s.situacao === 'publicada' && s.data <= hoje,
+                votar: emJulgamento && !!eu && !souRelator,
+                proclamar: emJulgamento && (preside || gere) && s.data <= hoje,
+                vista: emJulgamento && !!eu && !souRelator,
+                juntar_vista: !!vista && !!eu && !souRelator && !comVista,
+                devolver_vista: !!vista && (comVista || ((preside || gere) && vista.prazo < hoje)),
+                adiar: (preside || gere) && ativa && !v.proclamado && !!regra && s.situacao === 'publicada',
             },
         };
     }
@@ -209,5 +226,102 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
         return { ok: true, resultado: p2!.resultado, texto: p2!.texto, registrado: !aviso, aviso };
     }
 
-    throw new HttpsError('invalid-argument', 'Ação desconhecida');
+    // ---- S5: vista, adiamento e conversão em diligência ----
+    if (!ACOES_S5.includes(String(p.action))) throw new HttpsError('invalid-argument', 'Ação desconhecida');
+    const motivo = texto(p.motivo, 2000);
+    const avisar: string[] = [];
+    let auditoria = null as [string, Record<string, unknown>] | null;
+    const resultado = await c.db.runTransaction(async (tx) => {
+        avisar.length = 0;
+        const [{ ref, s: s2 }, vs, ps] = await Promise.all([lerSessao(c, p.id, tx), tx.get(vref), tx.get(pref)]);
+        const v = vs.data() as Votacao | undefined;
+        const proc = ps.data();
+        const it = (s2.pauta || []).find((x) => x.processo_id === pid);
+        if (!proc || !it) throw new HttpsError('not-found', 'O processo não está nesta pauta');
+        const regra = proc.sessao?.id === ref.id && it.situacao === 'pautado' && s2.ativa && s2.situacao === 'publicada' ? regraDoJulgamento(proc) : null;
+        const marcarItem = (patch: Partial<ItemPauta>) => tx.update(ref, {
+            pauta: (s2.pauta || []).map((x) => (x.processo_id === pid ? { ...x, ...patch } : x)), version: (s2.version || 0) + 1, updated_at: FieldValue.serverTimestamp(),
+        });
+        const relator = { relator_uid: it.relator_uid || '', relator_nome: it.relator_nome || '' };
+        const emCurso = (manter: boolean) => ({ sessao_id: ref.id, manter_votos: manter, ...relator });
+        /** Continua na próxima sessão do colegiado, se já houver uma marcada. */
+        const continuar = async (proc2: admin.firestore.DocumentData, porque: string) => {
+            const prox = await proximaSessao(tx, c, o.id, ref.id, s2.data);
+            if (!prox) return { prox: null, inc: {} };
+            const publicada = prox.s.situacao === 'publicada';
+            return { prox, inc: { publicada, fazer: (base: admin.firestore.DocumentData) => incluirNaSessao(tx, c, prox, o, pref, base, publicada ? 'extrapauta' : 'pauta', publicada ? porque : '', { de: ref.id, v, ...relator }) } };
+        };
+
+        if (p.action === 'sessaoVista') {
+            if (!eu) throw new HttpsError('permission-denied', 'Pede vista quem vota no dia da sessão (presidente e titulares)');
+            if (v?.relator_uid === quem.uid) throw new HttpsError('failed-precondition', 'O relator não pede vista do próprio voto');
+            // Vista coletiva: outro membro se junta ao pedido, no mesmo prazo.
+            if (it.situacao === 'vista' && proc.vista?.sessao_id === ref.id) {
+                if ((proc.vista.uids || []).includes(quem.uid)) throw new HttpsError('already-exists', 'Você já pediu vista deste processo');
+                const nomes = [...(proc.vista.nomes || []), quem.nome];
+                tx.update(pref, { 'vista.uids': [...(proc.vista.uids || []), quem.uid], 'vista.nomes': nomes });
+                marcarItem({ vista: { ...it.vista!, nomes } });
+                auditoria = ['SECRETARIA_SESSAO_VISTA', { sessao_id: ref.id, processo_id: pid, numero: it.numero, coletiva: true }];
+                return { ok: true, prazo: proc.vista.prazo };
+            }
+            if (!regra) throw new HttpsError('failed-precondition', 'O processo não está mais pautado para julgamento nesta sessão');
+            if (!v?.liberado_em) throw new HttpsError('failed-precondition', 'Peça vista depois que o relator liberar o voto');
+            if (v.proclamado) throw new HttpsError('failed-precondition', 'O resultado já foi proclamado');
+            const prazo = prazoDaVista(hoje, o.pauta, calendario);
+            const mov = registrarMovimento(tx, c, pref, proc, 'vista', textoDaVista(s2, [quem.nome], prazo), { sessao_id: ref.id });
+            tx.update(pref, {
+                ...mov, sessao: FieldValue.delete(), julgamento_em_curso: emCurso(true),
+                vista: { sessao_id: ref.id, sessao: s2.titulo, orgao_id: o.id, colegiado: o.nome, uids: [quem.uid], nomes: [quem.nome], desde: hoje, prazo },
+            });
+            marcarItem({ situacao: 'vista', vista: { nomes: [quem.nome], prazo } });
+            avisar.push(pid);
+            auditoria = ['SECRETARIA_SESSAO_VISTA', { sessao_id: ref.id, processo_id: pid, numero: it.numero, prazo }];
+            return { ok: true, prazo };
+        }
+
+        if (p.action === 'sessaoDevolverVista') {
+            const vi = proc.vista as { sessao_id: string; uids: string[]; nomes: string[]; prazo: string } | undefined;
+            if (!vi || vi.sessao_id !== ref.id) throw new HttpsError('failed-precondition', 'O processo não está com vista nesta sessão');
+            const pediu = (vi.uids || []).includes(quem.uid);
+            if (!pediu && !gere && !preside) throw new HttpsError('permission-denied', 'Devolve a vista quem a pediu');
+            if (!pediu && vi.prazo >= hoje) throw new HttpsError('failed-precondition', `Antes do fim do prazo (${vi.prazo.split('-').reverse().join('/')}), só quem pediu vista devolve`);
+            const { prox, inc } = await continuar(proc, 'retorno de vista');
+            const mov = registrarMovimento(tx, c, pref, proc, 'vista_devolvida', textoDaDevolucao(vi.nomes || [], prox?.s), { sessao_id: ref.id });
+            const mais = 'fazer' in inc && inc.fazer ? inc.fazer({ ...proc, ...mov }) : {};
+            tx.update(pref, { ...mov, vista: FieldValue.delete(), ...mais });
+            marcarItem({ vista: { ...(it.vista || { nomes: vi.nomes, prazo: vi.prazo }), devolvida: true } });
+            avisar.push(pid);
+            auditoria = ['SECRETARIA_SESSAO_VISTA_DEVOLVIDA', { sessao_id: ref.id, processo_id: pid, numero: it.numero, continua_em: prox?.ref.id || null }];
+            return { ok: true, continua_em: prox ? { id: prox.ref.id, titulo: prox.s.titulo, data: prox.s.data } : null };
+        }
+
+        if (p.action === 'sessaoAdiar' || p.action === 'sessaoDiligencia') {
+            if (!gere && !preside) throw new HttpsError('permission-denied', 'Adia ou converte em diligência o presidente do colegiado (ou a secretaria)');
+            if (!regra) throw new HttpsError('failed-precondition', 'O processo não está mais pautado para julgamento nesta sessão');
+            if (v?.proclamado) throw new HttpsError('failed-precondition', 'O resultado já foi proclamado');
+            const adiar = p.action === 'sessaoAdiar';
+            if (motivo.length < (adiar ? 5 : 10)) {
+                throw new HttpsError('invalid-argument', adiar ? 'Diga o motivo do adiamento (ao menos 5 letras)' : 'Diga o que a diligência deve fazer (ao menos 10 letras)');
+            }
+            // Adiado, segue para a próxima sessão com os votos já dados; em diligência, volta à unidade e, depois, a uma nova pauta com o mesmo relator.
+            const { prox, inc } = adiar ? await continuar(proc, `adiado da ${s2.titulo}`) : { prox: null, inc: {} };
+            const mov = registrarMovimento(tx, c, pref, proc, adiar ? 'adiamento' : 'diligencia', adiar ? textoDoAdiamento(s2, motivo) : textoDaDiligencia(s2, motivo), { sessao_id: ref.id });
+            const mais = 'fazer' in inc && inc.fazer ? inc.fazer({ ...proc, ...mov }) : {};
+            tx.update(pref, {
+                ...mov, sessao: FieldValue.delete(), julgamento_em_curso: emCurso(adiar),
+                ...(adiar ? {} : { orientacao: { texto: `Diligência determinada pelo ${o.nome}: ${motivo}`, por: quem.nome, em: new Date().toISOString(), de: o.nome } }),
+                ...mais,
+            });
+            marcarItem({ situacao: adiar ? 'adiado' : 'diligencia', motivo });
+            avisar.push(pid);
+            auditoria = [adiar ? 'SECRETARIA_SESSAO_ADIADO' : 'SECRETARIA_SESSAO_DILIGENCIA', { sessao_id: ref.id, processo_id: pid, numero: it.numero, motivo, continua_em: prox?.ref.id || null }];
+            return { ok: true, continua_em: prox ? { id: prox.ref.id, titulo: prox.s.titulo, data: prox.s.data } : null };
+        }
+
+        throw new HttpsError('invalid-argument', 'Ação desconhecida');
+    });
+    if (auditoria) await auditar(c.db, c.orgId, quem.uid, quem.nome, auditoria[0], auditoria[1]);
+    // E-mail às partes depois da transação: falha de envio não desfaz o ato.
+    await Promise.all(avisar.map((id) => avisarPartesDoMovimento(c.db, id, quem.uid).catch(() => undefined)));
+    return resultado;
 }

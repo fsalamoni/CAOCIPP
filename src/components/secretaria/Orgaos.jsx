@@ -264,7 +264,15 @@ function OrgaoDialog({ orgId, estado, inicial, onFechar, onNovaUnidade, onAbrirU
                                 </label>
                                 <NativeSelect id="og-pauta-contagem" label="Contados em" value={o.pauta?.contagem || 'uteis'} onChange={(v) => set('pauta', { antecedencia: 0, ...o.pauta, contagem: v })}
                                     options={[['uteis', 'Dias úteis'], ['corridos', 'Dias corridos']]} />
+                                <label htmlFor="og-vista-dias" className="text-sm space-y-1">
+                                    <span className="block text-slate-700 dark:text-slate-300">Prazo de vista (dias)</span>
+                                    <Input id="og-vista-dias" type="number" min={1} max={90} value={o.pauta?.vista_dias ?? 10}
+                                        onChange={(e) => set('pauta', { antecedencia: 0, contagem: 'uteis', ...o.pauta, vista_dias: Math.max(1, Math.min(90, Math.round(Number(e.target.value) || 10))) })} />
+                                </label>
                             </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">
+                                Prazo para quem pede vista devolver o processo, contado como a antecedência (dias úteis ou corridos). O padrão é 10 dias, como no CPC. Vencido, a secretaria ou o presidente requisita o processo para julgamento.
+                            </p>
                         </section>
                     )}
                     <section aria-labelledby="og-admins-titulo" className="space-y-2">

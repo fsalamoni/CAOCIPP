@@ -44,7 +44,7 @@ import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprid
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
 import { audienciasFuturas, nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
-import { quandoSessao, veSessoes } from '@/lib/sessoes';
+import { br, juntarNomes, quandoSessao, veSessoes } from '@/lib/sessoes';
 import { membrosDoJulgamento, nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
@@ -390,6 +390,18 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <b>{p.sessao.inclusao === 'mesa' ? 'Em mesa' : p.sessao.inclusao === 'extrapauta' ? 'Em extrapauta' : 'Pautado'} para julgamento:</b> {p.sessao.titulo}{p.sessao.colegiado ? ` do ${p.sessao.colegiado}` : ''}, {quandoSessao(p.sessao)}.{' '}
                             {veSessoes(estado, hoje, p.sessao.orgao_id) && <button type="button" className="text-indigo-700 dark:text-indigo-300 underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                                 onClick={() => navigate(`/ProcessoEletronico?org=${orgId}&aba=sessoes&sessao=${p.sessao.id}`)}>Ver a pauta</button>}
+                        </p>
+                    )}
+                    {p.vista && (
+                        <p className="text-sm rounded-md border border-violet-200 dark:border-violet-800 text-violet-950 dark:text-violet-100 px-3 py-1.5">
+                            <b>Julgamento suspenso por vista:</b> {juntarNomes(p.vista.nomes)}, desde {br(p.vista.desde)}, {p.vista.prazo < hoje ? `com o prazo vencido em ${br(p.vista.prazo)}` : `até ${br(p.vista.prazo)}`}{p.vista.sessao ? ` (${p.vista.sessao}${p.vista.colegiado ? ` do ${p.vista.colegiado}` : ''})` : ''}.{' '}
+                            {veSessoes(estado, hoje, p.vista.orgao_id) && <button type="button" className="text-indigo-700 dark:text-indigo-300 underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                onClick={() => navigate(`/ProcessoEletronico?org=${orgId}&aba=sessoes&sessao=${p.vista.sessao_id}`)}>Ver a sessão</button>}
+                        </p>
+                    )}
+                    {!p.sessao && !p.vista && p.julgamento_em_curso && (
+                        <p className="text-sm rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5">
+                            <b>Julgamento iniciado no colegiado:</b> volta à pauta com {p.julgamento_em_curso.relator_nome ? `o relator ${p.julgamento_em_curso.relator_nome}` : 'o mesmo relator'}{p.julgamento_em_curso.manter_votos ? ' e os votos já dados' : ''}.
                         </p>
                     )}
                 </div>

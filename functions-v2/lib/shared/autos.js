@@ -82,6 +82,10 @@ const TITULOS = {
     rito_atualizado: 'Certidão de atualização do rito',
     pauta: 'Certidão de inclusão em pauta',
     pauta_retirada: 'Certidão de retirada de pauta',
+    vista: 'Certidão de pedido de vista',
+    vista_devolvida: 'Certidão de devolução de vista',
+    adiamento: 'Certidão de adiamento do julgamento',
+    diligencia: 'Certidão de conversão em diligência',
 };
 function tituloEvento(m) {
     var _a, _b, _c;

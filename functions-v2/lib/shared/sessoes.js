@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.br = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
+exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.br = exports.MAX_VISTA = exports.VISTA_PADRAO = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
 exports.sanitizeRegrasSessao = sanitizeRegrasSessao;
+exports.prazoDaVista = prazoDaVista;
 exports.sanitizeDadosSessao = sanitizeDadosSessao;
 exports.dataMinimaDaSessao = dataMinimaDaSessao;
 exports.problemaDaAntecedencia = problemaDaAntecedencia;
@@ -10,6 +11,10 @@ exports.leituraDeJulgador = leituraDeJulgador;
 exports.ondeSessao = ondeSessao;
 exports.textoDaInclusao = textoDaInclusao;
 exports.textoDaRetirada = textoDaRetirada;
+exports.textoDaVista = textoDaVista;
+exports.textoDaDevolucao = textoDaDevolucao;
+exports.textoDoAdiamento = textoDoAdiamento;
+exports.textoDaDiligencia = textoDaDiligencia;
 exports.reordenar = reordenar;
 exports.votantes = votantes;
 exports.sanitizeVoto = sanitizeVoto;
@@ -30,12 +35,19 @@ exports.CARATER_SESSAO = ['ordinaria', 'extraordinaria'];
 exports.INCLUSOES = ['pauta', 'extrapauta', 'mesa'];
 exports.MAX_PAUTA = 100;
 exports.MAX_ANTECEDENCIA = 60;
+exports.VISTA_PADRAO = 10;
+exports.MAX_VISTA = 90;
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 function sanitizeRegrasSessao(raw) {
     const r = (raw && typeof raw === 'object' ? raw : {});
     const n = Math.round(Number(r.antecedencia));
-    return { antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(exports.MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis' };
+    const v = Math.round(Number(r.vista_dias));
+    return Object.assign({ antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(exports.MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis' }, (Number.isFinite(v) && v >= 1 && v <= exports.MAX_VISTA && v !== exports.VISTA_PADRAO ? { vista_dias: v } : {}));
+}
+/** Último dia para devolver a vista pedida em `hoje`. */
+function prazoDaVista(hoje, regras, cal) {
+    return (0, secretaria_1.calcularVencimento)(hoje, regras.vista_dias || exports.VISTA_PADRAO, regras.contagem, cal);
 }
 /** Dados da sessão conferidos; lança com a explicação. */
 function sanitizeDadosSessao(raw) {
@@ -107,6 +119,9 @@ function leituraDeJulgador(proc, compoe, orgaoDaUnidade) {
         return false;
     if (proc.sessao && compoe.includes(String(proc.sessao.orgao_id)))
         return true;
+    // Com vista (S5): o julgamento está suspenso, mas o colegiado segue lendo.
+    if (proc.vista && proc.status === 'em_tramitacao' && compoe.includes(String(proc.vista.orgao_id)))
+        return true;
     const ult = proc.ultima_sessao ? String(proc.ultima_sessao.orgao_id) : '';
     return !!ult && proc.status === 'em_tramitacao' && compoe.includes(ult) && orgaoDaUnidade(String(proc.unidade_atual || '')) === ult;
 }
@@ -127,6 +142,23 @@ function textoDaInclusao(s, colegiado, item) {
 /** Texto da certidão de retirada (ou de cancelamento da sessão). */
 function textoDaRetirada(s, motivo, cancelada = false) {
     return `${cancelada ? `A ${s.titulo}, de ${(0, exports.br)(s.data)}, foi cancelada, e o processo saiu da pauta` : `Retirado da pauta da ${s.titulo}, de ${(0, exports.br)(s.data)}`}. Motivo: ${motivo}.`;
+}
+const lista = (nomes) => (nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0] || '');
+/** Certidão do pedido de vista (S5). */
+function textoDaVista(s, nomes, prazo) {
+    return `Pedido de vista por ${lista(nomes)} na ${s.titulo}, de ${(0, exports.br)(s.data)}. Julgamento suspenso; os autos devem ser devolvidos até ${(0, exports.br)(prazo)}.`;
+}
+/** Certidão da devolução da vista; `incluido`: a sessão em que o processo entrou, se já há. */
+function textoDaDevolucao(nomes, incluido) {
+    return `Devolvidos os autos do pedido de vista de ${lista(nomes)}. ${incluido ? `O julgamento continua na ${incluido.titulo}, de ${(0, exports.br)(incluido.data)}.` : 'O julgamento continua na próxima sessão do colegiado.'}`;
+}
+/** Certidão do adiamento. */
+function textoDoAdiamento(s, motivo) {
+    return `Adiado o julgamento na ${s.titulo}, de ${(0, exports.br)(s.data)}, para a sessão seguinte. Motivo: ${motivo}.`;
+}
+/** Certidão da conversão em diligência. */
+function textoDaDiligencia(s, oQue) {
+    return `O colegiado converteu o julgamento em diligência na ${s.titulo}, de ${(0, exports.br)(s.data)}: ${oQue.replace(/[.\s]+$/, '')}.`;
 }
 /** Reordena a pauta com a lista de ids (os que faltam ficam no fim, na ordem atual). */
 function reordenar(pauta, ids) {

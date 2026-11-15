@@ -15,5 +15,6 @@ export const GLOSSARIO = {
     relator: { termo: 'Relator', definicao: 'Relator é o membro do colegiado designado para estudar o processo, escrever o relatório e votar primeiro. Os demais votam depois de ler o voto dele.' },
     remessa: { termo: 'Remessa', definicao: 'Remessa é o envio do processo de uma unidade para outra, que passa a cuidar dele. Entre órgãos diferentes, sempre gera um termo de remessa nos autos.' },
     sobrestar: { termo: 'Sobrestar', definicao: 'Sobrestar é suspender o andamento do processo por um tempo, por exemplo à espera de outra decisão. O processo fica parado na mesma fase até ser reativado.' },
+    vista: { termo: 'Vista', definicao: 'Vista é o pedido de um membro do colegiado para examinar melhor o processo antes de votar. O julgamento fica suspenso até ele devolver, no prazo do colegiado, e continua na sessão seguinte com os votos já dados.' },
     vogal: { termo: 'Vogal', definicao: 'Vogal é o membro do colegiado que vota depois do relator. Ele acompanha o voto do relator, com ou sem ressalva, ou diverge dele.' },
 };
