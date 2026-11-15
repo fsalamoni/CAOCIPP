@@ -87,9 +87,9 @@ function textoDaAudiencia(a, comParticipantes = true) {
         ? `. Participam, além das partes: ${a.participantes.map((p) => `${p.nome} (${exports.QUALIDADES[p.qualidade]})`).join('; ')}` : '';
     return `${br(a.data)}, às ${a.hora}, ${onde}${quem}`;
 }
-/** Audiências designadas (não canceladas) de hoje em diante, da mais próxima à mais distante. */
+/** Audiências designadas (não canceladas nem já encerradas na sala) de hoje em diante, da mais próxima à mais distante. */
 function audienciasFuturas(lista, hoje) {
-    return (lista || []).filter((a) => a.status === 'designada' && a.data >= hoje)
+    return (lista || []).filter((a) => a.status === 'designada' && !a.realizada_em && a.data >= hoje)
         .sort((a, b) => `${a.data}T${a.hora}`.localeCompare(`${b.data}T${b.hora}`));
 }
 /** Designa (feita) ou cancela (desfeita) a audiência da ação na lista do processo. */

@@ -21,6 +21,7 @@ export const GLOSSARIO = {
     sessao_virtual: { termo: 'Sessão virtual', definicao: 'Sessão virtual é a sessão em que os membros votam cada um no seu tempo, dentro de um período, sem reunião ao vivo. No fim, o sistema apura o resultado; o que ficar sem resultado vai para a sessão seguinte.' },
     sobrestar: { termo: 'Sobrestar', definicao: 'Sobrestar é suspender o andamento do processo por um tempo, por exemplo à espera de outra decisão. O processo fica parado na mesma fase até ser reativado.' },
     sustentacao: { termo: 'Sustentação oral', definicao: 'Sustentação oral é a fala da parte, ou de quem a representa, para o colegiado antes do voto, no tempo do regimento. Na sessão síncrona, a parte se inscreve até o início; na virtual, envia a gravação até 48 horas antes.' },
+    termo_audiencia: { termo: 'Termo de audiência', definicao: 'Termo de audiência é o registro escrito da audiência: quem esteve presente e quem faltou, o que cada um disse ou pediu, o que se decidiu e a hora do fim. Quem conduziu a audiência o assina, e ele vai aos autos pela juntada.' },
     vista: { termo: 'Vista', definicao: 'Vista é o pedido de um membro do colegiado para examinar melhor o processo antes de votar. O julgamento fica suspenso até ele devolver, no prazo do colegiado, e continua na sessão seguinte com os votos já dados.' },
     vogal: { termo: 'Vogal', definicao: 'Vogal é o membro do colegiado que vota depois do relator. Ele acompanha o voto do relator, com ou sem ressalva, ou diverge dele.' },
 };

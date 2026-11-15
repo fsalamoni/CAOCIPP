@@ -17,8 +17,8 @@ test('histórico: todas as ações de configuração emitidas pelo código têm 
     const emitidas = new Set(arquivos.flatMap((f) => fs.readFileSync(f, 'utf8').match(/'SECRETARIA_[A-Z_]+'/g) || []).map((x) => x.slice(1, -1)));
     const fora = new Set(['SECRETARIA_PROCESSO_EXCLUIDO', 'SECRETARIA_PROCESSO_RESTAURADO', 'SECRETARIA_PDF_EXPORTADO', 'SECRETARIA_PDF_INTERNO_EXPORTADO']);
     for (const a of emitidas) {
-        // Sessões de julgamento são atos do dia a dia (com certidão nos autos), não configuração.
-        if (fora.has(a) || a.startsWith('SECRETARIA_SESSAO_')) assert.equal(s.HISTORICO_CONFIG[a], undefined, a);
+        // Sessões e salas de audiência são atos do dia a dia (com termo nos autos), não configuração.
+        if (fora.has(a) || a.startsWith('SECRETARIA_SESSAO_') || a.startsWith('SECRETARIA_AUDIENCIA_')) assert.equal(s.HISTORICO_CONFIG[a], undefined, a);
         else assert.ok(s.HISTORICO_CONFIG[a], `sem assunto: ${a}`);
     }
 });

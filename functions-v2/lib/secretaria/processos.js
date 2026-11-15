@@ -27,6 +27,7 @@ const efeitosFase_1 = require("../shared/efeitosFase");
 const prazosFase_1 = require("../shared/prazosFase");
 const comunicacaoRito_1 = require("../shared/comunicacaoRito");
 const ajustePrazo_1 = require("../shared/ajustePrazo");
+const audienciaSala_1 = require("./audienciaSala");
 const audiencias_1 = require("../shared/audiencias");
 const julgamento_1 = require("../shared/julgamento");
 const email_1 = require("../shared/email");
@@ -622,6 +623,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     // Sessões de julgamento dos colegiados (pauta, publicação, cancelamento).
     if (typeof p.action === 'string' && (p.action.startsWith('sessao') || p.action.startsWith('reuniao')))
         return (0, sessoes_2.acaoSessao)(c, p);
+    // Sala da audiência designada pelo rito: presença, registros e termo (S10).
+    if (typeof p.action === 'string' && audienciaSala_1.ACOES_SALA.includes(p.action))
+        return (0, audienciaSala_1.acaoSalaAudiencia)(c, p);
     // Anotação privada de quem lê o processo (nunca vai aos autos).
     if (p.action === 'anotacao')
         return (0, sessoes_2.acaoAnotacao)(c, p);
@@ -1421,6 +1425,9 @@ async function movimentar(c, p, opcoes = {}) {
                 const nova = feita && ad ? Object.assign(Object.assign(Object.assign(Object.assign({ id: (0, crypto_1.randomBytes)(8).toString('hex'), fase_id: fase.id, acao_idx: idx, especie: ((_k = regra.audiencia) === null || _k === void 0 ? void 0 : _k.especie) || 'audiencia' }, (((_l = regra.audiencia) === null || _l === void 0 ? void 0 : _l.especie_nome) ? { especie_nome: regra.audiencia.especie_nome } : {})), (((_m = regra.audiencia) === null || _m === void 0 ? void 0 : _m.especie_m) ? { especie_m: true } : {})), ad), { designada_em: new Date().toISOString(), designada_por: c.userName, status: 'designada' }) : null;
                 const lista = (0, audiencias_1.aplicarAudiencia)(antes, fase.id, idx, nova);
                 const sai = !feita ? antes.filter((a, k) => { var _a; return a.status === 'designada' && ((_a = lista[k]) === null || _a === void 0 ? void 0 : _a.status) === 'cancelada'; })[0] : undefined;
+                // S10: a audiência já conduzida na sala tem termo; não se cancela desfazendo a designação.
+                if (sai === null || sai === void 0 ? void 0 : sai.realizada_em)
+                    throw new https_1.HttpsError('failed-precondition', 'A audiência já foi encerrada na sala e tem termo: não se cancela mais');
                 if (sai)
                     cancelada = ` Fica cancelada a audiência designada para ${(0, audiencias_1.textoDaAudiencia)(sai, false)}.`;
                 const prox = (0, audiencias_1.audienciasFuturas)(lista, (0, secretaria_1.hojeBrasil)())[0];

@@ -335,6 +335,12 @@ informado.
   com preferência e os iniciados em sessão anterior (CPC, art. 936). Os
   pedidos da parte e a decisão sobre eles ficam com a sessão; vão aos autos o
   destaque, o adiamento e o resultado.
+- **Audiência na plataforma.** A audiência designada pelo rito é conduzida
+  por quem tem o processo, no dia dela. O termo registra quem esteve
+  presente e quem faltou, o que cada um disse ou pediu, o que se decidiu e a
+  hora do fim (CPC, art. 367, por analogia); quem conduziu assina. O termo
+  vai aos autos pela juntada, como qualquer documento, e é ele que as
+  partes veem. Se a audiência não se realizou, o termo diz por quê.
 - **Reunião deliberativa.** O colegiado também decide assuntos que não são
   processos. Cada assunto tem a forma de votação e a maioria que ele exige:
   simples (mais votos a favor que contra), absoluta (mais da metade dos

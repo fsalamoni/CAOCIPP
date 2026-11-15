@@ -1533,6 +1533,46 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Sala da audiência (15/11/2026)
+
+Décima etapa (S10). A audiência designada pela ação do rito (`pede:
+'audiencia'`) passa a ser conduzida na plataforma. Fica com o processo, e
+não como sessão de colegiado: a audiência é da unidade que tem o processo,
+seja ela monocrática ou não. Lógica pura em `shared/audienciaSala.ts`
+(espelho `src/lib/audienciaSala.js`); servidor em
+`secretaria/audienciaSala.ts`.
+
+- **Sala** em `secProcessos/{id}/salas/{audienciaId}` (só pelo servidor):
+  `aberta_em`, `aberta_por`, `presencas` (por chave do convocado: `p{i}`
+  parte, `p{i}r{j}` representante, `x{k}` participante da designação),
+  `outros` (até 20, nome e qualidade), `ocorrencias` (até 200: `id, tipo,
+  texto, quem?, em, por`), e, ao encerrar, `encerrada_em`, `realizada`,
+  `motivo`, `termo_documento_id`.
+- **Ações** `sala*` em `secretariaProcesso`: `salaAudiencia` (leitura, para
+  quem vê o processo), `salaAbrir`, `salaPresenca`, `salaRegistrar`,
+  `salaRemover` e `salaEncerrar` (quem tem o processo consigo). A sala abre
+  no dia da audiência ou depois. Tipos de registro: manifestacao,
+  depoimento, requerimento, proposta (com `quem`, entre os presentes),
+  acordo, sem_acordo, deliberacao, documento, suspensao, retomada,
+  registro.
+- **Encerrar:** `textoDoTermo` e `documentoDoTermo` montam o termo; vai como
+  minuta "Termo de audiência ..." (tipo Termo de audiência, `audiencia_id`),
+  assinada por quem encerrou, para a juntada pelo caminho comum. A
+  audiência ganha `realizada_em` e `realizada`; `audienciasFuturas` a tira
+  das próximas, e `proxima_audiencia` é refeita. Movimento interno
+  `audiencia_encerrada`. Sem abrir a sala, só se registra a não realizada
+  (com motivo).
+- **Excluir a minuta do termo** (`excluirMinuta`) chama `reabrirSala`: a
+  sala volta a ficar aberta, e a audiência perde `realizada_em`.
+- Desfazer a designação de audiência já encerrada é recusado.
+- Auditoria: `SECRETARIA_AUDIENCIA_ABERTA`, `_ENCERRADA`,
+  `_NAO_REALIZADA` (atos do dia a dia, fora do histórico de configuração).
+- Tela: aviso "Sala da audiência" no alto do processo para a audiência de
+  hoje ou de antes sem termo; `components/secretaria/SalaAudiencia.jsx`.
+  Guia do rito (Designar audiência ou sessão) e glossário
+  `termo_audiencia`. Testes: `functions-v2/test/audienciaSala.test.js` e
+  `src/lib/audienciaSala.test.js`.
+
 ### Reunião deliberativa (15/11/2026)
 
 Nona etapa (S9). A sessão ganha o tipo `reuniao` (`secSessoes`, campo
