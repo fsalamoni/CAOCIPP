@@ -620,7 +620,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
     const { db, orgId } = c;
     // Sessões de julgamento dos colegiados (pauta, publicação, cancelamento).
-    if (typeof p.action === 'string' && p.action.startsWith('sessao'))
+    if (typeof p.action === 'string' && (p.action.startsWith('sessao') || p.action.startsWith('reuniao')))
         return (0, sessoes_2.acaoSessao)(c, p);
     // Anotação privada de quem lê o processo (nunca vai aos autos).
     if (p.action === 'anotacao')

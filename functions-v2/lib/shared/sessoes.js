@@ -57,7 +57,7 @@ function sanitizeRegrasSessao(raw) {
     const n = Math.round(Number(r.antecedencia));
     const v = Math.round(Number(r.vista_dias));
     const a = Math.round(Number(r.acordao_dias));
-    return Object.assign(Object.assign({ antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(exports.MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis' }, (Number.isFinite(v) && v >= 1 && v <= exports.MAX_VISTA && v !== exports.VISTA_PADRAO ? { vista_dias: v } : {})), (Number.isFinite(a) && a >= 1 && a <= exports.MAX_VISTA && a !== exports.ACORDAO_PADRAO ? { acordao_dias: a } : {}));
+    return Object.assign(Object.assign(Object.assign(Object.assign({ antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(exports.MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis' }, (Number.isFinite(v) && v >= 1 && v <= exports.MAX_VISTA && v !== exports.VISTA_PADRAO ? { vista_dias: v } : {})), (Number.isFinite(a) && a >= 1 && a <= exports.MAX_VISTA && a !== exports.ACORDAO_PADRAO ? { acordao_dias: a } : {})), (['um_terco', 'dois_tercos', 'livre'].includes(r.quorum) ? { quorum: r.quorum } : {})), (r.desempate === 'rejeita' ? { desempate: 'rejeita' } : {}));
 }
 /** Último dia para o redator entregar o acórdão (S6). */
 function prazoDoAcordao(hoje, regras, cal) {
@@ -107,7 +107,7 @@ function sanitizeDadosSessao(raw) {
             d.link = '';
     }
     if (!d.titulo)
-        d.titulo = `Sessão ${d.carater === 'ordinaria' ? 'ordinária' : 'extraordinária'} de ${(0, exports.br)(d.data)}`;
+        d.titulo = `${s.tipo === 'reuniao' ? 'Reunião' : 'Sessão'} ${d.carater === 'ordinaria' ? 'ordinária' : 'extraordinária'} de ${(0, exports.br)(d.data)}`;
     return d;
 }
 const br = (d) => d.split('-').reverse().join('/');

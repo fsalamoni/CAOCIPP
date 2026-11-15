@@ -1533,6 +1533,51 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Reunião deliberativa (15/11/2026)
+
+Nona etapa (S9). A sessão ganha o tipo `reuniao` (`secSessoes`, campo
+`tipo`; ausente = julgamento, como antes). A reunião não recebe processos:
+`proximaSessao`, `sessaoIncluir` e `sessaoTirar` a ignoram ou recusam.
+
+- **Assuntos** (`assuntos[]` na sessão, `shared/reunioes.ts`): título
+  (mínimo de 3 letras), descrição, proponente, `votacao` (nominal,
+  simbolica, secreta, sem_votacao; a simbólica não existe na virtual),
+  `maioria` (simples, absoluta, dois_tercos), `inclusao` (pauta ou
+  extrapauta, esta com motivo), `situacao` (pauta, em_votacao, empate,
+  deliberado, retirado, adiado), impedidos, inscritos para a palavra,
+  resultado e encaminhamento. Até 60 por reunião. `vem_de` e `levado_para`
+  ligam o adiado à reunião que o retoma.
+- **Ações** (`secretaria/reunioes.ts`, todas numa transação):
+  `reuniaoAssunto` (incluir ou editar, ou trazer adiado de outra reunião),
+  `reuniaoTirar` (retirar ou adiar), `reuniaoOrdenar`, `reuniaoPalavra`
+  (pedir, desistir, dar e encerrar a fala), `reuniaoImpedimento`,
+  `reuniaoAbrir` (uma votação aberta por vez; quórum pela presença, salvo
+  regra "livre"), `reuniaoVotar` (a secretaria registra o nominal por outro
+  membro), `reuniaoSimbolica` (placar lançado pela mesa), `reuniaoApurar`,
+  `reuniaoDesempate` (só quem preside) e `reuniaoEncaminhar`. Auditoria em
+  `SECRETARIA_SESSAO_REUNIAO_*` (atos do dia a dia, fora do histórico de
+  configuração).
+- **Votos** em `secSessoes/{s}/deliberacoes/{assuntoId}`: no nominal,
+  `votos` por uid; no secreto, só `votaram[]` e a contagem. O impedimento
+  apaga o voto nominal do impedido e é recusado depois do voto secreto.
+  `assuntosParaTela` devolve a cada um o seu voto e o que pode fazer; os
+  votos nominais de todos só depois da apuração (e para a secretaria,
+  durante a votação nominal).
+- **Apuração** (`apurar`): sem quórum, unanimidade, maioria simples (empate
+  vai ao presidente ou rejeita), absoluta e dois terços com o mínimo
+  escrito no texto; só abstenções rejeitam. **Encerrar** (`fecharReuniao`
+  em `encerrarSessao`): na virtual apura o que ficou aberto, e empate ou sem
+  quórum viram `adiado`; na síncrona o que não foi deliberado vira adiado.
+- **Regras do colegiado** (`pauta.quorum`: maioria, um_terco, dois_tercos,
+  livre; `pauta.desempate`: presidente ou rejeita), em Órgãos. Ausentes =
+  maioria e presidente.
+- **Convocação, painel e ata**: publicar exige ao menos um assunto e avisa a
+  composição; o painel mostra a contagem, quem está com a palavra e o
+  resultado; a ata usa `textoDaAtaReuniao`. Tela em
+  `components/secretaria/Reuniao.jsx`. Guia do rito, termo "Reunião
+  deliberativa"; glossário `reuniao`. Testes:
+  `functions-v2/test/reunioes.test.js`.
+
 ### Ata, painel ao vivo e avisos (15/11/2026)
 
 Oitava etapa (S8). O dia da sessão ganha presença, chamada do processo e

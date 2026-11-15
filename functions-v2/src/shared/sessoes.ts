@@ -69,7 +69,11 @@ export interface ItemPauta {
  * prazo do redator para o acórdão (sem regra, ACORDAO_PADRAO, como no CPC,
  * art. 944).
  */
-export interface RegrasSessao { antecedencia: number; contagem: Contagem; vista_dias?: number; acordao_dias?: number }
+export interface RegrasSessao {
+    antecedencia: number; contagem: Contagem; vista_dias?: number; acordao_dias?: number;
+    /** Reuniões (S9): quórum para deliberar (ausente = maioria) e empate (ausente = voto de qualidade do presidente). */
+    quorum?: 'um_terco' | 'dois_tercos' | 'livre'; desempate?: 'rejeita';
+}
 export const VISTA_PADRAO = 10;
 export const MAX_VISTA = 90;
 export const ACORDAO_PADRAO = 30;
@@ -87,7 +91,10 @@ export function sanitizeRegrasSessao(raw: unknown): RegrasSessao {
         antecedencia: Number.isFinite(n) ? Math.max(0, Math.min(MAX_ANTECEDENCIA, n)) : 0, contagem: r.contagem === 'corridos' ? 'corridos' : 'uteis',
         // Ausente = o padrão; só se guarda o que difere dele.
         ...(Number.isFinite(v) && v >= 1 && v <= MAX_VISTA && v !== VISTA_PADRAO ? { vista_dias: v } : {}),
-        ...(Number.isFinite(a) && a >= 1 && a <= MAX_VISTA && a !== ACORDAO_PADRAO ? { acordao_dias: a } : {}),    };
+        ...(Number.isFinite(a) && a >= 1 && a <= MAX_VISTA && a !== ACORDAO_PADRAO ? { acordao_dias: a } : {}),
+        ...(['um_terco', 'dois_tercos', 'livre'].includes(r.quorum as string) ? { quorum: r.quorum as 'um_terco' | 'dois_tercos' | 'livre' } : {}),
+        ...(r.desempate === 'rejeita' ? { desempate: 'rejeita' as const } : {}),
+    };
 }
 
 /** Último dia para o redator entregar o acórdão (S6). */
@@ -129,7 +136,7 @@ export function sanitizeDadosSessao(raw: unknown): DadosSessao {
         if (d.modo === 'virtual') d.local = '';
         if (d.modo === 'presencial') d.link = '';
     }
-    if (!d.titulo) d.titulo = `Sessão ${d.carater === 'ordinaria' ? 'ordinária' : 'extraordinária'} de ${br(d.data)}`;
+    if (!d.titulo) d.titulo = `${s.tipo === 'reuniao' ? 'Reunião' : 'Sessão'} ${d.carater === 'ordinaria' ? 'ordinária' : 'extraordinária'} de ${br(d.data)}`;
     return d;
 }
 

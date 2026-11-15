@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Flag, Gavel, Laptop, ListOrdered, Loader2, MapPin, Megaphone, MonitorPlay, NotebookPen, Pencil, Plus, Radio, ScrollText, Search, Send, Trash2, Users, Video } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Flag, Gavel, Laptop, ListOrdered, Loader2, MapPin, Megaphone, MessageSquare, MonitorPlay, NotebookPen, Pencil, Plus, Radio, ScrollText, Search, Send, Trash2, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import ErroQuery from './ErroQuery';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import VotacaoSessao from './VotacaoSessao';
 import { AtaDaSessao, BotaoAgenda, PainelAoVivo, PresencaSessao, usePainelSessao } from './PainelSessao';
+import { PainelReuniao, PautaReuniao } from './Reuniao';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const sel = 'h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
@@ -64,6 +65,7 @@ function CartaoSessao({ s, onAbrir, mostraOrgao }) {
                     <span className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-slate-900 dark:text-white">{s.titulo}</span>
                         <Situacao s={s.situacao} />
+                        {s.tipo === 'reuniao' && <Badge variant="outline" className="gap-1 border-violet-300 text-violet-900 dark:border-violet-800 dark:text-violet-200"><MessageSquare className="w-3 h-3" aria-hidden /> Reunião</Badge>}
                         {s.componho && <Badge className="bg-indigo-600 hover:bg-indigo-600">Você compõe</Badge>}
                     </span>
                     <span className="block text-sm text-slate-700 dark:text-slate-300">
@@ -72,7 +74,9 @@ function CartaoSessao({ s, onAbrir, mostraOrgao }) {
                             ? <><Laptop className="inline w-3.5 h-3.5 -mt-0.5" aria-hidden /> Votação virtual de {br(s.data)} a {br(s.fim)}</>
                             : <>{br(s.data)}, às {s.hora} · <IconeModo modo={s.modo} className="inline w-3.5 h-3.5 -mt-0.5" /> {s.modo === 'presencial' ? s.local : s.modo === 'virtual' ? 'Por videoconferência' : `${s.local} e por vídeo`}</>}
                     </span>
-                    <span className="block text-xs text-slate-600 dark:text-slate-400">{s.itens === 0 ? 'Nenhum processo na pauta' : s.itens === 1 ? '1 processo na pauta' : `${s.itens} processos na pauta`}</span>
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">{s.tipo === 'reuniao'
+                        ? (s.itens === 0 ? 'Nenhum assunto na pauta' : s.itens === 1 ? '1 assunto na pauta' : `${s.itens} assuntos na pauta`)
+                        : (s.itens === 0 ? 'Nenhum processo na pauta' : s.itens === 1 ? '1 processo na pauta' : `${s.itens} processos na pauta`)}</span>
                 </span>
             </button>
         </li>
@@ -106,9 +110,9 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
         <div className="space-y-5 pt-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1 max-w-2xl">
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2"><Gavel className="w-5 h-5 text-indigo-600 dark:text-indigo-400" aria-hidden /> Sessões de julgamento</h2>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2"><Gavel className="w-5 h-5 text-indigo-600 dark:text-indigo-400" aria-hidden /> Sessões e reuniões</h2>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                        A agenda dos colegiados e a ordem do dia de cada sessão. {gere.length ? 'Marque a sessão, inclua os processos com julgamento pendente e publique a pauta: cada processo recebe a certidão nos autos e as partes são avisadas.' : 'Abra a sessão para ver a pauta.'} <AjudaTermo id="pauta" />
+                        A agenda dos colegiados: sessões de julgamento, com a ordem do dia de processos, e reuniões deliberativas, com pauta de assuntos e votação. {gere.length ? 'Marque a sessão, inclua os processos com julgamento pendente e publique a pauta: cada processo recebe a certidão nos autos e as partes são avisadas.' : 'Abra a sessão para ver a pauta.'} <AjudaTermo id="pauta" />
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -169,7 +173,7 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
     );
 }
 
-const VAZIA = { titulo: '', carater: 'ordinaria', modo: 'presencial', data: '', hora: '', local: '', link: '', observacoes: '' };
+const VAZIA = { tipo: 'julgamento', titulo: '', carater: 'ordinaria', modo: 'presencial', data: '', hora: '', local: '', link: '', observacoes: '' };
 
 /** Marcar ou editar a sessão. Publicada, só as observações mudam (a pauta já foi às partes). */
 function FormSessao({ orgId, colegiados, sessao, hoje, onFechar, onSalvo }) {
@@ -179,13 +183,14 @@ function FormSessao({ orgId, colegiados, sessao, hoje, onFechar, onSalvo }) {
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     const travada = sessao?.situacao === 'publicada';
     const virtual = f.modo === 'assincrona';
+    const reuniao = f.tipo === 'reuniao';
     const problemas = travada ? [] : problemasDaSessao(f, hoje);
     const regra = textoAntecedencia(colegiados.find((c) => c.id === orgao)?.pauta);
     const salvar = async () => {
         setSalvando(true);
         try {
             const r = await secProcesso(orgId, 'sessaoSalvar', { id: sessao?.id, orgao_id: orgao, sessao: f });
-            toast.success(sessao ? 'Sessão atualizada' : 'Sessão marcada. Agora inclua os processos na pauta.');
+            toast.success(sessao ? 'Dados atualizados' : reuniao ? 'Reunião marcada. Agora inclua os assuntos na pauta.' : 'Sessão marcada. Agora inclua os processos na pauta.');
             await onSalvo(r.id);
         } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
     };
@@ -194,20 +199,33 @@ function FormSessao({ orgId, colegiados, sessao, hoje, onFechar, onSalvo }) {
         <Dialog open onOpenChange={(o) => !o && onFechar()}>
             <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                 <DialogHeader>
-                    <DialogTitle>{sessao ? 'Dados da sessão' : 'Marcar sessão de julgamento'}</DialogTitle>
+                    <DialogTitle>{sessao ? (reuniao ? 'Dados da reunião' : 'Dados da sessão') : 'Marcar sessão ou reunião'}</DialogTitle>
                     <DialogDescription>
                         {travada ? 'A pauta já foi publicada com estes dados: só as observações mudam. Para outra data, hora ou local, cancele a sessão (as partes são avisadas) e marque outra.'
                             : 'A sessão começa como rascunho de pauta, que só a secretaria vê. Ninguém é avisado até a publicação.'}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-3 sm:grid-cols-2">
+                    {!sessao && (
+                        <fieldset className="sm:col-span-2 space-y-1">
+                            <legend className="text-sm text-slate-700 dark:text-slate-300">O que é</legend>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {[['julgamento', 'Sessão de julgamento', 'Pauta de processos com julgamento pendente; relator, votos e acórdão.'], ['reuniao', 'Reunião deliberativa', 'Pauta de assuntos; palavra, votação nominal, simbólica ou secreta, e ata.']].map(([v, r, d]) => (
+                                    <label key={v} className={`flex gap-2 rounded-md border p-2 text-sm cursor-pointer ${f.tipo === v ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
+                                        <input type="radio" name="ss-tipo" value={v} checked={f.tipo === v} onChange={() => set('tipo', v)} className="mt-1 accent-indigo-600" />
+                                        <span><span className="block font-medium text-slate-900 dark:text-white">{r}</span><span className="block text-xs text-slate-600 dark:text-slate-400">{d}</span></span>
+                                    </label>
+                                ))}
+                            </div>
+                        </fieldset>
+                    )}
                     {!sessao && colegiados.length > 1 && (
                         <div className="sm:col-span-2">{campo('ss-orgao', 'Colegiado', (
                             <select id="ss-orgao" value={orgao} onChange={(e) => setOrgao(e.target.value)} className={sel}>
                                 {colegiados.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                             </select>))}</div>
                     )}
-                    <div className="sm:col-span-2">{campo('ss-titulo', 'Título (opcional)', <Input id="ss-titulo" value={f.titulo} disabled={travada} maxLength={120} onChange={(e) => set('titulo', e.target.value)} placeholder="Sessão ordinária de dd/mm/aaaa" />)}</div>
+                    <div className="sm:col-span-2">{campo('ss-titulo', 'Título (opcional)', <Input id="ss-titulo" value={f.titulo} disabled={travada} maxLength={120} onChange={(e) => set('titulo', e.target.value)} placeholder={reuniao ? 'Reunião ordinária de dd/mm/aaaa' : 'Sessão ordinária de dd/mm/aaaa'} />)}</div>
                     {campo('ss-carater', 'Caráter', (
                         <select id="ss-carater" value={f.carater} disabled={travada} onChange={(e) => set('carater', e.target.value)} className={sel}>
                             {CARATER_SESSAO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
@@ -221,7 +239,8 @@ function FormSessao({ orgId, colegiados, sessao, hoje, onFechar, onSalvo }) {
                     {virtual && (
                         <div className="sm:col-span-2 space-y-1">
                             {campo('ss-fim', 'Último dia da votação', <Input id="ss-fim" type="date" min={f.data || hoje} value={f.fim || ''} disabled={travada} onChange={(e) => set('fim', e.target.value)} />)}
-                            <p className="text-xs text-slate-600 dark:text-slate-400">Os membros votam cada um no seu tempo, do primeiro ao último dia (a Res. CNJ 591/2024 usa até 6 dias úteis). No dia seguinte ao último, o sistema apura os resultados; o que ficar sem resultado (sem o voto do relator ou sem quórum) é adiado para a sessão seguinte. Até 48 horas antes do início, as partes podem pedir destaque, para o julgamento ir a uma sessão síncrona, e enviar a sustentação oral gravada.</p>
+                            {reuniao ? <p className="text-xs text-slate-600 dark:text-slate-400">Os membros votam cada assunto pelo sistema, cada um no seu tempo, do primeiro ao último dia (votação nominal ou secreta). No dia seguinte ao último, o sistema apura e lavra a ata; empate ou falta de quórum ficam para a próxima reunião.</p>
+                                : <p className="text-xs text-slate-600 dark:text-slate-400">Os membros votam cada um no seu tempo, do primeiro ao último dia (a Res. CNJ 591/2024 usa até 6 dias úteis). No dia seguinte ao último, o sistema apura os resultados; o que ficar sem resultado (sem o voto do relator ou sem quórum) é adiado para a sessão seguinte. Até 48 horas antes do início, as partes podem pedir destaque, para o julgamento ir a uma sessão síncrona, e enviar a sustentação oral gravada.</p>}
                         </div>
                     )}
                     {f.modo !== 'virtual' && !virtual && <div className="sm:col-span-2">{campo('ss-local', 'Local', <Input id="ss-local" value={f.local} disabled={travada} maxLength={200} onChange={(e) => set('local', e.target.value)} placeholder="Sala de sessões, endereço" />)}</div>}
@@ -337,10 +356,10 @@ function IncluirProcessos({ orgId, sessao, pautados, onFechar, onIncluido }) {
 }
 
 /** Sessão virtual (S7): em que ponto está a votação e, terminada, a apuração. */
-function AvisoVirtual({ s, pode, indo, onApurar }) {
+function AvisoVirtual({ s, reuniao, pode, indo, onApurar }) {
     const caixa = 'text-sm rounded-md p-2 flex flex-wrap items-center gap-2';
     if (s.situacao === 'encerrada') {
-        return <p className={`${caixa} bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100`}><CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden /> Votação encerrada{s.encerrada_em ? ` em ${new Date(s.encerrada_em).toLocaleDateString('pt-BR')}` : ''}: o sistema apurou os resultados; o que ficou sem resultado foi adiado para a sessão seguinte.</p>;
+        return <p className={`${caixa} bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100`}><CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden /> Votação encerrada{s.encerrada_em ? ` em ${new Date(s.encerrada_em).toLocaleDateString('pt-BR')}` : ''}: o sistema apurou os resultados; o que ficou sem resultado foi adiado para {reuniao ? 'outra reunião' : 'a sessão seguinte'}.</p>;
     }
     if (s.situacao !== 'publicada') return null;
     if (s.virtual_encerrou) {
@@ -354,7 +373,7 @@ function AvisoVirtual({ s, pode, indo, onApurar }) {
     return (
         <p className={`${caixa} bg-indigo-50 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-100`} role="status">
             <Laptop className="w-4 h-4 shrink-0" aria-hidden />
-            {s.votacao_aberta ? `Votação aberta até ${br(s.fim)}. Cada membro vota no seu tempo; o placar aparece na tela de julgamento.` : `A votação abre em ${br(s.data)}, a partir das ${s.hora}. O relator pode liberar o voto antes.`}
+            {s.votacao_aberta ? `Votação aberta até ${br(s.fim)}. Cada membro vota no seu tempo; ${reuniao ? 'o resultado sai na apuração, no fim.' : 'o placar aparece na tela de julgamento.'}` : `A votação abre em ${br(s.data)}, a partir das ${s.hora}.${reuniao ? '' : ' O relator pode liberar o voto antes.'}`}
         </p>
     );
 }
@@ -387,7 +406,14 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
     const cedo = s.situacao === 'rascunho' && minima && s.data < minima;
     const acao = async (nome, extra, ok) => {
         setIndo(true);
-        try { await secProcesso(orgId, nome, { id, ...extra }); toast.success(ok); setDialogo(null); await atualizar(); } catch (e) { toast.error(e?.message || 'Não foi possível concluir'); } finally { setIndo(false); }
+        try { await secProcesso(orgId, nome, { id, ...extra }); toast.success(ok); setDialogo(null); await atualizar(); return true; } catch (e) { toast.error(e?.message || 'Não foi possível concluir'); return false; } finally { setIndo(false); }
+    };
+    const reuniao = s.tipo === 'reuniao';
+    // Reunião (S9): a ordem dos assuntos.
+    const moverAssunto = async (de, para) => {
+        const nova = (q.data.assuntos || []).map((a) => a.id);
+        nova.splice(para, 0, nova.splice(de, 1)[0]);
+        try { await secProcesso(orgId, 'reuniaoOrdenar', { id, ordem: nova }); await qc.invalidateQueries({ queryKey: chave }); } catch (e) { toast.error(e?.message || 'Não foi possível mudar a ordem'); }
     };
     const mover = async (de, para) => {
         const nova = [...ids];
@@ -462,16 +488,16 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1 min-w-0">
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex flex-wrap items-center gap-2">{s.titulo} <Situacao s={s.situacao} /></h2>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">{colegiado.nome} · {CARATER_SESSAO.find(([v]) => v === s.carater)?.[1]}</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{reuniao ? 'Reunião deliberativa · ' : ''}{colegiado.nome} · {CARATER_SESSAO.find(([v]) => v === s.carater)?.[1]}</p>
                         <p className="text-sm text-slate-800 dark:text-slate-200 flex items-start gap-1.5"><CalendarDays className="w-4 h-4 mt-0.5 shrink-0" aria-hidden /> {quandoSessao(s)}</p>
-                        {s.modo === 'assincrona' && <AvisoVirtual s={s} pode={(gere || s.preside) && s.situacao === 'publicada'} indo={indo} onApurar={() => acao('sessaoEncerrar', {}, 'Votação apurada e sessão encerrada.')} />}
+                        {s.modo === 'assincrona' && <AvisoVirtual s={s} reuniao={reuniao} pode={(gere || s.preside) && s.situacao === 'publicada'} indo={indo} onApurar={() => acao('sessaoEncerrar', {}, reuniao ? 'Votação apurada e reunião encerrada.' : 'Votação apurada e sessão encerrada.')} />}
                         {s.link && s.modo !== 'presencial' && /^https:\/\//.test(s.link) && (
                             <a href={s.link} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-sm text-indigo-700 dark:text-indigo-300 underline">Entrar na sala virtual <ExternalLink className="w-3.5 h-3.5" aria-hidden /></a>
                         )}
                         {diaUtil === false && ativa && <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-1"><AlertTriangle className="w-4 h-4 shrink-0" aria-hidden /> A data cai em fim de semana, feriado ou recesso do órgão.</p>}
-                        {s.publicada_em && <p className="text-xs text-slate-600 dark:text-slate-400">Pauta publicada em {new Date(s.publicada_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{s.publicada_por ? ` por ${s.publicada_por}` : ''}.</p>}
+                        {s.publicada_em && <p className="text-xs text-slate-600 dark:text-slate-400">{reuniao ? 'Convocada em' : 'Pauta publicada em'} {new Date(s.publicada_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}{s.publicada_por ? ` por ${s.publicada_por}` : ''}.</p>}
                         {s.situacao === 'cancelada' && <p className="text-sm text-rose-800 dark:text-rose-200">Cancelada{s.motivo_cancelamento ? `: ${s.motivo_cancelamento}` : ''}.</p>}
-                        {s.situacao === 'encerrada' && sincrona && <p className="text-sm text-emerald-800 dark:text-emerald-200 flex items-center gap-1"><CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden /> Sessão encerrada{s.encerrada_em ? ` em ${new Date(s.encerrada_em).toLocaleDateString('pt-BR')}` : ''}{s.encerrada_por ? ` por ${s.encerrada_por}` : ''}.</p>}
+                        {s.situacao === 'encerrada' && sincrona && <p className="text-sm text-emerald-800 dark:text-emerald-200 flex items-center gap-1"><CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden /> {reuniao ? 'Reunião encerrada' : 'Sessão encerrada'}{s.encerrada_em ? ` em ${new Date(s.encerrada_em).toLocaleDateString('pt-BR')}` : ''}{s.encerrada_por ? ` por ${s.encerrada_por}` : ''}.</p>}
                         {s.observacoes && <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">{s.observacoes}</p>}
                     </div>
                     <div className="flex flex-col gap-2 sm:items-end">
@@ -479,15 +505,15 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                             <div className="flex flex-wrap gap-2">
                                 {s.situacao === 'publicada' && <BotaoAgenda s={s} colegiado={colegiado.nome} />}
                                 {painel && <Button variant="outline" size="sm" className="gap-1" onClick={() => setTelao(true)}><MonitorPlay className="w-4 h-4" aria-hidden /> Painel ao vivo</Button>}
-                                {podeS8.encerrar && sincrona && <Button size="sm" className="gap-1" onClick={() => setDialogo('encerrar')}><Flag className="w-4 h-4" aria-hidden /> Encerrar sessão</Button>}
+                                {podeS8.encerrar && sincrona && <Button size="sm" className="gap-1" onClick={() => setDialogo('encerrar')}><Flag className="w-4 h-4" aria-hidden /> {reuniao ? 'Encerrar reunião' : 'Encerrar sessão'}</Button>}
                             </div>
                         )}
                         {pode && (
                             <div className="flex flex-wrap gap-2">
-                                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('editar')}><Pencil className="w-4 h-4" aria-hidden /> Dados da sessão</Button>
-                                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('incluir')}><Plus className="w-4 h-4" aria-hidden /> Incluir processos</Button>
-                                {s.situacao === 'rascunho' && <Button size="sm" className="gap-1" disabled={!pautados.length || cedo} onClick={() => setDialogo('publicar')}><Send className="w-4 h-4" aria-hidden /> Publicar pauta</Button>}
-                                <Button variant="ghost" size="sm" className="gap-1 text-rose-700 dark:text-rose-300" onClick={() => setDialogo('cancelar')}><Ban className="w-4 h-4" aria-hidden /> Cancelar sessão</Button>
+                                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('editar')}><Pencil className="w-4 h-4" aria-hidden /> {reuniao ? 'Dados da reunião' : 'Dados da sessão'}</Button>
+                                {!reuniao && <Button variant="outline" size="sm" className="gap-1" onClick={() => setDialogo('incluir')}><Plus className="w-4 h-4" aria-hidden /> Incluir processos</Button>}
+                                {s.situacao === 'rascunho' && <Button size="sm" className="gap-1" disabled={(reuniao ? !(q.data.assuntos || []).length : !pautados.length) || cedo} onClick={() => setDialogo('publicar')}><Send className="w-4 h-4" aria-hidden /> {reuniao ? 'Convocar' : 'Publicar pauta'}</Button>}
+                                <Button variant="ghost" size="sm" className="gap-1 text-rose-700 dark:text-rose-300" onClick={() => setDialogo('cancelar')}><Ban className="w-4 h-4" aria-hidden /> {reuniao ? 'Cancelar reunião' : 'Cancelar sessão'}</Button>
                             </div>
                         )}
                     </div>
@@ -500,10 +526,11 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                 )}
             </section>
 
-            {podeS8.presenca && presenca && <PresencaSessao key={JSON.stringify(presenca.marcas)} presenca={presenca} indo={indo} onSalvar={(presencas) => acao('sessaoPresenca', { presencas }, 'Presença registrada: vai para a ata')} />}
-            <AtaDaSessao ata={ata} pode={podeS8} indo={indo} acao={acao} />
+            {podeS8.presenca && presenca && <PresencaSessao key={JSON.stringify(presenca.marcas)} presenca={presenca} reuniao={reuniao} indo={indo} onSalvar={(presencas) => acao('sessaoPresenca', { presencas }, 'Presença registrada: vai para a ata')} />}
+            <AtaDaSessao ata={ata} pode={podeS8} indo={indo} acao={acao} reuniao={reuniao} />
 
-            <section className="space-y-2" aria-label="Ordem do dia">
+            {reuniao && <PautaReuniao q={q.data} acao={acao} indo={indo} mover={moverAssunto} />}
+            {!reuniao && <section className="space-y-2" aria-label="Ordem do dia">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Ordem do dia{pautados.length ? ` (${pautados.length})` : ''}</h3>
                     {pode && pautados.length > 1 && (
@@ -530,7 +557,7 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                         ) : itens.map((x, i) => <div key={x.processo_id}>{linha(x, i, null)}</div>)}
                     </div>
                 )}
-            </section>
+            </section>}
 
             {dialogo === 'editar' && <FormSessao orgId={orgId} colegiados={[{ id: s.orgao_id, nome: colegiado.nome, pauta: colegiado.pauta }]} sessao={s} hoje={hoje} onFechar={() => setDialogo(null)} onSalvo={async () => { setDialogo(null); await atualizar(); }} />}
             {dialogo?.votacao && <VotacaoSessao orgId={orgId} sessaoId={id} processoId={dialogo.votacao} onFechar={() => setDialogo(null)} onMudou={atualizar} />}
@@ -539,41 +566,42 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                 <Dialog open onOpenChange={(o) => !o && setDialogo(null)}>
                     <DialogContent className="max-w-lg w-[calc(100vw-1rem)] sm:w-full">
                         <DialogHeader>
-                            <DialogTitle>Publicar a pauta?</DialogTitle>
+                            <DialogTitle>{reuniao ? 'Convocar a reunião?' : 'Publicar a pauta?'}</DialogTitle>
                             <DialogDescription>
-                                {pautados.length === 1 ? 'O processo recebe' : `Os ${pautados.length} processos recebem`} a certidão de inclusão em pauta nos autos, com a data, a hora e o local da sessão, e as partes com acesso ao portal são avisadas por e-mail. Quem compõe o colegiado passa a ver a sessão. Depois disso, data, hora e local não mudam: para mudar, é preciso cancelar a sessão.
+                                {reuniao ? 'Quem compõe o colegiado é avisado (sino e e-mail, pela preferência de cada um) e passa a ver a pauta. Depois disso, data, hora e local não mudam; assunto novo entra como extrapauta, com o motivo.' : null}
+                                {!reuniao && `${pautados.length === 1 ? 'O processo recebe' : `Os ${pautados.length} processos recebem`} a certidão de inclusão em pauta nos autos, com a data, a hora e o local da sessão, e as partes com acesso ao portal são avisadas por e-mail. Quem compõe o colegiado passa a ver a sessão. Depois disso, data, hora e local não mudam: para mudar, é preciso cancelar a sessão.`}
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter className="gap-2">
                             <Button variant="outline" onClick={() => setDialogo(null)}>Voltar</Button>
-                            <Button disabled={indo} onClick={() => acao('sessaoPublicar', {}, 'Pauta publicada. As certidões foram aos autos e as partes foram avisadas.')}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Publicar</Button>
+                            <Button disabled={indo} onClick={() => acao('sessaoPublicar', {}, reuniao ? 'Reunião convocada. A composição foi avisada.' : 'Pauta publicada. As certidões foram aos autos e as partes foram avisadas.')}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}{reuniao ? 'Convocar' : 'Publicar'}</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
             )}
-            {telao && <PainelAoVivo painel={painel} onFechar={() => setTelao(false)} />}
+            {telao && (reuniao ? <PainelReuniao painel={painel} onFechar={() => setTelao(false)} /> : <PainelAoVivo painel={painel} onFechar={() => setTelao(false)} />)}
             {dialogo === 'encerrar' && (
                 <Dialog open onOpenChange={(o) => !o && setDialogo(null)}>
                     <DialogContent className="max-w-lg w-[calc(100vw-1rem)] sm:w-full">
                         <DialogHeader>
-                            <DialogTitle>Encerrar a sessão?</DialogTitle>
+                            <DialogTitle>{reuniao ? 'Encerrar a reunião?' : 'Encerrar a sessão?'}</DialogTitle>
                             <DialogDescription>
-                                {pautados.length
+                                {reuniao ? 'O assunto ainda não deliberado (sem votação apurada, ou empatado sem o voto de qualidade) fica adiado, para trazer a outra reunião. ' : pautados.length
                                     ? `${pautados.length === 1 ? 'O processo ainda pautado, sem resultado proclamado, é adiado' : `Os ${pautados.length} processos ainda pautados, sem resultado proclamado, são adiados`} para a sessão seguinte, com os votos já dados, e recebem a certidão nos autos. `
                                     : 'Todos os processos da pauta já tiveram desfecho. '}
-                                O sistema lavra a ata com a presença e o que aconteceu com cada processo, para a secretaria conferir e o presidente e a secretaria assinarem.
+                                O sistema lavra a ata com a presença e o que aconteceu com cada {reuniao ? 'assunto (falas, votos e encaminhamentos)' : 'processo'}, para a secretaria conferir e o presidente e a secretaria assinarem.
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter className="gap-2">
                             <Button variant="outline" onClick={() => setDialogo(null)}>Voltar</Button>
-                            <Button disabled={indo} onClick={() => acao('sessaoEncerrar', {}, 'Sessão encerrada. A ata está pronta para conferir e assinar.')}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Encerrar</Button>
+                            <Button disabled={indo} onClick={() => acao('sessaoEncerrar', {}, `${reuniao ? 'Reunião encerrada' : 'Sessão encerrada'}. A ata está pronta para conferir e assinar.`)}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Encerrar</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
             )}
             {dialogo === 'cancelar' && (
-                <DialogoMotivo titulo="Cancelar a sessão?" perigo acao="Cancelar sessão" onFechar={() => setDialogo(null)}
-                    descricao={s.situacao === 'publicada' ? 'Cada processo pautado recebe a certidão de retirada de pauta, com o motivo, e as partes são avisadas. A sessão fica na lista como cancelada.' : 'É só um rascunho: ninguém foi avisado, e nada vai aos autos.'}
+                <DialogoMotivo titulo={reuniao ? 'Cancelar a reunião?' : 'Cancelar a sessão?'} perigo acao={reuniao ? 'Cancelar reunião' : 'Cancelar sessão'} onFechar={() => setDialogo(null)}
+                    descricao={reuniao ? (s.situacao === 'publicada' ? 'A composição é avisada do cancelamento, com o motivo. A reunião fica na lista como cancelada.' : 'É só um rascunho: ninguém foi avisado.') : s.situacao === 'publicada' ?'Cada processo pautado recebe a certidão de retirada de pauta, com o motivo, e as partes são avisadas. A sessão fica na lista como cancelada.' : 'É só um rascunho: ninguém foi avisado, e nada vai aos autos.'}
                     onConfirmar={(motivo) => acao('sessaoCancelar', { motivo }, 'Sessão cancelada')} />
             )}
             {dialogo?.tirar && (

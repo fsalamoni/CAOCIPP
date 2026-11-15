@@ -16,6 +16,8 @@ import { COL_SESSOES, colegiado, gereSessoes, incluirNaSessao, lerConfig, lerSes
 import { registrarJulgamentoDaSessao } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { atualizarPainel, montarAta } from './painelAta';
+import { fecharReuniao } from './reunioes';
+
 /**
  * Votação na sessão de julgamento (etapa S4), em secSessoes/{sessao}/votacoes/{processo}.
  * A secretaria designa o relator entre quem vota no dia (presidente e
@@ -522,7 +524,10 @@ export async function encerrarSessao(db: admin.firestore.Firestore, orgId: strin
         }
         // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
         await acaoVotacao(c, { ...base, action: 'sessaoAdiar', motivo: porque }).then(() => { adiados++; }, () => undefined);
-    }    await ref.update({
+    }
+    // Reunião (S9): apura a votação virtual ou adia o que não foi deliberado.
+    if (s.tipo === 'reuniao') await fecharReuniao(db, ref, colegiado((await lerConfig(c)).orgaos, s.orgao_id));
+    await ref.update({
         situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerrada_por_nome: c.userName, encerra_em: FieldValue.delete(), em_julgamento: FieldValue.delete(),
         version: FieldValue.increment(1), updated_at: FieldValue.serverTimestamp(),
     });

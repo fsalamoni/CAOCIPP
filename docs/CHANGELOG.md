@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Reunião deliberativa
+- Nona etapa do plano de sessões de julgamento, reuniões e pregão.
+- **Reunião do colegiado sem processo:** ao marcar, escolha "Reunião deliberativa". A pauta é de assuntos (plano de trabalho, eleição, proposta), cada um com proponente, forma de votação (nominal, simbólica, secreta ou sem votação) e maioria exigida (simples, absoluta ou dois terços). Assunto incluído depois da convocação exige motivo; o adiado de outra reunião pode ser trazido para a pauta.
+- **Na reunião síncrona:** presença, inscrição para a palavra com cronômetro, chamada do assunto, impedimento declarado pelo membro, abertura e apuração da votação, voto de qualidade do presidente no empate e encaminhamento de cada deliberação. A secretaria pode registrar o voto nominal dado de viva voz.
+- **Voto secreto:** o sistema guarda só quem votou e a contagem, nunca o voto de cada um.
+- **Na virtual:** cada membro vota no seu tempo; ao encerrar, o sistema apura, e o empate ou o assunto sem quórum vão para a próxima reunião.
+- **Regras do colegiado:** quórum para deliberar e o que fazer no empate, na tela de Órgãos. A ata da reunião sai com a presença, o placar e o resultado de cada assunto; o painel ao vivo também serve à reunião.
+
 ### 15/11/2026 — Ata da sessão, painel ao vivo, presença e avisos
 - Oitava etapa do plano de sessões de julgamento, reuniões e pregão.
 - **No dia da sessão:** a secretaria marca a presença da composição, e o presidente ou a secretaria chamam cada processo. A tela da sessão de todos do colegiado se atualiza sozinha a cada voto, chamada ou resultado.

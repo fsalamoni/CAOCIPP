@@ -11,6 +11,9 @@ import { COL, Contexto } from './context';
 import { notificarPessoas } from './avisosEquipe';
 import { COL_SESSOES, Sessao, colegiado, gereSessoes, lerConfig, lerSessao, veSessoes } from './sessoes';
 import { resumoVotacao } from './votacao';
+import { AssuntoReuniao, textoDaAtaReuniao } from '../shared/reunioes';
+import { Deliberacao, aptos, devemVotoNaReuniao, votaramNaReuniao } from './reunioes';
+
 /**
  * Etapa S8: presença, chamada do processo em julgamento, ata da sessão
  * (gerada ao encerrar, assinada pelo presidente e pela secretaria), o painel ao
@@ -42,6 +45,23 @@ async function orgaoDa(db: admin.firestore.Firestore, orgId: string, s: Sessao):
 /** Quem vota no dia (presidente e titulares), como na votação. */
 const votamNoDia = (o: Orgao, dia: string) => composicaoEm(o.composicao, dia).filter((m) => m.funcao !== 'suplente').map((m) => m.uid);
 
+/** Assuntos da reunião no painel: quantos votaram, nunca o voto; o resultado depois da apuração. */
+async function itensDaReuniao(sref: admin.firestore.DocumentReference, s: Sessao, o: Orgao) {
+    const as = [...((s.assuntos || []) as AssuntoReuniao[])].sort((a, b) => a.ordem - b.ordem);
+    const ds = as.length ? await sref.firestore.getAll(...as.map((a) => sref.collection('deliberacoes').doc(a.id))) : [];
+    return as.map((a, i) => {
+        const d = ds[i]?.data() as Deliberacao | undefined;
+        const podem = aptos(o, s.data, a);
+        const votaram = (a.votacao === 'secreta' ? d?.votaram || [] : Object.keys(d?.votos || {})).filter((u) => podem.includes(u)).length;
+        return {
+            id: a.id, ordem: a.ordem, titulo: a.titulo, votacao: a.votacao, maioria: a.maioria, situacao: a.situacao, motivo: a.motivo || '',
+            votaram, aptos: podem.length, resultado: a.resultado?.texto || null, aprovado: a.resultado?.aprovado ?? null,
+            com_a_palavra: a.com_a_palavra ? { nome: a.com_a_palavra.nome, em: a.com_a_palavra.em } : null,
+            inscritos: (a.inscritos || []).map((x) => x.nome),
+        };
+    });
+}
+
 /**
  * Refaz o painel da sessão. `extra`: alguém que pode ver a sessão e não está
  * entre os leitores de base (admin, gestor fora do colegiado). Nunca lança:
@@ -69,7 +89,7 @@ export async function atualizarPainel(db: admin.firestore.Firestore, orgId: stri
             ...unis.docs.filter((u) => !u.data().excluida).flatMap((u) => lotacoesDe(u.data()).map((l) => l.uid)),
         ];
         const quemVota = votamNoDia(o, s.data);
-        const itens = pauta.map((x, i) => {
+        const itens = s.tipo === 'reuniao' ? await itensDaReuniao(sref, s, o) : pauta.map((x, i) => {
             const v = vs[i]?.data() as Votacao | undefined;
             const d = procs[i]?.data();
             const julgado = !!d && d.ultima_sessao?.id === sessaoId && d.sessao?.id !== sessaoId;
@@ -86,7 +106,7 @@ export async function atualizarPainel(db: admin.firestore.Firestore, orgId: stri
         });
         await pref.set({
             organization_id: orgId, orgao_id: o.id, colegiado: o.nome,
-            leitores: [...new Set([...base, ...extras])].slice(0, 500), extras,
+            leitores: [...new Set([...base, ...extras])].slice(0, 500), extras, tipo: s.tipo || 'julgamento',
             titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora, fim: s.fim || null, local: s.local || '', link: s.link || '',
             situacao: s.situacao, em_julgamento: s.em_julgamento || null, ata_assinada: ataAssinada(s.ata as AtaSessao | undefined),
             itens, versao: FieldValue.increment(1), atualizado_em: new Date().toISOString(),
@@ -109,7 +129,9 @@ export async function montarAta(db: admin.firestore.Firestore, orgId: string, se
     const vots = vs.map((d) => d.data() as Votacao | undefined);
     const comp = composicaoEm(o.composicao, s.data);
     // Na virtual, participou quem votou (o relator, ao liberar o voto).
-    const votaram = new Set(vots.flatMap((v) => (v ? [...(v.liberado_em ? [v.relator_uid] : []), ...Object.keys(v.votos || {})] : [])));    const nm = await nomesPor(db, orgId, [...comp.map((m) => m.uid), ...votaram]);
+    const votaram = new Set(vots.flatMap((v) => (v ? [...(v.liberado_em ? [v.relator_uid] : []), ...Object.keys(v.votos || {})] : [])));
+    if (s.tipo === 'reuniao') for (const u of await votaramNaReuniao(sref, s)) votaram.add(u);
+    const nm = await nomesPor(db, orgId, [...comp.map((m) => m.uid), ...votaram]);
     const nome = (u: string) => nm.get(u) || 'Membro';
     const presid = comp.find((m) => m.funcao === 'presidente');
     const marcas = (s.presencas || {}) as Record<string, boolean>;
@@ -134,7 +156,10 @@ export async function montarAta(db: admin.firestore.Firestore, orgId: string, se
             sustentacoes: [...new Set(pedidos.filter((p) => p.processo_id === x.processo_id && p.tipo === 'sustentacao' && p.situacao !== 'indeferido').map((p) => p.parte))],
         };
     });
-    const textoAta = textoDaAta(s, o.nome, presenca, itens, String(s.encerrada_em || new Date().toISOString()).slice(0, 10)).slice(0, MAX_ATA);
+    const dia = String(s.encerrada_em || new Date().toISOString()).slice(0, 10);
+    const textoAta = (s.tipo === 'reuniao'
+        ? textoDaAtaReuniao(s, o.nome, presenca, [...((s.assuntos || []) as AssuntoReuniao[])].sort((a, b) => a.ordem - b.ordem), dia)
+        : textoDaAta(s, o.nome, presenca, itens, dia)).slice(0, MAX_ATA);
     return { texto: textoAta, gerada_em: new Date().toISOString(), sha256: sha256(textoAta), assinaturas: [] };
 }
 
@@ -164,7 +189,10 @@ export async function acaoAta(c: Contexto, p: Payload): Promise<unknown> {
         if (!gere && !preside) throw new HttpsError('permission-denied', 'Chama o processo o presidente do colegiado (ou a secretaria)');
         if (!noDia) throw new HttpsError('failed-precondition', 'Chama-se o processo no dia da sessão publicada');
         const pid = typeof p.processo_id === 'string' ? p.processo_id : '';
-        if (pid && !(s.pauta || []).some((x) => x.processo_id === pid && x.situacao === 'pautado')) throw new HttpsError('failed-precondition', 'O processo não está pautado nesta sessão');
+        // Na reunião (S9), chama-se o assunto.
+        if (s.tipo === 'reuniao') {
+            if (pid && !((s.assuntos || []) as AssuntoReuniao[]).some((a) => a.id === pid && ['pauta', 'em_votacao', 'empate'].includes(a.situacao))) throw new HttpsError('failed-precondition', 'O assunto não está na pauta desta reunião');
+        } else if (pid && !(s.pauta || []).some((x) => x.processo_id === pid && x.situacao === 'pautado')) throw new HttpsError('failed-precondition', 'O processo não está pautado nesta sessão');
         await ref.update({ em_julgamento: pid || FieldValue.delete(), version: FieldValue.increment(1), updated_at: FieldValue.serverTimestamp() });
         return { ok: true };
     }
@@ -210,12 +238,15 @@ const quando = (s: Sessao) => (s.modo === 'assincrona' ? `votação virtual de $
 
 /** Avisa quem compõe o colegiado no dia da sessão (sino e e-mail, pela preferência de cada um). */
 export async function avisarComposicao(db: admin.firestore.Firestore, orgId: string, sessaoId: string, s: Sessao, o: Orgao, oQue: 'publicada' | 'cancelada' | 'amanha' | 'abriu' | 'ultimo_dia', uids?: string[], autorUid?: string): Promise<void> {
-    const n = (s.pauta || []).filter((x) => x.situacao === 'pautado').length;
-    const proc = n === 1 ? '1 processo' : `${n} processos`;
+    const reuniao = s.tipo === 'reuniao';
+    const n = reuniao ? ((s.assuntos || []) as AssuntoReuniao[]).filter((a) => a.situacao !== 'retirado').length : (s.pauta || []).filter((x) => x.situacao === 'pautado').length;
+    const proc = reuniao ? (n === 1 ? '1 assunto' : `${n} assuntos`) : n === 1 ? '1 processo' : `${n} processos`;
     const t = {
-        publicada: [`Pauta publicada: ${s.titulo}`, `${o.nome}, ${quando(s)} · ${proc}. Os autos ficam abertos a quem compõe o colegiado enquanto pautados.`],
-        cancelada: [`Sessão cancelada: ${s.titulo}`, `${o.nome}, que seria em ${quando(s)}. Motivo: ${s.motivo_cancelamento || ''}`],
-        amanha: [`Sessão amanhã: ${s.titulo}`, `${o.nome}, ${quando(s)} · ${proc} na pauta.`],
+        publicada: reuniao
+            ? [`Reunião convocada: ${s.titulo}`, `${o.nome}, ${quando(s)} · ${proc} na pauta. Abra a reunião para ler os assuntos.`]
+            : [`Pauta publicada: ${s.titulo}`, `${o.nome}, ${quando(s)} · ${proc}. Os autos ficam abertos a quem compõe o colegiado enquanto pautados.`],
+        cancelada: [`${reuniao ? 'Reunião cancelada' : 'Sessão cancelada'}: ${s.titulo}`, `${o.nome}, que seria em ${quando(s)}. Motivo: ${s.motivo_cancelamento || ''}`],
+        amanha: [`${reuniao ? 'Reunião amanhã' : 'Sessão amanhã'}: ${s.titulo}`, `${o.nome}, ${quando(s)} · ${proc} na pauta.`],
         abriu: [`Votação virtual aberta: ${s.titulo}`, `${o.nome}, ${quando(s)} · ${proc} na pauta. Vote até ${br(String(s.fim || s.data))}.`],
         ultimo_dia: [`Último dia para votar: ${s.titulo}`, `${o.nome}: a votação virtual termina hoje e você ainda tem voto a dar. Quem não vota fica ausente.`],
     }[oQue];
@@ -250,7 +281,8 @@ export async function lembrarSessoes(db: admin.firestore.Firestore, hoje = hojeB
             const o = await orgaoDa(db, orgId, s);
             if (!o) continue;
             let uids: string[] | undefined;
-            if (oQue === 'ultimo_dia') {
+            if (oQue === 'ultimo_dia' && s.tipo === 'reuniao') uids = await devemVotoNaReuniao(d.ref, s, o);
+            else if (oQue === 'ultimo_dia') {
                 // Só quem ainda deve voto em processo com o voto do relator liberado.
                 const quemVota = votamNoDia(o, s.data);
                 const pautados = (s.pauta || []).filter((x) => x.situacao === 'pautado');

@@ -689,7 +689,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     const c = await carregarContexto(auth, p.organizationId);
     const { db, orgId } = c;
     // Sessões de julgamento dos colegiados (pauta, publicação, cancelamento).
-    if (typeof p.action === 'string' && p.action.startsWith('sessao')) return acaoSessao(c, p as unknown as Record<string, unknown>);
+    if (typeof p.action === 'string' && (p.action.startsWith('sessao') || p.action.startsWith('reuniao'))) return acaoSessao(c, p as unknown as Record<string, unknown>);
     // Anotação privada de quem lê o processo (nunca vai aos autos).
     if ((p.action as string) === 'anotacao') return acaoAnotacao(c, p as unknown as Record<string, unknown>);
 

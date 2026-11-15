@@ -19,6 +19,7 @@ const sessoes_2 = require("./sessoes");
 const processos_1 = require("./processos");
 const portalAvisos_1 = require("./portalAvisos");
 const painelAta_1 = require("./painelAta");
+const reunioes_1 = require("./reunioes");
 const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia', 'sessaoDestacar'];
 exports.ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', 'sessaoRedator', 'sessaoAcordao', 'sessaoPedidoDecidir', 'sessaoEncerrar', ...ACOES_S5];
 const MIN_TEXTO = 10;
@@ -570,6 +571,9 @@ async function encerrarSessao(db, orgId, sessaoId, quem) {
         // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
         await acaoVotacao(c, Object.assign(Object.assign({}, base), { action: 'sessaoAdiar', motivo: porque })).then(() => { adiados++; }, () => undefined);
     }
+    // Reunião (S9): apura a votação virtual ou adia o que não foi deliberado.
+    if (s.tipo === 'reuniao')
+        await (0, reunioes_1.fecharReuniao)(db, ref, (0, sessoes_2.colegiado)((await (0, sessoes_2.lerConfig)(c)).orgaos, s.orgao_id));
     await ref.update({
         situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerrada_por_nome: c.userName, encerra_em: firestore_1.FieldValue.delete(), em_julgamento: firestore_1.FieldValue.delete(),
         version: firestore_1.FieldValue.increment(1), updated_at: firestore_1.FieldValue.serverTimestamp(),
