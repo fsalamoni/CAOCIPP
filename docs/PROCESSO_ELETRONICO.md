@@ -1493,6 +1493,46 @@ conciliacao, oitiva, sessao, reuniao, inspecao). Lógica pura em
 - Testes: `functions-v2/test/audiencias.test.js` e
   `src/lib/audiencias.test.js`. Guia do rito, parte 15.
 
+### Julgamento colegiado como ação do rito (15/11/2026)
+
+`pede: 'julgamento'`, `julgamento: { resultados, quorum?, desempate?,
+favoravel? }`. Lógica pura em `shared/julgamento.ts`; espelho em
+`src/lib/julgamento.js` (a tela apura enquanto se preenche; o servidor apura
+de novo).
+
+- **Regra:** de 2 a 8 resultados distintos (impedido, suspeito, ausente e
+  abstenção não podem ser resultado); `quorum` inteiro de 1 a 30 (só grava
+  acima de 1); `desempate: 'favoravel'` exige `favoravel` entre os
+  resultados (ausente = desempata o presidente). O servidor grava sempre
+  `destino: 'autos'` e `partes: true`. Aceita `quem`, `se`, `ou`,
+  `prazo_dias` (prazo interno para julgar), `obrigatoria` e `recomendada`.
+- **Responde como escolha:** `opcoesDaResposta` devolve os resultados, e o
+  resultado apurado fica em `acoes_respostas`, para o `se` de outras ações e
+  as saídas da fase. Modelos que trocaram uma escolha por julgamento
+  mantiveram as mesmas opções, e as condições seguiram valendo.
+- **Registrar** (`marcarAcao` com `valor: { data, votos: [{ nome, funcao,
+  voto }] }`): data da sessão até hoje (horário de Brasília); de 1 a 30
+  membros, sem nome repetido (sem distinguir maiúsculas); `funcao` relator,
+  revisor, presidente ou membro; `voto` um dos resultados ou `impedido`,
+  `suspeito`, `ausente`, `abstencao`. Exatamente um relator, que vota um
+  resultado, e no máximo um presidente.
+- **Apuração:** maioria simples dos votos válidos; abaixo do quórum, recusa
+  ("Quórum não alcançado: N votos válidos, e o rito exige Q"). No empate,
+  prevalece o resultado mais favorável, se o rito disse e ele está entre os
+  empatados; senão, o voto do presidente, se está entre eles; senão, recusa.
+- **Certidão** nos autos, com folha, vista pelas partes: "Procedente, por
+  maioria (3 a 1), em sessão de 20/11/2026. Relator: Ana. Vencido: Bruno
+  (Improcedente). Impedido: Davi. Ausente: Eva". Variações: por unanimidade
+  (N votos), pelo voto de desempate do presidente, no empate pelo resultado
+  mais favorável à parte. Desfazer certifica nos autos, como as demais ações
+  com destino autos.
+- **Modelos:** 13 decisões de colegiado da biblioteca passaram a usar a ação
+  (TED da OAB/RS, CED do CAU, câmaras de ética, Conselho Superior do MP,
+  junta de recursos de trânsito). O modelo de disciplinar de entidade de
+  classe mostra o desempate pelo mais favorável (Improcedente).
+- Testes: `functions-v2/test/julgamento.test.js` e
+  `src/lib/julgamento.test.js`. Guia do rito, parte 15.
+
 ### Nomes dos polos por tipo de processo (14/11/2026)
 
 `formulario.nomes_polos` no tipo (`{ requerente?, requerido?, interessado?,

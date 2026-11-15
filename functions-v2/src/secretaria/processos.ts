@@ -19,6 +19,7 @@ import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/p
 import { RESPOSTAS, encerrarComunicacoesDaFase, faseQueEspera, situacaoDaResposta } from '../shared/comunicacaoRito';
 import { ajustarComunicacao, ajustarPrazo } from '../shared/ajustePrazo';
 import { Audiencia, aplicarAudiencia, designadaDe, nomeDaAudiencia, audienciasFuturas, dadosDaAudiencia, textoDaAudiencia } from '../shared/audiencias';
+import { apurar, dadosDoJulgamento, textoDoJulgamento } from '../shared/julgamento';
 import { sendEmail } from '../shared/email';
 import {
     CampoExigido, CampoValor, nomeDoPolo, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
@@ -565,6 +566,14 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
         const t = textoDaAudiencia(d!);
         const nome = `${nomeDaAudiencia(regra?.audiencia)} ${designadaDe(regra?.audiencia)}`;
         return { rotulo: regra?.rotulo || nome, tipo: 'texto' as TipoCampo, valor: t, valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false, audiencia: d! };
+    }
+    if (pede === 'julgamento') {
+        // O servidor apura os votos: o resultado é a resposta da ação (decide as saídas); a certidão leva placar e composição.
+        const cfg = regra!.julgamento!;
+        let d: ReturnType<typeof dadosDoJulgamento> | null = null;
+        try { d = dadosDoJulgamento(cfg, bruto, hojeBrasil()); } catch (e) { erroUsuario(e); }
+        const t = textoDoJulgamento(cfg, d!);
+        return { rotulo: regra?.rotulo || 'Resultado do julgamento', tipo: 'lista' as TipoCampo, valor: apurar(cfg, d!.votos).resultado, valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false };
     }
     if (pede === 'formulario') {
         // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).

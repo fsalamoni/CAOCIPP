@@ -677,7 +677,7 @@ export function multaTransito() {
             acoes: [
                 A.fazer('Remeter o recurso à junta em até 10 dias', { obrigatoria: true }),
                 A.simNao('Recurso tempestivo e de parte legítima?', { obrigatoria: true, ajuda: 'Se não, o recurso não tem efeito suspensivo (art. 285, § 1º).' }),
-                A.escolha('Julgamento da junta', ['Provido, cancelar o auto', 'Provido em parte', 'Não provido'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Julgamento da junta', ['Provido, cancelar o auto', 'Provido em parte', 'Não provido'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão da junta', 'Decisão', { forma: 'redigir' }),
                 A.comunicar('Notificar a decisão da junta', { especie: 'notificacao', polos: ['requerido'], dias: 30, contagem: corridos, texto: 'Fica notificado da decisão da junta. Cabe recurso à segunda instância em 30 dias.' }, { obrigatoria: true }),
                 A.esperar('Aguardar o recurso à segunda instância', 'Notificar a decisão da junta', { obrigatoria: true }),

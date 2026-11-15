@@ -45,7 +45,7 @@ const FASE = [['nome', 'nome'], ['nome_publico', 'nome para as partes'], ['expli
     ['permissoes', 'quem pode na fase']];
 const REGRA = [['pede', 'o que pede'], ['rotulo', 'nome do dado'], ['ajuda', 'ajuda'], ['opcoes', 'opções'], ['modulo', 'módulo'], ['campos', 'campos do formulário'],
     ['destino', 'onde fica'], ['autos', 'onde fica'], ['documento', 'documento'], ['partes', 'quem vê'], ['obrigatoria', 'obrigatória'], ['recomendada', 'recomendada'],
-    ['se', 'condição'], ['quem', 'quem pode cumprir'], ['atribuicao', 'quem pode cumprir'], ['prazo_dias', 'prazo da ação'], ['prazo_contagem', 'prazo da ação'], ['comunicacao', 'comunicação às partes'], ['resposta', 'resposta esperada'], ['audiencia', 'audiência'], ['ou', 'alternativa'], ['folha_dados', 'folha de dados'], ['ve', 'quem vê o dado']];
+    ['se', 'condição'], ['quem', 'quem pode cumprir'], ['atribuicao', 'quem pode cumprir'], ['prazo_dias', 'prazo da ação'], ['prazo_contagem', 'prazo da ação'], ['comunicacao', 'comunicação às partes'], ['resposta', 'resposta esperada'], ['audiencia', 'audiência'], ['julgamento', 'julgamento colegiado'], ['ou', 'alternativa'], ['folha_dados', 'folha de dados'], ['ve', 'quem vê o dado']];
 // Ação repetida na fase: a 2ª "Certificar" casa com a 2ª.
 const acoesDe = (f) => {
     const n = {};

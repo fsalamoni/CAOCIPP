@@ -59,6 +59,7 @@ const permissoesFase_1 = require("./permissoesFase");
 Object.defineProperty(exports, "QUEM", { enumerable: true, get: function () { return permissoesFase_1.QUEM; } });
 const comunicacaoRito_1 = require("./comunicacaoRito");
 const audiencias_1 = require("./audiencias");
+const julgamento_1 = require("./julgamento");
 const listasOrgao_1 = require("./listasOrgao");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
@@ -110,7 +111,7 @@ exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.MAX_ASSINATURAS_EXIGIDAS = 5;
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -221,6 +222,11 @@ function sanitizeRegra(raw, acao) {
         Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
         return Object.assign(Object.assign(Object.assign({}, out), { pede: 'audiencia', audiencia: (0, audiencias_1.sanitizeAudienciaDaAcao)(r.audiencia, acao), destino: 'autos', partes: true }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
     }
+    // Julgamento colegiado: a certidão (resultado, placar, relator, vencidos, impedidos) é ato público, nos autos.
+    if (pedeBruto === 'julgamento') {
+        Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
+        return Object.assign(Object.assign(Object.assign({}, out), { pede: 'julgamento', julgamento: (0, julgamento_1.sanitizeJulgamentoDaAcao)(r.julgamento, acao), destino: 'autos', partes: true }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
+    }
     // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
     if (pedeBruto === 'resposta') {
         return Object.assign(Object.assign(Object.assign({}, out), { pede: 'resposta', resposta: { de: -1 } }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
@@ -301,6 +307,7 @@ const camposDeEscolha = (r) => ((r === null || r === void 0 ? void 0 : r.pede) =
  * Com `campo`, as do campo de escolha do formulário que a ação pede.
  */
 function opcoesDaResposta(r, campo) {
+    var _b;
     if (!r || r.documento)
         return null;
     if (campo) {
@@ -313,6 +320,8 @@ function opcoesDaResposta(r, campo) {
         return ['sim', 'nao'];
     if (r.pede === 'resposta')
         return [...comunicacaoRito_1.RESPOSTAS];
+    if (r.pede === 'julgamento')
+        return [...(((_b = r.julgamento) === null || _b === void 0 ? void 0 : _b.resultados) || [])];
     return null;
 }
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */

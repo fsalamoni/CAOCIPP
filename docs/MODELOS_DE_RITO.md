@@ -267,7 +267,7 @@ Apura infração ao código de ética da profissão por profissional inscrito no
 
 **Partes:** Denunciante (requerente), Denunciado (requerido).
 
-**Recursos do motor usados:** 17 comunicações às partes; 8 esperas de resposta; audiência (sessão, conciliação, audiência de instrução); 22 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+**Recursos do motor usados:** 17 comunicações às partes; 8 esperas de resposta; audiência (sessão, conciliação, audiência de instrução); 1 julgamento colegiado; 22 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Denúncia, Secretaria; 2. Sindicância (90 dias corridos), Comissão de ética; 3. Julgamento da sindicância, Câmara de julgamento; 4. Prazo de recurso do arquivamento, Secretaria; 5. Recurso do arquivamento, Plenário; 6. Conciliação ou ajustamento de conduta, Comissão de ética; 7. Instauração do processo, Corregedoria; 8. Interdição cautelar, Plenário; 9. Citação e defesa prévia, Comissão de ética; 10. Revelia e defensor dativo (30 dias corridos), Comissão de ética; 11. Instrução e audiência, Comissão de ética; 12. Alegações finais, Comissão de ética; 13. Parecer jurídico, Assessoria jurídica; 14. Designação de relator e pauta, Corregedoria; 15. Sessão de julgamento, Câmara de julgamento; 16. Recurso, Plenário; 17. Execução e registro (90 dias corridos), Secretaria; 18. Suspensão por doença incapacitante (90 dias corridos), Comissão de ética; 19. Arquivamento, Secretaria.
 
@@ -283,7 +283,7 @@ Apura infração disciplinar de inscrito na entidade de classe, de ofício ou po
 
 **Partes:** Representante (requerente), Representado (requerido).
 
-**Recursos do motor usados:** 11 comunicações às partes; 6 esperas de resposta; audiência (audiência de instrução, sessão); 13 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+**Recursos do motor usados:** 11 comunicações às partes; 6 esperas de resposta; audiência (audiência de instrução, sessão); 1 julgamento colegiado; 13 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Representação, Secretaria; 2. Designação de relator e certidões, Secretaria; 3. Parecer de admissibilidade (30 dias), Comissão de ética; 4. Despacho de instauração, Gabinete; 5. Notificação e defesa prévia, Comissão de ética; 6. Defensor dativo (15 dias), Comissão de ética; 7. Indeferimento liminar, Gabinete; 8. Saneamento e audiência de instrução, Comissão de ética; 9. Parecer preliminar, Comissão de ética; 10. Razões finais, Comissão de ética; 11. Distribuição e pauta, Câmara de julgamento; 12. Sessão de julgamento, Câmara de julgamento; 13. Recurso, Plenário; 14. Execução e registro, Secretaria; 15. Suspensão preventiva, Câmara de julgamento; 16. Arquivamento, Secretaria.
 
@@ -315,7 +315,7 @@ Rito do Tribunal de Ética e Disciplina da OAB/RS para apurar infração discipl
 
 **Partes:** Representante (requerente), Representado (requerido).
 
-**Recursos do motor usados:** 20 comunicações às partes; 12 esperas de resposta; audiência (sessão, conciliação, audiência de instrução); 21 documentos; 3 formulários de dados; 11 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+**Recursos do motor usados:** 20 comunicações às partes; 12 esperas de resposta; audiência (sessão, conciliação, audiência de instrução); 1 julgamento colegiado; 21 documentos; 3 formulários de dados; 11 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Representação, Secretaria do TED; 2. Distribuição e certidões, Secretaria do TED; 3. Parecer de admissibilidade (30 dias), Relator; 4. Despacho do Presidente do TED, Presidência do TED; 5. Prazo de recurso do arquivamento, Secretaria do TED; 6. Recurso à Turma Julgadora, Turma Julgadora; 7. Conciliação entre advogados, Relator; 8. Termo de ajustamento de conduta, Presidência do TED; 9. Cumprimento do termo, Presidência do TED; 10. Notificação e defesa prévia, Instrutor; 11. Defensor dativo (15 dias), Presidência do TED; 12. Indeferimento liminar, Presidência do Conselho Seccional; 13. Instrução, Instrutor; 14. Parecer preliminar, Instrutor; 15. Razões finais, Secretaria do TED; 16. Distribuição à Turma e pauta, Presidência do TED; 17. Sessão de julgamento, Turma Julgadora; 18. Embargos de declaração, Turma Julgadora; 19. Recurso ao Conselho Seccional, Câmara do Conselho Seccional; 20. Recurso ao Conselho Federal, Conselho Federal; 21. Execução e registro, Presidência do TED; 22. Suspensão preventiva (90 dias corridos), Turma Julgadora; 23. Arquivamento, Secretaria do TED.
 
@@ -363,7 +363,7 @@ Apura infração ao Código de Ética e Disciplina por arquiteto e urbanista ou 
 
 **Partes:** Denunciante (requerente), Denunciado (requerido).
 
-**Recursos do motor usados:** 16 comunicações às partes; 9 esperas de resposta; audiência (reunião, conciliação, audiência de instrução, sessão); 14 documentos; 1 formulário de dados; 8 fases com saída decidida pela resposta; sigilo ao entrar.
+**Recursos do motor usados:** 16 comunicações às partes; 9 esperas de resposta; audiência (reunião, conciliação, audiência de instrução, sessão); 1 julgamento colegiado; 14 documentos; 1 formulário de dados; 8 fases com saída decidida pela resposta; sigilo ao entrar.
 
 **Fases:** 1. Denúncia, Secretaria da CED; 2. Providências da fiscalização (10 dias), Fiscalização; 3. Admissibilidade, Comissão de ética e disciplina; 4. Prazo de recurso da inadmissão, Secretaria da CED; 5. Recurso da inadmissão, Plenário do CAU/UF; 6. Conciliação ou TAC, Comissão de ética e disciplina; 7. Cumprimento do acordo, Comissão de ética e disciplina; 8. Notificação e defesa, Comissão de ética e disciplina; 9. Saneamento e provas (180 dias corridos), Relator; 10. Audiência de instrução, Relator; 11. Alegações finais, Secretaria da CED; 12. Relatório e voto (30 dias corridos), Relator; 13. Julgamento pela CED (60 dias corridos), Comissão de ética e disciplina; 14. Recurso ao Plenário do CAU/UF, Plenário do CAU/UF; 15. Recurso ao Plenário do CAU/BR, Plenário do CAU/BR; 16. Execução da sanção, Secretaria da CED; 17. Arquivamento, Secretaria da CED.
 
@@ -445,7 +445,7 @@ Sancionador de alto volume e baixo valor, com prazo decadencial para o próprio 
 
 **Partes:** Proprietário do veículo (requerido), Condutor (interessado).
 
-**Recursos do motor usados:** 4 comunicações às partes; 3 esperas de resposta; 5 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta.
+**Recursos do motor usados:** 4 comunicações às partes; 3 esperas de resposta; 1 julgamento colegiado; 5 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta.
 
 **Fases:** 1. Auto de infração, Fiscalização; 2. Análise de consistência (30 dias corridos), Gabinete; 3. Notificação da autuação, Secretaria; 4. Julgamento da defesa prévia, Gabinete; 5. Notificação da penalidade, Secretaria; 6. Recurso à junta (730 dias corridos), Junta de julgamento; 7. Recurso à segunda instância (730 dias corridos), Instância recursal; 8. Encerramento e cobrança, Secretaria; 9. Arquivamento, Secretaria.
 
@@ -627,7 +627,7 @@ Registro e triagem de qualquer demanda que chega à atividade-fim do Ministério
 
 **Partes:** Noticiante (requerente), Interessado (interessado).
 
-**Recursos do motor usados:** 4 comunicações às partes; 2 esperas de resposta; 7 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 4 comunicações às partes; 2 esperas de resposta; 1 julgamento colegiado; 7 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Registro e distribuição, Secretaria; 2. Apreciação (30 dias corridos), Gabinete; 3. Complementação pelo noticiante, Secretaria; 4. Decisão, Gabinete; 5. Cientificação do arquivamento, Secretaria; 6. Recurso do arquivamento (3 dias corridos), Gabinete; 7. Revisão pelo Conselho Superior, Conselho Superior; 8. Instauração de procedimento, Gabinete; 9. Remessa por declínio, Secretaria; 10. Arquivamento, Secretaria.
 
@@ -643,7 +643,7 @@ Acompanha de forma continuada o cumprimento de termo de ajustamento de conduta, 
 
 **Partes:** Noticiante (requerente), Acompanhado (requerido), Interessado (interessado).
 
-**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (reunião); 6 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (reunião); 1 julgamento colegiado; 6 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Instauração, Gabinete; 2. Registro e comunicação, Secretaria; 3. Acompanhamento e diligências (365 dias corridos), Gabinete; 4. Aguardando resposta, Secretaria; 5. Avaliação do objeto, Gabinete; 6. Prorrogação, Gabinete; 7. Comunicação ao Conselho Superior, Secretaria; 8. Cientificação do arquivamento, Secretaria; 9. Recurso do arquivamento (3 dias corridos), Gabinete; 10. Revisão pelo Conselho Superior, Conselho Superior; 11. Arquivamento, Secretaria.
 
@@ -659,7 +659,7 @@ Antecede o inquérito civil quando ainda falta identificar o investigado ou deli
 
 **Partes:** Representante (requerente), Investigado (requerido), Interessado (interessado), Órgão requisitado (terceiro).
 
-**Recursos do motor usados:** 4 comunicações às partes; 1 espera de resposta; audiência (oitiva, sessão); 7 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 4 comunicações às partes; 1 espera de resposta; audiência (oitiva, sessão); 1 julgamento colegiado; 7 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Instauração, Gabinete; 2. Registro e publicação, Secretaria; 3. Diligências (90 dias corridos), Gabinete; 4. Aguardando resposta a requisição, Secretaria; 5. Prorrogação, Gabinete; 6. Conclusão, Gabinete; 7. Conversão em inquérito civil, Secretaria; 8. Ajuizamento de ação civil pública, Gabinete; 9. Cientificação e remessa ao Conselho Superior (3 dias corridos), Secretaria; 10. Revisão pelo Conselho Superior, Conselho Superior; 11. Designação de outro membro, Secretaria; 12. Arquivamento, Secretaria.
 
@@ -675,7 +675,7 @@ Investigação presidida por membro do Ministério Público para apurar lesão a
 
 **Partes:** Representante (requerente), Investigado (requerido), Interessado (interessado), Órgão requisitado (terceiro).
 
-**Recursos do motor usados:** 8 comunicações às partes; 3 esperas de resposta; audiência (oitiva, reunião, sessão); 15 documentos; 2 formulários de dados; 8 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 8 comunicações às partes; 3 esperas de resposta; audiência (oitiva, reunião, sessão); 1 julgamento colegiado; 15 documentos; 2 formulários de dados; 8 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Representação ou atuação de ofício, Secretaria; 2. Admissibilidade (30 dias corridos), Gabinete; 3. Indeferimento da representação, Gabinete; 4. Recurso do indeferimento (3 dias corridos), Gabinete; 5. Instauração, Gabinete; 6. Registro e publicação, Secretaria; 7. Instrução (365 dias corridos), Gabinete; 8. Aguardando resposta a requisição, Secretaria; 9. Recomendação, Gabinete; 10. Ajustamento de conduta, Gabinete; 11. Prorrogação, Gabinete; 12. Declínio de atribuição (3 dias corridos), Gabinete; 13. Conclusão, Gabinete; 14. Ajuizamento de ação civil pública, Gabinete; 15. Cientificação e remessa ao Conselho Superior (3 dias corridos), Secretaria; 16. Revisão pelo Conselho Superior, Conselho Superior; 17. Designação de outro membro, Secretaria; 18. Arquivamento, Secretaria.
 
@@ -691,7 +691,7 @@ Acompanha num só processo a vida inteira do compromisso de ajustamento de condu
 
 **Partes:** Compromissário (requerido), Interessado (interessado).
 
-**Recursos do motor usados:** 7 comunicações às partes; 3 esperas de resposta; audiência (reunião, inspeção); 10 documentos; 1 formulário de dados; 6 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 7 comunicações às partes; 3 esperas de resposta; audiência (reunião, inspeção); 2 julgamentos colegiados; 10 documentos; 1 formulário de dados; 6 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Proposta de ajustamento, Gabinete; 2. Negociação, Gabinete; 3. Celebração do termo, Gabinete; 4. Arquivamento do procedimento de origem (3 dias corridos), Secretaria; 5. Homologação pelo Conselho Superior, Conselho Superior; 6. Publicidade do termo (15 dias corridos), Secretaria; 7. Acompanhamento do cumprimento (365 dias corridos), Gabinete; 8. Pedido de informações ao compromissário, Secretaria; 9. Descumprimento, Gabinete; 10. Repactuação, Gabinete; 11. Execução judicial, Gabinete; 12. Arquivamento do acompanhamento, Secretaria; 13. Recurso do arquivamento, Conselho Superior; 14. Encerramento sem acordo, Gabinete; 15. Encerramento com execução, Secretaria; 16. Arquivamento, Secretaria.
 
@@ -755,7 +755,7 @@ Destina os valores de compromisso de ajustamento, acordo de não persecução ci
 
 **Partes:** Devedor ou compromissário (requerido), Entidade destinatária (interessado).
 
-**Recursos do motor usados:** 3 comunicações às partes; 1 espera de resposta; audiência (inspeção); 6 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta.
+**Recursos do motor usados:** 3 comunicações às partes; 1 espera de resposta; audiência (inspeção); 1 julgamento colegiado; 6 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta.
 
 **Fases:** 1. Origem e opção de destinação, Gabinete; 2. Seleção do destinatário, Gabinete; 3. Formalização, Gabinete; 4. Execução e prestação de contas, Secretaria; 5. Análise das contas, Gabinete; 6. Rescisão do termo, Gabinete; 7. Homologação pelo Conselho Superior, Conselho Superior; 8. Destinação a fundo, Secretaria; 9. Encerramento, Secretaria.
 
@@ -787,7 +787,7 @@ Filtro próprio do MPRS para representações sobre improbidade e dano ao erári
 
 **Partes:** Representante (requerente), Representado (requerido), Ente público lesado (interessado).
 
-**Recursos do motor usados:** 3 comunicações às partes; 2 esperas de resposta; 5 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 3 comunicações às partes; 2 esperas de resposta; 1 julgamento colegiado; 5 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Registro da representação, Secretaria; 2. Análise de relevância (30 dias corridos), Gabinete; 3. Aguardando apuração do ente, Secretaria; 4. Decisão de não instaurar, Gabinete; 5. Cientificação e remessa ao Conselho Superior, Secretaria; 6. Deliberação do Conselho Superior, Conselho Superior; 7. Instauração de procedimento, Gabinete; 8. Arquivamento, Secretaria.
 

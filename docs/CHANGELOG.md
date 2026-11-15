@@ -5,6 +5,13 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Julgamento colegiado no rito
+- Nova opção de ação, **Julgar em colegiado (votos)**, para turma, câmara, comissão, conselho ou plenário.
+- O rito diz os resultados possíveis, o quórum e quem desempata (o presidente, ou o resultado mais favorável à parte).
+- Na tela do processo, **Registrar julgamento** pede a data da sessão e o nome, a função e o voto de cada membro; impedido, suspeito, ausente e abstenção não contam.
+- O sistema apura o resultado, que decide a saída da fase, e emite a certidão de julgamento nos autos, com placar, relator e vencidos, vista pelas partes.
+- 13 decisões de colegiado da biblioteca de modelos passaram a usar a nova ação.
+
 ### 15/11/2026 — 20 novos modelos de rito e biblioteca em grupos
 - A biblioteca passou de 28 para 48 modelos. Os novos foram pesquisados nas normas de cada instituição:
   - OAB/RS: processo disciplinar no TED, revisão e reabilitação;

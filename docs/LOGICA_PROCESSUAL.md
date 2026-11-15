@@ -266,6 +266,15 @@ informado.
   participantes), intimar (comunicação com `{audiencia}`), registrar se
   houve a audiência e juntar a ata. Testemunha e perito não são partes:
   participam pelo nome na certidão.
+- **Julgamento colegiado**: quando a decisão é de turma, câmara, comissão,
+  conselho ou plenário, o rito diz os resultados possíveis, o quórum e o
+  critério de desempate (voto do presidente ou o resultado mais favorável à
+  parte, quando o regimento assim prevê). Impedimento e
+  suspeição (Lei 9.784/1999, arts. 18 a 21), ausência e abstenção ficam
+  registrados e não contam como voto. A certidão diz o resultado, o placar,
+  o relator e os vencidos: é ato público, nos autos, e a parte a vê. Os
+  fundamentos ficam no voto do relator e no acórdão, documentos da fase,
+  porque a decisão precisa ser motivada (art. 50).
 - **Prorrogação e devolução de prazo**: o prazo corre sem suspensão, salvo
   força maior (Lei 9.784/1999, art. 67). Por analogia ao CPC (arts. 139, VI,
   e 223), a autoridade pode dilatar o prazo antes do vencimento

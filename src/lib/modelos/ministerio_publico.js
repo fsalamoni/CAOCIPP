@@ -83,7 +83,7 @@ export function noticiaDeFato() {
             nome: 'Revisão pelo Conselho Superior', unidade: 'Conselho Superior', vai: ['Arquivamento', 'Instauração de procedimento'], nome_publico: 'Julgamento do recurso',
             orientacao: 'O Conselho Superior ou a Câmara de Coordenação e Revisão julga o recurso. Mantido o arquivamento, os autos voltam para arquivo; provido, instaura-se o procedimento próprio.',
             acoes: [
-                A.escolha('Deliberação', ['Mantém o arquivamento', 'Dá provimento ao recurso'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Mantém o arquivamento', 'Dá provimento ao recurso'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
                 A.comunicar('Comunicar a decisão ao noticiante', { especie: 'comunicacao', polos: ['requerente'], dias: 0, texto: 'Fica comunicado da decisão sobre o recurso contra o arquivamento.' }),
             ],
@@ -211,7 +211,7 @@ export function procedimentoAdministrativoMp() {
             nome: 'Revisão pelo Conselho Superior', unidade: 'Conselho Superior', vai: ['Arquivamento', 'Acompanhamento e diligências'], nome_publico: 'Julgamento do recurso',
             orientacao: 'O colegiado julga o recurso: mantido o arquivamento, arquiva-se; provido, o acompanhamento é retomado.',
             acoes: [
-                A.escolha('Deliberação', ['Mantém o arquivamento', 'Dá provimento ao recurso'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Mantém o arquivamento', 'Dá provimento ao recurso'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
             ],
             saidas: { 'Arquivamento': quando('Deliberação', 'Mantém o arquivamento'), 'Acompanhamento e diligências': quando('Deliberação', 'Dá provimento ao recurso') },
@@ -318,7 +318,7 @@ export function procedimentoPreparatorio() {
             acoes: [
                 A.audiencia('Pautar a sessão de revisão', 'sessao'),
                 A.comunicar('Comunicar a pauta aos interessados', { especie: 'comunicacao', dias: 0, texto: 'A promoção de arquivamento será apreciada na sessão de {audiencia}.' }),
-                A.escolha('Deliberação', ['Homologa o arquivamento', 'Converte em diligência', 'Rejeita e designa outro membro'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Homologa o arquivamento', 'Converte em diligência', 'Rejeita e designa outro membro'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
             ],
             saidas: { 'Arquivamento': quando('Deliberação', 'Homologa o arquivamento'), 'Diligências': quando('Deliberação', 'Converte em diligência'), 'Designação de outro membro': quando('Deliberação', 'Rejeita e designa outro membro') },
@@ -509,7 +509,7 @@ export function inqueritoCivil() {
             acoes: [
                 A.audiencia('Pautar a sessão de revisão', 'sessao'),
                 A.comunicar('Comunicar a pauta aos interessados', { especie: 'comunicacao', dias: 0, texto: 'O caso será apreciado na sessão de {audiencia}.' }),
-                A.escolha('Deliberação', ['Homologa', 'Converte em diligência', 'Rejeita e designa outro membro'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Deliberação', ['Homologa', 'Converte em diligência', 'Rejeita e designa outro membro'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão do colegiado', 'Decisão', { forma: 'juntar' }),
             ],
             saidas: { 'Arquivamento': quando('Deliberação', 'Homologa'), 'Instrução': quando('Deliberação', 'Converte em diligência'), 'Designação de outro membro': quando('Deliberação', 'Rejeita e designa outro membro') },

@@ -113,6 +113,7 @@ export function recursosDoModelo(m) {
         comunicacoes: n((r) => r.pede === 'comunicacao'),
         esperas: n((r) => r.pede === 'resposta'),
         audiencias: [...new Set(rs.filter((r) => r.pede === 'audiencia').map((r) => ESPECIES[r.audiencia?.especie] || r.audiencia?.especie))],
+        julgamentos: n((r) => r.pede === 'julgamento'),
         documentos: n((r) => r.documento),
         formularios: n((r) => r.pede === 'formulario'),
         saidas: m.fases.filter((f) => f.condicoes_regra && Object.keys(f.condicoes_regra).length).length,
@@ -130,6 +131,7 @@ export function recursosEmTexto(m) {
     if (r.comunicacoes) out.push(pl(r.comunicacoes, 'comunicação às partes', 'comunicações às partes'));
     if (r.esperas) out.push(pl(r.esperas, 'espera de resposta', 'esperas de resposta'));
     if (r.audiencias.length) out.push(`audiência (${r.audiencias.join(', ')})`);
+    if (r.julgamentos) out.push(pl(r.julgamentos, 'julgamento colegiado', 'julgamentos colegiados'));
     if (r.documentos) out.push(pl(r.documentos, 'documento', 'documentos'));
     if (r.formularios) out.push(pl(r.formularios, 'formulário de dados', 'formulários de dados'));
     if (r.saidas) out.push(pl(r.saidas, 'fase com saída decidida pela resposta', 'fases com saída decidida pela resposta'));
