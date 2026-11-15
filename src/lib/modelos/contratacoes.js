@@ -29,7 +29,7 @@ const camposPncp = [
 /** 7. Contratação pública completa por licitação (Lei 14.133/2021). */
 export function licitacao() {
     return montar({
-        id: 'licitacao', nome: 'Contratação pública por licitação', area: 'contratacoes', porte: 'longo',
+        id: 'licitacao', nome: 'Contratação pública por licitação', area: 'contratacoes', porte: 'longo', referencia: 'Lei 14.133',
         descricao: 'Caminho inteiro de uma compra ou contratação pública por pregão ou concorrência, da formalização da demanda até o contrato publicado no PNCP. A fase preparatória reúne DFD, estudo técnico preliminar com mapa de riscos, termo de referência, pesquisa de preços, reserva orçamentária, minutas e parecer jurídico, e termina com a autorização da autoridade. A fase externa publica o edital, responde esclarecimentos e impugnações, realiza a sessão pública, julga, habilita e abre a fase recursal, em que os licitantes recorrem e contrarrazoam com prazos de 3 dias úteis. Termina com adjudicação, homologação, assinatura e publicação do contrato, ou com licitação deserta ou fracassada, revogação ou anulação.',
         quando: 'Aquisições de bens, serviços e obras que exigem licitação na modalidade pregão ou concorrência. Para dispensa ou inexigibilidade, use o modelo de contratação direta.',
         base: 'Lei 14.133/2021, arts. 6º, XXIII, 8º, 17, 18, 21, 23, 25, 53 a 55, 59, 61 a 64, 71, 90, 94 a 96, 164, 165 e 168; Decreto 10.947/2022, arts. 8º a 11; IN SEGES 58/2022; IN SEGES 65/2021, arts. 5º e 6º; IN SEGES 73/2022, arts. 23, 24, 29 e 40.',
@@ -320,7 +320,7 @@ export function licitacao() {
 /** 8. Contratação direta: dispensa e inexigibilidade (Lei 14.133/2021, arts. 72 a 75). */
 export function contratacaoDireta() {
     return montar({
-        id: 'contratacao-direta', nome: 'Contratação direta: dispensa e inexigibilidade', area: 'contratacoes', porte: 'medio',
+        id: 'contratacao-direta', nome: 'Contratação direta: dispensa e inexigibilidade', area: 'contratacoes', porte: 'medio', referencia: 'Lei 14.133',
         descricao: 'Contratação sem licitação, quando a lei dispensa (valor baixo, emergência, licitação deserta e as demais hipóteses do art. 75) ou quando a competição é inviável (fornecedor exclusivo, notória especialização, credenciamento e as demais do art. 74). O processo é mais curto, mas a instrução do art. 72 é rigorosa: demanda, enquadramento, estimativa de despesa, razão da escolha do fornecedor, justificativa de preço, habilitação, recursos orçamentários e parecer jurídico. Na dispensa por valor, o aviso de dispensa eletrônica abre disputa entre fornecedores. O fornecedor é chamado para complementar documentos e para assinar, e o processo termina com o contrato ou instrumento equivalente publicado no PNCP, ou com arquivamento.',
         quando: 'Compras e serviços enquadrados no art. 74 (inexigibilidade) ou no art. 75 (dispensa) da Lei 14.133. Se o caso exige licitação, use o modelo de contratação por licitação.',
         base: 'Lei 14.133/2021, arts. 23, 53, §§ 4º e 5º, 71, 72 a 75, 94, II e § 1º, 95 e 165; IN SEGES 67/2021, arts. 6º e 11.',
@@ -464,7 +464,7 @@ export function contratacaoDireta() {
 /** 9. Compra ou contratação privada, da requisição ao pagamento (política interna de compras). */
 export function compraPrivada() {
     return montar({
-        id: 'compra-privada', nome: 'Compra ou contratação privada', area: 'contratacoes', porte: 'medio',
+        id: 'compra-privada', nome: 'Compra ou contratação privada', area: 'contratacoes', porte: 'medio', referencia: 'Setor privado',
         descricao: 'Fluxo de aquisição de bens e serviços em empresa ou entidade privada, da requisição ao pagamento. Não há lei que imponha rito: fases, alçadas, número de cotações e prazos são da política interna e devem ser revistos pela organização. Corre com requisição, aprovação do gestor, cotações, mapa comparativo e negociação, homologação de fornecedor novo, aprovação por alçada de valor e análise jurídica quando há contrato. O fornecedor se manifesta no cadastro, no aceite do pedido e nas não conformidades do recebimento. Termina com a conferência tripla (pedido, recebimento e nota fiscal), o pagamento e a avaliação do fornecedor.',
         quando: 'Compras e contratações de organizações privadas que querem segregação de funções e registro das aprovações. Entidades do Sistema S e organizações sociais devem ajustar ao seu regulamento de compras.',
         base: 'Política interna de compras da organização; Código Civil, arts. 421 a 425 (liberdade contratual). Modelo construído por prática de mercado; prazos sugeridos, sem fonte normativa.',

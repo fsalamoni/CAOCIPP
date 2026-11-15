@@ -1561,6 +1561,37 @@ Nenhum modelo é penal. O catálogo completo, com descrição, quando usar, base
 - **Conferência automática:** em `src/lib/bibliotecaRitos.test.js` e `functions-v2/test/bibliotecaRitos.test.js`. Cobre o fluxo, as condições, as esperas, o diagrama, a aceitação pelo servidor sem perda de configuração, os metadados, a ausência de conteúdo penal e o tipo de cada modelo. O e2e abre cada modelo na tela e confere que nenhum chega com pendência que impeça implantar.
 - **Guia do rito:** nova parte "16. Começar de um modelo da biblioteca".
 
+### Biblioteca com 48 modelos, em grupos, com filtro, ordem e busca (15/11/2026)
+
+A biblioteca passou de 28 para 48 modelos. Os 20 novos seguem o rito de uma instituição:
+
+- **OAB/RS:** processo disciplinar no TED, revisão de processo disciplinar e reabilitação.
+- **CAU:** processo ético-disciplinar e fiscalização do exercício profissional.
+- **CNMP e MPRS:**
+  - compromisso de ajustamento de conduta;
+  - recomendação;
+  - audiência pública;
+  - revisão de arquivamento pelo Conselho Superior;
+  - destinação de bens e valores;
+  - cadastramento de entidade;
+  - triagem de representação sobre patrimônio público;
+  - correição e inspeção em Promotoria.
+- **AGU** (área nova, Advocacia pública e consultoria): mediação e conciliação na CCAF, acordo para prevenir ou encerrar litígio, e cobrança administrativa com inscrição em dívida ativa de crédito não tributário.
+- **CGU:** acordo de leniência, sindicância patrimonial, juízo de admissibilidade correcional e processo disciplinar de empregado público.
+
+Cada modelo tem agora `referencia`, a instituição ou lei de inspiração. Ela aparece como etiqueta e serve de filtro.
+
+A seção (`BibliotecaModelos.jsx`) foi refeita para não virar uma lista enorme:
+
+- **Abre e fecha pelo título.** O navegador lembra a escolha (`localStorage`, só conveniência). Fechada, mostra as áreas com a contagem, e clicar numa área abre a seção já filtrada.
+- **Grupos por área.** Cada grupo abre e fecha e mostra a contagem e os nomes. Sem filtro, os grupos ficam fechados. Com filtro ou busca, os grupos com resultado abrem. Há também **Abrir todas as áreas** e **Recolher todas as áreas**.
+- **Busca.** Procura no nome, na referência, na base, nas fases, no quando usar e na descrição. Ignora acentos, exige todos os termos, marca o termo achado e ordena pela relevância (o nome pesa mais).
+- **Filtros:** área, porte e **Inspirado em**. O contador de resultados é anunciado ao leitor de tela, e **Limpar filtros** volta tudo.
+- **Ordem:** por área, por relevância, por nome, ou pelo tamanho (porte e número de fases, nos dois sentidos). Fora da ordem por área, cada modelo mostra a sua área.
+- **Linha compacta.** Mostra o nome, o porte e as fases, a referência e as partes, com a descrição em duas linhas. Clicar no nome abre a descrição inteira, quando usar, a base, as partes, o que o rito faz (comunicações, esperas, audiências, documentos, formulários, saídas, sigilo) e as fases com prazo, contagem, unidade e marca de fase final.
+
+A lógica pura fica em `src/lib/bibliotecaFiltro.js` e tem teste. O mesmo resumo do que o rito faz gera o catálogo `docs/MODELOS_DE_RITO.md`.
+
 ### Guia do rito para todos (15/11/2026)
 
 O Guia do rito (`GuiaRito.jsx`) não fica só no editor de rito. Ele também aparece:

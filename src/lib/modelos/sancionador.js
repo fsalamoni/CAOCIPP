@@ -7,7 +7,7 @@ const ARQUIVO = { nome: 'Arquivamento', unidade: 'Secretaria', final: true, ao_e
 /** 5. Processo administrativo de responsabilização de pessoa jurídica (Lei 12.846/2013; Decreto 11.129/2022). */
 export function parPessoaJuridica() {
     return montar({
-        id: 'par-pessoa-juridica', nome: 'Responsabilização de pessoa jurídica (PAR)', area: 'sancionador', porte: 'longo',
+        id: 'par-pessoa-juridica', nome: 'Responsabilização de pessoa jurídica (PAR)', area: 'sancionador', porte: 'longo', referencia: 'CGU',
         descricao: 'Apura a responsabilidade objetiva de pessoa jurídica por ato lesivo à Administração, como fraude a licitação, oferta de vantagem indevida a agente público ou obstrução de fiscalização. Começa pelo juízo de admissibilidade, que pode abrir investigação preliminar sigilosa, e segue com portaria, comissão de dois ou mais servidores estáveis, nota de indiciação e instrução. O contraditório está na defesa escrita em 30 dias, na manifestação sobre prova nova em 10 dias e sobre o relatório final em 10 dias. Termina com julgamento precedido de manifestação jurídica obrigatória, pedido de reconsideração com efeito suspensivo e cumprimento das sanções, com registro no CNEP.',
         quando: 'Indício de ato lesivo do art. 5º da Lei 12.846 praticado por empresa. Se o mesmo fato também for infração da Lei 14.133, as duas apurações correm juntas por este rito.',
         base: 'Lei 12.846/2013, arts. 5º, 6º, 8º a 15 e 25; Decreto 11.129/2022, arts. 3º a 16; Portaria Normativa CGU 27/2022, arts. 59, 60 e 96; Lei 14.133/2021, art. 159.',
@@ -170,7 +170,7 @@ export function parPessoaJuridica() {
 /** 6. Apuração de infração e sanção a licitante ou contratada (Lei 14.133/2021, arts. 155 a 163 e 166 a 168). */
 export function sancaoFornecedor() {
     return montar({
-        id: 'sancao-fornecedor', nome: 'Infração contratual e sanção a fornecedor', area: 'sancionador', porte: 'medio',
+        id: 'sancao-fornecedor', nome: 'Infração contratual e sanção a fornecedor', area: 'sancionador', porte: 'medio', referencia: 'Lei 14.133',
         descricao: 'Apura infração de licitante ou contratada, como inexecução, atraso injustificado, não manter a proposta ou apresentar documento falso, e aplica advertência, multa, impedimento de licitar e contratar ou declaração de inidoneidade. O juízo de admissibilidade define a sanção cabível em tese, e com ela o rito: o simples, conduzido pelo setor de contratos, para advertência e multa; ou o com comissão de dois ou mais servidores estáveis, obrigatório para impedimento e inidoneidade. O contraditório está na defesa em 15 dias úteis, nas alegações finais em 15 dias úteis quando há prova nova e no recurso ou pedido de reconsideração, ambos com efeito suspensivo. Termina com a execução da sanção, a cobrança da multa e o registro no CEIS e no CNEP.',
         quando: 'Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133.',
         base: 'Lei 14.133/2021, arts. 117, § 1º, 155 a 163, 166 a 168 e 183.',
@@ -326,7 +326,7 @@ export function sancaoFornecedor() {
 /** 16. Fiscalização com auto de infração e defesa (Decreto 6.514/2008; Decreto 2.181/1997; Lei 6.437/1977). */
 export function autoDeInfracao() {
     return montar({
-        id: 'auto-de-infracao', nome: 'Fiscalização com auto de infração e defesa', area: 'sancionador', porte: 'medio',
+        id: 'auto-de-infracao', nome: 'Fiscalização com auto de infração e defesa', area: 'sancionador', porte: 'medio', referencia: 'Poder de polícia',
         descricao: 'Modelo para qualquer órgão de fiscalização: um agente constata a infração, lavra o auto, o autuado se defende, uma autoridade distinta do autuante julga e cabe recurso. Serve de base para vigilância sanitária, defesa do consumidor, meio ambiente, posturas municipais e agências reguladoras, trocando só os prazos; vem configurado com os do Decreto 6.514/2008 (ambiental), e a orientação de cada fase traz os do consumidor e do sanitário. O contraditório está na defesa, nas alegações finais, na manifestação prévia antes de agravar a multa e no recurso, com reconsideração antes de subir. Termina por arquivamento, auto insubsistente, solução consensual (pagamento com desconto, parcelamento ou conversão) ou sanção definitiva com cobrança e inscrição em dívida ativa.',
         quando: 'Constatação de infração administrativa em ação fiscal, reclamação ou denúncia, quando a norma do setor prevê auto de infração com defesa e recurso.',
         base: 'Decreto 6.514/2008, arts. 21, 96, 99, 113 a 130; Decreto 2.181/1997 (redação do Decreto 10.887/2021), arts. 33 a 55; Lei 6.437/1977, arts. 12 a 37; Lei 9.873/1999, arts. 1º e 2º; Lei 9.784/1999, art. 66, § 2º.',
@@ -485,7 +485,7 @@ export function autoDeInfracao() {
 /** 18. Processo administrativo fiscal: lançamento com impugnação (Decreto 70.235/1972). */
 export function processoFiscal() {
     return montar({
-        id: 'processo-fiscal', nome: 'Processo administrativo fiscal (lançamento e impugnação)', area: 'sancionador', porte: 'longo',
+        id: 'processo-fiscal', nome: 'Processo administrativo fiscal (lançamento e impugnação)', area: 'sancionador', porte: 'longo', referencia: 'Decreto 70.235',
         descricao: 'Discute a exigência de tributo e multa lançados pelo fisco. Começa pelo termo de início da fiscalização, que exclui a espontaneidade, e segue com o auto de infração ou notificação de lançamento, que já intima o sujeito passivo a pagar ou impugnar em 30 dias. A impugnação abre a fase litigiosa, com diligências e perícias, julgamento em primeira instância e recurso voluntário em 30 dias, com efeito suspensivo, a um colegiado de segunda instância; há recurso de ofício quando a Fazenda perde acima da alçada. Sem pagamento nem impugnação, declara-se a revelia e abre-se a cobrança amigável; o processo termina com a decisão definitiva e o pagamento, o parcelamento ou a inscrição em dívida ativa.',
         quando: 'Lançamento de ofício de tributo ou multa com contencioso administrativo em duas instâncias. Estados e municípios ajustam os prazos e órgãos à sua lei.',
         base: 'Decreto 70.235/1972, arts. 5º, 7º, 10, 14 a 16, 21, 23, 25, 33, 34 e 42 (texto original; órgãos julgadores atuais não conferidos).',
@@ -613,7 +613,7 @@ export function processoFiscal() {
 /** 21. Multa de trânsito: autuação, defesa prévia e dois recursos (Lei 9.503/1997, arts. 280 a 290). */
 export function multaTransito() {
     return montar({
-        id: 'multa-transito', nome: 'Multa de trânsito (defesa prévia e recursos)', area: 'sancionador', porte: 'medio',
+        id: 'multa-transito', nome: 'Multa de trânsito (defesa prévia e recursos)', area: 'sancionador', porte: 'medio', referencia: 'CTB',
         descricao: 'Sancionador de alto volume e baixo valor, com prazo decadencial para o próprio órgão: se a notificação da autuação não for expedida em 30 dias, o auto é arquivado. Depois da análise de consistência do auto, o proprietário é notificado e pode apresentar defesa prévia e indicar o condutor. O contraditório tem três momentos: a defesa prévia, o recurso à junta (JARI), com efeito suspensivo, e o recurso à segunda instância, cada um com prazo não inferior a 30 dias. Termina com o cancelamento do auto ou com a sanção definitiva, o registro no prontuário e a cobrança da multa.',
         quando: 'Auto de infração de trânsito lavrado por agente ou equipamento. Útil também como base para órgãos que emitem muitos autos padronizados.',
         base: 'Lei 9.503/1997 (Código de Trânsito Brasileiro), arts. 280 a 290. Resoluções do Contran sobre o procedimento não conferidas.',

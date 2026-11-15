@@ -6,7 +6,7 @@ const corridos = 'corridos';
 /** 12-A. Manifestação de ouvidoria (Lei 13.460/2017; Decreto 9.492/2018). */
 export function manifestacaoOuvidoria() {
     return montar({
-        id: 'ouvidoria', nome: 'Manifestação de ouvidoria', area: 'atendimento', porte: 'curto',
+        id: 'ouvidoria', nome: 'Manifestação de ouvidoria', area: 'atendimento', porte: 'curto', referencia: 'Lei 13.460',
         descricao: 'Trata reclamação, denúncia, elogio, sugestão e solicitação de providências sobre serviço público. A ouvidoria recebe sem recusar e sem exigir motivo, classifica, pede complementação uma vez se faltar informação e aciona a área responsável, que responde em 20 dias. A denúncia não é apurada pela ouvidoria: segue ao órgão apuratório, e a identidade do manifestante fica protegida. Termina com a resposta conclusiva em até 30 dias corridos, prorrogáveis uma vez; a lei não prevê recurso.',
         quando: 'Qualquer manifestação do usuário sobre serviço público que não seja pedido de acesso a informação (este tem rito próprio, pela Lei 12.527).',
         base: 'Lei 13.460/2017, arts. 9º a 16; Decreto 9.492/2018, arts. 3º e 12 a 23.',
@@ -89,7 +89,7 @@ export function manifestacaoOuvidoria() {
 export function acessoInformacao() {
     const recurso = 'Cabe recurso em 10 dias corridos, contados da ciência, à instância indicada nesta decisão.';
     return montar({
-        id: 'acesso-informacao', nome: 'Pedido de acesso à informação', area: 'atendimento', porte: 'curto',
+        id: 'acesso-informacao', nome: 'Pedido de acesso à informação', area: 'atendimento', porte: 'curto', referencia: 'LAI',
         descricao: 'Atende pedido de qualquer pessoa por documento ou dado público, sem exigir motivo. O serviço de informação ao cidadão entrega na hora o que está disponível ou busca na área detentora, e responde em até 20 dias corridos, prorrogáveis por 10 com justificativa. Negado o acesso no todo ou em parte, o requerente recorre em 10 dias à autoridade superior, depois à autoridade máxima, ao órgão de controle e à Comissão Mista de Reavaliação de Informações; cada instância decide em 5 dias. Termina com a entrega da informação ou com a negativa mantida.',
         quando: 'Pedido de informação, documento ou dado em poder do órgão, e não de providência (esta vai para a ouvidoria).',
         base: 'Lei 12.527/2011, arts. 10 a 17; Decreto 7.724/2012, arts. 15, 16 e 21 a 24.',
@@ -209,7 +209,7 @@ export function acessoInformacao() {
 /** 14. Tomada de contas especial, fase interna (Lei 8.443/1992, art. 8º; IN TCU 98/2024). */
 export function tomadaContasEspecial() {
     return montar({
-        id: 'tomada-contas-especial', nome: 'Tomada de contas especial (fase interna)', area: 'controle', porte: 'longo',
+        id: 'tomada-contas-especial', nome: 'Tomada de contas especial (fase interna)', area: 'controle', porte: 'longo', referencia: 'TCU',
         descricao: 'Apura quem causou dano ao erário, quanto é o dano, e busca o ressarcimento. Antes de instaurar, o órgão esgota as medidas administrativas: notifica os responsáveis para prestar contas, justificar ou recolher, e tenta a solução consensual quando cabível. Instaurada, a comissão quantifica o débito, individualiza as condutas e ouve o responsável, que pode se defender ou recolher; o relatório passa pelo controle interno e pela autoridade supervisora. Termina com a remessa ao tribunal de contas em até 180 dias da instauração, que julga na fase externa, ou com o arquivamento quando o débito é recolhido, o dano afastado ou a tomada de contas dispensada.',
         quando: 'Omissão no dever de prestar contas, falta de comprovação da aplicação de recursos repassados, desfalque ou desvio de bens ou valores, ou ato ilegal, ilegítimo ou antieconômico que cause dano ao erário.',
         base: 'Lei 8.443/1992, art. 8º; IN TCU 98/2024, arts. 2º a 25 (em especial arts. 3º a 7º, 14, 15, 17 a 25).',
@@ -363,7 +363,7 @@ export function tomadaContasEspecial() {
 /** 15-A. Consulta ou parecer interno (Lei 9.784/1999, arts. 42 e 50; Lei 14.133/2021, art. 53). */
 export function consultaInterna() {
     return montar({
-        id: 'consulta-interna', nome: 'Consulta ou parecer interno', area: 'gestao', porte: 'curto',
+        id: 'consulta-interna', nome: 'Consulta ou parecer interno', area: 'gestao', porte: 'curto', referencia: 'Lei 9.784',
         descricao: 'Uma unidade pede a outra, em geral a assessoria jurídica ou uma área técnica, opinião formal sobre uma dúvida. A chefia do órgão consultivo confere se a consulta está instruída, devolve para diligência se faltar algo, aplica parecer referencial quando houver, e distribui ao parecerista, que tem 15 dias quando o parecer é obrigatório. Aprovado o parecer, a autoridade decide e, se divergir, motiva. Não há partes externas nem recurso: termina com a devolução do parecer aprovado ao consulente.',
         quando: 'Quando a decisão de outro processo depende de parecer, ou para fixar entendimento sobre uma dúvida jurídica ou técnica.',
         base: 'Lei 9.784/1999, arts. 24, 42 e 50, VII; Lei 14.133/2021, art. 53 (consulta sobre contratação).',
@@ -438,7 +438,7 @@ export function consultaInterna() {
 export function beneficioServidor() {
     const prazo = 'Cabe pedido de reconsideração à mesma autoridade ou recurso à autoridade superior em 30 dias corridos, da publicação ou da ciência.';
     return montar({
-        id: 'beneficio-servidor', nome: 'Concessão de benefício ou licença a servidor', area: 'gestao', porte: 'curto',
+        id: 'beneficio-servidor', nome: 'Concessão de benefício ou licença a servidor', area: 'gestao', porte: 'curto', referencia: 'Lei 8.112',
         descricao: 'Decide pedido do servidor sobre direito funcional: licença, afastamento, adicional, auxílio ou averbação de tempo. O requerimento passa pela chefia imediata, que opina sobre a conveniência quando o benefício depende de interesse da Administração, e pela gestão de pessoas, que confere os requisitos e, nas licenças por saúde, aciona a perícia oficial. A autoridade decide em até 30 dias, a decisão é publicada e lançada nos assentamentos. O servidor pode pedir reconsideração ou recorrer em 30 dias; sem isso, o processo é arquivado.',
         quando: 'Qualquer requerimento individual de direito funcional em que só o servidor é interessado.',
         base: 'Lei 8.112/1990, arts. 81, 82, 87, 91, 104 a 110, 202 a 204 e 238. Para outros regimes, o estatuto próprio.',

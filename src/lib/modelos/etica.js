@@ -6,7 +6,7 @@ const corridos = 'corridos';
 /** 1. Processo ético-profissional de conselho profissional (exemplo: CPEP do CFM, Res. CFM 2.306/2022). */
 export function processoEticoProfissional() {
     return montar({
-        id: 'etico-profissional', nome: 'Processo ético-profissional (conselho profissional)', area: 'etica', porte: 'longo',
+        id: 'etico-profissional', nome: 'Processo ético-profissional (conselho profissional)', area: 'etica', porte: 'longo', referencia: 'CFM',
         descricao: 'Apura infração ao código de ética da profissão por profissional inscrito no conselho. Corre em duas etapas: a sindicância, só investigativa, que termina em arquivamento, conciliação, ajustamento de conduta ou instauração do processo; e o processo ético-profissional, com citação, defesa prévia, instrução com audiência, alegações finais e julgamento em colegiado. O contraditório está na defesa prévia, na audiência, nas alegações finais sucessivas, na sustentação oral e no recurso com efeito suspensivo. Termina com a execução da sanção e o registro, ou com o arquivamento; tudo tramita em sigilo.',
         quando: 'Denúncia ou notícia de infração ética contra profissional inscrito em conselho de fiscalização profissional. Ajuste prazos e sanções ao código processual do seu conselho.',
         base: 'Exemplo: Resolução CFM 2.306/2022 (Código de Processo Ético-Profissional), alterada pela Res. CFM 2.424/2025, arts. 1º, 13 a 23, 29 a 51, 60 a 65, 81, 83 a 92, 100, 101, 104, 109, 116 a 120 e 131; Lei 3.268/1957, art. 22 (sanções).',
@@ -222,7 +222,7 @@ export function processoEticoProfissional() {
 /** 2. Processo disciplinar de entidade de classe (exemplo: OAB, Lei 8.906/1994 e Código de Ética e Disciplina). */
 export function processoDisciplinarEntidadeClasse() {
     return montar({
-        id: 'disciplinar-entidade-classe', nome: 'Processo disciplinar (entidade de classe)', area: 'etica', porte: 'longo',
+        id: 'disciplinar-entidade-classe', nome: 'Processo disciplinar (entidade de classe)', area: 'etica', porte: 'longo', referencia: 'OAB',
         descricao: 'Apura infração disciplinar de inscrito na entidade de classe, de ofício ou por representação identificada. Um relator emite parecer de admissibilidade, o presidente instaura ou arquiva, e a instrução segue com defesa prévia, audiência, parecer preliminar e razões finais. O contraditório está na defesa prévia com rol de testemunhas, na audiência, nas razões finais, na sustentação oral e no recurso com efeito suspensivo. Julga um tribunal de ética colegiado, com relator diferente do da instrução; termina com o registro da sanção ou o arquivamento, e tudo corre em sigilo até o fim.',
         quando: 'Representação ou notícia de infração disciplinar contra inscrito em entidade de classe com tribunal de ética próprio, como a OAB. Ajuste prazos e sanções ao estatuto da sua entidade.',
         base: 'Exemplo: Lei 8.906/1994 (Estatuto da Advocacia), arts. 35, 43, 68 a 77; Resolução CFOAB 02/2015 (Código de Ética e Disciplina), arts. 55 a 62 e 69.',
@@ -407,7 +407,7 @@ export function processoDisciplinarEntidadeClasse() {
 /** 3. Apuração ética por comissão de ética pública (Decreto 6.029/2007). */
 export function apuracaoComissaoEticaPublica() {
     return montar({
-        id: 'comissao-etica-publica', nome: 'Apuração ética por comissão de ética pública', area: 'etica', porte: 'medio',
+        id: 'comissao-etica-publica', nome: 'Apuração ética por comissão de ética pública', area: 'etica', porte: 'medio', referencia: 'Comissão de Ética Pública',
         descricao: 'Apura desvio ético de agente público que não chega a ser infração disciplinar, ou que corre em paralelo a ela. A comissão de ética admite a denúncia fundamentada ou instaura de ofício, notifica o investigado e instrui com documentos, diligências e parecer de especialista. O contraditório está na manifestação escrita em 10 dias e na nova manifestação quando surgem provas novas. Termina com decisão conclusiva e fundamentada do colegiado, que pode aplicar censura ética, recomendar e comunicar a autoridade para apuração disciplinar; o procedimento é reservado até a conclusão.',
         quando: 'Denúncia ou notícia de conduta de agente público contrária ao código de ética, no Executivo federal ou em órgão que adote rito semelhante.',
         base: 'Decreto 6.029/2007, arts. 12 e 13. Rito detalhado na Resolução CEP 10/2008, que deve ser conferida.',
