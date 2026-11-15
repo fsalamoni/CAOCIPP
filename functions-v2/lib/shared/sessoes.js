@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.MAX_PEDIDO = exports.NOME_PEDIDO = exports.TIPOS_PEDIDO = exports.virtualEncerrou = exports.MAX_DIAS_VIRTUAL = exports.br = exports.MAX_EMENTA = exports.ACORDAO_PADRAO = exports.MAX_VISTA = exports.VISTA_PADRAO = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
+exports.ataAssinada = exports.PAPEIS_ATA = exports.MAX_ATA = exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.MAX_PEDIDO = exports.NOME_PEDIDO = exports.TIPOS_PEDIDO = exports.virtualEncerrou = exports.MAX_DIAS_VIRTUAL = exports.br = exports.MAX_EMENTA = exports.ACORDAO_PADRAO = exports.MAX_VISTA = exports.VISTA_PADRAO = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
 exports.sanitizeRegrasSessao = sanitizeRegrasSessao;
 exports.prazoDoAcordao = prazoDoAcordao;
 exports.prazoDaVista = prazoDaVista;
@@ -29,6 +29,8 @@ exports.modeloDoAcordao = modeloDoAcordao;
 exports.documentoDoAcordao = documentoDoAcordao;
 exports.votosDaSessao = votosDaSessao;
 exports.placarParcial = placarParcial;
+exports.desfechoNaAta = desfechoNaAta;
+exports.textoDaAta = textoDaAta;
 const secretaria_1 = require("./secretaria");
 const exigencias_1 = require("./exigencias");
 const orgaos_1 = require("./orgaos");
@@ -375,5 +377,53 @@ function votosDaSessao(v, membros) {
 /** Placar dos votos já dados (sem quórum nem desempate): para acompanhar ao vivo. */
 function placarParcial(resultados, votos) {
     return resultados.map((o) => [o, votos.filter((v) => v.voto === o).length]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+}
+// ---- S8: presença, ata da sessão e assinaturas ----
+exports.MAX_ATA = 50000;
+exports.PAPEIS_ATA = ['presidente', 'secretaria'];
+/** Assinada pelo presidente e pela secretaria. */
+const ataAssinada = (a) => !!a && exports.PAPEIS_ATA.every((p) => (a.assinaturas || []).some((x) => x.papel === p));
+exports.ataAssinada = ataAssinada;
+const ponto = (t) => (/[.!?]$/.test(t.trim()) ? t.trim() : `${t.trim()}.`);
+/** O que aconteceu com o processo na sessão, numa frase da ata. */
+function desfechoNaAta(x) {
+    const m = x.motivo ? `: ${x.motivo.replace(/[.\s]+$/, '')}` : '';
+    if (x.situacao === 'retirado')
+        return `Retirado de pauta${m}.`;
+    if (x.situacao === 'adiado')
+        return `Adiado${m}.`;
+    if (x.situacao === 'diligencia')
+        return `Convertido em diligência${m}.`;
+    if (x.situacao === 'destacado')
+        return `Destacado para julgamento em sessão síncrona${x.motivo ? ` (${x.motivo.replace(/[.\s]+$/, '')})` : ''}.`;
+    if (x.situacao === 'vista') {
+        const v = x.vista || { nomes: [], prazo: '' };
+        return `Pedido de vista de ${lista(v.nomes)}${v.prazo ? `, com prazo até ${(0, exports.br)(v.prazo)}` : ''}; julgamento suspenso${v.devolvida ? ' (vista já devolvida)' : ''}.`;
+    }
+    return x.proclamado ? `${ponto(x.proclamado)}${x.redator ? ` Redator do acórdão: ${x.redator}.` : ''}` : 'Não julgado nesta sessão.';
+}
+/** Texto da ata, gerado pelo sistema ao encerrar a sessão (CPC, art. 941, § 2º, e regimentos dos colegiados). */
+function textoDaAta(s, colegiado, p, itens, encerradaEm) {
+    const car = s.carater === 'extraordinaria' ? 'extraordinária' : 'ordinária';
+    const pres = p.presidente ? `, sob a presidência de ${p.presidente}` : '';
+    const linhas = [`ATA DA ${s.titulo.toUpperCase()} DO ${colegiado.toUpperCase()}`];
+    if (s.modo === 'assincrona') {
+        linhas.push(`Sessão ${car} virtual do ${colegiado}, com votação de ${(0, exports.br)(s.data)} a ${(0, exports.br)(s.fim || s.data)}${pres}. ${p.presentes.length ? `Votaram ${lista(p.presentes)}.` : 'Nenhum membro votou pelo sistema.'}`);
+    }
+    else {
+        const quem = p.registrada
+            ? `${p.presentes.length ? `, presentes ${lista(p.presentes)}` : ''}${p.ausentes.length ? `; ${p.ausentes.length > 1 ? 'ausentes' : 'ausente'} ${lista(p.ausentes)}` : ''}`
+            : `${p.presentes.length ? `, com a composição do dia: ${lista(p.presentes)}` : ''} (a presença não foi registrada no sistema)`;
+        linhas.push(`Em ${(0, exports.br)(s.data)}, às ${s.hora}, ${ondeSessao(s)}, reuniu-se o ${colegiado} em sessão ${car}${pres}${quem}.`);
+    }
+    linhas.push(itens.length ? 'Ordem do dia:' : 'Não houve processos na pauta.');
+    itens.forEach((x, i) => {
+        var _a;
+        const relator = x.relator && !x.proclamado ? `, relator ${x.relator}` : '';
+        const sust = ((_a = x.sustentacoes) === null || _a === void 0 ? void 0 : _a.length) ? ` Sustentação oral por ${lista(x.sustentacoes)}.` : '';
+        linhas.push(`${i + 1}. Processo ${x.numero}${x.assunto ? ` (${x.assunto})` : ''}${relator}.${sust} ${desfechoNaAta(x)}`);
+    });
+    linhas.push(`Encerrada a sessão em ${(0, exports.br)(encerradaEm)}. Esta ata, lavrada pela secretaria do colegiado, vai assinada pelo presidente e pela secretaria.`);
+    return linhas.join('\n\n');
 }
 //# sourceMappingURL=sessoes.js.map

@@ -27,6 +27,7 @@ import { CampoValor, nomeDoPolo } from '../shared/camposProcesso';
 import { Ref, refsFechadas } from '../shared/modulos';
 import { NOME_PEDIDO, PedidoSessao, TIPOS_PEDIDO, problemaDoPedido, sanitizePedido } from '../shared/sessoes';
 import { COL_SESSOES } from './sessoes';
+import { atualizarPainel } from './painelAta';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -486,6 +487,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             organization_id: proc.organization_id, processo_id: ref.id, numero: String(proc.numero || ''), uid, parte: parte.rotulo, ...pedido,
             em: new Date().toISOString(), situacao: 'pedido',
         });
+        // S8: a secretaria e o relator, com a sessão aberta, veem o pedido chegar.
+        await atualizarPainel(db, String(proc.organization_id), sid);
         return { ok: true, id: novo.id };
     }
 

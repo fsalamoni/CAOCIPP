@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.linkProcesso = exports.TIPO_NOTIFICACAO = void 0;
+exports.linkSessao = exports.ENTIDADE_SESSAO = exports.linkProcesso = exports.TIPO_NOTIFICACAO = void 0;
 exports.prefDe = prefDe;
 exports.notificarPessoas = notificarPessoas;
 exports.lotadosDaUnidade = lotadosDaUnidade;
@@ -31,6 +31,11 @@ exports.TIPO_NOTIFICACAO = 'processo_eletronico';
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const linkProcesso = (orgId, procId) => `${autos_1.APP_URL}/ProcessoEletronico?org=${orgId}&p=${procId}`;
 exports.linkProcesso = linkProcesso;
+/** Sessão de julgamento (S8): o aviso abre a sessão, não um processo. */
+exports.ENTIDADE_SESSAO = 'sessao_julgamento';
+const linkSessao = (orgId, sessaoId) => `${autos_1.APP_URL}/ProcessoEletronico?org=${orgId}&aba=sessoes&sessao=${sessaoId}`;
+exports.linkSessao = linkSessao;
+const linkDoAviso = (orgId, entidade, id) => (entidade === exports.ENTIDADE_SESSAO ? (0, exports.linkSessao)(orgId, id) : (0, exports.linkProcesso)(orgId, id));
 function prefDe(prefs) {
     const p = (prefs === null || prefs === void 0 ? void 0 : prefs.processo_eletronico) || {};
     return {
@@ -72,7 +77,7 @@ async function notificarPessoas(db, orgId, uids, aviso, autorUid) {
             batch.set(db.collection('notifications').doc(), {
                 user_id: p.uid, type: exports.TIPO_NOTIFICACAO, subtype: aviso.subtipo,
                 title: aviso.titulo, message: aviso.mensagem,
-                organization_id: orgId, entity_type: exports.TIPO_NOTIFICACAO, entity_id: aviso.procId,
+                organization_id: orgId, entity_type: aviso.sessaoId ? exports.ENTIDADE_SESSAO : exports.TIPO_NOTIFICACAO, entity_id: aviso.sessaoId || aviso.procId,
                 read: false, created_at: firestore_1.FieldValue.serverTimestamp(),
             });
         }
@@ -84,7 +89,7 @@ async function notificarPessoas(db, orgId, uids, aviso, autorUid) {
             await (0, email_1.sendEmail)({
                 to: p.email,
                 subject: aviso.titulo,
-                html: `<p>Olá, ${escapar(p.nome)}.</p>${aviso.html}<p><a href="${(0, exports.linkProcesso)(orgId, aviso.procId)}">Abrir o processo</a></p><p style="color:#64748b;font-size:12px">Para receber um resumo diário em vez de um e-mail por evento, ou desligar, use "Avisos" no Processo Eletrônico.</p>`,
+                html: `<p>Olá, ${escapar(p.nome)}.</p>${aviso.html}<p><a href="${aviso.sessaoId ? (0, exports.linkSessao)(orgId, aviso.sessaoId) : (0, exports.linkProcesso)(orgId, aviso.procId)}">${aviso.sessaoId ? 'Abrir a sessão' : 'Abrir o processo'}</a></p><p style="color:#64748b;font-size:12px">Para receber um resumo diário em vez de um e-mail por evento, ou desligar, use "Avisos" no Processo Eletrônico.</p>`,
             }).catch(() => false);
         }
     }
@@ -192,7 +197,7 @@ async function enviarResumosDiarios(db) {
                 porOrg.set(String(n.organization_id), [...(porOrg.get(String(n.organization_id)) || []), n]);
             const blocos = [];
             for (const [orgId, lista] of porOrg) {
-                blocos.push(`<ul>${lista.slice(0, 40).map((n) => `<li><a href="${(0, exports.linkProcesso)(orgId, String(n.entity_id))}">${escapar(String(n.title))}</a> — ${escapar(String(n.message || ''))}</li>`).join('')}</ul>${lista.length > 40 ? `<p>… e mais ${lista.length - 40}.</p>` : ''}`);
+                blocos.push(`<ul>${lista.slice(0, 40).map((n) => `<li><a href="${linkDoAviso(orgId, n.entity_type, String(n.entity_id))}">${escapar(String(n.title))}</a> — ${escapar(String(n.message || ''))}</li>`).join('')}</ul>${lista.length > 40 ? `<p>… e mais ${lista.length - 40}.</p>` : ''}`);
             }
             await (0, email_1.sendEmail)({
                 to: email,

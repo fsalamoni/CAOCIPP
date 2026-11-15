@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { secPortal, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
 import { STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
+import { BotaoAgenda } from '@/components/secretaria/PainelSessao';
 import { DadosCampos } from '@/components/secretaria/CamposProcesso';
 import LeitorAutos from '@/components/secretaria/LeitorAutos';
 import EventosAutos from '@/components/secretaria/EventosAutos';
@@ -511,6 +512,7 @@ function ProcessoParte({ id, onVoltar }) {
                             <CardContent className="space-y-1 text-sm">
                                 <p>O processo está na pauta da <b>{p.sessao.titulo}</b>{p.sessao.colegiado ? ` do ${p.sessao.colegiado}` : ''}: {quandoSessao(p.sessao)}.</p>
                                 <p className="text-slate-600 dark:text-slate-400">A certidão de inclusão em pauta está nos autos. Se o processo sair da pauta, você é avisado.</p>
+                                <BotaoAgenda s={p.sessao} colegiado={p.sessao.colegiado || ''} className="mt-1" />
                                 <PedidosSessao id={id} sessao={p.sessao} onFeito={() => qc.invalidateQueries({ queryKey: ['portal-proc', id] })} />
                             </CardContent>
                         </Card>

@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Ata da sessão, painel ao vivo, presença e avisos
+- Oitava etapa do plano de sessões de julgamento, reuniões e pregão.
+- **No dia da sessão:** a secretaria marca a presença da composição, e o presidente ou a secretaria chamam cada processo. A tela da sessão de todos do colegiado se atualiza sozinha a cada voto, chamada ou resultado.
+- **Painel ao vivo:** tela cheia para acompanhar ou projetar na sala, com o processo em julgamento, a ordem do dia e os resultados proclamados. Mostra quantos votaram, nunca o voto antes da proclamação, e não mostra o assunto de processo restrito. A parte não lê o painel.
+- **Encerrar a sessão síncrona:** o que não foi julgado vai para a sessão seguinte, com os votos já dados e a certidão nos autos.
+- **Ata:** ao encerrar (síncrona ou virtual), o sistema lavra a ata com a presença (na virtual, quem votou), o desfecho de cada processo, as sustentações orais e o redator de cada acórdão. A secretaria confere e ajusta; o presidente e a secretaria assinam, e depois da primeira assinatura o texto não muda. Dá para imprimir ou salvar em PDF.
+- **Avisos e agenda:** a composição recebe aviso (sino e e-mail, conforme a preferência) da pauta publicada, do cancelamento e lembretes: véspera da sessão, abertura e último dia da votação virtual (este só para quem ainda deve voto). O botão "Adicionar à agenda" baixa o arquivo para o calendário, também no portal das partes.
+
 ### 15/11/2026 — Sessão virtual, destaque, sustentação oral e preferência
 - Sétima etapa do plano de sessões de julgamento, reuniões e pregão.
 - **Sessão virtual assíncrona:** a secretaria marca o primeiro e o último dia da votação, e cada membro vota no seu tempo. No dia seguinte ao último, às 7h, o sistema apura cada processo e encerra a sessão; o que fica sem resultado (sem o voto do relator, sem quórum) é adiado para a sessão seguinte. O presidente ou a secretaria podem apurar antes, logo depois do fim.

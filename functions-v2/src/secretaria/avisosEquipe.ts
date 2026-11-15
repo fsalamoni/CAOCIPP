@@ -18,11 +18,15 @@ import { COL, Contexto } from './context';
  */
 
 export const TIPO_NOTIFICACAO = 'processo_eletronico';
-export type Subtipo = 'recebido' | 'assinatura' | 'pendencia' | 'peticao' | 'prazo';
+export type Subtipo = 'recebido' | 'assinatura' | 'pendencia' | 'peticao' | 'prazo' | 'sessao';
 export interface PrefAvisos { sino: boolean; email: 'cada' | 'resumo' | 'nenhum' }
 
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 export const linkProcesso = (orgId: string, procId: string) => `${APP_URL}/ProcessoEletronico?org=${orgId}&p=${procId}`;
+/** Sessão de julgamento (S8): o aviso abre a sessão, não um processo. */
+export const ENTIDADE_SESSAO = 'sessao_julgamento';
+export const linkSessao = (orgId: string, sessaoId: string) => `${APP_URL}/ProcessoEletronico?org=${orgId}&aba=sessoes&sessao=${sessaoId}`;
+const linkDoAviso = (orgId: string, entidade: unknown, id: string) => (entidade === ENTIDADE_SESSAO ? linkSessao(orgId, id) : linkProcesso(orgId, id));
 
 export function prefDe(prefs: unknown): PrefAvisos {
     const p = ((prefs as { processo_eletronico?: Record<string, unknown> } | undefined)?.processo_eletronico) || {};
@@ -56,6 +60,8 @@ export interface Aviso {
     titulo: string;
     mensagem: string;
     procId: string;
+    /** Aviso de sessão (S8): o sino e o e-mail levam à sessão. */
+    sessaoId?: string;
     /** Corpo do e-mail sem saudação nem link; a função completa. */
     html: string;
     /** Só o sino (o e-mail já sai por outro caminho, como o alerta diário de prazos). */
@@ -75,7 +81,7 @@ export async function notificarPessoas(db: admin.firestore.Firestore, orgId: str
             batch.set(db.collection('notifications').doc(), {
                 user_id: p.uid, type: TIPO_NOTIFICACAO, subtype: aviso.subtipo,
                 title: aviso.titulo, message: aviso.mensagem,
-                organization_id: orgId, entity_type: TIPO_NOTIFICACAO, entity_id: aviso.procId,
+                organization_id: orgId, entity_type: aviso.sessaoId ? ENTIDADE_SESSAO : TIPO_NOTIFICACAO, entity_id: aviso.sessaoId || aviso.procId,
                 read: false, created_at: FieldValue.serverTimestamp(),
             });
         }
@@ -85,7 +91,7 @@ export async function notificarPessoas(db: admin.firestore.Firestore, orgId: str
             await sendEmail({
                 to: p.email,
                 subject: aviso.titulo,
-                html: `<p>Olá, ${escapar(p.nome)}.</p>${aviso.html}<p><a href="${linkProcesso(orgId, aviso.procId)}">Abrir o processo</a></p><p style="color:#64748b;font-size:12px">Para receber um resumo diário em vez de um e-mail por evento, ou desligar, use "Avisos" no Processo Eletrônico.</p>`,
+                html: `<p>Olá, ${escapar(p.nome)}.</p>${aviso.html}<p><a href="${aviso.sessaoId ? linkSessao(orgId, aviso.sessaoId) : linkProcesso(orgId, aviso.procId)}">${aviso.sessaoId ? 'Abrir a sessão' : 'Abrir o processo'}</a></p><p style="color:#64748b;font-size:12px">Para receber um resumo diário em vez de um e-mail por evento, ou desligar, use "Avisos" no Processo Eletrônico.</p>`,
             }).catch(() => false);
         }
     } catch (e) { console.error('avisosEquipe: aviso não enviado', e); }
@@ -187,7 +193,7 @@ export async function enviarResumosDiarios(db: admin.firestore.Firestore): Promi
             for (const n of itens) porOrg.set(String(n.organization_id), [...(porOrg.get(String(n.organization_id)) || []), n]);
             const blocos: string[] = [];
             for (const [orgId, lista] of porOrg) {
-                blocos.push(`<ul>${lista.slice(0, 40).map((n) => `<li><a href="${linkProcesso(orgId, String(n.entity_id))}">${escapar(String(n.title))}</a> — ${escapar(String(n.message || ''))}</li>`).join('')}</ul>${lista.length > 40 ? `<p>… e mais ${lista.length - 40}.</p>` : ''}`);
+                blocos.push(`<ul>${lista.slice(0, 40).map((n) => `<li><a href="${linkDoAviso(orgId, n.entity_type, String(n.entity_id))}">${escapar(String(n.title))}</a> — ${escapar(String(n.message || ''))}</li>`).join('')}</ul>${lista.length > 40 ? `<p>… e mais ${lista.length - 40}.</p>` : ''}`);
             }
             await sendEmail({
                 to: email,

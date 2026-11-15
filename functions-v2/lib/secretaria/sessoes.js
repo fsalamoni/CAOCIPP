@@ -22,6 +22,7 @@ const config_1 = require("./config");
 const context_1 = require("./context");
 const portalAvisos_1 = require("./portalAvisos");
 const votacao_1 = require("./votacao");
+const painelAta_1 = require("./painelAta");
 /**
  * Sessões de julgamento dos colegiados (secSessoes), pelas ações `sessao*` de
  * secretariaProcesso. A secretaria do colegiado monta a pauta em rascunho e a
@@ -159,10 +160,27 @@ async function acaoAnotacao(c, p) {
     await ref.set({ organization_id: c.orgId, uid: c.ctx.uid, processo_id: pref.id, texto, atualizada_em });
     return { texto, atualizada_em };
 }
+const SO_LEITURA = ['sessaoListar', 'sessaoObter', 'sessaoAptos', 'sessaoVotacao'];
 async function acaoSessao(c, p) {
+    var _a;
+    const r = await acaoSessaoEm(c, p);
+    // S8: cada mudança refaz o painel ao vivo, e quem está com a sessão aberta recarrega.
+    if (!SO_LEITURA.includes(String(p.action))) {
+        const ids = [p.action === 'sessaoSalvar' && !p.id ? r === null || r === void 0 ? void 0 : r.id : p.id, (_a = r === null || r === void 0 ? void 0 : r.continua_em) === null || _a === void 0 ? void 0 : _a.id];
+        for (const id of new Set(ids))
+            if (typeof id === 'string' && id)
+                await (0, painelAta_1.atualizarPainel)(c.db, c.orgId, id);
+    }
+    return r;
+}
+async function acaoSessaoEm(c, p) {
+    var _a, _b;
     // Relator, votos e proclamação (S4): secretaria/votacao.ts.
     if (votacao_1.ACOES_VOTACAO.includes(String(p.action)))
         return (0, votacao_1.acaoVotacao)(c, p);
+    // Presença, chamada do processo e ata (S8): secretaria/painelAta.ts.
+    if (painelAta_1.ACOES_S8.includes(String(p.action)))
+        return (0, painelAta_1.acaoAta)(c, p);
     const hoje = (0, secretaria_1.hojeBrasil)();
     const quem = { uid: c.ctx.uid, nome: c.userName };
     if (p.action === 'sessaoListar') {
@@ -229,6 +247,19 @@ async function acaoSessao(c, p) {
                 // Julgamento iniciado em sessão anterior (CPC, art. 936, III).
                 continua: !!((_d = votacoes[i].data()) === null || _d === void 0 ? void 0 : _d.continua_de), votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
         });
+        // S8: quem pode ver a sessão lê o painel ao vivo (admin ou gestor fora do colegiado entra ao abrir).
+        const painel = (await c.db.collection(painelAta_1.COL_PAINEIS).doc(ref.id).get()).data();
+        if (!painel || !(painel.leitores || []).includes(c.ctx.uid))
+            await (0, painelAta_1.atualizarPainel)(c.db, c.orgId, ref.id, c.ctx.uid);
+        const comp = (0, orgaos_1.composicaoEm)(o.composicao, s.data);
+        const preside = comp.some((m) => m.uid === c.ctx.uid && m.funcao === 'presidente');
+        const sincrona = s.modo !== 'assincrona';
+        const noDia = s.situacao === 'publicada' && s.ativa && sincrona && s.data <= hoje;
+        const ata = s.ata;
+        const assinou = (papel) => { var _a; return !!((_a = ata === null || ata === void 0 ? void 0 : ata.assinaturas) === null || _a === void 0 ? void 0 : _a.some((x) => x.papel === papel)); };
+        const jaAssinei = !!((_a = ata === null || ata === void 0 ? void 0 : ata.assinaturas) === null || _a === void 0 ? void 0 : _a.some((x) => x.uid === c.ctx.uid));
+        // Para a lista de presença: a composição do dia com os nomes (só a secretaria marca).
+        const nmComp = gere && noDia && comp.length ? await c.db.getAll(...comp.map((m) => c.db.collection('userOrganizations').doc(`${m.uid}_${c.orgId}`))) : [];
         return {
             hoje,
             gere,
@@ -236,8 +267,22 @@ async function acaoSessao(c, p) {
             data_minima: (0, sessoes_1.dataMinimaDaSessao)(hoje, o.pauta, calendario),
             // Fim de semana, feriado nacional ou do órgão, ou recesso: a tela avisa (sessão extraordinária pode ser assim).
             dia_util: (0, secretaria_1.diaUtil)(new Date(`${s.data}T00:00:00Z`), calendario),
-            sessao: Object.assign(Object.assign({}, resumoSessao(ref.id, s, o)), { observacoes: s.observacoes || '', version: s.version, publicada_em: s.publicada_em || null, publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '', encerrada_em: s.encerrada_em || null, votacao_aberta: (0, sessoes_1.votacaoAberta)(s, hoje), virtual_encerrou: (0, sessoes_1.virtualEncerrou)(s, hoje), preside: (0, orgaos_1.composicaoEm)(o.composicao, s.data).some((m) => m.uid === c.ctx.uid && m.funcao === 'presidente') }),
+            sessao: Object.assign(Object.assign({}, resumoSessao(ref.id, s, o)), { observacoes: s.observacoes || '', version: s.version, publicada_em: s.publicada_em || null, publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '', encerrada_em: s.encerrada_em || null, votacao_aberta: (0, sessoes_1.votacaoAberta)(s, hoje), virtual_encerrou: (0, sessoes_1.virtualEncerrou)(s, hoje), preside, em_julgamento: s.em_julgamento || null, encerrada_por: s.encerrada_por_nome || '' }),
             pauta: itens,
+            // S8: presença (marcada pela secretaria no dia da sessão síncrona) e ata.
+            presenca: sincrona && (gere || s.presencas) ? {
+                marcas: s.presencas || {},
+                composicao: nmComp.length ? comp.map((m, i) => { var _a, _b; return ({ uid: m.uid, funcao: m.funcao, nome: String(((_a = nmComp[i].data()) === null || _a === void 0 ? void 0 : _a.user_name) || ((_b = nmComp[i].data()) === null || _b === void 0 ? void 0 : _b.user_email) || 'Membro') }); }) : [],
+            } : null,
+            ata: (0, painelAta_1.ataParaTela)(ata),
+            pode: {
+                presenca: gere && noDia,
+                chamar: (gere || preside) && noDia,
+                encerrar: (gere || preside) && s.situacao === 'publicada' && s.ativa && (sincrona ? s.data <= hoje : (0, sessoes_1.virtualEncerrou)(s, hoje)),
+                ata_editar: gere && s.situacao === 'encerrada' && !((_b = ata === null || ata === void 0 ? void 0 : ata.assinaturas) === null || _b === void 0 ? void 0 : _b.length),
+                assinar_presidente: !!ata && preside && !assinou('presidente') && !jaAssinei,
+                assinar_secretaria: !!ata && gere && !assinou('secretaria') && !jaAssinei,
+            },
         };
     }
     // Daqui em diante, só a secretaria do colegiado.
@@ -335,9 +380,11 @@ async function acaoSessao(c, p) {
     // Inclui, retira, publica e cancela: mexem nos autos dos processos pautados.
     const avisar = [];
     let auditoria = null;
+    let avisoMembros = null;
     const resultado = await c.db.runTransaction(async (tx) => {
         var _a, _b;
         avisar.length = 0;
+        avisoMembros = null;
         const { orgaos, calendario } = await lerConfig(c, tx);
         const { ref, s } = await lerSessao(c, p.id, tx);
         const o = colegiado(orgaos, s.orgao_id);
@@ -430,6 +477,7 @@ async function acaoSessao(c, p) {
             });
             tx.update(ref, Object.assign({ situacao: 'publicada', publicada_em: new Date().toISOString(), publicada_por: quem.uid, publicada_por_nome: quem.nome }, versao));
             auditoria = ['SECRETARIA_SESSAO_PUBLICADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, processos: itens.length }];
+            avisoMembros = ['publicada', s, o];
             return { ok: true, processos: itens.length };
         }
         if (p.action === 'sessaoCancelar') {
@@ -450,6 +498,9 @@ async function acaoSessao(c, p) {
             }
             tx.update(ref, Object.assign({ situacao: 'cancelada', ativa: false, encerra_em: firestore_1.FieldValue.delete(), cancelada_em: new Date().toISOString(), cancelada_por_nome: quem.nome, motivo_cancelamento: motivo }, versao));
             auditoria = ['SECRETARIA_SESSAO_CANCELADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, motivo }];
+            // Rascunho cancelado: a composição nem sabia da sessão.
+            if (s.situacao === 'publicada')
+                avisoMembros = ['cancelada', Object.assign(Object.assign({}, s), { motivo_cancelamento: motivo }), o];
             return { ok: true };
         }
         throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
@@ -458,6 +509,10 @@ async function acaoSessao(c, p) {
         await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, auditoria[0], auditoria[1]);
     // E-mail às partes depois da transação: falha de envio não desfaz o ato.
     await Promise.all(avisar.map((id) => (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, id, quem.uid).catch(() => undefined)));
+    // S8: e a composição do colegiado, pelo sino e pelo e-mail.
+    const am = avisoMembros;
+    if (am)
+        await (0, painelAta_1.avisarComposicao)(c.db, c.orgId, String(p.id), am[1], am[2], am[0], undefined, quem.uid);
     return resultado;
 }
 //# sourceMappingURL=sessoes.js.map

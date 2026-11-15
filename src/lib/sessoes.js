@@ -157,3 +157,33 @@ export function textoDaVistaNaPauta(v) {
     if (!v?.nomes?.length) return '';
     return v.devolvida ? `Vista de ${juntarNomes(v.nomes)}, devolvida.` : `Vista: ${juntarNomes(v.nomes)}, até ${br(v.prazo)}.`;
 }
+
+// ---- S8: agenda (.ics) e ata ----
+
+export const PAPEL_ATA = { presidente: 'Presidente', secretaria: 'Secretaria' };
+
+const icsTexto = (t) => String(t || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
+// Brasília sem horário de verão (desde 2019): UTC-3.
+const icsUtc = (data, hora) => new Date(`${data}T${hora || '00:00'}:00-03:00`).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+// RFC 5545: linhas de até 75 octetos, continuadas com espaço.
+const dobrar = (l) => (l.length <= 73 ? l : l.match(/.{1,73}/gu).join('\r\n '));
+
+/**
+ * Arquivo de agenda da sessão, para o calendário de quem participa (membros e
+ * partes). Na virtual, o período inteiro da votação, como dia inteiro; nas
+ * outras, a hora marcada, com duas horas de duração.
+ */
+export function icsDaSessao(s, { colegiado = '', url = '', agora = new Date() } = {}) {
+    const virtual = s.modo === 'assincrona';
+    const quando = virtual
+        ? [`DTSTART;VALUE=DATE:${s.data.replace(/-/g, '')}`, `DTEND;VALUE=DATE:${somarDias(s.fim || s.data, 1).replace(/-/g, '')}`]
+        : [`DTSTART:${icsUtc(s.data, s.hora)}`, 'DURATION:PT2H'];
+    const onde = virtual ? 'Sessão virtual' : s.modo === 'presencial' ? s.local : s.modo === 'virtual' ? s.link : `${s.local} e ${s.link}`;
+    const desc = `${virtual ? `Votação virtual de ${br(s.data)} a ${br(s.fim)}` : `${br(s.data)}, às ${s.hora}, ${ondeSessao(s)}`}.${url ? ` Pauta e julgamento: ${url}` : ''}`;
+    return [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SIGO//Sessoes de julgamento//PT', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+        `UID:sessao-${s.id || s.data}@sigo`, `DTSTAMP:${agora.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}`, ...quando,
+        `SUMMARY:${icsTexto(`${s.titulo}${colegiado ? ` (${colegiado})` : ''}`)}`, `LOCATION:${icsTexto(onde)}`, `DESCRIPTION:${icsTexto(desc)}`,
+        ...(url ? [`URL:${url}`] : []), 'END:VEVENT', 'END:VCALENDAR',
+    ].map(dobrar).join('\r\n').concat('\r\n');
+}

@@ -1533,6 +1533,56 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Ata, painel ao vivo e avisos (15/11/2026)
+
+Oitava etapa (S8). O dia da sessão ganha presença, chamada do processo e
+um painel que se atualiza sozinho; ao encerrar, o sistema lavra a ata.
+
+- **Painel** (`secPaineis/{sessaoId}`, `secretaria/painelAta.ts`):
+  documento só de leitura, refeito por `atualizarPainel` depois de toda
+  ação de sessão que não seja de leitura (invólucro `acaoSessao`), do
+  pedido da parte no portal e do encerramento. Guarda título, modo, data,
+  situação, `em_julgamento` e, por item, ordem, número, assunto (ou
+  "Processo sob sigilo" se restrito), relator, situação, quantos votaram e,
+  só depois da proclamação, o resultado. Nunca guarda conteúdo de voto.
+  `leitores` = composição do dia e lotados nas unidades do colegiado; quem
+  abre a sessão e ainda não está na lista é incluído. Regra no
+  `firestore.rules`: lê quem está em `leitores`, ninguém escreve. O
+  cliente escuta o documento e, a cada `versao` nova, recarrega a sessão e
+  a votação.
+- **Presença** (`sessaoPresenca`): a secretaria marca, na síncrona
+  publicada, do dia dela até o encerramento; fica em `presencas` (mapa de
+  uid). **Chamar** (`sessaoChamar`): presidente ou secretaria põem o
+  processo `em_julgamento` (ou tiram).
+- **Encerrar a síncrona** (`sessaoEncerrar`, agora para os dois modos):
+  presidente ou secretaria, no dia ou depois. `encerrarSessao` adia o que
+  não foi julgado (motivo "não foi julgado na sessão", vai à próxima com
+  os votos), marca `encerrada`, limpa `em_julgamento` e lavra a ata. A
+  virtual continua pela rotina das 7h, pelo mesmo caminho.
+- **Ata** (`s.ata`, `textoDaAta` em `shared/sessoes.ts`): abertura com
+  presidente e presença (na virtual, quem votou; sem marcação, a
+  composição do dia com a ressalva), ordem do dia com o desfecho de cada
+  processo (proclamado e redator, vista e prazo, adiado, retirado,
+  diligência, destacado), sustentações e encerramento; SHA-256 do texto.
+  `sessaoAta`: a secretaria ajusta o texto ou refaz com os dados, até a
+  primeira assinatura. `sessaoAtaAssinar {papel}`: presidente (quem
+  preside) e secretaria, pessoas diferentes; em transação. Auditoria
+  `SECRETARIA_SESSAO_ATA` e `SECRETARIA_SESSAO_ATA_ASSINADA`. A tela
+  imprime a ata com as assinaturas e o hash.
+- **Avisos** (`avisarComposicao`, subtipo `sessao`, entity_type
+  `sessao_julgamento`, link `?aba=sessoes&sessao=`): pauta publicada e
+  sessão cancelada, para a composição menos o autor. `lembrarSessoes`, na
+  rotina das 7h: véspera da sessão, abertura da virtual e último dia (só a
+  quem ainda deve voto); `lembrado_em` evita repetir no mesmo dia.
+- **Agenda**: `icsDaSessao` (`src/lib/sessoes.js`) gera o .ics no
+  navegador (virtual como dia inteiro; síncrona com duas horas). Botão
+  "Adicionar à agenda" na sessão e no portal das partes.
+- Telas: `components/secretaria/PainelSessao.jsx` (painel em tela cheia,
+  presença, ata), integrado em `Sessoes.jsx`. Glossário `ata_sessao`. Guia
+  do rito, parte das sessões.
+- Testes: `functions-v2/test/sessoes.test.js` (ata) e
+  `src/lib/sessoes.test.js` (.ics).
+
 ### Sessão virtual, destaque, sustentação oral e preferência (15/11/2026)
 
 Sétima etapa (S7). A sessão pode ser virtual assíncrona, como o Plenário
@@ -1549,7 +1599,7 @@ pedidos que cabem para o julgamento.
   dia; nas outras, como antes). Fora dela, não se vota nem se pede vista. O
   relator libera o voto antes do início. A proclamação manual, na virtual,
   só depois do fim (`virtualEncerrou`).
-- **Encerramento:** `encerrarVirtual` (em `secretaria/votacao.ts`), com o
+- **Encerramento:** `encerrarSessao` (em `secretaria/votacao.ts`), com o
   contexto do sistema ("Sistema (fim da sessão virtual)"): para cada
   processo pautado e não proclamado, proclama pela regra do rito
   (`sessaoProclamar`); se não der (sem o voto do relator, sem quórum),

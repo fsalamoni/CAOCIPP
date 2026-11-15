@@ -21,6 +21,7 @@ const comunicacoes_1 = require("./comunicacoes");
 const processos_1 = require("./processos");
 const context_2 = require("./context");
 const votacao_1 = require("./votacao");
+const painelAta_1 = require("./painelAta");
 const portalAvisos_2 = require("./portalAvisos");
 exports.CONFERENCIAS_POR_HORA = 60;
 /**
@@ -130,6 +131,7 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
     await respostasPorDecurso(db).catch((e) => console.warn('[comunicacoes] decurso do prazo de resposta falhou', e));
     // S7: sessões virtuais cuja votação terminou: o sistema apura e encerra.
     await (0, votacao_1.encerrarSessoesVirtuais)(db).catch((e) => console.warn('[sessoes] encerramento das sessões virtuais falhou', e));
+    await (0, painelAta_1.lembrarSessoes)(db).catch((e) => console.warn('[sessoes] lembretes das sessões falharam', e));
     const hoje = (0, secretaria_1.hojeBrasil)();
     const limite = (0, secretaria_1.somarDias)(hoje, exports.DIAS_ALERTA);
     // Só campo único em faixa: dispensa índice composto.

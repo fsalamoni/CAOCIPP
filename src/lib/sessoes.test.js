@@ -1,7 +1,7 @@
 // npm run test:lib
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agruparSessoes, juntarNomes, ordemDoCPC, selosDosPedidos, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDaVistaNaPauta, textoDoVoto, veSessoes } from './sessoes.js';
+import { PAPEL_ATA, agruparSessoes, icsDaSessao, juntarNomes, ordemDoCPC, selosDosPedidos, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDaVistaNaPauta, textoDoVoto, veSessoes } from './sessoes.js';
 
 test('sessões: textos de onde e quando, no jeito das certidões', () => {
     assert.equal(ondeSessao({ modo: 'presencial', local: 'Sala 2' }), 'em Sala 2');
@@ -60,4 +60,21 @@ test('sessões: virtual assíncrona, pedidos e ordem do CPC (S7)', () => {
     assert.deepEqual(ordemDoCPC([
         it('a', 1), it('b', 2, { continua: true }), it('c', 3, { pedidos: { preferencia: 1 } }), it('d', 4, { situacao: 'retirado', pedidos: { sustentacao: 1 } }), it('e', 5, { pedidos: { sustentacao: 1 } }),
     ]), ['e', 'c', 'b', 'a', 'd']);
+});
+
+test('agenda da sessão (.ics): hora de Brasília em UTC; virtual como dias inteiros (S8)', () => {
+    const agora = new Date('2026-11-15T12:00:00Z');
+    const s = { id: 's1', titulo: '3ª Sessão; Ordinária', modo: 'presencial', data: '2026-12-07', hora: '14:00', local: 'Sala 2, térreo', link: '' };
+    const t = icsDaSessao(s, { colegiado: 'Conselho', url: 'https://sigo.app/x', agora });
+    assert.match(t, /^BEGIN:VCALENDAR\r\n/);
+    assert.match(t, /\r\nDTSTART:20261207T170000Z\r\nDURATION:PT2H\r\n/);
+    assert.match(t, /\r\nSUMMARY:3ª Sessão\\; Ordinária \(Conselho\)\r\n/);
+    assert.match(t, /\r\nLOCATION:Sala 2\\, térreo\r\n/);
+    assert.match(t, /\r\nUID:sessao-s1@sigo\r\nDTSTAMP:20261115T120000Z\r\n/);
+    assert.match(t, /END:VCALENDAR\r\n$/);
+    assert.ok(t.split('\r\n').every((l) => l.length <= 75));
+    const v = icsDaSessao({ ...s, modo: 'assincrona', fim: '2026-12-11' }, { agora });
+    assert.match(v, /DTSTART;VALUE=DATE:20261207\r\nDTEND;VALUE=DATE:20261212\r\n/);
+    assert.match(v, /LOCATION:Sessão virtual/);
+    assert.equal(PAPEL_ATA.presidente, 'Presidente');
 });
