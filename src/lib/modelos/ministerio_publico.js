@@ -7,7 +7,7 @@ const corridos = 'corridos';
 /** 13-A. Notícia de Fato (Res. CNMP 174/2017, arts. 1º a 7º). */
 export function noticiaDeFato() {
     return montar({
-        id: 'noticia-de-fato', nome: 'Notícia de Fato', area: 'ministerio_publico', porte: 'curto',
+        id: 'noticia-de-fato', nome: 'Notícia de Fato', area: 'ministerio_publico', porte: 'curto', referencia: 'CNMP',
         descricao: 'Registro e triagem de qualquer demanda que chega à atividade-fim do Ministério Público: atendimento, documento, requerimento ou representação. O membro aprecia em 30 dias, prorrogáveis uma vez por até 90, colhendo só informações preliminares, sem expedir requisições; o noticiante pode ser chamado a complementar. A decisão arquiva, declina a atribuição a outro órgão ou instaura o procedimento próprio. Arquivada, o noticiante é cientificado e tem 10 dias para recorrer; sem reconsideração, o recurso sobe ao Conselho Superior.',
         quando: 'Porta de entrada de toda demanda extrajudicial cível que ainda não justifica procedimento próprio: representações, atendimentos ao público, ofícios e documentos recebidos.',
         base: 'Res. CNMP 174/2017, arts. 1º a 7º (registro e distribuição, art. 2º; prazo, art. 3º; arquivamento e recurso, arts. 4º e 5º; instauração, art. 7º).',
@@ -112,7 +112,7 @@ export function noticiaDeFato() {
 /** 13-B. Procedimento Administrativo (Res. CNMP 174/2017, arts. 8º a 13). */
 export function procedimentoAdministrativoMp() {
     return montar({
-        id: 'procedimento-administrativo-mp', nome: 'Procedimento Administrativo do Ministério Público', area: 'ministerio_publico', porte: 'medio',
+        id: 'procedimento-administrativo-mp', nome: 'Procedimento Administrativo do Ministério Público', area: 'ministerio_publico', porte: 'medio', referencia: 'CNMP',
         descricao: 'Acompanha de forma continuada o cumprimento de termo de ajustamento de conduta, políticas públicas e instituições, apura fato ligado a direito individual indisponível ou embasa outra atividade que não cabe em inquérito civil. Não investiga pessoa determinada por ilícito específico. Instaurado por portaria sucinta, corre por um ano, prorrogável sucessivamente por decisão fundamentada, com ofícios, requisições e reuniões com o acompanhado. Cumprido o objeto, arquiva-se no próprio órgão com comunicação ao Conselho Superior; no caso de direito individual indisponível, o noticiante é cientificado e pode recorrer em 10 dias.',
         quando: 'Para acompanhar TAC, fiscalizar política pública ou instituição, tratar de direito individual indisponível ou embasar atividade sem caráter investigativo.',
         base: 'Res. CNMP 174/2017, arts. 8º (cabimento), 9º (portaria), 10 (fato novo), 11 (prazo e prorrogação), 12 e 13 (arquivamento e recurso).',
@@ -223,7 +223,7 @@ export function procedimentoAdministrativoMp() {
 /** 13-C. Procedimento Preparatório (Res. CNMP 23/2007, art. 2º, §§ 4º a 7º, e art. 10). */
 export function procedimentoPreparatorio() {
     return montar({
-        id: 'procedimento-preparatorio', nome: 'Procedimento Preparatório', area: 'ministerio_publico', porte: 'medio',
+        id: 'procedimento-preparatorio', nome: 'Procedimento Preparatório', area: 'ministerio_publico', porte: 'medio', referencia: 'CNMP',
         descricao: 'Antecede o inquérito civil quando ainda falta identificar o investigado ou delimitar o objeto. Corre por 90 dias, prorrogáveis uma única vez por igual prazo, com requisições, notificações e oitivas. Ao final, converte-se em inquérito civil, dá base à ação civil pública ou é arquivado. O arquivamento passa pelo mesmo controle do inquérito: o representante e o investigado são cientificados, os autos sobem ao Conselho Superior em 3 dias e lá podem apresentar razões até a sessão.',
         quando: 'Quando a notícia indica possível lesão a direito difuso, coletivo ou individual homogêneo, mas faltam elementos para identificar o investigado ou delimitar o objeto do inquérito civil.',
         base: 'Res. CNMP 23/2007, art. 2º, §§ 4º a 7º (cabimento, numeração e prazo), art. 10 (arquivamento e revisão) e art. 12 (desarquivamento); Lei 7.347/1985, art. 8º, § 1º (requisições).',
@@ -335,7 +335,7 @@ export function procedimentoPreparatorio() {
 /** 13-D. Inquérito Civil (Res. CNMP 23/2007; Lei 7.347/1985). */
 export function inqueritoCivil() {
     return montar({
-        id: 'inquerito-civil', nome: 'Inquérito Civil', area: 'ministerio_publico', porte: 'longo',
+        id: 'inquerito-civil', nome: 'Inquérito Civil', area: 'ministerio_publico', porte: 'longo', referencia: 'CNMP',
         descricao: 'Investigação presidida por membro do Ministério Público para apurar lesão a direitos difusos, coletivos ou individuais homogêneos, como meio ambiente, consumidor e patrimônio público, e preparar ação civil pública, ajustamento de conduta ou recomendação. A representação pode ser indeferida em 30 dias, com recurso; instaurado por portaria, corre por um ano, prorrogável quantas vezes for preciso, com requisições, oitivas e audiências. É inquisitivo, mas o investigado e o representante podem ser ouvidos e juntar documentos a qualquer tempo. Termina com ação civil pública ou com promoção de arquivamento, que sobe ao Conselho Superior em 3 dias para homologação.',
         quando: 'Quando há elementos de lesão a direito difuso, coletivo ou individual homogêneo, com investigado e objeto identificáveis, a apurar antes de ação civil pública ou solução negociada.',
         base: 'Res. CNMP 23/2007, arts. 2º (representação), 4º (portaria), 5º (indeferimento e recurso), 6º (instrução), 7º (publicidade), 9º e 9º-A (prazo e declínio), 10 e 11 (arquivamento e revisão), 12 (desarquivamento) e 14 (ajustamento); Lei 7.347/1985, arts. 5º, § 6º, 8º e 9º.',

@@ -6,7 +6,7 @@ const corridos = 'corridos';
 /** 1. Processo administrativo geral com interessado (Lei 9.784/1999). */
 export function processoAdministrativoGeral() {
     return montar({
-        id: 'pa-geral', nome: 'Processo administrativo com interessado', area: 'geral', porte: 'medio',
+        id: 'pa-geral', nome: 'Processo administrativo com interessado', area: 'geral', porte: 'medio', referencia: 'Lei 9.784',
         descricao: 'Rito-base para qualquer pedido que exige decisão motivada da Administração: autorização, registro, reconhecimento de direito, certidão com análise. Recebe o requerimento sem recusar (pede o que falta), instrui com provas e diligências, ouve o interessado nas alegações finais, decide em até 30 dias e abre recurso, com reconsideração antes de subir. Serve de rito subsidiário quando não há lei específica.',
         quando: 'Pedidos de particulares ou servidores sem rito próprio em lei; processos de ofício que afetem alguém.',
         base: 'Lei 9.784/1999, arts. 6º, 9º, 18 a 21, 24, 26 a 28, 38, 41, 42, 44, 48 a 50, 56 a 67.',

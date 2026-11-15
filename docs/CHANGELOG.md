@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — 20 novos modelos de rito e biblioteca em grupos
+- A biblioteca passou de 28 para 48 modelos. Os novos foram pesquisados nas normas de cada instituição:
+  - OAB/RS: processo disciplinar no TED, revisão e reabilitação;
+  - CAU: processo ético-disciplinar e fiscalização;
+  - CNMP e MPRS: ajustamento de conduta, recomendação, audiência pública, revisão de arquivamento pelo Conselho Superior, destinação de valores, cadastro de entidade, triagem de patrimônio público e correição;
+  - AGU: conciliação na CCAF, acordo e dívida ativa não tributária;
+  - CGU: leniência, sindicância patrimonial, admissibilidade correcional e disciplinar de empregado público.
+- Nova área: Advocacia pública e consultoria.
+- Cada modelo diz em que instituição ou lei se inspira.
+- A biblioteca em Novo rito:
+  - virou uma seção que abre e fecha, com grupos por área;
+  - ganhou busca sem acentos e com destaque, filtros por área, porte e inspiração, e cinco ordens;
+  - mostra cada modelo numa linha compacta que se expande com os detalhes.
+
 ### 15/11/2026 — Guia do rito para todos
 - O Guia do rito agora fica no alto da tela do Processo Eletrônico, para toda a equipe.
 - Também fica na Central de Ajuda (link direto `#guia-do-rito`), para qualquer usuário da plataforma.

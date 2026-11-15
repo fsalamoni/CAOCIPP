@@ -2,22 +2,30 @@
 
 Processos completos e prontos para começar, montados a partir da lei de cada área. Ficam em **Novo rito**, na seção **Biblioteca de modelos de processo**. O modelo é só o ponto de partida: nada é criado até o órgão revisar e implantar, e tudo se ajusta (fases, unidades, prazos, ações, documentos, saídas e partes).
 
-Nenhum modelo é penal. Os sancionadores são administrativos (disciplinar, ético, fiscalização, contratual, fiscal, de trânsito) e os do Ministério Público são extrajudiciais cíveis (notícia de fato, procedimento administrativo, procedimento preparatório e inquérito civil).
+Nenhum modelo é penal. Os sancionadores são administrativos (disciplinar, ético, fiscalização, contratual, fiscal, de trânsito) e os do Ministério Público são extrajudiciais cíveis (notícia de fato, procedimento administrativo, procedimento preparatório, inquérito civil, ajustamento de conduta, recomendação, audiência pública, revisão de arquivamento e os expedientes próprios do MPRS).
+
+Muitos modelos seguem o rito de uma instituição: o TED da OAB/RS, o processo ético-disciplinar e a fiscalização do CAU, os provimentos do MPRS e as resoluções do CNMP, a câmara de conciliação, os acordos e a dívida ativa da AGU, e os ritos correcionais e a leniência da CGU. O filtro **Inspirado em** mostra a origem de cada um. Onde a pesquisa não confirmou um artigo ou prazo, a base diz "conferir na norma vigente".
 
 ## Como usar
 
-1. Em **Novo rito**, filtre por **área** e **porte** ou busque por palavra ou lei. A busca ignora acentos.
-2. Abra **Quando usar, base legal e fases** para ver para que o modelo serve, de onde vêm os prazos, quais são as partes e a sequência de fases.
-3. Clique em **Usar este modelo**. A revisão faz três coisas:
+1. Em **Novo rito**, abra a **Biblioteca de modelos de processo**. Ela é uma seção que abre e fecha pelo título, e a tela lembra a escolha de cada pessoa. Fechada, mostra só as áreas com a contagem; clicar numa área abre a biblioteca já filtrada.
+2. Os modelos ficam agrupados por área, em grupos que abrem e fecham. Com qualquer filtro ou busca, os grupos com resultado abrem sozinhos.
+3. Encontre o modelo:
+   - **Buscar** procura no nome, na instituição ou lei de inspiração, na base, nas fases, no quando usar e na descrição. Ignora acentos, exige todos os termos e marca o que achou. No agrupamento por área, os mais relevantes vêm primeiro em cada grupo;
+   - **Área**, **Porte** e **Inspirado em** (a instituição ou lei de origem, por exemplo OAB/RS, CAU/BR, MPRS, CNMP, AGU, CGU, Lei 14.133) filtram a lista;
+   - **Ordenar** muda a ordem: por área, mais relevantes, nome, do mais curto ao mais longo ou o contrário. Fora do agrupamento por área, cada modelo mostra a sua área;
+   - **Limpar filtros** volta tudo, e o contador diz quantos modelos aparecem.
+4. Clique no nome do modelo para ver a descrição inteira, quando usar, a base, as partes, o que o rito faz (comunicações, esperas, audiências, documentos, formulários e saídas) e as fases com prazo, contagem, unidade e marca de fase final.
+5. Clique em **Usar**. A revisão faz três coisas:
    - casa as unidades do modelo com as do órgão pelo nome, ou propõe criá-las;
    - mostra as pendências, se houver;
    - se o modelo tem partes, propõe criar o tipo de processo já com os polos e os nomes deles, por exemplo Denunciante e Acusado ou Contratante e Contratada.
-4. Ajuste o rito à norma do órgão. Os pontos mais comuns:
+6. Ajuste o rito à norma do órgão. Os pontos mais comuns:
    - prazos e contagem (dias úteis ou corridos), que o regimento local muda com frequência;
    - nomes de unidades;
    - sanções da lista;
    - documentos exigidos.
-5. Implante. Depois, o rito e o tipo se editam como qualquer outro, e cada mudança vira uma nova versão.
+7. Implante. Depois, o rito e o tipo se editam como qualquer outro, e cada mudança vira uma nova versão.
 
 ## Porte
 
@@ -70,35 +78,38 @@ Os modelos ficam em `src/lib/modelos/<área>.js` e são escritos com a linguagem
 - As fases e as ações se citam pelo nome. A função `montar` troca os nomes por identificadores e reclama de nome que não existe.
 - Cada modelo traz:
   - `id`, `nome`, `area` e `porte`;
+  - `referencia`: a instituição ou lei em que o modelo se inspira, curta (por exemplo "OAB/RS" ou "Lei 14.133"), usada no filtro **Inspirado em**;
   - `descricao`, explicativa: para que serve, como corre, onde está o contraditório e como termina;
   - `quando` e `base`;
   - `tipo` (polos e nomes), quando há partes.
 - Para conferir só uma área: `MODELOS_AREA=<área> node --test src/lib/bibliotecaRitos.test.js`.
 - O catálogo abaixo é gerado a partir dos próprios modelos.
+- Filtro, ordem, grupos, destaque da busca e o resumo do que o rito faz ficam em `src/lib/bibliotecaFiltro.js`, com teste em `src/lib/bibliotecaFiltro.test.js`. Esse teste também exige `referencia`, descrição, quando usar e base em todo modelo, e nenhum travessão no texto.
 
 ## Fontes
 
-A pesquisa normativa que embasou os modelos está em `/mnt/project-files/modelos-rito/pesquisa-modelos.md`, nos arquivos do projeto. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
+A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
 
 ## Catálogo
 
 | Área | Modelos |
 |---|---|
 | Administrativo geral | Processo administrativo com interessado (médio) |
-| Correcional e disciplinar | Sindicância investigativa e investigação preliminar sumária (curto); Processo administrativo disciplinar, rito ordinário (longo); Processo administrativo disciplinar, rito sumário (médio); Termo de ajustamento de conduta disciplinar (curto) |
-| Ética e conselhos profissionais | Processo ético-profissional (conselho profissional) (longo); Processo disciplinar (entidade de classe) (longo); Apuração ética por comissão de ética pública (médio) |
-| Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio) |
+| Correcional e disciplinar | Sindicância investigativa e investigação preliminar sumária (curto); Processo administrativo disciplinar, rito ordinário (longo); Processo administrativo disciplinar, rito sumário (médio); Termo de ajustamento de conduta disciplinar (curto); Correição e inspeção em Promotoria de Justiça (MPRS) (médio); Sindicância patrimonial (médio); Juízo de admissibilidade correcional (curto); Processo disciplinar de empregado público (médio) |
+| Ética e conselhos profissionais | Processo ético-profissional (conselho profissional) (longo); Processo disciplinar (entidade de classe) (longo); Apuração ética por comissão de ética pública (médio); Processo disciplinar no TED da OAB/RS (longo); Revisão de processo disciplinar (OAB) (curto); Reabilitação de inscrito punido (OAB) (curto); Processo ético-disciplinar do CAU (longo) |
+| Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
 | Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
 | Atendimento, ouvidoria e transparência | Manifestação de ouvidoria (curto); Pedido de acesso à informação (curto) |
-| Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo) |
+| Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo); Compromisso de ajustamento de conduta (TAC) (longo); Recomendação do Ministério Público (curto); Audiência pública do Ministério Público (curto); Revisão de arquivamento pelo Conselho Superior (MPRS) (médio); Destinação de bens e valores de tutela coletiva (MPRS) (médio); Cadastramento de entidade para destinação de recursos (MPRS) (curto); Triagem de representação sobre patrimônio público (MPRS) (curto) |
 | Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto) |
 | Controle e contas | Tomada de contas especial (fase interna) (longo) |
+| Advocacia pública e consultoria | Mediação e conciliação na câmara da advocacia pública (CCAF) (médio); Acordo para prevenir ou encerrar litígio com a União (médio); Cobrança administrativa e inscrição em dívida ativa (crédito não tributário) (médio) |
 
 ## Administrativo geral
 
 ### Processo administrativo com interessado
 
-**Porte:** Médio, 10 fases. **Identificador:** `pa-geral`.
+**Porte:** Médio, 10 fases. **Inspirado em:** Lei 9.784. **Identificador:** `pa-geral`.
 
 Rito-base para qualquer pedido que exige decisão motivada da Administração: autorização, registro, reconhecimento de direito, certidão com análise. Recebe o requerimento sem recusar (pede o que falta), instrui com provas e diligências, ouve o interessado nas alegações finais, decide em até 30 dias e abre recurso, com reconsideração antes de subir. Serve de rito subsidiário quando não há lei específica.
 
@@ -108,7 +119,7 @@ Rito-base para qualquer pedido que exige decisão motivada da Administração: a
 
 **Partes:** Requerente (requerente), Interessado (interessado).
 
-**Recursos do motor usados:** 6 comunicações às partes; 3 esperas de resposta; audiência (oitiva); 6 documentos; 1 formulários de dados; 3 fases com saída decidida pela resposta.
+**Recursos do motor usados:** 6 comunicações às partes; 3 esperas de resposta; audiência (oitiva); 6 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta.
 
 **Fases:** 1. Protocolo, Secretaria; 2. Admissibilidade e saneamento (5 dias corridos), Unidade instrutora; 3. Exigência ao interessado, Unidade instrutora; 4. Instrução, Unidade instrutora; 5. Parecer jurídico (15 dias corridos), Assessoria jurídica; 6. Alegações finais, Unidade instrutora; 7. Decisão (30 dias corridos), Gabinete; 8. Recurso (30 dias corridos), Gabinete; 9. Cumprimento, Secretaria; 10. Arquivamento, Secretaria.
 
@@ -116,7 +127,7 @@ Rito-base para qualquer pedido que exige decisão motivada da Administração: a
 
 ### Sindicância investigativa e investigação preliminar sumária
 
-**Porte:** Curto, 9 fases. **Identificador:** `sindicancia-investigativa`.
+**Porte:** Curto, 9 fases. **Inspirado em:** CGU. **Identificador:** `sindicancia-investigativa`.
 
 Procedimento preparatório, sem acusado e sem punição, para descobrir se houve irregularidade e quem a praticou. Começa pelo juízo de admissibilidade da notícia, que pode arquivar, propor TAC, abrir a investigação ou ir direto ao processo acusatório. Na investigação, o sindicante ou a comissão examina documentos, requisita informações e ouve pessoas, com acesso restrito. Não há contraditório: o investigado pode ser ouvido, mas a defesa só nasce no processo acusatório que vier depois. Termina por arquivamento, TAC ou instauração do processo acusatório.
 
@@ -126,13 +137,13 @@ Procedimento preparatório, sem acusado e sem punição, para descobrir se houve
 
 **Partes:** Investigado (requerido), Noticiante (interessado).
 
-**Recursos do motor usados:** 1 comunicações às partes; audiência (oitiva); 9 documentos; 1 formulários de dados; 3 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 1 comunicação às partes; audiência (oitiva); 9 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Recebimento da notícia, Corregedoria; 2. Juízo de admissibilidade, Corregedoria; 3. Instauração, Corregedoria; 4. Coleta de informações (60 dias corridos), Comissão processante; 5. Aguardando informação externa, Comissão processante; 6. Relatório conclusivo, Comissão processante; 7. Decisão, Gabinete; 8. Instauração do processo seguinte, Corregedoria; 9. Arquivamento, Corregedoria.
 
 ### Processo administrativo disciplinar, rito ordinário
 
-**Porte:** Longo, 15 fases. **Identificador:** `pad-ordinario`.
+**Porte:** Longo, 15 fases. **Inspirado em:** CGU. **Identificador:** `pad-ordinario`.
 
 Apura a responsabilidade de servidor por infração ligada ao cargo e pode terminar em qualquer sanção disciplinar, inclusive demissão. Uma comissão de três servidores estáveis instala os trabalhos, notifica o acusado e instrui com depoimentos, diligências e perícias, encerrando com o interrogatório. O contraditório está no acompanhamento de todos os atos desde a notificação prévia e na defesa escrita depois da indiciação, com defensor dativo em caso de revelia. A comissão faz o relatório conclusivo e outra autoridade julga em 20 dias, cabendo pedido de reconsideração ou recurso em 30 dias.
 
@@ -142,13 +153,13 @@ Apura a responsabilidade de servidor por infração ligada ao cargo e pode termi
 
 **Partes:** Acusado (requerido), Testemunha (terceiro).
 
-**Recursos do motor usados:** 8 comunicações às partes; 2 esperas de resposta; audiência (oitiva); 23 documentos; 1 formulários de dados; 7 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 8 comunicações às partes; 2 esperas de resposta; audiência (oitiva); 23 documentos; 1 formulário de dados; 7 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Instauração, Gabinete; 2. Instalação e notificação prévia, Comissão processante; 3. Afastamento preventivo, Gabinete; 4. Instrução, Comissão processante; 5. Aguardando perícia ou informação externa, Comissão processante; 6. Análise de proposta de TAC, Gabinete; 7. Interrogatório, Comissão processante; 8. Indiciação e citação, Comissão processante; 9. Revelia e defensor dativo (10 dias corridos), Comissão processante; 10. Relatório final, Comissão processante; 11. Parecer jurídico, Assessoria jurídica; 12. Julgamento (20 dias corridos), Gabinete; 13. Pedido de reconsideração e recurso (30 dias corridos), Gabinete; 14. Execução e registro, Secretaria; 15. Arquivamento, Secretaria.
 
 ### Processo administrativo disciplinar, rito sumário
 
-**Porte:** Médio, 11 fases. **Identificador:** `pad-sumario`.
+**Porte:** Médio, 11 fases. **Inspirado em:** CGU. **Identificador:** `pad-sumario`.
 
 Rito abreviado para três infrações de prova documental: acumulação ilegal de cargos, abandono de cargo e inassiduidade habitual. Na acumulação, o servidor é primeiro notificado para optar por um dos cargos em 10 dias. A comissão de dois servidores estáveis indicia em até 3 dias da portaria, que já aponta autoria e materialidade, e cita o acusado para defesa escrita em 5 dias, com defensor dativo na revelia. Segue o relatório conclusivo e o julgamento em 5 dias, que pode resultar em demissão, com recurso como no rito ordinário.
 
@@ -158,13 +169,13 @@ Rito abreviado para três infrações de prova documental: acumulação ilegal d
 
 **Partes:** Acusado (requerido).
 
-**Recursos do motor usados:** 5 comunicações às partes; 3 esperas de resposta; 11 documentos; 1 formulários de dados; 4 fases com saída decidida pela resposta; sigilo ao entrar.
+**Recursos do motor usados:** 5 comunicações às partes; 3 esperas de resposta; 11 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta; sigilo ao entrar.
 
 **Fases:** 1. Enquadramento, Corregedoria; 2. Notificação para opção, Corregedoria; 3. Instauração, Gabinete; 4. Indiciação (3 dias corridos), Comissão processante; 5. Citação e defesa, Comissão processante; 6. Revelia e defensor dativo (5 dias corridos), Comissão processante; 7. Relatório conclusivo, Comissão processante; 8. Julgamento (5 dias corridos), Gabinete; 9. Pedido de reconsideração e recurso (30 dias corridos), Gabinete; 10. Execução e registro, Secretaria; 11. Arquivamento, Secretaria.
 
 ### Termo de ajustamento de conduta disciplinar
 
-**Porte:** Curto, 8 fases. **Identificador:** `tac-disciplinar`.
+**Porte:** Curto, 8 fases. **Inspirado em:** CGU. **Identificador:** `tac-disciplinar`.
 
 Substitui o processo disciplinar por um compromisso escrito quando a infração é de menor potencial ofensivo, punível com advertência ou suspensão de até 30 dias. A proposta nasce de ofício, da comissão ou do próprio servidor; confere-se se ele não tem sanção vigente nem TAC nos últimos 2 anos e se o dano foi ressarcido. Não há acusação nem julgamento: o servidor aceita ou não as obrigações redigidas no termo. Celebrado e publicado o extrato, a chefia acompanha o cumprimento por até 2 anos; cumprido, arquiva-se; descumprido, apura-se a falta.
 
@@ -178,11 +189,75 @@ Substitui o processo disciplinar por um compromisso escrito quando a infração 
 
 **Fases:** 1. Proposta, Corregedoria; 2. Verificação dos requisitos, Corregedoria; 3. Negociação e redação, Corregedoria; 4. Celebração, Gabinete; 5. Publicação e comunicação, Secretaria; 6. Acompanhamento, Corregedoria; 7. Apuração do descumprimento, Corregedoria; 8. Arquivamento, Secretaria.
 
+### Correição e inspeção em Promotoria de Justiça (MPRS)
+
+**Porte:** Médio, 7 fases. **Inspirado em:** MPRS. **Identificador:** `correicao-corregedoria-mp`.
+
+Verificação pela Corregedoria-Geral do Ministério Público do funcionamento dos cargos de Promotor de Justiça. A correição ordinária é periódica, a cada três anos, com calendário anual feito até outubro e publicado com 30 dias de antecedência; a extraordinária e a inspeção, esta quando há indícios de irregularidade, são determinadas pelo Conselho Nacional, pelo Conselho Superior, pelo Órgão Especial, pelo Procurador-Geral ou pelo Corregedor-Geral. O correicionado é avisado com 5 dias. O Corregedor-Geral ou o Promotor-Corregedor examina os sistemas e pode visitar a Promotoria, ouvir juízes, advogados, partes e a comunidade e fazer audiência pública. Lavra-se o Relatório Avaliativo de Correição, com boas práticas, irregularidades, avaliação e proposições; o Promotor é cientificado, o relatório vai ao Conselho Superior e a avaliação entra na ficha funcional. As proposições são acompanhadas; indício de falta funcional segue ao procedimento disciplinar próprio.
+
+**Quando usar:** Para as correições ordinárias do calendário e para correições extraordinárias e inspeções determinadas. Outros Ministérios Públicos ajustam periodicidade e prazos à norma da sua Corregedoria.
+
+**Base:** Provimento 2/2024-CGMP (MPRS), arts. 2º (conceitos), 3º (periodicidade de 3 anos, quem determina, calendário com 30 dias, aviso com 5 dias, contatos externos, audiência pública e correição remota), 4º (calendário até outubro, com ciência à Corregedoria Nacional), 6º (diretrizes de avaliação), 7º (relatório, ciência, Conselho Superior e ficha funcional), 8º e 9º (inspeção e Ordem de Serviço), com alteração do Provimento 19/2026-CGMP; Lei Estadual 7.669/1982. Prazo de manifestação do correicionado: conferir na Ordem de Serviço vigente.
+
+**Partes:** Membro correicionado (requerido).
+
+**Recursos do motor usados:** 2 comunicações às partes; audiência (inspeção, audiência); 3 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; sigilo ao entrar.
+
+**Fases:** 1. Determinação e designação, Corregedoria-Geral; 2. Publicação e aviso, Corregedoria-Geral; 3. Exame e visita, Corregedoria-Geral; 4. Relatório avaliativo, Corregedoria-Geral; 5. Ciência e providências, Corregedoria-Geral; 6. Acompanhamento das proposições, Corregedoria-Geral; 7. Encerramento, Corregedoria-Geral.
+
+### Sindicância patrimonial
+
+**Porte:** Médio, 9 fases. **Inspirado em:** CGU. **Identificador:** `sindicancia-patrimonial`.
+
+Investiga, sem acusado e sem punição, indício de enriquecimento ilícito de servidor ou empregado público, em especial evolução patrimonial incompatível com a renda declarada. Começa com a análise patrimonial da CGU, uma denúncia ou um achado de auditoria; o titular da correição decide entre abrir a sindicância, ir direto ao processo disciplinar ou arquivar. Uma comissão de dois ou mais servidores levanta bens e movimentações em cartórios, Detran, juntas comerciais e nas declarações, pode convidar o sindicado a explicar a origem dos recursos e monta o demonstrativo de evolução patrimonial, em 30 dias prorrogáveis. Tudo corre em sigilo; não há contraditório, que fica para o processo disciplinar. O relatório recomenda arquivamento ou processo disciplinar, a autoridade decide e, confirmados os indícios, comunica MPF, TCU, CGU, Receita, Coaf e AGU.
+
+**Quando usar:** Indício de patrimônio ou gasto incompatível com a renda de agente público. Difere do modelo de sindicância investigativa por ter comissão própria, requisições patrimoniais e comunicações obrigatórias. Fora do Executivo federal, ajuste ao regulamento local.
+
+**Base:** Decreto 10.571/2020, arts. 7º, 11, 12, I, 13 e 14; Portaria Normativa CGU 27/2022, arts. 38, 39 e 50 a 56 (art. 56, parágrafo único, incluído pela PN CGU 123/2024); Lei 8.429/1992, arts. 9º, VII, e 13; Lei 8.112/1990, art. 132, IV; LC 105/2001 (sigilo bancário: conferir o caminho adotado pelo órgão).
+
+**Partes:** Sindicado (requerido).
+
+**Recursos do motor usados:** 1 comunicação às partes; 1 espera de resposta; audiência (oitiva); 10 documentos; 2 formulários de dados; 3 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+
+**Fases:** 1. Notícia e admissibilidade, Corregedoria; 2. Instauração, Corregedoria; 3. Apuração patrimonial (30 dias corridos), Comissão processante; 4. Aguardando informações externas, Comissão processante; 5. Relatório conclusivo, Comissão processante; 6. Decisão, Corregedoria; 7. Instauração do processo disciplinar, Corregedoria; 8. Encerramento, Corregedoria; 9. Arquivamento, Corregedoria.
+
+### Juízo de admissibilidade correcional
+
+**Porte:** Curto, 8 fases. **Inspirado em:** CGU. **Identificador:** `juizo-admissibilidade-correcional`.
+
+Triagem de denúncia, representação ou relato de irregularidade que chega à corregedoria, com processo próprio. A unidade registra a notícia, preserva o denunciante e manda à ouvidoria o que veio de cidadão; faz consultas rápidas a sistemas e assentamentos, confere competência e prescrição e pode aguardar informação de outro órgão. O titular decide, por despacho fundamentado, entre arquivar, propor termo de ajustamento de conduta, abrir procedimento investigativo, instaurar logo o processo acusatório ou remeter à autoridade competente. Não há contraditório nem recurso; termina com o arquivamento ou com a abertura do procedimento seguinte.
+
+**Quando usar:** Toda notícia de infração disciplinar ou de ato lesivo de pessoa jurídica, inclusive anônima. Use quando a triagem tem número próprio; se a investigação vai correr no mesmo processo, prefira o modelo de sindicância investigativa.
+
+**Base:** Portaria Normativa CGU 27/2022, arts. 35 a 39 (art. 36, § 2º, incluído pela PN CGU 123/2024), 40, 46, 50, 57, 62, 73, 75, 79, 82, 86, 90 e 94; Decreto 10.153/2019 (proteção ao denunciante); Lei 8.112/1990, art. 144, parágrafo único.
+
+**Partes:** Noticiado (requerido), Denunciante ou representante (interessado).
+
+**Recursos do motor usados:** 6 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+
+**Fases:** 1. Recebimento, Corregedoria; 2. Análise prévia, Corregedoria; 3. Aguardando informação, Corregedoria; 4. Despacho de admissibilidade, Corregedoria; 5. Abertura do procedimento seguinte, Corregedoria; 6. Remessa à autoridade competente, Corregedoria; 7. Encaminhado, Corregedoria; 8. Arquivamento, Corregedoria.
+
+### Processo disciplinar de empregado público
+
+**Porte:** Médio, 9 fases. **Inspirado em:** CGU. **Identificador:** `processo-disciplinar-empregado-publico`.
+
+Apura falta disciplinar de empregado público regido pela CLT, seja da administração direta, autárquica e fundacional (Lei 9.962/2000), seja de empresa pública ou sociedade de economia mista. Instaurado por ato publicado, uma comissão de pelo menos dois servidores ou empregados notifica o acusado, que pode acompanhar a instrução, ouve testemunhas e o interroga, em 30 dias prorrogáveis. Havendo indícios, indicia e abre prazo de defesa escrita; sem defesa, nomeia defensor dativo. A comissão relata e a autoridade julga, podendo aplicar advertência, suspensão de até 30 dias ou rescisão do contrato por justa causa, ou outra medida do regulamento interno da estatal. O empregado é intimado e pode recorrer em 10 dias. Termina com o registro e a execução da medida, ou com o arquivamento.
+
+**Quando usar:** Falta disciplinar de empregado celetista de órgão, autarquia, fundação ou estatal. Na estatal, siga o regulamento interno quando existir; para estatutário, use os modelos de PAD.
+
+**Base:** Portaria Normativa CGU 27/2022, arts. 77, 78 e 86 a 93; Lei 9.962/2000, art. 3º (conferir o texto vigente); CLT, arts. 474 e 482; Lei 8.112/1990, arts. 156, 161 e 164 (no que couber); Lei 9.784/1999, arts. 26 a 28, 44, 49, 56 a 59 e 66.
+
+**Partes:** Empregado acusado (requerido).
+
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (oitiva); 11 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; sigilo ao entrar.
+
+**Fases:** 1. Instauração, Corregedoria; 2. Notificação e instrução (30 dias corridos), Comissão processante; 3. Indiciação e defesa, Comissão processante; 4. Defensor dativo, Comissão processante; 5. Relatório final, Comissão processante; 6. Julgamento, Gabinete; 7. Recurso (30 dias corridos), Gabinete; 8. Execução e registro, Recursos humanos; 9. Arquivamento, Corregedoria.
+
 ## Ética e conselhos profissionais
 
 ### Processo ético-profissional (conselho profissional)
 
-**Porte:** Longo, 19 fases. **Identificador:** `etico-profissional`.
+**Porte:** Longo, 19 fases. **Inspirado em:** CFM. **Identificador:** `etico-profissional`.
 
 Apura infração ao código de ética da profissão por profissional inscrito no conselho. Corre em duas etapas: a sindicância, só investigativa, que termina em arquivamento, conciliação, ajustamento de conduta ou instauração do processo; e o processo ético-profissional, com citação, defesa prévia, instrução com audiência, alegações finais e julgamento em colegiado. O contraditório está na defesa prévia, na audiência, nas alegações finais sucessivas, na sustentação oral e no recurso com efeito suspensivo. Termina com a execução da sanção e o registro, ou com o arquivamento; tudo tramita em sigilo.
 
@@ -192,13 +267,13 @@ Apura infração ao código de ética da profissão por profissional inscrito no
 
 **Partes:** Denunciante (requerente), Denunciado (requerido).
 
-**Recursos do motor usados:** 17 comunicações às partes; 8 esperas de resposta; audiência (sessão, conciliação, audiência de instrução); 22 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 17 comunicações às partes; 8 esperas de resposta; audiência (sessão, conciliação, audiência de instrução); 22 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Denúncia, Secretaria; 2. Sindicância (90 dias corridos), Comissão de ética; 3. Julgamento da sindicância, Câmara de julgamento; 4. Prazo de recurso do arquivamento, Secretaria; 5. Recurso do arquivamento, Plenário; 6. Conciliação ou ajustamento de conduta, Comissão de ética; 7. Instauração do processo, Corregedoria; 8. Interdição cautelar, Plenário; 9. Citação e defesa prévia, Comissão de ética; 10. Revelia e defensor dativo (30 dias corridos), Comissão de ética; 11. Instrução e audiência, Comissão de ética; 12. Alegações finais, Comissão de ética; 13. Parecer jurídico, Assessoria jurídica; 14. Designação de relator e pauta, Corregedoria; 15. Sessão de julgamento, Câmara de julgamento; 16. Recurso, Plenário; 17. Execução e registro (90 dias corridos), Secretaria; 18. Suspensão por doença incapacitante (90 dias corridos), Comissão de ética; 19. Arquivamento, Secretaria.
 
 ### Processo disciplinar (entidade de classe)
 
-**Porte:** Longo, 16 fases. **Identificador:** `disciplinar-entidade-classe`.
+**Porte:** Longo, 16 fases. **Inspirado em:** OAB. **Identificador:** `disciplinar-entidade-classe`.
 
 Apura infração disciplinar de inscrito na entidade de classe, de ofício ou por representação identificada. Um relator emite parecer de admissibilidade, o presidente instaura ou arquiva, e a instrução segue com defesa prévia, audiência, parecer preliminar e razões finais. O contraditório está na defesa prévia com rol de testemunhas, na audiência, nas razões finais, na sustentação oral e no recurso com efeito suspensivo. Julga um tribunal de ética colegiado, com relator diferente do da instrução; termina com o registro da sanção ou o arquivamento, e tudo corre em sigilo até o fim.
 
@@ -208,13 +283,13 @@ Apura infração disciplinar de inscrito na entidade de classe, de ofício ou po
 
 **Partes:** Representante (requerente), Representado (requerido).
 
-**Recursos do motor usados:** 11 comunicações às partes; 6 esperas de resposta; audiência (audiência de instrução, sessão); 13 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 11 comunicações às partes; 6 esperas de resposta; audiência (audiência de instrução, sessão); 13 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Representação, Secretaria; 2. Designação de relator e certidões, Secretaria; 3. Parecer de admissibilidade (30 dias), Comissão de ética; 4. Despacho de instauração, Gabinete; 5. Notificação e defesa prévia, Comissão de ética; 6. Defensor dativo (15 dias), Comissão de ética; 7. Indeferimento liminar, Gabinete; 8. Saneamento e audiência de instrução, Comissão de ética; 9. Parecer preliminar, Comissão de ética; 10. Razões finais, Comissão de ética; 11. Distribuição e pauta, Câmara de julgamento; 12. Sessão de julgamento, Câmara de julgamento; 13. Recurso, Plenário; 14. Execução e registro, Secretaria; 15. Suspensão preventiva, Câmara de julgamento; 16. Arquivamento, Secretaria.
 
 ### Apuração ética por comissão de ética pública
 
-**Porte:** Médio, 8 fases. **Identificador:** `comissao-etica-publica`.
+**Porte:** Médio, 8 fases. **Inspirado em:** Comissão de Ética Pública. **Identificador:** `comissao-etica-publica`.
 
 Apura desvio ético de agente público que não chega a ser infração disciplinar, ou que corre em paralelo a ela. A comissão de ética admite a denúncia fundamentada ou instaura de ofício, notifica o investigado e instrui com documentos, diligências e parecer de especialista. O contraditório está na manifestação escrita em 10 dias e na nova manifestação quando surgem provas novas. Termina com decisão conclusiva e fundamentada do colegiado, que pode aplicar censura ética, recomendar e comunicar a autoridade para apuração disciplinar; o procedimento é reservado até a conclusão.
 
@@ -224,15 +299,79 @@ Apura desvio ético de agente público que não chega a ser infração disciplin
 
 **Partes:** Denunciante (requerente), Investigado (requerido).
 
-**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (oitiva, reunião); 6 documentos; 1 formulários de dados; 3 fases com saída decidida pela resposta; sigilo ao entrar.
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (oitiva, reunião); 6 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; sigilo ao entrar.
 
 **Fases:** 1. Denúncia ou instauração de ofício, Secretaria; 2. Juízo de admissibilidade, Comissão de ética; 3. Notificação do investigado, Comissão de ética; 4. Instrução, Comissão de ética; 5. Nova manifestação, Comissão de ética; 6. Deliberação, Comissão de ética; 7. Providências, Comissão de ética; 8. Arquivamento, Secretaria.
+
+### Processo disciplinar no TED da OAB/RS
+
+**Porte:** Longo, 23 fases. **Inspirado em:** OAB/RS. **Identificador:** `ted-oab-rs`.
+
+Rito do Tribunal de Ética e Disciplina da OAB/RS para apurar infração disciplinar de advogado ou estagiário. A representação identificada, ou a instauração de ofício, recebe relator por sorteio eletrônico para a admissibilidade; o Presidente do TED instaura, arquiva liminarmente, encaminha à conciliação entre advogados ou propõe termo de ajustamento de conduta. Instaurado, um instrutor designado pelo Presidente notifica para defesa prévia, instrui com audiência, dá parecer preliminar e abre razões finais sucessivas; um relator sorteado, diferente do instrutor, leva o processo a uma das Turmas Julgadoras, em sessão reservada com pauta publicada 15 dias antes e sustentação oral de 15 minutos. O contraditório está na defesa prévia, na audiência, nas razões finais, na sustentação, nos embargos e nos recursos: das decisões do Presidente do TED e dos instrutores cabe recurso à Turma; das Turmas, ao Conselho Seccional; deste, ao Conselho Federal quando a decisão não for unânime ou contrariar a lei ou precedente. A suspensão preventiva corre em sessão especial de Turma sorteada. Termina com a aplicação da sanção pelo Presidente do TED e o registro, ou com o arquivamento; tudo em sigilo. Difere do modelo genérico disciplinar-entidade-classe por seguir a estrutura gaúcha: instrutores, Turmas Julgadoras, recurso interno às Turmas, conciliação entre advogados, TAC, embargos ao redator e as regras de sessão do regimento do TED.
+
+**Quando usar:** Representação ou notícia de infração disciplinar de inscrito na OAB/RS, quando o fato ocorreu na base territorial da Seccional. Confira o texto consolidado do Regimento Interno do TED e do Regimento Interno da OAB/RS antes de implantar, principalmente qual câmara do Conselho Seccional julga o recurso.
+
+**Base:** Lei 8.906/1994, arts. 35, 40, 43, 68 a 77; Regulamento Geral, arts. 137-D a 144-A (art. 139: prazos em dias úteis, Res. CFOAB 09/2016; art. 137-D alterado pela Res. CFOAB 01/2026, conferir na norma vigente); Código de Ética e Disciplina (Res. CFOAB 02/2015), arts. 55 a 63, 66 e 67; Provimento CFOAB 200/2020 (TAC); Regimento Interno do TED da OAB/RS (DOU de 10/09/2018), arts. 2º, 7º, 10 a 12, 26, 33, 37, 38, 42 a 44, 47 e 55 a 59, com alteração homologada pela Ementa 073/2025/SCA (texto consolidado: conferir na norma vigente).
+
+**Partes:** Representante (requerente), Representado (requerido).
+
+**Recursos do motor usados:** 20 comunicações às partes; 12 esperas de resposta; audiência (sessão, conciliação, audiência de instrução); 21 documentos; 3 formulários de dados; 11 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+
+**Fases:** 1. Representação, Secretaria do TED; 2. Distribuição e certidões, Secretaria do TED; 3. Parecer de admissibilidade (30 dias), Relator; 4. Despacho do Presidente do TED, Presidência do TED; 5. Prazo de recurso do arquivamento, Secretaria do TED; 6. Recurso à Turma Julgadora, Turma Julgadora; 7. Conciliação entre advogados, Relator; 8. Termo de ajustamento de conduta, Presidência do TED; 9. Cumprimento do termo, Presidência do TED; 10. Notificação e defesa prévia, Instrutor; 11. Defensor dativo (15 dias), Presidência do TED; 12. Indeferimento liminar, Presidência do Conselho Seccional; 13. Instrução, Instrutor; 14. Parecer preliminar, Instrutor; 15. Razões finais, Secretaria do TED; 16. Distribuição à Turma e pauta, Presidência do TED; 17. Sessão de julgamento, Turma Julgadora; 18. Embargos de declaração, Turma Julgadora; 19. Recurso ao Conselho Seccional, Câmara do Conselho Seccional; 20. Recurso ao Conselho Federal, Conselho Federal; 21. Execução e registro, Presidência do TED; 22. Suspensão preventiva (90 dias corridos), Turma Julgadora; 23. Arquivamento, Secretaria do TED.
+
+### Revisão de processo disciplinar (OAB)
+
+**Porte:** Curto, 6 fases. **Inspirado em:** OAB. **Identificador:** `revisao-disciplinar-oab`.
+
+Pedido do advogado punido para rever a condenação disciplinar já definitiva, por erro de julgamento ou por condenação baseada em prova falsa. O pedido é autuado em apenso ao processo e vai ao órgão que proferiu a condenação final, onde o relator examina a admissibilidade; se não conhecer, cabe recurso ao colegiado. Admitido, segue o rito do processo disciplinar no que couber, e o representante só é chamado se a revisão puder prejudicar o interesse que motivou a representação. O pedido não suspende a sanção, salvo tutela cautelar do relator. Termina com o julgamento que mantém, reduz ou desconstitui a condenação, anotado nos assentamentos.
+
+**Quando usar:** Condenação disciplinar da OAB transitada em julgado que o punido aponta como erro de julgamento ou baseada em prova falsa. Na OAB/RS, julga a Turma do TED que proferiu a condenação final; ajuste a unidade à sua seccional.
+
+**Base:** Lei 8.906/1994, art. 73, § 5º, e arts. 75 a 77; Código de Ética e Disciplina (Res. CFOAB 02/2015), art. 68; Regimento Interno do TED da OAB/RS, arts. 49 e 50; Regulamento Geral, art. 139 (prazos em dias úteis).
+
+**Partes:** Requerente (advogado punido) (requerente), Representante original (interessado).
+
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (sessão); 6 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; sigilo ao entrar.
+
+**Fases:** 1. Pedido de revisão, Secretaria do TED; 2. Admissibilidade, Relator; 3. Recurso da inadmissão, Turma Julgadora; 4. Instrução e julgamento, Turma Julgadora; 5. Registro da decisão, Secretaria do TED; 6. Arquivamento, Secretaria do TED.
+
+### Reabilitação de inscrito punido (OAB)
+
+**Porte:** Curto, 7 fases. **Inspirado em:** OAB. **Identificador:** `reabilitacao-oab`.
+
+Pedido de quem sofreu sanção disciplinar na OAB para ser reabilitado, depois de um ano do cumprimento da sanção, com provas efetivas de bom comportamento na advocacia e na vida social. O pedido é autuado em apenso ao processo disciplinar e corre no Conselho Seccional que aplicou a sanção; a Secretaria certifica o cumprimento da pena e um relator instrui. Julga o órgão competente do Conselho Seccional; indeferido, cabe recurso em 15 dias úteis, com efeito suspensivo. Termina com a anotação da reabilitação nos assentamentos ou com o arquivamento.
+
+**Quando usar:** Inscrito que cumpriu sanção disciplinar há mais de um ano e quer a reabilitação. Ajuste o órgão julgador ao regimento da sua seccional.
+
+**Base:** Lei 8.906/1994, arts. 41 e 75 a 77; Código de Ética e Disciplina (Res. CFOAB 02/2015), art. 69; Regulamento Geral, art. 139. Órgão julgador no Conselho Seccional: conferir na norma vigente da seccional.
+
+**Partes:** Requerente (requerente).
+
+**Recursos do motor usados:** 4 comunicações às partes; 1 espera de resposta; audiência (sessão); 7 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; sigilo ao entrar.
+
+**Fases:** 1. Pedido de reabilitação, Secretaria do Conselho Seccional; 2. Certidão e instrução, Relator; 3. Julgamento, Conselho Seccional; 4. Prazo de recurso do indeferimento, Secretaria do Conselho Seccional; 5. Recurso, Conselho Federal; 6. Registro da reabilitação, Secretaria do Conselho Seccional; 7. Arquivamento, Secretaria do Conselho Seccional.
+
+### Processo ético-disciplinar do CAU
+
+**Porte:** Longo, 17 fases. **Inspirado em:** CAU/BR. **Identificador:** `etico-disciplinar-cau`.
+
+Apura infração ao Código de Ética e Disciplina por arquiteto e urbanista ou sociedade registrada no CAU. Começa por denúncia identificada, denúncia anônima ou de ofício; a fiscalização confere registro e RRT, e um relator da Comissão de Ética e Disciplina do CAU/UF dá parecer de admissibilidade, que a comissão decide; da inadmissão cabe recurso ao Plenário do CAU/UF. A conciliação pode ser tentada antes da admissão ou na instrução, e o termo de ajustamento de conduta cabe nos processos de ofício de interesse coletivo. Admitida a denúncia, o denunciado tem 30 dias para defesa, há saneamento, provas, audiência de instrução una, alegações finais em 10 dias, relatório e voto do relator e julgamento pela comissão, com sustentação oral de 10 minutos e nomes ocultos. Cabe recurso em 30 dias ao Plenário do CAU/UF e, depois, ao Plenário do CAU/BR, ambos com efeito suspensivo. Termina com a execução da sanção (advertência reservada ou pública, suspensão, cancelamento do registro ou multa) ou com o arquivamento.
+
+**Quando usar:** Denúncia ou notícia de infração ética de profissional ou sociedade registrada no CAU. Quando a comissão de ética reúne metade dos conselheiros do Plenário, quem julga em primeira instância é o Plenário: ajuste as unidades.
+
+**Base:** Lei 12.378/2010, arts. 17 a 23; Res. CAU/BR 52/2013 (Código de Ética e Disciplina); Res. CAU/BR 143/2017, com a redação da Res. 224/2022 (vigência ajustada pelas Res. 232/2023 e 239/2023, conferir na norma vigente), arts. 5º, 9º a 13-B, 18 a 47, 49-A a 62, 68 a 88, 91, 91-A, 92, 93, 98 a 100 e 114 a 119.
+
+**Partes:** Denunciante (requerente), Denunciado (requerido).
+
+**Recursos do motor usados:** 16 comunicações às partes; 9 esperas de resposta; audiência (reunião, conciliação, audiência de instrução, sessão); 14 documentos; 1 formulário de dados; 8 fases com saída decidida pela resposta; sigilo ao entrar.
+
+**Fases:** 1. Denúncia, Secretaria da CED; 2. Providências da fiscalização (10 dias), Fiscalização; 3. Admissibilidade, Comissão de ética e disciplina; 4. Prazo de recurso da inadmissão, Secretaria da CED; 5. Recurso da inadmissão, Plenário do CAU/UF; 6. Conciliação ou TAC, Comissão de ética e disciplina; 7. Cumprimento do acordo, Comissão de ética e disciplina; 8. Notificação e defesa, Comissão de ética e disciplina; 9. Saneamento e provas (180 dias corridos), Relator; 10. Audiência de instrução, Relator; 11. Alegações finais, Secretaria da CED; 12. Relatório e voto (30 dias corridos), Relator; 13. Julgamento pela CED (60 dias corridos), Comissão de ética e disciplina; 14. Recurso ao Plenário do CAU/UF, Plenário do CAU/UF; 15. Recurso ao Plenário do CAU/BR, Plenário do CAU/BR; 16. Execução da sanção, Secretaria da CED; 17. Arquivamento, Secretaria da CED.
 
 ## Sancionador e fiscalização
 
 ### Responsabilização de pessoa jurídica (PAR)
 
-**Porte:** Longo, 14 fases. **Identificador:** `par-pessoa-juridica`.
+**Porte:** Longo, 14 fases. **Inspirado em:** CGU. **Identificador:** `par-pessoa-juridica`.
 
 Apura a responsabilidade objetiva de pessoa jurídica por ato lesivo à Administração, como fraude a licitação, oferta de vantagem indevida a agente público ou obstrução de fiscalização. Começa pelo juízo de admissibilidade, que pode abrir investigação preliminar sigilosa, e segue com portaria, comissão de dois ou mais servidores estáveis, nota de indiciação e instrução. O contraditório está na defesa escrita em 30 dias, na manifestação sobre prova nova em 10 dias e sobre o relatório final em 10 dias. Termina com julgamento precedido de manifestação jurídica obrigatória, pedido de reconsideração com efeito suspensivo e cumprimento das sanções, com registro no CNEP.
 
@@ -242,13 +381,13 @@ Apura a responsabilidade objetiva de pessoa jurídica por ato lesivo à Administ
 
 **Partes:** Pessoa jurídica processada (requerido).
 
-**Recursos do motor usados:** 7 comunicações às partes; 5 esperas de resposta; audiência (oitiva); 16 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 7 comunicações às partes; 5 esperas de resposta; audiência (oitiva); 16 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Juízo de admissibilidade, Corregedoria; 2. Investigação preliminar (60 dias corridos), Corregedoria; 3. Instauração, Gabinete; 4. Indiciação e defesa, Comissão processante; 5. Instrução, Comissão processante; 6. Manifestação sobre prova nova, Comissão processante; 7. Relatório final, Comissão processante; 8. Manifestação sobre o relatório, Secretaria; 9. Análise de regularidade, Corregedoria; 10. Manifestação jurídica, Assessoria jurídica; 11. Julgamento, Gabinete; 12. Reconsideração (30 dias corridos), Gabinete; 13. Cumprimento, Secretaria; 14. Arquivamento, Secretaria.
 
 ### Infração contratual e sanção a fornecedor
 
-**Porte:** Médio, 14 fases. **Identificador:** `sancao-fornecedor`.
+**Porte:** Médio, 14 fases. **Inspirado em:** Lei 14.133. **Identificador:** `sancao-fornecedor`.
 
 Apura infração de licitante ou contratada, como inexecução, atraso injustificado, não manter a proposta ou apresentar documento falso, e aplica advertência, multa, impedimento de licitar e contratar ou declaração de inidoneidade. O juízo de admissibilidade define a sanção cabível em tese, e com ela o rito: o simples, conduzido pelo setor de contratos, para advertência e multa; ou o com comissão de dois ou mais servidores estáveis, obrigatório para impedimento e inidoneidade. O contraditório está na defesa em 15 dias úteis, nas alegações finais em 15 dias úteis quando há prova nova e no recurso ou pedido de reconsideração, ambos com efeito suspensivo. Termina com a execução da sanção, a cobrança da multa e o registro no CEIS e no CNEP.
 
@@ -264,7 +403,7 @@ Apura infração de licitante ou contratada, como inexecução, atraso injustifi
 
 ### Fiscalização com auto de infração e defesa
 
-**Porte:** Médio, 13 fases. **Identificador:** `auto-de-infracao`.
+**Porte:** Médio, 13 fases. **Inspirado em:** Poder de polícia. **Identificador:** `auto-de-infracao`.
 
 Modelo para qualquer órgão de fiscalização: um agente constata a infração, lavra o auto, o autuado se defende, uma autoridade distinta do autuante julga e cabe recurso. Serve de base para vigilância sanitária, defesa do consumidor, meio ambiente, posturas municipais e agências reguladoras, trocando só os prazos; vem configurado com os do Decreto 6.514/2008 (ambiental), e a orientação de cada fase traz os do consumidor e do sanitário. O contraditório está na defesa, nas alegações finais, na manifestação prévia antes de agravar a multa e no recurso, com reconsideração antes de subir. Termina por arquivamento, auto insubsistente, solução consensual (pagamento com desconto, parcelamento ou conversão) ou sanção definitiva com cobrança e inscrição em dívida ativa.
 
@@ -280,7 +419,7 @@ Modelo para qualquer órgão de fiscalização: um agente constata a infração,
 
 ### Processo administrativo fiscal (lançamento e impugnação)
 
-**Porte:** Longo, 11 fases. **Identificador:** `processo-fiscal`.
+**Porte:** Longo, 11 fases. **Inspirado em:** Decreto 70.235. **Identificador:** `processo-fiscal`.
 
 Discute a exigência de tributo e multa lançados pelo fisco. Começa pelo termo de início da fiscalização, que exclui a espontaneidade, e segue com o auto de infração ou notificação de lançamento, que já intima o sujeito passivo a pagar ou impugnar em 30 dias. A impugnação abre a fase litigiosa, com diligências e perícias, julgamento em primeira instância e recurso voluntário em 30 dias, com efeito suspensivo, a um colegiado de segunda instância; há recurso de ofício quando a Fazenda perde acima da alçada. Sem pagamento nem impugnação, declara-se a revelia e abre-se a cobrança amigável; o processo termina com a decisão definitiva e o pagamento, o parcelamento ou a inscrição em dívida ativa.
 
@@ -290,13 +429,13 @@ Discute a exigência de tributo e multa lançados pelo fisco. Começa pelo termo
 
 **Partes:** Sujeito passivo (requerido).
 
-**Recursos do motor usados:** 7 comunicações às partes; 4 esperas de resposta; audiência (sessão); 8 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 7 comunicações às partes; 4 esperas de resposta; audiência (sessão); 8 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Início do procedimento fiscal, Fiscalização; 2. Lançamento, Fiscalização; 3. Intimação para pagar ou impugnar, Secretaria; 4. Revelia e cobrança amigável (30 dias corridos), Secretaria; 5. Preparo da impugnação, Secretaria; 6. Diligências e perícias, Fiscalização; 7. Julgamento em primeira instância, Junta de julgamento; 8. Intimação da decisão de primeira instância, Secretaria; 9. Julgamento em segunda instância, Instância recursal; 10. Cobrança e encerramento, Secretaria; 11. Arquivamento, Secretaria.
 
 ### Multa de trânsito (defesa prévia e recursos)
 
-**Porte:** Médio, 9 fases. **Identificador:** `multa-transito`.
+**Porte:** Médio, 9 fases. **Inspirado em:** CTB. **Identificador:** `multa-transito`.
 
 Sancionador de alto volume e baixo valor, com prazo decadencial para o próprio órgão: se a notificação da autuação não for expedida em 30 dias, o auto é arquivado. Depois da análise de consistência do auto, o proprietário é notificado e pode apresentar defesa prévia e indicar o condutor. O contraditório tem três momentos: a defesa prévia, o recurso à junta (JARI), com efeito suspensivo, e o recurso à segunda instância, cada um com prazo não inferior a 30 dias. Termina com o cancelamento do auto ou com a sanção definitiva, o registro no prontuário e a cobrança da multa.
 
@@ -306,15 +445,47 @@ Sancionador de alto volume e baixo valor, com prazo decadencial para o próprio 
 
 **Partes:** Proprietário do veículo (requerido), Condutor (interessado).
 
-**Recursos do motor usados:** 4 comunicações às partes; 3 esperas de resposta; 5 documentos; 1 formulários de dados; 5 fases com saída decidida pela resposta.
+**Recursos do motor usados:** 4 comunicações às partes; 3 esperas de resposta; 5 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta.
 
 **Fases:** 1. Auto de infração, Fiscalização; 2. Análise de consistência (30 dias corridos), Gabinete; 3. Notificação da autuação, Secretaria; 4. Julgamento da defesa prévia, Gabinete; 5. Notificação da penalidade, Secretaria; 6. Recurso à junta (730 dias corridos), Junta de julgamento; 7. Recurso à segunda instância (730 dias corridos), Instância recursal; 8. Encerramento e cobrança, Secretaria; 9. Arquivamento, Secretaria.
+
+### Fiscalização do exercício profissional no CAU
+
+**Porte:** Médio, 9 fases. **Inspirado em:** CAU/BR. **Identificador:** `fiscalizacao-cau`.
+
+Rito administrativo do CAU/UF para coibir o exercício ilegal ou irregular da arquitetura e urbanismo, por pessoa física ou jurídica, registrada ou não. A ação de fiscalização começa de ofício ou por denúncia, inclusive anônima; o agente apura e registra em relatório. Constatada a infração, emite notificação preventiva com 10 dias para regularizar, e a regularização no prazo afasta a multa; sem regularização, ou com reincidência na mesma capitulação em um ano, lavra auto de infração com 10 dias para regularizar e pagar ou apresentar defesa. O contraditório está nas alegações à notificação, na defesa ao auto e nos recursos. Julga a Comissão de Exercício Profissional do CAU/UF, com relatório e voto, inclusive à revelia; cabe recurso em 30 dias ao Plenário do CAU/UF e, depois, ao Plenário do CAU/BR, com efeito suspensivo. Termina com arquivamento ou com a multa definitiva e sua cobrança administrativa. Difere do modelo genérico auto-de-infracao pela notificação preventiva obrigatória, pelos prazos de 10 e 30 dias corridos e pelas duas instâncias recursais nos plenários do CAU.
+
+**Quando usar:** Indício de exercício ilegal ou irregular da profissão, falta de RRT, de responsável técnico ou de placa, ou obstrução da fiscalização. Questão ética de profissional registrado vai ao processo ético-disciplinar.
+
+**Base:** Lei 12.378/2010, arts. 24, 34, 35 e 50; Res. CAU/BR 198/2020 (revogou a Res. 22/2012; vigência pelo art. 96, alterado pela Res. 208/2021, conferir na norma vigente), arts. 15, 22 a 46, 49, 50 e 52 a 62, 71 a 74, 76 e 77. Inscrição em dívida ativa: conferir na norma vigente.
+
+**Partes:** Autuado (requerido), Denunciante (interessado).
+
+**Recursos do motor usados:** 10 comunicações às partes; 5 esperas de resposta; audiência (reunião, sessão); 8 documentos; 2 formulários de dados; 6 fases com saída decidida pela resposta.
+
+**Fases:** 1. Origem da ação, Fiscalização; 2. Apuração e relatório, Fiscalização; 3. Notificação preventiva, Fiscalização; 4. Auto de infração, Fiscalização; 5. Julgamento pela CEP, Comissão de exercício profissional; 6. Recurso ao Plenário do CAU/UF, Plenário do CAU/UF; 7. Recurso ao Plenário do CAU/BR, Plenário do CAU/BR; 8. Trânsito em julgado e cobrança, Fiscalização; 9. Arquivamento, Fiscalização.
+
+### Acordo de leniência (Lei Anticorrupção)
+
+**Porte:** Longo, 17 fases. **Inspirado em:** CGU. **Identificador:** `acordo-leniencia`.
+
+Negocia com a pessoa jurídica que admite ato lesivo contra a Administração um acordo administrativo em que ela colabora com a apuração, repara o dano e perde a vantagem indevida em troca de isenção ou redução das sanções da Lei 12.846 e da Lei 14.133. Pode começar por um pedido de declaração de tempestividade, que garante a prioridade, ou direto pela proposta escrita, que é sigilosa. Admitida a proposta, CGU, AGU e a empresa assinam memorando de entendimentos, que interrompe a prescrição, e uma comissão das duas instituições negocia em até 180 dias, prorrogáveis, colhendo provas e calculando dano, vantagem e multa. A empresa pode desistir e a Administração pode rejeitar, sem reconhecimento do ilícito e sem uso dos documentos entregues. Assinado pelo Ministro da CGU e pelo Advogado-Geral da União, o acordo é publicado e acompanhado, inclusive o programa de integridade; termina com a declaração de cumprimento ou com a rescisão, que tira os benefícios, impede novo acordo por 3 anos e vai ao CNEP.
+
+**Quando usar:** Pessoa jurídica que quer colaborar e admitir responsabilidade por ato lesivo do art. 5º da Lei 12.846, antes do relatório final do processo de responsabilização. Estados e Municípios aplicam o rito com a sua controladoria e a sua procuradoria, conforme o regulamento local.
+
+**Base:** Lei 12.846/2013, arts. 16 e 17; Decreto 11.129/2022, arts. 32 a 55 (em especial 37 a 43, 45, 48 a 53 e 55); Portaria Normativa Interministerial CGU/AGU 1/2025, art. 6º (declaração de tempestividade), arts. 24 e 31 (vantagem e capacidade de pagamento) e demais regras de procedimento e prazos internos: conferir na norma vigente; LC 73/1993 e Lei 13.140/2015 (participação da AGU, Decreto 11.129, art. 35).
+
+**Partes:** Pessoa jurídica proponente (requerente).
+
+**Recursos do motor usados:** 8 comunicações às partes; 3 esperas de resposta; audiência (reunião); 20 documentos; 2 formulários de dados; 7 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+
+**Fases:** 1. Manifestação de interesse, Diretoria de acordos de leniência; 2. Declaração de tempestividade, Diretoria de acordos de leniência; 3. Proposta de acordo, Diretoria de acordos de leniência; 4. Juízo de admissibilidade, Diretoria de acordos de leniência; 5. Memorando de entendimentos, Diretoria de acordos de leniência; 6. Negociação (180 dias corridos), Comissão de negociação; 7. Aprovação e assinatura, Gabinete; 8. Publicação e efeitos, Diretoria de acordos de leniência; 9. Acompanhamento do cumprimento, Diretoria de acordos de leniência; 10. Aguardando prazos do acordo (180 dias corridos), Diretoria de acordos de leniência; 11. Apuração de descumprimento, Comissão de negociação; 12. Rescisão e registro, Diretoria de acordos de leniência; 13. Declaração de cumprimento, Gabinete; 14. Encerramento sem acordo, Diretoria de acordos de leniência; 15. Acordo cumprido, Diretoria de acordos de leniência; 16. Acordo rescindido, Diretoria de acordos de leniência; 17. Arquivamento sem acordo, Diretoria de acordos de leniência.
 
 ## Contratações e contratos
 
 ### Contratação pública por licitação
 
-**Porte:** Longo, 27 fases. **Identificador:** `licitacao`.
+**Porte:** Longo, 27 fases. **Inspirado em:** Lei 14.133. **Identificador:** `licitacao`.
 
 Caminho inteiro de uma compra ou contratação pública por pregão ou concorrência, da formalização da demanda até o contrato publicado no PNCP. A fase preparatória reúne DFD, estudo técnico preliminar com mapa de riscos, termo de referência, pesquisa de preços, reserva orçamentária, minutas e parecer jurídico, e termina com a autorização da autoridade. A fase externa publica o edital, responde esclarecimentos e impugnações, realiza a sessão pública, julga, habilita e abre a fase recursal, em que os licitantes recorrem e contrarrazoam com prazos de 3 dias úteis. Termina com adjudicação, homologação, assinatura e publicação do contrato, ou com licitação deserta ou fracassada, revogação ou anulação.
 
@@ -330,7 +501,7 @@ Caminho inteiro de uma compra ou contratação pública por pregão ou concorrê
 
 ### Contratação direta: dispensa e inexigibilidade
 
-**Porte:** Médio, 13 fases. **Identificador:** `contratacao-direta`.
+**Porte:** Médio, 13 fases. **Inspirado em:** Lei 14.133. **Identificador:** `contratacao-direta`.
 
 Contratação sem licitação, quando a lei dispensa (valor baixo, emergência, licitação deserta e as demais hipóteses do art. 75) ou quando a competição é inviável (fornecedor exclusivo, notória especialização, credenciamento e as demais do art. 74). O processo é mais curto, mas a instrução do art. 72 é rigorosa: demanda, enquadramento, estimativa de despesa, razão da escolha do fornecedor, justificativa de preço, habilitação, recursos orçamentários e parecer jurídico. Na dispensa por valor, o aviso de dispensa eletrônica abre disputa entre fornecedores. O fornecedor é chamado para complementar documentos e para assinar, e o processo termina com o contrato ou instrumento equivalente publicado no PNCP, ou com arquivamento.
 
@@ -340,13 +511,13 @@ Contratação sem licitação, quando a lei dispensa (valor baixo, emergência, 
 
 **Partes:** Área requisitante (requerente), Fornecedor (interessado).
 
-**Recursos do motor usados:** 2 comunicações às partes; 2 esperas de resposta; 16 documentos; 5 formulários de dados; 5 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 2 comunicações às partes; 2 esperas de resposta; 16 documentos; 5 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Formalização da demanda, Área requisitante; 2. Enquadramento legal, Setor de compras; 3. Estimativa da despesa, Setor de compras; 4. Aviso de dispensa eletrônica (3 dias), Agente de contratação; 5. Escolha do fornecedor e preço, Setor de compras; 6. Habilitação do fornecedor, Setor de compras; 7. Disponibilidade orçamentária, Setor financeiro; 8. Parecer jurídico (15 dias), Assessoria jurídica; 9. Autorização, Gabinete; 10. Contrato ou instrumento equivalente, Setor de contratos; 11. Publicação no PNCP (10 dias), Setor de contratos; 12. Arquivamento, Secretaria; 13. Complementação pelo fornecedor, Setor de compras.
 
 ### Compra ou contratação privada
 
-**Porte:** Médio, 13 fases. **Identificador:** `compra-privada`.
+**Porte:** Médio, 13 fases. **Inspirado em:** Setor privado. **Identificador:** `compra-privada`.
 
 Fluxo de aquisição de bens e serviços em empresa ou entidade privada, da requisição ao pagamento. Não há lei que imponha rito: fases, alçadas, número de cotações e prazos são da política interna e devem ser revistos pela organização. Corre com requisição, aprovação do gestor, cotações, mapa comparativo e negociação, homologação de fornecedor novo, aprovação por alçada de valor e análise jurídica quando há contrato. O fornecedor se manifesta no cadastro, no aceite do pedido e nas não conformidades do recebimento. Termina com a conferência tripla (pedido, recebimento e nota fiscal), o pagamento e a avaliação do fornecedor.
 
@@ -356,13 +527,13 @@ Fluxo de aquisição de bens e serviços em empresa ou entidade privada, da requ
 
 **Partes:** Requisitante (requerente), Fornecedor (interessado).
 
-**Recursos do motor usados:** 3 comunicações às partes; 3 esperas de resposta; 10 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 3 comunicações às partes; 3 esperas de resposta; 10 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Requisição de compra, Área requisitante; 2. Aprovação do gestor (2 dias), Área requisitante; 3. Cotação (5 dias), Setor de compras; 4. Mapa comparativo e negociação, Setor de compras; 5. Homologação do fornecedor, Setor de compras; 6. Aprovação por alçada, Gabinete; 7. Análise jurídica, Assessoria jurídica; 8. Pedido ou contrato, Setor de compras; 9. Recebimento, Área requisitante; 10. Conferência e pagamento, Setor financeiro; 11. Avaliação do fornecedor, Setor de compras; 12. Arquivamento, Secretaria; 13. Correção pelo fornecedor, Área requisitante.
 
 ### Gestão e fiscalização de contrato de serviço continuado
 
-**Porte:** Longo, 16 fases. **Identificador:** `gestao-contrato`.
+**Porte:** Longo, 16 fases. **Inspirado em:** Lei 14.133. **Identificador:** `gestao-contrato`.
 
 Acompanha a execução de um contrato de serviço que se repete mês a mês (limpeza, vigilância, manutenção, suporte de TI), da designação do gestor e dos fiscais até o termo de recebimento definitivo e o encerramento. O processo é cíclico: a cada período os fiscais medem e recebem provisoriamente, o gestor atesta e o setor financeiro paga, e o ciclo volta para a medição seguinte. Repactuação, reajuste, prorrogação, alteração e reequilíbrio são tratados como eventos que saem do ciclo e voltam a ele; o descumprimento que persiste é remetido a processo próprio de apuração. A contratada é notificada para corrigir falhas, pode contestar glosas, é ouvida antes de qualquer alteração e tem defesa e recurso antes da extinção unilateral.
 
@@ -378,7 +549,7 @@ Acompanha a execução de um contrato de serviço que se repete mês a mês (lim
 
 ### Recebimento de bens ou serviços, liquidação e pagamento
 
-**Porte:** Curto, 9 fases. **Identificador:** `recebimento-pagamento`.
+**Porte:** Curto, 9 fases. **Inspirado em:** Lei 14.133. **Identificador:** `recebimento-pagamento`.
 
 Confere se o que foi entregue corresponde ao contratado e paga. São duas conferências com responsáveis diferentes: o recebimento provisório, pelo fiscal, e o definitivo, pelo gestor ou por comissão; depois vêm a liquidação, que verifica o direito do credor, e o pagamento em ordem cronológica. Se o objeto não estiver conforme, o fornecedor é notificado para corrigir ou substituir no prazo; ensaio ou laudo externo põe o processo em espera. Termina com o comprovante de pagamento, ou com a remessa a processo próprio quando falta empenho ou o fornecedor não corrige.
 
@@ -388,13 +559,13 @@ Confere se o que foi entregue corresponde ao contratado e paga. São duas confer
 
 **Partes:** Contratante (requerente), Fornecedor (requerido).
 
-**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (inspeção); 10 documentos; 2 formulários de dados; 3 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (inspeção); 10 documentos; 2 formulários de dados; 3 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Entrega e cobrança, Fiscalização do contrato; 2. Recebimento provisório, Fiscalização do contrato; 3. Aguardando ensaio ou laudo, Fiscalização do contrato; 4. Correção pelo fornecedor, Fiscalização do contrato; 5. Recebimento definitivo, Gestão do contrato; 6. Liquidação (10 dias), Setor financeiro; 7. Pagamento (10 dias), Setor financeiro; 8. Remessa a processo próprio, Gestão do contrato; 9. Arquivamento, Secretaria.
 
 ### Parceria com organização da sociedade civil
 
-**Porte:** Longo, 17 fases. **Identificador:** `parceria-osc`.
+**Porte:** Longo, 17 fases. **Inspirado em:** Lei 13.019. **Identificador:** `parceria-osc`.
 
 Seleciona uma organização da sociedade civil, em regra por chamamento público, celebra termo de colaboração ou de fomento, acompanha a execução e julga a prestação de contas. Corre do edital ao julgamento das propostas pela comissão de seleção, com resultado e recursos, segue para o plano de trabalho, os pareceres e a celebração, que só produz efeitos com a publicação do extrato. Na execução, a organização recebe visitas e notificações, o relatório de monitoramento é homologado pela comissão e a vigência pode ser alterada a pedido. A organização presta contas, pode sanear irregularidades em 45 dias e tem defesa prévia antes de sanção; contas irregulares levam à sanção e à tomada de contas especial.
 
@@ -412,7 +583,7 @@ Seleciona uma organização da sociedade civil, em regra por chamamento público
 
 ### Manifestação de ouvidoria
 
-**Porte:** Curto, 7 fases. **Identificador:** `ouvidoria`.
+**Porte:** Curto, 7 fases. **Inspirado em:** Lei 13.460. **Identificador:** `ouvidoria`.
 
 Trata reclamação, denúncia, elogio, sugestão e solicitação de providências sobre serviço público. A ouvidoria recebe sem recusar e sem exigir motivo, classifica, pede complementação uma vez se faltar informação e aciona a área responsável, que responde em 20 dias. A denúncia não é apurada pela ouvidoria: segue ao órgão apuratório, e a identidade do manifestante fica protegida. Termina com a resposta conclusiva em até 30 dias corridos, prorrogáveis uma vez; a lei não prevê recurso.
 
@@ -422,13 +593,13 @@ Trata reclamação, denúncia, elogio, sugestão e solicitação de providência
 
 **Partes:** Manifestante (requerente).
 
-**Recursos do motor usados:** 4 comunicações às partes; 1 esperas de resposta; 4 documentos; 1 formulários de dados; 1 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 4 comunicações às partes; 1 espera de resposta; 4 documentos; 1 formulário de dados; 1 fase com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Recebimento e registro, Ouvidoria; 2. Análise prévia e classificação, Ouvidoria; 3. Pedido de complementação, Ouvidoria; 4. Encaminhamento à área responsável (20 dias corridos), Área técnica; 5. Encaminhamento ao órgão apuratório, Ouvidoria; 6. Resposta conclusiva, Ouvidoria; 7. Arquivamento, Ouvidoria.
 
 ### Pedido de acesso à informação
 
-**Porte:** Curto, 10 fases. **Identificador:** `acesso-informacao`.
+**Porte:** Curto, 10 fases. **Inspirado em:** LAI. **Identificador:** `acesso-informacao`.
 
 Atende pedido de qualquer pessoa por documento ou dado público, sem exigir motivo. O serviço de informação ao cidadão entrega na hora o que está disponível ou busca na área detentora, e responde em até 20 dias corridos, prorrogáveis por 10 com justificativa. Negado o acesso no todo ou em parte, o requerente recorre em 10 dias à autoridade superior, depois à autoridade máxima, ao órgão de controle e à Comissão Mista de Reavaliação de Informações; cada instância decide em 5 dias. Termina com a entrega da informação ou com a negativa mantida.
 
@@ -438,7 +609,7 @@ Atende pedido de qualquer pessoa por documento ou dado público, sem exigir moti
 
 **Partes:** Requerente (requerente).
 
-**Recursos do motor usados:** 13 comunicações às partes; 4 esperas de resposta; 6 documentos; 1 formulários de dados; 5 fases com saída decidida pela resposta.
+**Recursos do motor usados:** 13 comunicações às partes; 4 esperas de resposta; 6 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta.
 
 **Fases:** 1. Registro do pedido, Serviço de informação ao cidadão; 2. Triagem, Serviço de informação ao cidadão; 3. Busca na área detentora (20 dias corridos), Área técnica; 4. Resposta, Serviço de informação ao cidadão; 5. Recurso em primeira instância (5 dias corridos), Gabinete; 6. Recurso em segunda instância (5 dias corridos), Autoridade máxima; 7. Recurso ao órgão de controle (5 dias corridos), Controle interno; 8. Recurso à Comissão Mista de Reavaliação de Informações, Serviço de informação ao cidadão; 9. Cumprimento, Serviço de informação ao cidadão; 10. Arquivamento, Serviço de informação ao cidadão.
 
@@ -446,7 +617,7 @@ Atende pedido de qualquer pessoa por documento ou dado público, sem exigir moti
 
 ### Notícia de Fato
 
-**Porte:** Curto, 10 fases. **Identificador:** `noticia-de-fato`.
+**Porte:** Curto, 10 fases. **Inspirado em:** CNMP. **Identificador:** `noticia-de-fato`.
 
 Registro e triagem de qualquer demanda que chega à atividade-fim do Ministério Público: atendimento, documento, requerimento ou representação. O membro aprecia em 30 dias, prorrogáveis uma vez por até 90, colhendo só informações preliminares, sem expedir requisições; o noticiante pode ser chamado a complementar. A decisão arquiva, declina a atribuição a outro órgão ou instaura o procedimento próprio. Arquivada, o noticiante é cientificado e tem 10 dias para recorrer; sem reconsideração, o recurso sobe ao Conselho Superior.
 
@@ -456,13 +627,13 @@ Registro e triagem de qualquer demanda que chega à atividade-fim do Ministério
 
 **Partes:** Noticiante (requerente), Interessado (interessado).
 
-**Recursos do motor usados:** 4 comunicações às partes; 2 esperas de resposta; 7 documentos; 1 formulários de dados; 5 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 4 comunicações às partes; 2 esperas de resposta; 7 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Registro e distribuição, Secretaria; 2. Apreciação (30 dias corridos), Gabinete; 3. Complementação pelo noticiante, Secretaria; 4. Decisão, Gabinete; 5. Cientificação do arquivamento, Secretaria; 6. Recurso do arquivamento (3 dias corridos), Gabinete; 7. Revisão pelo Conselho Superior, Conselho Superior; 8. Instauração de procedimento, Gabinete; 9. Remessa por declínio, Secretaria; 10. Arquivamento, Secretaria.
 
 ### Procedimento Administrativo do Ministério Público
 
-**Porte:** Médio, 11 fases. **Identificador:** `procedimento-administrativo-mp`.
+**Porte:** Médio, 11 fases. **Inspirado em:** CNMP. **Identificador:** `procedimento-administrativo-mp`.
 
 Acompanha de forma continuada o cumprimento de termo de ajustamento de conduta, políticas públicas e instituições, apura fato ligado a direito individual indisponível ou embasa outra atividade que não cabe em inquérito civil. Não investiga pessoa determinada por ilícito específico. Instaurado por portaria sucinta, corre por um ano, prorrogável sucessivamente por decisão fundamentada, com ofícios, requisições e reuniões com o acompanhado. Cumprido o objeto, arquiva-se no próprio órgão com comunicação ao Conselho Superior; no caso de direito individual indisponível, o noticiante é cientificado e pode recorrer em 10 dias.
 
@@ -472,13 +643,13 @@ Acompanha de forma continuada o cumprimento de termo de ajustamento de conduta, 
 
 **Partes:** Noticiante (requerente), Acompanhado (requerido), Interessado (interessado).
 
-**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (reunião); 6 documentos; 1 formulários de dados; 5 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (reunião); 6 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Instauração, Gabinete; 2. Registro e comunicação, Secretaria; 3. Acompanhamento e diligências (365 dias corridos), Gabinete; 4. Aguardando resposta, Secretaria; 5. Avaliação do objeto, Gabinete; 6. Prorrogação, Gabinete; 7. Comunicação ao Conselho Superior, Secretaria; 8. Cientificação do arquivamento, Secretaria; 9. Recurso do arquivamento (3 dias corridos), Gabinete; 10. Revisão pelo Conselho Superior, Conselho Superior; 11. Arquivamento, Secretaria.
 
 ### Procedimento Preparatório
 
-**Porte:** Médio, 12 fases. **Identificador:** `procedimento-preparatorio`.
+**Porte:** Médio, 12 fases. **Inspirado em:** CNMP. **Identificador:** `procedimento-preparatorio`.
 
 Antecede o inquérito civil quando ainda falta identificar o investigado ou delimitar o objeto. Corre por 90 dias, prorrogáveis uma única vez por igual prazo, com requisições, notificações e oitivas. Ao final, converte-se em inquérito civil, dá base à ação civil pública ou é arquivado. O arquivamento passa pelo mesmo controle do inquérito: o representante e o investigado são cientificados, os autos sobem ao Conselho Superior em 3 dias e lá podem apresentar razões até a sessão.
 
@@ -488,13 +659,13 @@ Antecede o inquérito civil quando ainda falta identificar o investigado ou deli
 
 **Partes:** Representante (requerente), Investigado (requerido), Interessado (interessado), Órgão requisitado (terceiro).
 
-**Recursos do motor usados:** 4 comunicações às partes; 1 esperas de resposta; audiência (oitiva, sessão); 7 documentos; 1 formulários de dados; 3 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 4 comunicações às partes; 1 espera de resposta; audiência (oitiva, sessão); 7 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Instauração, Gabinete; 2. Registro e publicação, Secretaria; 3. Diligências (90 dias corridos), Gabinete; 4. Aguardando resposta a requisição, Secretaria; 5. Prorrogação, Gabinete; 6. Conclusão, Gabinete; 7. Conversão em inquérito civil, Secretaria; 8. Ajuizamento de ação civil pública, Gabinete; 9. Cientificação e remessa ao Conselho Superior (3 dias corridos), Secretaria; 10. Revisão pelo Conselho Superior, Conselho Superior; 11. Designação de outro membro, Secretaria; 12. Arquivamento, Secretaria.
 
 ### Inquérito Civil
 
-**Porte:** Longo, 18 fases. **Identificador:** `inquerito-civil`.
+**Porte:** Longo, 18 fases. **Inspirado em:** CNMP. **Identificador:** `inquerito-civil`.
 
 Investigação presidida por membro do Ministério Público para apurar lesão a direitos difusos, coletivos ou individuais homogêneos, como meio ambiente, consumidor e patrimônio público, e preparar ação civil pública, ajustamento de conduta ou recomendação. A representação pode ser indeferida em 30 dias, com recurso; instaurado por portaria, corre por um ano, prorrogável quantas vezes for preciso, com requisições, oitivas e audiências. É inquisitivo, mas o investigado e o representante podem ser ouvidos e juntar documentos a qualquer tempo. Termina com ação civil pública ou com promoção de arquivamento, que sobe ao Conselho Superior em 3 dias para homologação.
 
@@ -504,15 +675,127 @@ Investigação presidida por membro do Ministério Público para apurar lesão a
 
 **Partes:** Representante (requerente), Investigado (requerido), Interessado (interessado), Órgão requisitado (terceiro).
 
-**Recursos do motor usados:** 8 comunicações às partes; 3 esperas de resposta; audiência (oitiva, reunião, sessão); 15 documentos; 2 formulários de dados; 8 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 8 comunicações às partes; 3 esperas de resposta; audiência (oitiva, reunião, sessão); 15 documentos; 2 formulários de dados; 8 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Representação ou atuação de ofício, Secretaria; 2. Admissibilidade (30 dias corridos), Gabinete; 3. Indeferimento da representação, Gabinete; 4. Recurso do indeferimento (3 dias corridos), Gabinete; 5. Instauração, Gabinete; 6. Registro e publicação, Secretaria; 7. Instrução (365 dias corridos), Gabinete; 8. Aguardando resposta a requisição, Secretaria; 9. Recomendação, Gabinete; 10. Ajustamento de conduta, Gabinete; 11. Prorrogação, Gabinete; 12. Declínio de atribuição (3 dias corridos), Gabinete; 13. Conclusão, Gabinete; 14. Ajuizamento de ação civil pública, Gabinete; 15. Cientificação e remessa ao Conselho Superior (3 dias corridos), Secretaria; 16. Revisão pelo Conselho Superior, Conselho Superior; 17. Designação de outro membro, Secretaria; 18. Arquivamento, Secretaria.
+
+### Compromisso de ajustamento de conduta (TAC)
+
+**Porte:** Longo, 16 fases. **Inspirado em:** CNMP. **Identificador:** `compromisso-ajustamento-conduta`.
+
+Acompanha num só processo a vida inteira do compromisso de ajustamento de conduta tomado pelo Ministério Público: a negociação com o responsável pela lesão, em reuniões e, se for o caso, audiência pública; a celebração do termo, com obrigações certas, líquidas e exigíveis, prazos e multa; a promoção de arquivamento do procedimento de origem e a ciência ao Conselho Superior em até 3 dias; a publicação do extrato em 15 dias; e a fiscalização do cumprimento. Descumprido o termo, o compromissário é instado a justificar e o membro executa em até 60 dias, repactua ou segue acompanhando. Cumprido, o acompanhamento é arquivado com ciência ao compromissário, que pode recorrer em 10 dias ao Conselho Superior. Difere do procedimento administrativo genérico por trazer as fases e cláusulas próprias do ajuste.
+
+**Quando usar:** Quando, num inquérito civil, procedimento preparatório ou procedimento administrativo, o investigado aceita adequar a conduta. Ajuste os prazos de comunicação ao Conselho Superior e de recurso conforme o regulamento do seu Ministério Público (no MPRS, Provimento 71/2017-PGJ, arts. 34 a 45).
+
+**Base:** Lei 7.347/1985, art. 5º, § 6º; Res. CNMP 179/2017, arts. 1º a 4º (cabimento, forma e multa), 5º (destinação), 6º (ciência ao órgão superior em até 3 dias), 7º (extrato em 15 dias), 8º (Portal, redação da Res. CNMP 326/2026), 9º e 10 (fiscalização) e 11 (execução em 60 dias); Res. CNMP 174/2017, art. 8º, I; no MPRS, Provimento 71/2017-PGJ, arts. 34 a 45 e 70 (prazos em dias corridos).
+
+**Partes:** Compromissário (requerido), Interessado (interessado).
+
+**Recursos do motor usados:** 7 comunicações às partes; 3 esperas de resposta; audiência (reunião, inspeção); 10 documentos; 1 formulário de dados; 6 fases com saída decidida pela resposta; 1 fase de espera.
+
+**Fases:** 1. Proposta de ajustamento, Gabinete; 2. Negociação, Gabinete; 3. Celebração do termo, Gabinete; 4. Arquivamento do procedimento de origem (3 dias corridos), Secretaria; 5. Homologação pelo Conselho Superior, Conselho Superior; 6. Publicidade do termo (15 dias corridos), Secretaria; 7. Acompanhamento do cumprimento (365 dias corridos), Gabinete; 8. Pedido de informações ao compromissário, Secretaria; 9. Descumprimento, Gabinete; 10. Repactuação, Gabinete; 11. Execução judicial, Gabinete; 12. Arquivamento do acompanhamento, Secretaria; 13. Recurso do arquivamento, Conselho Superior; 14. Encerramento sem acordo, Gabinete; 15. Encerramento com execução, Secretaria; 16. Arquivamento, Secretaria.
+
+### Recomendação do Ministério Público
+
+**Porte:** Curto, 8 fases. **Inspirado em:** CNMP. **Identificador:** `recomendacao-mp`.
+
+Ato formal e fundamentado pelo qual o membro expõe ao destinatário as razões de fato e de direito e recomenda que faça ou deixe de fazer algo, sem caráter coercitivo. Antes de recomendar à autoridade pública, requisitam-se informações, salvo impossibilidade motivada; em urgência, expede-se e instaura-se o procedimento depois. A recomendação indica as providências, o prazo razoável e, se quiser, as medidas cabíveis em caso de desatendimento. O destinatário responde por escrito; a resposta de não atendimento é apreciada de forma fundamentada. Acatada, acompanha-se o cumprimento; desatendida ou sem resposta, o membro adota as medidas cabíveis, como ação, ajustamento de conduta ou instauração de procedimento.
+
+**Quando usar:** Dentro de inquérito civil, procedimento preparatório ou procedimento administrativo, quando persuadir o destinatário pode evitar a ação judicial. Ajuste o prazo de resposta ao caso.
+
+**Base:** Res. CNMP 164/2017, arts. 1º (natureza), 3º (cabimento, informações prévias e urgência), 4º (destinatário e encaminhamento pelo Procurador-Geral em 10 dias), 5º e 6º (relação com a ação judicial), 7º e 8º (fundamentação e prazo), 9º (divulgação), 10 (resposta) e 11 (medidas); no MPRS, Provimento 71/2017-PGJ, arts. 48, parágrafo único, e 56 a 64.
+
+**Partes:** Destinatário (requerido), Interessado (interessado).
+
+**Recursos do motor usados:** 3 comunicações às partes; 2 esperas de resposta; 4 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta.
+
+**Fases:** 1. Preparação, Gabinete; 2. Informações prévias, Secretaria; 3. Expedição e prazo de resposta, Gabinete; 4. Apreciação da resposta, Gabinete; 5. Acompanhamento do atendimento, Gabinete; 6. Providências, Gabinete; 7. Recomendação atendida, Secretaria; 8. Encerramento com providências, Secretaria.
+
+### Audiência pública do Ministério Público
+
+**Porte:** Curto, 6 fases. **Inspirado em:** CNMP. **Identificador:** `audiencia-publica-mp`.
+
+Reunião organizada e aberta a qualquer cidadão e a representantes do poder público, da sociedade civil e da comunidade, para colher elementos sobre situação que lese ou possa lesar direitos difusos, coletivos ou individuais homogêneos, ou para prestar contas da atuação. É autuada e começa por edital com data, hora, local, objetivo, cadastro de expositores e forma de participação, publicado no sítio e afixado na sede com 3 dias úteis de antecedência, salvo urgência motivada; outros membros com atribuição são avisados no mesmo prazo. Realizada a audiência, lavra-se ata circunstanciada em 30 dias, publicada por extrato, e o membro produz relatório com as providências, como arquivamento, ajustamento de conduta, recomendação, instauração de procedimento ou ação civil pública. As manifestações são consultivas e não vinculam.
+
+**Quando usar:** Para ouvir a sociedade num inquérito civil, procedimento ou negociação de ajustamento, identificar demandas sociais, elaborar planos de ação ou prestar contas.
+
+**Base:** Res. CNMP 82/2012, arts. 1º (finalidade, autuação), 2º (edital), 3º (publicidade com 3 dias úteis, redação da Res. 207/2020), 4º (ata em 30 dias e extrato), 5º (aviso a outros membros), 6º (relatório) e 7º (caráter consultivo); Res. CNMP 179/2017, art. 1º, § 4º.
+
+**Partes:** Participante inscrito (interessado).
+
+**Recursos do motor usados:** 2 comunicações às partes; audiência (audiência); 6 documentos; 1 formulário de dados.
+
+**Fases:** 1. Proposta e autuação, Gabinete; 2. Convocação, Secretaria; 3. Realização, Gabinete; 4. Ata (30 dias), Secretaria; 5. Relatório e providências, Gabinete; 6. Encerramento, Secretaria.
+
+### Revisão de arquivamento pelo Conselho Superior (MPRS)
+
+**Porte:** Médio, 13 fases. **Inspirado em:** MPRS. **Identificador:** `revisao-arquivamento-csmp`.
+
+Rito do próprio Conselho Superior do Ministério Público do Rio Grande do Sul para os expedientes que lhe chegam das Promotorias: promoção de arquivamento de inquérito civil ou procedimento preparatório, inclusive após ajustamento de conduta, declínio de atribuição e recurso contra arquivamento de notícia de fato ou procedimento administrativo. A Secretaria dos Órgãos Colegiados confere e devolve o que estiver irregular; o relator instrui, pode baixar os autos em diligência, requisitar informações e, havendo recurso de interessado, ouve o órgão que arquivou em 5 dias. Publica-se aviso no Diário Eletrônico, as associações legitimadas apresentam razões até 3 dias antes da sessão e a pauta sai com 48 horas. O colegiado, em sessão pública, homologa, converte em diligência ou rejeita; rejeitado o arquivamento, o Procurador-Geral designa outro membro para propor ajustamento ou ação. Não cabe recurso. Difere das fases de revisão dos outros ritos por ser o processo do colegiado.
+
+**Quando usar:** Na Secretaria dos Órgãos Colegiados e nos gabinetes dos conselheiros, para cada expediente remetido ao Conselho Superior. Outros Ministérios Públicos devem ajustar prazos e unidades ao seu regimento.
+
+**Base:** Lei 7.347/1985, art. 9º, §§ 1º a 4º; Res. CNMP 23/2007, art. 10; Provimento 71/2017-PGJ (MPRS), arts. 5º, §§ 4º e 6º, 10, § 3º, 22, 24 a 30, 33, 43, 55, 67 e 70; Regimento Interno do CSMP-RS, arts. 4º (homologação), 12, § 4º (pauta com 48 horas), 16 (relator e sessão), 38 (aviso, diligências, homologação e designação) e 40 (sem recurso).
+
+**Partes:** Representante ou recorrente (requerente), Investigado (requerido), Interessado (interessado).
+
+**Recursos do motor usados:** 3 comunicações às partes; audiência (sessão); 4 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta.
+
+**Fases:** 1. Recebimento e conferência, Secretaria dos Órgãos Colegiados; 2. Distribuição ao relator, Secretaria dos Órgãos Colegiados; 3. Instrução pelo relator, Gabinete do relator; 4. Diligências no órgão de execução, Promotoria de Justiça; 5. Esclarecimentos do órgão de execução (5 dias corridos), Promotoria de Justiça; 6. Aviso e pauta, Secretaria dos Órgãos Colegiados; 7. Sessão de julgamento, Conselho Superior; 8. Publicação e baixa, Secretaria dos Órgãos Colegiados; 9. Designação de outro membro, Secretaria dos Órgãos Colegiados; 10. Devolução ao órgão de execução, Secretaria dos Órgãos Colegiados; 11. Retorno para prosseguimento, Secretaria dos Órgãos Colegiados; 12. Arquivamento homologado, Secretaria dos Órgãos Colegiados; 13. Prosseguimento por outro membro, Secretaria dos Órgãos Colegiados.
+
+### Destinação de bens e valores de tutela coletiva (MPRS)
+
+**Porte:** Médio, 9 fases. **Inspirado em:** MPRS. **Identificador:** `destinacao-bens-valores-mprs`.
+
+Destina os valores de compromisso de ajustamento, acordo de não persecução civil ou condenação em ação coletiva quando o membro não os envia ao Fundo para Reconstituição de Bens Lesados nem a outro fundo legal. O membro seleciona, por decisão fundamentada, entidade cadastrada, sem vedações, com pertinência temática e preferência pela comunidade atingida, alternando entre os cadastrados. Formaliza o termo de recebimento e, se a execução for continuada, o plano de trabalho; o membro nunca toca os valores. A entidade presta contas, em forma simplificada até 30 salários mínimos; com pendências, é chamada a sanar; reprovadas as contas ou sem prestação, o termo é rescindido, com devolução e exclusão do cadastro. Aprovadas as contas ou rescindido o termo, o procedimento vai ao Conselho Superior para homologação.
+
+**Quando usar:** Em procedimento com valores a destinar a projeto ou entidade no MPRS. Outros Ministérios Públicos devem seguir a Res. Conjunta CNJ/CNMP 10/2024 e o seu regulamento.
+
+**Base:** Res. Conjunta CNJ/CNMP 10/2024; Provimento 69/2025-PGJ (MPRS), arts. 1º, parágrafo único, 2º, § 2º (Defesa Civil), 4º e 7º (vedações), 6º (membro sem acesso aos valores), 8º a 10 (seleção, termo e plano de trabalho), 11 e 12 (prestação de contas), 14 (rescisão) e 15 (homologação), com alterações do Provimento 31/2026-PGJ; Provimento 71/2017-PGJ, art. 41; Res. CNMP 179/2017, art. 5º; Lei 7.347/1985, art. 13.
+
+**Partes:** Devedor ou compromissário (requerido), Entidade destinatária (interessado).
+
+**Recursos do motor usados:** 3 comunicações às partes; 1 espera de resposta; audiência (inspeção); 6 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta.
+
+**Fases:** 1. Origem e opção de destinação, Gabinete; 2. Seleção do destinatário, Gabinete; 3. Formalização, Gabinete; 4. Execução e prestação de contas, Secretaria; 5. Análise das contas, Gabinete; 6. Rescisão do termo, Gabinete; 7. Homologação pelo Conselho Superior, Conselho Superior; 8. Destinação a fundo, Secretaria; 9. Encerramento, Secretaria.
+
+### Cadastramento de entidade para destinação de recursos (MPRS)
+
+**Porte:** Curto, 7 fases. **Inspirado em:** MPRS. **Identificador:** `cadastro-entidade-mprs`.
+
+Pedido de órgão público, fundo ou entidade privada sem fins lucrativos para entrar no cadastro do MPRS que habilita a receber bens e valores de reparação de danos coletivos. O pedido chega pelo formulário do sítio à Promotoria da sede da entidade, com estatuto, ata da diretoria, CNPJ, certidões, projeto e dados bancários. A Promotoria confere os requisitos, como constituição há pelo menos três anos, e as vedações, chama a entidade a completar documentos, ouve o Centro de Apoio da matéria e decide. O cadastro vale três anos para entidade privada, deve ser atualizado em 30 dias a cada alteração e não dá direito à destinação; quem não presta contas é excluído.
+
+**Quando usar:** Ao receber pedido de cadastramento, em fluxo contínuo ou em resposta ao edital bienal de chamamento.
+
+**Base:** Provimento 69/2025-PGJ (MPRS), arts. 2º (entidades), 3º (edital a cada 2 anos e fluxo contínuo), 4º (vedações), 5º (formulário, documentos, decisão da Promotoria ouvido o Centro de Apoio, atualização em 30 dias, exclusão e validade de 3 anos), com alterações do Provimento 31/2026-PGJ; Res. Conjunta CNJ/CNMP 10/2024, art. 12. Prazo para completar documentos e cabimento de recurso: conferir na norma vigente e no edital.
+
+**Partes:** Entidade requerente (requerente).
+
+**Recursos do motor usados:** 2 comunicações às partes; 1 espera de resposta; 3 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera.
+
+**Fases:** 1. Pedido de cadastramento, Secretaria; 2. Análise dos requisitos, Promotoria de Justiça; 3. Complementação de documentos, Secretaria; 4. Oitiva do Centro de Apoio, Centro de Apoio Operacional; 5. Decisão, Promotoria de Justiça; 6. Cadastro deferido, Secretaria; 7. Cadastro indeferido, Secretaria.
+
+### Triagem de representação sobre patrimônio público (MPRS)
+
+**Porte:** Curto, 8 fases. **Inspirado em:** MPRS. **Identificador:** `triagem-patrimonio-publico-mprs`.
+
+Filtro próprio do MPRS para representações sobre improbidade e dano ao erário, antes de instaurar inquérito civil ou procedimento preparatório. O membro pode, por decisão fundamentada, não instaurar e encaminhar a representação à procuradoria do ente lesado quando não há indícios de improbidade ou a pretensão está prescrita, ou quando o ente já apura a conduta; requisitar sindicância ao ente e aguardar até um ano; enviar ao Tribunal de Contas ou ao ente o caso de prejuízo até R$ 2.000; indeferir com recomendação entre R$ 2.000 e R$ 8.500; ou arquivar abaixo de R$ 34.000 sem ofensa relevante a princípios. Essas saídas não valem quando o agente administra o ente ou o controle interno está comprometido. O representante é cientificado e pode recorrer em 10 dias; a decisão sobe sempre ao Conselho Superior em 3 dias. Difere da notícia de fato comum pelos limites de valor e pela remessa obrigatória.
+
+**Quando usar:** Nas Promotorias com atribuição em patrimônio público no MPRS, ao receber representação sobre improbidade ou dano ao erário. Confira os valores atualizados do provimento.
+
+**Base:** Provimento 04/2012-PGJ (MPRS), arts. 3º (encaminhamento ao ente e sindicância por até 1 ano; vedações do § 2º), 4º e 4º-A (limites de R$ 2.000, R$ 8.500 e R$ 34.000, redação do Provimento 85/2023-PGJ), 5º (prioridade), 6º e 7º (registro e remessa ao Conselho Superior); Provimento 71/2017-PGJ, art. 5º, §§ 1º, 4º e 6º, e art. 70; Lei 8.429/1992. O art. 1º do Provimento 04/2012-PGJ (investigação na esfera criminal) não é modelado.
+
+**Partes:** Representante (requerente), Representado (requerido), Ente público lesado (interessado).
+
+**Recursos do motor usados:** 3 comunicações às partes; 2 esperas de resposta; 5 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera.
+
+**Fases:** 1. Registro da representação, Secretaria; 2. Análise de relevância (30 dias corridos), Gabinete; 3. Aguardando apuração do ente, Secretaria; 4. Decisão de não instaurar, Gabinete; 5. Cientificação e remessa ao Conselho Superior, Secretaria; 6. Deliberação do Conselho Superior, Conselho Superior; 7. Instauração de procedimento, Gabinete; 8. Arquivamento, Secretaria.
 
 ## Gestão interna e pessoas
 
 ### Consulta ou parecer interno
 
-**Porte:** Curto, 7 fases. **Identificador:** `consulta-interna`.
+**Porte:** Curto, 7 fases. **Inspirado em:** Lei 9.784. **Identificador:** `consulta-interna`.
 
 Uma unidade pede a outra, em geral a assessoria jurídica ou uma área técnica, opinião formal sobre uma dúvida. A chefia do órgão consultivo confere se a consulta está instruída, devolve para diligência se faltar algo, aplica parecer referencial quando houver, e distribui ao parecerista, que tem 15 dias quando o parecer é obrigatório. Aprovado o parecer, a autoridade decide e, se divergir, motiva. Não há partes externas nem recurso: termina com a devolução do parecer aprovado ao consulente.
 
@@ -522,13 +805,13 @@ Uma unidade pede a outra, em geral a assessoria jurídica ou uma área técnica,
 
 **Partes:** Unidade consulente (requerente).
 
-**Recursos do motor usados:** 7 documentos; 1 formulários de dados; 2 fases com saída decidida pela resposta; 1 fases de espera.
+**Recursos do motor usados:** 7 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Formulação da consulta, Área técnica; 2. Triagem e distribuição, Assessoria jurídica; 3. Diligência ao consulente, Área técnica; 4. Elaboração do parecer (15 dias corridos), Assessoria jurídica; 5. Aprovação, Assessoria jurídica; 6. Devolução ao consulente, Gabinete; 7. Arquivamento, Secretaria.
 
 ### Concessão de benefício ou licença a servidor
 
-**Porte:** Curto, 8 fases. **Identificador:** `beneficio-servidor`.
+**Porte:** Curto, 8 fases. **Inspirado em:** Lei 8.112. **Identificador:** `beneficio-servidor`.
 
 Decide pedido do servidor sobre direito funcional: licença, afastamento, adicional, auxílio ou averbação de tempo. O requerimento passa pela chefia imediata, que opina sobre a conveniência quando o benefício depende de interesse da Administração, e pela gestão de pessoas, que confere os requisitos e, nas licenças por saúde, aciona a perícia oficial. A autoridade decide em até 30 dias, a decisão é publicada e lançada nos assentamentos. O servidor pode pedir reconsideração ou recorrer em 30 dias; sem isso, o processo é arquivado.
 
@@ -538,7 +821,7 @@ Decide pedido do servidor sobre direito funcional: licença, afastamento, adicio
 
 **Partes:** Servidor requerente (requerente).
 
-**Recursos do motor usados:** 2 comunicações às partes; 1 esperas de resposta; 6 documentos; 1 formulários de dados; 2 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 2 comunicações às partes; 1 espera de resposta; 6 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Requerimento, Secretaria; 2. Manifestação da chefia imediata, Chefia imediata; 3. Instrução pela gestão de pessoas, Gestão de pessoas; 4. Perícia oficial, Gestão de pessoas; 5. Decisão (30 dias corridos), Gabinete; 6. Publicação e registro, Gestão de pessoas; 7. Reconsideração ou recurso (30 dias corridos), Gabinete; 8. Arquivamento, Gestão de pessoas.
 
@@ -546,7 +829,7 @@ Decide pedido do servidor sobre direito funcional: licença, afastamento, adicio
 
 ### Tomada de contas especial (fase interna)
 
-**Porte:** Longo, 13 fases. **Identificador:** `tomada-contas-especial`.
+**Porte:** Longo, 13 fases. **Inspirado em:** TCU. **Identificador:** `tomada-contas-especial`.
 
 Apura quem causou dano ao erário, quanto é o dano, e busca o ressarcimento. Antes de instaurar, o órgão esgota as medidas administrativas: notifica os responsáveis para prestar contas, justificar ou recolher, e tenta a solução consensual quando cabível. Instaurada, a comissão quantifica o débito, individualiza as condutas e ouve o responsável, que pode se defender ou recolher; o relatório passa pelo controle interno e pela autoridade supervisora. Termina com a remessa ao tribunal de contas em até 180 dias da instauração, que julga na fase externa, ou com o arquivamento quando o débito é recolhido, o dano afastado ou a tomada de contas dispensada.
 
@@ -556,6 +839,56 @@ Apura quem causou dano ao erário, quanto é o dano, e busca o ressarcimento. An
 
 **Partes:** Responsável (requerido).
 
-**Recursos do motor usados:** 3 comunicações às partes; 2 esperas de resposta; 14 documentos; 2 formulários de dados; 6 fases com saída decidida pela resposta; 1 fases de espera; sigilo ao entrar.
+**Recursos do motor usados:** 3 comunicações às partes; 2 esperas de resposta; 14 documentos; 2 formulários de dados; 6 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Conhecimento do fato, Área técnica; 2. Medidas administrativas prévias, Gabinete; 3. Solução consensual (120 dias corridos), Gabinete; 4. Verificação dos pressupostos e das dispensas, Gabinete; 5. Instauração, Gabinete; 6. Apuração e quantificação, Comissão de tomada de contas; 7. Relatório do tomador de contas, Comissão de tomada de contas; 8. Registro de devedores, Secretaria; 9. Controle interno, Controle interno; 10. Pronunciamento da autoridade supervisora, Autoridade máxima; 11. Remessa ao tribunal de contas, Secretaria; 12. Saneamento da remessa (60 dias corridos), Comissão de tomada de contas; 13. Arquivamento, Secretaria.
+
+## Advocacia pública e consultoria
+
+### Mediação e conciliação na câmara da advocacia pública (CCAF)
+
+**Porte:** Médio, 14 fases. **Inspirado em:** AGU. **Identificador:** `conciliacao-ccaf`.
+
+Resolve por consenso conflito entre órgãos e entidades federais, ou entre eles e Estados, Municípios ou particulares legitimados, na Câmara de Mediação e de Conciliação da Administração Pública Federal. Começa com requerimento de quem tem legitimidade; a câmara confere o cabimento, distribui a um mediador e, depois de reuniões preliminares, faz o juízo de admissibilidade, que suspende a prescrição desde o pedido. Na negociação mediada, os interessados trocam propostas em reuniões; o mediador não decide. Havendo acordo, cada interessado se manifesta sobre legalidade e vantajosidade, as autoridades da alçada autorizam, o mediador emite parecer de conformidade aprovado pelo diretor, e o termo assinado é homologado pelo Advogado-Geral da União, valendo como título executivo. Sem acordo sobre controvérsia jurídica entre órgãos federais, o caso vai ao Consultor-Geral da União para que o Advogado-Geral a dirima. Não há recurso contra o arquivamento.
+
+**Quando usar:** Conflito em que pelo menos um lado é órgão ou entidade federal e há espaço para solução negociada, judicializado ou não. Câmaras estaduais ou municipais de advocacia pública podem usar o mesmo desenho, trocando as autoridades e as alçadas pelas da lei local.
+
+**Base:** Lei 13.140/2015, arts. 32, 34, 36 e 40 (art. 34 e art. 36, § 4º: conferir na norma vigente); Lei 9.469/1997, art. 1º, §§ 1º, 3º e 4º; Decreto 10.201/2020, art. 2º, § 1º; Portaria Normativa AGU 178/2025, arts. 20 e 48 (demais artigos e prazos: conferir na norma vigente); decreto de estrutura da AGU (Decreto 11.328/2023: conferir o artigo que manda à Consultoria-Geral as controvérsias não resolvidas); Enunciados da CCAF de 2026, n. 3 a 8.
+
+**Partes:** Requerente (requerente), Órgão ou ente requerido (requerido), Outro interessado (interessado).
+
+**Recursos do motor usados:** 7 comunicações às partes; 1 espera de resposta; audiência (reunião); 19 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+
+**Fases:** 1. Requerimento, Câmara de mediação; 2. Análise preliminar e distribuição, Câmara de mediação; 3. Saneamento do pedido, Câmara de mediação; 4. Juízo de admissibilidade, Câmara de mediação; 5. Negociação mediada (60 dias), Câmara de mediação; 6. Aguardando estudos dos interessados, Câmara de mediação; 7. Conformidade e autorizações, Câmara de mediação; 8. Assinatura e homologação, Gabinete do Advogado-Geral; 9. Encaminhamento ao Consultor-Geral, Consultoria-Geral; 10. Inadmissão, Câmara de mediação; 11. Encerramento sem acordo, Câmara de mediação; 12. Acordo homologado, Câmara de mediação; 13. Controvérsia dirimida, Câmara de mediação; 14. Arquivamento, Câmara de mediação.
+
+### Acordo para prevenir ou encerrar litígio com a União
+
+**Porte:** Médio, 12 fases. **Inspirado em:** AGU. **Identificador:** `acordo-transacao-uniao`.
+
+Negocia acordo ou transação para evitar uma ação ou encerrar um processo judicial em que a União ou ente federal é parte. Começa com proposta do interessado ou iniciativa da própria advocacia pública, sob termo de confidencialidade e com o processo suspenso. A unidade da causa examina, nessa ordem, a probabilidade de êxito, a viabilidade jurídica e a economicidade; se não houver viabilidade, arquiva e avisa o interessado ou o juízo. Viável, negocia com o interessado, que responde às contrapropostas. Fechada a proposta, a autoridade da alçada autoriza: o procurador-geral até R$ 10 milhões, o Advogado-Geral acima disso e, a partir de R$ 50 milhões, também o Ministro de Estado. Assinado o termo, o juízo o homologa quando necessário, e a unidade acompanha o pagamento, que pode ser em até 60 parcelas; o descumprimento leva à execução do saldo.
+
+**Quando usar:** Proposta de acordo em ação judicial ou pedido de solução extrajudicial contra a União ou autarquia federal. Para empresa pública federal, as alçadas são outras (Decreto 10.201, arts. 2º, § 4º, e 4º); para Estados e Municípios, use a lei local de acordos.
+
+**Base:** Lei 9.469/1997, arts. 1º, caput e §§ 1º, 4º e 5º, 1º-C e 2º, §§ 2º a 4º; Decreto 10.201/2020, arts. 2º, 3º e 5º; Portaria Normativa PGU/AGU 21/2024, arts. 3º, 5º, 7º a 17 e 23; Portaria AGU 173/2020 (conferir na norma vigente); CPC, arts. 313, II, 487, III, b, e 725, VIII. Para autarquias e fundações, normas da PGF: conferir na norma vigente.
+
+**Partes:** Interessado no acordo (requerente).
+
+**Recursos do motor usados:** 5 comunicações às partes; 1 espera de resposta; audiência (reunião); 14 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
+
+**Fases:** 1. Proposta, Procuradoria; 2. Probabilidade de êxito e cálculos, Procuradoria; 3. Viabilidade jurídica e economicidade, Procuradoria; 4. Negociação, Procuradoria; 5. Autorização por alçada, Gabinete; 6. Termo de acordo e homologação, Procuradoria; 7. Cumprimento, Procuradoria; 8. Aguardando pagamento, Procuradoria; 9. Execução do saldo, Procuradoria; 10. Recusa e arquivamento, Procuradoria; 11. Acordo cumprido, Procuradoria; 12. Arquivamento, Procuradoria.
+
+### Cobrança administrativa e inscrição em dívida ativa (crédito não tributário)
+
+**Porte:** Médio, 15 fases. **Inspirado em:** AGU. **Identificador:** `cobranca-divida-ativa-nao-tributaria`.
+
+Cobra crédito não tributário já constituído, como multa administrativa, ressarcimento ao erário ou reposição, e o leva à dívida ativa se não for pago. A unidade de origem notifica o devedor para pagar, parcelar ou impugnar, com aviso de inclusão no Cadin 75 dias depois. A impugnação é decidida pela unidade, com recurso à autoridade superior. Não pago, o processo vai à procuradoria, que faz o controle de legalidade (liquidez, certeza e prescrição), devolve para correção ou inscreve e emite a certidão de dívida ativa. Seguem a cobrança extrajudicial, com Cadin e protesto, e, se ainda não houver pagamento, a execução fiscal. Termina com a quitação, o cancelamento do crédito ou o envio à execução.
+
+**Quando usar:** Crédito não tributário de autarquia, fundação ou órgão, com decisão definitiva no processo que o gerou. Ajuste o prazo de pagamento e as medidas de cobrança à norma do seu ente; a PGFN e as procuradorias estaduais e municipais têm regras próprias.
+
+**Base:** Lei 4.320/1964, art. 39, § 2º; Lei 6.830/1980, art. 2º, §§ 3º, 5º, 6º e 8º; Lei 9.784/1999, arts. 26 a 28, 56 a 59 e 66; Lei 10.522/2002, arts. 2º, § 2º, e 37-B; Lei 9.492/1997, art. 1º, parágrafo único; Lei 10.480/2002, art. 10 (conferir parágrafos); Lei 9.469/1997, art. 1º-C; Lei 9.873/1999, art. 1º-A; Portaria Normativa PGF 51/2023 (dispensa de inscrição e cobrança extrajudicial: conferir na norma vigente). O prazo de 30 dias da notificação é padrão do modelo: conferir na norma do órgão.
+
+**Partes:** Devedor (requerido).
+
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; 17 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta.
+
+**Fases:** 1. Constituição do crédito, Unidade de origem; 2. Notificação de cobrança, Unidade de origem; 3. Impugnação (30 dias corridos), Unidade de origem; 4. Intimação da decisão e recurso, Unidade de origem; 5. Recurso (30 dias corridos), Gabinete; 6. Parcelamento, Unidade de origem; 7. Remessa para inscrição, Unidade de origem; 8. Controle de legalidade, Procuradoria; 9. Devolução para correção, Unidade de origem; 10. Inscrição e certidão, Procuradoria; 11. Cobrança extrajudicial, Procuradoria; 12. Execução fiscal, Procuradoria; 13. Cancelamento, Unidade de origem; 14. Crédito quitado, Unidade de origem; 15. Encerramento, Unidade de origem.

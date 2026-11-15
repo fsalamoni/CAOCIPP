@@ -11,6 +11,10 @@
  * - `unidade` é o NOME da unidade: a tela casa com as do órgão ou propõe criar;
  * - ações com os construtores de `A` (o que cada uma pede e registra).
  *
+ * Meta do modelo: id, nome, area, porte, referencia (instituição ou lei em que o
+ * modelo se inspira, curta, como "OAB", "CGU" ou "Lei 14.133"; a biblioteca
+ * filtra por ela), descricao, quando, base e tipo { polos, nomes_polos }.
+ *
  * Nada aqui é penal: os sancionadores são administrativos. Pesquisa e fontes:
  * docs/MODELOS_DE_RITO.md. Os modelos ficam em src/lib/modelos/<área>.js e se
  * juntam em src/lib/bibliotecaRitos.js.
@@ -29,6 +33,7 @@ export const AREAS = [
     ['ministerio_publico', 'Ministério Público (não penal)'],
     ['gestao', 'Gestão interna e pessoas'],
     ['controle', 'Controle e contas'],
+    ['advocacia_publica', 'Advocacia pública e consultoria'],
 ];
 export const PORTES = [['curto', 'Curto'], ['medio', 'Médio'], ['longo', 'Longo']];
 export const nomeArea = (id) => AREAS.find(([a]) => a === id)?.[1] || id;

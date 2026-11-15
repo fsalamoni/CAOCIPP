@@ -312,9 +312,17 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                             </table>
                         </Parte>
                         <Parte titulo="16. Começar de um modelo da biblioteca">
-                            <p>Em <strong>Novo rito</strong>, a <strong>Biblioteca de modelos de processo</strong> traz processos completos, montados a partir da lei de cada área: administrativo geral, disciplinar, ético, sancionador e fiscalização, contratações e contratos, ouvidoria e acesso à informação, gestão de pessoas, contas e procedimentos extrajudiciais do Ministério Público. Nenhum é penal. Filtre por <strong>área</strong> e <strong>porte</strong> (curto, médio, longo) ou busque por palavra ou número de lei. Em cada modelo, <strong>Quando usar, base legal e fases</strong> mostra para que ele serve e de onde vêm os prazos.</p>
+                            <p>Em <strong>Novo rito</strong>, a <strong>Biblioteca de modelos de processo</strong> traz processos completos, montados a partir da lei de cada área: administrativo geral, disciplinar, ético, sancionador e fiscalização, contratações e contratos, ouvidoria e acesso à informação, gestão de pessoas, contas, advocacia pública e procedimentos extrajudiciais do Ministério Público, muitos inspirados no rito de uma instituição (OAB/RS, CAU/BR, MPRS, CNMP, AGU, CGU). Nenhum é penal.</p>
+                            <ul className="list-disc space-y-1 pl-5">
+                                <li>A biblioteca abre e fecha pelo título (a tela lembra a sua escolha). Fechada, mostra só as áreas: clique numa para abrir já filtrada.</li>
+                                <li>Os modelos ficam agrupados por área, cada grupo fechado com a contagem e os nomes. Abra um grupo, ou use <strong>Abrir todas as áreas</strong>.</li>
+                                <li><strong>Buscar</strong> procura no nome, na instituição, na lei, nas fases e na descrição, sem ligar para acentos, e marca o termo achado. Os mais relevantes vêm primeiro.</li>
+                                <li>Filtre por <strong>área</strong>, <strong>porte</strong> (curto, médio, longo), e <strong>Inspirado em</strong> (a instituição ou lei de origem). <strong>Limpar filtros</strong> volta tudo.</li>
+                                <li><strong>Ordenar</strong>: por área, por relevância, por nome ou pelo tamanho (do mais curto ao mais longo, ou o contrário).</li>
+                                <li>Clique no nome do modelo para ver a descrição inteira, quando usar, a base, as partes, o que o rito faz (comunicações, audiências, documentos, saídas) e as fases com prazos e unidades.</li>
+                            </ul>
                             <ol className="list-decimal space-y-1.5 pl-5">
-                                <li>Escolha o modelo mais próximo do seu processo e clique em <strong>Usar este modelo</strong>. Nada é criado ainda.</li>
+                                <li>Escolha o modelo mais próximo do seu processo e clique em <strong>Usar</strong>. Nada é criado ainda.</li>
                                 <li>As unidades do modelo têm nomes genéricos (Secretaria, Gabinete, Comissão processante). A revisão casa cada uma com as do órgão pelo nome ou propõe criar. Troque pela unidade certa em cada fase.</li>
                                 <li>Confira prazos e contagem (úteis ou corridos) com a norma que vale para o seu órgão. Regimentos locais costumam mudar prazos.</li>
                                 <li>Ajuste ações, documentos e saídas: tire o que não se aplica, acrescente o que o seu órgão exige.</li>

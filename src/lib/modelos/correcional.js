@@ -8,7 +8,7 @@ const PENAS_SUMARIO = ['Demissão', 'Cassação de aposentadoria ou disponibilid
 /** 2. Sindicância investigativa e investigação preliminar sumária (Lei 8.112/1990; PN CGU 27/2022). */
 export function sindicanciaInvestigativa() {
     return montar({
-        id: 'sindicancia-investigativa', nome: 'Sindicância investigativa e investigação preliminar sumária', area: 'correcional', porte: 'curto',
+        id: 'sindicancia-investigativa', nome: 'Sindicância investigativa e investigação preliminar sumária', area: 'correcional', porte: 'curto', referencia: 'CGU',
         descricao: 'Procedimento preparatório, sem acusado e sem punição, para descobrir se houve irregularidade e quem a praticou. Começa pelo juízo de admissibilidade da notícia, que pode arquivar, propor TAC, abrir a investigação ou ir direto ao processo acusatório. Na investigação, o sindicante ou a comissão examina documentos, requisita informações e ouve pessoas, com acesso restrito. Não há contraditório: o investigado pode ser ouvido, mas a defesa só nasce no processo acusatório que vier depois. Termina por arquivamento, TAC ou instauração do processo acusatório.',
         quando: 'Notícia de irregularidade funcional sem indícios suficientes de autoria e materialidade para abrir já um PAD ou sindicância acusatória.',
         base: 'Lei 8.112/1990, arts. 143 a 145; Portaria Normativa CGU 27/2022, arts. 36 a 52 (exemplo de boa prática fora do Executivo federal).',
@@ -106,7 +106,7 @@ export function sindicanciaInvestigativa() {
 /** 3-A. PAD, rito ordinário (Lei 8.112/1990, arts. 142 a 182). */
 export function padOrdinario() {
     return montar({
-        id: 'pad-ordinario', nome: 'Processo administrativo disciplinar, rito ordinário', area: 'correcional', porte: 'longo',
+        id: 'pad-ordinario', nome: 'Processo administrativo disciplinar, rito ordinário', area: 'correcional', porte: 'longo', referencia: 'CGU',
         descricao: 'Apura a responsabilidade de servidor por infração ligada ao cargo e pode terminar em qualquer sanção disciplinar, inclusive demissão. Uma comissão de três servidores estáveis instala os trabalhos, notifica o acusado e instrui com depoimentos, diligências e perícias, encerrando com o interrogatório. O contraditório está no acompanhamento de todos os atos desde a notificação prévia e na defesa escrita depois da indiciação, com defensor dativo em caso de revelia. A comissão faz o relatório conclusivo e outra autoridade julga em 20 dias, cabendo pedido de reconsideração ou recurso em 30 dias.',
         quando: 'Infração disciplinar de servidor cuja pena possível seja suspensão acima de 30 dias, demissão, cassação de aposentadoria ou destituição; ou quando a sindicância apontar autoria e materialidade.',
         base: 'Lei 8.112/1990, arts. 104 a 109, 142 a 182 e 238; Portaria Normativa CGU 27/2022, arts. 66, 76 a 78-A e 97 a 101.',
@@ -290,7 +290,7 @@ export function padOrdinario() {
 /** 3-B. PAD, rito sumário (Lei 8.112/1990, arts. 133 e 140). */
 export function padSumario() {
     return montar({
-        id: 'pad-sumario', nome: 'Processo administrativo disciplinar, rito sumário', area: 'correcional', porte: 'medio',
+        id: 'pad-sumario', nome: 'Processo administrativo disciplinar, rito sumário', area: 'correcional', porte: 'medio', referencia: 'CGU',
         descricao: 'Rito abreviado para três infrações de prova documental: acumulação ilegal de cargos, abandono de cargo e inassiduidade habitual. Na acumulação, o servidor é primeiro notificado para optar por um dos cargos em 10 dias. A comissão de dois servidores estáveis indicia em até 3 dias da portaria, que já aponta autoria e materialidade, e cita o acusado para defesa escrita em 5 dias, com defensor dativo na revelia. Segue o relatório conclusivo e o julgamento em 5 dias, que pode resultar em demissão, com recurso como no rito ordinário.',
         quando: 'Acumulação ilegal de cargos, abandono de cargo (mais de 30 dias de ausência intencional) ou inassiduidade habitual (60 faltas interpoladas em 12 meses). Na dúvida sobre a infração, use o rito ordinário.',
         base: 'Lei 8.112/1990, arts. 104 a 109, 133, 140, 163, 164 e 238; Portaria Normativa CGU 27/2022, arts. 79 e 80.',
@@ -414,7 +414,7 @@ export function padSumario() {
 /** 17. Termo de ajustamento de conduta disciplinar (PN CGU 27/2022, arts. 61 a 69). */
 export function tacDisciplinar() {
     return montar({
-        id: 'tac-disciplinar', nome: 'Termo de ajustamento de conduta disciplinar', area: 'correcional', porte: 'curto',
+        id: 'tac-disciplinar', nome: 'Termo de ajustamento de conduta disciplinar', area: 'correcional', porte: 'curto', referencia: 'CGU',
         descricao: 'Substitui o processo disciplinar por um compromisso escrito quando a infração é de menor potencial ofensivo, punível com advertência ou suspensão de até 30 dias. A proposta nasce de ofício, da comissão ou do próprio servidor; confere-se se ele não tem sanção vigente nem TAC nos últimos 2 anos e se o dano foi ressarcido. Não há acusação nem julgamento: o servidor aceita ou não as obrigações redigidas no termo. Celebrado e publicado o extrato, a chefia acompanha o cumprimento por até 2 anos; cumprido, arquiva-se; descumprido, apura-se a falta.',
         quando: 'Infração disciplinar leve, punível com advertência ou suspensão de até 30 dias, de servidor que preenche os requisitos e aceita ajustar a conduta.',
         base: 'Portaria Normativa CGU 27/2022, arts. 61 a 69 (exemplo para outros órgãos); Lei 8.112/1990, art. 116, III.',
