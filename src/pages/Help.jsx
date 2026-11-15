@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GLOSSARIO } from '@/lib/glossario';
 import {
@@ -10,6 +10,9 @@ import {
   Mail,
   Gavel
 } from 'lucide-react';
+
+// O guia do rito só carrega na Central de Ajuda (traz o desenho do rito e as listas do editor).
+const GuiaRito = lazy(() => import('@/components/secretaria/GuiaRito'));
 
 export default function Help() {
   // Chegando por link com #secao (ex.: ajuda do Processo Eletrônico), rola até ela.
@@ -182,6 +185,17 @@ export default function Help() {
               ]}
             />
           </div>
+          <section id="guia-do-rito" aria-labelledby="guia-rito-titulo" className="scroll-mt-24 rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2">
+            <h3 id="guia-rito-titulo" className="font-semibold text-slate-900 dark:text-white">Guia do rito</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Como o processo anda: o que são fases, ações e desvios, o que cada fase faz sozinha, como funcionam comunicações, prazos,
+              audiências e documentos exigidos, e um exemplo completo. Serve para quem monta o rito e para quem trabalha no processo
+              entender por que cada passo acontece.
+            </p>
+            <Suspense fallback={<p className="text-sm text-slate-600 dark:text-slate-400">Carregando o guia…</p>}>
+              <GuiaRito inicial={window.location.hash === '#guia-do-rito'} />
+            </Suspense>
+          </section>
           <section id="glossario" aria-labelledby="glossario-titulo" className="scroll-mt-24 space-y-3">
             <h3 id="glossario-titulo" className="font-semibold text-slate-900 dark:text-white">Glossário</h3>
             <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-3">

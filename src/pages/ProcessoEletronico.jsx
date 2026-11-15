@@ -33,6 +33,7 @@ import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
 import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
 import AjudaTermo, { focoSemAjuda } from '@/components/secretaria/AjudaTermo';
+import GuiaRito from '@/components/secretaria/GuiaRito';
 
 export default function ProcessoEletronico() {
     const [params, setParams] = useSearchParams();
@@ -191,6 +192,7 @@ export default function ProcessoEletronico() {
                         <Button asChild variant="ghost" size="icon" aria-label="Ajuda do Processo Eletrônico">
                             <Link to={`${createPageUrl('Help')}#processo-eletronico`}><HelpCircle className="w-5 h-5" aria-hidden /></Link>
                         </Button>
+                        <GuiaRito variante="ghost" />
                         {estado.minhasUnidades.length > 0 && <AvisosEquipe />}
                         {estado.isAdmin && (
                             <Button asChild variant="outline" className="gap-2">

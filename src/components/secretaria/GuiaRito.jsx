@@ -52,8 +52,9 @@ function Parte({ titulo, children, aberta = false }) {
 const Termo = ({ nome, children }) => <li><strong className="text-slate-900 dark:text-white">{nome}.</strong> {children}</li>;
 const tabela = 'w-full text-left text-sm [&_td]:border-t [&_td]:border-slate-200 dark:[&_td]:border-slate-700 [&_td]:py-1.5 [&_td]:pr-3 [&_td]:align-top [&_th]:pb-1 [&_th]:pr-3 [&_th]:text-xs [&_th]:font-medium [&_th]:text-slate-600 dark:[&_th]:text-slate-300';
 
-export default function GuiaRito({ variante = 'outline', className = '' }) {
-    const [aberto, setAberto] = useState(false);
+/** `inicial`: abre já aberto (link direto para o guia, na Central de Ajuda). */
+export default function GuiaRito({ variante = 'outline', className = '', inicial = false }) {
+    const [aberto, setAberto] = useState(inicial);
     return (
         <>
             <Button type="button" size="sm" variant={variante} className={`gap-1 ${className}`} onClick={() => setAberto(true)}>
