@@ -62,6 +62,34 @@ export function quandoBr(iso) {
     return `${d.slice(0, 10).split('-').reverse().join('/')}, às ${d.slice(11, 16)}`;
 }
 
+/** Contagem regressiva "hh:mm:ss" (ou "mm:ss" abaixo de uma hora); "00:00" quando acabou. */
+export function relogio(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const p = (n) => String(n).padStart(2, '0');
+    const h = Math.floor(s / 3600);
+    return `${h ? `${p(h)}:` : ''}${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`;
+}
+
+/** O valor como o licitante o vê: percentual no maior desconto, moeda nos demais. */
+export const valorTexto = (v, criterio) => (criterio === 'maior_desconto' ? percentual(v) : moeda(v));
+
+/**
+ * Espelho da conferência do servidor (shared/certames.ts, problemaDoLance), para
+ * avisar antes de enviar. O servidor confere de novo.
+ */
+export function problemaDoLance(valor, atual, d) {
+    const desc = d.criterio === 'maior_desconto';
+    const r4 = (n) => Math.round(n * 10000) / 10000;
+    if (!Number.isFinite(valor) || valor <= 0) return 'Informe o valor do lance';
+    if (desc && valor >= 100) return 'O desconto precisa ser menor que 100%';
+    const iv = d.intervalo?.valor || 0;
+    const passo = desc || d.intervalo?.tipo === 'valor' ? iv : r4((atual * iv) / 100);
+    if (desc ? !(valor > atual) : !(valor < atual)) return `O lance precisa ser ${desc ? 'maior' : 'menor'} que o seu último (${valorTexto(atual, d.criterio)})`;
+    const limite = r4(desc ? atual + passo : atual - passo);
+    if (passo > 0 && (desc ? valor < limite : valor > limite)) return `Respeite o intervalo mínimo entre lances: ${desc ? 'ao menos' : 'no máximo'} ${valorTexto(limite, d.criterio)}`;
+    return '';
+}
+
 /** Quanto falta até o instante, em texto curto ("2 dias e 3 h", "45 min", "encerrado"). */
 export function faltaPara(iso, agora = Date.now()) {
     const ms = Date.parse(iso) - agora;

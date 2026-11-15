@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Sala de lances da disputa de preços
+- Na hora da abertura, abre a sala de lances, que fecha sozinha no fim do
+  prazo pelo relógio do servidor. Quem cotou dá lances sucessivos, cada um
+  melhor que o seu último e com o intervalo mínimo do aviso; todos veem o
+  melhor valor e a própria posição, sem nomes.
+- O licitante desfaz o último lance uma vez por item, em até 15 segundos. A
+  unidade vê os licitantes por apelido, exclui com motivo o lance que
+  compromete a disputa (todos recebem o aviso) e troca mensagens com eles.
+- No fim, a classificação traz os nomes e o encerramento dos lances vai aos
+  autos, com o melhor valor de cada item ou lote.
+- A classificação mostra o desconto em percentual (antes saía como moeda).
+
 ### 15/11/2026 — Disputa de preços: cotação privada e dispensa eletrônica
 - Décima primeira etapa do plano de sessões de julgamento, reuniões e pregão: a primeira da contratação.
 - **Nova ação do rito, "Disputa de preços":** o rito escolhe cotação privada (só convidados) ou dispensa eletrônica (link público, IN SEGES/ME 67/2021). A ação se cumpre com o resultado (Homologada, Deserta ou Fracassada), que decide o caminho do rito.

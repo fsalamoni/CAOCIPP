@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { secPortal } from '@/services/secretariaService';
 import { Entrar } from './Portal';
+import { SalaLancesFornecedor } from '@/components/secretaria/SalaLances';
 import {
     CRITERIOS, PERFIS_DISPUTA, UNIDADES_DISPUTA, alertasDaProposta, faltaPara, lotesIncompletos, moeda, numero, percentual, quandoBr, unidadesDeDisputa, valorNaUnidade,
 } from '@/lib/certames';
@@ -39,7 +40,6 @@ export default function Disputas() {
         secPortal('disputaConvite', { convite })
             .then((r) => { toast.success('Convite aceito. A disputa agora aparece na sua lista.'); ir({ d: r.certame_id }); })
             .catch((e) => { toast.error(e?.message || 'Convite inválido'); ir(null); });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated, convite]);
 
     return (
@@ -73,7 +73,7 @@ function Carregando({ texto }) {
 function SeloSituacao({ a, agora }) {
     if (a.situacao === 'cancelado') return <Badge className="bg-rose-700 hover:bg-rose-700">Cancelada</Badge>;
     if (a.situacao === 'publicado' && Date.parse(a.abertura_em) > agora) return <Badge className="bg-indigo-600 hover:bg-indigo-600">Recebendo propostas</Badge>;
-    return <Badge variant="outline">{a.situacao === 'publicado' ? 'Aberta' : a.situacao_nome}</Badge>;
+    return <Badge variant="outline">{a.situacao === 'publicado' ? (a.momento === 'lances' ? 'Em lances' : 'Aberta') : a.situacao_nome}</Badge>;
 }
 
 function MinhasDisputas({ onAbrir, onCodigo }) {
@@ -252,6 +252,15 @@ function Disputa({ id, codigo, onVoltar, onAbrir }) {
     const [recibo, setRecibo] = useState(null);
     useEffect(() => { const t = setInterval(() => setAgora(Date.now()), 30000); return () => clearInterval(t); }, []);
     const d = q.data;
+    // Na hora da abertura (e no fim dos lances), o aviso se relê: a tela passa à sala de lances ou ao resultado.
+    const fimDosLances = useCallback(() => qc.invalidateQueries({ queryKey: chave }), [qc, id, codigo]);
+    useEffect(() => {
+        if (!d?.aviso?.abertura_em || d.aviso.momento !== 'propostas') return undefined;
+        const ms = Date.parse(d.aviso.abertura_em) - Date.now() + 1500;
+        if (ms > 2 ** 31 - 1) return undefined;
+        const t = setTimeout(fimDosLances, Math.max(0, ms));
+        return () => clearTimeout(t);
+    }, [d?.aviso?.abertura_em, d?.aviso?.momento, fimDosLances]);
     const participar = async () => {
         setIndo(true);
         try { const r = await secPortal('disputaParticipar', { certame_id: d.aviso.id }); toast.success('Você participa desta disputa'); onAbrir(r.certame_id); qc.invalidateQueries({ queryKey: chave }); } catch (e) { toast.error(e?.message || 'Não foi possível participar'); } finally { setIndo(false); }
@@ -271,8 +280,12 @@ function Disputa({ id, codigo, onVoltar, onAbrir }) {
                         </CardContent></Card>
                     )}
                     {d.pode.propor && <FormProposta key={d.proposta?.atualizada_em || 'nova'} d={d} recibo={recibo} setRecibo={setRecibo} onFeito={() => qc.invalidateQueries({ queryKey: chave })} />}
-                    {d.participa && !d.pode.propor && d.aviso.situacao === 'publicado' && Date.parse(d.aviso.abertura_em) <= agora && (
-                        <p className="text-sm text-slate-700 dark:text-slate-300">O prazo de propostas terminou{d.proposta ? '; a sua foi recebida' : ''}. {d.aviso.lances ? 'Os lances acontecem na sala de lances.' : 'O órgão abre as propostas e julga.'}</p>
+                    {d.participa && d.proposta && d.aviso.momento === 'lances' && (
+                        <SalaLancesFornecedor certameId={d.aviso.id} aviso={d.aviso} onFim={fimDosLances} />
+                    )}
+                    {d.participa && !d.pode.propor && d.aviso.situacao === 'publicado' && Date.parse(d.aviso.abertura_em) <= agora && !(d.proposta && d.aviso.momento === 'lances') && (
+                        <p className="text-sm text-slate-700 dark:text-slate-300">O prazo de propostas terminou{d.proposta ? '; a sua foi recebida' : ''}. {d.aviso.lances && d.aviso.momento === 'lances'
+                            ? 'Sem proposta, não se dá lance.' : d.aviso.lances ? 'A fase de lances terminou: o órgão julga as ofertas e publica o resultado.' : 'O órgão abre as propostas e julga.'}</p>
                     )}
                 </>
             )}

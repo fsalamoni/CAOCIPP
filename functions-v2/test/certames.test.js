@@ -75,3 +75,40 @@ test('certame: texto do aviso esconde o orçamento sigiloso', () => {
     assert.match(sig, /orçamento estimado é sigiloso/);
     assert.equal(s.codigoDoAviso(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 31])).length, 8);
 });
+
+test('sala de lances: momento, lance, intervalo e classificação (S12)', () => {
+    const x = { abertura_em: '2026-11-20T13:00:00.000Z', lances: true, horas_lances: 6 };
+    assert.equal(s.fimDosLances(x), '2026-11-20T19:00:00.000Z');
+    assert.equal(s.momentoDaDisputa(x, '2026-11-20T12:59:59.000Z'), 'propostas');
+    assert.equal(s.momentoDaDisputa(x, '2026-11-20T13:00:00.000Z'), 'lances');
+    assert.equal(s.momentoDaDisputa(x, '2026-11-20T19:00:00.000Z'), 'encerrada');
+    assert.equal(s.momentoDaDisputa({ ...x, lances: false }, '2026-11-20T13:00:01.000Z'), 'encerrada');
+    const d = { criterio: 'menor_preco', unidade_disputa: 'item', intervalo: { tipo: 'percentual', valor: 1 } };
+    assert.equal(s.problemaDoLance(99, 100, d), '');
+    assert.match(s.problemaDoLance(99.5, 100, d), /intervalo mínimo.*99,00/);
+    assert.match(s.problemaDoLance(100, 100, d), /menor que o seu último/);
+    assert.equal(s.problemaDoLance(50, 100, { ...d, intervalo: { tipo: 'valor', valor: 0 } }), '');
+    const desc = { criterio: 'maior_desconto', intervalo: { tipo: 'percentual', valor: 0.5 } };
+    assert.equal(s.problemaDoLance(10.5, 10, desc), '');
+    assert.match(s.problemaDoLance(10.2, 10, desc), /ao menos 10,5%/);
+    assert.match(s.problemaDoLance(100, 10, desc), /menor que 100%/);
+    const u = { chave: 'i1', itens: [{ id: 'i1', quantidade: 10 }] };
+    const p = { itens: [{ item_id: 'i1', valor: 8 }], atualizada_em: '2026-11-19T10:00:00Z' };
+    assert.equal(s.valorDaProposta(p, u, d), 8);
+    assert.equal(s.totalDoValor(7.5, u, d), 75);
+    assert.equal(s.valorDaProposta(p, u, { ...d, unidade_disputa: 'lote' }), 80);
+    const lances = [
+        { id: 'a', seq: 1, chave: 'i1', uid: 'A', valor: 7, total: 70, em: '2026-11-20T13:01:00Z' },
+        { id: 'b', seq: 2, chave: 'i1', uid: 'A', valor: 6, total: 60, em: '2026-11-20T13:02:00Z', excluido: { por: 'agente', em: 'x' } },
+    ];
+    assert.deepEqual(s.posicaoDe('A', p, u, d, lances), { uid: 'A', valor: 7, total: 70, em: '2026-11-20T13:01:00Z', seq: 1 });
+    assert.equal(s.posicaoDe('B', p, u, d, lances).seq, 0);
+    // Empate: vale quem chegou antes ao valor.
+    const ord = s.ordenarPosicoes([
+        { uid: 'B', valor: 7, total: 70, em: '2026-11-20T13:05:00Z', seq: 4 },
+        { uid: 'A', valor: 7, total: 70, em: '2026-11-20T13:01:00Z', seq: 1 },
+        { uid: 'C', valor: 8, total: 80, em: '2026-11-19T10:00:00Z', seq: 0 },
+    ], d);
+    assert.deepEqual(ord.map((v) => v.uid), ['A', 'B', 'C']);
+    assert.deepEqual(s.ordenarPosicoes(ord, { criterio: 'maior_desconto' }).map((v) => v.uid), ['C', 'A', 'B']);
+});

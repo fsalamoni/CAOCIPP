@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.moeda = exports.instanteDaAbertura = exports.DECLARACOES = exports.HORAS_LANCES = exports.DIAS_UTEIS_MINIMOS = exports.MAX_FORNECEDORES = exports.MAX_CONVITES = exports.MAX_ITENS = exports.SITUACOES_CERTAME = exports.RESULTADOS_DISPUTA = exports.PORTES = exports.UNIDADES_DISPUTA = exports.CRITERIOS = exports.PERFIS_DISPUTA = void 0;
+exports.valorTexto = exports.totalDoValor = exports.fimDosLances = exports.SEGUNDOS_ENTRE_LANCES = exports.SEGUNDOS_PARA_DESFAZER = exports.moeda = exports.instanteDaAbertura = exports.num = exports.DECLARACOES = exports.HORAS_LANCES = exports.DIAS_UTEIS_MINIMOS = exports.MAX_FORNECEDORES = exports.MAX_CONVITES = exports.MAX_ITENS = exports.SITUACOES_CERTAME = exports.RESULTADOS_DISPUTA = exports.PORTES = exports.UNIDADES_DISPUTA = exports.CRITERIOS = exports.PERFIS_DISPUTA = void 0;
 exports.sanitizeDisputaDaAcao = sanitizeDisputaDaAcao;
 exports.aberturaMinima = aberturaMinima;
 exports.sanitizeDadosCertame = sanitizeDadosCertame;
@@ -13,13 +13,19 @@ exports.valorNaUnidade = valorNaUnidade;
 exports.alertasDaProposta = alertasDaProposta;
 exports.textoDoAviso = textoDoAviso;
 exports.codigoDoAviso = codigoDoAviso;
+exports.momentoDaDisputa = momentoDaDisputa;
+exports.valorDaProposta = valorDaProposta;
+exports.problemaDoLance = problemaDoLance;
+exports.ordenarPosicoes = ordenarPosicoes;
+exports.posicaoDe = posicaoDe;
 /**
  * Disputa de preços como ação do rito (`pede: 'disputa'`), S11: o certame.
  * A unidade que tem o processo monta o aviso (objeto, itens, critério, prazo)
  * e o publica; fornecedores entram por convite (cotação privada) ou pelo link
  * do aviso (dispensa eletrônica, IN SEGES/ME 67/2021) e enviam a proposta.
  * Até a abertura, o conteúdo das propostas é sigiloso: o órgão sabe só quantas
- * chegaram. A sala de lances, o julgamento e o resultado vêm nas etapas S12 e S13.
+ * chegaram. A sala de lances (S12) está no fim deste arquivo; o julgamento e o
+ * resultado vêm na S13.
  *
  * Lógica pura; o servidor grava. Ver docs/PROCESSO_ELETRONICO.md.
  */
@@ -50,6 +56,7 @@ exports.DECLARACOES = [
     ['meepp', 'Sou microempresa ou empresa de pequeno porte e cumpro os requisitos da Lei Complementar 123/2006 para o tratamento diferenciado.', false],
 ];
 const num = (v) => (typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(/\./g, '').replace(',', '.')) : NaN);
+exports.num = num;
 /** Até 4 casas decimais (IN 73/2022 e manual do fornecedor). */
 const casas4 = (n) => Math.round(n * 10000) / 10000;
 const ehData = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T12:00:00Z`));
@@ -99,13 +106,13 @@ function sanitizeDadosCertame(raw, perfil) {
         const descricao = (0, secretaria_1.texto)(o.descricao, 500);
         if (descricao.length < 3)
             throw new Error(`Descreva o item ${n}`);
-        const quantidade = casas4(num(o.quantidade));
+        const quantidade = casas4((0, exports.num)(o.quantidade));
         if (!(quantidade > 0) || quantidade > 1e9)
             throw new Error(`Informe a quantidade do item ${n}`);
-        const est = o.valor_estimado === '' || o.valor_estimado == null ? NaN : num(o.valor_estimado);
+        const est = o.valor_estimado === '' || o.valor_estimado == null ? NaN : (0, exports.num)(o.valor_estimado);
         if (!Number.isNaN(est) && !(est > 0 && est < 1e12))
             throw new Error(`Valor estimado do item ${n} inválido`);
-        const lote = unidade === 'lote' ? Math.trunc(num(o.lote)) : NaN;
+        const lote = unidade === 'lote' ? Math.trunc((0, exports.num)(o.lote)) : NaN;
         if (unidade === 'lote' && !(lote >= 1 && lote <= 99))
             throw new Error(`Diga em que lote está o item ${n} (1 a 99)`);
         let id = typeof o.id === 'string' && /^[a-z0-9]{1,12}$/.test(o.id) ? o.id : `i${n}`;
@@ -116,7 +123,7 @@ function sanitizeDadosCertame(raw, perfil) {
     });
     const iv = (r.intervalo && typeof r.intervalo === 'object' ? r.intervalo : {});
     const ivTipo = iv.tipo === 'valor' ? 'valor' : 'percentual';
-    const ivValor = iv.valor === '' || iv.valor == null ? 0 : casas4(num(iv.valor));
+    const ivValor = iv.valor === '' || iv.valor == null ? 0 : casas4((0, exports.num)(iv.valor));
     if (!(ivValor >= 0) || (ivTipo === 'percentual' && ivValor > 50))
         throw new Error('Intervalo mínimo entre lances inválido (percentual de 0 a 50)');
     const abertura_data = String(r.abertura_data || '');
@@ -127,7 +134,7 @@ function sanitizeDadosCertame(raw, perfil) {
         throw new Error('Hora da abertura inválida (hh:mm)');
     const lances = perfil === 'dispensa' ? true : r.lances === true;
     const [hMin, hMax] = exports.HORAS_LANCES[perfil];
-    const horas = r.horas_lances == null || r.horas_lances === '' ? hMin : Math.trunc(num(r.horas_lances));
+    const horas = r.horas_lances == null || r.horas_lances === '' ? hMin : Math.trunc((0, exports.num)(r.horas_lances));
     if (lances && !(horas >= hMin && horas <= hMax))
         throw new Error(`Os lances duram de ${hMin} a ${hMax} horas${perfil === 'dispensa' ? ' na dispensa eletrônica (IN 67/2021, art. 11)' : ''}`);
     return {
@@ -201,7 +208,7 @@ function sanitizeProposta(raw, d, licitante) {
             continue;
         if (o.valor === '' || o.valor == null)
             continue;
-        const valor = casas4(num(o.valor));
+        const valor = casas4((0, exports.num)(o.valor));
         if (d.criterio === 'maior_desconto' ? !(valor > 0 && valor < 100) : !(valor > 0 && valor < 1e12)) {
             throw new Error(`Item ${item.numero}: ${d.criterio === 'maior_desconto' ? 'informe o desconto em percentual (maior que 0 e menor que 100)' : 'informe o valor unitário'}`);
         }
@@ -269,5 +276,67 @@ function textoDoAviso(perfil, d, numero, unidade) {
 function codigoDoAviso(bytes) {
     const ALF = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     return Array.from(bytes.slice(0, 8), (b) => ALF[b % ALF.length]).join('');
+}
+// ─── Sala de lances (S12) ─────────────────────────────────────────────────
+/** O licitante desfaz o próprio último lance uma vez por item ou lote, em até 15 segundos (IN 73/2022, art. 21, § 3º). */
+exports.SEGUNDOS_PARA_DESFAZER = 15;
+/** Intervalo mínimo entre dois lances do mesmo licitante, contra cliques repetidos. */
+exports.SEGUNDOS_ENTRE_LANCES = 3;
+/** Fim da fase de lances (ISO), ou undefined sem lances. A dispensa não prorroga (IN 67/2021, art. 11). */
+const fimDosLances = (x) => (x.abertura_em && x.lances ? new Date(Date.parse(x.abertura_em) + x.horas_lances * 3600e3).toISOString() : undefined);
+exports.fimDosLances = fimDosLances;
+/** Em que ponto está a disputa publicada: recebendo propostas, em lances ou encerrada (sem lances, encerra na abertura). */
+function momentoDaDisputa(x, agora) {
+    if (!x.abertura_em || agora < x.abertura_em)
+        return 'propostas';
+    const fim = (0, exports.fimDosLances)(x);
+    return fim && agora < fim ? 'lances' : 'encerrada';
+}
+const unitario = (d) => d.criterio === 'menor_preco' && d.unidade_disputa === 'item';
+const totalDoValor = (v, u, d) => (unitario(d) ? casas4(v * u.itens[0].quantidade) : casas4(v));
+exports.totalDoValor = totalDoValor;
+/** O valor da proposta na unidade, no que o licitante digita no lance. Null se não cotou. */
+function valorDaProposta(p, u, d) {
+    const t = valorNaUnidade(p, u, d.criterio);
+    if (t == null)
+        return null;
+    return unitario(d) ? p.itens.find((x) => x.item_id === u.itens[0].id).valor : t;
+}
+const valorTexto = (v, d) => (d.criterio === 'maior_desconto' ? `${String(v).replace('.', ',')}%` : moeda(v));
+exports.valorTexto = valorTexto;
+/**
+ * Confere o lance contra o último valor do próprio licitante (lance intermediário
+ * vale: não precisa vencer o melhor). Devolve o problema, ou '' quando vale.
+ * No desconto, o intervalo é em pontos percentuais.
+ */
+function problemaDoLance(valor, atual, d) {
+    var _a, _b;
+    const desc = d.criterio === 'maior_desconto';
+    if (!Number.isFinite(valor) || valor <= 0 || valor >= 1e12)
+        return 'Informe o valor do lance';
+    if (desc && valor >= 100)
+        return 'O desconto precisa ser menor que 100%';
+    const iv = ((_a = d.intervalo) === null || _a === void 0 ? void 0 : _a.valor) || 0;
+    const passo = desc || ((_b = d.intervalo) === null || _b === void 0 ? void 0 : _b.tipo) === 'valor' ? iv : casas4((atual * iv) / 100);
+    if (desc ? !(valor > atual) : !(valor < atual))
+        return `O lance precisa ser ${desc ? 'maior' : 'menor'} que o seu último (${(0, exports.valorTexto)(atual, d)})`;
+    const limite = casas4(desc ? atual + passo : atual - passo);
+    if (passo > 0 && (desc ? valor < limite : valor > limite)) {
+        return `Respeite o intervalo mínimo entre lances: ${desc ? 'ao menos' : 'no máximo'} ${(0, exports.valorTexto)(limite, d)}`;
+    }
+    return '';
+}
+/** Ordena as posições: menor total (ou maior desconto); empate, quem chegou antes ao valor (IN 67/2021, art. 12, § 1º). */
+function ordenarPosicoes(ps, d) {
+    const desc = d.criterio === 'maior_desconto';
+    return [...ps].sort((a, b) => (desc ? b.total - a.total : a.total - b.total) || a.em.localeCompare(b.em) || a.seq - b.seq);
+}
+/** Posição de um licitante: o último lance não excluído, ou a proposta. Null se não cotou a unidade. */
+function posicaoDe(uid, p, u, d, lances) {
+    const base = valorDaProposta(p, u, d);
+    if (base == null)
+        return null;
+    const ult = lances.filter((l) => l.uid === uid && l.chave === u.chave && !l.excluido).sort((a, b) => a.seq - b.seq).at(-1);
+    return ult ? { uid, valor: ult.valor, total: ult.total, em: ult.em, seq: ult.seq } : { uid, valor: base, total: (0, exports.totalDoValor)(base, u, d), em: p.atualizada_em, seq: 0 };
 }
 //# sourceMappingURL=certames.js.map

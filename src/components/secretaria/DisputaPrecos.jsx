@@ -10,8 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { secProcesso } from '@/services/secretariaService';
 import AjudaTermo from './AjudaTermo';
+import { SalaLancesOrgao } from './SalaLances';
 import {
-    CRITERIOS, DIAS_UTEIS_MINIMOS, HORAS_LANCES, MAX_ITENS, PERFIS_DISPUTA, UNIDADES_DISPUTA, faltaPara, moeda, numero, quandoBr, valorEstimado,
+    CRITERIOS, DIAS_UTEIS_MINIMOS, HORAS_LANCES, MAX_ITENS, PERFIS_DISPUTA, UNIDADES_DISPUTA, faltaPara, moeda, numero, quandoBr, valorEstimado, valorTexto,
 } from '@/lib/certames';
 
 /**
@@ -203,7 +204,7 @@ function Convites({ c, gerir, chamar, indo }) {
     );
 }
 
-function Propostas({ orgId, procId }) {
+function Propostas({ orgId, procId, criterio }) {
     const q = useQuery({ queryKey: ['sec-disputa-propostas', orgId, procId], queryFn: () => secProcesso(orgId, 'certamePropostas', { processo_id: procId }) });
     if (q.isLoading) return <p className="text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Abrindo as propostas…</p>;
     if (q.error) return <p className="text-sm text-rose-700 dark:text-rose-300">{q.error.message}</p>;
@@ -218,14 +219,14 @@ function Propostas({ orgId, procId }) {
                                 <li key={k} className="flex flex-wrap gap-2 text-sm rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1">
                                     <span className="font-semibold w-6">{k + 1}º</span>
                                     <span className="flex-1 min-w-[10rem]">{x.fornecedor} <span className="text-xs text-slate-600 dark:text-slate-400">{x.documento}{x.porte === 'me_epp' ? ' · ME/EPP' : ''}</span></span>
-                                    <b>{moeda(x.valor)}</b>
+                                    <b>{valorTexto(x.valor, criterio)}</b>{x.por_lance && <span className="text-xs text-slate-600 dark:text-slate-400">por lance</span>}
                                 </li>
                             ))}
                         </ol>
                     )}
                 </div>
             ))}
-            <p className="text-xs text-slate-600 dark:text-slate-400">Empate: vale quem enviou antes. O julgamento, a habilitação e o resultado vêm em seguida.</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">Empate: vale quem chegou antes ao valor. O julgamento, a habilitação e o resultado vêm em seguida.</p>
         </section>
     );
 }
@@ -272,7 +273,7 @@ export default function DisputaPrecos({ orgId, procId, onFechar }) {
                 <DialogHeader>
                     <DialogTitle className="flex flex-wrap items-center gap-2"><Gavel className="w-5 h-5 text-indigo-600 dark:text-indigo-400" aria-hidden /> Disputa de preços <AjudaTermo id="disputa_precos" />
                         <Badge variant="outline">{PERFIS_DISPUTA[perfil]}</Badge>
-                        {c && <Badge className={c.situacao === 'publicado' ? 'bg-indigo-600 hover:bg-indigo-600' : 'bg-slate-600 hover:bg-slate-600'}>{aberta && c.situacao === 'publicado' ? 'Aberta' : c.situacao_nome}</Badge>}
+                        {c && <Badge className={c.situacao === 'publicado' ? 'bg-indigo-600 hover:bg-indigo-600' : 'bg-slate-600 hover:bg-slate-600'}>{aberta && c.situacao === 'publicado' ? (d.momento === 'lances' ? 'Em lances' : 'Aberta') : c.situacao_nome}</Badge>}
                     </DialogTitle>
                     <DialogDescription>{d ? `Processo ${d.processo.numero}${d.acao ? `: ${d.acao.nome}` : ''}.` : 'Carregando…'}</DialogDescription>
                 </DialogHeader>
@@ -312,9 +313,8 @@ export default function DisputaPrecos({ orgId, procId, onFechar }) {
                             <pre className="mt-2 whitespace-pre-wrap text-sm font-sans text-slate-800 dark:text-slate-200">{c.aviso}</pre>
                         </details>
                         {c.situacao === 'publicado' && !aberta && <Convites c={c} gerir={d.pode.gerir} chamar={chamar} indo={indo} />}
-                        {aberta && c.situacao === 'publicado' && (c.lances
-                            ? <p className="text-sm text-slate-700 dark:text-slate-300">A disputa tem lances: as propostas se abrem na sala de lances.</p>
-                            : <Propostas orgId={orgId} procId={procId} />)}
+                        {aberta && c.situacao === 'publicado' && c.lances && <SalaLancesOrgao orgId={orgId} procId={procId} />}
+                        {aberta && c.situacao === 'publicado' && (!c.lances || d.momento === 'encerrada') && <Propostas orgId={orgId} procId={procId} criterio={c.criterio} />}
                         {d.pode.gerir && c.situacao === 'publicado' && !aberta && (
                             <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
                                 <Button variant="ghost" className="gap-1 text-rose-700 dark:text-rose-300" disabled={indo} onClick={() => { setModal('cancelar'); setMotivo(''); }}><Ban className="w-4 h-4" aria-hidden /> Cancelar a disputa</Button>
