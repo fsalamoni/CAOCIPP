@@ -5,7 +5,7 @@ import { CalendarioOrgao, diaUtil, hojeBrasil, podeVer, sanitizeCalendario, text
 import { Orgao, composicaoEm, orgaosDe } from '../shared/orgaos';
 import {
     DadosSessao, ItemPauta, MAX_PAUTA, SituacaoSessao, dataMinimaDaSessao, julgamentoPendente, problemaDaAntecedencia,
-    Votacao, reordenar, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
+    PedidoSessao, Votacao, reordenar, votacaoAberta, virtualEncerrou, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
 } from '../shared/sessoes';
 import { auditar } from './config';
 import { COL, Contexto, administraOrgao, erroUsuario, julgadorLe, lerProcesso, registrarMovimento } from './context';
@@ -74,13 +74,13 @@ function inapto(c: Contexto, proc: admin.firestore.DocumentData, orgaoId: string
 }
 
 const resumoSessao = (id: string, s: Sessao, orgao?: Orgao) => ({
-    id, orgao_id: s.orgao_id, orgao_nome: orgao?.nome || '', titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora,
+    id, orgao_id: s.orgao_id, orgao_nome: orgao?.nome || '', titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora, fim: s.fim || null,
     local: s.local, link: s.link, situacao: s.situacao, itens: (s.pauta || []).filter((x) => x.situacao === 'pautado').length,
 });
 
 /** O que vai no processo pautado (lido pela capa, pela lista e pelo portal). */
 const marcaNoProcesso = (id: string, s: DadosSessao, orgao: Orgao, item: ItemPauta) => ({
-    id, titulo: s.titulo, data: s.data, hora: s.hora, modo: s.modo, local: s.local, link: s.link,
+    id, titulo: s.titulo, data: s.data, hora: s.hora, modo: s.modo, local: s.local, link: s.link, ...(s.fim ? { fim: s.fim } : {}),
     orgao_id: orgao.id, colegiado: orgao.nome, inclusao: item.inclusao,
 });
 
@@ -90,18 +90,20 @@ const marcaNoProcesso = (id: string, s: DadosSessao, orgao: Orgao, item: ItemPau
  * transação, antes de qualquer escrita.
  */
 export async function lerContinuacao(tx: admin.firestore.Transaction, c: Contexto, pid: string, proc: admin.firestore.DocumentData) {
-    const j = proc.julgamento_em_curso as { sessao_id?: string; manter_votos?: boolean; relator_uid?: string; relator_nome?: string } | undefined;
+    const j = proc.julgamento_em_curso as { sessao_id?: string; manter_votos?: boolean; so_relator?: boolean; relator_uid?: string; relator_nome?: string } | undefined;
     if (!j?.sessao_id) return null;
-    const v = j.manter_votos ? (await tx.get(c.db.collection(COL_SESSOES).doc(j.sessao_id).collection('votacoes').doc(pid))).data() as Votacao | undefined : undefined;
+    const lido = j.manter_votos ? (await tx.get(c.db.collection(COL_SESSOES).doc(j.sessao_id).collection('votacoes').doc(pid))).data() as Votacao | undefined : undefined;
+    // Destacado da sessão virtual (S7): recomeça, com o voto do relator em rascunho e sem os votos dos pares.
+    const v = lido && j.so_relator ? { ...lido, votos: {}, liberado_em: null } : lido;
     return { de: j.sessao_id, v, relator_uid: j.relator_uid || '', relator_nome: j.relator_nome || '' };
 }
 
 /** Próxima sessão ativa do colegiado depois de `depoisDe`, onde o julgamento continua. Lida na transação. */
-export async function proximaSessao(tx: admin.firestore.Transaction, c: Contexto, orgaoId: string, excluir: string, depoisDe: string) {
+export async function proximaSessao(tx: admin.firestore.Transaction, c: Contexto, orgaoId: string, excluir: string, depoisDe: string, sincrona = false) {
     const q = await tx.get(c.db.collection(COL_SESSOES).where('organization_id', '==', c.orgId).where('orgao_id', '==', orgaoId).where('ativa', '==', true));
     const hoje = hojeBrasil();
     return q.docs.map((d) => ({ ref: d.ref, s: d.data() as Sessao }))
-        .filter((x) => x.ref.id !== excluir && x.s.data > depoisDe && x.s.data >= hoje && (x.s.pauta || []).filter((i) => i.situacao === 'pautado').length < MAX_PAUTA)
+        .filter((x) => x.ref.id !== excluir && (!sincrona || x.s.modo !== 'assincrona') && x.s.data > depoisDe && x.s.data >= hoje && (x.s.pauta || []).filter((i) => i.situacao === 'pautado').length < MAX_PAUTA)
         .sort((a, b) => `${a.s.data}T${a.s.hora}`.localeCompare(`${b.s.data}T${b.s.hora}`))[0] || null;
 }
 
@@ -208,11 +210,18 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
         const gere = gereSessoes(c, o.id);
         if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere)) throw new HttpsError('not-found', 'Sessão não encontrada');
         const pauta = [...(s.pauta || [])].sort((a, b) => a.ordem - b.ordem);
-        const [snaps, notas, votacoes] = pauta.length ? await Promise.all([
+        const [snaps, notas, votacoes, pedSnap] = pauta.length ? await Promise.all([
             c.db.getAll(...pauta.map((x) => c.db.collection(COL.processos).doc(x.processo_id))),
             c.db.getAll(...pauta.map((x) => c.db.collection(COL_ANOTACOES).doc(`${c.ctx.uid}_${x.processo_id}`))),
             c.db.getAll(...pauta.map((x) => ref.collection('votacoes').doc(x.processo_id))),
-        ]) : [[], [], []];
+            ref.collection('pedidos').get(),
+        ]) : [[], [], [], null];
+        // S7: pedidos das partes por processo (os indeferidos não contam).
+        const pedidosDe = (pid: string) => {
+            const ds = (pedSnap?.docs || []).map((d) => d.data() as PedidoSessao).filter((x) => x.processo_id === pid);
+            const vale = (t: string) => ds.filter((x) => x.tipo === t && x.situacao !== 'indeferido').length;
+            return { sustentacao: vale('sustentacao'), preferencia: vale('preferencia'), esclarecimento: vale('esclarecimento'), destaque: ds.filter((x) => x.tipo === 'destaque' && x.situacao === 'pedido').length, a_decidir: ds.filter((x) => x.situacao === 'pedido').length };
+        };
         // Quem vota no dia da sessão: presidente e titulares.
         const quemVota = composicaoEm(o.composicao, s.data).filter((m) => m.funcao !== 'suplente').map((m) => m.uid);
         const itens = pauta.map((x, i) => {
@@ -234,6 +243,9 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
                 acordao: julgado && d!.acordao?.sessao_id === ref.id
                     ? { redator_nome: d!.acordao.redator_nome || '', prazo: d!.acordao.prazo, enviado: !!d!.acordao.enviado_em, juntado: !!d!.acordao.juntado_em, sou_redator: d!.acordao.redator_uid === c.ctx.uid } : null,
                 relator_nome: x.relator_nome || '',
+                pedidos: pedidosDe(x.processo_id),
+                // Julgamento iniciado em sessão anterior (CPC, art. 936, III).
+                continua: !!votacoes[i].data()?.continua_de,
                 votacao: resumoVotacao(votacoes[i].data() as Votacao | undefined, c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || ''),
                 // Só a secretaria precisa saber se o processo deixou de estar apto (para retirar).
                 ...(gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}),
@@ -247,7 +259,9 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
             // Fim de semana, feriado nacional ou do órgão, ou recesso: a tela avisa (sessão extraordinária pode ser assim).
             dia_util: diaUtil(new Date(`${s.data}T00:00:00Z`), calendario),
             sessao: { ...resumoSessao(ref.id, s, o), observacoes: s.observacoes || '', version: s.version, publicada_em: s.publicada_em || null,
-                publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '' },
+                publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '',
+                encerrada_em: s.encerrada_em || null, votacao_aberta: votacaoAberta(s, hoje), virtual_encerrou: virtualEncerrou(s, hoje),
+                preside: composicaoEm(o.composicao, s.data).some((m) => m.uid === c.ctx.uid && m.funcao === 'presidente') },
             pauta: itens,
         };
     }
@@ -298,7 +312,7 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
             if (dados!.data < hoje) throw new HttpsError('invalid-argument', 'A data da sessão já passou');
             const ref = c.db.collection(COL_SESSOES).doc();
             await ref.set({
-                organization_id: c.orgId, orgao_id: o.id, tipo: 'julgamento', ...dados!, situacao: 'rascunho', ativa: true, pauta: [], processos_ids: [],
+                organization_id: c.orgId, orgao_id: o.id, tipo: 'julgamento', ...dados!, ...(dados!.fim ? { encerra_em: dados!.fim } : {}), situacao: 'rascunho', ativa: true, pauta: [], processos_ids: [],
                 criado_por: quem.uid, criado_por_nome: quem.nome, criado_em: new Date().toISOString(), version: 1, updated_at: FieldValue.serverTimestamp(),
             });
             await auditar(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_CRIADA', { sessao_id: ref.id, orgao_id: o.id, data: dados!.data });
@@ -310,12 +324,14 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
             if (!s.ativa) throw new HttpsError('failed-precondition', 'Sessão cancelada não muda');
             if (s.situacao === 'publicada') {
                 // Publicada, a pauta já foi às partes com data, hora e local: só as observações mudam aqui.
-                const mudou = (['titulo', 'carater', 'modo', 'data', 'hora', 'local', 'link'] as const).filter((k) => dados![k] !== s[k]);
+                const mudou = (['titulo', 'carater', 'modo', 'data', 'hora', 'local', 'link', 'fim'] as const).filter((k) => (dados![k] || '') !== (s[k] || ''));
                 if (mudou.length) {
                     throw new HttpsError('failed-precondition', 'A pauta já foi publicada com estes dados. Para mudar a data, a hora ou o local, cancele a sessão (as partes são avisadas) e marque outra.');
                 }
             } else if (dados!.data < hoje) throw new HttpsError('invalid-argument', 'A data da sessão já passou');
-            tx.update(ref, { ...dados!, version: (s.version || 0) + 1, updated_at: FieldValue.serverTimestamp() });
+            // Sessão virtual (S7): `encerra_em` é o que a rotina diária procura para apurar no dia seguinte ao último.
+            const fim = dados!.fim ? { fim: dados!.fim, encerra_em: dados!.fim } : { fim: FieldValue.delete(), encerra_em: FieldValue.delete() };
+            tx.update(ref, { ...dados!, ...fim, version: (s.version || 0) + 1, updated_at: FieldValue.serverTimestamp() });
             return { id: ref.id };
         });
     }
@@ -438,7 +454,7 @@ export async function acaoSessao(c: Contexto, p: Payload): Promise<unknown> {
                     avisar.push(refs[i].id);
                 });
             }
-            tx.update(ref, { situacao: 'cancelada', ativa: false, cancelada_em: new Date().toISOString(), cancelada_por_nome: quem.nome, motivo_cancelamento: motivo, ...versao });
+            tx.update(ref, { situacao: 'cancelada', ativa: false, encerra_em: FieldValue.delete(), cancelada_em: new Date().toISOString(), cancelada_por_nome: quem.nome, motivo_cancelamento: motivo, ...versao });
             auditoria = ['SECRETARIA_SESSAO_CANCELADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, motivo }];
             return { ok: true };
         }

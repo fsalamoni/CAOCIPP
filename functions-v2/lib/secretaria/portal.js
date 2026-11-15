@@ -38,6 +38,8 @@ const meusProcessos_1 = require("../shared/meusProcessos");
 const informacoes_1 = require("../shared/informacoes");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const modulos_1 = require("../shared/modulos");
+const sessoes_1 = require("../shared/sessoes");
+const sessoes_2 = require("./sessoes");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -134,8 +136,14 @@ function parteDoUsuario(proc, uid) {
     }
     return undefined;
 }
+/** Pedidos desta conta para a sessão em que o processo está pautado (S7). */
+async function pedidosDaParte(db, sessaoId, procId, uid) {
+    const q = await db.collection(sessoes_2.COL_SESSOES).doc(sessaoId).collection('pedidos').where('processo_id', '==', procId).get();
+    return q.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((x) => x.uid === uid).sort((a, b) => a.em.localeCompare(b.em))
+        .map((x) => ({ id: x.id, tipo: x.tipo, nome_tipo: sessoes_1.NOME_PEDIDO[x.tipo], texto: x.texto, link: x.link, em: x.em, situacao: x.situacao, motivo: x.motivo || '' }));
+}
 exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const db = admin.firestore();
@@ -308,8 +316,14 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 audiencias: (0, audiencias_1.audienciasFuturas)(data.audiencias, (0, secretaria_1.hojeBrasil)())
                     .map((a) => (Object.assign(Object.assign({ especie: a.especie }, (a.especie_nome ? { especie_nome: a.especie_nome } : {})), { data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] }))), 
                 // Sessão de julgamento em que o processo está pautado (a certidão está nos autos).
-                sessao: data.sessao && data.sessao.data >= (0, secretaria_1.hojeBrasil)()
-                    ? { titulo: data.sessao.titulo, colegiado: data.sessao.colegiado || '', data: data.sessao.data, hora: data.sessao.hora, modo: data.sessao.modo, local: data.sessao.local || '', link: data.sessao.link || '' }
+                sessao: data.sessao && String(data.sessao.fim || data.sessao.data) >= (0, secretaria_1.hojeBrasil)()
+                    ? {
+                        titulo: data.sessao.titulo, colegiado: data.sessao.colegiado || '', data: data.sessao.data, hora: data.sessao.hora, modo: data.sessao.modo, local: data.sessao.local || '', link: data.sessao.link || '',
+                        fim: data.sessao.fim || null,
+                        // S7: o que a parte pode pedir agora e o que já pediu.
+                        pode_pedir: sessoes_1.TIPOS_PEDIDO.filter((t) => !(0, sessoes_1.problemaDoPedido)(data.sessao, t, (0, secretaria_1.hojeBrasil)())),
+                        meus_pedidos: await pedidosDaParte(db, String(data.sessao.id), ref.id, uid),
+                    }
                     : null, autuado_em: data.autuado_em || null, 
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))
@@ -403,6 +417,36 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             return { origem: 'editor', titulo: d.titulo, conteudo: (0, autos_1.conteudoDoDocumento)(d) };
         const [buf] = await admin.storage().bucket().file(d.storage_path).download();
         return { origem: 'upload', titulo: d.titulo, mime: d.mime, nomeArquivo: d.nome_arquivo, base64: buf.toString('base64') };
+    }
+    // S7: sustentação oral, preferência, destaque e esclarecimento de fato para a sessão em que o processo está pautado.
+    if (p.action === 'pedidoSessao') {
+        const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
+        const sid = String(((_f = proc.sessao) === null || _f === void 0 ? void 0 : _f.id) || '');
+        if (!sid)
+            throw new https_1.HttpsError('failed-precondition', 'O processo não está pautado em sessão');
+        const sref = db.collection(sessoes_2.COL_SESSOES).doc(sid);
+        const s = (await sref.get()).data();
+        if (!s || !s.ativa || s.situacao !== 'publicada' || !(s.pauta || []).some((x) => x.processo_id === ref.id && x.situacao === 'pautado')) {
+            throw new https_1.HttpsError('failed-precondition', 'O processo não está mais pautado nesta sessão');
+        }
+        let pedido;
+        try {
+            pedido = (0, sessoes_1.sanitizePedido)({ tipo: p.tipo, texto: p.texto, link: p.link }, s);
+        }
+        catch (e) {
+            throw new https_1.HttpsError('invalid-argument', e.message);
+        }
+        const problema = (0, sessoes_1.problemaDoPedido)(s, pedido.tipo, (0, secretaria_1.hojeBrasil)());
+        if (problema)
+            throw new https_1.HttpsError('failed-precondition', problema);
+        const parte = parteDoUsuario(proc, uid);
+        const meus = await pedidosDaParte(db, sid, ref.id, uid);
+        // Um pedido de cada por pessoa (o esclarecimento, até três), salvo se o anterior foi indeferido.
+        const iguais = meus.filter((x) => x.tipo === pedido.tipo && x.situacao !== 'indeferido').length;
+        if (iguais >= (pedido.tipo === 'esclarecimento' ? 3 : 1))
+            throw new https_1.HttpsError('already-exists', 'Você já fez este pedido para esta sessão');
+        const novo = await sref.collection('pedidos').add(Object.assign(Object.assign({ organization_id: proc.organization_id, processo_id: ref.id, numero: String(proc.numero || ''), uid, parte: parte.rotulo }, pedido), { em: new Date().toISOString(), situacao: 'pedido' }));
+        return { ok: true, id: novo.id };
     }
     if (p.action === 'peticionar') {
         const tipoPeticao = exports.TIPOS_PETICAO_PORTAL.includes(String(p.tipo)) ? String(p.tipo) : '';
@@ -508,7 +552,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             if (sis)
                 await (0, processos_1.avancarSozinho)(sis, procRef.id);
         }
-        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_f = parteDoUsuario(procAntes, uid)) === null || _f === void 0 ? void 0 : _f.assina) || 'A parte'), titulo, tipoPeticao);
+        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_g = parteDoUsuario(procAntes, uid)) === null || _g === void 0 ? void 0 : _g.assina) || 'A parte'), titulo, tipoPeticao);
         return Object.assign({ success: true }, protocolado);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

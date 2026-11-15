@@ -25,6 +25,8 @@ import { situacaoDaParte } from '../shared/meusProcessos';
 import { informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
 import { CampoValor, nomeDoPolo } from '../shared/camposProcesso';
 import { Ref, refsFechadas } from '../shared/modulos';
+import { NOME_PEDIDO, PedidoSessao, TIPOS_PEDIDO, problemaDoPedido, sanitizePedido } from '../shared/sessoes';
+import { COL_SESSOES } from './sessoes';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -48,7 +50,8 @@ export type AvisosParte = typeof AVISOS_PARTE[number];
 export const COL_ACESSOS = 'secPortalAcessos';
 
 interface PortalRequest {
-    action: 'aceitarConvite' | 'meusProcessos' | 'obter' | 'baixar' | 'pdf' | 'peticionar' | 'exportar' | 'certidao' | 'comprovante' | 'preferencias' | 'comunicacoes' | 'darCiencia';
+    action: 'aceitarConvite' | 'meusProcessos' | 'obter' | 'baixar' | 'pdf' | 'peticionar' | 'exportar' | 'certidao' | 'comprovante' | 'preferencias' | 'comunicacoes' | 'darCiencia' | 'pedidoSessao';
+    link?: string;
     comunicacaoId?: string;
     convite?: string;
     processoId?: string;
@@ -163,6 +166,13 @@ function parteDoUsuario(proc: admin.firestore.DocumentData, uid: string): Quem |
         if (r) return { nome: p.nome, polo: p.polo, nome_polo: np(p.polo), como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${np(p.polo)})` };
     }
     return undefined;
+}
+
+/** Pedidos desta conta para a sessão em que o processo está pautado (S7). */
+async function pedidosDaParte(db: admin.firestore.Firestore, sessaoId: string, procId: string, uid: string) {
+    const q = await db.collection(COL_SESSOES).doc(sessaoId).collection('pedidos').where('processo_id', '==', procId).get();
+    return q.docs.map((d) => ({ id: d.id, ...(d.data() as PedidoSessao) })).filter((x) => x.uid === uid).sort((a, b) => a.em.localeCompare(b.em))
+        .map((x) => ({ id: x.id, tipo: x.tipo, nome_tipo: NOME_PEDIDO[x.tipo], texto: x.texto, link: x.link, em: x.em, situacao: x.situacao, motivo: x.motivo || '' }));
 }
 
 export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: '512MiB' }, async (request) => {
@@ -348,8 +358,14 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 audiencias: audienciasFuturas(data.audiencias as Audiencia[] | undefined, hojeBrasil())
                     .map((a) => ({ especie: a.especie, ...(a.especie_nome ? { especie_nome: a.especie_nome } : {}), data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] })),
                 // Sessão de julgamento em que o processo está pautado (a certidão está nos autos).
-                sessao: data.sessao && data.sessao.data >= hojeBrasil()
-                    ? { titulo: data.sessao.titulo, colegiado: data.sessao.colegiado || '', data: data.sessao.data, hora: data.sessao.hora, modo: data.sessao.modo, local: data.sessao.local || '', link: data.sessao.link || '' }
+                sessao: data.sessao && String(data.sessao.fim || data.sessao.data) >= hojeBrasil()
+                    ? {
+                        titulo: data.sessao.titulo, colegiado: data.sessao.colegiado || '', data: data.sessao.data, hora: data.sessao.hora, modo: data.sessao.modo, local: data.sessao.local || '', link: data.sessao.link || '',
+                        fim: data.sessao.fim || null,
+                        // S7: o que a parte pode pedir agora e o que já pediu.
+                        pode_pedir: TIPOS_PEDIDO.filter((t) => !problemaDoPedido(data.sessao, t, hojeBrasil())),
+                        meus_pedidos: await pedidosDaParte(db, String(data.sessao.id), ref.id, uid),
+                    }
                     : null,
                 autuado_em: data.autuado_em || null,
                 // Dados do andamento que o rito mandou mostrar às partes.
@@ -445,6 +461,32 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, conteudo: conteudoDoDocumento(d) };
         const [buf] = await admin.storage().bucket().file(d.storage_path).download();
         return { origem: 'upload', titulo: d.titulo, mime: d.mime, nomeArquivo: d.nome_arquivo, base64: buf.toString('base64') };
+    }
+
+    // S7: sustentação oral, preferência, destaque e esclarecimento de fato para a sessão em que o processo está pautado.
+    if (p.action === 'pedidoSessao') {
+        const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
+        const sid = String(proc.sessao?.id || '');
+        if (!sid) throw new HttpsError('failed-precondition', 'O processo não está pautado em sessão');
+        const sref = db.collection(COL_SESSOES).doc(sid);
+        const s = (await sref.get()).data();
+        if (!s || !s.ativa || s.situacao !== 'publicada' || !((s.pauta || []) as Array<{ processo_id: string; situacao: string }>).some((x) => x.processo_id === ref.id && x.situacao === 'pautado')) {
+            throw new HttpsError('failed-precondition', 'O processo não está mais pautado nesta sessão');
+        }
+        let pedido: ReturnType<typeof sanitizePedido>;
+        try { pedido = sanitizePedido({ tipo: p.tipo, texto: p.texto, link: p.link }, s as never); } catch (e) { throw new HttpsError('invalid-argument', (e as Error).message); }
+        const problema = problemaDoPedido(s as never, pedido.tipo, hojeBrasil());
+        if (problema) throw new HttpsError('failed-precondition', problema);
+        const parte = parteDoUsuario(proc, uid)!;
+        const meus = await pedidosDaParte(db, sid, ref.id, uid);
+        // Um pedido de cada por pessoa (o esclarecimento, até três), salvo se o anterior foi indeferido.
+        const iguais = meus.filter((x) => x.tipo === pedido.tipo && x.situacao !== 'indeferido').length;
+        if (iguais >= (pedido.tipo === 'esclarecimento' ? 3 : 1)) throw new HttpsError('already-exists', 'Você já fez este pedido para esta sessão');
+        const novo = await sref.collection('pedidos').add({
+            organization_id: proc.organization_id, processo_id: ref.id, numero: String(proc.numero || ''), uid, parte: parte.rotulo, ...pedido,
+            em: new Date().toISOString(), situacao: 'pedido',
+        });
+        return { ok: true, id: novo.id };
     }
 
     if (p.action === 'peticionar') {

@@ -4,6 +4,8 @@ exports.ACOES_VOTACAO = void 0;
 exports.regraDoJulgamento = regraDoJulgamento;
 exports.resumoVotacao = resumoVotacao;
 exports.acaoVotacao = acaoVotacao;
+exports.encerrarVirtual = encerrarVirtual;
+exports.encerrarSessoesVirtuais = encerrarSessoesVirtuais;
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
@@ -16,8 +18,8 @@ const context_1 = require("./context");
 const sessoes_2 = require("./sessoes");
 const processos_1 = require("./processos");
 const portalAvisos_1 = require("./portalAvisos");
-const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia'];
-exports.ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', 'sessaoRedator', 'sessaoAcordao', ...ACOES_S5];
+const ACOES_S5 = ['sessaoVista', 'sessaoDevolverVista', 'sessaoAdiar', 'sessaoDiligencia', 'sessaoDestacar'];
+exports.ACOES_VOTACAO = ['sessaoVotacao', 'sessaoRelator', 'sessaoRelatar', 'sessaoVotar', 'sessaoProclamar', 'sessaoRedator', 'sessaoAcordao', 'sessaoPedidoDecidir', 'sessaoEncerrar', ...ACOES_S5];
 const MIN_TEXTO = 10;
 const vazia = (pid) => ({
     processo_id: pid, relator_uid: '', relator_nome: '', relatorio: '', resultado: '', fundamentos: '', liberado_em: null, votos: {}, proclamado: null,
@@ -61,6 +63,18 @@ async function acaoVotacao(c, p) {
     const gere = (0, sessoes_2.gereSessoes)(c, o.id);
     if (!(0, sessoes_2.veSessoes)(c, o, hoje) || (s.situacao === 'rascunho' && !gere))
         throw new https_1.HttpsError('not-found', 'Sessão não encontrada');
+    if (p.action === 'sessaoEncerrar') {
+        const presidente = (0, orgaos_1.composicaoEm)(o.composicao, s.data).some((m) => m.uid === quem.uid && m.funcao === 'presidente');
+        if (!gere && !presidente)
+            throw new https_1.HttpsError('permission-denied', 'Encerra a sessão virtual o presidente do colegiado (ou a secretaria)');
+        if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa)
+            throw new https_1.HttpsError('failed-precondition', 'Só a sessão virtual publicada se encerra aqui');
+        if (!(0, sessoes_1.virtualEncerrou)(s, hoje))
+            throw new https_1.HttpsError('failed-precondition', `A votação vai até ${(0, sessoes_1.br)(String(s.fim))}: o resultado se apura no dia seguinte`);
+        const r = await encerrarVirtual(c.db, c.orgId, sref.id);
+        await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_VIRTUAL_ENCERRADA', Object.assign({ sessao_id: sref.id }, r));
+        return Object.assign({ ok: true }, r);
+    }
     const pid = String(p.processo_id || '');
     const item = (s.pauta || []).find((x) => x.processo_id === pid);
     if (!item)
@@ -74,13 +88,24 @@ async function acaoVotacao(c, p) {
     const pref = c.db.collection(context_1.COL.processos).doc(pid);
     const ativa = s.ativa && item.situacao === 'pautado';
     if (p.action === 'sessaoVotacao') {
-        const [vs, ps] = await Promise.all([vref.get(), pref.get()]);
+        const [vs, ps, pds] = await Promise.all([vref.get(), pref.get(), sref.collection('pedidos').where('processo_id', '==', pid).get()]);
         const v = Object.assign(Object.assign({}, vazia(pid)), (vs.data() || {}));
         const proc = ps.data();
         const regra = proc && ((_a = proc.sessao) === null || _a === void 0 ? void 0 : _a.id) === sref.id ? regraDoJulgamento(proc) : null;
         const relatorUid = v.liberado_em ? v.relator_uid : item.relator_uid || '';
         const souRelator = !!relatorUid && relatorUid === quem.uid;
         const emJulgamento = ativa && !!v.liberado_em && !v.proclamado && !!regra && s.situacao === 'publicada';
+        const aberta = (0, sessoes_1.votacaoAberta)(s, hoje);
+        // S7: o destaque de parte é decidido pelo relator (sem relator, pelo presidente ou pela secretaria).
+        const decideDestaque = relatorUid ? souRelator : (preside || gere);
+        const pedidos = pds.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
+            .filter((x) => gere || (!!eu && (x.situacao !== 'indeferido' || x.tipo === 'destaque')))
+            .sort((a, b) => a.em.localeCompare(b.em))
+            .map((x) => ({
+            id: x.id, tipo: x.tipo, nome_tipo: sessoes_1.NOME_PEDIDO[x.tipo], parte: x.parte, texto: x.texto, link: x.link, em: x.em, situacao: x.situacao,
+            motivo: x.motivo || '', decidido_por: x.decidido_por || '',
+            pode_decidir: x.situacao === 'pedido' && ativa && !v.proclamado && (x.tipo === 'destaque' ? decideDestaque && s.situacao === 'publicada' : gere),
+        }));
         // Com vista nesta sessão: o processo saiu da pauta até a devolução.
         const vista = ((_b = proc === null || proc === void 0 ? void 0 : proc.vista) === null || _b === void 0 ? void 0 : _b.sessao_id) === sref.id ? proc.vista : null;
         const comVista = !!vista && (vista.uids || []).includes(quem.uid);
@@ -97,7 +122,7 @@ async function acaoVotacao(c, p) {
                 previa = { erro: e.message };
             }
         }
-        return Object.assign(Object.assign({ hoje, data_sessao: s.data, situacao: s.situacao, gere, preside, sou_relator: souRelator, sou_membro: !!eu, numero: item.numero, assunto: item.assunto, membros: membros.map((m) => ({ uid: m.uid, nome: m.nome, funcao: m.funcao })), relator: relatorUid ? { uid: relatorUid, nome: v.liberado_em ? v.relator_nome : item.relator_nome || nm.get(relatorUid) || '' } : null, resultados: (regra === null || regra === void 0 ? void 0 : regra.cfg.resultados) || [], pendente: !!regra, liberado_em: v.liberado_em }, (souRelator || vePares ? { relatorio: v.relatorio, resultado: v.resultado, fundamentos: v.fundamentos } : {})), { votos: vePares ? membros.filter((m) => m.uid !== v.relator_uid).map((m) => (Object.assign(Object.assign({}, (v.votos[m.uid] || {})), { uid: m.uid, nome: m.nome, funcao: m.funcao }))) : [], meu_voto: v.votos[quem.uid] || null, placar: vePares && regra ? (0, sessoes_1.placarParcial)(regra.cfg.resultados, votos) : [], previa, proclamado: v.proclamado ? { resultado: v.proclamado.resultado, texto: v.proclamado.texto, em: v.proclamado.em, por_nome: v.proclamado.por_nome } : null, 
+        return Object.assign(Object.assign({ hoje, data_sessao: s.data, situacao: s.situacao, gere, preside, sou_relator: souRelator, sou_membro: !!eu, modo: s.modo, fim: s.fim || null, votacao_aberta: aberta, virtual_encerrou: (0, sessoes_1.virtualEncerrou)(s, hoje), pedidos, numero: item.numero, assunto: item.assunto, membros: membros.map((m) => ({ uid: m.uid, nome: m.nome, funcao: m.funcao })), relator: relatorUid ? { uid: relatorUid, nome: v.liberado_em ? v.relator_nome : item.relator_nome || nm.get(relatorUid) || '' } : null, resultados: (regra === null || regra === void 0 ? void 0 : regra.cfg.resultados) || [], pendente: !!regra, liberado_em: v.liberado_em }, (souRelator || vePares ? { relatorio: v.relatorio, resultado: v.resultado, fundamentos: v.fundamentos } : {})), { votos: vePares ? membros.filter((m) => m.uid !== v.relator_uid).map((m) => (Object.assign(Object.assign({}, (v.votos[m.uid] || {})), { uid: m.uid, nome: m.nome, funcao: m.funcao }))) : [], meu_voto: v.votos[quem.uid] || null, placar: vePares && regra ? (0, sessoes_1.placarParcial)(regra.cfg.resultados, votos) : [], previa, proclamado: v.proclamado ? { resultado: v.proclamado.resultado, texto: v.proclamado.texto, em: v.proclamado.em, por_nome: v.proclamado.por_nome } : null, 
             // Registrado na ação do rito: o processo saiu da pauta com esta sessão como a última.
             registrado: !!v.proclamado && !!proc && ((_d = proc.ultima_sessao) === null || _d === void 0 ? void 0 : _d.id) === sref.id && ((_e = proc.sessao) === null || _e === void 0 ? void 0 : _e.id) !== sref.id, situacao_item: item.situacao, motivo: item.motivo || '', vista: vista ? { nomes: vista.nomes || [], desde: vista.desde, prazo: vista.prazo, vencida: vista.prazo < hoje, minha: comVista } : item.vista ? Object.assign(Object.assign({}, item.vista), { encerrada: true }) : null, vista_dias: ((_f = o.pauta) === null || _f === void 0 ? void 0 : _f.vista_dias) || 10, 
             // S6: voto condutor, redator e acórdão (para quem acompanha a votação; o texto em redação, só ao redator).
@@ -107,9 +132,11 @@ async function acaoVotacao(c, p) {
             } : {})) : null, pode: {
                 designar: gere && ativa && !v.liberado_em,
                 relatar: souRelator && ativa && !v.liberado_em && !!regra,
-                votar: emJulgamento && !!eu && !souRelator,
-                proclamar: emJulgamento && (preside || gere) && s.data <= hoje,
-                vista: emJulgamento && !!eu && !souRelator,
+                votar: emJulgamento && aberta && !!eu && !souRelator,
+                proclamar: emJulgamento && (preside || gere) && (s.modo === 'assincrona' ? (0, sessoes_1.virtualEncerrou)(s, hoje) : s.data <= hoje),
+                vista: emJulgamento && aberta && !!eu && !souRelator,
+                // S7: qualquer membro destaca da sessão virtual até o fim da votação.
+                destacar: s.modo === 'assincrona' && ativa && !v.proclamado && !!regra && s.situacao === 'publicada' && !!eu && !(0, sessoes_1.virtualEncerrou)(s, hoje),
                 juntar_vista: !!vista && !!eu && !souRelator && !comVista,
                 devolver_vista: !!vista && (comVista || ((preside || gere) && vista.prazo < hoje)),
                 adiar: (preside || gere) && ativa && !v.proclamado && !!regra && s.situacao === 'publicada',
@@ -175,6 +202,8 @@ async function acaoVotacao(c, p) {
     if (p.action === 'sessaoVotar') {
         if (!eu)
             throw new https_1.HttpsError('permission-denied', 'Vota quem compõe o colegiado no dia da sessão (presidente e titulares)');
+        if (!(0, sessoes_1.votacaoAberta)(s, hoje))
+            throw new https_1.HttpsError('failed-precondition', `Na sessão virtual, vota-se de ${(0, sessoes_1.br)(s.data)} a ${(0, sessoes_1.br)(String(s.fim))}`);
         let voto = null;
         await c.db.runTransaction(async (tx) => {
             var _a, _b;
@@ -209,6 +238,8 @@ async function acaoVotacao(c, p) {
     if (p.action === 'sessaoProclamar') {
         if (!preside && !gere)
             throw new https_1.HttpsError('permission-denied', 'Proclama o resultado o presidente do colegiado (ou a secretaria, que conduz a sessão)');
+        if (s.modo === 'assincrona' && !(0, sessoes_1.virtualEncerrou)(s, hoje))
+            throw new https_1.HttpsError('failed-precondition', `A votação virtual vai até ${(0, sessoes_1.br)(String(s.fim))}: o resultado se apura depois`);
         if (s.data > hoje)
             throw new https_1.HttpsError('failed-precondition', `O resultado se proclama na sessão, em ${s.data.split('-').reverse().join('/')}`);
         let proclamado = null;
@@ -329,7 +360,30 @@ async function acaoVotacao(c, p) {
             await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_ACORDAO_ENVIADO', { sessao_id: sref.id, processo_id: pid, numero: item.numero, documento_id: r.documento_id });
         return Object.assign({ ok: true }, r);
     }
-    // ---- S5: vista, adiamento e conversão em diligência ----
+    // ---- S7: pedidos das partes (sustentação, preferência, destaque, esclarecimento) ----
+    if (p.action === 'sessaoPedidoDecidir') {
+        const dref = sref.collection('pedidos').doc(String(p.pedido_id || '_'));
+        const ped = (await dref.get()).data();
+        if (!ped || ped.processo_id !== pid)
+            throw new https_1.HttpsError('not-found', 'Pedido não encontrado');
+        if (ped.tipo === 'destaque' && p.deferir === true)
+            return acaoVotacao(c, Object.assign(Object.assign({}, p), { action: 'sessaoDestacar' }));
+        const decide = ped.tipo === 'destaque' ? (item.relator_uid ? item.relator_uid === quem.uid : preside || gere) : gere;
+        if (!decide)
+            throw new https_1.HttpsError('permission-denied', ped.tipo === 'destaque' ? 'Decide o destaque o relator' : 'Quem confere os pedidos é a secretaria do colegiado');
+        const motivo = (0, secretaria_1.texto)(p.motivo, 1000);
+        if (p.deferir !== true && motivo.length < 5)
+            throw new https_1.HttpsError('invalid-argument', 'Diga o motivo do indeferimento (ao menos 5 letras)');
+        await c.db.runTransaction(async (tx) => {
+            const atual = (await tx.get(dref)).data();
+            if ((atual === null || atual === void 0 ? void 0 : atual.situacao) !== 'pedido')
+                throw new https_1.HttpsError('failed-precondition', 'O pedido já foi decidido');
+            tx.update(dref, { situacao: p.deferir === true ? 'deferido' : 'indeferido', motivo, decidido_por: quem.nome, decidido_em: new Date().toISOString() });
+        });
+        await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_PEDIDO_DECIDIDO', { sessao_id: sref.id, processo_id: pid, tipo: ped.tipo, deferido: p.deferir === true });
+        return { ok: true };
+    }
+    // ---- S5: vista, adiamento e conversão em diligência (e o destaque da S7) ----
     if (!ACOES_S5.includes(String(p.action)))
         throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
     const motivo = (0, secretaria_1.texto)(p.motivo, 2000);
@@ -351,13 +405,49 @@ async function acaoVotacao(c, p) {
         const relator = { relator_uid: it.relator_uid || '', relator_nome: it.relator_nome || '' };
         const emCurso = (manter) => (Object.assign({ sessao_id: ref.id, manter_votos: manter }, relator));
         /** Continua na próxima sessão do colegiado, se já houver uma marcada. */
-        const continuar = async (proc2, porque) => {
-            const prox = await (0, sessoes_2.proximaSessao)(tx, c, o.id, ref.id, s2.data);
+        const continuar = async (proc2, porque, destaque = false) => {
+            // Destacado (S7), vai a uma sessão síncrona e recomeça: segue só o relator, com o voto em rascunho.
+            const prox = await (0, sessoes_2.proximaSessao)(tx, c, o.id, ref.id, s2.data, destaque);
             if (!prox)
                 return { prox: null, inc: {} };
             const publicada = prox.s.situacao === 'publicada';
-            return { prox, inc: { publicada, fazer: (base) => (0, sessoes_2.incluirNaSessao)(tx, c, prox, o, pref, base, publicada ? 'extrapauta' : 'pauta', publicada ? porque : '', Object.assign({ de: ref.id, v }, relator)) } };
+            const vv = destaque && v ? Object.assign(Object.assign({}, v), { votos: {}, liberado_em: null }) : v;
+            return { prox, inc: { publicada, fazer: (base) => (0, sessoes_2.incluirNaSessao)(tx, c, prox, o, pref, base, publicada ? 'extrapauta' : 'pauta', publicada ? porque : '', Object.assign({ de: ref.id, v: vv }, relator)) } };
         };
+        if (p.action === 'sessaoDestacar') {
+            const pedidoId = typeof p.pedido_id === 'string' ? p.pedido_id : '';
+            const dref = pedidoId ? ref.collection('pedidos').doc(pedidoId) : null;
+            const ped = dref ? (await tx.get(dref)).data() : undefined;
+            if (dref) {
+                if (!ped || ped.processo_id !== pid || ped.tipo !== 'destaque')
+                    throw new https_1.HttpsError('not-found', 'Pedido não encontrado');
+                if (ped.situacao !== 'pedido')
+                    throw new https_1.HttpsError('failed-precondition', 'O pedido já foi decidido');
+                if (!(it.relator_uid ? it.relator_uid === quem.uid : preside || gere))
+                    throw new https_1.HttpsError('permission-denied', 'Decide o destaque o relator');
+            }
+            else if (!eu)
+                throw new https_1.HttpsError('permission-denied', 'Destaca quem vota no dia da sessão (presidente e titulares)');
+            if (s2.modo !== 'assincrona')
+                throw new https_1.HttpsError('failed-precondition', 'Só se destaca processo da sessão virtual');
+            if (!regra)
+                throw new https_1.HttpsError('failed-precondition', 'O processo não está mais pautado para julgamento nesta sessão');
+            if (v === null || v === void 0 ? void 0 : v.proclamado)
+                throw new https_1.HttpsError('failed-precondition', 'O resultado já foi proclamado');
+            if ((0, sessoes_1.virtualEncerrou)(s2, hoje))
+                throw new https_1.HttpsError('failed-precondition', 'A votação virtual já terminou');
+            const { prox, inc } = await continuar(proc, `destaque da ${s2.titulo}`, true);
+            const quemPediu = ped ? `pedido de ${ped.parte}, deferido por ${quem.nome}` : quem.nome;
+            const mov = (0, context_1.registrarMovimento)(tx, c, pref, proc, 'destaque', (0, sessoes_1.textoDoDestaque)(s2, quemPediu, prox === null || prox === void 0 ? void 0 : prox.s), { sessao_id: ref.id });
+            const mais = 'fazer' in inc && inc.fazer ? inc.fazer(Object.assign(Object.assign({}, proc), mov)) : {};
+            tx.update(pref, Object.assign(Object.assign(Object.assign({}, mov), { sessao: firestore_1.FieldValue.delete(), julgamento_em_curso: Object.assign(Object.assign({}, emCurso(true)), { so_relator: true }) }), mais));
+            marcarItem({ situacao: 'destacado', motivo: ped ? `a pedido de ${ped.parte}: ${ped.texto}`.slice(0, 500) : `destacado por ${quem.nome}` });
+            if (dref)
+                tx.update(dref, { situacao: 'deferido', motivo: '', decidido_por: quem.nome, decidido_em: new Date().toISOString() });
+            avisar.push(pid);
+            auditoria = ['SECRETARIA_SESSAO_DESTAQUE', { sessao_id: ref.id, processo_id: pid, numero: it.numero, a_pedido: (ped === null || ped === void 0 ? void 0 : ped.parte) || null, continua_em: (prox === null || prox === void 0 ? void 0 : prox.ref.id) || null }];
+            return { ok: true, continua_em: prox ? { id: prox.ref.id, titulo: prox.s.titulo, data: prox.s.data } : null };
+        }
         if (p.action === 'sessaoVista') {
             if (!eu)
                 throw new https_1.HttpsError('permission-denied', 'Pede vista quem vota no dia da sessão (presidente e titulares)');
@@ -377,6 +467,8 @@ async function acaoVotacao(c, p) {
                 throw new https_1.HttpsError('failed-precondition', 'O processo não está mais pautado para julgamento nesta sessão');
             if (!(v === null || v === void 0 ? void 0 : v.liberado_em))
                 throw new https_1.HttpsError('failed-precondition', 'Peça vista depois que o relator liberar o voto');
+            if (!(0, sessoes_1.votacaoAberta)(s2, hoje))
+                throw new https_1.HttpsError('failed-precondition', `Na sessão virtual, a vista se pede durante a votação, de ${(0, sessoes_1.br)(s2.data)} a ${(0, sessoes_1.br)(String(s2.fim))}`);
             if (v.proclamado)
                 throw new https_1.HttpsError('failed-precondition', 'O resultado já foi proclamado');
             const prazo = (0, sessoes_1.prazoDaVista)(hoje, o.pauta, calendario);
@@ -433,5 +525,53 @@ async function acaoVotacao(c, p) {
     // E-mail às partes depois da transação: falha de envio não desfaz o ato.
     await Promise.all(avisar.map((id) => (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, id, quem.uid).catch(() => undefined)));
     return resultado;
+}
+/**
+ * Fim da sessão virtual (S7): o sistema apura cada processo pautado, como o
+ * presidente faria. Sem resultado (o relator não liberou o voto, faltou
+ * quórum), o julgamento é adiado para a sessão seguinte com os votos já dados
+ * (Res. CNJ 591/2024, art. 5º, §§ 7º e 8º). Depois, a sessão fica encerrada.
+ */
+async function encerrarVirtual(db, orgId, sessaoId) {
+    var _a;
+    const sis = await (0, context_1.contextoDoSistema)(db, orgId);
+    if (!sis)
+        return { proclamados: 0, adiados: 0 };
+    const c = Object.assign(Object.assign({}, sis), { userName: 'Sistema (fim da sessão virtual)' });
+    const { ref, s } = await (0, sessoes_2.lerSessao)(c, sessaoId);
+    if (s.modo !== 'assincrona' || s.situacao !== 'publicada' || !s.ativa || !(0, sessoes_1.virtualEncerrou)(s, (0, secretaria_1.hojeBrasil)()))
+        return { proclamados: 0, adiados: 0 };
+    let proclamados = 0;
+    let adiados = 0;
+    for (const it of (s.pauta || []).filter((x) => x.situacao === 'pautado')) {
+        if ((_a = (await ref.collection('votacoes').doc(it.processo_id).get()).data()) === null || _a === void 0 ? void 0 : _a.proclamado)
+            continue;
+        const base = { id: sessaoId, processo_id: it.processo_id };
+        try {
+            await acaoVotacao(c, Object.assign(Object.assign({}, base), { action: 'sessaoProclamar' }));
+            proclamados++;
+        }
+        catch (e) {
+            const porque = String(e.message || '').replace(/[.\s]+$/, '');
+            // Se nem adiar cabe (o processo saiu do julgamento por outro caminho), fica como está.
+            await acaoVotacao(c, Object.assign(Object.assign({}, base), { action: 'sessaoAdiar', motivo: `a votação virtual terminou sem resultado (${porque})` })).then(() => { adiados++; }, () => undefined);
+        }
+    }
+    await ref.update({ situacao: 'encerrada', encerrada_em: new Date().toISOString(), encerra_em: firestore_1.FieldValue.delete(), version: firestore_1.FieldValue.increment(1), updated_at: firestore_1.FieldValue.serverTimestamp() });
+    return { proclamados, adiados };
+}
+/** Rotina diária: encerra as sessões virtuais cuja votação terminou ontem (ou antes). */
+async function encerrarSessoesVirtuais(db, hoje = (0, secretaria_1.hojeBrasil)()) {
+    const q = await db.collection(sessoes_2.COL_SESSOES).where('encerra_em', '<', hoje).limit(200).get();
+    let n = 0;
+    for (const d of q.docs) {
+        const s = d.data();
+        if (s.situacao !== 'publicada' || !s.ativa) {
+            await d.ref.update({ encerra_em: firestore_1.FieldValue.delete() });
+            continue;
+        }
+        await encerrarVirtual(db, String(s.organization_id), d.id).then(() => { n++; }, (e) => console.error('encerrarVirtual', d.id, e));
+    }
+    return n;
 }
 //# sourceMappingURL=votacao.js.map

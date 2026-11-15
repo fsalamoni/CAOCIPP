@@ -7,6 +7,7 @@ export const GLOSSARIO = {
     autuar: { termo: 'Autuar', definicao: 'Autuar é registrar um pedido ou fato como processo formal. Ele recebe número (ou identificador) e o termo de autuação, o primeiro dos autos.' },
     certidao_conjunta: { termo: 'Certidão conjunta', definicao: 'Certidão conjunta é uma só certidão que reúne vários atos de uma fase, ou de um grupo de fases, em vez de uma para cada ato. Ela vai aos autos quando o processo sai da fase, é arquivado ou alguém pede a emissão.' },
     ciencia_decurso: { termo: 'Ciência por decurso', definicao: 'Ciência por decurso é quando a comunicação feita pela plataforma passa a valer mesmo sem a parte abri-la, depois dos dias corridos definidos pelo órgão. A partir daí o prazo começa a contar.' },
+    destaque: { termo: 'Destaque', definicao: 'Destaque é tirar um processo da sessão virtual para julgá-lo numa sessão síncrona, com debate e sustentação oral. Qualquer membro pode destacar; a parte pede até 48 horas antes do início, e o relator decide.' },
     dispensa: { termo: 'Dispensa', definicao: 'Dispensa é seguir adiante sem cumprir algo que o rito exige na fase, informando o motivo. O motivo fica registrado nos autos.' },
     em_mesa: { termo: 'Em mesa', definicao: 'Em mesa é o processo levado a julgamento na sessão sem ter saído na pauta publicada, nos casos que dispensam a publicação. O motivo fica na certidão nos autos.' },
     extrapauta: { termo: 'Extrapauta', definicao: 'Extrapauta é o processo incluído numa sessão depois que a pauta dela já foi publicada. Entra no fim da ordem do dia, com o motivo na certidão.' },
@@ -15,7 +16,9 @@ export const GLOSSARIO = {
     proclamacao: { termo: 'Proclamação', definicao: 'Proclamação é o anúncio do resultado do julgamento pelo presidente do colegiado, depois dos votos. Com ela a votação se encerra, e o resultado vai aos autos na certidão de julgamento.' },
     relator: { termo: 'Relator', definicao: 'Relator é o membro do colegiado designado para estudar o processo, escrever o relatório e votar primeiro. Os demais votam depois de ler o voto dele.' },
     remessa: { termo: 'Remessa', definicao: 'Remessa é o envio do processo de uma unidade para outra, que passa a cuidar dele. Entre órgãos diferentes, sempre gera um termo de remessa nos autos.' },
+    sessao_virtual: { termo: 'Sessão virtual', definicao: 'Sessão virtual é a sessão em que os membros votam cada um no seu tempo, dentro de um período, sem reunião ao vivo. No fim, o sistema apura o resultado; o que ficar sem resultado vai para a sessão seguinte.' },
     sobrestar: { termo: 'Sobrestar', definicao: 'Sobrestar é suspender o andamento do processo por um tempo, por exemplo à espera de outra decisão. O processo fica parado na mesma fase até ser reativado.' },
+    sustentacao: { termo: 'Sustentação oral', definicao: 'Sustentação oral é a fala da parte, ou de quem a representa, para o colegiado antes do voto, no tempo do regimento. Na sessão síncrona, a parte se inscreve até o início; na virtual, envia a gravação até 48 horas antes.' },
     vista: { termo: 'Vista', definicao: 'Vista é o pedido de um membro do colegiado para examinar melhor o processo antes de votar. O julgamento fica suspenso até ele devolver, no prazo do colegiado, e continua na sessão seguinte com os votos já dados.' },
     vogal: { termo: 'Vogal', definicao: 'Vogal é o membro do colegiado que vota depois do relator. Ele acompanha o voto do relator, com ou sem ressalva, ou diverge dele.' },
 };

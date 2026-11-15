@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Loader2, MapPin, NotebookPen, Pencil, Plus, ScrollText, Search, Send, Trash2, Users, Video } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CalendarDays, CalendarPlus, CheckCircle2, ExternalLink, Gavel, Laptop, ListOrdered, Loader2, MapPin, NotebookPen, Pencil, Plus, ScrollText, Search, Send, Trash2, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -10,8 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { secProcesso } from '@/services/secretariaService';
 import {
-    CARATER_SESSAO, INCLUSAO, MODOS_SESSAO, ROTULO_MOTIVO, SITUACAO_ITEM, SITUACAO_SESSAO, agruparSessoes, br, ondeSessao, problemasDaSessao, situacaoDaVotacao,
-    juntarNomes, textoAntecedencia, textoDaVistaNaPauta,
+    CARATER_SESSAO, INCLUSAO, MODOS_SESSAO, ROTULO_MOTIVO, SITUACAO_ITEM, SITUACAO_SESSAO, agruparSessoes, br, problemasDaSessao, situacaoDaVotacao,
+    juntarNomes, ordemDoCPC, quandoSessao, selosDosPedidos, textoAntecedencia, textoDaVistaNaPauta,
 } from '@/lib/sessoes';
 import { POLOS, SeloUrgente } from './comum';
 import AjudaTermo from './AjudaTermo';
@@ -66,7 +66,10 @@ function CartaoSessao({ s, onAbrir, mostraOrgao }) {
                         {s.componho && <Badge className="bg-indigo-600 hover:bg-indigo-600">Você compõe</Badge>}
                     </span>
                     <span className="block text-sm text-slate-700 dark:text-slate-300">
-                        {mostraOrgao && <>{s.orgao_nome} · </>}{br(s.data)}, às {s.hora} · <IconeModo modo={s.modo} className="inline w-3.5 h-3.5 -mt-0.5" /> {s.modo === 'presencial' ? s.local : s.modo === 'virtual' ? 'Por videoconferência' : `${s.local} e por vídeo`}
+                        {mostraOrgao && <>{s.orgao_nome} · </>}
+                        {s.modo === 'assincrona'
+                            ? <><Laptop className="inline w-3.5 h-3.5 -mt-0.5" aria-hidden /> Votação virtual de {br(s.data)} a {br(s.fim)}</>
+                            : <>{br(s.data)}, às {s.hora} · <IconeModo modo={s.modo} className="inline w-3.5 h-3.5 -mt-0.5" /> {s.modo === 'presencial' ? s.local : s.modo === 'virtual' ? 'Por videoconferência' : `${s.local} e por vídeo`}</>}
                     </span>
                     <span className="block text-xs text-slate-600 dark:text-slate-400">{s.itens === 0 ? 'Nenhum processo na pauta' : s.itens === 1 ? '1 processo na pauta' : `${s.itens} processos na pauta`}</span>
                 </span>
@@ -174,6 +177,7 @@ function FormSessao({ orgId, colegiados, sessao, hoje, onFechar, onSalvo }) {
     const [salvando, setSalvando] = useState(false);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     const travada = sessao?.situacao === 'publicada';
+    const virtual = f.modo === 'assincrona';
     const problemas = travada ? [] : problemasDaSessao(f, hoje);
     const regra = textoAntecedencia(colegiados.find((c) => c.id === orgao)?.pauta);
     const salvar = async () => {
@@ -211,10 +215,16 @@ function FormSessao({ orgId, colegiados, sessao, hoje, onFechar, onSalvo }) {
                         <select id="ss-modo" value={f.modo} disabled={travada} onChange={(e) => set('modo', e.target.value)} className={sel}>
                             {MODOS_SESSAO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
                         </select>))}
-                    {campo('ss-data', 'Data', <Input id="ss-data" type="date" min={hoje} value={f.data} disabled={travada} onChange={(e) => set('data', e.target.value)} />)}
-                    {campo('ss-hora', 'Hora', <Input id="ss-hora" type="time" value={f.hora} disabled={travada} onChange={(e) => set('hora', e.target.value)} />)}
-                    {f.modo !== 'virtual' && <div className="sm:col-span-2">{campo('ss-local', 'Local', <Input id="ss-local" value={f.local} disabled={travada} maxLength={200} onChange={(e) => set('local', e.target.value)} placeholder="Sala de sessões, endereço" />)}</div>}
-                    {f.modo !== 'presencial' && <div className="sm:col-span-2">{campo('ss-link', 'Link ou sala virtual', <Input id="ss-link" value={f.link} disabled={travada} maxLength={500} onChange={(e) => set('link', e.target.value)} placeholder="https://" />)}</div>}
+                    {campo('ss-data', virtual ? 'Primeiro dia da votação' : 'Data', <Input id="ss-data" type="date" min={hoje} value={f.data} disabled={travada} onChange={(e) => set('data', e.target.value)} />)}
+                    {campo('ss-hora', virtual ? 'Abre às' : 'Hora', <Input id="ss-hora" type="time" value={f.hora} disabled={travada} onChange={(e) => set('hora', e.target.value)} />)}
+                    {virtual && (
+                        <div className="sm:col-span-2 space-y-1">
+                            {campo('ss-fim', 'Último dia da votação', <Input id="ss-fim" type="date" min={f.data || hoje} value={f.fim || ''} disabled={travada} onChange={(e) => set('fim', e.target.value)} />)}
+                            <p className="text-xs text-slate-600 dark:text-slate-400">Os membros votam cada um no seu tempo, do primeiro ao último dia (a Res. CNJ 591/2024 usa até 6 dias úteis). No dia seguinte ao último, o sistema apura os resultados; o que ficar sem resultado (sem o voto do relator ou sem quórum) é adiado para a sessão seguinte. Até 48 horas antes do início, as partes podem pedir destaque, para o julgamento ir a uma sessão síncrona, e enviar a sustentação oral gravada.</p>
+                        </div>
+                    )}
+                    {f.modo !== 'virtual' && !virtual && <div className="sm:col-span-2">{campo('ss-local', 'Local', <Input id="ss-local" value={f.local} disabled={travada} maxLength={200} onChange={(e) => set('local', e.target.value)} placeholder="Sala de sessões, endereço" />)}</div>}
+                    {f.modo !== 'presencial' && <div className="sm:col-span-2">{campo('ss-link', virtual ? 'Onde acompanhar (opcional)' : 'Link ou sala virtual', <Input id="ss-link" value={f.link} disabled={travada} maxLength={500} onChange={(e) => set('link', e.target.value)} placeholder="https://" />)}</div>}
                     <div className="sm:col-span-2">{campo('ss-obs', 'Observações (aparecem para quem vê a sessão, não para as partes)', <Textarea id="ss-obs" rows={3} value={f.observacoes} maxLength={2000} onChange={(e) => set('observacoes', e.target.value)} />)}</div>
                 </div>
                 {regra && !travada && <p className="text-sm text-slate-600 dark:text-slate-400">{regra} Isso é conferido na publicação.</p>}
@@ -325,6 +335,29 @@ function IncluirProcessos({ orgId, sessao, pautados, onFechar, onIncluido }) {
     );
 }
 
+/** Sessão virtual (S7): em que ponto está a votação e, terminada, a apuração. */
+function AvisoVirtual({ s, pode, indo, onApurar }) {
+    const caixa = 'text-sm rounded-md p-2 flex flex-wrap items-center gap-2';
+    if (s.situacao === 'encerrada') {
+        return <p className={`${caixa} bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100`}><CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden /> Votação encerrada{s.encerrada_em ? ` em ${new Date(s.encerrada_em).toLocaleDateString('pt-BR')}` : ''}: o sistema apurou os resultados; o que ficou sem resultado foi adiado para a sessão seguinte.</p>;
+    }
+    if (s.situacao !== 'publicada') return null;
+    if (s.virtual_encerrou) {
+        return (
+            <div className={`${caixa} bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100`} role="status">
+                <span className="flex-1 min-w-[12rem]">A votação terminou em {br(s.fim)}. O sistema apura os resultados às 7h do dia seguinte; {pode ? 'você pode apurar agora.' : 'o presidente ou a secretaria podem apurar antes.'}</span>
+                {pode && <Button size="sm" disabled={indo} onClick={onApurar}>{indo && <Loader2 className="w-4 h-4 animate-spin mr-1" aria-hidden />}Apurar e encerrar</Button>}
+            </div>
+        );
+    }
+    return (
+        <p className={`${caixa} bg-indigo-50 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-100`} role="status">
+            <Laptop className="w-4 h-4 shrink-0" aria-hidden />
+            {s.votacao_aberta ? `Votação aberta até ${br(s.fim)}. Cada membro vota no seu tempo; o placar aparece na tela de julgamento.` : `A votação abre em ${br(s.data)}, a partir das ${s.hora}. O relator pode liberar o voto antes.`}
+        </p>
+    );
+}
+
 function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
     const qc = useQueryClient();
     const chave = ['sec-sessao', orgId, id];
@@ -373,6 +406,8 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                         {x.julgado && <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1"><CheckCircle2 className="w-3.5 h-3.5" aria-hidden /> Julgado</Badge>}
                         {fora && <Badge variant="outline" className={suspenso ? 'border-violet-300 text-violet-900 dark:border-violet-800 dark:text-violet-200' : ''}>{SITUACAO_ITEM[x.situacao]}</Badge>}
                         {x.minha_anotacao && <Badge variant="outline" className="gap-1" title="Só você vê"><NotebookPen className="w-3.5 h-3.5" aria-hidden /> Sua anotação</Badge>}
+                        {!fora && selosDosPedidos(x.pedidos).map((t) => <Badge key={t} variant="outline" className="border-sky-300 text-sky-900 dark:border-sky-800 dark:text-sky-200">{t}</Badge>)}
+                        {!fora && gere && x.pedidos?.a_decidir > 0 && <Badge className="bg-amber-600 hover:bg-amber-600">{x.pedidos.a_decidir === 1 ? '1 pedido a decidir' : `${x.pedidos.a_decidir} pedidos a decidir`}</Badge>}
                     </div>
                     {x.partes?.length > 0 && <p className="text-slate-700 dark:text-slate-300"><Users className="inline w-3.5 h-3.5 -mt-0.5 mr-1" aria-hidden />{x.partes.map((p) => `${p.nome} (${POLOS[p.polo] || p.polo})`).join('; ')}</p>}
                     {x.motivo && <p className="text-xs text-slate-600 dark:text-slate-400">{ROTULO_MOTIVO[x.situacao] || 'Motivo da inclusão'}: {x.motivo}</p>}
@@ -412,7 +447,8 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     <div className="space-y-1 min-w-0">
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex flex-wrap items-center gap-2">{s.titulo} <Situacao s={s.situacao} /></h2>
                         <p className="text-sm text-slate-700 dark:text-slate-300">{colegiado.nome} · {CARATER_SESSAO.find(([v]) => v === s.carater)?.[1]}</p>
-                        <p className="text-sm text-slate-800 dark:text-slate-200 flex items-start gap-1.5"><CalendarDays className="w-4 h-4 mt-0.5 shrink-0" aria-hidden /> {br(s.data)}, às {s.hora}, {ondeSessao(s)}</p>
+                        <p className="text-sm text-slate-800 dark:text-slate-200 flex items-start gap-1.5"><CalendarDays className="w-4 h-4 mt-0.5 shrink-0" aria-hidden /> {quandoSessao(s)}</p>
+                        {s.modo === 'assincrona' && <AvisoVirtual s={s} pode={(gere || s.preside) && s.situacao === 'publicada'} indo={indo} onApurar={() => acao('sessaoEncerrar', {}, 'Votação apurada e sessão encerrada.')} />}
                         {s.link && s.modo !== 'presencial' && /^https:\/\//.test(s.link) && (
                             <a href={s.link} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-sm text-indigo-700 dark:text-indigo-300 underline">Entrar na sala virtual <ExternalLink className="w-3.5 h-3.5" aria-hidden /></a>
                         )}
@@ -439,7 +475,15 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
             </section>
 
             <section className="space-y-2" aria-label="Ordem do dia">
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Ordem do dia{pautados.length ? ` (${pautados.length})` : ''}</h3>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Ordem do dia{pautados.length ? ` (${pautados.length})` : ''}</h3>
+                    {pode && pautados.length > 1 && (
+                        <Button variant="outline" size="sm" className="gap-1" disabled={indo} title="Primeiro os processos com sustentação oral, depois os com preferência, os que começaram em sessão anterior e os demais"
+                            onClick={() => acao('sessaoOrdenar', { ordem: ordemDoCPC(pauta) }, 'Ordem do dia arrumada como no CPC, art. 936')}>
+                            <ListOrdered className="w-4 h-4" aria-hidden /> Ordem do CPC
+                        </Button>
+                    )}
+                </div>
                 {!gere && itens.some((x) => x.pode_abrir) && (
                     <p className="text-xs text-slate-600 dark:text-slate-400">Toque no número para ler os autos e fazer suas anotações. Quem compõe o colegiado lê enquanto o processo está pautado, e cada leitura fica registrada.</p>
                 )}

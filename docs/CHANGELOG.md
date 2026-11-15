@@ -5,6 +5,13 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Sessão virtual, destaque, sustentação oral e preferência
+- Sétima etapa do plano de sessões de julgamento, reuniões e pregão.
+- **Sessão virtual assíncrona:** a secretaria marca o primeiro e o último dia da votação, e cada membro vota no seu tempo. No dia seguinte ao último, às 7h, o sistema apura cada processo e encerra a sessão; o que fica sem resultado (sem o voto do relator, sem quórum) é adiado para a sessão seguinte. O presidente ou a secretaria podem apurar antes, logo depois do fim.
+- **Destaque:** qualquer membro tira o processo da sessão virtual para uma sessão síncrona, onde o julgamento recomeça com o mesmo relator. A parte também pode pedir, até 48 horas antes do início, e o relator decide. O destaque vai aos autos.
+- **Pedidos das partes pelo portal:** sustentação oral (na sessão virtual, gravada, pelo link), preferência, destaque e, durante a votação virtual, esclarecimento de fato. A parte acompanha a decisão e o motivo. Os julgadores veem os pedidos no julgamento; a secretaria confere e o relator decide o destaque.
+- **Ordem do CPC:** um botão na pauta põe à frente os processos com sustentação oral, depois os com preferência e os que começaram em sessão anterior (CPC, art. 936).
+
 ### 15/11/2026 — Voto divergente, voto condutor e acórdão
 - Sexta etapa do plano de sessões de julgamento, reuniões e pregão.
 - Quem diverge pode escrever o **voto divergente fundamentado**, e quem acompanha com ressalva, a **declaração de voto**. Os pares leem durante a votação.

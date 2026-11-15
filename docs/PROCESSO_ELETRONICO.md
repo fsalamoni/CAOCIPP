@@ -1533,6 +1533,68 @@ de novo).
 - Testes: `functions-v2/test/julgamento.test.js` e
   `src/lib/julgamento.test.js`. Guia do rito, parte 15.
 
+### Sessão virtual, destaque, sustentação oral e preferência (15/11/2026)
+
+Sétima etapa (S7). A sessão pode ser virtual assíncrona, como o Plenário
+Virtual do STF e a Res. CNJ 591/2024, e as partes fazem pelo portal os
+pedidos que cabem para o julgamento.
+
+- **Sessão virtual:** `modo: 'assincrona'` com `fim` (o último dia da
+  votação; `data` é o primeiro e `hora`, a abertura). Até 30 dias
+  (`MAX_DIAS_VIRTUAL`); sem local, link opcional. `encerra_em` (= `fim`)
+  marca a sessão para a rotina diária; sai no cancelamento e no
+  encerramento. Publicada, `fim` não muda (como data e hora). Processo
+  pautado guarda `sessao.fim`.
+- **Votação:** `votacaoAberta(s, hoje)` (na virtual, do primeiro ao último
+  dia; nas outras, como antes). Fora dela, não se vota nem se pede vista. O
+  relator libera o voto antes do início. A proclamação manual, na virtual,
+  só depois do fim (`virtualEncerrou`).
+- **Encerramento:** `encerrarVirtual` (em `secretaria/votacao.ts`), com o
+  contexto do sistema ("Sistema (fim da sessão virtual)"): para cada
+  processo pautado e não proclamado, proclama pela regra do rito
+  (`sessaoProclamar`); se não der (sem o voto do relator, sem quórum),
+  adia para a sessão seguinte, com o motivo (`sessaoAdiar`). Depois,
+  `situacao: 'encerrada'` e `encerrada_em`. Roda na rotina das 7h
+  (`secretariaAlertaPrazos` chama `encerrarSessoesVirtuais`, que procura
+  `encerra_em < hoje`, só um campo, sem índice composto) e pela ação
+  `sessaoEncerrar` (presidente ou secretaria, depois do fim).
+- **Destaque:** `sessaoDestacar` (membro que vota no dia, até o fim da
+  votação, antes da proclamação). O item fica `destacado`, o processo
+  recebe a certidão `destaque` e vai para a próxima sessão **síncrona** do
+  colegiado (`proximaSessao(..., sincrona = true)`), com
+  `julgamento_em_curso.so_relator`: o relator continua, com o voto de volta
+  ao rascunho (`liberado_em: null`), e os votos dos pares não seguem
+  (`lerContinuacao` e `continuar` aplicam a regra). Pedido pela parte, o
+  relator decide (sem relator, o presidente ou a secretaria).
+- **Pedidos das partes:** `secSessoes/{s}/pedidos/{id}` `{processo_id,
+  tipo, uid, parte, texto, link, em, situacao, decidido_por, motivo}`. Tipos
+  (`TIPOS_PEDIDO`): sustentação oral (na virtual, link https da gravação),
+  preferência, destaque (com o porquê) e esclarecimento de fato (durante a
+  votação virtual, até três). Prazos (`problemaDoPedido`): na virtual,
+  sustentação e destaque até dois dias antes do início, preferência até o
+  início; na síncrona, sustentação e preferência até o dia da sessão. Um de
+  cada por conta, salvo indeferido. Portal: ação `pedidoSessao`; `obter`
+  devolve `sessao.pode_pedir` e `sessao.meus_pedidos`.
+- **Decisão:** `sessaoPedidoDecidir {pedido_id, deferir, motivo}`. Destaque
+  deferido segue `sessaoDestacar`; indeferir pede motivo, que a parte vê.
+  Os demais valem enquanto não indeferidos. Os pedidos ficam fora dos
+  autos; vão aos autos o destaque, o adiamento e o julgamento.
+- **Ordem do CPC (art. 936):** `ordemDoCPC` (src/lib/sessoes.js) ordena
+  sustentação, preferência, julgamento iniciado em sessão anterior
+  (`continua`, de `continua_de`) e os demais; o botão chama
+  `sessaoOrdenar`.
+- **Telas:** marcar sessão com o modo "Virtual assíncrona" (primeiro e
+  último dia); cartão e cabeçalho com o período; aviso da votação (abre em,
+  aberta até, terminou e "Apurar e encerrar", encerrada); selos dos pedidos
+  e "pedidos a decidir" na pauta; botão "Ordem do CPC"; no diálogo
+  Julgamento, o aviso do período, a seção "Pedidos das partes" (com a
+  gravação, deferir e indeferir) e "Destacar para sessão síncrona"; no
+  portal, "Seus pedidos para esta sessão" e o formulário do pedido.
+- **Limite:** a sustentação gravada vai por link: o sistema não guarda
+  áudio nem vídeo (o envio de arquivos passa pela função, com limite de
+  5 MB, e o Storage não aceita gravação direta do navegador).
+- **Glossário:** sessão virtual, destaque e sustentação oral.
+
 ### Voto divergente, voto condutor e acórdão (15/11/2026)
 
 Sexta etapa (S6). O julgamento proclamado vira acórdão nos autos, redigido

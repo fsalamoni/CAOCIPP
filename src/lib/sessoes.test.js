@@ -1,7 +1,7 @@
 // npm run test:lib
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agruparSessoes, juntarNomes, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDaVistaNaPauta, textoDoVoto, veSessoes } from './sessoes.js';
+import { agruparSessoes, juntarNomes, ordemDoCPC, selosDosPedidos, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDaVistaNaPauta, textoDoVoto, veSessoes } from './sessoes.js';
 
 test('sessões: textos de onde e quando, no jeito das certidões', () => {
     assert.equal(ondeSessao({ modo: 'presencial', local: 'Sala 2' }), 'em Sala 2');
@@ -45,4 +45,19 @@ test('sessões: vista na pauta (S5)', () => {
     assert.equal(textoDaVistaNaPauta({ nomes: ['Ana', 'Bruno'], prazo: '2026-11-26', devolvida: true }), 'Vista de Ana e Bruno, devolvida.');
     assert.equal(situacaoDaVotacao({ situacao: 'vista', votacao: { liberado: true } }), 'Julgamento suspenso pela vista');
     assert.equal(situacaoDaVotacao({ situacao: 'adiado', votacao: { liberado: true } }), '');
+});
+
+test('sessões: virtual assíncrona, pedidos e ordem do CPC (S7)', () => {
+    const v = { modo: 'assincrona', data: '2026-12-07', hora: '09:00', fim: '2026-12-14' };
+    assert.equal(quandoSessao(v), 'votação virtual de 07/12/2026 (a partir das 09:00) a 14/12/2026');
+    assert.equal(ondeSessao(v), 'em sessão virtual');
+    assert.deepEqual(problemasDaSessao(v, '2026-12-01'), []);
+    assert.deepEqual(problemasDaSessao({ ...v, fim: '' }, '2026-12-01'), ['Informe o último dia da votação.']);
+    assert.deepEqual(problemasDaSessao({ ...v, fim: '2027-01-30' }, '2026-12-01'), ['A votação virtual dura no máximo 30 dias.']);
+    assert.equal(agruparSessoes([{ ...v, situacao: 'publicada', componho: true }], '2026-12-10').minhas.length, 1);
+    assert.deepEqual(selosDosPedidos({ sustentacao: 2, preferencia: 1, destaque: 1, esclarecimento: 0 }), ['2 sustentações orais', 'Preferência', 'Destaque pedido']);
+    const it = (id, ordem, extra = {}) => ({ processo_id: id, ordem, situacao: 'pautado', ...extra });
+    assert.deepEqual(ordemDoCPC([
+        it('a', 1), it('b', 2, { continua: true }), it('c', 3, { pedidos: { preferencia: 1 } }), it('d', 4, { situacao: 'retirado', pedidos: { sustentacao: 1 } }), it('e', 5, { pedidos: { sustentacao: 1 } }),
+    ]), ['e', 'c', 'b', 'a', 'd']);
 });

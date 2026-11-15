@@ -86,6 +86,7 @@ const TITULOS = {
     vista_devolvida: 'Certidão de devolução de vista',
     adiamento: 'Certidão de adiamento do julgamento',
     diligencia: 'Certidão de conversão em diligência',
+    destaque: 'Certidão de destaque da sessão virtual',
 };
 function tituloEvento(m) {
     var _a, _b, _c;

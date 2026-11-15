@@ -77,14 +77,11 @@ function inapto(c, proc, orgaoId) {
     return '';
 }
 const resumoSessao = (id, s, orgao) => ({
-    id, orgao_id: s.orgao_id, orgao_nome: (orgao === null || orgao === void 0 ? void 0 : orgao.nome) || '', titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora,
+    id, orgao_id: s.orgao_id, orgao_nome: (orgao === null || orgao === void 0 ? void 0 : orgao.nome) || '', titulo: s.titulo, carater: s.carater, modo: s.modo, data: s.data, hora: s.hora, fim: s.fim || null,
     local: s.local, link: s.link, situacao: s.situacao, itens: (s.pauta || []).filter((x) => x.situacao === 'pautado').length,
 });
 /** O que vai no processo pautado (lido pela capa, pela lista e pelo portal). */
-const marcaNoProcesso = (id, s, orgao, item) => ({
-    id, titulo: s.titulo, data: s.data, hora: s.hora, modo: s.modo, local: s.local, link: s.link,
-    orgao_id: orgao.id, colegiado: orgao.nome, inclusao: item.inclusao,
-});
+const marcaNoProcesso = (id, s, orgao, item) => (Object.assign(Object.assign({ id, titulo: s.titulo, data: s.data, hora: s.hora, modo: s.modo, local: s.local, link: s.link }, (s.fim ? { fim: s.fim } : {})), { orgao_id: orgao.id, colegiado: orgao.nome, inclusao: item.inclusao }));
 /**
  * Julgamento que continua de outra sessão (S5: vista, adiamento, diligência):
  * `proc.julgamento_em_curso` diz de qual sessão e se os votos seguem. Lido na
@@ -94,15 +91,17 @@ async function lerContinuacao(tx, c, pid, proc) {
     const j = proc.julgamento_em_curso;
     if (!(j === null || j === void 0 ? void 0 : j.sessao_id))
         return null;
-    const v = j.manter_votos ? (await tx.get(c.db.collection(exports.COL_SESSOES).doc(j.sessao_id).collection('votacoes').doc(pid))).data() : undefined;
+    const lido = j.manter_votos ? (await tx.get(c.db.collection(exports.COL_SESSOES).doc(j.sessao_id).collection('votacoes').doc(pid))).data() : undefined;
+    // Destacado da sessão virtual (S7): recomeça, com o voto do relator em rascunho e sem os votos dos pares.
+    const v = lido && j.so_relator ? Object.assign(Object.assign({}, lido), { votos: {}, liberado_em: null }) : lido;
     return { de: j.sessao_id, v, relator_uid: j.relator_uid || '', relator_nome: j.relator_nome || '' };
 }
 /** Próxima sessão ativa do colegiado depois de `depoisDe`, onde o julgamento continua. Lida na transação. */
-async function proximaSessao(tx, c, orgaoId, excluir, depoisDe) {
+async function proximaSessao(tx, c, orgaoId, excluir, depoisDe, sincrona = false) {
     const q = await tx.get(c.db.collection(exports.COL_SESSOES).where('organization_id', '==', c.orgId).where('orgao_id', '==', orgaoId).where('ativa', '==', true));
     const hoje = (0, secretaria_1.hojeBrasil)();
     return q.docs.map((d) => ({ ref: d.ref, s: d.data() }))
-        .filter((x) => x.ref.id !== excluir && x.s.data > depoisDe && x.s.data >= hoje && (x.s.pauta || []).filter((i) => i.situacao === 'pautado').length < sessoes_1.MAX_PAUTA)
+        .filter((x) => x.ref.id !== excluir && (!sincrona || x.s.modo !== 'assincrona') && x.s.data > depoisDe && x.s.data >= hoje && (x.s.pauta || []).filter((i) => i.situacao === 'pautado').length < sessoes_1.MAX_PAUTA)
         .sort((a, b) => `${a.s.data}T${a.s.hora}`.localeCompare(`${b.s.data}T${b.s.hora}`))[0] || null;
 }
 /**
@@ -201,15 +200,22 @@ async function acaoSessao(c, p) {
         if (!veSessoes(c, o, hoje) || (s.situacao === 'rascunho' && !gere))
             throw new https_1.HttpsError('not-found', 'Sessão não encontrada');
         const pauta = [...(s.pauta || [])].sort((a, b) => a.ordem - b.ordem);
-        const [snaps, notas, votacoes] = pauta.length ? await Promise.all([
+        const [snaps, notas, votacoes, pedSnap] = pauta.length ? await Promise.all([
             c.db.getAll(...pauta.map((x) => c.db.collection(context_1.COL.processos).doc(x.processo_id))),
             c.db.getAll(...pauta.map((x) => c.db.collection(exports.COL_ANOTACOES).doc(`${c.ctx.uid}_${x.processo_id}`))),
             c.db.getAll(...pauta.map((x) => ref.collection('votacoes').doc(x.processo_id))),
-        ]) : [[], [], []];
+            ref.collection('pedidos').get(),
+        ]) : [[], [], [], null];
+        // S7: pedidos das partes por processo (os indeferidos não contam).
+        const pedidosDe = (pid) => {
+            const ds = ((pedSnap === null || pedSnap === void 0 ? void 0 : pedSnap.docs) || []).map((d) => d.data()).filter((x) => x.processo_id === pid);
+            const vale = (t) => ds.filter((x) => x.tipo === t && x.situacao !== 'indeferido').length;
+            return { sustentacao: vale('sustentacao'), preferencia: vale('preferencia'), esclarecimento: vale('esclarecimento'), destaque: ds.filter((x) => x.tipo === 'destaque' && x.situacao === 'pedido').length, a_decidir: ds.filter((x) => x.situacao === 'pedido').length };
+        };
         // Quem vota no dia da sessão: presidente e titulares.
         const quemVota = (0, orgaos_1.composicaoEm)(o.composicao, s.data).filter((m) => m.funcao !== 'suplente').map((m) => m.uid);
         const itens = pauta.map((x, i) => {
-            var _a, _b, _c;
+            var _a, _b, _c, _d;
             const d = snaps[i].data();
             // Pela lotação, ou como julgador do colegiado enquanto pautado (S3).
             const abre = !!d && d.status !== 'excluido' && ((0, secretaria_1.podeVer)(d, c.ctx) || (0, context_1.julgadorLe)(c, d));
@@ -219,7 +225,9 @@ async function acaoSessao(c, p) {
             return Object.assign(Object.assign(Object.assign({}, x), { assunto: aberto ? x.assunto : 'Processo sob sigilo', partes: aberto ? (d.partes || []).filter((q) => !q.retirada).map((q) => ({ nome: q.nome, polo: q.polo })) : [], pode_abrir: abre, urgente: (d === null || d === void 0 ? void 0 : d.urgente) === true, julgado, minha_anotacao: notas[i].exists, 
                 // S6: o acórdão do julgamento desta sessão.
                 acordao: julgado && ((_c = d.acordao) === null || _c === void 0 ? void 0 : _c.sessao_id) === ref.id
-                    ? { redator_nome: d.acordao.redator_nome || '', prazo: d.acordao.prazo, enviado: !!d.acordao.enviado_em, juntado: !!d.acordao.juntado_em, sou_redator: d.acordao.redator_uid === c.ctx.uid } : null, relator_nome: x.relator_nome || '', votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
+                    ? { redator_nome: d.acordao.redator_nome || '', prazo: d.acordao.prazo, enviado: !!d.acordao.enviado_em, juntado: !!d.acordao.juntado_em, sou_redator: d.acordao.redator_uid === c.ctx.uid } : null, relator_nome: x.relator_nome || '', pedidos: pedidosDe(x.processo_id), 
+                // Julgamento iniciado em sessão anterior (CPC, art. 936, III).
+                continua: !!((_d = votacoes[i].data()) === null || _d === void 0 ? void 0 : _d.continua_de), votacao: (0, votacao_1.resumoVotacao)(votacoes[i].data(), c.ctx.uid, x.situacao === 'pautado' ? quemVota : [], x.relator_uid || '') }), (gere && x.situacao === 'pautado' && !julgado ? { problema: d ? inapto(c, d, o.id) : 'o processo não existe mais' } : {}));
         });
         return {
             hoje,
@@ -228,7 +236,7 @@ async function acaoSessao(c, p) {
             data_minima: (0, sessoes_1.dataMinimaDaSessao)(hoje, o.pauta, calendario),
             // Fim de semana, feriado nacional ou do órgão, ou recesso: a tela avisa (sessão extraordinária pode ser assim).
             dia_util: (0, secretaria_1.diaUtil)(new Date(`${s.data}T00:00:00Z`), calendario),
-            sessao: Object.assign(Object.assign({}, resumoSessao(ref.id, s, o)), { observacoes: s.observacoes || '', version: s.version, publicada_em: s.publicada_em || null, publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '' }),
+            sessao: Object.assign(Object.assign({}, resumoSessao(ref.id, s, o)), { observacoes: s.observacoes || '', version: s.version, publicada_em: s.publicada_em || null, publicada_por: s.publicada_por_nome || '', cancelada_em: s.cancelada_em || null, motivo_cancelamento: s.motivo_cancelamento || '', encerrada_em: s.encerrada_em || null, votacao_aberta: (0, sessoes_1.votacaoAberta)(s, hoje), virtual_encerrou: (0, sessoes_1.virtualEncerrou)(s, hoje), preside: (0, orgaos_1.composicaoEm)(o.composicao, s.data).some((m) => m.uid === c.ctx.uid && m.funcao === 'presidente') }),
             pauta: itens,
         };
     }
@@ -289,7 +297,7 @@ async function acaoSessao(c, p) {
             if (dados.data < hoje)
                 throw new https_1.HttpsError('invalid-argument', 'A data da sessão já passou');
             const ref = c.db.collection(exports.COL_SESSOES).doc();
-            await ref.set(Object.assign(Object.assign({ organization_id: c.orgId, orgao_id: o.id, tipo: 'julgamento' }, dados), { situacao: 'rascunho', ativa: true, pauta: [], processos_ids: [], criado_por: quem.uid, criado_por_nome: quem.nome, criado_em: new Date().toISOString(), version: 1, updated_at: firestore_1.FieldValue.serverTimestamp() }));
+            await ref.set(Object.assign(Object.assign(Object.assign({ organization_id: c.orgId, orgao_id: o.id, tipo: 'julgamento' }, dados), (dados.fim ? { encerra_em: dados.fim } : {})), { situacao: 'rascunho', ativa: true, pauta: [], processos_ids: [], criado_por: quem.uid, criado_por_nome: quem.nome, criado_em: new Date().toISOString(), version: 1, updated_at: firestore_1.FieldValue.serverTimestamp() }));
             await (0, config_1.auditar)(c.db, c.orgId, quem.uid, quem.nome, 'SECRETARIA_SESSAO_CRIADA', { sessao_id: ref.id, orgao_id: o.id, data: dados.data });
             return { id: ref.id };
         }
@@ -300,14 +308,16 @@ async function acaoSessao(c, p) {
                 throw new https_1.HttpsError('failed-precondition', 'Sessão cancelada não muda');
             if (s.situacao === 'publicada') {
                 // Publicada, a pauta já foi às partes com data, hora e local: só as observações mudam aqui.
-                const mudou = ['titulo', 'carater', 'modo', 'data', 'hora', 'local', 'link'].filter((k) => dados[k] !== s[k]);
+                const mudou = ['titulo', 'carater', 'modo', 'data', 'hora', 'local', 'link', 'fim'].filter((k) => (dados[k] || '') !== (s[k] || ''));
                 if (mudou.length) {
                     throw new https_1.HttpsError('failed-precondition', 'A pauta já foi publicada com estes dados. Para mudar a data, a hora ou o local, cancele a sessão (as partes são avisadas) e marque outra.');
                 }
             }
             else if (dados.data < hoje)
                 throw new https_1.HttpsError('invalid-argument', 'A data da sessão já passou');
-            tx.update(ref, Object.assign(Object.assign({}, dados), { version: (s.version || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp() }));
+            // Sessão virtual (S7): `encerra_em` é o que a rotina diária procura para apurar no dia seguinte ao último.
+            const fim = dados.fim ? { fim: dados.fim, encerra_em: dados.fim } : { fim: firestore_1.FieldValue.delete(), encerra_em: firestore_1.FieldValue.delete() };
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, dados), fim), { version: (s.version || 0) + 1, updated_at: firestore_1.FieldValue.serverTimestamp() }));
             return { id: ref.id };
         });
     }
@@ -438,7 +448,7 @@ async function acaoSessao(c, p) {
                     avisar.push(refs[i].id);
                 });
             }
-            tx.update(ref, Object.assign({ situacao: 'cancelada', ativa: false, cancelada_em: new Date().toISOString(), cancelada_por_nome: quem.nome, motivo_cancelamento: motivo }, versao));
+            tx.update(ref, Object.assign({ situacao: 'cancelada', ativa: false, encerra_em: firestore_1.FieldValue.delete(), cancelada_em: new Date().toISOString(), cancelada_por_nome: quem.nome, motivo_cancelamento: motivo }, versao));
             auditoria = ['SECRETARIA_SESSAO_CANCELADA', { sessao_id: ref.id, orgao_id: o.id, data: s.data, motivo }];
             return { ok: true };
         }
