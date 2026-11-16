@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Copy, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
+import { Copy, Download, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
+import { baixarPacote, nomeArquivoPacote, pacoteDeDocumento } from '@/lib/pacoteModelos';
 import { NativeSelect, documentoDaUnidade } from './comum';
 import EditorDocumento, { CAMPOS_MODELO, FONTES, prepararImagem } from './EditorDocumento';
 import { variaveisDisponiveis } from '@/lib/exigencias';
@@ -241,11 +242,20 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
             setModelo({ ...o, id: undefined, nome: `${o.nome} (cópia)`, _k: Date.now() });
         } catch (e) { toast.error(e?.message || 'Não foi possível abrir o modelo'); }
     };
+    // Levar a outro órgão: só o nome, o tipo, a descrição e o texto (sem unidade, autor ou ids deste órgão).
+    const exportar = async (m) => {
+        try {
+            const o = await secConfig(orgId, 'obterModelo', { id: m.id });
+            baixarPacote(pacoteDeDocumento(o), nomeArquivoPacote('modelo', o.nome));
+            toast.success(`Modelo "${o.nome}" baixado. No outro órgão, use "Importar de arquivo" em Documentos.`);
+        } catch (e) { toast.error(e?.message || 'Não foi possível exportar o modelo'); }
+    };
     const corpo = (
         <div className="grid md:grid-cols-2 gap-2">
             {lista.length === 0 && <p className="text-sm text-slate-600">Nenhum modelo ainda.</p>}
             {lista.map((m) => (
                 <CartaoComMenu key={m.id} nome={m.nome} onEditar={() => abrirModelo(m)} onDuplicar={m.formato === 'original' ? null : () => duplicar(m)}
+                    extras={m.formato === 'original' ? [] : [{ rotulo: 'Exportar para outro órgão', icone: Download, onSelect: () => exportar(m) }]}
                     onExcluir={() => setExcluir({ colecao: 'modelo', id: m.id, nome: m.nome })}
                     className="w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     <div className="flex flex-wrap items-center gap-2">

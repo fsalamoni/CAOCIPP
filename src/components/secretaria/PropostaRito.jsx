@@ -34,6 +34,7 @@ import BibliotecaModelos from './BibliotecaModelos';
 import AndamentoDaFase from './AndamentoDaFase';
 import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento } from '@/lib/andamentoFase';
 import { RegistroContexto } from './SeletorRegistro';
+import { lerPacote, propostaDePacote, trocarModeloNasFases } from '@/lib/pacoteModelos';
 import PermissoesDaFase from './PermissoesDaFase';
 import { alguemTem, resumoPermissoes } from '@/lib/permissoesFase';
 import { ALERTA_PADRAO, AVISO_PARA, DESIGNA, MAX_ALERTA_DIAS, MAX_MENSAGEM_AVISO, MAX_PENDENCIA_FASE, SIGILO_FASE, abrePrazo, comAoEntrar, comAviso, comPrazoVencido, efeitosAoEntrar, problemasDosEfeitos, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
@@ -48,7 +49,7 @@ const ICONE = 'h-11 w-11 sm:h-8 sm:w-8';
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const mudarDeLugar = (lista, de, para) => { const l = [...lista]; const [x] = l.splice(de, 1); l.splice(para, 0, x); return l; };
 const ehCampoDeTexto = (el) => el?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName);
-const ACEITOS = '.xlsx,.xlsm,.xls,.csv,.ods,.docx,.pdf,.txt,.md,.bpm,.bpmn,.xpdl,.xml,.drawio,.mmd';
+const ACEITOS = '.xlsx,.xlsm,.xls,.csv,.ods,.docx,.pdf,.txt,.md,.bpm,.bpmn,.xpdl,.xml,.drawio,.mmd,.json';
 const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MIME_BIZAGI = 'application/x-bizagi-bpm';
 const campo = 'h-9 rounded-md border border-input bg-transparent dark:bg-slate-900 px-2 text-sm';
@@ -119,6 +120,8 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
             if (a.trim() && r?.pede === 'registro' && ligadas && !ligadas[r.modulo]) {
                 const mod = MODULOS.find(([m]) => m === r.modulo)?.[1] || r.modulo;
                 out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um registro de ${mod}, mas essa integração está desligada: ligue em "Integrações com outros módulos" ou mude o que a ação pede.` });
+            } else if (a.trim() && r?.pede === 'registro' && r.modulo === 'paginas' && paginas && !paginas.some((x) => x.id === r.pagina)) {
+                out.push({ fase: f.id, grave: true, texto: `Em ${rot}, a ação "${a.trim()}" pede um registro de página própria: escolha de qual página, na ação.` });
             }
         });
         problemasDosEfeitos(f).forEach((x) => out.push({ fase: f.id, grave: true, texto: `${rot} ${x}. Ajuste em "Prazo, nome para as partes e ao entrar".` }));
@@ -200,18 +203,21 @@ async function lerArquivo(file, orgId) {
  * Implantar cria, de uma vez, as unidades e os modelos que faltam, o rito e,
  * se pedido, o tipo de processo. Monte com `key` por rito: o estado nasce das props.
  */
-export default function PropostaRito({ aberto, orgId, estado, rito = null, copia = null, onFechar, onIr, onAbrirTipo, extra = null }) {
+export default function PropostaRito({ aberto, orgId, estado, rito = null, copia = null, pacote = null, onFechar, onIr, onAbrirTipo, extra = null }) {
     const qc = useQueryClient();
     const editando = !!rito?.id;
     // Duplicar: nasce como rito novo, já com as fases do original (sem criar tipo junto).
     const [lendo, setLendo] = useState(false);
     const [colado, setColado] = useState('');
-    const [p0] = useState(() => (editando ? deRito(rito) : copia ? deRito({ ...copia, id: undefined, nome: `${copia.nome} (cópia)` }) : null));
+    // Pacote de outro órgão: já casado com as unidades, modelos e páginas deste.
+    const { paginas: paginasDoOrgao } = useContext(RegistroContexto);
+    const [doPacote] = useState(() => (pacote && !editando ? propostaDePacote(pacote, estado, paginasDoOrgao) : null));
+    const [p0] = useState(() => (editando ? deRito(rito) : copia ? deRito({ ...copia, id: undefined, nome: `${copia.nome} (cópia)` }) : doPacote ? doPacote.proposta : null));
     const [p, setP] = useState(p0); // proposta vinculada
     const [inicial] = useState(() => (p0 ? JSON.stringify(p0) : null));
     // Já há tipos ativos no órgão: o rito novo não cria outro tipo, salvo se a pessoa pedir.
     const semTipos = !(estado.tipos || []).some((t) => t.ativo !== false);
-    const [tipo, setTipo] = useState({ criar: !editando && !copia && semTipos, nome: '', sigla: '' });
+    const [tipo, setTipo] = useState(() => (doPacote?.tipo ? { criar: true, ...doPacote.tipo } : { criar: !editando && !copia && semTipos, nome: '', sigla: '' }));
 
     // Desfazer e refazer a revisão (só nesta tela; o rascunho guarda o estado atual).
     // Edições seguidas em menos de 0,7 s (digitar) viram um passo só; mudanças de estrutura, um passo cada.
@@ -301,7 +307,20 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
         if (!file) return;
         if (file.size > MAX_MB * 1024 * 1024) { toast.error(`Arquivo acima de ${MAX_MB} MB`); return; }
         setLendo(true);
-        try { carregar(await lerArquivo(file, orgId), file.name.replace(/\.[^.]+$/, '')); } catch (err) { toast.error(err?.message || 'Não foi possível ler o arquivo'); } finally { setLendo(false); }
+        try {
+            if (/\.json$/i.test(file.name)) {
+                // Pacote de outro órgão: o rito vem inteiro, com todas as regras.
+                const pac = lerPacote(await file.text());
+                if (pac.conteudo !== 'rito') throw new Error('Este pacote é de um modelo de documento: importe em Documentos, "Importar de arquivo".');
+                const { proposta, tipo: t } = propostaDePacote(pac, estado, paginasDoOrgao);
+                if (trocar) { editarP({ ...proposta, ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
+                setP(proposta);
+                setTipo(t ? { criar: true, ...t } : { criar: semTipos, nome: proposta.nome, sigla: '' });
+                setConfirmar(false);
+                return;
+            }
+            carregar(await lerArquivo(file, orgId), file.name.replace(/\.[^.]+$/, ''));
+        } catch (err) { toast.error(err?.message || 'Não foi possível ler o arquivo'); } finally { setLendo(false); }
     };
     const usarColado = async () => {
         setLendo(true);
@@ -577,9 +596,10 @@ function Revisao({
         modelos: p.modelos.map((m) => (m.unidade_ref === ref ? { ...m, unidade_ref: id } : m)),
     });
     const trocarModelo = (ref, id) => setP({
-        ...p, modelos: p.modelos.filter((m) => m.ref !== ref),
-        fases: p.fases.map((f) => ({ ...f, modelos_ref: [...new Set((f.modelos_ref || []).map((x) => (x === ref ? id : x)).filter(Boolean))] })),
+        ...p, modelos: p.modelos.filter((m) => m.ref !== ref), fases: trocarModeloNasFases(p.fases, ref, id),
     });
+    // Modelo indicado de documento exigido pode ser um dos modelos novos da implantação.
+    const modelosParaIndicar = useMemo(() => [...(estado.modelos || []), ...p.modelos.map((m) => ({ id: m.ref, nome: `${m.nome} (novo)` }))], [estado.modelos, p.modelos]);
     const usadosUn = useMemo(() => new Set([...p.fases.map((f) => f.unidade_ref), ...p.modelos.map((m) => m.unidade_ref)].filter(Boolean)), [p]);
     const usadosMod = useMemo(() => new Set(p.fases.flatMap((f) => f.modelos_ref || [])), [p]);
     const unNovas = p.unidades.filter((u) => usadosUn.has(u.ref));
@@ -726,7 +746,7 @@ function Revisao({
                             {p.fases.map((f, i) => (
                                 <CartaoFase key={f.id} f={f} i={i} total={p.fases.length} fases={p.fases} existentes={existentes} unidadesNovas={p.unidades}
                                     aberta={abertas.has(f.id)} onAlternar={() => alternar(f.id)} selecionada={sel === f.id} pendente={comPendencia.has(f.id)} unidadeNome={nomeUnidade(f.unidade_ref)}
-                                    nomeModelo={nomeModelo} modelos={estado.modelos || []} mudar={(d, origem) => mudarFase(f.id, d, origem)} ligadas={ligadas}
+                                    nomeModelo={nomeModelo} modelos={modelosParaIndicar} mudar={(d, origem) => mudarFase(f.id, d, origem)} ligadas={ligadas}
                                     mover={(d) => { mover(i, d); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${i + d + 1} de ${p.fases.length}.`); }}
                                     moverPara={(para) => { moverPara(i, para); anunciar(`${nomeFase(f, i).replace(/^a /, 'A ')} foi para a posição ${para + 1} de ${p.fases.length}.`); }} remover={() => remover(f.id)}
                                     inserirAbaixo={() => inserirAbaixo(i)} duplicar={() => duplicar(i)}

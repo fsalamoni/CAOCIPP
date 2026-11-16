@@ -11,10 +11,11 @@ import { arquivoParaBase64, baixarBase64, secConfig } from '@/services/secretari
 import { CAMPOS_MODELO } from './EditorDocumento';
 import { chaveCampo } from '@/lib/camposProcesso';
 import { variaveisDisponiveis } from '@/lib/exigencias';
+import { lerPacote } from '@/lib/pacoteModelos';
 import { PreviaFolha } from './ConfiguracaoDocumentos';
 
 const MAX_MB = 5;
-const ACEITOS = '.docx,.pdf,.html,.htm,.txt';
+const ACEITOS = '.docx,.pdf,.html,.htm,.txt,.json';
 const MIME_POR_EXT = {
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', pdf: 'application/pdf',
     html: 'text/html', htm: 'text/html', txt: 'text/plain',
@@ -49,7 +50,24 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, orgao
     const fechar = () => { setArquivo(null); setProposta(null); setModo('editor'); setAplicarTimbre(false); onFechar(); };
 
     const escolher = async (e) => {
-        const a = await lerArquivo(e.target.files?.[0]);
+        const file = e.target.files?.[0];
+        if (file && /\.json$/i.test(file.name)) {
+            // Pacote de outro órgão: o texto do modelo vem pronto; abre no editor para revisar e salvar aqui.
+            e.target.value = '';
+            try {
+                if (file.size > MAX_MB * 1024 * 1024) throw new Error(`Arquivo acima de ${MAX_MB} MB`);
+                const pac = lerPacote(await file.text());
+                if (pac.conteudo !== 'documento') throw new Error('Este pacote é de um rito: importe na aba Ritos, em "Importar de outro órgão".');
+                const m = pac.modelo;
+                onEditar({
+                    nome: String(m.nome).slice(0, 120), tipo_documento: String(m.tipo_documento || '').slice(0, 60), descricao: String(m.descricao || 'Importado de outro órgão.').slice(0, 500),
+                    ativo: true, conteudo: m.conteudo, unidade_id: unidadeId || null, orgao_id: orgaoId,
+                });
+                fechar();
+            } catch (err) { toast.error(err?.message || 'Não foi possível ler o arquivo'); }
+            return;
+        }
+        const a = await lerArquivo(file);
         e.target.value = '';
         if (!a) return;
         setLendo(true);
@@ -124,6 +142,7 @@ export default function ImportarModelo({ aberto, orgId, estado, unidadeId, orgao
                     <DialogDescription>
                         Envie um Word (.docx), PDF, HTML ou TXT. O sistema lê o texto, o cabeçalho, o rodapé e as imagens e marca campos como
                         {' '}<span className="font-mono">{'{{numero}}'}</span>, <span className="font-mono">«Data»</span> ou <span className="font-mono">[NÚMERO DO PROCESSO]</span> para preenchimento automático.
+                        {' '}Modelo vindo de outro órgão: envie o .json baixado lá em &quot;Exportar para outro órgão&quot;; ele abre no editor para você revisar e salvar aqui.
                     </DialogDescription>
                 </DialogHeader>
 
