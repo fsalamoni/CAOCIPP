@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Documentação de referência revista
+- Visão geral, funcionalidades, arquitetura, segurança, glossário, guia de
+  desenvolvimento, lógica processual, guia de implantação, catálogo de
+  modelos, índice e README passam a cobrir sessões de julgamento e reuniões,
+  disputa de preços, biblioteca da plataforma × cópia do órgão e pacote para
+  outro órgão, com as rotas `/Portal`, `/Disputas`, `/Conferir` e
+  `/MeusProcessosEletronicos` e as coleções novas.
+- Na plataforma, a Central de Ajuda ganha "Sessões e colegiados", "Disputa
+  de preços" e "Ritos e modelos do órgão", e o guia de implantação da tela
+  explica como trazer o rito de outro órgão.
+
 ### 16/11/2026 — Levar rito e modelo de documento a outro órgão
 - Em Ritos, "Exportar para outro órgão" baixa o rito inteiro, com todas as
   regras, as unidades e os modelos de documento que usa (com o texto) e o

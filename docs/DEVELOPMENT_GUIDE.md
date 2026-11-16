@@ -141,6 +141,18 @@ Os três rodam no CI. Ao mudar uma regra do Firestore, acrescente o caso em
 - **Documentação no mesmo PR.** Toda mudança de comportamento, dados, telas,
   permissões ou estrutura atualiza os documentos correspondentes em `docs/`
   (ver o índice em [README.md](./README.md)).
+- **Processo Eletrônico: modelos da plataforma × do órgão.** Modelos de rito
+  da plataforma ficam em `src/lib/modelos/<área>.js` (DSL em `dsl.js`) e são
+  só leitura; nada no banco os representa. Depois de mudar um modelo,
+  regenere o catálogo de [MODELOS_DE_RITO.md](./MODELOS_DE_RITO.md). Toda
+  ferramenta nova do rito (um `pede` novo, uma opção da fase) entra no editor
+  (`RegrasDaFase.jsx`, `PropostaRito.jsx`) para qualquer rito, com a
+  explicação no Guia do rito (`GuiaRito.jsx`, o glossário é travado por
+  teste), e passa pelo pacote para outro órgão (`shared/pacoteRito.ts`) se
+  citar id do órgão (unidade, modelo ou página).
+- **Lógica processual.** Antes de mexer no Processo Eletrônico, leia
+  [LOGICA_PROCESSUAL.md](./LOGICA_PROCESSUAL.md): o que vai aos autos, o que
+  as partes veem e o que fica interno. Nada interno vai às partes.
 
 ---
 

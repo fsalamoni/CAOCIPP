@@ -24,8 +24,10 @@
 | [PARCERIAS.md](./PARCERIAS.md) | Convênios, Termos de Cooperação e de Fomento, aditivos, avisos, extinção |
 | [JURIMETRIA.md](./JURIMETRIA.md) | Base de júris, importação, relatórios e exportação |
 | [PANORAMA.md](./PANORAMA.md) | Bases analíticas de qualquer área a partir de planilhas |
-| [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md) | Processo Eletrônico: processo eletrônico com ritos, unidades, documentos, assinatura, folhas, portal das partes e conferência pública |
+| [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md) | Processo Eletrônico: ritos, unidades, documentos, assinatura, folhas, comunicações, audiências, sessões de julgamento e reuniões de colegiado, disputa de preços, portal das partes, conferência pública e pacote para outro órgão |
 | [LOGICA_PROCESSUAL.md](./LOGICA_PROCESSUAL.md) | Guia de domínio do Processo Eletrônico: ato do processo × trabalho interno, o que vai para os autos, o que a capa mostra. **Leia antes de mexer no módulo** |
+| [MODELOS_DE_RITO.md](./MODELOS_DE_RITO.md) | Catálogo dos modelos de rito da biblioteca da plataforma (gerado a partir de `src/lib/modelos/`) |
+| [GUIA_IMPLANTACAO.md](./GUIA_IMPLANTACAO.md) | Passo a passo para um órgão implantar o Processo Eletrônico (o mesmo guia aparece na tela) |
 
 ## Técnica
 

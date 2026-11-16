@@ -6,6 +6,8 @@ Nenhum modelo é penal. Os sancionadores são administrativos (disciplinar, éti
 
 Muitos modelos seguem o rito de uma instituição: o TED da OAB/RS, o processo ético-disciplinar e a fiscalização do CAU, os provimentos do MPRS e as resoluções do CNMP, a câmara de conciliação, os acordos e a dívida ativa da AGU, e os ritos correcionais e a leniência da CGU. O filtro **Inspirado em** mostra a origem de cada um. Onde a pesquisa não confirmou um artigo ou prazo, a base diz "conferir na norma vigente".
 
+Os modelos são da plataforma e ficam no código (`src/lib/modelos/`); nenhum órgão os altera. Usar um modelo grava uma cópia que é só do órgão, no banco do órgão: ela se ajusta à vontade e não muda quando a plataforma atualiza o modelo. Toda ferramenta que um modelo usa (julgamento em sessão, disputa de preços, audiência, comunicação, formulário, documento exigido, andamento automático) também está no editor para qualquer rito do órgão. Para levar um rito pronto a outro órgão, use "Exportar para outro órgão" no menu do rito e, lá, "Importar de outro órgão" (Guia do rito, parte 20).
+
 ## Como usar
 
 1. Em **Novo rito**, abra a **Biblioteca de modelos de processo**. Ela é uma seção que abre e fecha pelo título, e a tela lembra a escolha de cada pessoa. Fechada, mostra só as áreas com a contagem; clicar numa área abre a biblioteca já filtrada.

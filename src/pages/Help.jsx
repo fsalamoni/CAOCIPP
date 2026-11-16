@@ -136,9 +136,9 @@ export default function Help() {
         <CardContent className="space-y-6">
           <p className="text-sm text-slate-600 dark:text-slate-300">
             Módulo opcional do órgão para tramitar processos próprios: autuação, ritos com fases, documentos assinados e numerados,
-            prazos, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo no Painel Administrativo, seção Processo Eletrônico.
+            prazos, comunicações, audiências, sessões de colegiado, disputa de preços, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo no Painel Administrativo, seção Processo Eletrônico.
             Ligado, ele aparece entre as páginas do órgão, na barra do alto e no menu lateral, e as abas internas
-            (Meu trabalho, Caixa, Todos, Painel, Unidades) ficam no endereço: recarregar ou compartilhar o link mantém a aba.
+            (Meu trabalho, Caixa, Mesa de decisão, Sessões, Todos, Painel, Unidades) ficam no endereço: recarregar ou compartilhar o link mantém a aba.
           </p>
           <div className="grid md:grid-cols-2 gap-6">
             <FeatureCard
@@ -182,6 +182,36 @@ export default function Help() {
                 "Minhas manifestações mostram o comprovante com código de verificação",
                 "Advogado ou procurador: a secretaria convida o representante, que entra com a própria conta e fala pela parte",
                 "Membro do órgão que é parte em um processo só o alcança pelo portal (menu: Processos em que sou parte); nele, não é o órgão",
+              ]}
+            />
+            <FeatureCard
+              icon={Gavel}
+              title="Sessões e colegiados"
+              items={[
+                "Na aba Sessões, a secretaria do colegiado monta a sessão, a pauta e publica; reuniões deliberam sem processo",
+                "Quem julga lê os autos enquanto o processo está pautado (cada leitura fica registrada) e anota só para si",
+                "Relator e vogais votam; há vista, adiamento, divergência, voto condutor e acórdão; a sessão pode ser virtual",
+                "O resultado proclamado cumpre a ação de julgamento do rito; ata, painel ao vivo e relatório do colegiado",
+              ]}
+            />
+            <FeatureCard
+              icon={FileText}
+              title="Disputa de preços"
+              items={[
+                "Ação do rito que pede uma disputa: cotação privada entre convidados ou dispensa",
+                "O fornecedor convidado envia proposta e lances em Disputas; as propostas ficam sigilosas até a abertura",
+                "Agente, apoio e autoridade têm papéis próprios; o fornecedor não é parte e não vê os autos",
+                "O resultado (homologada, deserta ou fracassada) cumpre a ação e segue o rito",
+              ]}
+            />
+            <FeatureCard
+              icon={Building2}
+              title="Ritos e modelos do órgão"
+              items={[
+                "Em Ritos, Novo rito: comece de um modelo da biblioteca, de um arquivo ou em branco",
+                "Os modelos da biblioteca são da plataforma; usar um cria uma cópia só do seu órgão, que a biblioteca não altera",
+                "Toda ferramenta dos modelos (sessão, disputa, audiência, comunicação, formulário) está no editor para qualquer rito",
+                "Exportar para outro órgão e Importar de outro órgão levam o rito inteiro ou um modelo de documento, sem dados do seu órgão",
               ]}
             />
           </div>

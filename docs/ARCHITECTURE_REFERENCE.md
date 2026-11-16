@@ -138,7 +138,7 @@ fase), `validators.ts` (requisitos de fase das Parcerias), `permissions.ts`
 (atribuições), `fields.ts` (aliases de campos), `phaseDates.ts`, `history.ts`,
 `normalization.ts`, `webhooks.ts`, `email.ts`, `jurimetria.ts`, `panorama.ts`.
 
-#### Processo Eletrônico (`secUnidades`, `secUnidadeConfig`, `secConvitesEquipe`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secConfig`, `secModelos`, `secVerificacao`, `secProcessos` + subcoleções `movimentos` e `documentos`)
+#### Processo Eletrônico (`secUnidades`, `secUnidadeConfig`, `secConvitesEquipe`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secConfig`, `secModelos`, `secVerificacao`, `secPortalAcessos`, `secLimites`, `secProcessos` + subcoleções `movimentos`, `documentos`, `salas` e `leituras`, `secSessoes` + `votacoes`, `pedidos` e `deliberacoes`, `secCertames` + `propostas`, `lances`, `participantes`, `mensagens` e `sala`)
 **Purpose:** Processo eletrônico do órgão. Fechadas ao cliente; tudo passa pelas
 functions `secretaria*`. Arquivos no Cloud Storage em
 `secretaria/{org}/{processo}/{documento}` (e `.pdf` ao lado, para textos
@@ -148,6 +148,19 @@ Word e Excel convertidos no servidor com `mammoth` e `xlsx`; editor no
 navegador com TipTap. Página pública `/Conferir` e alerta diário de prazos
 (`secretariaAlertaPrazos`, Cloud Scheduler). Modelo completo em
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
+
+Functions: `secretariaConfig` (configuração, ritos, tipos, modelos,
+unidades, pacote para outro órgão), `secretariaProcesso` (autuação,
+andamento, comunicações, audiências, sessões, reuniões, salas e certames),
+`secretariaDocumento` (redação, assinatura, juntada, arquivos),
+`secretariaExportarPdf`, `secretariaPortal` (portal das partes e
+fornecedores da disputa), `secretariaPlataforma` (super-admin),
+`secretariaConferir` e `secretariaAlertaPrazos`. Regras puras e testadas em
+`functions-v2/src/shared/` (rito e exigências, julgamento, sessões,
+reuniões, certames, audiências, comunicações, pacote do rito), com espelho
+para a tela em `src/lib/`. Os modelos de rito da plataforma ficam no código
+(`src/lib/modelos/`, catálogo em [MODELOS_DE_RITO.md](./MODELOS_DE_RITO.md));
+o banco guarda só os ritos e modelos de cada órgão.
 
 ---
 
@@ -171,6 +184,7 @@ navegador com TipTap. Página pública `/Conferir` e alerta diário de prazos
 | `otpCodes/{uid}` | Códigos de 2FA (hash), inacessíveis ao cliente |
 | `platformConfig/{doc}` | Feature flags e configuração global |
 | `platformAdmins/{uid}`, `platformStats/{doc}` | Super-admins e estatísticas da plataforma |
+| `sec*` | Processo Eletrônico (processos, ritos, tipos, unidades, modelos, sessões, certames e o que segue acima), fechadas ao cliente |
 
 As regras de cada coleção estão em [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md#2-regras-do-firestore).
 

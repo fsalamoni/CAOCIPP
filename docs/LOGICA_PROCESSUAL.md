@@ -460,6 +460,9 @@ informado.
 | Impulso automático | `fase.avanco: 'auto'` (`saidaAutomatica`; dispara ao cumprir ação obrigatória e ao juntar ou guardar documento em fase que exige algo, `exigeAlgo`), `fase.ao_entrar.arquivar` e `fase.situacao_registro` (coluna da consulta ou do expediente ligado, ou fase do registro de uma página própria, pelas regras de transição da página; `functions-v2/src/shared/situacaoRegistro.ts`) e `tipo.cria_registro` (a autuação cria o registro da página, que passa a ser o conduzido; `functions-v2/src/shared/registroCriado.ts`), aplicados em `functions-v2/src/secretaria/processos.ts` |
 | Impedimento de parte | `ehParte` em `functions-v2/src/shared/secretaria.ts` |
 | Competência para o ato | `fase.permissoes` (concluir, dispensar, desviar, situacao) e `acoes_regras[i].quem` com `atribuicao`; `functions-v2/src/shared/permissoesFase.ts`, conferido em `exigirSaida`, `exigirDispensa`, `marcarAcao` e `alterarStatus` (`processos.ts`) |
+| Julgamento colegiado | Ação `pede: 'julgamento'` (`acoes_regras[i].julgamento`: resultados, quórum, desempate; `functions-v2/src/shared/julgamento.ts`), registrada direto ou pela sessão do colegiado (`secSessoes`, `functions-v2/src/shared/sessoes.ts`); o resultado proclamado cumpre a ação, a certidão vai aos autos e o acórdão fica em `secProcessos.acordao` |
+| Disputa de preços | Ação `pede: 'disputa'` (`acoes_regras[i].disputa.perfil`: cotação ou dispensa); o certame fica fora dos autos em `secCertames` e o resultado (homologada, deserta ou fracassada) cumpre a ação (`registrarResultadoDaDisputa` em `processos.ts`); o fornecedor não é parte |
+| Modelos da plataforma × do órgão | Modelos de rito no código (`src/lib/modelos/`), só leitura; o órgão grava a própria cópia em `secRitos`. Pacote para outro órgão: `exportarRito` (`functions-v2/src/shared/pacoteRito.ts`) e importação pela revisão de sempre (`src/lib/pacoteModelos.js`, `aplicarPropostaRito`) |
 
 ## 12. Antes de mexer no Processo Eletrônico
 
@@ -473,6 +476,9 @@ informado.
 - [ ] Processos antigos continuam abrindo (campos ausentes têm padrão)?
 - [ ] A cadeia de hash e a numeração de folhas não mudam para o passado?
 - [ ] O rito comum (sem nada configurado) se comporta como antes?
+- [ ] A ferramenta nova está no editor para qualquer rito (não só num
+      modelo), explicada no Guia do rito, e, se cita id do órgão (unidade,
+      modelo, página), passa pelo pacote para outro órgão?
 - [ ] Os documentos `PROCESSO_ELETRONICO.md`, este guia e o `CHANGELOG.md`
       foram atualizados?
 
