@@ -220,7 +220,7 @@ com o menu na tela. Dentro das páginas, as abas pesadas também são sob
 demanda: na página do órgão, Jurimetria, Panorama, Resumos, Calendário,
 Administração e páginas próprias; no Processo Eletrônico, a tela do processo
 (com o editor), Sessões e Painel; a exportação para Excel e PDF só no clique.
-Firebase e React ficam em `vendor-firebase` e `vendor-react`
+Firebase e React ficam em `vendor-firebase` e `vendor-react` (o Storage, usado só no envio de arquivo, fica à parte em `vendor-firebase-storage`)
 (`manualChunks` no `vite.config.js`), que mudam pouco e continuam no cache do
 navegador de um deploy para outro. Depois de um deploy, uma aba antiga que
 pede um arquivo que não existe mais recarrega uma vez sozinha
